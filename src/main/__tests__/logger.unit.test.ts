@@ -30,7 +30,10 @@ describe('file logger', () => {
     drainFileLogger = mod.drainFileLogger
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // A test that logs without draining would otherwise write its batch after the next test
+    // reset the module, recreating a file a prune test expects gone.
+    await drainFileLogger()
     vi.useRealTimers()
     vi.unstubAllEnvs()
     vi.restoreAllMocks()
@@ -112,11 +115,9 @@ describe('file logger', () => {
   })
 
   it('prunes old Session Host logs with the GUI logs, under one retention policy', async () => {
-    const oldDate = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
-    const oldHostLog = path.join(
-      mockLogsDir,
-      `openwaggle-host-${oldDate.toISOString().slice(0, 10)}.log`,
-    )
+    // A fixed past day no other test logs to, so no late write can recreate or touch it.
+    const oldDate = new Date('2026-01-04T12:00:00Z')
+    const oldHostLog = path.join(mockLogsDir, 'openwaggle-host-2026-01-04.log')
     fs.writeFileSync(oldHostLog, 'old host log')
     fs.utimesSync(oldHostLog, oldDate, oldDate)
 
@@ -154,13 +155,11 @@ describe('file logger', () => {
   })
 
   it('prunes old log files on init', async () => {
-    // Create an old log file (4 days ago)
-    const oldDate = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const oldFile = path.join(mockLogsDir, `openwaggle-${oldDate}.log`)
+    // An old log file from a fixed past day no other test logs to.
+    const oldFile = path.join(mockLogsDir, 'openwaggle-2026-01-04.log')
     fs.writeFileSync(oldFile, 'old log content')
-    // Set mtime to 4 days ago
-    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
-    fs.utimesSync(oldFile, fourDaysAgo, fourDaysAgo)
+    const oldDate = new Date('2026-01-04T12:00:00Z')
+    fs.utimesSync(oldFile, oldDate, oldDate)
 
     // Trigger logger init and await pruning completion
     await initFileLogger(mockLogsDir)

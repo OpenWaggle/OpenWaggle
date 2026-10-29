@@ -33,9 +33,28 @@ export interface SessionEmbeddingProcessConfig {
 
 /*
  * One request at a time, in order. ONNX threads are capped so a batch does not take every core.
- * The parent's `disconnect` (or its exit) ends the child.
+ * The parent's `disconnect` (or its exit) ends the child. The child kills itself with SIGKILL
+ * instead of `process.exit()`: a normal exit runs onnxruntime-node's static `Ort::Env`
+ * destructor, which calls `std::terminate()` once the model is loaded. The resulting SIGABRT made
+ * macOS show "OpenWaggle quit unexpectedly" every time the child went idle. A thrown error or an
+ * unhandled rejection after the model loads would exit, and abort, the same way, so it is written
+ * to stderr (the parent keeps the tail) and the child is killed. There is nothing to flush, and
+ * the OS reclaims the memory either way.
  */
 const EMBEDDING_PROCESS_SOURCE = `
+function die(error) {
+  let text = 'embedding child: unprintable error'
+  try {
+    text = String((error && error.stack) || error)
+  } catch {}
+  try {
+    process.stderr.write(text + '\\n', () => process.kill(process.pid, 'SIGKILL'))
+  } catch {
+    process.kill(process.pid, 'SIGKILL')
+  }
+}
+process.on('uncaughtException', die)
+process.on('unhandledRejection', die)
 const config = JSON.parse(process.argv[process.argv.length - 1])
 const transformers = require(config.transformersPath)
 let extractor
@@ -64,7 +83,7 @@ process.on('message', (message) => {
     }
   })
 })
-process.on('disconnect', () => process.exit(0))
+process.on('disconnect', () => process.kill(process.pid, 'SIGKILL'))
 `
 
 const EmbeddingProcessMessage = Schema.Union(
@@ -95,7 +114,7 @@ export function embeddingChildEnv(platform: NodeJS.Platform = process.platform) 
   return { ...getNativeRuntimeChildEnv(platform), ELECTRON_RUN_AS_NODE: '1' }
 }
 
-const spawnEmbeddingChild: EmbeddingChildFactory = (config) =>
+export const spawnEmbeddingChild: EmbeddingChildFactory = (config) =>
   spawn(process.execPath, ['-e', EMBEDDING_PROCESS_SOURCE, config], {
     env: embeddingChildEnv(),
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],

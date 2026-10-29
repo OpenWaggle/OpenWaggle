@@ -1,8 +1,10 @@
+import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MultilingualE5SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
+import { SessionEmbeddingProcess, spawnEmbeddingChild } from '../session-embedding-process'
 import { EMBEDDING_INFERENCE_BATCH_SIZE } from '../sqlite-session-semantic-projection'
 import { TRANSCRIPT_EMBEDDING_INFERENCE_BATCH_SIZE } from '../sqlite-session-transcript-semantic-projection'
 
@@ -44,6 +46,46 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 5_000) {
   }
 }
 
+interface RecordedEmbeddingProcess {
+  readonly embedding: SessionEmbeddingProcess
+  readonly children: ChildProcess[]
+  readonly exits: { code: number | null; signal: NodeJS.Signals | null }[]
+}
+
+/** The real embedding child, with its process handle and how it ended recorded. */
+function recordedEmbeddingProcess(
+  transformersPath: string,
+  idleExitMs?: number,
+): RecordedEmbeddingProcess {
+  const children: ChildProcess[] = []
+  const exits: RecordedEmbeddingProcess['exits'] = []
+  const embedding = new SessionEmbeddingProcess(
+    () => ({ modelId: 'model', revision: 'main', dtype: 'q8' }),
+    {
+      transformersPath,
+      ...(idleExitMs === undefined ? {} : { idleExitMs }),
+      spawnChild: (config) => {
+        const child = spawnEmbeddingChild(config)
+        children.push(child)
+        child.on('exit', (code, signal) => exits.push({ code, signal }))
+        return child
+      },
+    },
+  )
+  return { embedding, children, exits }
+}
+
+/**
+ * The child ended by its own SIGKILL: a normal exit would run onnxruntime-node's static `Ort::Env`
+ * destructor, which aborts. The parent never signalled it, so its grace kill did not do this.
+ */
+function expectKilledItself({ children, exits }: RecordedEmbeddingProcess) {
+  expect(children.map((child) => child.killed)).toEqual([false])
+  // Windows has no signals: libuv's SIGKILL is `TerminateProcess(handle, 1)`.
+  if (process.platform === 'win32') expect(exits).toEqual([{ code: 1, signal: null }])
+  else expect(exits).toEqual([{ code: null, signal: 'SIGKILL' }])
+}
+
 describe('Session embedding off the Host (D3)', () => {
   it('embeds in a child process that exits when idle and starts again on demand', async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
@@ -77,13 +119,30 @@ describe('Session embedding off the Host (D3)', () => {
     expect(model.isLoaded).toBe(false)
   })
 
-  it('fails a pending embedding when the child cannot load the model', async () => {
+  it('ends an idle child with SIGKILL so onnxruntime exit teardown cannot abort it', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
+    directories.push(directory)
+    const recorded = recordedEmbeddingProcess(fakeTransformers(directory).file, 100)
+
+    await recorded.embedding.embed(['a'])
+    // Well inside `stop()`'s 5 s grace kill, so only the child's own kill can pass.
+    await waitUntil(() => recorded.exits.length === 1, 2_000)
+    expectKilledItself(recorded)
+  })
+
+  it.each([
+    ['throws while it loads', "throw new Error('no onnxruntime here')", 'no onnxruntime here'],
+    ['leaves a rejection unhandled', "Promise.reject(new Error('rejected load'))", 'rejected load'],
+    ['throws a value that cannot be printed', 'throw Object.create(null)', 'unprintable error'],
+  ])('fails a pending embedding and kills a child that %s', async (_case, source, message) => {
     const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
     directories.push(directory)
     const broken = path.join(directory, 'broken.cjs')
-    writeFileSync(broken, "throw new Error('no onnxruntime here')")
-    const model = new MultilingualE5SessionEmbeddingModel({ transformersPath: broken })
-    await expect(model.embedPassages(['a'])).rejects.toThrow('no onnxruntime here')
+    writeFileSync(broken, source)
+    const recorded = recordedEmbeddingProcess(broken)
+
+    await expect(recorded.embedding.embed(['a'])).rejects.toThrow(message)
+    expectKilledItself(recorded)
   })
 
   it('embeds at most eight passages per inference call', () => {
