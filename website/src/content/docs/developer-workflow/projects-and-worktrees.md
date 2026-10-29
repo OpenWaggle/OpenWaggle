@@ -43,7 +43,7 @@ The initial checkout/worktree choice is fixed after the session starts. To begin
 
 ## Manage worktrees
 
-Open **Settings > Worktrees** to list and remove session worktrees. Review and preserve any work you need before removal. They are stored outside your project under `~/.openwaggle/worktrees/`.
+Open **Settings > Worktrees** to see how much space session worktrees take and remove them, by hand or automatically once their sessions have been archived for a while. Archiving a session keeps its worktree. Removal keeps the branch but deletes the folder and its ignored files. They are stored outside your project under `~/.openwaggle/worktrees/`.
 
 Configured cleanup runs before actual removal, after the final session releases the workspace and managed action processes stop. If cleanup fails, OpenWaggle keeps the checkout and offers **Retry cleanup** or **Delete anyway**. Deleting anyway can leave resources such as temporary databases behind.
 

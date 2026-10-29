@@ -78,11 +78,15 @@ export async function captureScheduledTasks(context: CaptureContext) {
   await closeRightPanel(context.page)
 }
 
-/** Settings > Worktrees with the project's managed worktrees and the Sessions that own them. */
+/**
+ * Settings > Worktrees: storage, Automatic cleanup, and the project's managed worktrees with the
+ * Sessions that own them. Their Sessions are open, so they are In use, which starts collapsed.
+ */
 export async function captureSettingsWorktrees(context: CaptureContext) {
   const { page } = context
   await page.getByRole('button', { name: 'Settings' }).first().click()
   await page.getByRole('button', { name: 'Worktrees' }).first().click()
+  await page.getByRole('button', { name: /^In use/ }).first().click({ timeout: UI_TIMEOUT_MS })
   await page.getByText(sessionWorktreeBranchForId(SCREENSHOT_WORKTREE_IDS[0])).first().waitFor({ timeout: UI_TIMEOUT_MS })
   await shoot(context, 'settings-worktrees.png')
   await page.getByRole('button', { name: 'Back to app' }).first().click()

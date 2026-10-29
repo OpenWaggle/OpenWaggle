@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatDuration, formatRelativeTime, projectName, truncate } from '../format'
+import { formatBytes, formatDuration, formatRelativeTime, projectName, truncate } from '../format'
 
 describe('formatDuration', () => {
   it('formats milliseconds and seconds correctly', () => {
@@ -46,5 +46,16 @@ describe('projectName', () => {
     expect(projectName('/Users/diego/OpenWaggle')).toBe('OpenWaggle')
     expect(projectName('C:\\Users\\runner\\OpenWaggle')).toBe('OpenWaggle')
     expect(projectName('C:\\Users\\runner\\OpenWaggle\\')).toBe('OpenWaggle')
+  })
+})
+
+describe('formatBytes', () => {
+  it('reads like disk space: 1024-based, one decimal below ten units', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(1023)).toBe('1023 B')
+    expect(formatBytes(1024)).toBe('1.0 KB')
+    expect(formatBytes(2.5 * 1024 * 1024)).toBe('2.5 MB')
+    expect(formatBytes(312 * 1024 * 1024)).toBe('312 MB')
+    expect(formatBytes(3 * 1024 ** 5)).toBe('3072 TB')
   })
 })
