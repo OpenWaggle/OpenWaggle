@@ -74,11 +74,16 @@ function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
 }
 
 /** The mocked operations need only Git's worktree list. */
-function run(path = WORKTREE, sessionIds: readonly string[] = ['open', 'done']) {
+function run(
+  path = WORKTREE,
+  sessionIds: readonly string[] = ['open', 'done'],
+  flags: { readonly keepWorktree?: boolean } = {},
+) {
   const provided = archiveAndRemoveWorktreeOperation(PROJECT, {
     path,
     sessionIds,
     force: true,
+    ...flags,
   }).pipe(Effect.provide(gitLayer))
   return Effect.runPromise(
     fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown, never>, typeof provided>(
@@ -180,6 +185,17 @@ describe('Archive & remove', () => {
       force: true,
       lockOnly: true,
     })
+  })
+
+  it('archives only, and keeps the worktree, for Archive Sessions', async () => {
+    mocks.usage.mockReturnValue(usage())
+    await expect(run(WORKTREE, ['open', 'done'], { keepWorktree: true })).resolves.toEqual({
+      ok: true,
+      path: WORKTREE,
+      message: 'Archived 1 Session. The worktree is kept under Needs a decision.',
+    })
+    expect(mocks.dispatch).toHaveBeenCalledOnce()
+    expect(mocks.remove).not.toHaveBeenCalled()
   })
 
   it('refuses a folder that is not a registered linked worktree', async () => {

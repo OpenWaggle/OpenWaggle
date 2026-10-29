@@ -82,8 +82,8 @@ function refused(message: string): GitWorktreeMutationResult {
 
 /**
  * `worktrees:archive-and-remove`: archive every Session working in the worktree, then remove it
- * as Settings removal does, which checks every blocker again (ADR 0060). Archiving cannot be
- * undone by this call, but Archived items restores it.
+ * as Settings removal does, which checks every blocker again (ADR 0060). `keepWorktree` stops
+ * after archiving. Archiving cannot be undone by this call, but Archived items restores it.
  */
 export function archiveAndRemoveWorktreeOperation(rawProjectPath: unknown, rawPayload: unknown) {
   return Effect.gen(function* () {
@@ -121,6 +121,13 @@ export function archiveAndRemoveWorktreeOperation(rawProjectPath: unknown, rawPa
         )
       }
       archived += 1
+    }
+    if (payload.keepWorktree) {
+      return {
+        ok: true,
+        path: worktree.path,
+        message: `${archivedCount(archived)}. The worktree is kept under Needs a decision.`,
+      } satisfies GitWorktreeMutationResult
     }
     // Git's registered path: the payload may spell it another way, even relatively.
     /*

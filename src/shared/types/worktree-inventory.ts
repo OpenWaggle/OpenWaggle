@@ -130,6 +130,11 @@ export interface WorktreeArchiveAndRemovePayload {
   readonly sessionIds: readonly string[]
   /** Override Git's lock. Uncommitted changes always keep the worktree: this never discards. */
   readonly force?: boolean
+  /**
+   * Archive the Sessions and stop there ("Archive Sessions", for a worktree that may have
+   * changes): the worktree is kept whatever its state, for an explicit decision later.
+   */
+  readonly keepWorktree?: boolean
 }
 
 export interface AutomaticWorktreeRemovalRemoved {

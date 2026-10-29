@@ -49,6 +49,8 @@ function sendRemoval(request: WorktreeRemovalRequest): Promise<GitWorktreeMutati
       path: request.path,
       sessionIds: request.sessionIds ?? [],
       ...(request.force ? { force: true } : {}),
+      // "Archive Sessions": a worktree that may have changes is kept, whatever Git finds now.
+      ...(request.discardsChanges ? { keepWorktree: true } : {}),
     })
   }
   return api.removeGitWorktree(repositoryPath, {
@@ -104,9 +106,15 @@ export function useWorktreeRemoval() {
     setBusy([request.path], true)
     const result = await attempt(request)
     if (!result.ok) logger.warn('Failed to remove worktree', { code: result.code })
-    const refreshed = await refresh(result.ok ? [request] : [])
+    const kept = request.archiveSessions === true && request.discardsChanges === true
+    const refreshed = await refresh(result.ok && !kept ? [request] : [])
     setBusy([request.path], false)
-    if (!result.ok) showToast(failureToast(result, refreshed, request.path), 'error')
+    if (!result.ok) {
+      showToast(failureToast(result, refreshed, request.path), 'error')
+      return
+    }
+    // Archive Sessions keeps the worktree on purpose; say where it went.
+    if (kept) showToast(result.message, 'success')
   }
 
   /** "Free X": every safe worktree, each checked again by the Host. */

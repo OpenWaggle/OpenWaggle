@@ -31,6 +31,7 @@ export const worktreeArchiveAndRemovePayloadSchema: Schema.Schema<WorktreeArchiv
       Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MAX_SESSION_ID_LENGTH)),
     ).pipe(Schema.maxItems(MAX_NAMED_SESSIONS)),
     force: Schema.optional(Schema.Boolean),
+    keepWorktree: Schema.optional(Schema.Boolean),
   })
 
 export const automaticWorktreeRemovalRunIdSchema = Schema.String.pipe(

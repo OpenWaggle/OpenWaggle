@@ -116,16 +116,29 @@ it('archives the Sessions of a worktree with changes, and keeps the worktree', a
     (await rowTitled('Half done')).getByRole('button', { name: 'Archive Sessions Half done…' }),
   )
   const dialog = await screen.findByRole('dialog', { name: 'Archive its Sessions?' })
-  expect(dialog).toHaveTextContent('so it is kept')
+  expect(dialog).toHaveTextContent('the worktree is kept')
   const confirm = within(dialog).getByRole('button', { name: 'Archive Sessions' })
   await waitFor(() => expect(confirm).toBeEnabled())
+  api.archiveAndRemoveWorktree.mockResolvedValue({
+    ok: true,
+    path: '/wt/dirty',
+    message: 'Archived 1 Session. The worktree is kept under Needs a decision.',
+  })
   fireEvent.click(confirm)
 
-  // No force: the Host keeps a worktree with changes, so nothing is discarded.
+  // Archive only, and no force: the worktree is kept whatever Git finds by now.
   await waitFor(() =>
     expect(api.archiveAndRemoveWorktree).toHaveBeenCalledWith(PROJECT, {
       path: '/wt/dirty',
       sessionIds: ['open'],
+      keepWorktree: true,
+    }),
+  )
+  const { useUIStore } = await import('@/shell/ui-store')
+  await waitFor(() =>
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'Archived 1 Session. The worktree is kept under Needs a decision.',
+      variant: 'success',
     }),
   )
 })
