@@ -130,6 +130,8 @@ export interface WorktreeArchiveAndRemovePayload {
   readonly sessionIds: readonly string[]
   /** Discard uncommitted changes, as Force remove does. */
   readonly force?: boolean
+  /** With `force`, override only Git's lock and still refuse uncommitted changes. */
+  readonly lockOnly?: boolean
 }
 
 export interface AutomaticWorktreeRemovalRemoved {

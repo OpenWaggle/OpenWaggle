@@ -4,6 +4,7 @@ import type {
   WorktreeAttention,
   WorktreeInventoryEntry,
 } from '@shared/types/worktree-inventory'
+import { formatBytes } from '@/shared/lib/format'
 
 const MS_PER_DAY = 86_400_000
 
@@ -80,4 +81,19 @@ export function worktreeEntryMatchesSearch(entry: WorktreeInventoryEntry, search
     entry.branch ?? 'detached',
     ...entry.sessions.map((session) => session.title),
   ].some((value) => value.toLowerCase().includes(needle))
+}
+
+/**
+ * The space some worktrees take, as copy: "about X" once every one is measured, "at least X"
+ * while some are not, and null before any is, so no figure is claimed that was not measured.
+ */
+export function approximateSpace(
+  paths: readonly string[],
+  space: ReadonlyMap<string, number | null | undefined>,
+) {
+  const sizes = paths.map((path) => space.get(path))
+  const measured = sizes.filter((bytes) => typeof bytes === 'number')
+  if (measured.length === 0) return null
+  const total = formatBytes(measured.reduce((sum, bytes) => sum + bytes, 0))
+  return measured.length === sizes.length ? `about ${total}` : `at least ${total}`
 }

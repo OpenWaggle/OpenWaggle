@@ -2,12 +2,12 @@ import { RepositoryPath } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import type { WorktreeInventory } from '@shared/types/worktree-inventory'
 import { useState } from 'react'
-import { formatBytes } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
 import { useRefreshWorktreeInventory } from './use-worktree-inventory'
+import { approximateSpace } from './worktree-inventory-format'
 
 const logger = createRendererLogger('settings')
 
@@ -29,9 +29,17 @@ export interface WorktreeRemovalRequest {
   readonly sessionIds?: readonly string[]
 }
 
+/** Force, and whether it may only override Git's lock: the Host still refuses changes then. */
+function forceFlags(request: WorktreeRemovalRequest) {
+  if (!request.force) return {}
+  return request.ignoresLock && !request.discardsChanges && !request.skipCleanup
+    ? { force: true, lockOnly: true }
+    : { force: true }
+}
+
 function sendRemoval(request: WorktreeRemovalRequest): Promise<GitWorktreeMutationResult> {
   const repositoryPath = RepositoryPath(request.projectPath)
-  const force = request.force ? { force: true } : {}
+  const force = forceFlags(request)
   if (request.archiveSessions) {
     return api.archiveAndRemoveWorktree(repositoryPath, {
       path: request.path,
@@ -115,12 +123,20 @@ export function useWorktreeRemoval() {
     }
     await refresh(removed)
     setBusy(paths, false)
-    const freed = removed.reduce((total, { path }) => total + (sizes.get(path) ?? 0), 0)
+    const freed = approximateSpace(
+      removed.map(({ path }) => path),
+      sizes,
+    )
     const count = `${String(removed.length)} ${removed.length === 1 ? 'worktree' : 'worktrees'}`
-    const summary = `Removed ${count}, freeing about ${formatBytes(freed)}.`
+    const summary = freed === null ? `Removed ${count}.` : `Removed ${count}, freeing ${freed}.`
     if (failed === 0) showToast(summary, 'success')
-    else
-      showToast(`${summary} ${String(failed)} could not be removed and are still listed.`, 'error')
+    else {
+      const kept =
+        failed === 1
+          ? '1 could not be removed and is'
+          : `${String(failed)} could not be removed and are`
+      showToast(`${summary} ${kept} still listed.`, 'error')
+    }
   }
 
   return { busyPaths, remove, removeMany }

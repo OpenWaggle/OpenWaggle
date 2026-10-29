@@ -62,6 +62,17 @@ it('rejects a clean Git-locked worktree before removal side effects', async () =
     message: expect.stringContaining('locked'),
   })
   expect(existsSync(worktreePath)).toBe(true)
+  // Overriding only the lock still refuses uncommitted work, and admits a clean worktree.
+  const lockOnly = { path: worktreePath, force: true, lockOnly: true }
+  await writeFile(join(worktreePath, 'draft.txt'), 'unsaved\n')
+  await expect(validateGitWorktreeRemoval(projectPath, lockOnly)).resolves.toMatchObject({
+    ok: false,
+    code: 'dirty-worktree',
+  })
+  await rm(join(worktreePath, 'draft.txt'))
+  await expect(validateGitWorktreeRemoval(projectPath, lockOnly)).resolves.toMatchObject({
+    ok: true,
+  })
   await expect(
     validateGitWorktreeRemoval(projectPath, { path: worktreePath, force: true }),
   ).resolves.toMatchObject({ ok: true })

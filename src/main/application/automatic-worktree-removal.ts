@@ -3,6 +3,7 @@ import type {
   AutomaticWorktreeRemovalFailure,
   AutomaticWorktreeRemovalRemoved,
   AutomaticWorktreeRemovalRun,
+  WorktreeInventoryEntry,
 } from '@shared/types/worktree-inventory'
 import * as Cause from 'effect/Cause'
 import * as Duration from 'effect/Duration'
@@ -31,6 +32,51 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
+interface PassOutcome {
+  readonly removed: AutomaticWorktreeRemovalRemoved[]
+  readonly failed: AutomaticWorktreeRemovalFailure[]
+}
+
+/**
+ * Removes one worktree the pass found due, if a fresh read just before still finds it due: the
+ * pass may reach it minutes later, and a Session restored and archived again, a new commit or a
+ * failed cleanup since then keeps it.
+ */
+function removeIfStillDue(entry: WorktreeInventoryEntry, now: () => number, outcome: PassOutcome) {
+  return Effect.gen(function* () {
+    const space = yield* WorktreeSpaceService
+    const measured = yield* space.measure(entry.path).pipe(
+      Effect.timeoutOption(AUTOMATIC_WORKTREE_REMOVAL_MEASURE_TIMEOUT),
+      Effect.map(Option.getOrNull),
+      Effect.catchAll(() => Effect.succeed(null)),
+    )
+    const fresh = (yield* listWorktreeInventory(now(), { onlyPath: entry.path })).entries.find(
+      (candidate) => candidate.path === entry.path,
+    )
+    if (fresh?.automaticRemoval.kind !== 'due') return
+    const result = yield* removeHostUiWorktree(fresh.projectPath, { path: fresh.path }).pipe(
+      Effect.catchAll((error) =>
+        Effect.succeed({ ok: false, code: 'unknown', message: errorMessage(error) } as const),
+      ),
+    )
+    if (result.ok) {
+      outcome.removed.push({
+        path: fresh.path,
+        projectPath: fresh.projectPath,
+        branch: fresh.branch,
+        sessionTitles: fresh.sessions.map((session) => session.title),
+        reclaimableBytes: measured?.reclaimableBytes ?? null,
+      })
+    } else {
+      outcome.failed.push({
+        path: fresh.path,
+        projectPath: fresh.projectPath,
+        message: result.message,
+      })
+    }
+  })
+}
+
 /**
  * One pass of Automatic worktree removal (ADR 0060): remove every worktree the rule finds due,
  * one at a time, each through the same checked removal Settings uses, and record what happened.
@@ -54,54 +100,37 @@ export function runAutomaticWorktreeRemovalPass(
     ) {
       return null
     }
-    const space = yield* WorktreeSpaceService
     const inventory = yield* listWorktreeInventory(startedAt)
-    const removed: AutomaticWorktreeRemovalRemoved[] = []
-    const failed: AutomaticWorktreeRemovalFailure[] = []
-    let interrupted = false
-    for (const entry of inventory.entries) {
-      // A draining Host hands over or shuts down; the rest waits for the next Host's pass.
-      if (isDraining()) {
-        interrupted = true
-        break
+    const outcome: PassOutcome = { removed: [], failed: [] }
+    /*
+     * A pass stopped part-way, by a drain or by the Host shutting down, still records what it
+     * removed, and keeps the last check time so the next Host's pass finishes the job.
+     */
+    const record = (checked: boolean) =>
+      Effect.gen(function* () {
+        const run: AutomaticWorktreeRemovalRun = {
+          id: randomUUID(),
+          startedAt,
+          finishedAt: now(),
+          archivedDays: rule.archivedDays,
+          removed: outcome.removed,
+          failed: outcome.failed,
+        }
+        yield* log.record(run, { checked })
+        return run
+      })
+    const completed = yield* Effect.gen(function* () {
+      for (const entry of inventory.entries) {
+        if (isDraining()) return false
+        if (entry.automaticRemoval.kind === 'due') yield* removeIfStillDue(entry, now, outcome)
       }
-      if (entry.automaticRemoval.kind !== 'due') continue
-      const measured = yield* space.measure(entry.path).pipe(
-        Effect.timeoutOption(AUTOMATIC_WORKTREE_REMOVAL_MEASURE_TIMEOUT),
-        Effect.map(Option.getOrNull),
-        Effect.catchAll(() => Effect.succeed(null)),
-      )
-      const result = yield* removeHostUiWorktree(entry.projectPath, { path: entry.path }).pipe(
-        Effect.catchAll((error) =>
-          Effect.succeed({ ok: false, code: 'unknown', message: errorMessage(error) } as const),
-        ),
-      )
-      if (result.ok) {
-        removed.push({
-          path: entry.path,
-          projectPath: entry.projectPath,
-          branch: entry.branch,
-          sessionTitles: entry.sessions.map((session) => session.title),
-          reclaimableBytes: measured?.reclaimableBytes ?? null,
-        })
-      } else {
-        failed.push({ path: entry.path, projectPath: entry.projectPath, message: result.message })
-      }
-    }
-    const run: AutomaticWorktreeRemovalRun = {
-      id: randomUUID(),
-      startedAt,
-      finishedAt: now(),
-      archivedDays: rule.archivedDays,
-      removed,
-      failed,
-    }
-    // An interrupted pass keeps the last check time, so the next Host finishes it.
-    yield* log.record(run, { checked: !interrupted })
-    if (removed.length > 0 || failed.length > 0) {
+      return true
+    }).pipe(Effect.onInterrupt(() => record(false).pipe(Effect.ignore)))
+    const run = yield* record(completed)
+    if (run.removed.length > 0 || run.failed.length > 0) {
       logger.info('Automatic worktree removal finished', {
-        removed: removed.length,
-        failed: failed.length,
+        removed: run.removed.length,
+        failed: run.failed.length,
       })
     }
     return run

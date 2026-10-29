@@ -4,7 +4,7 @@ import { formatBytes, projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import type { WorktreeSpaceByPath } from './use-worktree-inventory'
-import { worktreeTitle } from './worktree-inventory-format'
+import { approximateSpace, worktreeTitle } from './worktree-inventory-format'
 
 /**
  * Confirms removing every worktree that is safe to remove. Each one is checked again by the Host
@@ -17,14 +17,17 @@ export function BulkWorktreeRemovalDialog(props: {
   readonly onClose: () => void
 }) {
   const titleId = useId()
-  const total = props.entries.reduce((sum, entry) => sum + (props.space.get(entry.path) ?? 0), 0)
+  const freed = approximateSpace(
+    props.entries.map((entry) => entry.path),
+    props.space,
+  )
   const count = props.entries.length
   return (
     <ModalDialog labelledBy={titleId} onClose={props.onClose}>
       <div className="flex flex-col p-5">
         <h2 id={titleId} className="text-sm font-semibold text-text-primary">
-          Remove {String(count)} {count === 1 ? 'worktree' : 'worktrees'} and free about{' '}
-          {formatBytes(total)}?
+          Remove {String(count)} {count === 1 ? 'worktree' : 'worktrees'}
+          {freed === null ? '' : ` and free ${freed}`}?
         </h2>
         <p className="mt-2 text-xs leading-5 text-text-secondary">
           None of them has uncommitted changes or commits that are not on a remote, and no open

@@ -122,9 +122,11 @@ export function archiveAndRemoveWorktreeOperation(rawProjectPath: unknown, rawPa
       }
       archived += 1
     }
+    // Git's registered path: the payload may spell it another way, even relatively.
     const result = yield* removeHostUiWorktree(projectPath, {
-      path: payload.path,
+      path: worktree.path,
       ...(payload.force ? { force: true } : {}),
+      ...(payload.force && payload.lockOnly ? { lockOnly: true } : {}),
     })
     // The Sessions stay archived; say so rather than report only why the worktree was kept.
     if (result.ok || archived === 0) return result

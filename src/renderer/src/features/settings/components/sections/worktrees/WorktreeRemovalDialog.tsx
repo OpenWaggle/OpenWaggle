@@ -58,9 +58,9 @@ const LOCK_NOTE = ' Git has it locked; removing it ignores the lock.'
 function forcedConsequence(request: WorktreeRemovalRequest) {
   const lock = request.ignoresLock ? LOCK_NOTE : ''
   if (request.ignoresLock && !request.discardsChanges) {
-    return `Its folder is deleted, including ignored files such as .env and node_modules.${lock} The branch is kept.`
+    return `Its folder is deleted, including ignored files such as .env and node_modules.${lock} OpenWaggle still refuses if it has uncommitted changes. The branch is kept.`
   }
-  return `Its folder is deleted with its uncommitted changes, which cannot be undone.${lock} The branch and its commits are kept.`
+  return `Its folder is deleted with any uncommitted changes, which cannot be undone.${lock} The branch and its commits are kept.`
 }
 
 function removalConsequence(request: WorktreeRemovalRequest) {

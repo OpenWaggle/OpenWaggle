@@ -71,10 +71,18 @@ describe('removing a worktree that is safe to remove', () => {
 
     const row = await rowTitled('free')
     fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
-    expect(row.getByRole('button', { name: 'Cancel' })).toHaveFocus()
-    fireEvent.click(row.getByRole('button', { name: 'Cancel' }))
+    expect(row.getByRole('button', { name: 'Cancel removing free' })).toHaveFocus()
+    fireEvent.click(row.getByRole('button', { name: 'Cancel removing free' }))
     expect(row.getByRole('button', { name: 'Remove free' })).toHaveFocus()
     expect(api.removeGitWorktree).not.toHaveBeenCalled()
+
+    // Confirming leaves focus on the row's button while the removal runs.
+    api.removeGitWorktree.mockReturnValue(new Promise(() => undefined))
+    fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
+    fireEvent.click(row.getByRole('button', { name: 'Confirm remove free' }))
+    const removing = await row.findByRole('button', { name: 'Removing free' })
+    expect(removing).toHaveFocus()
+    expect(removing).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('frees every safe worktree from one confirmation that lists them', async () => {
@@ -144,10 +152,37 @@ describe('a worktree that needs a decision', () => {
     )
     const dialog = await confirmIn('Unlock and remove this worktree?', 'Unlock & remove')
 
-    expect(dialog).not.toHaveTextContent(/uncommitted/)
+    expect(dialog).not.toHaveTextContent(/discard/i)
+    expect(dialog).toHaveTextContent('still refuses if it has uncommitted changes')
     await waitFor(() =>
       expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
         path: '/wt/held',
+        force: true,
+        lockOnly: true,
+      }),
+    )
+  })
+
+  it('offers a locked worktree whose changes Git could not report as a discard', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({
+          path: '/wt/unknown',
+          group: 'decide',
+          uncommittedChangeCount: null,
+          attention: [{ kind: 'unknown-state' }, { kind: 'locked' }],
+        }),
+      ]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click(
+      (await rowTitled('unknown')).getByRole('button', { name: 'Discard & remove unknown…' }),
+    )
+    await confirmIn('Discard the changes and remove this worktree?', 'Discard & remove')
+    await waitFor(() =>
+      expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/unknown',
         force: true,
       }),
     )

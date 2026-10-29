@@ -293,6 +293,11 @@ export interface GitWorktreeRemovePayload {
   readonly path: string
   /** Only pass true on explicit user request; this can discard dirty or locked worktrees. */
   readonly force?: boolean
+  /**
+   * With `force`, override only Git's lock: a worktree with uncommitted changes, or whose
+   * changes Git cannot report, is still refused. Git itself has no such flag.
+   */
+  readonly lockOnly?: boolean
 }
 
 export const GIT_WORKTREE_ERROR_CODES = [

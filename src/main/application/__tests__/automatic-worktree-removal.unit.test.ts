@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/worktree-inventory'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
+import * as Fiber from 'effect/Fiber'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AutomaticWorktreeRemovalLogStore } from '../../ports/automatic-worktree-removal-log'
@@ -100,15 +101,22 @@ function layer(options: {
 }
 
 /** The mocked inventory and removal need none of the services the real ones read. */
-function runPass(options: Parameters<typeof layer>[0], isDraining = () => false) {
+function pass(options: Parameters<typeof layer>[0], isDraining = () => false) {
   const provided = runAutomaticWorktreeRemovalPass(() => NOW, isDraining).pipe(
     Effect.provide(layer(options)),
   )
-  return Effect.runPromise(
-    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, Error, never>, typeof provided>(
-      provided,
-    ),
-  )
+  return fromAny<
+    Effect.Effect<Effect.Effect.Success<typeof provided>, Error, never>,
+    typeof provided
+  >(provided)
+}
+
+function runPass(options: Parameters<typeof layer>[0], isDraining = () => false) {
+  return Effect.runPromise(pass(options, isDraining))
+}
+
+function listing(...entries: WorktreeInventoryEntry[]): WorktreeInventory {
+  return { projects: [], problems: [], entries }
 }
 
 describe('Automatic worktree removal pass', () => {
@@ -155,6 +163,44 @@ describe('Automatic worktree removal pass', () => {
     const run = await runPass({ enabled: true, recorded: [], checks }, () => draining)
     expect(run?.removed.map((removed) => removed.path)).toEqual(['/wt/a'])
     // The next Host's pass finishes the job instead of waiting a day.
+    expect(checks).toEqual([false])
+  })
+
+  it('keeps a worktree that a fresh read just before its removal no longer finds due', async () => {
+    listWorktreeInventoryMock
+      .mockReturnValueOnce(Effect.succeed(listing(entry('/wt/a', { kind: 'due', dueAt: 1 }))))
+      // Its Session was restored and archived again while the pass measured it.
+      .mockReturnValueOnce(
+        Effect.succeed(listing(entry('/wt/a', { kind: 'waiting', dueAt: NOW + 1 }))),
+      )
+    const run = await runPass({ enabled: true, recorded: [] })
+
+    expect(listWorktreeInventoryMock).toHaveBeenLastCalledWith(NOW, { onlyPath: '/wt/a' })
+    expect(removeHostUiWorktreeMock).not.toHaveBeenCalled()
+    expect(run).toMatchObject({ removed: [], failed: [] })
+  })
+
+  it('records what it removed when the Host stops it part-way', async () => {
+    listWorktreeInventoryMock.mockReturnValue(
+      Effect.succeed(
+        listing(
+          entry('/wt/a', { kind: 'due', dueAt: 1 }),
+          entry('/wt/b', { kind: 'due', dueAt: 1 }),
+        ),
+      ),
+    )
+    removeHostUiWorktreeMock.mockImplementation(
+      (_projectPath: string, payload: { path: string }) =>
+        payload.path === '/wt/a' ? Effect.succeed({ ok: true }) : Effect.never,
+    )
+    const recorded: AutomaticWorktreeRemovalRun[] = []
+    const checks: boolean[] = []
+    const fiber = Effect.runFork(pass({ enabled: true, recorded, checks }))
+    await vi.waitFor(() => expect(removeHostUiWorktreeMock).toHaveBeenCalledTimes(2))
+
+    await Effect.runPromise(Fiber.interrupt(fiber))
+
+    expect(recorded.map((run) => run.removed.map((removed) => removed.path))).toEqual([['/wt/a']])
     expect(checks).toEqual([false])
   })
 

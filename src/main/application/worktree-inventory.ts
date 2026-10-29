@@ -186,8 +186,14 @@ function projectName(settings: Settings, projectPath: string) {
   return settings.projectDisplayNames[projectPath] ?? (path.basename(projectPath) || projectPath)
 }
 
-/** Settings > Worktrees: every worktree OpenWaggle manages, classified (ADR 0060). */
-export function listWorktreeInventory(now: number = Date.now()) {
+/**
+ * Settings > Worktrees: every worktree OpenWaggle manages, classified (ADR 0060). `onlyPath`
+ * reads one worktree afresh, as Automatic worktree removal does just before removing it.
+ */
+export function listWorktreeInventory(
+  now: number = Date.now(),
+  options: { readonly onlyPath?: string } = {},
+) {
   return Effect.gen(function* () {
     const settings = yield* (yield* SettingsService).get()
     const workspaces = yield* SessionWorkspaceResourceRepository
@@ -207,7 +213,12 @@ export function listWorktreeInventory(now: number = Date.now()) {
       settings.projectPath,
       canonical,
     )
-    const candidates = yield* inventoryCandidates(repositories, managedPaths, canonical)
+    const listed = yield* inventoryCandidates(repositories, managedPaths, canonical)
+    const { onlyPath } = options
+    const candidates =
+      onlyPath === undefined
+        ? listed
+        : listed.filter((candidate) => candidate.worktree.path === onlyPath)
     const { facts } = yield* gatherWorktreeUsageFacts(
       [],
       candidates.map((candidate) => candidate.worktree.path),

@@ -3,6 +3,7 @@ import { FolderOpen } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { WorkspaceCleanupFailure } from '@/features/project-actions/components'
+import { cn } from '@/shared/lib/cn'
 import { formatBytes } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
@@ -130,14 +131,21 @@ function InlineRemove(props: {
     ;(next ? cancelRef : removeRef).current?.focus()
   }
   if (!confirming) {
+    /*
+     * aria-disabled, not disabled, while removing: Confirm hands focus to this button, and a
+     * natively disabled button would drop it to the page.
+     */
     return (
       <Button
         ref={removeRef}
         variant="secondary"
         size="xs"
+        className={cn(props.busy && 'cursor-not-allowed opacity-50')}
         aria-label={props.busy ? `Removing ${props.title}` : `Remove ${props.title}`}
-        disabled={props.busy}
-        onClick={() => show(true)}
+        aria-disabled={props.busy}
+        onClick={() => {
+          if (!props.busy) show(true)
+        }}
       >
         {props.busy ? 'Removing…' : 'Remove'}
       </Button>
@@ -145,7 +153,13 @@ function InlineRemove(props: {
   }
   return (
     <span className="flex items-center gap-1">
-      <Button ref={cancelRef} variant="ghost" size="xs" onClick={() => show(false)}>
+      <Button
+        ref={cancelRef}
+        variant="ghost"
+        size="xs"
+        aria-label={`Cancel removing ${props.title}`}
+        onClick={() => show(false)}
+      >
         Cancel
       </Button>
       <Button
@@ -163,10 +177,15 @@ function InlineRemove(props: {
   )
 }
 
-/** The forced removal a row offers: discarding changes, ignoring Git's lock, or both. */
+/**
+ * The forced removal a row offers: discarding changes, ignoring Git's lock, or both. A locked
+ * worktree whose changes Git could not report may have some, so it is offered as a discard.
+ */
 function forcedRemoval(entry: WorktreeInventoryEntry) {
-  const discardsChanges = hasAttention(entry, 'uncommitted-changes')
   const ignoresLock = hasAttention(entry, 'locked')
+  const discardsChanges =
+    hasAttention(entry, 'uncommitted-changes') ||
+    (ignoresLock && entry.uncommittedChangeCount === null)
   return { force: discardsChanges || ignoresLock, discardsChanges, ignoresLock }
 }
 
