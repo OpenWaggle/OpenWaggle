@@ -130,24 +130,19 @@ describe('Session embedding off the Host (D3)', () => {
     expectKilledItself(recorded)
   })
 
-  it('kills a child that throws instead of letting it exit normally', async () => {
+  it.each([
+    ['throws while it loads', "throw new Error('no onnxruntime here')", 'no onnxruntime here'],
+    ['leaves a rejection unhandled', "Promise.reject(new Error('rejected load'))", 'rejected load'],
+    ['throws a value that cannot be printed', 'throw Object.create(null)', 'unprintable error'],
+  ])('fails a pending embedding and kills a child that %s', async (_case, source, message) => {
     const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
     directories.push(directory)
     const broken = path.join(directory, 'broken.cjs')
-    writeFileSync(broken, "throw new Error('no onnxruntime here')")
+    writeFileSync(broken, source)
     const recorded = recordedEmbeddingProcess(broken)
 
-    await expect(recorded.embedding.embed(['a'])).rejects.toThrow('no onnxruntime here')
+    await expect(recorded.embedding.embed(['a'])).rejects.toThrow(message)
     expectKilledItself(recorded)
-  })
-
-  it('fails a pending embedding when the child cannot load the model', async () => {
-    const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
-    directories.push(directory)
-    const broken = path.join(directory, 'broken.cjs')
-    writeFileSync(broken, "throw new Error('no onnxruntime here')")
-    const model = new MultilingualE5SessionEmbeddingModel({ transformersPath: broken })
-    await expect(model.embedPassages(['a'])).rejects.toThrow('no onnxruntime here')
   })
 
   it('embeds at most eight passages per inference call', () => {

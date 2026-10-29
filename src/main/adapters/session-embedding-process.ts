@@ -43,7 +43,15 @@ export interface SessionEmbeddingProcessConfig {
  */
 const EMBEDDING_PROCESS_SOURCE = `
 function die(error) {
-  process.stderr.write(String((error && error.stack) || error) + '\\n', () => process.kill(process.pid, 'SIGKILL'))
+  let text = 'embedding child: unprintable error'
+  try {
+    text = String((error && error.stack) || error)
+  } catch {}
+  try {
+    process.stderr.write(text + '\\n', () => process.kill(process.pid, 'SIGKILL'))
+  } catch {
+    process.kill(process.pid, 'SIGKILL')
+  }
 }
 process.on('uncaughtException', die)
 process.on('unhandledRejection', die)
