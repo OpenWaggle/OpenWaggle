@@ -122,7 +122,7 @@ it('archives the Sessions of a worktree with changes, and keeps the worktree', a
   api.archiveAndRemoveWorktree.mockResolvedValue({
     ok: true,
     path: '/wt/dirty',
-    message: 'Archived 1 Session. The worktree is kept under Needs a decision.',
+    message: 'Archived 1 Session. The worktree is kept.',
   })
   fireEvent.click(confirm)
 
@@ -137,7 +137,7 @@ it('archives the Sessions of a worktree with changes, and keeps the worktree', a
   const { useUIStore } = await import('@/shell/ui-store')
   await waitFor(() =>
     expect(useUIStore.getState().toastData).toMatchObject({
-      message: 'Archived 1 Session. The worktree is kept under Needs a decision.',
+      message: 'Archived 1 Session. The worktree is kept.',
       variant: 'success',
     }),
   )

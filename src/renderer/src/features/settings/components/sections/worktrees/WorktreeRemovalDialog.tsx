@@ -71,7 +71,7 @@ function removalConsequence(request: WorktreeRemovalRequest) {
   if (request.archiveSessions) {
     // Archive & remove never discards: the Host keeps a worktree that has changes.
     if (request.discardsChanges) {
-      return 'Each Session below is archived, and the worktree is kept, since it may have uncommitted changes. It then appears under Needs a decision, where you can discard them and remove it.'
+      return 'Each Session below is archived, and the worktree is kept, since it may have uncommitted changes. It stays listed: under Needs a decision while it has changes, where you can discard them and remove it.'
     }
     const lock = request.ignoresLock ? LOCK_NOTE : ''
     return `Each Session below is archived, then the folder is deleted.${lock} If it has uncommitted changes by then, it is kept instead. The branch is kept. ${RECREATE_NOTE}`

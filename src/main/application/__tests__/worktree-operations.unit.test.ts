@@ -192,10 +192,29 @@ describe('Archive & remove', () => {
     await expect(run(WORKTREE, ['open', 'done'], { keepWorktree: true })).resolves.toEqual({
       ok: true,
       path: WORKTREE,
-      message: 'Archived 1 Session. The worktree is kept under Needs a decision.',
+      message: 'Archived 1 Session. The worktree is kept.',
     })
     expect(mocks.dispatch).toHaveBeenCalledOnce()
     expect(mocks.remove).not.toHaveBeenCalled()
+
+    // Archived meanwhile from elsewhere: nothing left to archive, and it says so.
+    mocks.usage.mockReturnValue(
+      usage({
+        sessions: [
+          {
+            sessionId: 'done',
+            title: 'Done',
+            archived: true,
+            archivedAt: 5,
+            running: false,
+            owner: true,
+          },
+        ],
+      }),
+    )
+    await expect(run(WORKTREE, ['done'], { keepWorktree: true })).resolves.toMatchObject({
+      message: 'Its Sessions were already archived. The worktree is kept.',
+    })
   })
 
   it('refuses a folder that is not a registered linked worktree', async () => {

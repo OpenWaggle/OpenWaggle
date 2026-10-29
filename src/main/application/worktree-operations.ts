@@ -126,7 +126,11 @@ export function archiveAndRemoveWorktreeOperation(rawProjectPath: unknown, rawPa
       return {
         ok: true,
         path: worktree.path,
-        message: `${archivedCount(archived)}. The worktree is kept under Needs a decision.`,
+        // No group named: the refreshed list puts it wherever its changes now leave it.
+        message:
+          archived === 0
+            ? 'Its Sessions were already archived. The worktree is kept.'
+            : `${archivedCount(archived)}. The worktree is kept.`,
       } satisfies GitWorktreeMutationResult
     }
     // Git's registered path: the payload may spell it another way, even relatively.
