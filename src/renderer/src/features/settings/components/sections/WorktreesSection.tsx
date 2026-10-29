@@ -17,7 +17,7 @@ import { ALL_PROJECTS, WorktreeFilters } from './worktrees/WorktreeFilters'
 import { WorktreeGroup, type WorktreeRowContext } from './worktrees/WorktreeGroup'
 import { WorktreeRemovalDialog } from './worktrees/WorktreeRemovalDialog'
 import { storageTotals, WorktreeStorageCard } from './worktrees/WorktreeStorageCard'
-import { worktreeEntryMatchesSearch } from './worktrees/worktree-inventory-format'
+import { approximateSpace, worktreeEntryMatchesSearch } from './worktrees/worktree-inventory-format'
 
 const GROUPS: readonly WorktreeInventoryGroup[] = ['safe', 'decide', 'in-use']
 
@@ -200,6 +200,10 @@ export function WorktreesSection() {
           <WorktreeStorageCard
             totals={storageTotals(inProject, space)}
             safeCount={safe.length}
+            safeSpace={approximateSpace(
+              safe.map((entry) => entry.path),
+              space,
+            )}
             worktreeCount={inProject.length}
             busy={removal.busyPaths.size > 0}
             onFreeSafe={() => setBulkOpen(true)}

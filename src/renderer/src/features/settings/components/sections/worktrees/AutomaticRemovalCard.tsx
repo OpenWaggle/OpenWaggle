@@ -15,7 +15,7 @@ import { formatBytes, formatRelativeTime, projectName } from '@/shared/lib/forma
 import { Select } from '@/shared/ui/Select'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { useAutomaticWorktreeRemovalLog, type WorktreeSpaceByPath } from './use-worktree-inventory'
-import { worktreeFolderName } from './worktree-inventory-format'
+import { approximateSpace, worktreeFolderName } from './worktree-inventory-format'
 
 function plural(count: number, one: string, many: string) {
   return `${String(count)} ${count === 1 ? one : many}`
@@ -36,12 +36,16 @@ function previewLine(
   }))
   const due = decisions.filter((decision) => decision.kind === 'due').map(({ entry }) => entry)
   const kept = decisions.filter((decision) => decision.kind === 'kept').length
-  const bytes = due.reduce((total, entry) => total + (space.get(entry.path) ?? 0), 0)
+  const size = approximateSpace(
+    due.map((entry) => entry.path),
+    space,
+  )
   const verb = rule.enabled ? 'Will remove' : 'Would remove'
+  const worktrees = plural(due.length, 'worktree', 'worktrees')
   const removes =
     due.length === 0
       ? `${verb} nothing now.`
-      : `${verb} ${plural(due.length, 'worktree', 'worktrees')} (about ${formatBytes(bytes)}) now.`
+      : `${verb} ${worktrees}${size === null ? '' : ` (${size})`} now.`
   return kept > 0 ? `${removes} ${plural(kept, 'is', 'are')} kept to protect work.` : removes
 }
 
@@ -53,7 +57,7 @@ function runSummary(run: AutomaticWorktreeRemovalRun) {
       ? 'removed nothing'
       : freed === null
         ? `removed ${count}`
-        : `removed ${count} (about ${formatBytes(freed)})`
+        : `removed ${count} (${freed.complete ? 'about' : 'at least'} ${formatBytes(freed.bytes)})`
   const failed = run.failed.length > 0 ? `, ${String(run.failed.length)} failed` : ''
   return `Last removal ${formatRelativeTime(run.finishedAt)} · ${removed}${failed}`
 }

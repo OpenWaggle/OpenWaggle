@@ -16,7 +16,8 @@ vi.mock('../local-session-command-dispatcher', () => ({
 }))
 vi.mock('../host-ui-worktree-operation', () => ({ removeHostUiWorktree: mocks.remove }))
 vi.mock('../worktree-usage', () => ({
-  createCanonicalizer: () => async (value: string) => value,
+  // Canonical spelling: a trailing slash stands in for any other spelling of the same folder.
+  createCanonicalizer: () => async (value: string) => value.replace(/\/+$/, ''),
   gatherWorktreeUsageFacts: () => Effect.succeed({ facts: {} }),
   usageOfWorktree: mocks.usage,
 }))
@@ -73,11 +74,16 @@ function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
 }
 
 /** The mocked operations need only Git's worktree list. */
-function run(path = WORKTREE, sessionIds: readonly string[] = ['open', 'done']) {
+function run(
+  path = WORKTREE,
+  sessionIds: readonly string[] = ['open', 'done'],
+  flags: { readonly lockOnly?: boolean } = {},
+) {
   const provided = archiveAndRemoveWorktreeOperation(PROJECT, {
     path,
     sessionIds,
     force: true,
+    ...flags,
   }).pipe(Effect.provide(gitLayer))
   return Effect.runPromise(
     fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown, never>, typeof provided>(
@@ -163,6 +169,19 @@ describe('Archive & remove', () => {
     await expect(run()).resolves.toMatchObject({
       ok: false,
       message: 'Archived 1 Session, but the worktree was kept: It has uncommitted changes.',
+    })
+  })
+
+  it("removes Git's registered folder, however the request spelled it", async () => {
+    mocks.usage.mockReturnValue(usage())
+    await expect(run(`${WORKTREE}/`, ['open', 'done'], { lockOnly: true })).resolves.toEqual({
+      ok: true,
+    })
+    // Overriding only the lock is passed on, so the Host still refuses uncommitted changes.
+    expect(mocks.remove).toHaveBeenCalledWith(PROJECT, {
+      path: WORKTREE,
+      force: true,
+      lockOnly: true,
     })
   })
 

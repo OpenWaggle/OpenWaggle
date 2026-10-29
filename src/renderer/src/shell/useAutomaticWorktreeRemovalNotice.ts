@@ -10,12 +10,12 @@ import { useUIStore } from '@/shell/ui-store'
 const logger = createRendererLogger('worktrees')
 
 export const AutomaticWorktreeRemovalNoticeCopy = {
-  /** `bytes` is null when no removed worktree was measured, so no size is claimed. */
-  message: (count: number, bytes: number | null) => {
+  /** `freed` is null when no removed worktree was measured, so no size is claimed. */
+  message: (count: number, freed: ReturnType<typeof automaticRemovalFreedBytes>) => {
     const worktrees = `${String(count)} ${count === 1 ? 'worktree' : 'worktrees'}`
-    return bytes === null
-      ? `Automatic removal removed ${worktrees}.`
-      : `Automatic removal freed about ${formatBytes(bytes)} (${worktrees}).`
+    if (freed === null) return `Automatic removal removed ${worktrees}.`
+    const size = `${freed.complete ? 'about' : 'at least'} ${formatBytes(freed.bytes)}`
+    return `Automatic removal freed ${size} (${worktrees}).`
   },
   action: 'View',
 } as const
@@ -32,16 +32,18 @@ function unannouncedRun(log: AutomaticWorktreeRemovalLog) {
  */
 export function useAutomaticWorktreeRemovalNotice() {
   const navigate = useNavigate()
-  const announce = useEffectEvent((count: number, bytes: number | null) => {
-    useUIStore.getState().showActionToast({
-      message: AutomaticWorktreeRemovalNoticeCopy.message(count, bytes),
-      variant: 'success',
-      action: {
-        label: AutomaticWorktreeRemovalNoticeCopy.action,
-        onClick: () => void navigate({ to: '/settings/$tab', params: { tab: 'worktrees' } }),
-      },
-    })
-  })
+  const announce = useEffectEvent(
+    (count: number, freed: ReturnType<typeof automaticRemovalFreedBytes>) => {
+      useUIStore.getState().showActionToast({
+        message: AutomaticWorktreeRemovalNoticeCopy.message(count, freed),
+        variant: 'success',
+        action: {
+          label: AutomaticWorktreeRemovalNoticeCopy.action,
+          onClick: () => void navigate({ to: '/settings/$tab', params: { tab: 'worktrees' } }),
+        },
+      })
+    },
+  )
   useEffect(() => {
     let cancelled = false
     void (async () => {

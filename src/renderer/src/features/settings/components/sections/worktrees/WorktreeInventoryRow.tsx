@@ -130,7 +130,8 @@ function InlineRemove(props: {
     flushSync(() => setConfirming(next))
     ;(next ? cancelRef : removeRef).current?.focus()
   }
-  if (!confirming) {
+  // A removal that started elsewhere (Free) closes the confirmation: the row is already going.
+  if (!confirming || props.busy) {
     /*
      * aria-disabled, not disabled, while removing: Confirm hands focus to this button, and a
      * natively disabled button would drop it to the page.

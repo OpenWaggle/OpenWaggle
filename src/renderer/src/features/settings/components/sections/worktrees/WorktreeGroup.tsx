@@ -5,11 +5,11 @@ import type {
 import { ChevronRight } from 'lucide-react'
 import { useId, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
-import { formatBytes } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import type { WorktreeSpaceByPath } from './use-worktree-inventory'
 import type { WorktreeRemovalRequest } from './use-worktree-removal'
 import { WorktreeInventoryRow } from './WorktreeInventoryRow'
+import { approximateSpace } from './worktree-inventory-format'
 
 const GROUP_COPY: Record<
   WorktreeInventoryGroup,
@@ -54,7 +54,10 @@ export function WorktreeGroup(props: {
   const listId = useId()
   if (props.entries.length === 0) return null
   const { context } = props
-  const bytes = props.entries.reduce((sum, entry) => sum + (context.space.get(entry.path) ?? 0), 0)
+  const size = approximateSpace(
+    props.entries.map((entry) => entry.path),
+    context.space,
+  )
   return (
     <section className="space-y-2">
       <Button
@@ -70,7 +73,8 @@ export function WorktreeGroup(props: {
         />
         <span className="text-sm font-medium text-text-primary">{copy.title}</span>
         <span className="text-xs text-text-tertiary tabular-nums">
-          {String(props.entries.length)} · about {formatBytes(bytes)}
+          {String(props.entries.length)}
+          {size === null ? '' : ` · ${size}`}
         </span>
       </Button>
       {/* Always rendered, so the toggle's aria-controls names an element that exists. */}

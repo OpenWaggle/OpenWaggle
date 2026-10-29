@@ -55,10 +55,17 @@ export function decideAutomaticWorktreeRemoval(
   return reason === null ? { kind: 'due', dueAt } : { kind: 'kept', dueAt, reason }
 }
 
-/** The space a run freed, or null when none of its removals was measured. */
+/**
+ * The space a run freed: the measured removals' total, `complete` when every removal was
+ * measured, or null when none was, so the copy never claims a size nobody measured.
+ */
 export function automaticRemovalFreedBytes(run: AutomaticWorktreeRemovalRun) {
   const measured = run.removed.flatMap((removed) =>
     removed.reclaimableBytes === null ? [] : [removed.reclaimableBytes],
   )
-  return measured.length === 0 ? null : measured.reduce((sum, bytes) => sum + bytes, 0)
+  if (measured.length === 0) return null
+  return {
+    bytes: measured.reduce((sum, bytes) => sum + bytes, 0),
+    complete: measured.length === run.removed.length,
+  }
 }

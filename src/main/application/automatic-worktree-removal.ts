@@ -54,26 +54,33 @@ function removeIfStillDue(entry: WorktreeInventoryEntry, now: () => number, outc
       (candidate) => candidate.path === entry.path,
     )
     if (fresh?.automaticRemoval.kind !== 'due') return
-    const result = yield* removeHostUiWorktree(fresh.projectPath, { path: fresh.path }).pipe(
-      Effect.catchAll((error) =>
-        Effect.succeed({ ok: false, code: 'unknown', message: errorMessage(error) } as const),
+    // Removal and its record are one step: a Host stopping meanwhile cannot drop the record.
+    yield* Effect.uninterruptible(
+      removeHostUiWorktree(fresh.projectPath, { path: fresh.path }).pipe(
+        Effect.catchAll((error) =>
+          Effect.succeed({ ok: false, code: 'unknown', message: errorMessage(error) } as const),
+        ),
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            if (result.ok) {
+              outcome.removed.push({
+                path: fresh.path,
+                projectPath: fresh.projectPath,
+                branch: fresh.branch,
+                sessionTitles: fresh.sessions.map((session) => session.title),
+                reclaimableBytes: measured?.reclaimableBytes ?? null,
+              })
+            } else {
+              outcome.failed.push({
+                path: fresh.path,
+                projectPath: fresh.projectPath,
+                message: result.message,
+              })
+            }
+          }),
+        ),
       ),
     )
-    if (result.ok) {
-      outcome.removed.push({
-        path: fresh.path,
-        projectPath: fresh.projectPath,
-        branch: fresh.branch,
-        sessionTitles: fresh.sessions.map((session) => session.title),
-        reclaimableBytes: measured?.reclaimableBytes ?? null,
-      })
-    } else {
-      outcome.failed.push({
-        path: fresh.path,
-        projectPath: fresh.projectPath,
-        message: result.message,
-      })
-    }
   })
 }
 

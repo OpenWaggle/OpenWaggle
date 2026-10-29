@@ -42,12 +42,13 @@ export function storageTotals(
 export function WorktreeStorageCard(props: {
   readonly totals: StorageTotals
   readonly safeCount: number
+  /** The safe worktrees' size as copy, or null before any is measured. */
+  readonly safeSpace: string | null
   readonly worktreeCount: number
   readonly busy: boolean
   readonly onFreeSafe: () => void
 }) {
   const { totals } = props
-  const safe = totals.byGroup.safe
   return (
     <section
       aria-label="Worktree storage"
@@ -80,7 +81,9 @@ export function WorktreeStorageCard(props: {
         >
           {props.safeCount === 0
             ? 'Nothing safe to remove'
-            : `Free about ${formatBytes(safe)} (${String(props.safeCount)})…`}
+            : props.safeSpace === null
+              ? `Free ${String(props.safeCount)} safe ${props.safeCount === 1 ? 'worktree' : 'worktrees'}…`
+              : `Free ${props.safeSpace} (${String(props.safeCount)})…`}
         </Button>
       </div>
       <div

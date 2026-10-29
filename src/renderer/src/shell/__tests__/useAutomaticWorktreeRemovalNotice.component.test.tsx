@@ -56,7 +56,8 @@ it('says once what Automatic worktree removal freed, and opens Settings > Worktr
 
   await waitFor(() =>
     expect(useUIStore.getState().toastData).toMatchObject({
-      message: 'Automatic removal freed about 1.0 MB (2 worktrees).',
+      // One of the two was never measured, so the size is a floor.
+      message: 'Automatic removal freed at least 1.0 MB (2 worktrees).',
       variant: 'success',
     }),
   )

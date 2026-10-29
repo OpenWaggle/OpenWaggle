@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import {
@@ -54,4 +54,19 @@ it('drops the project filter when that project leaves the list', async () => {
 
   expect(await rowTitled('mine')).toBeTruthy()
   expect(screen.queryByRole('combobox', { name: 'Project' })).not.toBeInTheDocument()
+})
+
+it('closes a row’s inline confirmation once Free starts removing it', async () => {
+  api.getWorktreeInventory.mockResolvedValue(inventory([entry({ path: '/wt/free' })]))
+  api.removeGitWorktree.mockReturnValue(new Promise(() => undefined))
+  renderWithQueryClient(<WorktreesSection />)
+
+  const row = await rowTitled('free')
+  fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Free about 1.0 MB (1)…' }))
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Remove 1 worktree' }))
+
+  expect(await row.findByRole('button', { name: 'Removing free' })).toBeInTheDocument()
+  expect(row.queryByRole('button', { name: 'Confirm remove free' })).not.toBeInTheDocument()
 })

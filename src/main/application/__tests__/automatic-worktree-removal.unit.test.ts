@@ -186,21 +186,33 @@ describe('Automatic worktree removal pass', () => {
         listing(
           entry('/wt/a', { kind: 'due', dueAt: 1 }),
           entry('/wt/b', { kind: 'due', dueAt: 1 }),
+          entry('/wt/c', { kind: 'due', dueAt: 1 }),
         ),
       ),
     )
+    // The second removal is under way when the Host stops the pass; it finishes regardless.
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
     removeHostUiWorktreeMock.mockImplementation(
       (_projectPath: string, payload: { path: string }) =>
-        payload.path === '/wt/a' ? Effect.succeed({ ok: true }) : Effect.never,
+        payload.path === '/wt/b'
+          ? Effect.promise(() => gate).pipe(Effect.as({ ok: true }))
+          : Effect.succeed({ ok: true }),
     )
     const recorded: AutomaticWorktreeRemovalRun[] = []
     const checks: boolean[] = []
     const fiber = Effect.runFork(pass({ enabled: true, recorded, checks }))
     await vi.waitFor(() => expect(removeHostUiWorktreeMock).toHaveBeenCalledTimes(2))
 
-    await Effect.runPromise(Fiber.interrupt(fiber))
+    const stopped = Effect.runPromise(Fiber.interrupt(fiber))
+    release()
+    await stopped
 
-    expect(recorded.map((run) => run.removed.map((removed) => removed.path))).toEqual([['/wt/a']])
+    expect(recorded.map((run) => run.removed.map((removed) => removed.path))).toEqual([
+      ['/wt/a', '/wt/b'],
+    ])
     expect(checks).toEqual([false])
   })
 
