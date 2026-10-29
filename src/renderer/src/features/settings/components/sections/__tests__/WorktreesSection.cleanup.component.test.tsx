@@ -1,32 +1,66 @@
-import type {
-  ActionManagementRequest,
-  ActionManagementResult,
-} from '@shared/types/action-management'
 import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
+import type { WorktreeCleanupFailure } from '@shared/types/worktree-inventory'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import {
+  createPreferencesMock,
+  createWorktreeApiMocks,
+  entry,
+  inventory,
+  PROJECT,
+  preview,
+} from './worktree-inventory-fixtures'
 
-const mocks = vi.hoisted(() => ({
-  manage: vi.fn<(request: ActionManagementRequest) => Promise<ActionManagementResult>>(),
-  remove: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  const api: Record<string, unknown> = {}
+  const preferences: Record<string, unknown> = {}
+  return { api, preferences }
+})
 vi.mock('@/features/settings/state/preferences-store', () => ({
-  usePreferencesStore: (select: (value: unknown) => unknown) =>
-    select({ settings: { projectPath: '/project', defaultSessionEnvironmentMode: 'local' } }),
+  usePreferencesStore: (select: (value: unknown) => unknown) => select(mocks.preferences),
 }))
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    manageProjectActions: mocks.manage,
-    removeGitWorktree: mocks.remove,
-    listGitWorktrees: async () => ({
-      worktrees: [{ path: '/worktree', branch: 'feature', head: 'abc', isMain: false }],
-    }),
-  },
-}))
+vi.mock('@/shared/lib/ipc', () => ({ api: mocks.api }))
 
 import { WorktreesSection } from '../WorktreesSection'
+
+let api = createWorktreeApiMocks()
+
+function preparation(cleanup: WorkspacePreparation['cleanup']) {
+  return fromPartial<WorkspacePreparation>({
+    workspaceId: 'workspace',
+    revision: 3,
+    snapshot: { definitions: [] },
+    setup: { status: 'idle' },
+    cleanup,
+  })
+}
+
+const FAILED = preparation(
+  fromPartial({ status: 'failed', error: 'cleanup exited with code 1.', output: '' }),
+)
+const SUCCEEDED = preparation(fromPartial({ status: 'succeeded', output: '' }))
+
+/** One archived worktree whose Workspace cleanup failed and kept it (ADR 0038). */
+function failedWorktree(failure: Omit<WorktreeCleanupFailure, 'projectPath'>) {
+  const cleanupFailure: WorktreeCleanupFailure = { projectPath: PROJECT, ...failure }
+  api.getWorktreeInventory.mockResolvedValue(
+    inventory([
+      entry({
+        path: '/worktree',
+        group: 'decide',
+        attention: [{ kind: 'cleanup-failed' }],
+        cleanupFailure,
+      }),
+    ]),
+  )
+  api.manageProjectActions.mockImplementation(async (request) =>
+    request.operation.type === 'worktree-removal-preview'
+      ? preview(request)
+      : { type: 'preparation', preparation: cleanupFailure.preparation },
+  )
+}
 
 /** Every removal asks first (issue #353); these tests confirm it as the user does. */
 async function confirmRemoval(name = 'Remove worktree') {
@@ -35,106 +69,27 @@ async function confirmRemoval(name = 'Remove worktree') {
   fireEvent.click(confirm)
 }
 
-/** Answers the Host's usage and preview reads for a free worktree, then defers to `respond`. */
-function withFreeWorktree(
-  respond: (request: ActionManagementRequest) => Promise<ActionManagementResult>,
-) {
-  return async (request: ActionManagementRequest): Promise<ActionManagementResult> => {
-    if (request.operation.type === 'worktree-usage')
-      return { type: 'worktree-usage', worktrees: [] }
-    if (request.operation.type === 'worktree-removal-preview')
-      return {
-        type: 'worktree-removal-preview',
-        usage: { path: '/worktree', sessions: [], blockers: [] },
-        branch: 'feature',
-        unpublishedCommitCount: 0,
-      }
-    return respond(request)
-  }
-}
+beforeEach(() => {
+  api = createWorktreeApiMocks()
+  Object.assign(mocks.api, api)
+  Object.assign(mocks.preferences, createPreferencesMock())
+})
 
-it('shows retained cleanup recovery when Settings reopens without another removal attempt', async () => {
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
-  })
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) =>
-      operation.type === 'retained-preparation'
-        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-        : { type: 'preparation', preparation },
-    ),
-  )
+it('shows retained cleanup recovery when Settings reopens', async () => {
+  failedWorktree({ preparation: FAILED })
   renderWithQueryClient(<WorktreesSection />)
   expect(await screen.findByRole('button', { name: 'Retry cleanup' })).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent('cleanup exited with code 1.')
+  expect(screen.getByText('Workspace cleanup failed')).toBeInTheDocument()
 })
 
-it('keeps Delete anyway available after a replaced checkout with succeeded cleanup', async () => {
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'succeeded', output: '' },
+it('keeps Delete anyway available for a checkout that cannot be matched', async () => {
+  failedWorktree({
+    preparation: SUCCEEDED,
+    generationMismatch: true,
+    generationMismatchMessage:
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /worktree.',
   })
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) =>
-      operation.type === 'retained-preparation'
-        ? {
-            type: 'retained-preparation',
-            workspaces: [{ path: '/worktree', preparation, generationMismatch: true }],
-          }
-        : { type: 'preparation', preparation },
-    ),
-  )
-  mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
-
-  renderWithQueryClient(<WorktreesSection />)
-  expect(await screen.findByText(/This checkout cannot be matched/)).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Retry cleanup' })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByText('Delete anyway…'))
-  fireEvent.click(screen.getByRole('button', { name: 'Delete anyway' }))
-  await confirmRemoval()
-  await waitFor(() =>
-    expect(mocks.remove).toHaveBeenCalledWith('/project', {
-      path: '/worktree',
-      skipCleanup: true,
-    }),
-  )
-})
-
-it('shows why the Host could not match the checkout', async () => {
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'succeeded', output: '' },
-  })
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) =>
-      operation.type === 'retained-preparation'
-        ? {
-            type: 'retained-preparation',
-            workspaces: [
-              {
-                path: '/worktree',
-                preparation,
-                generationMismatch: true,
-                generationMismatchMessage:
-                  'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /worktree. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup.',
-              },
-            ],
-          }
-        : { type: 'preparation', preparation },
-    ),
-  )
-  mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
-
   renderWithQueryClient(<WorktreesSection />)
   expect(
     await screen.findByText(/the preparation has no record of the folder \/worktree/),
@@ -144,39 +99,22 @@ it('shows why the Host could not match the checkout', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Delete anyway' }))
   await confirmRemoval()
   await waitFor(() =>
-    expect(mocks.remove).toHaveBeenCalledWith('/project', {
+    expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
       path: '/worktree',
       skipCleanup: true,
     }),
   )
 })
 
-it('offers explicit force removal after cleanup succeeds but the worktree remains', async () => {
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'succeeded', output: '' },
-  })
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) =>
-      operation.type === 'retained-preparation'
-        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-        : { type: 'preparation', preparation },
-    ),
-  )
-  mocks.remove.mockResolvedValue({ ok: true, message: 'Worktree removed.' })
-
+it('offers removal without cleanup after cleanup succeeds but the worktree remains', async () => {
+  failedWorktree({ preparation: SUCCEEDED })
   renderWithQueryClient(<WorktreesSection />)
   expect(await screen.findByRole('button', { name: 'Retry removal' })).toBeInTheDocument()
-  expect(screen.getByRole('alert')).toHaveTextContent('Cleanup completed')
   fireEvent.click(screen.getByText('Force remove…'))
-  expect(screen.getByText(/uncommitted changes or is locked/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
-  await confirmRemoval('Force remove worktree')
+  await confirmRemoval('Remove without cleanup')
   await waitFor(() =>
-    expect(mocks.remove).toHaveBeenCalledWith('/project', {
+    expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
       path: '/worktree',
       skipCleanup: true,
       force: true,
@@ -184,59 +122,12 @@ it('offers explicit force removal after cleanup succeeds but the worktree remain
   )
 })
 
-it('offers force removal when Git refuses a dirty worktree before cleanup starts', async () => {
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async () => ({ type: 'retained-preparation', workspaces: [] })),
-  )
-  mocks.remove
-    .mockReset()
-    .mockResolvedValueOnce({ ok: false, code: 'dirty-worktree', message: 'Worktree is dirty.' })
-    .mockResolvedValueOnce({ ok: true, message: 'Worktree removed.' })
-
-  renderWithQueryClient(<WorktreesSection />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
-  await confirmRemoval()
-  await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(1))
-  fireEvent.click(screen.getByText('Force remove…'))
-  fireEvent.click(screen.getByRole('button', { name: 'Force remove' }))
-  await confirmRemoval('Force remove worktree')
-  await waitFor(() =>
-    expect(mocks.remove).toHaveBeenLastCalledWith('/project', {
-      path: '/worktree',
-      skipCleanup: true,
-      force: true,
-    }),
-  )
-})
-
-it('keeps Git worktrees available when cleanup metadata fails to load', async () => {
-  mocks.manage.mockRejectedValue(new Error('Invalid actions.json'))
-  renderWithQueryClient(<WorktreesSection />)
-  expect(await screen.findByRole('button', { name: 'Remove' })).toBeInTheDocument()
-  expect(screen.getByRole('alert')).toHaveTextContent('Invalid actions.json')
-  expect(screen.queryByText('No worktrees for this repository.')).not.toBeInTheDocument()
-})
-
-it('leaves a failed or refused cleanup reason to the row instead of a brief toast', async () => {
+it('leaves a failed cleanup reason to the row instead of a brief toast', async () => {
   const { useUIStore } = await import('@/shell/ui-store')
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
-  })
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) =>
-      operation.type === 'retained-preparation'
-        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-        : { type: 'preparation', preparation },
-    ),
-  )
-  mocks.remove.mockResolvedValue({
+  failedWorktree({ preparation: FAILED })
+  api.removeGitWorktree.mockResolvedValue({
     ok: false,
     code: 'cleanup-failed',
-    preparation,
     message: 'Workspace cleanup is failed. cleanup exited with code 1. The worktree was retained.',
   })
   renderWithQueryClient(<WorktreesSection />)
@@ -247,30 +138,17 @@ it('leaves a failed or refused cleanup reason to the row instead of a brief toas
       'The worktree was kept. The reason is shown under it.',
     ),
   )
-  expect(screen.getByRole('alert')).toHaveTextContent('cleanup exited with code 1.')
 })
 
-it('puts the full reason in the toast when the list cannot show it', async () => {
+it('puts the full reason in the toast when the refreshed list cannot show it', async () => {
   const { useUIStore } = await import('@/shell/ui-store')
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
-  })
-  let retainedCalls = 0
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) => {
-      if (operation.type !== 'retained-preparation') return { type: 'preparation', preparation }
-      retainedCalls += 1
-      if (retainedCalls > 1) throw new Error('Host unavailable')
-      return { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-    }),
-  )
+  failedWorktree({ preparation: FAILED })
   const message =
     'Workspace cleanup is failed. cleanup exited with code 1. The worktree was retained.'
-  mocks.remove.mockResolvedValue({ ok: false, code: 'cleanup-failed', preparation, message })
+  api.removeGitWorktree.mockImplementation(async () => {
+    api.getWorktreeInventory.mockResolvedValue(inventory([]))
+    return { ok: false, code: 'cleanup-failed', message }
+  })
   renderWithQueryClient(<WorktreesSection />)
   fireEvent.click(await screen.findByRole('button', { name: 'Retry cleanup' }))
   await confirmRemoval()
@@ -279,23 +157,10 @@ it('puts the full reason in the toast when the list cannot show it', async () =>
 
 it('names the reason when removal itself fails', async () => {
   const { useUIStore } = await import('@/shell/ui-store')
-  const preparation = fromPartial<WorkspacePreparation>({
-    workspaceId: 'workspace',
-    revision: 3,
-    snapshot: { definitions: [] },
-    setup: { status: 'idle' },
-    cleanup: { status: 'failed', error: 'cleanup exited with code 1.', output: '' },
-  })
-  mocks.manage.mockImplementation(
-    withFreeWorktree(async ({ operation }) =>
-      operation.type === 'retained-preparation'
-        ? { type: 'retained-preparation', workspaces: [{ path: '/worktree', preparation }] }
-        : { type: 'preparation', preparation },
-    ),
-  )
-  mocks.remove.mockRejectedValue(
+  failedWorktree({ preparation: FAILED })
+  api.removeGitWorktree.mockRejectedValue(
     new Error(
-      "Error invoking remote method 'git:worktrees:remove': Error: This worktree cannot be checked against its saved preparation: /worktree could not be read (EACCES). Check that you can open this folder and the folders above it, then try again.",
+      "Error invoking remote method 'git:worktrees:remove': Error: /worktree could not be read (EACCES).",
     ),
   )
   renderWithQueryClient(<WorktreesSection />)
@@ -303,7 +168,19 @@ it('names the reason when removal itself fails', async () => {
   await confirmRemoval()
   await waitFor(() =>
     expect(useUIStore.getState().toastMessage).toBe(
-      'Could not remove the worktree: This worktree cannot be checked against its saved preparation: /worktree could not be read (EACCES). Check that you can open this folder and the folders above it, then try again.',
+      'Could not remove the worktree: /worktree could not be read (EACCES).',
     ),
+  )
+})
+
+it('still lists worktrees when part of the inventory could not be read', async () => {
+  api.getWorktreeInventory.mockResolvedValue({
+    ...inventory([entry({ path: '/wt/free' })]),
+    problems: ['Could not load cleanup recovery: Invalid actions.json'],
+  })
+  renderWithQueryClient(<WorktreesSection />)
+  expect(await screen.findByRole('button', { name: 'Remove free' })).toBeInTheDocument()
+  expect(screen.getByRole('status', { name: 'Inventory problems' })).toHaveTextContent(
+    'Invalid actions.json',
   )
 })

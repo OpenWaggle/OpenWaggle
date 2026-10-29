@@ -268,6 +268,8 @@ async function ensureSessionWorktreeProjectPathUnlocked(
   const existing =
     recordedPath || (workspace.lifecycleState === 'ready' ? workspace.workingPath.trim() : '')
   if (existing) await validateWorkspaceBirthAuthority(session, workspace, existing)
+  // Settings may be removing it for archived Sessions; a Run must not start in a folder going away.
+  if (workspace.lifecycleState === 'releasing') requireBirthableWorkspace(workspace)
   const recovered = await recoverRecordedWorktree({
     session,
     workspace,

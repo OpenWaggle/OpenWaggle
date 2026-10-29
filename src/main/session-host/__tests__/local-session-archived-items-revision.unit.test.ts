@@ -31,7 +31,7 @@ describe('Local Session Archived items protocol revision', () => {
     'sends %s only to a revision-25 Host',
     (channel) => {
       const command = hostUiCommand(channel)
-      expect(supportedRevisionsForCommand(command)).toEqual([29])
+      expect(supportedRevisionsForCommand(command)).toEqual([30])
       expect(() => decodeLocalSessionCommandPayloadForRevision(command, 24)).toThrow(/revision 25/)
       expect(decodeLocalSessionCommandPayloadForRevision(command, 25)).toEqual(command)
     },

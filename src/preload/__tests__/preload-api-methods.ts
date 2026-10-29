@@ -12,9 +12,11 @@ import { PRELOAD_SOURCE_CONTROL_METHODS } from './preload-source-control-methods
 import { PRELOAD_APP_LIFECYCLE_METHODS } from './preload-startup-methods'
 import { PRELOAD_UPDATE_METHODS } from './preload-update-methods'
 import { PRELOAD_USAGE_COST_METHODS } from './preload-usage-cost-methods'
+import { PRELOAD_WORKTREES_METHODS } from './preload-worktrees-methods'
 
 export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   ...PRELOAD_USAGE_COST_METHODS,
+  ...PRELOAD_WORKTREES_METHODS,
   ...PRELOAD_ARCHIVED_ITEMS_METHODS,
   // Includes the Scheduled task methods.
   ...PRELOAD_APP_LIFECYCLE_METHODS,
@@ -242,9 +244,6 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'checkoutGitBranch',
   'createGitBranch',
   'validateGitBranchName',
-  'listGitWorktrees',
-  'createGitWorktree',
-  'removeGitWorktree',
   'getLocalVcsStatus',
   'getRemoteVcsStatus',
   'runStackedGitAction',

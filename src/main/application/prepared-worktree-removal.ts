@@ -30,8 +30,12 @@ async function filesystemIdentity(candidate: string) {
   }
 }
 
-async function findRemovalCandidate(
-  projectPath: string,
+/**
+ * The Workspace resources of the folder being removed. A resource records its Session's project
+ * path, which may be a subfolder or a linked worktree of the repository, while removal runs from
+ * another known project of the repository, so the folder alone identifies it.
+ */
+async function findRemovalCandidates(
   workingPath: string,
   candidates: readonly {
     readonly id: string
@@ -39,27 +43,40 @@ async function findRemovalCandidate(
     readonly workingPath: string
   }[],
 ) {
-  const lexical = candidates.find(
-    (candidate) => candidate.projectPath === projectPath && candidate.workingPath === workingPath,
-  )
-  if (lexical) return lexical
-  const [projectIdentity, workingIdentity] = await Promise.all([
-    filesystemIdentity(projectPath),
-    filesystemIdentity(workingPath),
-  ])
-  if (!projectIdentity || !workingIdentity) return undefined
-  const matches = await Promise.all(
-    candidates.map(async (candidate) => {
-      const [candidateProject, candidateWorking] = await Promise.all([
-        filesystemIdentity(candidate.projectPath),
-        filesystemIdentity(candidate.workingPath),
-      ])
-      return candidateProject === projectIdentity && candidateWorking === workingIdentity
-        ? candidate
-        : undefined
-    }),
-  )
-  return matches.find((candidate) => candidate !== undefined)
+  const resolvedWorking = path.resolve(workingPath)
+  const workingIdentity = await filesystemIdentity(resolvedWorking)
+  return (
+    await Promise.all(
+      candidates.map(async (candidate) =>
+        candidate.workingPath === resolvedWorking ||
+        (workingIdentity !== null &&
+          (await filesystemIdentity(candidate.workingPath)) === workingIdentity)
+          ? candidate
+          : undefined,
+      ),
+    )
+  ).filter((candidate) => candidate !== undefined)
+}
+
+/**
+ * Several Workspaces in one folder (different projects' Sessions share it): one admission can
+ * fence only one of them, so a Run could start through another while the folder is deleted.
+ */
+const SHARED_WORKTREE_REMOVAL = {
+  ok: false,
+  code: 'workspace-bound',
+  message:
+    'Sessions of more than one project use this worktree. Remove it from Git once none of them needs it.',
+} satisfies GitWorktreeMutationResult
+
+function unavailableRemoval(options: { readonly admitArchivedBindings?: boolean }) {
+  return {
+    ok: false,
+    code: 'workspace-bound',
+    message: options.admitArchivedBindings
+      ? 'A Session that is not archived, or has a Run, works in this worktree, or its Workspace is changing.'
+      : 'This managed worktree is bound to a Session or is changing Workspace state.',
+  } satisfies GitWorktreeMutationResult
 }
 
 export function removePreparedWorktree<E, R>(
@@ -70,15 +87,17 @@ export function removePreparedWorktree<E, R>(
     readonly retryFailed: boolean
     readonly actionFenceHeld?: boolean
     readonly validateRemoval?: Effect.Effect<GitWorktreeMutationResult>
+    /** Settings removal: archived, idle Sessions keep their binding (ADR 0060). */
+    readonly admitArchivedBindings?: boolean
   },
 ) {
   return Effect.gen(function* () {
     const workspaces = yield* SessionWorkspaceResourceRepository
     const actions = yield* ActionRunService
     const candidates = yield* workspaces.listManagedWorktreeRemovalCandidates()
-    const candidate = yield* Effect.promise(() =>
-      findRemovalCandidate(projectPath, payload.path, candidates),
-    )
+    const matches = yield* Effect.promise(() => findRemovalCandidates(payload.path, candidates))
+    if (matches.length > 1) return SHARED_WORKTREE_REMOVAL
+    const candidate = matches[0]
     const workspaceId = candidate?.id ?? `worktree-removal:${randomUUID()}`
     const operation = Effect.uninterruptible(
       Effect.acquireUseRelease(
@@ -87,16 +106,11 @@ export function removePreparedWorktree<E, R>(
           reservationId: workspaceId,
           projectPath: path.resolve(projectPath),
           workingPath: path.resolve(payload.path),
+          ...(options.admitArchivedBindings ? { admitArchivedBindings: true } : {}),
         }),
         (admission) =>
           Effect.gen(function* () {
-            if (admission.status === 'unavailable')
-              return {
-                ok: false,
-                code: 'workspace-bound',
-                message:
-                  'This managed worktree is bound to a Session or is changing Workspace state.',
-              } satisfies GitWorktreeMutationResult
+            if (admission.status === 'unavailable') return unavailableRemoval(options)
             const missing = yield* Effect.tryPromise({
               try: () => checkoutMissing(payload.path),
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),

@@ -26,6 +26,7 @@ import type {
 import type { ShortcutBinding, ShortcutCommand, ShortcutRules } from '@shared/types/shortcuts'
 import type { SyntaxAppearanceVariant, SyntaxThemeId } from '@shared/types/syntax'
 import type { UpdateChannel } from '@shared/types/update-channel'
+import type { AutomaticWorktreeRemovalSettings } from '@shared/types/worktree-inventory'
 
 export interface PreferencesState {
   settings: Settings
@@ -44,6 +45,8 @@ export interface PreferencesState {
   setUsageStatisticsEnabled: (enabled: boolean) => Promise<void>
   setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
+  /** Automatic worktree removal (ADR 0060), app-wide and off until the user turns it on. */
+  setAutomaticWorktreeRemoval: (value: AutomaticWorktreeRemovalSettings) => Promise<void>
   setMultiAgentEnabled: (enabled: boolean) => Promise<void>
   setSessionHostParentConcurrencyLimit: (limit: number) => Promise<void>
   setSessionHostRunCeiling: (limit: number) => Promise<void>

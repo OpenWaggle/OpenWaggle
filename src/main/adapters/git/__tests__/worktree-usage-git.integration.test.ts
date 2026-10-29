@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { checkoutTopLevel, countUnpublishedCommits } from '../worktree-usage-git'
+import {
+  checkoutTopLevel,
+  countUncommittedChanges,
+  countUnpublishedCommits,
+} from '../worktree-usage-git'
 
 const execFileAsync = promisify(execFile)
 const IDENTITY = ['-c', 'user.name=OpenWaggle Test', '-c', 'user.email=test@openwaggle.local']
@@ -46,6 +50,31 @@ describe('the Git facts behind a worktree removal confirmation', () => {
 
     await git(worktree, ['push', '--quiet', 'origin', 'ow/x'])
     expect(await countUnpublishedCommits(worktree)).toBe(0)
+  })
+
+  it('counts changes, renames and untracked files whatever the status settings', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
+    const work = path.join(root, 'work')
+    await mkdir(work)
+    await git(work, ['init', '--quiet', '-b', 'main'])
+    await writeFile(path.join(work, 'a.txt'), 'a\n')
+    await writeFile(path.join(work, 'b.txt'), 'b\n')
+    await writeFile(path.join(work, '.gitignore'), 'ignored.txt\n')
+    await git(work, ['add', '--all'])
+    await git(work, ['commit', '-m', 'init'])
+    expect(await countUncommittedChanges(work)).toBe(0)
+
+    // A setting that hides untracked files must not make a new file look safe to delete.
+    await git(work, ['config', 'status.showUntrackedFiles', 'no'])
+    await writeFile(path.join(work, 'new.txt'), 'new\n')
+    await writeFile(path.join(work, 'ignored.txt'), 'ignored\n')
+    expect(await countUncommittedChanges(work)).toBe(1)
+
+    // A staged rename is one entry with its source as an extra field.
+    await git(work, ['mv', 'a.txt', 'renamed.txt'])
+    await writeFile(path.join(work, 'b.txt'), 'changed\n')
+    expect(await countUncommittedChanges(work)).toBe(3)
   })
 
   it('resolves the checkout a folder lives in', { timeout: REAL_GIT_TEST_TIMEOUT_MS }, async () => {

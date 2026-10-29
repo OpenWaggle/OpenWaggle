@@ -2,6 +2,17 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 /**
+ * Settings > Worktrees across every project ships with revision 30: the inventory, Reclaimable
+ * space, Archive & remove, and Automatic worktree removal's record (ADR 0060).
+ */
+export const HOST_UI_REVISION_30_REQUIRED_CHANNELS = [
+  'worktrees:inventory',
+  'worktrees:measure',
+  'worktrees:archive-and-remove',
+  'worktrees:automatic-removal-log',
+  'worktrees:acknowledge-automatic-removal',
+] as const satisfies readonly IpcInvokeChannel[]
+/**
  * Bounded Session reads ship with revision 29: the Host-side tree filter and one read for every
  * turn's changed files.
  */
@@ -173,6 +184,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_30_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_29_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_25_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_24_SESSION_CHANNELS,

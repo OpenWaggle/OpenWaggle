@@ -1,4 +1,4 @@
-import type { RepositoryPath } from '@shared/types/brand'
+import { RepositoryPath } from '@shared/types/brand'
 import type { WorktreeRemovalPreview } from '@shared/types/worktree-usage'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { useId } from 'react'
@@ -7,13 +7,7 @@ import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { Spinner } from '@/shared/ui/Spinner'
-
-/** One requested removal: the plain Remove, Delete anyway (skip cleanup), or Force remove. */
-export interface WorktreeRemovalRequest {
-  readonly path: string
-  readonly skipCleanup: boolean
-  readonly force: boolean
-}
+import type { WorktreeRemovalRequest } from './use-worktree-removal'
 
 async function readRemovalPreview(
   repositoryPath: RepositoryPath,
@@ -40,18 +34,54 @@ function removalPreviewQueryOptions(repositoryPath: RepositoryPath, worktreePath
   })
 }
 
+/** A forced removal that is not a cleanup recovery: it discards changes, ignores a lock, or both. */
+function forcedFor(request: WorktreeRemovalRequest) {
+  return request.force && !request.skipCleanup
+}
+
 function removalTitle(request: WorktreeRemovalRequest) {
-  if (request.force) return 'Force remove this worktree?'
+  if (request.archiveSessions) {
+    return request.discardsChanges
+      ? 'Archive its Sessions?'
+      : 'Archive its Sessions and remove this worktree?'
+  }
+  if (forcedFor(request)) {
+    return request.ignoresLock && !request.discardsChanges
+      ? 'Unlock and remove this worktree?'
+      : 'Discard the changes and remove this worktree?'
+  }
+  if (request.force) return 'Remove this worktree without its cleanup?'
   if (request.skipCleanup) return 'Delete this worktree without its cleanup?'
   return 'Remove this worktree?'
 }
 
+const RECREATE_NOTE =
+  'If you restore a Session later, it offers to recreate the worktree from the kept branch, or to continue in the current checkout.'
+const LOCK_NOTE = ' Git has it locked; removing it ignores the lock.'
+
+function forcedConsequence(request: WorktreeRemovalRequest) {
+  const lock = request.ignoresLock ? LOCK_NOTE : ''
+  if (request.ignoresLock && !request.discardsChanges) {
+    return `Its folder is deleted, including ignored files such as .env and node_modules.${lock} OpenWaggle still refuses if it has uncommitted changes. The branch is kept.`
+  }
+  return `Its folder is deleted with any uncommitted changes, which cannot be undone.${lock} The branch and its commits are kept.`
+}
+
 function removalConsequence(request: WorktreeRemovalRequest) {
+  if (request.archiveSessions) {
+    // Archive & remove never discards: the Host keeps a worktree that has changes.
+    if (request.discardsChanges) {
+      return 'Each Session below is archived, and the worktree is kept, since it may have uncommitted changes. It stays listed: under Needs a decision while it has changes, where you can discard them and remove it.'
+    }
+    const lock = request.ignoresLock ? LOCK_NOTE : ''
+    return `Each Session below is archived, then the folder is deleted.${lock} If it has uncommitted changes by then, it is kept instead. The branch is kept. ${RECREATE_NOTE}`
+  }
+  if (forcedFor(request)) return forcedConsequence(request)
   if (request.force)
-    return 'Its folder is deleted even if it has uncommitted changes or is locked, and workspace cleanup is skipped. This cannot be undone.'
+    return 'Its folder is deleted even if it has uncommitted changes or is locked, and Workspace cleanup is skipped. This cannot be undone.'
   if (request.skipCleanup)
-    return 'Its folder is deleted without running the workspace cleanup. This cannot be undone.'
-  return 'Its folder is deleted. Git refuses if it has uncommitted changes. The branch is kept.'
+    return 'Its folder is deleted without running the Workspace cleanup. This cannot be undone.'
+  return 'Its folder is deleted, including ignored files such as .env and node_modules. Git refuses if it has uncommitted changes. The branch is kept.'
 }
 
 function unpublishedWarning(preview: WorktreeRemovalPreview) {
@@ -65,28 +95,55 @@ function unpublishedWarning(preview: WorktreeRemovalPreview) {
   return `${preview.branch} has ${commits} not on any remote. The branch is kept, but push it first if you need that work elsewhere.`
 }
 
-function PreviewDetails({ preview }: { readonly preview: WorktreeRemovalPreview }) {
+/** What still stops the removal; an Archive & remove expects the open Sessions it archives. */
+function removalBlockers(preview: WorktreeRemovalPreview, request: WorktreeRemovalRequest) {
+  const blockers = preview.usage.blockers.filter(
+    (blocker) => !(request.archiveSessions && blocker.kind === 'session'),
+  )
+  const running = preview.usage.sessions.find((session) => session.running)
+  if (!request.archiveSessions || !running) return blockers
+  return [
+    ...blockers,
+    {
+      kind: 'session',
+      message: `The Session “${running.title}” has a Run in this worktree. Stop it first.`,
+    } as const,
+  ]
+}
+
+function PreviewDetails(props: {
+  readonly preview: WorktreeRemovalPreview
+  readonly request: WorktreeRemovalRequest
+}) {
+  const { preview } = props
   const warning = unpublishedWarning(preview)
   const owners = preview.usage.sessions.filter((session) => session.owner)
+  // Archive & remove archives every Session working in it, so it names every one (ADR 0060).
+  const listed = props.request.archiveSessions ? preview.usage.sessions : owners
+  const blockers = removalBlockers(preview, props.request)
   return (
     <div className="mt-3 space-y-2 text-xs leading-5">
       <p className="text-text-secondary">Branch: {preview.branch ?? 'detached'}</p>
-      {owners.map((session) => (
+      {listed.map((session) => (
         <p key={session.sessionId} className="text-text-secondary">
-          Session: {session.title}
+          {props.request.archiveSessions && !session.archived ? 'Archives' : 'Session'}:{' '}
+          {session.title}
           {session.archived ? ' (archived)' : ''}
         </p>
       ))}
+      {owners.length > 0 && !props.request.archiveSessions ? (
+        <p className="text-text-tertiary">{RECREATE_NOTE}</p>
+      ) : null}
       {warning ? (
         <p role="alert" className="text-warning">
           {warning}
         </p>
       ) : null}
-      {preview.usage.blockers.length > 0 ? (
+      {blockers.length > 0 ? (
         <div role="alert" className="text-error-text">
           <p>It cannot be removed now:</p>
           <ul className="list-disc pl-4">
-            {preview.usage.blockers.map((blocker) => (
+            {blockers.map((blocker) => (
               <li key={blocker.kind}>{blocker.message}</li>
             ))}
           </ul>
@@ -96,19 +153,31 @@ function PreviewDetails({ preview }: { readonly preview: WorktreeRemovalPreview 
   )
 }
 
+function confirmLabel(request: WorktreeRemovalRequest) {
+  if (request.archiveSessions)
+    return request.discardsChanges ? 'Archive Sessions' : 'Archive & remove'
+  if (forcedFor(request)) {
+    return request.ignoresLock && !request.discardsChanges ? 'Unlock & remove' : 'Discard & remove'
+  }
+  if (request.force) return 'Remove without cleanup'
+  return 'Remove worktree'
+}
+
 /**
  * Confirms a worktree removal with what it would lose (issue #353). The Host checks again
  * when it removes, so the confirmation can only be stricter than the removal, never looser.
  */
 export function WorktreeRemovalDialog(props: {
-  readonly repositoryPath: RepositoryPath
   readonly request: WorktreeRemovalRequest
   readonly onConfirm: (request: WorktreeRemovalRequest) => void
   readonly onClose: () => void
 }) {
   const titleId = useId()
-  const preview = useQuery(removalPreviewQueryOptions(props.repositoryPath, props.request.path))
-  const blocked = preview.data === undefined || preview.data.usage.blockers.length > 0
+  const preview = useQuery(
+    removalPreviewQueryOptions(RepositoryPath(props.request.projectPath), props.request.path),
+  )
+  const blocked =
+    preview.data === undefined || removalBlockers(preview.data, props.request).length > 0
   return (
     <ModalDialog labelledBy={titleId} onClose={props.onClose}>
       <div className="p-5">
@@ -128,7 +197,7 @@ export function WorktreeRemovalDialog(props: {
             Could not check this worktree: {ipcErrorMessage(preview.error)}
           </p>
         ) : (
-          <PreviewDetails preview={preview.data} />
+          <PreviewDetails preview={preview.data} request={props.request} />
         )}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={props.onClose}>
@@ -138,9 +207,14 @@ export function WorktreeRemovalDialog(props: {
             variant="danger"
             size="sm"
             disabled={blocked}
-            onClick={() => props.onConfirm(props.request)}
+            onClick={() =>
+              props.onConfirm({
+                ...props.request,
+                sessionIds: preview.data?.usage.sessions.map((session) => session.sessionId) ?? [],
+              })
+            }
           >
-            {props.request.force ? 'Force remove worktree' : 'Remove worktree'}
+            {confirmLabel(props.request)}
           </Button>
         </div>
       </div>

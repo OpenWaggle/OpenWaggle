@@ -24,7 +24,7 @@ Most settings apply across the app. Sections with a project picker let you inspe
 | Agents | Configure agent-created Workers and browse Markdown agent definitions. |
 | Permissions | Set default and project access modes, and revoke saved approvals. |
 | MCP | Connect external tools and services, choose how the agent reaches their tools, and diagnose connection problems. |
-| Worktrees | Choose the default checkout mode and manage Git worktrees. |
+| Worktrees | Choose where new sessions run, see how much space worktrees take, and remove them by hand or automatically. |
 | Archived items | Search archived sessions and conversation branches, restore them (with Undo), and permanently delete archived sessions. |
 | Connections | Connect provider accounts and choose which models appear beside the message box. |
 
@@ -108,22 +108,40 @@ Use **Settings > Shortcuts** for both app keyboard bindings and Project Action b
 
 ## Worktrees
 
-**Session environment mode** sets the default for new sessions:
+**Settings > Worktrees** shows the Session worktrees of every project, how much space they take, and which ones you can remove. Removing a worktree deletes its folder, including ignored files such as `.env` and `node_modules`. Its branch is always kept.
+
+**New Sessions run in** sets the default for new sessions:
 
 - **Current checkout** edits the project folder you opened. This is the shipped default.
-- **New worktree** creates a separate Git checkout for the session.
+- **A new worktree** creates a separate Git checkout for the session.
 
 You can choose a different mode before a session's first message. See [Git integration](/docs/developer-workflow/git-integration).
 
-![Settings > Worktrees: the session environment mode, then the main checkout and two managed worktrees, each with its path, branch and the session that works in it](/screenshots/settings-worktrees.png)
+![Settings > Worktrees: the storage summary, the Automatic cleanup setting, and two managed worktrees In use, each with its Session, branch, the space it frees and Archive & remove](/screenshots/settings-worktrees.png)
 
-The **Worktrees** list includes every worktree of the opened repository, even ones created outside OpenWaggle. Each row shows the folder, its branch, and the session that owns a managed worktree, or a local session that works in it. Search by path, branch, or session title to find a worktree in a long list. The main checkout is marked `(main)` and cannot be removed here. Use **Refresh** to reload the list.
+### Storage
 
-**Remove** asks before it deletes anything. The confirmation names the folder, its branch, and its session, and warns when the branch has commits that are not on any remote. The branch itself is kept. Normal removal refuses uncommitted changes or locks.
+The storage card adds up the space each worktree would free and splits it into three groups. Sizes are measured in the background and show **Measuring…** until they arrive. They are approximate: files shared with another folder, such as a pnpm package store, are not counted because removing the worktree would not free them. **Free about X** removes every worktree in **Safe to remove** after one confirmation that lists them.
 
-**Remove** is unavailable, and OpenWaggle refuses the removal, while the worktree is in use: when it is the opened project's checkout or the checkout a development build of OpenWaggle runs from, when a session that is not archived or has an active run works in it, when a Project Action is running in it, or when a terminal is open in it. The row says which. Archive the session, stop its run if an archived session still has one, stop the action, or close the terminal first. **Force remove** does not bypass this check.
+### Groups
 
-If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. Each of these removals asks for confirmation first as well. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also permits removal of dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
+- **Safe to remove**: every change is committed and on a remote, and no open session uses it. **Remove** asks once more in the row, then removes it.
+- **Needs a decision**: it has uncommitted changes or commits that are not on any remote, it was created outside OpenWaggle, it is locked, its Workspace cleanup failed, or Git could not report its state. **Discard & remove** or **Remove** opens a confirmation that says what would be lost.
+- **In use**: an open session, a run, a terminal, or a Project Action uses it. This group starts collapsed. **Archive & remove** archives every session in the worktree and then removes it; the confirmation names each session. It never discards uncommitted changes: a worktree that has some is offered as **Archive Sessions** instead, which archives them and keeps the worktree. While it still has changes it is listed under **Needs a decision**, where **Discard & remove** is a separate step. It is unavailable while a run, terminal or action uses the worktree, and the row says which.
+
+Worktrees OpenWaggle manages appear for every project. Worktrees created outside OpenWaggle appear only for the opened project, under **Needs a decision** unless something uses them, because removing one also deletes ignored files such as `.env` that OpenWaggle cannot restore. A worktree in OpenWaggle's worktree folder that this OpenWaggle profile has no record of, for example one a development build made, is labelled **Not recorded by this OpenWaggle profile** and also needs a decision. A managed worktree that no session uses is labelled **No Session uses this worktree** and can only be removed by hand. Use the project picker and search to narrow a long list.
+
+Archiving a session keeps its worktree, so restoring the session is instant. If you remove the worktree of an archived session and restore the session later, its next message offers to recreate the worktree from the kept branch or to continue in the current checkout.
+
+### Automatic cleanup
+
+**Remove worktrees of archived Sessions automatically** is off until you turn it on. When it is on, OpenWaggle removes a managed worktree once every session in it has been archived for the number of days you choose (7, 14, 30, 60 or 90; 30 by default), in every project. It checks when the app starts and about once a day after that. It never removes a worktree with uncommitted changes, commits that are not on a remote, a failed cleanup, or a lock; those stay under **Needs a decision** with the reason. The line beside the setting previews what it would remove now.
+
+The card shows when the rule last checked, and the last run that removed something, with each session and its kept branch. Just before removing a worktree, the rule measures it, so the notice can say how much space it freed. After a run removes something, the next time the app opens it shows one notice with a **View** button that opens this page.
+
+### Cleanup failures and forced removal
+
+OpenWaggle checks every removal again just before it runs, so a worktree that came into use after the list loaded is kept. If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also removes dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
 
 ## Connections
 

@@ -12,7 +12,7 @@ import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
-import { useTitleModelRefusalNotice } from '@/shell/useTitleModelRefusalNotice'
+import { useShellNotices } from '@/shell/useShellNotices'
 import { DesktopNativeAdmissionNotice } from './DesktopNativeAdmissionNotice'
 import { useDesktopNativeAdmissionStore } from './desktop-native-admission-store'
 import { RightPanelCommandPalette } from './right-panel/RightPanelCommandPalette'
@@ -55,7 +55,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useSetupActionTerminalReconciliation()
   useAutoUpdater()
   useScheduledTasksMonitor()
-  useTitleModelRefusalNotice()
+  useShellNotices()
   const loadDesktopNativeAdmission = useDesktopNativeAdmissionStore((state) => state.load)
   useEffect(loadDesktopNativeAdmission, [loadDesktopNativeAdmission])
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)

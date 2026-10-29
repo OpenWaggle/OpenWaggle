@@ -36,6 +36,10 @@ import type {
 } from './source-control'
 import { DEFAULT_SYNTAX_THEME_SELECTIONS, type SyntaxThemeSelections } from './syntax'
 import { DEFAULT_UPDATE_CHANNEL, type UpdateChannel } from './update-channel'
+import {
+  type AutomaticWorktreeRemovalSettings,
+  DEFAULT_AUTOMATIC_WORKTREE_REMOVAL,
+} from './worktree-inventory'
 
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
@@ -102,6 +106,8 @@ export interface Settings {
   readonly updateChannel: UpdateChannel
   /** Whether this install sends anonymous Usage statistics and error reports (ADR 0046). */
   readonly usageStatisticsEnabled: boolean
+  /** Automatic worktree removal (ADR 0060): off by default, app-wide. */
+  readonly automaticWorktreeRemoval: AutomaticWorktreeRemovalSettings
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   /** Named Agent definitions are enabled by default; false disables that name for one project. */
@@ -213,6 +219,7 @@ export const DEFAULT_SETTINGS: Settings = {
   projectPath: null,
   updateChannel: DEFAULT_UPDATE_CHANNEL,
   usageStatisticsEnabled: true,
+  automaticWorktreeRemoval: DEFAULT_AUTOMATIC_WORKTREE_REMOVAL,
   recentProjects: [],
   skillTogglesByProject: {},
   agentDefinitionTogglesByProject: {},

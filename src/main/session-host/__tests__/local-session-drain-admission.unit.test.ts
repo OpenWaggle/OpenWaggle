@@ -173,6 +173,7 @@ describe('commands a draining Session Host still accepts', () => {
       'git:change-request:panel',
       'git:change-request:merge-candidate',
       'git:session:verify-working-path',
+      'worktrees:automatic-removal-log',
     ])
     const refused = new Set<HostBackedGuiChannel>([
       'agent:get-context-usage',
@@ -181,6 +182,8 @@ describe('commands a draining Session Host still accepts', () => {
       'providers:get-models',
       // Lists an App server's resources and prompts over a pooled connection, opening one.
       'mcp:list-app-catalog',
+      'worktrees:measure',
+      'worktrees:inventory',
     ])
 
     expect(new Set([...admitted, ...refused])).toEqual(READ_ONLY_HOST_UI_CHANNELS)

@@ -8,6 +8,7 @@ type BrowserAndScalarActions = Pick<
   | 'setUpdateChannel'
   | 'setUsageStatisticsEnabled'
   | 'setDefaultSessionEnvironmentMode'
+  | 'setAutomaticWorktreeRemoval'
   | 'setMultiAgentEnabled'
   | 'setSessionHostParentConcurrencyLimit'
   | 'setSessionHostRunCeiling'
@@ -69,6 +70,7 @@ export function createBrowserAndScalarPreferencesActions(
     setDefaultAuthorizationMode: (value) => persistSetting('defaultAuthorizationMode', value, set),
     setDefaultSessionEnvironmentMode: (value) =>
       persistSetting('defaultSessionEnvironmentMode', value, set),
+    setAutomaticWorktreeRemoval: (value) => persistSetting('automaticWorktreeRemoval', value, set),
     setMultiAgentEnabled: (value) => persistSetting('multiAgentEnabled', value, set),
     setSessionHostParentConcurrencyLimit: (value) =>
       persistSetting('sessionHostParentConcurrencyLimit', value, set),

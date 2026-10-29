@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionWorktreeRef } from '../worktree-cleanup'
@@ -88,25 +89,53 @@ describe('pruneSessionWorktree', () => {
     expect(d.clearWorktree).not.toHaveBeenCalled()
   })
 
-  it.each(['dirty-worktree', 'not-found'] as const)(
+  it('lets a Session go when Settings already removed its worktree folder (ADR 0060)', async () => {
+    validateGitWorktreeRemovalMock.mockResolvedValue({
+      ok: false,
+      code: 'not-found',
+      message: 'not-found',
+    })
+    const d = deps([{ sessionId: 's1', worktreePath: '/wt/removed-by-settings' }])
+    const preparedRemover = vi.fn()
+    await expect(
+      pruneSessionWorktree(
+        {
+          sessionId: 's1',
+          projectPath: '/repo',
+          worktreePath: '/wt/removed-by-settings',
+          reason: 'delete',
+          validateOnly: true,
+        },
+        { ...d, removeWorktree: preparedRemover },
+      ),
+    ).resolves.toEqual({ status: 'ready-for-deletion' })
+    expect(preparedRemover).not.toHaveBeenCalled()
+    expect(removeGitWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['dirty-worktree', '/wt/x'],
+    // Git does not list it, but a folder is there: it may hold work, so it is kept.
+    ['not-found', tmpdir()],
+  ] as const)(
     'does not call an injected cleanup remover when validation reports %s',
-    async (code) => {
+    async (code, worktreePath) => {
       validateGitWorktreeRemovalMock.mockResolvedValue({ ok: false, code, message: code })
-      const d = deps([{ sessionId: 's1', worktreePath: '/wt/x' }])
+      const d = deps([{ sessionId: 's1', worktreePath }])
       const preparedRemover = vi.fn()
       await expect(
         pruneSessionWorktree(
           {
             sessionId: 's1',
             projectPath: '/repo',
-            worktreePath: '/wt/x',
+            worktreePath,
             reason: 'delete',
             validateOnly: true,
           },
           { ...d, removeWorktree: preparedRemover },
         ),
       ).resolves.toEqual({ status: 'retained', reason: 'worktree-removal-refused' })
-      expect(validateGitWorktreeRemovalMock).toHaveBeenCalledWith('/repo', { path: '/wt/x' })
+      expect(validateGitWorktreeRemovalMock).toHaveBeenCalledWith('/repo', { path: worktreePath })
       expect(preparedRemover).not.toHaveBeenCalled()
       expect(removeGitWorktreeMock).not.toHaveBeenCalled()
       expect(d.clearWorktree).not.toHaveBeenCalled()

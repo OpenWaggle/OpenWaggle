@@ -30,6 +30,8 @@ interface RemovalCandidateRow {
 interface RemovalWorkspaceRow extends RemovalCandidateRow {
   readonly lifecycle_state: string
   readonly binding_count: number
+  /** Bindings whose Session is not archived or still has an active Run. */
+  readonly active_binding_count: number
 }
 
 interface ChangesRow {
@@ -43,9 +45,13 @@ function repositoryError(message: string, cause: unknown) {
 function loadRemovalWorkspace(sql: SqlClient.SqlClient, resourceId: string) {
   return sql<RemovalWorkspaceRow>`
     SELECT resources.id, resources.project_path, resources.working_path,
-      resources.lifecycle_state, COUNT(bindings.session_id) AS binding_count
+      resources.lifecycle_state, COUNT(bindings.session_id) AS binding_count,
+      COUNT(CASE WHEN sessions.archived = 0 OR states.active_run_id IS NOT NULL
+        OR sessions.id IS NULL THEN bindings.session_id END) AS active_binding_count
     FROM workspace_resources AS resources
     LEFT JOIN session_workspace_bindings AS bindings ON bindings.workspace_id = resources.id
+    LEFT JOIN sessions ON sessions.id = bindings.session_id
+    LEFT JOIN session_control_states AS states ON states.session_id = bindings.session_id
     WHERE resources.id = ${resourceId} AND resources.kind = ${'managed-worktree'}
     GROUP BY resources.id
     LIMIT 1
@@ -59,6 +65,7 @@ function admitManagedWorktreeRemoval(
     readonly reservationId: string
     readonly projectPath: string
     readonly workingPath: string
+    readonly admitArchivedBindings?: boolean
   },
 ) {
   return sql.withTransaction(
@@ -67,15 +74,16 @@ function admitManagedWorktreeRemoval(
         ? (yield* loadRemovalWorkspace(sql, input.resourceId))[0]
         : undefined
       if (existing) {
-        if (existing.binding_count > 0 || existing.lifecycle_state !== 'ready') {
+        const blockingBindings = input.admitArchivedBindings
+          ? existing.active_binding_count
+          : existing.binding_count
+        if (blockingBindings > 0 || existing.lifecycle_state !== 'ready') {
           return { status: 'unavailable' } as const
         }
+        // The count was read in this transaction, so the state change cannot race a binding.
         yield* sql`
           UPDATE workspace_resources SET lifecycle_state = ${'releasing'}, updated_at = ${Date.now()}
           WHERE id = ${existing.id} AND lifecycle_state = ${'ready'}
-            AND NOT EXISTS (
-              SELECT 1 FROM session_workspace_bindings WHERE workspace_id = ${existing.id}
-            )
         `
         const changed = (yield* sql<ChangesRow>`SELECT changes() AS changes`)[0]?.changes ?? 0
         return changed === 1
@@ -126,14 +134,15 @@ function finalizeManagedWorktreeRemoval(
               SELECT 1 FROM session_workspace_bindings WHERE workspace_id = ${input.resourceId}
             )
         `
-        return
       }
+      /*
+       * A Workspace that archived Sessions are still bound to stays, `ready` with its folder gone:
+       * an unarchived Session then meets the missing-worktree choice (recreate it from its branch,
+       * or work in the current checkout) instead of losing its binding (ADR 0060).
+       */
       yield* sql`
         UPDATE workspace_resources SET lifecycle_state = ${'ready'}, updated_at = ${Date.now()}
         WHERE id = ${input.resourceId} AND lifecycle_state = ${'releasing'}
-          AND NOT EXISTS (
-            SELECT 1 FROM session_workspace_bindings WHERE workspace_id = ${input.resourceId}
-          )
       `
     }),
   )

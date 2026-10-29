@@ -53,6 +53,10 @@ import {
   removeHostUiWorktree,
 } from '../../application/host-ui-worktree-operation'
 import {
+  dispatchHostUiWorktreesOperation,
+  isHostUiWorktreesChannel,
+} from '../../application/host-ui-worktrees-dispatcher'
+import {
   callMcpAppToolOperation,
   listMcpAppCatalogOperation,
   readMcpResourceOperation,
@@ -249,6 +253,10 @@ export function legacyHostOperation<C extends HostBackedGuiChannel>(
   if (!operation && isHostBackedSessionGuiChannel(channel)) {
     // Every other `sessions:*` channel ran the Host's own Session operation.
     return (_event, ...args) => dispatchHostBackedSessionGuiOperation(channel, args)
+  }
+  if (!operation && isHostUiWorktreesChannel(channel)) {
+    // Settings > Worktrees came after A-F5; its channels run the Host's own operation.
+    return (_event, ...args) => dispatchHostUiWorktreesOperation(channel, args)
   }
   if (!operation) throw new Error(`No legacy Host operation for ${channel}`)
   return operation

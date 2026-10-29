@@ -12,6 +12,10 @@ import {
   resolveStoredPiSessionContinuationSettings,
 } from './pi-session-continuation-settings'
 import { isObjectRecord } from './sanitizers'
+import {
+  resolveNextWorktreeRemovalSettings,
+  resolveStoredWorktreeRemovalSettings,
+} from './worktree-removal-settings'
 
 function resolvePositiveSafeInteger(raw: unknown, fallback: number) {
   return typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0 ? raw : fallback
@@ -85,6 +89,7 @@ export function resolveStoredSessionHostSettings(
       storedValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT),
     ),
     ...resolveStoredPiSessionContinuationSettings(storedSettings),
+    ...resolveStoredWorktreeRemovalSettings(storedSettings),
   }
 }
 
@@ -122,5 +127,6 @@ export function resolveNextSessionHostSettings(current: Settings, partial: Parti
     multiAgentEnabled,
     multiAgentEnabledByProject,
     ...resolveNextPiSessionContinuationSettings(current, partial),
+    ...resolveNextWorktreeRemovalSettings(current, partial),
   }
 }

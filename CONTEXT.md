@@ -1242,6 +1242,14 @@ _Avoid_: vanished setup event, permanent progress panel, assistant message
 A recoverable Worktree launch progress state that retains exactly one submitted turn and exposes its actual failure details until the user retries, continues locally, or cancels and restores the draft.
 _Avoid_: generic send error, duplicate draft, automatic local fallback
 
+**Automatic worktree removal**:
+An opt-in, app-wide rule, off by default, that removes a managed **Session worktree** in any project once every Session bound to it has been archived for a number of days the user chooses. It never removes a worktree with uncommitted changes or unpushed commits. It keeps the branch, and it does delete files git ignores, such as `.env` and `node_modules`.
+_Avoid_: remove on archive, auto-prune, last-used cleanup
+
+**Reclaimable space**:
+The disk space that removing a worktree would actually free. Files that are also hard-linked from somewhere else, such as a shared package store, are not counted, so it is an estimate and is shown as "about".
+_Avoid_: worktree size, disk usage (both suggest the apparent size)
+
 ### Appearance and design tokens
 
 **Design token contract**:
@@ -2071,6 +2079,11 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - An existing local checkout offers explicit **Workspace setup**; opening it or starting its first agent turn does not run setup automatically.
 - Configured **Workspace cleanup** runs before removal of a managed **Session worktree**, only after its final **Workspace binding** has been released.
 - Failed **Workspace cleanup** retains the worktree until cleanup succeeds or the user explicitly chooses to delete it anyway.
+- Archiving a Session never removes its **Session worktree** by itself, because archiving is reversible and removal deletes ignored files. Only an explicit removal or **Automatic worktree removal** after the chosen number of days does.
+- Settings > Worktrees covers every managed **Session worktree** across all projects. Git worktrees created outside OpenWaggle appear only for the opened project and are never removed automatically.
+- A managed **Session worktree** that no Session is bound to can only be removed by hand. **Automatic worktree removal** skips it, because it has no archive date to count from.
+- Settings > Worktrees can archive every Session bound to a managed **Session worktree** and then remove it, in one confirmed action that names each Session. Removal blockers (an active Run, an open terminal, a running Action) still apply.
+- Each **Automatic worktree removal** run is recorded on Settings > Worktrees with what it removed. A run that removed something also shows one toast the next time the app opens. A worktree past the chosen number of days that the rule kept, because of uncommitted changes or unpushed commits, is listed with the reason it was kept.
 - A launch that uses **Work-locally fallback** or is cancelled leaves no `Worktree created` trace, because no successful worktree creation occurred.
 - A **Failed worktree launch** keeps the submitted user message visible and presents `Retry`, `Work locally`, `Cancel`, and `More details`. Retry and Work locally continue the retained turn exactly once; Cancel removes it and restores its exact pre-send draft.
 - A **Failed worktree launch** does not also restore the retained message into the composer, because representing the same intent as both a transcript turn and a draft invites a duplicate send.

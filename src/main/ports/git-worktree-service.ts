@@ -35,6 +35,8 @@ export interface GitWorktreeServiceShape {
   readonly list: (projectPath: string) => Effect.Effect<GitWorktreeListResult>
   /** Commits on a worktree's HEAD that no remote-tracking ref has; null when unknown. */
   readonly countUnpublishedCommits: (worktreePath: string) => Effect.Effect<number | null>
+  /** Changed, staged and untracked entries (ignored files excluded); null when unknown. */
+  readonly countUncommittedChanges: (worktreePath: string) => Effect.Effect<number | null>
   /** The checkout the running app was started from (a development build), or null. */
   readonly applicationCheckout: () => Effect.Effect<string | null>
 }

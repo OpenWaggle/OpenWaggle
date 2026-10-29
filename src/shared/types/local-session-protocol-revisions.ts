@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 29 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 30 as const
+export const LOCAL_SESSION_WORKTREE_INVENTORY_REVISION = 30 as const
 export const LOCAL_SESSION_SESSION_DATA_REVISION = 29 as const
 export const LOCAL_SESSION_HEARTBEAT_EFFICIENCY_REVISION = 28 as const
 export const LOCAL_SESSION_HIVE_DEFAULTS_REVISION = 27 as const
@@ -86,6 +87,11 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * `session-list-changed` event for a pin or a read receipt carries `catalogOnly`, so windows do
  * not read the Session again. A revision-28 window reading a content-free tree
  * would show empty labels, so older clients must upgrade.
+ * Revision 30 adds Settings > Worktrees across every project (ADR 0060): the inventory
+ * (`worktrees:inventory`), Reclaimable space (`worktrees:measure`), Archive & remove
+ * (`worktrees:archive-and-remove`), and Automatic worktree removal's record
+ * (`worktrees:automatic-removal-log`, `worktrees:acknowledge-automatic-removal`). Removing an
+ * archived Session's worktree through `git:worktrees:remove` keeps its Workspace binding.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -236,4 +242,9 @@ export const LOCAL_SESSION_REVISION_29_CAPABILITIES = [
   'host-ui:session-data-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_29_CAPABILITIES
+export const LOCAL_SESSION_REVISION_30_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_29_CAPABILITIES,
+  'host-ui:worktree-inventory-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_30_CAPABILITIES

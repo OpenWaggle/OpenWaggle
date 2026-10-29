@@ -1,229 +1,254 @@
-import { RepositoryPath } from '@shared/types/brand'
-import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import { Search } from 'lucide-react'
-import { useState } from 'react'
+import { SESSION_ENVIRONMENT_MODES, type SessionEnvironmentMode } from '@shared/types/git'
+import type {
+  WorktreeInventoryEntry,
+  WorktreeInventoryGroup,
+  WorktreeInventoryProject,
+} from '@shared/types/worktree-inventory'
+import { useId, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
-import { api } from '@/shared/lib/ipc'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
-import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
-import { TextInput } from '@/shared/ui/TextInput'
-import { useUIStore } from '@/shell/ui-store'
-import {
-  type PreparedWorktree,
-  useProjectWorktrees,
-  worktreeMatchesSearch,
-} from './worktrees/use-project-worktrees'
-import {
-  WorktreeRemovalDialog,
-  type WorktreeRemovalRequest,
-} from './worktrees/WorktreeRemovalDialog'
-import { WorktreeRow } from './worktrees/WorktreeRow'
+import { Select } from '@/shared/ui/Select'
+import { AutomaticRemovalCard } from './worktrees/AutomaticRemovalCard'
+import { BulkWorktreeRemovalDialog } from './worktrees/BulkWorktreeRemovalDialog'
+import { useWorktreeInventory, useWorktreeSpace } from './worktrees/use-worktree-inventory'
+import { useWorktreeRemoval, type WorktreeRemovalRequest } from './worktrees/use-worktree-removal'
+import { ALL_PROJECTS, WorktreeFilters } from './worktrees/WorktreeFilters'
+import { WorktreeGroup, type WorktreeRowContext } from './worktrees/WorktreeGroup'
+import { WorktreeRemovalDialog } from './worktrees/WorktreeRemovalDialog'
+import { storageTotals, WorktreeStorageCard } from './worktrees/WorktreeStorageCard'
+import { approximateSpace, worktreeEntryMatchesSearch } from './worktrees/worktree-inventory-format'
 
-const logger = createRendererLogger('settings')
+const GROUPS: readonly WorktreeInventoryGroup[] = ['safe', 'decide', 'in-use']
 
-const MODE_LABELS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], string> = {
+const MODE_LABELS: Record<SessionEnvironmentMode, string> = {
   local: 'Current checkout',
-  worktree: 'New worktree',
+  worktree: 'A new worktree',
 }
 
-const MODE_DESCRIPTIONS: Record<(typeof SESSION_ENVIRONMENT_MODES)[number], string> = {
-  local: 'Sessions edit files directly in the opened checkout.',
-  worktree: 'Each session runs in a dedicated Session worktree isolated from the checkout.',
+function isSessionEnvironmentMode(value: string): value is SessionEnvironmentMode {
+  return SESSION_ENVIRONMENT_MODES.some((mode) => mode === value)
 }
 
-/**
- * A cleanup failure or refusal is shown in full under the row once the list refreshes, which a
- * brief toast cannot do. When the refreshed row has no recovery to show it, the toast says why.
- */
-function removalFailureToast(
-  result: { readonly code: string; readonly message: string },
-  refreshed: readonly PreparedWorktree[],
-  worktreePath: string,
+/** The opened project first, then by name; inside a project, the longest archived first. */
+function orderEntries(
+  entries: readonly WorktreeInventoryEntry[],
+  projects: readonly WorktreeInventoryProject[],
 ) {
-  const reasonShown = refreshed.some((row) => row.path === worktreePath && row.preparation)
-  return result.code === 'cleanup-failed' && reasonShown
-    ? 'The worktree was kept. The reason is shown under it.'
-    : result.message
+  const rank = new Map(projects.map((project, index) => [project.projectPath, index]))
+  return [...entries].sort(
+    (left, right) =>
+      (rank.get(left.projectPath) ?? projects.length) -
+        (rank.get(right.projectPath) ?? projects.length) ||
+      (left.archivedAt ?? Number.POSITIVE_INFINITY) -
+        (right.archivedAt ?? Number.POSITIVE_INFINITY) ||
+      left.path.localeCompare(right.path),
+  )
 }
 
-function WorktreeSearch(props: {
-  readonly value: string
-  readonly onChange: (value: string) => void
-  readonly shown: number
-  readonly total: number
-}) {
+function NewSessionsRunIn() {
+  const id = useId()
+  const mode = usePreferencesStore((state) => state.settings.defaultSessionEnvironmentMode)
+  const setMode = usePreferencesStore((state) => state.setDefaultSessionEnvironmentMode)
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-56 flex-1">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-text-tertiary"
-        />
-        <TextInput
-          type="search"
-          inputSize="sm"
-          aria-label="Search worktrees"
-          placeholder="Search paths, branches and Sessions…"
-          autoComplete="off"
-          spellCheck={false}
-          value={props.value}
-          onChange={(event) => props.onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape' && props.value) {
-              event.stopPropagation()
-              props.onChange('')
-            }
-          }}
-          className="pl-8"
-        />
-      </div>
-      <span className="text-xs text-text-tertiary" aria-live="polite">
-        {props.shown === props.total
-          ? `${String(props.total)} worktrees`
-          : `${String(props.shown)} of ${String(props.total)} worktrees`}
-      </span>
+    <div className="flex items-center gap-2 text-xs text-text-secondary">
+      <label htmlFor={id}>New Sessions run in</label>
+      <Select
+        id={id}
+        selectSize="xs"
+        value={mode}
+        onChange={(event) => {
+          if (isSessionEnvironmentMode(event.target.value)) void setMode(event.target.value)
+        }}
+      >
+        {SESSION_ENVIRONMENT_MODES.map((option) => (
+          <option key={option} value={option}>
+            {MODE_LABELS[option]}
+          </option>
+        ))}
+      </Select>
     </div>
   )
 }
 
-export function WorktreesSection() {
-  const settings = usePreferencesStore((state) => state.settings)
-  const projectPath = settings.projectPath
-  const repositoryPath = projectPath === null ? null : RepositoryPath(projectPath)
-  const { worktrees, isLoading, refresh, error } = useProjectWorktrees(repositoryPath)
-  const [removingPath, setRemovingPath] = useState<string | null>(null)
-  const [pendingRemoval, setPendingRemoval] = useState<WorktreeRemovalRequest | null>(null)
-  const [search, setSearch] = useState('')
-  const showToast = useUIStore((state) => state.showToast)
-  const visible = worktrees.filter((worktree) => worktreeMatchesSearch(worktree, search))
+function WorktreesHeader(props: { readonly refreshing: boolean; readonly onRefresh: () => void }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-base font-semibold text-text-primary">Worktrees</h3>
+        <p className="max-w-prose text-xs leading-5 text-text-tertiary">
+          Session worktrees in every project. Removing one deletes its folder and keeps its branch.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <NewSessionsRunIn />
+        <Button variant="secondary" size="xs" disabled={props.refreshing} onClick={props.onRefresh}>
+          {props.refreshing ? 'Refreshing…' : 'Refresh'}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
-  async function handleRemove(request: WorktreeRemovalRequest) {
-    if (!repositoryPath) return
-    setPendingRemoval(null)
-    setRemovingPath(request.path)
-    try {
-      const result = await api.removeGitWorktree(repositoryPath, {
-        path: request.path,
-        ...(request.skipCleanup ? { skipCleanup: true } : {}),
-        ...(request.force ? { force: true } : {}),
-      })
-      if (!result.ok) {
-        /*
-         * Say why. Removal is deliberately refused for a dirty, locked or in-use worktree - the
-         * common case for a session that is mid-work - and sending the typed message only to the
-         * log meant the row stayed put with no explanation, which reads as a broken button.
-         */
-        logger.warn('Failed to remove worktree', { code: result.code, message: result.message })
-        showToast(removalFailureToast(result, await refresh(), request.path), 'error')
-      } else await refresh()
-    } catch (error) {
-      logger.warn('Failed to remove worktree', { error: String(error) })
-      showToast(`Could not remove the worktree: ${ipcErrorMessage(error)}`, 'error')
-      await refresh()
-    } finally {
-      setRemovingPath(null)
-    }
+function InventoryProblems(props: {
+  readonly error: unknown
+  readonly problems: readonly string[]
+}) {
+  return (
+    <>
+      {props.error ? (
+        <p role="alert" className="text-xs text-error-text">
+          Could not list worktrees: {ipcErrorMessage(props.error)}
+        </p>
+      ) : null}
+      {props.problems.length > 0 ? (
+        // A status, not an alert: every refetch renders the same problems again.
+        <p role="status" aria-label="Inventory problems" className="text-xs text-warning">
+          {props.problems.join(' ')}
+        </p>
+      ) : null}
+    </>
+  )
+}
+
+function removalRequest(entry: WorktreeInventoryEntry): WorktreeRemovalRequest {
+  return { path: entry.path, projectPath: entry.projectPath, skipCleanup: false, force: false }
+}
+
+/** The filters and the three groups of worktrees. */
+function WorktreeList(props: {
+  readonly projects: readonly WorktreeInventoryProject[]
+  readonly project: string
+  readonly onProjectChange: (project: string) => void
+  readonly entries: readonly WorktreeInventoryEntry[]
+  readonly context: WorktreeRowContext
+}) {
+  const [search, setSearch] = useState('')
+  const visible = props.entries.filter((entry) => worktreeEntryMatchesSearch(entry, search))
+  return (
+    <>
+      <WorktreeFilters
+        projects={props.projects}
+        project={props.project}
+        onProjectChange={props.onProjectChange}
+        search={search}
+        onSearchChange={setSearch}
+        shown={visible.length}
+        total={props.entries.length}
+      />
+      {visible.length === 0 ? (
+        <p className="text-xs text-text-tertiary">No worktrees match.</p>
+      ) : (
+        GROUPS.map((group) => (
+          <WorktreeGroup
+            key={group}
+            group={group}
+            entries={visible.filter((entry) => entry.group === group)}
+            context={props.context}
+          />
+        ))
+      )}
+    </>
+  )
+}
+
+/** Settings > Worktrees (ADR 0060): what worktrees cost, and removing the ones nothing needs. */
+export function WorktreesSection() {
+  const inventory = useWorktreeInventory()
+  const rule = usePreferencesStore((state) => state.settings.automaticWorktreeRemoval)
+  const setRule = usePreferencesStore((state) => state.setAutomaticWorktreeRemoval)
+  const [chosenProject, setProject] = useState(ALL_PROJECTS)
+  const [pending, setPending] = useState<WorktreeRemovalRequest | null>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const removal = useWorktreeRemoval()
+  const projects = inventory.data?.projects ?? []
+  // A project whose last worktree was removed leaves the list; so does the filter on it.
+  const project = projects.some((entry) => entry.projectPath === chosenProject)
+    ? chosenProject
+    : ALL_PROJECTS
+  const all = orderEntries(inventory.data?.entries ?? [], projects)
+  const byGroup = GROUPS.flatMap((group) => all.filter((entry) => entry.group === group))
+  const space = useWorktreeSpace(byGroup)
+  const inProject = byGroup.filter(
+    (entry) => project === ALL_PROJECTS || entry.projectPath === project,
+  )
+  const safe = inProject.filter((entry) => entry.group === 'safe')
+  const now = inventory.dataUpdatedAt
+  const context: WorktreeRowContext = {
+    space,
+    busyPaths: removal.busyPaths,
+    projectNames: new Map(projects.map((entry) => [entry.projectPath, entry.name])),
+    now,
+    onRemove: (request) => void removal.remove(request),
+    onConfirm: setPending,
   }
 
   return (
-    <div className="space-y-6">
-      <WorktreeEnvironmentMode />
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-text-primary">Worktrees</h3>
-          <Button variant="secondary" size="xs" disabled={isLoading} onClick={() => void refresh()}>
-            Refresh
-          </Button>
-        </div>
-        {error ? (
-          <p role="alert" className="text-xs text-error-text">
-            {error}
-          </p>
-        ) : null}
-        {!projectPath ? (
-          <p className="text-xs text-text-tertiary">Open a project to manage its worktrees.</p>
-        ) : worktrees.length === 0 ? (
-          <p className="text-xs text-text-tertiary">
-            {isLoading ? 'Loading worktrees…' : 'No worktrees for this repository.'}
-          </p>
-        ) : (
-          <>
-            <WorktreeSearch
-              value={search}
-              onChange={setSearch}
-              shown={visible.length}
-              total={worktrees.length}
-            />
-            {visible.length === 0 ? (
-              <p className="text-xs text-text-tertiary">No worktrees match this search.</p>
-            ) : (
-              <ul
-                aria-label="Worktrees"
-                className="overflow-hidden rounded-lg border border-border bg-bg"
-              >
-                {visible.map((worktree) => (
-                  <WorktreeRow
-                    key={worktree.path}
-                    projectPath={projectPath}
-                    worktree={worktree}
-                    busy={removingPath === worktree.path}
-                    onRequestRemoval={setPendingRemoval}
-                  />
-                ))}
-              </ul>
+    <div className="space-y-5">
+      <WorktreesHeader
+        refreshing={inventory.isFetching}
+        onRefresh={() => void inventory.refetch()}
+      />
+      <InventoryProblems
+        error={inventory.isError ? inventory.error : null}
+        problems={inventory.data?.problems ?? []}
+      />
+      {inventory.isPending ? (
+        <p className="text-xs text-text-tertiary">Loading worktrees…</p>
+      ) : (
+        <>
+          <WorktreeStorageCard
+            totals={storageTotals(inProject, space)}
+            safeCount={safe.length}
+            safeSpace={approximateSpace(
+              safe.map((entry) => entry.path),
+              space,
             )}
-          </>
-        )}
-      </div>
-      {repositoryPath && pendingRemoval ? (
+            worktreeCount={inProject.length}
+            busy={removal.busyPaths.size > 0}
+            onFreeSafe={() => setBulkOpen(true)}
+          />
+          <AutomaticRemovalCard
+            rule={rule}
+            onChange={(next) => void setRule(next)}
+            entries={all}
+            space={space}
+            now={now}
+          />
+          {all.length === 0 ? (
+            <p className="text-xs text-text-tertiary">No Session worktrees yet.</p>
+          ) : (
+            <WorktreeList
+              projects={projects}
+              project={project}
+              onProjectChange={setProject}
+              entries={inProject}
+              context={context}
+            />
+          )}
+        </>
+      )}
+      {pending ? (
         <WorktreeRemovalDialog
-          repositoryPath={repositoryPath}
-          request={pendingRemoval}
-          onConfirm={(request) => void handleRemove(request)}
-          onClose={() => setPendingRemoval(null)}
+          request={pending}
+          onConfirm={(request) => {
+            setPending(null)
+            void removal.remove(request)
+          }}
+          onClose={() => setPending(null)}
         />
       ) : null}
-    </div>
-  )
-}
-
-function WorktreeEnvironmentMode() {
-  const settings = usePreferencesStore((state) => state.settings)
-  const setDefaultSessionEnvironmentMode = usePreferencesStore(
-    (state) => state.setDefaultSessionEnvironmentMode,
-  )
-  return (
-    <div className="space-y-3">
-      <h3 className="text-base font-semibold text-text-primary">Session environment mode</h3>
-      <div className="overflow-hidden rounded-lg border border-border bg-bg">
-        {SESSION_ENVIRONMENT_MODES.map((mode) => {
-          const isActive = settings.defaultSessionEnvironmentMode === mode
-          return (
-            <Button
-              variant="unstyled"
-              type="button"
-              key={mode}
-              onClick={() => {
-                void setDefaultSessionEnvironmentMode(mode)
-              }}
-              aria-pressed={isActive}
-              className="flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover"
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium text-text-primary">{MODE_LABELS[mode]}</span>
-                <span className="text-xs text-text-tertiary">{MODE_DESCRIPTIONS[mode]}</span>
-              </div>
-              <div
-                className={`size-3 shrink-0 rounded-full border ${
-                  isActive ? 'border-accent bg-accent' : 'border-border-light'
-                }`}
-              />
-            </Button>
-          )
-        })}
-      </div>
+      {bulkOpen ? (
+        <BulkWorktreeRemovalDialog
+          entries={safe}
+          space={space}
+          onConfirm={() => {
+            setBulkOpen(false)
+            void removal.removeMany(safe.map(removalRequest), space)
+          }}
+          onClose={() => setBulkOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -172,7 +172,7 @@ describe('SQLite Session Host recovery repository', () => {
     })
   })
 
-  it('reports unbound releasing worktrees for filesystem reconciliation', async () => {
+  it('reports every releasing worktree, bound to archived Sessions or not, for reconciliation', async () => {
     const layer = makeLayer(path.join(temporaryRoot, 'worktree-removal.sqlite'))
     const recovery = await Effect.runPromise(
       Effect.gen(function* () {
@@ -189,7 +189,13 @@ describe('SQLite Session Host recovery repository', () => {
             (
               ${'worktree-removal:synthetic'}, ${'/project'}, ${'managed-worktree'},
               ${'/synthetic'}, ${'releasing'}, ${0}, ${2}, ${2}
-            )
+            ),
+            (${'archived-bound'}, ${'/project'}, ${'managed-worktree'}, ${'/bound'},
+              ${'releasing'}, ${0}, ${3}, ${3})
+        `
+        yield* sql`
+          INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+          SELECT id, ${'archived-bound'}, ${3} FROM sessions LIMIT 1
         `
         return yield* (yield* SessionHostRecoveryRepository).recoverAfterHostLoss(20)
       }).pipe(Effect.provide(layer)),
@@ -206,6 +212,7 @@ describe('SQLite Session Host recovery repository', () => {
         workingPath: '/synthetic',
         createdReservation: true,
       },
+      { resourceId: 'archived-bound', workingPath: '/bound', createdReservation: false },
     ])
   })
 

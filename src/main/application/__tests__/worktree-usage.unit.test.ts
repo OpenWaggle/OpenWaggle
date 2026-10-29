@@ -38,10 +38,16 @@ function occupant(
     sessionId,
     title: `Session ${sessionId}`,
     archived: false,
+    archivedAt: null,
     activeRun: false,
     sessionProjectPath: PROJECT,
     workspace: workingPath
-      ? { id: `workspace-${sessionId}`, kind: 'managed-worktree', workingPath }
+      ? {
+          id: `workspace-${sessionId}`,
+          kind: 'managed-worktree',
+          workingPath,
+          lifecycleState: 'ready',
+        }
       : null,
     ...rest,
   }
@@ -57,7 +63,12 @@ const OCCUPANTS: readonly WorkspaceOccupant[] = [
   }),
   occupant('local', {
     sessionProjectPath: WORKTREES.openedAsProject,
-    workspace: { id: 'workspace-local', kind: 'local', workingPath: WORKTREES.openedAsProject },
+    workspace: {
+      id: 'workspace-local',
+      kind: 'local',
+      workingPath: WORKTREES.openedAsProject,
+      lifecycleState: 'ready',
+    },
   }),
   occupant('action', { workingPath: WORKTREES.action, archived: true }),
   occupant('terminal', { workingPath: WORKTREES.terminal, archived: true }),
@@ -94,6 +105,7 @@ function layer(
           }),
         applicationCheckout: () => Effect.succeed(WORKTREES.app),
         countUnpublishedCommits: () => Effect.succeed(options.unpublished ?? 0),
+        countUncommittedChanges: () => Effect.succeed(0),
         remove: options.remove,
       }),
     ),
@@ -160,6 +172,7 @@ describe('Settings > Worktrees usage', () => {
         sessionId: 'active',
         title: 'Fix the login bug',
         archived: false,
+        archivedAt: null,
         running: false,
         owner: true,
       },

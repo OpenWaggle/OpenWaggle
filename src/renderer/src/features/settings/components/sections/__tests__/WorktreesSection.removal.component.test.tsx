@@ -1,216 +1,322 @@
-import type {
-  ActionManagementRequest,
-  ActionManagementResult,
-} from '@shared/types/action-management'
-import type { GitWorktreeInfo } from '@shared/types/git'
-import type { WorktreeRemovalPreview, WorktreeUsage } from '@shared/types/worktree-usage'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import {
+  createPreferencesMock,
+  createWorktreeApiMocks,
+  entry,
+  inventory,
+  PROJECT,
+  preview,
+  rowTitled,
+} from './worktree-inventory-fixtures'
 
-const WORKTREE_COUNT = 400
-
-const mocks = vi.hoisted(() => ({
-  manage: vi.fn<(request: ActionManagementRequest) => Promise<ActionManagementResult>>(),
-  remove: vi.fn(),
-  list: vi.fn<() => Promise<{ readonly worktrees: readonly GitWorktreeInfo[] }>>(),
-}))
+const mocks = vi.hoisted(() => {
+  const api: Record<string, unknown> = {}
+  const preferences: Record<string, unknown> = {}
+  return { api, preferences }
+})
 vi.mock('@/features/settings/state/preferences-store', () => ({
-  usePreferencesStore: (select: (value: unknown) => unknown) =>
-    select({ settings: { projectPath: '/project', defaultSessionEnvironmentMode: 'local' } }),
+  usePreferencesStore: (select: (value: unknown) => unknown) => select(mocks.preferences),
 }))
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    manageProjectActions: mocks.manage,
-    removeGitWorktree: mocks.remove,
-    listGitWorktrees: mocks.list,
-  },
-}))
+vi.mock('@/shared/lib/ipc', () => ({ api: mocks.api }))
 
 import { WorktreesSection } from '../WorktreesSection'
 
-const MAIN: GitWorktreeInfo = { path: '/project', branch: 'main', head: 'a', isMain: true }
-const FREE: GitWorktreeInfo = { path: '/wt/free', branch: 'ow/free', head: 'b', isMain: false }
-const OWNED: GitWorktreeInfo = { path: '/wt/owned', branch: 'ow/owned', head: 'c', isMain: false }
+let api = createWorktreeApiMocks()
 
-const OWNED_USAGE: WorktreeUsage = {
-  path: OWNED.path,
-  sessions: [
-    {
-      sessionId: 'session-1',
-      title: 'Fix the login bug',
-      archived: false,
-      running: true,
-      owner: true,
-    },
-  ],
-  blockers: [
-    {
-      kind: 'session',
-      message: 'The Session “Fix the login bug” works in it. Archive that Session first.',
-    },
-  ],
-}
-
-function respond(options: {
-  readonly usage?: readonly WorktreeUsage[]
-  readonly preview?: Partial<WorktreeRemovalPreview>
-  readonly previewError?: Error
-}) {
-  mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type === 'worktree-usage')
-      return { type: 'worktree-usage', worktrees: options.usage ?? [] }
-    if (operation.type === 'worktree-removal-preview') {
-      if (options.previewError) throw options.previewError
-      return {
-        type: 'worktree-removal-preview',
-        usage: { path: operation.path, sessions: [], blockers: [] },
-        branch: 'ow/free',
-        unpublishedCommitCount: 0,
-        ...options.preview,
-      }
-    }
-    return { type: 'retained-preparation', workspaces: [] }
-  })
-}
-
-async function rowFor(path: string) {
-  const row = (await screen.findByText(path)).closest('li')
-  if (!row) throw new Error(`no row for ${path}`)
-  return within(row)
+const OPEN_SESSION = {
+  sessionId: 'open',
+  title: 'Fix the login bug',
+  archived: false,
+  archivedAt: null,
+  running: false,
+  owner: true,
 }
 
 beforeEach(() => {
-  mocks.manage.mockReset()
-  mocks.remove.mockReset().mockResolvedValue({ ok: true, message: 'Worktree removed.' })
-  mocks.list.mockReset().mockResolvedValue({ worktrees: [MAIN, FREE, OWNED] })
+  api = createWorktreeApiMocks()
+  Object.assign(mocks.api, api)
+  Object.assign(mocks.preferences, createPreferencesMock())
 })
 
-describe('removing a worktree from Settings', () => {
-  it('asks first, and Cancel removes nothing', async () => {
-    respond({})
+async function confirmIn(dialogName: RegExp | string, button: string) {
+  const dialog = await screen.findByRole('dialog', { name: dialogName })
+  const confirm = within(dialog).getByRole('button', { name: button })
+  await waitFor(() => expect(confirm).toBeEnabled())
+  fireEvent.click(confirm)
+  return dialog
+}
+
+describe('removing a worktree that is safe to remove', () => {
+  it('asks once more inline, then removes it without a dialog', async () => {
+    api.getWorktreeInventory.mockResolvedValue(inventory([entry({ path: '/wt/free' })]))
     renderWithQueryClient(<WorktreesSection />)
 
-    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' }))
+    const row = await rowTitled('free')
+    expect(await row.findByText('Frees about 1.0 MB')).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
+    expect(api.removeGitWorktree).not.toHaveBeenCalled()
+    fireEvent.click(row.getByRole('button', { name: 'Confirm remove free' }))
 
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
-    expect(mocks.remove).not.toHaveBeenCalled()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(mocks.remove).not.toHaveBeenCalled()
-  })
-
-  it('warns about commits that are on no remote, then removes once confirmed', async () => {
-    respond({ preview: { unpublishedCommitCount: 3 } })
-    renderWithQueryClient(<WorktreesSection />)
-
-    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
-    expect(
-      await within(dialog).findByText(/ow\/free has 3 commits that are not on any remote/),
-    ).toBeInTheDocument()
-    const confirm = within(dialog).getByRole('button', { name: 'Remove worktree' })
-    await waitFor(() => expect(confirm).toBeEnabled())
-    fireEvent.click(confirm)
-    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith('/project', { path: FREE.path }))
-  })
-
-  it('warns that a detached HEAD has no branch to keep its unpublished commit', async () => {
-    respond({ preview: { branch: null, unpublishedCommitCount: 1 } })
-    renderWithQueryClient(<WorktreesSection />)
-
-    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
-    expect(
-      await within(dialog).findByText(
-        /The detached HEAD has 1 commit that is not on any remote\. With no branch, that work may be lost/,
-      ),
-    ).toBeInTheDocument()
-  })
-
-  it('disables Remove for a worktree in use and names the Session that owns it', async () => {
-    respond({ usage: [OWNED_USAGE] })
-    renderWithQueryClient(<WorktreesSection />)
-
-    const row = await rowFor(OWNED.path)
-    expect(await row.findByText('Session: Fix the login bug (running)')).toBeInTheDocument()
-    expect(row.getByText(/In use: The Session “Fix the login bug” works in it/)).toBeInTheDocument()
-    expect(row.getByRole('button', { name: 'Remove' })).toBeDisabled()
-    expect(row.queryByText('Force remove…')).not.toBeInTheDocument()
-    expect((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' })).toBeEnabled()
-  })
-
-  it('keeps the confirmation closed to a worktree that came into use after the list loaded', async () => {
-    respond({ preview: { usage: { ...OWNED_USAGE, path: FREE.path } } })
-    renderWithQueryClient(<WorktreesSection />)
-
-    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
-    expect(await within(dialog).findByText(/It cannot be removed now/)).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Remove worktree' })).toBeDisabled()
-  })
-
-  it('does not allow the removal when the worktree cannot be checked', async () => {
-    respond({ previewError: new Error('Host unavailable') })
-    renderWithQueryClient(<WorktreesSection />)
-
-    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Remove' }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
-    expect(
-      await within(dialog).findByText('Could not check this worktree: Host unavailable'),
-    ).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Remove worktree' })).toBeDisabled()
-  })
-
-  it('confirms a force removal in its own words', async () => {
-    respond({})
-    renderWithQueryClient(<WorktreesSection />)
-
-    fireEvent.click((await rowFor(FREE.path)).getByText('Force remove…'))
-    fireEvent.click((await rowFor(FREE.path)).getByRole('button', { name: 'Force remove' }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Force remove this worktree?' })
-    const confirm = within(dialog).getByRole('button', { name: 'Force remove worktree' })
-    await waitFor(() => expect(confirm).toBeEnabled())
-    fireEvent.click(confirm)
     await waitFor(() =>
-      expect(mocks.remove).toHaveBeenCalledWith('/project', {
-        path: FREE.path,
-        skipCleanup: true,
-        force: true,
-      }),
+      expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, { path: '/wt/free' }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps keyboard focus on the buttons that replace the one pressed', async () => {
+    api.getWorktreeInventory.mockResolvedValue(inventory([entry({ path: '/wt/free' })]))
+    renderWithQueryClient(<WorktreesSection />)
+
+    const row = await rowTitled('free')
+    fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
+    expect(row.getByRole('button', { name: 'Cancel removing free' })).toHaveFocus()
+    fireEvent.click(row.getByRole('button', { name: 'Cancel removing free' }))
+    expect(row.getByRole('button', { name: 'Remove free' })).toHaveFocus()
+    expect(api.removeGitWorktree).not.toHaveBeenCalled()
+
+    // Confirming leaves focus on the row's button while the removal runs.
+    api.removeGitWorktree.mockReturnValue(new Promise(() => undefined))
+    fireEvent.click(row.getByRole('button', { name: 'Remove free' }))
+    fireEvent.click(row.getByRole('button', { name: 'Confirm remove free' }))
+    const removing = await row.findByRole('button', { name: 'Removing free' })
+    expect(removing).toHaveFocus()
+    expect(removing).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('frees every safe worktree from one confirmation that lists them', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({ path: '/wt/one' }),
+        entry({ path: '/wt/two', projectPath: '/other' }),
+        entry({ path: '/wt/busy', group: 'in-use' }),
+      ]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    const free = await screen.findByRole('button', { name: 'Free about 2.0 MB (2)…' })
+    fireEvent.click(free)
+    const dialog = await confirmIn(
+      /Remove 2 worktrees and free about 2\.0 MB/,
+      'Remove 2 worktrees',
+    )
+    expect(within(dialog).getByRole('list', { name: 'Worktrees to remove' })).toHaveTextContent(
+      /one.*two/,
+    )
+
+    await waitFor(() => expect(api.removeGitWorktree).toHaveBeenCalledTimes(2))
+    expect(api.removeGitWorktree).toHaveBeenCalledWith('/other', { path: '/wt/two' })
+    const { useUIStore } = await import('@/shell/ui-store')
+    await waitFor(() =>
+      expect(useUIStore.getState().toastMessage).toBe('Removed 2 worktrees, freeing about 2.0 MB.'),
     )
   })
 })
 
-describe('a repository with hundreds of worktrees', () => {
-  it('finds a worktree by path, branch or Session title', async () => {
-    const many = Array.from({ length: WORKTREE_COUNT }, (_, index) => ({
-      path: `/wt/session-${String(index)}`,
-      branch: `ow/session-${String(index)}`,
-      head: 'h',
-      isMain: false,
-    }))
-    mocks.list.mockResolvedValue({ worktrees: [MAIN, ...many, OWNED] })
-    respond({ usage: [OWNED_USAGE] })
+describe('a worktree that needs a decision', () => {
+  it('says what would be lost and discards it only once confirmed', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({
+          path: '/wt/dirty',
+          group: 'decide',
+          uncommittedChangeCount: 3,
+          attention: [{ kind: 'uncommitted-changes', count: 3 }],
+        }),
+      ]),
+    )
     renderWithQueryClient(<WorktreesSection />)
 
-    expect(await screen.findByText(`${String(WORKTREE_COUNT + 2)} worktrees`)).toBeInTheDocument()
+    const row = await rowTitled('dirty')
+    expect(row.getByText('3 uncommitted changes')).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'Discard & remove dirty…' }))
+    await confirmIn('Discard the changes and remove this worktree?', 'Discard & remove')
+
+    await waitFor(() =>
+      expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/dirty',
+        force: true,
+      }),
+    )
+  })
+
+  it('says a locked worktree is unlocked, not that changes are discarded', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([entry({ path: '/wt/held', group: 'decide', attention: [{ kind: 'locked' }] })]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click(
+      (await rowTitled('held')).getByRole('button', { name: 'Unlock & remove held…' }),
+    )
+    const dialog = await confirmIn('Unlock and remove this worktree?', 'Unlock & remove')
+
+    expect(dialog).not.toHaveTextContent(/discard/i)
+    expect(dialog).toHaveTextContent('still refuses if it has uncommitted changes')
+    await waitFor(() =>
+      expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/held',
+        force: true,
+        lockOnly: true,
+      }),
+    )
+  })
+
+  it('offers a locked worktree whose changes Git could not report as a discard', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({
+          path: '/wt/unknown',
+          group: 'decide',
+          uncommittedChangeCount: null,
+          attention: [{ kind: 'unknown-state' }, { kind: 'locked' }],
+        }),
+      ]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click(
+      (await rowTitled('unknown')).getByRole('button', { name: 'Discard & remove unknown…' }),
+    )
+    await confirmIn('Discard the changes and remove this worktree?', 'Discard & remove')
+    await waitFor(() =>
+      expect(api.removeGitWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/unknown',
+        force: true,
+      }),
+    )
+  })
+
+  it('warns about commits that no remote has, and stays closed to a worktree now in use', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({
+          path: '/wt/ahead',
+          group: 'decide',
+          attention: [{ kind: 'unpublished-commits', count: 2 }],
+        }),
+      ]),
+    )
+    api.manageProjectActions.mockImplementation(async (request) =>
+      preview(request, {
+        branch: 'ow/ahead',
+        unpublishedCommitCount: 2,
+        usage: {
+          path: '/wt/ahead',
+          sessions: [],
+          blockers: [{ kind: 'terminal', message: 'A terminal is open in it.' }],
+        },
+      }),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click((await rowTitled('ahead')).getByRole('button', { name: 'Remove ahead…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Remove this worktree?' })
+    expect(
+      await within(dialog).findByText(/ow\/ahead has 2 commits that are not on any remote/),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('A terminal is open in it.')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Remove worktree' })).toBeDisabled()
+  })
+})
+
+describe('a worktree in use', () => {
+  it('starts collapsed, and Archive & remove names each Session it archives', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({
+          path: '/wt/open',
+          group: 'in-use',
+          sessions: [OPEN_SESSION],
+          blockers: [{ kind: 'session', message: 'Archive that Session first.' }],
+          attention: [{ kind: 'open-sessions', count: 1 }],
+        }),
+      ]),
+    )
+    // A local Session opened inside the worktree is archived too, so it is named as well.
+    const visitor = { ...OPEN_SESSION, sessionId: 'visitor', title: 'Local look', owner: false }
+    api.manageProjectActions.mockImplementation(async (request) =>
+      preview(request, {
+        usage: {
+          path: '/wt/open',
+          sessions: [OPEN_SESSION, visitor],
+          blockers: [{ kind: 'session', message: 'Archive that Session first.' }],
+        },
+      }),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    expect(screen.queryByText('Fix the login bug')).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /In use/ }))
+    fireEvent.click(
+      (await rowTitled('Fix the login bug')).getByRole('button', {
+        name: 'Archive & remove Fix the login bug…',
+      }),
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Archive its Sessions and remove this worktree?',
+    })
+    expect(await within(dialog).findByText(/Archives:\s*Fix the login bug/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Archives:\s*Local look/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/If you restore a Session later/)).toBeInTheDocument()
+    await confirmIn('Archive its Sessions and remove this worktree?', 'Archive & remove')
+
+    await waitFor(() =>
+      expect(api.archiveAndRemoveWorktree).toHaveBeenCalledWith(PROJECT, {
+        path: '/wt/open',
+        sessionIds: [OPEN_SESSION.sessionId, 'visitor'],
+      }),
+    )
+  })
+
+  it('offers no removal while a terminal is open in it, and says so', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({
+          path: '/wt/terminal',
+          group: 'in-use',
+          blockers: [{ kind: 'terminal', message: 'A terminal is open in it.' }],
+        }),
+      ]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /In use/ }))
+    const row = await rowTitled('terminal')
+    expect(row.getByText('In use: A terminal is open in it.')).toBeInTheDocument()
+    expect(row.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('many worktrees across projects', () => {
+  it('narrows to one project and finds a worktree by branch or Session title', async () => {
+    api.getWorktreeInventory.mockResolvedValue(
+      inventory([
+        entry({ path: '/wt/a', branch: 'ow/payments' }),
+        entry({ path: '/wt/b', projectPath: '/other' }),
+        entry({
+          path: '/wt/c',
+          archivedAt: 1,
+          sessions: [{ ...OPEN_SESSION, archived: true, archivedAt: 1, title: 'Refactor search' }],
+        }),
+      ]),
+    )
+    renderWithQueryClient(<WorktreesSection />)
+
+    expect(await screen.findByText('3 worktrees')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Project' }), {
+      target: { value: '/other' },
+    })
+    expect(screen.getByText('1 worktree')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Project' }), { target: { value: '' } })
+
     const search = screen.getByRole('searchbox', { name: 'Search worktrees' })
-
-    fireEvent.change(search, { target: { value: 'session-399' } })
-    expect(screen.getByText(`1 of ${String(WORKTREE_COUNT + 2)} worktrees`)).toBeInTheDocument()
-    expect(screen.getByText('/wt/session-399')).toBeInTheDocument()
-
-    fireEvent.change(search, { target: { value: 'login bug' } })
-    expect(screen.getByText(OWNED.path)).toBeInTheDocument()
-    expect(screen.queryByText('/wt/session-1')).not.toBeInTheDocument()
-
+    fireEvent.change(search, { target: { value: 'payments' } })
+    expect(screen.getByText('1 of 3 worktrees')).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: 'refactor' } })
+    expect(screen.getByText('Refactor search')).toBeInTheDocument()
     fireEvent.change(search, { target: { value: 'nothing like this' } })
-    expect(screen.getByText('No worktrees match this search.')).toBeInTheDocument()
+    expect(screen.getByText('No worktrees match.')).toBeInTheDocument()
   })
 })
