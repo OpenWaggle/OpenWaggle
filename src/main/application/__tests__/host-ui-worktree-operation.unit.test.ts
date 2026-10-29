@@ -94,6 +94,7 @@ function operationLayer(
         inspectLinkedWorktree: () => Effect.succeed('not-a-worktree'),
         list: () => Effect.succeed({ worktrees: [] }),
         countUnpublishedCommits: () => Effect.succeed(null),
+        countUncommittedChanges: () => Effect.succeed(null),
         applicationCheckout: () => Effect.succeed(null),
       }),
     ),
@@ -132,7 +133,8 @@ describe('Host-backed worktree operations', () => {
     await expect(Effect.runPromise(effect)).resolves.toEqual({
       ok: false,
       code: 'workspace-bound',
-      message: 'This managed worktree is bound to a Session or is changing Workspace state.',
+      message:
+        'A Session that is not archived, or has a Run, works in this worktree, or its Workspace is changing.',
     })
     expect(mocks.remove).not.toHaveBeenCalled()
   })

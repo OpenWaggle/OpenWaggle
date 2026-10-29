@@ -7,6 +7,7 @@
  * - `session`: a Session that is not archived, or that has an active Run, works in it.
  * - `action`: a Project Action is running in it.
  * - `terminal`: a terminal is open in it, or the terminals could not all be checked.
+ * - `workspace`: its managed Workspace is being created, changed or removed.
  */
 export type WorktreeRemovalBlockerKind =
   | 'open-project'
@@ -14,6 +15,7 @@ export type WorktreeRemovalBlockerKind =
   | 'session'
   | 'action'
   | 'terminal'
+  | 'workspace'
 
 export interface WorktreeRemovalBlocker {
   readonly kind: WorktreeRemovalBlockerKind
@@ -25,6 +27,8 @@ export interface WorktreeSessionUsage {
   readonly sessionId: string
   readonly title: string
   readonly archived: boolean
+  /** The Session's Archive time; null while it is not archived. */
+  readonly archivedAt: number | null
   readonly running: boolean
   /** The Session's Workspace is this managed worktree (not a local Session opened in it). */
   readonly owner: boolean

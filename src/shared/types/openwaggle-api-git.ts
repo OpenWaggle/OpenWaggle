@@ -29,6 +29,7 @@ import type {
 } from './git'
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
+import type { OpenWaggleWorktreesApi } from './openwaggle-api-worktrees'
 import type {
   ChangeRequestOpenDestinationResolution,
   SourceControlConfigureRequest,
@@ -36,7 +37,8 @@ import type {
   SourceControlHostsOverview,
 } from './source-control'
 
-export interface OpenWaggleGitApi {
+/** Git, source control, and the worktrees Settings manages (OpenWaggleWorktreesApi). */
+export interface OpenWaggleGitApi extends OpenWaggleWorktreesApi {
   onGitWorkingTreeChanged(
     callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
   ): () => void

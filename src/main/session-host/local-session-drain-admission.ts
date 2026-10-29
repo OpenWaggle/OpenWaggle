@@ -29,6 +29,8 @@ const WORKING_HOST_UI_READS: ReadonlySet<string> = new Set([
   'providers:get-models',
   'mcp:inspect-server',
   'mcp:list-app-catalog',
+  // Walks a whole worktree folder, which can take minutes.
+  'worktrees:measure',
 ])
 
 function loadsPiResources(channel: string, args: readonly unknown[]) {

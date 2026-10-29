@@ -12,63 +12,24 @@ import { browserProfileIdSchema, browserProfilesSchema } from '@shared/schemas/b
 import { parseSessionTitleModelSetting } from '@shared/session-title-model'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import { isExtensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
 import {
   BROWSER_LINK_TARGETS,
   DIFF_SYNTAX_THEMES,
   DIFF_VIEWS,
   PI_CACHE_WARMING_MODES,
 } from '@shared/types/settings'
-import {
-  EXTENSION_PANEL_SHORTCUT_LIMITS,
-  SHORTCUT_COMMANDS,
-  SHORTCUT_RULE_LIMITS,
-} from '@shared/types/shortcuts'
+import { SHORTCUT_COMMANDS, SHORTCUT_RULE_LIMITS } from '@shared/types/shortcuts'
 import {
   CHANGE_REQUEST_OPEN_DESTINATIONS,
   isSourceControlHostName,
 } from '@shared/types/source-control'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
-import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
-
-const shortcutBindingSchema = Schema.Struct({
-  key: Schema.String.pipe(
-    Schema.minLength(1),
-    Schema.maxLength(SHORTCUT_RULE_LIMITS.KEY_LENGTH),
-    Schema.filter((key) => key.trim().length > 0),
-  ),
-  mod: Schema.optional(Schema.Boolean),
-  ctrl: Schema.optional(Schema.Boolean),
-  shift: Schema.optional(Schema.Boolean),
-  alt: Schema.optional(Schema.Boolean),
-  meta: Schema.optional(Schema.Boolean),
-})
-
-const shortcutWhenSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.maxLength(SHORTCUT_RULE_LIMITS.WHEN_LENGTH),
-  Schema.filter((when) => parseProjectActionWhenExpression(when.trim()) !== null),
-)
-
-/**
- * Keys are checked by the record filter rather than a key refinement: Effect drops keys that fail
- * an index-signature refinement, which would silently discard a saved binding instead of failing.
- */
-const extensionPanelShortcutBindingsSchema = Schema.Record({
-  key: Schema.String,
-  value: shortcutBindingSchema,
-}).pipe(
-  Schema.filter((bindings) => Object.keys(bindings).every(isExtensionRightPanelSurfaceId), {
-    message: () => 'Extension panel shortcuts must be keyed by an extension panel surface id.',
-  }),
-  Schema.filter(
-    (bindings) => Object.keys(bindings).length <= EXTENSION_PANEL_SHORTCUT_LIMITS.BINDINGS,
-    {
-      message: () =>
-        `At most ${String(EXTENSION_PANEL_SHORTCUT_LIMITS.BINDINGS)} extension panel shortcuts are allowed.`,
-    },
-  ),
-)
+import {
+  extensionPanelShortcutBindingsSchema,
+  shortcutBindingSchema,
+  shortcutWhenSchema,
+} from './settings-shortcuts'
+import { automaticWorktreeRemovalSettingsSchema } from './worktree-inventory'
 
 const positiveIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.positive())
 
@@ -131,6 +92,7 @@ export const settingsUpdateSchema = Schema.Struct({
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
   usageStatisticsEnabled: Schema.optional(Schema.Boolean),
+  automaticWorktreeRemoval: Schema.optional(automaticWorktreeRemovalSettingsSchema),
   codemodeEnabled: Schema.optional(Schema.Boolean),
   cacheWarming: Schema.optional(Schema.Literal(...PI_CACHE_WARMING_MODES)),
   compactionThresholdPercent: Schema.optional(

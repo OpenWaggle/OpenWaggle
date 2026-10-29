@@ -146,10 +146,13 @@ describe('SQLite Session Workspace removal admission', () => {
               ${'ready'}, ${0}, ${1}, ${1})
         `
         yield* sql`
-          INSERT INTO sessions (id, pi_session_id, project_path, title, archived, created_at, updated_at)
-          VALUES
-            (${'session-archived-owner'}, ${'pi-archived-owner'}, ${'/project'}, ${'Owner'}, ${1}, ${1}, ${1}),
-            (${'session-archived-local'}, ${'pi-archived-local'}, ${'/project'}, ${'Gone'}, ${1}, ${1}, ${1})
+          INSERT INTO sessions (
+            id, pi_session_id, project_path, title, archived, archived_at, created_at, updated_at
+          ) VALUES
+            (${'session-archived-owner'}, ${'pi-archived-owner'}, ${'/project'}, ${'Owner'}, ${1},
+              ${42}, ${1}, ${1}),
+            (${'session-archived-local'}, ${'pi-archived-local'}, ${'/project'}, ${'Gone'}, ${1},
+              ${42}, ${1}, ${1})
         `
         yield* sql`
           INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
@@ -166,21 +169,29 @@ describe('SQLite Session Workspace removal admission', () => {
         sessionId: 'session-archived-owner',
         title: 'Owner',
         archived: true,
+        archivedAt: 42,
         activeRun: false,
         sessionProjectPath: '/project',
         workspace: {
           id: 'managed-archived',
           kind: 'managed-worktree',
           workingPath: '/wt/archived',
+          lifecycleState: 'ready',
         },
       },
       {
         sessionId: 'session-parent',
         title: 'Parent',
         archived: false,
+        archivedAt: null,
         activeRun: true,
         sessionProjectPath: '/project',
-        workspace: { id: 'workspace-parent', kind: 'local', workingPath: '/project' },
+        workspace: {
+          id: 'workspace-parent',
+          kind: 'local',
+          workingPath: '/project',
+          lifecycleState: 'ready',
+        },
       },
     ])
   })

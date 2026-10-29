@@ -62,6 +62,16 @@ async function findRemovalCandidate(
   return matches.find((candidate) => candidate !== undefined)
 }
 
+function unavailableRemoval(options: { readonly admitArchivedBindings?: boolean }) {
+  return {
+    ok: false,
+    code: 'workspace-bound',
+    message: options.admitArchivedBindings
+      ? 'A Session that is not archived, or has a Run, works in this worktree, or its Workspace is changing.'
+      : 'This managed worktree is bound to a Session or is changing Workspace state.',
+  } satisfies GitWorktreeMutationResult
+}
+
 export function removePreparedWorktree<E, R>(
   projectPath: string,
   payload: GitWorktreeRemovePayload,
@@ -70,6 +80,8 @@ export function removePreparedWorktree<E, R>(
     readonly retryFailed: boolean
     readonly actionFenceHeld?: boolean
     readonly validateRemoval?: Effect.Effect<GitWorktreeMutationResult>
+    /** Settings removal: archived, idle Sessions keep their binding (ADR 0060). */
+    readonly admitArchivedBindings?: boolean
   },
 ) {
   return Effect.gen(function* () {
@@ -87,16 +99,11 @@ export function removePreparedWorktree<E, R>(
           reservationId: workspaceId,
           projectPath: path.resolve(projectPath),
           workingPath: path.resolve(payload.path),
+          ...(options.admitArchivedBindings ? { admitArchivedBindings: true } : {}),
         }),
         (admission) =>
           Effect.gen(function* () {
-            if (admission.status === 'unavailable')
-              return {
-                ok: false,
-                code: 'workspace-bound',
-                message:
-                  'This managed worktree is bound to a Session or is changing Workspace state.',
-              } satisfies GitWorktreeMutationResult
+            if (admission.status === 'unavailable') return unavailableRemoval(options)
             const missing = yield* Effect.tryPromise({
               try: () => checkoutMissing(payload.path),
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),

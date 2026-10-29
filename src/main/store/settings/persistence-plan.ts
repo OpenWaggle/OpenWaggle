@@ -41,6 +41,7 @@ import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
 import { appendSourceControlSettingsWrites } from './source-control-settings'
 import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
+import { appendWorktreeRemovalSettingsWrites } from './worktree-removal-settings'
 
 export type { SettingsPatchWrite } from './settings-patch-writes'
 
@@ -271,6 +272,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendSessionHostSettingsWrites(writes, partial, next)
   appendBrowserSettingsWrites(writes, partial, next)
   appendUsageStatisticsSettingsWrites(writes, partial, next)
+  appendWorktreeRemovalSettingsWrites(writes, partial, next)
   appendPiRuntimeSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
   appendPiSessionContinuationSettingsWrites(writes, partial, next)

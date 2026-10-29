@@ -4,6 +4,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import { createLogger } from '../logger'
 import { ActionRunService } from '../ports/action-run-service'
 import { GitWorktreeService } from '../ports/git-worktree-service'
@@ -14,6 +15,7 @@ import {
 } from '../ports/session-workspace-resource-repository'
 import { TerminalService } from '../ports/terminal-service'
 import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
+import { WorktreeSpaceService } from '../ports/worktree-space-service'
 import { resolveSessionWorktreeBranch } from '../services/git/session-branch-resolution'
 import { invalidateGitStatusCache } from '../services/git-status-cache'
 import { removePreparedWorktree } from './prepared-worktree-removal'
@@ -186,12 +188,21 @@ export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
         message: `This worktree is in use. ${blockers.map((blocker) => blocker.message).join(' ')}`,
       } satisfies GitWorktreeMutationResult
     }
-    return yield* removePreparedWorktree(
+    const result = yield* removePreparedWorktree(
       projectPath,
       payload,
       removeWorktreeWithTerminals(projectPath, payload),
-      { retryFailed: true, validateRemoval: gitWorktrees.validateRemoval(projectPath, payload) },
+      {
+        retryFailed: true,
+        validateRemoval: gitWorktrees.validateRemoval(projectPath, payload),
+        admitArchivedBindings: true,
+      },
     )
+    if (result.ok) {
+      const space = yield* Effect.serviceOption(WorktreeSpaceService)
+      if (Option.isSome(space)) yield* space.value.forget(payload.path)
+    }
+    return result
   })
 }
 

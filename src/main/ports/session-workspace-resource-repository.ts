@@ -21,12 +21,16 @@ export interface WorkspaceOccupant {
   readonly sessionId: string
   readonly title: string
   readonly archived: boolean
+  /** The Session's Archive time; null while it is not archived. */
+  readonly archivedAt: number | null
   readonly activeRun: boolean
   readonly sessionProjectPath: string | null
   readonly workspace: {
     readonly id: string
     readonly kind: SessionWorkspaceResource['kind']
     readonly workingPath: string
+    /** `ready` once born; anything else is being created, changed or removed. */
+    readonly lifecycleState: string
   } | null
 }
 
@@ -62,6 +66,11 @@ export interface SessionWorkspaceResourceRepositoryShape {
     readonly reservationId: string
     readonly projectPath: string
     readonly workingPath: string
+    /**
+     * Admit a worktree whose bound Sessions are all archived and have no active Run, keeping
+     * their bindings (ADR 0060). Without it any binding refuses the removal.
+     */
+    readonly admitArchivedBindings?: boolean
   }) => Effect.Effect<ManagedWorktreeRemovalAdmission, Error>
   /** Sessions that can keep a worktree in use (see `listWorkspaceOccupants`). */
   readonly listWorkspaceOccupants: () => Effect.Effect<readonly WorkspaceOccupant[], Error>

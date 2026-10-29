@@ -53,6 +53,9 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'git:change-request:panel',
     'git:change-request:merge-candidate',
     'git:session:verify-working-path',
+    'worktrees:inventory',
+    'worktrees:measure',
+    'worktrees:automatic-removal-log',
   ])
 
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {

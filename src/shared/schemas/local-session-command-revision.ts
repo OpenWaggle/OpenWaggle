@@ -19,6 +19,7 @@ import {
   HOST_UI_REVISION_25_REQUIRED_CHANNELS,
   HOST_UI_REVISION_29_ARGUMENT_COUNTS,
   HOST_UI_REVISION_29_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_30_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -46,6 +47,7 @@ import {
   LOCAL_SESSION_UPDATE_REVISION,
   LOCAL_SESSION_WAGGLE_REVISION,
   LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
+  LOCAL_SESSION_WORKTREE_INVENTORY_REVISION,
   type LocalSessionCommandPayload,
 } from '@shared/types/local-session-protocol'
 
@@ -73,10 +75,13 @@ function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) 
 }
 
 /**
- * Bounded Session reads ship with revision 29, Settings > Archived items with 25, MCP
- * configuration and more with 24.
+ * Settings > Worktrees across projects ships with revision 30, bounded Session reads with 29,
+ * Settings > Archived items with 25, MCP configuration and more with 24.
  */
 function newestRevisionRequirement(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  if (HOST_UI_REVISION_30_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel)) {
+    return LOCAL_SESSION_WORKTREE_INVENTORY_REVISION
+  }
   if (
     HOST_UI_REVISION_29_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel) ||
     usesArgumentAddedIn(HOST_UI_REVISION_29_ARGUMENT_COUNTS, request)
