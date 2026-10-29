@@ -20,22 +20,36 @@ const SEGMENTS: readonly {
 
 export interface StorageTotals {
   readonly byGroup: Readonly<Record<WorktreeInventoryGroup, number>>
+  /** The measured worktrees' total; a floor while some are measuring or unreadable. */
   readonly total: number
   readonly measuring: number
+  readonly unreadable: number
+  readonly measured: number
 }
 
 export function storageTotals(
-  entries: readonly WorktreeInventoryEntry[],
+  entries: readonly Pick<WorktreeInventoryEntry, 'path' | 'group'>[],
   space: WorktreeSpaceByPath,
 ): StorageTotals {
   const byGroup = { safe: 0, decide: 0, 'in-use': 0 }
   let measuring = 0
+  let unreadable = 0
   for (const entry of entries) {
     const bytes = space.get(entry.path)
     if (bytes === undefined) measuring += 1
+    if (bytes === null) unreadable += 1
     byGroup[entry.group] += bytes ?? 0
   }
-  return { byGroup, total: byGroup.safe + byGroup.decide + byGroup['in-use'], measuring }
+  const total = byGroup.safe + byGroup.decide + byGroup['in-use']
+  const measured = entries.length - measuring - unreadable
+  return { byGroup, total, measuring, unreadable, measured }
+}
+
+/** "about X" when every worktree is measured, "at least X" while not, and nothing before any is. */
+function headline(totals: StorageTotals) {
+  if (totals.measured === 0) return null
+  const qualifier = totals.measuring + totals.unreadable === 0 ? 'about' : 'at least'
+  return { qualifier, size: formatBytes(totals.total) }
 }
 
 /** How much the worktrees take, and the one button that frees the part nothing needs. */
@@ -49,6 +63,7 @@ export function WorktreeStorageCard(props: {
   readonly onFreeSafe: () => void
 }) {
   const { totals } = props
+  const summary = headline(totals)
   return (
     <section
       aria-label="Worktree storage"
@@ -57,11 +72,11 @@ export function WorktreeStorageCard(props: {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs text-text-tertiary">
-            {String(props.worktreeCount)} {props.worktreeCount === 1 ? 'worktree' : 'worktrees'} use
-            about
+            {String(props.worktreeCount)} {props.worktreeCount === 1 ? 'worktree' : 'worktrees'}
+            {summary === null ? '' : ` use ${summary.qualifier}`}
           </span>
           <span className="text-xl font-semibold text-text-primary tabular-nums">
-            {formatBytes(totals.total)}
+            {summary === null ? '—' : summary.size}
           </span>
           <span
             className="text-xs text-text-tertiary"
@@ -70,7 +85,9 @@ export function WorktreeStorageCard(props: {
           >
             {totals.measuring > 0
               ? `Measuring ${String(totals.measuring)} more…`
-              : 'Files shared with other folders, such as a package store, are not counted.'}
+              : totals.unreadable > 0
+                ? `${String(totals.unreadable)} could not be measured. Files shared with other folders are not counted.`
+                : 'Files shared with other folders, such as a package store, are not counted.'}
           </span>
         </div>
         <Button

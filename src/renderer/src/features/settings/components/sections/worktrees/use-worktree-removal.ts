@@ -20,7 +20,10 @@ export interface WorktreeRemovalRequest {
   readonly skipCleanup: boolean
   /** Discard uncommitted changes, and remove a locked worktree. */
   readonly force: boolean
-  /** What `force` is for, so the confirmation says only what is true. */
+  /**
+   * What `force` is for, so the confirmation says only what is true. For Archive & remove,
+   * `discardsChanges` only says the worktree may have changes, which then keep it.
+   */
   readonly discardsChanges?: boolean
   readonly ignoresLock?: boolean
   /** Archive every Session working in it first (Archive & remove). */
@@ -41,10 +44,11 @@ function sendRemoval(request: WorktreeRemovalRequest): Promise<GitWorktreeMutati
   const repositoryPath = RepositoryPath(request.projectPath)
   const force = forceFlags(request)
   if (request.archiveSessions) {
+    // The Host overrides only the lock for Archive & remove; it never discards changes.
     return api.archiveAndRemoveWorktree(repositoryPath, {
       path: request.path,
       sessionIds: request.sessionIds ?? [],
-      ...force,
+      ...(request.force ? { force: true } : {}),
     })
   }
   return api.removeGitWorktree(repositoryPath, {

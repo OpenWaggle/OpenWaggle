@@ -40,7 +40,11 @@ function forcedFor(request: WorktreeRemovalRequest) {
 }
 
 function removalTitle(request: WorktreeRemovalRequest) {
-  if (request.archiveSessions) return 'Archive its Sessions and remove this worktree?'
+  if (request.archiveSessions) {
+    return request.discardsChanges
+      ? 'Archive its Sessions?'
+      : 'Archive its Sessions and remove this worktree?'
+  }
   if (forcedFor(request)) {
     return request.ignoresLock && !request.discardsChanges
       ? 'Unlock and remove this worktree?'
@@ -65,9 +69,12 @@ function forcedConsequence(request: WorktreeRemovalRequest) {
 
 function removalConsequence(request: WorktreeRemovalRequest) {
   if (request.archiveSessions) {
-    const discard = request.discardsChanges ? ' Its uncommitted changes are discarded.' : ''
+    // Archive & remove never discards: the Host keeps a worktree that has changes.
+    if (request.discardsChanges) {
+      return 'Each Session below is archived. The worktree may have uncommitted changes, so it is kept: it then appears under Needs a decision, where you can discard them and remove it.'
+    }
     const lock = request.ignoresLock ? LOCK_NOTE : ''
-    return `Each Session below is archived, then the folder is deleted.${discard}${lock} The branch is kept. ${RECREATE_NOTE}`
+    return `Each Session below is archived, then the folder is deleted.${lock} If it has uncommitted changes by then, it is kept instead. The branch is kept. ${RECREATE_NOTE}`
   }
   if (forcedFor(request)) return forcedConsequence(request)
   if (request.force)
@@ -147,7 +154,8 @@ function PreviewDetails(props: {
 }
 
 function confirmLabel(request: WorktreeRemovalRequest) {
-  if (request.archiveSessions) return 'Archive & remove'
+  if (request.archiveSessions)
+    return request.discardsChanges ? 'Archive Sessions' : 'Archive & remove'
   if (forcedFor(request)) {
     return request.ignoresLock && !request.discardsChanges ? 'Unlock & remove' : 'Discard & remove'
   }

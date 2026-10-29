@@ -74,16 +74,11 @@ function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
 }
 
 /** The mocked operations need only Git's worktree list. */
-function run(
-  path = WORKTREE,
-  sessionIds: readonly string[] = ['open', 'done'],
-  flags: { readonly lockOnly?: boolean } = {},
-) {
+function run(path = WORKTREE, sessionIds: readonly string[] = ['open', 'done']) {
   const provided = archiveAndRemoveWorktreeOperation(PROJECT, {
     path,
     sessionIds,
     force: true,
-    ...flags,
   }).pipe(Effect.provide(gitLayer))
   return Effect.runPromise(
     fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown, never>, typeof provided>(
@@ -115,7 +110,11 @@ describe('Archive & remove', () => {
     expect(mocks.dispatch.mock.calls[0]?.[0]).toMatchObject({
       payload: { request: { command: { operation: 'archive', sessionId: 'open' } } },
     })
-    expect(mocks.remove).toHaveBeenCalledWith(PROJECT, { path: WORKTREE, force: true })
+    expect(mocks.remove).toHaveBeenCalledWith(PROJECT, {
+      path: WORKTREE,
+      force: true,
+      lockOnly: true,
+    })
   })
 
   it('archives nothing while a Run, terminal or Action uses the worktree', async () => {
@@ -174,10 +173,8 @@ describe('Archive & remove', () => {
 
   it("removes Git's registered folder, however the request spelled it", async () => {
     mocks.usage.mockReturnValue(usage())
-    await expect(run(`${WORKTREE}/`, ['open', 'done'], { lockOnly: true })).resolves.toEqual({
-      ok: true,
-    })
-    // Overriding only the lock is passed on, so the Host still refuses uncommitted changes.
+    await expect(run(`${WORKTREE}/`)).resolves.toEqual({ ok: true })
+    // Its force overrides only the lock: uncommitted changes still keep the worktree.
     expect(mocks.remove).toHaveBeenCalledWith(PROJECT, {
       path: WORKTREE,
       force: true,

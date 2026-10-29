@@ -180,6 +180,27 @@ describe('Automatic worktree removal pass', () => {
     expect(run).toMatchObject({ removed: [], failed: [] })
   })
 
+  it('counts a worktree it cannot read again as failed, and goes on', async () => {
+    const due = listing(
+      entry('/wt/a', { kind: 'due', dueAt: 1 }),
+      entry('/wt/b', { kind: 'due', dueAt: 1 }),
+    )
+    listWorktreeInventoryMock
+      .mockReturnValueOnce(Effect.succeed(due))
+      .mockReturnValueOnce(Effect.succeed(due))
+      .mockReturnValueOnce(Effect.fail(new Error('Settings are unreadable.')))
+    removeHostUiWorktreeMock.mockReturnValue(Effect.succeed({ ok: true }))
+    const recorded: AutomaticWorktreeRemovalRun[] = []
+
+    const run = await runPass({ enabled: true, recorded })
+
+    expect(run).toMatchObject({
+      removed: [{ path: '/wt/a' }],
+      failed: [{ path: '/wt/b', message: 'Settings are unreadable.' }],
+    })
+    expect(recorded).toEqual([run])
+  })
+
   it('records what it removed when the Host stops it part-way', async () => {
     listWorktreeInventoryMock.mockReturnValue(
       Effect.succeed(

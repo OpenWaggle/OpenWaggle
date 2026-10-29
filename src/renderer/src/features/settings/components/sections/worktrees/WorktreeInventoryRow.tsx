@@ -124,13 +124,18 @@ function InlineRemove(props: {
   readonly onConfirm: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
+  // A removal that started elsewhere (Free) cancels the confirmation, so it never returns armed.
+  const [wasBusy, setWasBusy] = useState(props.busy)
+  if (props.busy !== wasBusy) {
+    setWasBusy(props.busy)
+    if (props.busy) setConfirming(false)
+  }
   const removeRef = useRef<HTMLButtonElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const show = (next: boolean) => {
     flushSync(() => setConfirming(next))
     ;(next ? cancelRef : removeRef).current?.focus()
   }
-  // A removal that started elsewhere (Free) closes the confirmation: the row is already going.
   if (!confirming || props.busy) {
     /*
      * aria-disabled, not disabled, while removing: Confirm hands focus to this button, and a
@@ -210,15 +215,26 @@ function RowAction(props: WorktreeRowProps) {
   const forced = forcedRemoval(entry)
   if (entry.group === 'in-use') {
     if (hardBlockers(entry).length > 0) return null
+    const archiveLabel = forced.discardsChanges ? 'Archive Sessions' : 'Archive & remove'
     return (
       <Button
         variant="secondary"
         size="xs"
-        aria-label={`Archive & remove ${title}…`}
+        aria-label={`${archiveLabel} ${title}…`}
         disabled={props.busy}
-        onClick={() => props.onConfirm(request(entry, { archiveSessions: true, ...forced }))}
+        onClick={() =>
+          props.onConfirm(
+            request(entry, {
+              archiveSessions: true,
+              // Never a discard: changes keep the worktree after its Sessions are archived.
+              force: forced.ignoresLock,
+              ignoresLock: forced.ignoresLock,
+              discardsChanges: forced.discardsChanges,
+            }),
+          )
+        }
       >
-        Archive & remove…
+        {archiveLabel}…
       </Button>
     )
   }

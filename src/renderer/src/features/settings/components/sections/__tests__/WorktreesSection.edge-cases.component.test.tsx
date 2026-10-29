@@ -7,6 +7,8 @@ import {
   entry,
   inventory,
   OTHER_PROJECT,
+  PROJECT,
+  preview,
   rowTitled,
 } from './worktree-inventory-fixtures'
 
@@ -56,9 +58,14 @@ it('drops the project filter when that project leaves the list', async () => {
   expect(screen.queryByRole('combobox', { name: 'Project' })).not.toBeInTheDocument()
 })
 
-it('closes a row’s inline confirmation once Free starts removing it', async () => {
+it('cancels a row’s inline confirmation once Free starts removing it', async () => {
   api.getWorktreeInventory.mockResolvedValue(inventory([entry({ path: '/wt/free' })]))
-  api.removeGitWorktree.mockReturnValue(new Promise(() => undefined))
+  let refuse: () => void = () => undefined
+  api.removeGitWorktree.mockReturnValue(
+    new Promise((resolve) => {
+      refuse = () => resolve({ ok: false, code: 'dirty-worktree', message: 'It changed.' })
+    }),
+  )
   renderWithQueryClient(<WorktreesSection />)
 
   const row = await rowTitled('free')
@@ -69,4 +76,56 @@ it('closes a row’s inline confirmation once Free starts removing it', async ()
 
   expect(await row.findByRole('button', { name: 'Removing free' })).toBeInTheDocument()
   expect(row.queryByRole('button', { name: 'Confirm remove free' })).not.toBeInTheDocument()
+
+  // Free fails for it: the row comes back with Remove, not one click from removal.
+  refuse()
+  expect(await row.findByRole('button', { name: 'Remove free' })).toBeInTheDocument()
+  expect(row.queryByRole('button', { name: 'Confirm remove free' })).not.toBeInTheDocument()
+})
+
+it('archives the Sessions of a worktree with changes, and keeps the worktree', async () => {
+  const session = {
+    sessionId: 'open',
+    title: 'Half done',
+    archived: false,
+    archivedAt: null,
+    running: false,
+    owner: true,
+  }
+  api.getWorktreeInventory.mockResolvedValue(
+    inventory([
+      entry({
+        path: '/wt/dirty',
+        group: 'in-use',
+        sessions: [session],
+        uncommittedChangeCount: 2,
+        attention: [
+          { kind: 'open-sessions', count: 1 },
+          { kind: 'uncommitted-changes', count: 2 },
+        ],
+      }),
+    ]),
+  )
+  api.manageProjectActions.mockImplementation(async (request) =>
+    preview(request, { usage: { path: '/wt/dirty', sessions: [session], blockers: [] } }),
+  )
+  renderWithQueryClient(<WorktreesSection />)
+
+  fireEvent.click(await screen.findByRole('button', { name: /In use/ }))
+  fireEvent.click(
+    (await rowTitled('Half done')).getByRole('button', { name: 'Archive Sessions Half done…' }),
+  )
+  const dialog = await screen.findByRole('dialog', { name: 'Archive its Sessions?' })
+  expect(dialog).toHaveTextContent('so it is kept')
+  const confirm = within(dialog).getByRole('button', { name: 'Archive Sessions' })
+  await waitFor(() => expect(confirm).toBeEnabled())
+  fireEvent.click(confirm)
+
+  // No force: the Host keeps a worktree with changes, so nothing is discarded.
+  await waitFor(() =>
+    expect(api.archiveAndRemoveWorktree).toHaveBeenCalledWith(PROJECT, {
+      path: '/wt/dirty',
+      sessionIds: ['open'],
+    }),
+  )
 })

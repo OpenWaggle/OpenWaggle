@@ -128,10 +128,8 @@ export interface WorktreeArchiveAndRemovePayload {
    * worktree have changed since, so it never archives one the user was not shown.
    */
   readonly sessionIds: readonly string[]
-  /** Discard uncommitted changes, as Force remove does. */
+  /** Override Git's lock. Uncommitted changes always keep the worktree: this never discards. */
   readonly force?: boolean
-  /** With `force`, override only Git's lock and still refuse uncommitted changes. */
-  readonly lockOnly?: boolean
 }
 
 export interface AutomaticWorktreeRemovalRemoved {

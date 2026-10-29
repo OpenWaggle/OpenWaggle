@@ -8,6 +8,7 @@ import type {
 import * as Cause from 'effect/Cause'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import * as Option from 'effect/Option'
 import { createLogger } from '../logger'
 import { AutomaticWorktreeRemovalLogStore } from '../ports/automatic-worktree-removal-log'
@@ -50,9 +51,17 @@ function removeIfStillDue(entry: WorktreeInventoryEntry, now: () => number, outc
       Effect.map(Option.getOrNull),
       Effect.catchAll(() => Effect.succeed(null)),
     )
-    const fresh = (yield* listWorktreeInventory(now(), { onlyPath: entry.path })).entries.find(
-      (candidate) => candidate.path === entry.path,
-    )
+    const reread = yield* Effect.either(listWorktreeInventory(now(), { onlyPath: entry.path }))
+    if (reread._tag === 'Left') {
+      // One worktree that cannot be read again is a failure of its own, not of the pass.
+      outcome.failed.push({
+        path: entry.path,
+        projectPath: entry.projectPath,
+        message: errorMessage(reread.left),
+      })
+      return
+    }
+    const fresh = reread.right.entries.find((candidate) => candidate.path === entry.path)
     if (fresh?.automaticRemoval.kind !== 'due') return
     // Removal and its record are one step: a Host stopping meanwhile cannot drop the record.
     yield* Effect.uninterruptible(
@@ -110,8 +119,8 @@ export function runAutomaticWorktreeRemovalPass(
     const inventory = yield* listWorktreeInventory(startedAt)
     const outcome: PassOutcome = { removed: [], failed: [] }
     /*
-     * A pass stopped part-way, by a drain or by the Host shutting down, still records what it
-     * removed, and keeps the last check time so the next Host's pass finishes the job.
+     * A pass stopped part-way, by a drain, by the Host shutting down or by a failure, still
+     * records what it removed, and keeps the last check time so the next pass finishes the job.
      */
     const record = (checked: boolean) =>
       Effect.gen(function* () {
@@ -132,7 +141,11 @@ export function runAutomaticWorktreeRemovalPass(
         if (entry.automaticRemoval.kind === 'due') yield* removeIfStillDue(entry, now, outcome)
       }
       return true
-    }).pipe(Effect.onInterrupt(() => record(false).pipe(Effect.ignore)))
+    }).pipe(
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit) ? Effect.void : record(false).pipe(Effect.ignore),
+      ),
+    )
     const run = yield* record(completed)
     if (run.removed.length > 0 || run.failed.length > 0) {
       logger.info('Automatic worktree removal finished', {
