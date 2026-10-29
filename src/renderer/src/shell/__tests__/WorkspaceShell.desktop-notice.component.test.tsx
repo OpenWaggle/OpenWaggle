@@ -41,7 +41,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 vi.mock('../Header', () => ({ Header: () => <header>Header</header> }))
-vi.mock('../useTitleModelRefusalNotice', () => ({ useTitleModelRefusalNotice: vi.fn() }))
+vi.mock('../useShellNotices', () => ({ useShellNotices: vi.fn() }))
 vi.mock('../ToastOverlay', () => ({ ToastOverlay: nothing }))
 vi.mock('../useAutoUpdater', () => ({ useAutoUpdater: vi.fn() }))
 vi.mock('../useWorkspaceLifecycle', () => ({ useWorkspaceLifecycle: vi.fn() }))

@@ -42,6 +42,10 @@ import {
   isHostUiSourceControlChannel,
 } from './host-ui-source-control-operation'
 import { createHostUiWorktree, removeHostUiWorktree } from './host-ui-worktree-operation'
+import {
+  dispatchHostUiWorktreesOperation,
+  isHostUiWorktreesChannel,
+} from './host-ui-worktrees-dispatcher'
 import { prepareInlineVisualizationSourceOwner } from './inline-visualization-source-owner'
 import {
   grantProjectAuthorizationOperation,
@@ -137,6 +141,7 @@ function dispatchHostUiChannel(
   if (isSkillsChannel(channel)) {
     return dispatchHostUiSkillsOperation(channel, args)
   }
+  if (isHostUiWorktreesChannel(channel)) return dispatchHostUiWorktreesOperation(channel, args)
   if (isHostUiAgentDefinitionChannel(channel)) {
     if (negotiatedRevision !== undefined && negotiatedRevision < HOST_UI_REVISION_11) {
       return invalidHostUiInput('Agent definitions require Local Session protocol revision 11.')

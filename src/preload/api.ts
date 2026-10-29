@@ -5,6 +5,7 @@ import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 import { scheduledTasksApi } from './scheduled-tasks-api'
 import { sessionDataApi } from './session-data-api'
 import { startupApi } from './startup-api'
+import { worktreesApi } from './worktrees-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
@@ -209,10 +210,7 @@ export const api: OpenWaggleApi = {
   checkoutGitBranch: invoke('git:branches:checkout'),
   createGitBranch: invoke('git:branches:create'),
   validateGitBranchName: invoke('git:branches:validate-name'),
-  listGitWorktrees: invoke('git:worktrees:list'),
-  createGitWorktree: invoke('git:worktrees:create'),
-  removeGitWorktree: invoke('git:worktrees:remove'),
-  checkSessionWorktree: invoke('git:worktrees:check'),
+  ...worktreesApi,
   getLocalVcsStatus: invoke('git:vcs-status:local'),
   getRemoteVcsStatus: invoke('git:vcs-status:remote'),
   runStackedGitAction: invoke('git:stacked-action:run'),

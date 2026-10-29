@@ -38,4 +38,11 @@ export function registerGitWorktreeHandlers(): void {
   hostHandle('git:worktrees:create')
 
   hostHandle('git:worktrees:remove')
+
+  // Settings > Worktrees across every project (ADR 0060).
+  hostHandle('worktrees:inventory')
+  hostHandle('worktrees:measure')
+  hostHandle('worktrees:archive-and-remove')
+  hostHandle('worktrees:automatic-removal-log')
+  hostHandle('worktrees:acknowledge-automatic-removal')
 }

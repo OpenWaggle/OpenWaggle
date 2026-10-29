@@ -141,6 +141,7 @@ async function invokeCreate(payload: unknown) {
             inspectLinkedWorktree: () => Effect.dieMessage('not used'),
             list: () => Effect.dieMessage('not used'),
             countUnpublishedCommits: () => Effect.dieMessage('not used'),
+            countUncommittedChanges: () => Effect.dieMessage('not used'),
             applicationCheckout: () => Effect.dieMessage('not used'),
           }),
         ),

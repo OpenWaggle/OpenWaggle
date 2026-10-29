@@ -9,11 +9,13 @@ interface OccupantRow {
   readonly session_id: string
   readonly title: string
   readonly archived: number
+  readonly archived_at: number | null
   readonly session_project_path: string | null
   readonly active_run_id: string | null
   readonly workspace_id: string | null
   readonly kind: SessionWorkspaceResource['kind'] | null
   readonly working_path: string | null
+  readonly lifecycle_state: string | null
 }
 
 /**
@@ -23,9 +25,10 @@ interface OccupantRow {
  */
 export function listWorkspaceOccupants(sql: SqlClient.SqlClient) {
   return sql<OccupantRow>`
-    SELECT sessions.id AS session_id, sessions.title, sessions.archived,
+    SELECT sessions.id AS session_id, sessions.title, sessions.archived, sessions.archived_at,
       sessions.project_path AS session_project_path, states.active_run_id,
-      resources.id AS workspace_id, resources.kind, resources.working_path
+      resources.id AS workspace_id, resources.kind, resources.working_path,
+      resources.lifecycle_state
     FROM sessions
     LEFT JOIN session_workspace_bindings AS bindings ON bindings.session_id = sessions.id
     LEFT JOIN workspace_resources AS resources ON resources.id = bindings.workspace_id
@@ -40,11 +43,17 @@ export function listWorkspaceOccupants(sql: SqlClient.SqlClient) {
           sessionId: row.session_id,
           title: row.title,
           archived: row.archived !== 0,
+          archivedAt: row.archived !== 0 ? row.archived_at : null,
           activeRun: row.active_run_id !== null,
           sessionProjectPath: row.session_project_path,
           workspace:
             row.workspace_id !== null && row.kind !== null && row.working_path !== null
-              ? { id: row.workspace_id, kind: row.kind, workingPath: row.working_path }
+              ? {
+                  id: row.workspace_id,
+                  kind: row.kind,
+                  workingPath: row.working_path,
+                  lifecycleState: row.lifecycle_state ?? 'ready',
+                }
               : null,
         }),
       ),

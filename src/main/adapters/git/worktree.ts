@@ -9,6 +9,7 @@ import type {
 } from '@shared/types/git'
 import { runWithGitMutationLock, runWithGitMutationLocks } from '../../services/git/mutation-lock'
 import { isGitRepository, runGit } from './run-git'
+import { classifyRemoveError, uncommittedWorkRefusal, worktreeFailure } from './worktree-failures'
 
 function runWorktreeGit(projectPath: string, args: string[], signal?: AbortSignal) {
   return signal ? runGit(projectPath, args, { signal }) : runGit(projectPath, args)
@@ -20,13 +21,6 @@ function throwIfGitAborted(signal?: AbortSignal, result?: { readonly aborted?: b
   const error = new Error('Git operation was aborted.')
   error.name = 'AbortError'
   throw error
-}
-
-function worktreeFailure(
-  code: GitWorktreeMutationFailure['code'],
-  message: string,
-): GitWorktreeMutationFailure {
-  return { ok: false, code, message }
 }
 
 function classifyCreateError(stderr: string): GitWorktreeMutationFailure {
@@ -41,21 +35,6 @@ function classifyCreateError(stderr: string): GitWorktreeMutationFailure {
     return worktreeFailure('worktree-exists', stderr.trim() || 'Worktree path already exists.')
   }
   return worktreeFailure('unknown', stderr.trim() || 'Failed to create worktree.')
-}
-
-function classifyRemoveError(stderr: string): GitWorktreeMutationFailure {
-  const lower = stderr.toLowerCase()
-  if (lower.includes('is dirty') || lower.includes('contains modified or untracked')) {
-    return worktreeFailure(
-      'dirty-worktree',
-      stderr.trim() ||
-        'Worktree has uncommitted changes. Commit, push, or force-remove to discard them.',
-    )
-  }
-  if (lower.includes('is not a working tree') || lower.includes('not a working tree')) {
-    return worktreeFailure('not-found', stderr.trim() || 'Worktree not found.')
-  }
-  return worktreeFailure('unknown', stderr.trim() || 'Failed to remove worktree.')
 }
 
 /**
@@ -266,6 +245,14 @@ async function removeGitWorktreeUnlocked(
   const worktreePath = payload.path.trim()
   if (!worktreePath) return worktreeFailure('not-found', 'A worktree path is required.')
 
+  /*
+   * Git has no flag that ignores a lock but keeps changes, so a lock-only force checks them
+   * here, under the mutation lock and just before the forced remove.
+   */
+  if (payload.force && payload.lockOnly) {
+    const refusal = await uncommittedWorkRefusal(worktreePath)
+    if (refusal) return refusal
+  }
   // Rely on git's native refusal for dirty worktrees; only force on explicit request.
   const args = ['worktree', 'remove', worktreePath]
   // Git requires the flag twice for a locked worktree. This path is only used after an
@@ -311,16 +298,14 @@ export async function validateGitWorktreeRemoval(
   if (!registered) return worktreeFailure('not-found', 'Worktree not found.')
   if (registered.locked && !payload.force)
     return worktreeFailure('unknown', 'Worktree is locked. Unlock it before removing it.')
-  if (payload.force)
+  if (payload.force && !payload.lockOnly)
     return { ok: true, message: 'Worktree can be force-removed.', path: worktreePath }
-  const status = await runGit(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all'])
-  if (status.code !== 0)
-    return worktreeFailure('unknown', status.stderr || 'Worktree check failed.')
-  if (status.stdout.trim()) {
-    return worktreeFailure(
-      'dirty-worktree',
-      'Worktree has uncommitted changes. Commit, push, or force-remove to discard them.',
-    )
-  }
-  return { ok: true, message: 'Worktree can be removed.', path: worktreePath }
+  // A lock-only force still keeps uncommitted work: it is checked here, before and after cleanup.
+  return (
+    (await uncommittedWorkRefusal(worktreePath)) ?? {
+      ok: true,
+      message: 'Worktree can be removed.',
+      path: worktreePath,
+    }
+  )
 }

@@ -79,3 +79,20 @@ const usdFormat = new Intl.NumberFormat('en-US', {
 export function formatUsd(amount: number): string {
   return usdFormat.format(amount)
 }
+
+const BYTES_PER_UNIT = 1024
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
+/** One decimal below ten units ("2.4 GB"), whole numbers above ("312 MB"). */
+const ONE_DECIMAL_BELOW = 10
+
+/** Bytes as people read disk space: 1024-based, short units. */
+export function formatBytes(bytes: number) {
+  let value = bytes
+  let unit = 0
+  while (value >= BYTES_PER_UNIT && unit < BYTE_UNITS.length - 1) {
+    value /= BYTES_PER_UNIT
+    unit += 1
+  }
+  const digits = unit > 0 && value < ONE_DECIMAL_BELOW ? 1 : 0
+  return `${value.toFixed(digits)} ${BYTE_UNITS[unit] ?? 'B'}`
+}

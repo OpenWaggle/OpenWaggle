@@ -52,7 +52,7 @@ describe('Local Session run snapshot content revision', () => {
     const result = negotiateLocalSessionProtocol(
       {
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [29],
+        supportedRevisions: [30],
         clientKind: 'gui',
         clientVersion: 'test',
       },
@@ -60,7 +60,7 @@ describe('Local Session run snapshot content revision', () => {
     )
     expect(result).toMatchObject({
       accepted: true,
-      revision: 29,
+      revision: 30,
       capabilities: expect.arrayContaining(['events:run-snapshot-content-v1']),
     })
   })

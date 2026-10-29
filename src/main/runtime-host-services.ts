@@ -11,6 +11,7 @@ import { runSessionSemanticDiscoveryBackground } from './adapters/session-semant
 import { migrateLegacyProviderReferences } from './adapters/sqlite-legacy-provider-rename-migration'
 import { migrateLegacyThinkingLevels } from './adapters/sqlite-legacy-thinking-level-migration'
 import { runWalCheckpointBackground } from './adapters/sqlite-wal-checkpoint-background'
+import { runAutomaticWorktreeRemovalBackground } from './application/automatic-worktree-removal'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { runFollowUpEditHoldExpiryBackground } from './application/follow-up-edit-hold-expiry'
 import {
@@ -78,7 +79,7 @@ function afterQuietStart<A, E, R>(indexer: Effect.Effect<A, E, R>) {
  * Host services that start once the Host serves clients, in the scope of the services above
  * (A-F8). None of them answers a client request: export recovery, the scratch sweep, the
  * scheduler (it settles interrupted firings before it forks), Pi session discovery, the Usage
- * statistics reporter, the background indexers after a quiet delay, and
+ * statistics reporter, Automatic worktree removal, the background indexers after a quiet delay, and
  * trusted-main extension activation, which runs user code for as long as it takes.
  */
 export function startHostServicesOnceListening<R = never>(options: HostServiceOptions<R> = {}) {
@@ -91,6 +92,7 @@ export function startHostServicesOnceListening<R = never>(options: HostServiceOp
       yield* runPiSessionDiscoveryBackground(options.createDiscoveredSession)
     }
     yield* runUsageStatisticsReporterBackground
+    yield* runAutomaticWorktreeRemovalBackground
     yield* afterQuietStart(runTranscriptTermRepairBackground)
     yield* afterQuietStart(runSessionSemanticDiscoveryBackground)
     yield* activateTrustedMainExtensionsForActiveProjectSafely()

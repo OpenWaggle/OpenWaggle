@@ -24,6 +24,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.usageStatisticsEnabled,
       partial.usageStatisticsEnabled,
     ),
+    automaticWorktreeRemoval: nextSetting(
+      current.automaticWorktreeRemoval,
+      partial.automaticWorktreeRemoval,
+    ),
     compactionThresholdPercent: nextSetting(
       current.compactionThresholdPercent,
       partial.compactionThresholdPercent,

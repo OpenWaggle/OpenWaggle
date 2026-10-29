@@ -8,6 +8,7 @@ import type {
   WorktreeUsage,
 } from '@shared/types/worktree-usage'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import { ActionRunService } from '../ports/action-run-service'
 import { GitWorktreeService } from '../ports/git-worktree-service'
 import {
@@ -15,14 +16,17 @@ import {
   type WorkspaceOccupant,
 } from '../ports/session-workspace-resource-repository'
 import { TerminalService } from '../ports/terminal-service'
+import { SettingsService } from '../services/settings-service'
+import { sessionBlocker, workspaceBlocker } from './worktree-usage-blockers'
 
 /** The renderer's owner key for terminals opened before a draft Session's first send. */
 const DRAFT_TERMINAL_OWNER_PREFIX = 'draft:'
 /** Bounded parallel reads of each Workspace's Project Action runs. */
 const ACTION_RUN_READ_CONCURRENCY = 8
 
-interface WorktreeUsageFacts {
-  readonly projectPath: string
+export interface WorktreeUsageFacts {
+  /** The project open in the app and the one a request is scoped to. */
+  readonly openProjectPaths: readonly string[]
   readonly applicationCheckout: string | null
   readonly occupants: readonly CanonicalOccupant[]
   /** Workspace paths with a starting, running or stopping Project Action. */
@@ -31,18 +35,18 @@ interface WorktreeUsageFacts {
   readonly terminalOwnerKeys: ReadonlySet<string> | null
 }
 
-interface CanonicalOccupant extends WorkspaceOccupant {
+export interface CanonicalOccupant extends WorkspaceOccupant {
   readonly canonicalWorkingPath: string | null
   readonly canonicalProjectPath: string | null
 }
 
-function isWithin(candidate: string, folder: string) {
+export function isWithin(candidate: string, folder: string) {
   const relative = path.relative(folder, candidate)
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 /** Canonical paths, so a symlinked spelling (macOS `/var` and `/private/var`) still matches. */
-function createCanonicalizer() {
+export function createCanonicalizer() {
   const cache = new Map<string, Promise<string>>()
   return (candidate: string) => {
     const resolved = path.resolve(candidate)
@@ -55,7 +59,7 @@ function createCanonicalizer() {
   }
 }
 
-function sessionUsesWorktree(occupant: CanonicalOccupant, worktreePath: string) {
+export function sessionUsesWorktree(occupant: CanonicalOccupant, worktreePath: string) {
   return (
     (occupant.canonicalWorkingPath !== null &&
       isWithin(occupant.canonicalWorkingPath, worktreePath)) ||
@@ -69,29 +73,11 @@ function sessionUsage(occupant: CanonicalOccupant, worktreePath: string): Worktr
     sessionId: occupant.sessionId,
     title: occupant.title,
     archived: occupant.archived,
+    archivedAt: occupant.archivedAt,
     running: occupant.activeRun,
     owner:
       occupant.workspace?.kind === 'managed-worktree' &&
       occupant.canonicalWorkingPath === worktreePath,
-  }
-}
-
-function sessionBlocker(sessions: readonly WorktreeSessionUsage[]): WorktreeRemovalBlocker | null {
-  const using = sessions.filter((session) => !session.archived || session.running)
-  const [first] = using
-  if (!first) return null
-  if (using.length > 1) {
-    return {
-      kind: 'session',
-      message: `${String(using.length)} Sessions work in it. Archive them, and stop any Run they still have, first.`,
-    }
-  }
-  return {
-    kind: 'session',
-    // An archived Session only blocks while its Run goes on, so archiving is no remedy there.
-    message: first.archived
-      ? `The archived Session “${first.title}” still has a Run in it. Stop that Run first.`
-      : `The Session “${first.title}” works in it. Archive that Session first.`,
   }
 }
 
@@ -118,13 +104,13 @@ function terminalBlocker(
 }
 
 /** Who uses one worktree and why it may not be removed (issue #353). Pure over `facts`. */
-function usageOfWorktree(worktreePath: string, facts: WorktreeUsageFacts): WorktreeUsage {
+export function usageOfWorktree(worktreePath: string, facts: WorktreeUsageFacts): WorktreeUsage {
   const occupants = facts.occupants.filter((occupant) =>
     sessionUsesWorktree(occupant, worktreePath),
   )
   const sessions = occupants.map((occupant) => sessionUsage(occupant, worktreePath))
   const blockers: WorktreeRemovalBlocker[] = []
-  if (isWithin(facts.projectPath, worktreePath)) {
+  if (facts.openProjectPaths.some((projectPath) => isWithin(projectPath, worktreePath))) {
     blockers.push({
       kind: 'open-project',
       message: 'It is the checkout of the open project.',
@@ -138,6 +124,8 @@ function usageOfWorktree(worktreePath: string, facts: WorktreeUsageFacts): Workt
   }
   const session = sessionBlocker(sessions)
   if (session) blockers.push(session)
+  const workspace = workspaceBlocker(occupants, worktreePath)
+  if (workspace) blockers.push(workspace)
   if (facts.activeActionPaths.some((workspacePath) => isWithin(workspacePath, worktreePath))) {
     blockers.push({
       kind: 'action',
@@ -185,9 +173,19 @@ function readActiveActionPaths(
   })
 }
 
-function gatherFacts(projectPath: string, worktreePaths: readonly string[]) {
+/** Facts for `usageOfWorktree`, read once for any number of worktrees in any repositories. */
+export function gatherWorktreeUsageFacts(
+  scopeProjectPaths: readonly string[],
+  worktreePaths: readonly string[],
+) {
   return Effect.gen(function* () {
     const canonical = createCanonicalizer()
+    // The opened project blocks too; a caller without settings (a test) only has its scope.
+    const settings = yield* Effect.serviceOption(SettingsService)
+    const openedProject = Option.isSome(settings)
+      ? (yield* settings.value.get().pipe(Effect.catchAll(() => Effect.succeed(null))))?.projectPath
+      : null
+    const openProjectPaths = [...scopeProjectPaths, ...(openedProject ? [openedProject] : [])]
     const repository = yield* SessionWorkspaceResourceRepository
     const gitWorktrees = yield* GitWorktreeService
     const canonicalWorktrees = yield* Effect.promise(() =>
@@ -215,7 +213,9 @@ function gatherFacts(projectPath: string, worktreePaths: readonly string[]) {
     )
     const applicationCheckout = yield* gitWorktrees.applicationCheckout()
     const facts: WorktreeUsageFacts = {
-      projectPath: yield* Effect.promise(() => canonical(projectPath)),
+      openProjectPaths: yield* Effect.promise(() =>
+        Promise.all(openProjectPaths.map((projectPath) => canonical(projectPath))),
+      ),
       applicationCheckout: applicationCheckout
         ? yield* Effect.promise(() => canonical(applicationCheckout))
         : null,
@@ -233,7 +233,7 @@ export function listWorktreeUsage(projectPath: string) {
     const gitWorktrees = yield* GitWorktreeService
     const listed = yield* gitWorktrees.list(projectPath)
     const paths = listed.worktrees.map((worktree) => worktree.path)
-    const { facts, canonicalWorktrees } = yield* gatherFacts(projectPath, paths)
+    const { facts, canonicalWorktrees } = yield* gatherWorktreeUsageFacts([projectPath], paths)
     return paths.map((worktreePath, index) => ({
       ...usageOfWorktree(canonicalWorktrees[index] ?? worktreePath, facts),
       // Keep Git's spelling, which is what the renderer joins the list on.
@@ -245,7 +245,10 @@ export function listWorktreeUsage(projectPath: string) {
 /** What blocks removing one worktree, read fresh. Empty when removal may go ahead. */
 export function worktreeRemovalBlockers(projectPath: string, worktreePath: string) {
   return Effect.gen(function* () {
-    const { facts, canonicalWorktrees } = yield* gatherFacts(projectPath, [worktreePath])
+    const { facts, canonicalWorktrees } = yield* gatherWorktreeUsageFacts(
+      [projectPath],
+      [worktreePath],
+    )
     return usageOfWorktree(canonicalWorktrees[0] ?? worktreePath, facts).blockers
   })
 }
@@ -264,7 +267,7 @@ export function previewWorktreeRemoval(projectPath: string, worktreePath: string
       return undefined
     })
     if (!registered) return yield* Effect.fail(new Error('This worktree is no longer registered.'))
-    const { facts } = yield* gatherFacts(projectPath, [registered.path])
+    const { facts } = yield* gatherWorktreeUsageFacts([projectPath], [registered.path])
     const usage = { ...usageOfWorktree(target, facts), path: registered.path }
     const unpublishedCommitCount = yield* gitWorktrees.countUnpublishedCommits(registered.path)
     return {

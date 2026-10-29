@@ -109,7 +109,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 vi.mock('../Header', () => ({ Header: () => <header>Header</header> }))
 vi.mock('../right-panel/RightPanelHost', () => ({ RightPanelHost: () => null }))
-vi.mock('../useTitleModelRefusalNotice', () => ({ useTitleModelRefusalNotice: vi.fn() }))
+vi.mock('../useShellNotices', () => ({ useShellNotices: vi.fn() }))
 vi.mock('../ToastOverlay', () => ({ ToastOverlay: () => <div>Toasts</div> }))
 vi.mock('../useAutoUpdater', () => ({ useAutoUpdater: () => shellMocks.autoUpdater() }))
 vi.mock('../useWorkspaceLifecycle', () => ({

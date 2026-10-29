@@ -9,7 +9,11 @@ import {
   validateGitWorktreeRemoval,
 } from './git/worktree'
 import { inspectLinkedWorktree } from './git/worktree-membership'
-import { checkoutTopLevel, countUnpublishedCommits } from './git/worktree-usage-git'
+import {
+  checkoutTopLevel,
+  countUncommittedChanges,
+  countUnpublishedCommits,
+} from './git/worktree-usage-git'
 
 export const GitWorktreeServiceLive = Layer.succeed(
   GitWorktreeService,
@@ -26,6 +30,8 @@ export const GitWorktreeServiceLive = Layer.succeed(
     list: (projectPath) => Effect.promise(() => listGitWorktrees(projectPath)),
     countUnpublishedCommits: (worktreePath) =>
       Effect.promise(() => countUnpublishedCommits(worktreePath)),
+    countUncommittedChanges: (worktreePath) =>
+      Effect.promise(() => countUncommittedChanges(worktreePath)),
     // A packaged app runs from its bundle, which is no checkout, so this is null there.
     applicationCheckout: () =>
       Effect.promise(() =>

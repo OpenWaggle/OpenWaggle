@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { removeGitWorktree, validateGitWorktreeRemoval } from '../../adapters/git/worktree'
 import { createLogger } from '../../logger'
 import {
@@ -120,7 +121,10 @@ async function removalFailedFor(
     path: worktreePath,
   })
   if (result.ok) return false
-  if (allowMissingWorktree && result.code === 'not-found') return false
+  if (result.code === 'not-found' && (allowMissingWorktree || !existsSync(worktreePath))) {
+    // Settings may have removed an archived Session's worktree (ADR 0060); nothing is left to keep.
+    return false
+  }
 
   logger.warn('Kept the Session worktree binding because removal failed', {
     code: result.code,
