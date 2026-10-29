@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MultilingualE5SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
+import { SessionEmbeddingProcess, spawnEmbeddingChild } from '../session-embedding-process'
 import { EMBEDDING_INFERENCE_BATCH_SIZE } from '../sqlite-session-semantic-projection'
 import { TRANSCRIPT_EMBEDDING_INFERENCE_BATCH_SIZE } from '../sqlite-session-transcript-semantic-projection'
 
@@ -75,6 +76,31 @@ describe('Session embedding off the Host (D3)', () => {
     expect(query?.[0]).toBe('query: x'.length)
     expect(model.dispose()).toBe(true)
     expect(model.isLoaded).toBe(false)
+  })
+
+  it('ends an idle child with SIGKILL so onnxruntime exit teardown cannot abort it', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
+    directories.push(directory)
+    const transformers = fakeTransformers(directory)
+    const exits: { code: number | null; signal: NodeJS.Signals | null }[] = []
+    const embedding = new SessionEmbeddingProcess(
+      () => ({ modelId: 'model', revision: 'main', dtype: 'q8' }),
+      {
+        transformersPath: transformers.file,
+        idleExitMs: 100,
+        spawnChild: (config) => {
+          const child = spawnEmbeddingChild(config)
+          child.on('exit', (code, signal) => exits.push({ code, signal }))
+          return child
+        },
+      },
+    )
+
+    await embedding.embed(['a'])
+    await waitUntil(() => exits.length === 1)
+    // A normal exit would run onnxruntime-node's static `Ort::Env` destructor, which aborts.
+    if (process.platform === 'win32') expect(exits[0]?.code).not.toBe(0)
+    else expect(exits[0]).toEqual({ code: null, signal: 'SIGKILL' })
   })
 
   it('fails a pending embedding when the child cannot load the model', async () => {
