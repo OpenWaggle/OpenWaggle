@@ -30,6 +30,12 @@ async function filesystemIdentity(candidate: string) {
   }
 }
 
+/**
+ * The Workspace resource of the folder being removed. A resource records its Session's project
+ * path, which may be a subfolder or a linked worktree of the repository, while removal runs from
+ * the main checkout, so the folder alone identifies it. When several records name the folder,
+ * the one of this project wins.
+ */
 async function findRemovalCandidate(
   projectPath: string,
   workingPath: string,
@@ -39,27 +45,31 @@ async function findRemovalCandidate(
     readonly workingPath: string
   }[],
 ) {
-  const lexical = candidates.find(
-    (candidate) => candidate.projectPath === projectPath && candidate.workingPath === workingPath,
-  )
-  if (lexical) return lexical
-  const [projectIdentity, workingIdentity] = await Promise.all([
-    filesystemIdentity(projectPath),
-    filesystemIdentity(workingPath),
-  ])
-  if (!projectIdentity || !workingIdentity) return undefined
-  const matches = await Promise.all(
-    candidates.map(async (candidate) => {
-      const [candidateProject, candidateWorking] = await Promise.all([
-        filesystemIdentity(candidate.projectPath),
-        filesystemIdentity(candidate.workingPath),
-      ])
-      return candidateProject === projectIdentity && candidateWorking === workingIdentity
-        ? candidate
-        : undefined
-    }),
-  )
-  return matches.find((candidate) => candidate !== undefined)
+  const resolvedWorking = path.resolve(workingPath)
+  const workingIdentity = await filesystemIdentity(resolvedWorking)
+  const sameFolder = (
+    await Promise.all(
+      candidates.map(async (candidate) =>
+        candidate.workingPath === resolvedWorking ||
+        (workingIdentity !== null &&
+          (await filesystemIdentity(candidate.workingPath)) === workingIdentity)
+          ? candidate
+          : undefined,
+      ),
+    )
+  ).filter((candidate) => candidate !== undefined)
+  if (sameFolder.length <= 1) return sameFolder[0]
+  const projectIdentity = await filesystemIdentity(projectPath)
+  for (const candidate of sameFolder) {
+    if (candidate.projectPath === path.resolve(projectPath)) return candidate
+    if (
+      projectIdentity !== null &&
+      (await filesystemIdentity(candidate.projectPath)) === projectIdentity
+    ) {
+      return candidate
+    }
+  }
+  return sameFolder[0]
 }
 
 function unavailableRemoval(options: { readonly admitArchivedBindings?: boolean }) {

@@ -61,6 +61,8 @@ export function worktreeAttention(facts: WorktreeFacts): readonly WorktreeAttent
     attention.push({ kind: 'unpublished-commits', count: facts.unpublishedCommitCount })
   }
   if (facts.locked) attention.push({ kind: 'locked' })
+  // Removing it deletes its ignored files too, which nothing of OpenWaggle's can bring back.
+  if (!facts.managed) attention.push({ kind: 'unmanaged' })
   return attention
 }
 

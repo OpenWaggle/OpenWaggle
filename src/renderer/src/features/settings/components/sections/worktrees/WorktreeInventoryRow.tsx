@@ -69,7 +69,6 @@ function MetaLine(props: Pick<WorktreeRowProps, 'entry' | 'projectName' | 'now'>
     entry.branch ?? 'detached',
     entry.managed && entry.sessions.length === 0 ? 'No Session uses this worktree' : null,
     entry.archivedAt !== null ? archivedAgo(entry.archivedAt, props.now) : null,
-    entry.managed ? null : 'Created outside OpenWaggle',
   ].filter((part) => part !== null)
   return <span className="truncate text-xs text-text-tertiary">{parts.join(' · ')}</span>
 }
@@ -100,10 +99,12 @@ function RevealButton({ path }: { readonly path: string }) {
     <Button
       variant="ghost"
       size="xs"
-      aria-label="Reveal in Finder"
+      aria-label="Show folder"
       title={path}
       onClick={() =>
-        void api.revealPath(path).catch(() => showToast('Could not reveal the worktree.', 'error'))
+        void api
+          .revealPath(path)
+          .catch(() => showToast('Could not show the worktree folder.', 'error'))
       }
     >
       <FolderOpen aria-hidden="true" className="size-3.5" />

@@ -82,8 +82,9 @@ it('previews a different number of days before it is saved', async () => {
   })
 })
 
-it('records the last run, with the Sessions and branches it removed', async () => {
+it('records the last check and the last removal, with its Sessions and branches', async () => {
   api.getAutomaticWorktreeRemovalLog.mockResolvedValue({
+    lastCheckedAt: Date.now(),
     unannouncedRunId: null,
     runs: [
       {
@@ -107,7 +108,8 @@ it('records the last run, with the Sessions and branches it removed', async () =
   renderWithQueryClient(<WorktreesSection />)
 
   expect(
-    await screen.findByText(/Last run .* · removed 1 worktree \(about 2\.0 MB\)/),
+    await screen.findByText(/Last removal .* · removed 1 worktree \(about 2\.0 MB\)/),
   ).toBeInTheDocument()
   expect(screen.getByText(/Old experiment · project · branch ow\/gone kept/)).toBeInTheDocument()
+  expect(screen.getByText(/^Last checked /)).toBeInTheDocument()
 })

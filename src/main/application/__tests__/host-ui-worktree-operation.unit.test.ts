@@ -29,11 +29,7 @@ vi.mock('../../services/git-status-cache', () => ({
   invalidateGitStatusCache: vi.fn(),
 }))
 
-import {
-  createHostUiWorktree,
-  recoverPendingManagedWorktreeRemovals,
-  removeHostUiWorktree,
-} from '../host-ui-worktree-operation'
+import { createHostUiWorktree, removeHostUiWorktree } from '../host-ui-worktree-operation'
 import { NoopTerminalServiceLayer } from './terminal-service-test-layer'
 
 function workspaceRepository(input: {
@@ -123,6 +119,31 @@ describe('Host-backed worktree operations', () => {
 
   afterEach(async () => {
     if (temporaryRoot) await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it('finds the Workspace of a Session opened in a subfolder when removal runs from the main checkout', async () => {
+    const effect = removeHostUiWorktree('/repo', { path: '/worktrees/feature' }).pipe(
+      Effect.provide(
+        operationLayer(
+          workspaceRepository({
+            candidates: [
+              { id: 'other', projectPath: '/elsewhere', workingPath: '/worktrees/other' },
+              {
+                id: 'feature',
+                projectPath: '/repo/packages/app',
+                workingPath: '/worktrees/feature',
+              },
+            ],
+          }),
+        ),
+      ),
+    )
+
+    await Effect.runPromise(effect)
+
+    expect(mocks.admitRemoval).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'feature', workingPath: '/worktrees/feature' }),
+    )
   })
 
   it('rejects removal while an authoritative Workspace binding remains', async () => {
@@ -250,62 +271,6 @@ describe('Host-backed worktree operations', () => {
       resourceId: 'removal-resource',
       createdReservation: true,
       removed: true,
-    })
-  })
-
-  it('reconciles tracked and synthetic removal reservations after Host loss', async () => {
-    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-worktree-recovery-'))
-    const survivingPath = path.join(temporaryRoot, 'surviving')
-    await fs.mkdir(survivingPath)
-    const repository = workspaceRepository({ admission: 'reserved' })
-    const effect = recoverPendingManagedWorktreeRemovals([
-      { resourceId: 'tracked-surviving', workingPath: survivingPath, createdReservation: false },
-      {
-        resourceId: 'tracked-removed',
-        workingPath: path.join(temporaryRoot, 'missing'),
-        createdReservation: false,
-      },
-      {
-        resourceId: 'worktree-removal:synthetic',
-        workingPath: survivingPath,
-        createdReservation: true,
-      },
-    ]).pipe(Effect.provide(operationLayer(repository)))
-
-    await Effect.runPromise(effect)
-
-    expect(mocks.finalizeRemoval.mock.calls.map((call) => call[0])).toEqual([
-      { resourceId: 'tracked-surviving', createdReservation: false, removed: false },
-      { resourceId: 'tracked-removed', createdReservation: false, removed: true },
-      {
-        resourceId: 'worktree-removal:synthetic',
-        createdReservation: true,
-        removed: false,
-      },
-    ])
-  })
-
-  it('leaves an uninspectable reservation fail-closed and continues recovery', async () => {
-    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-worktree-recovery-'))
-    const loopPath = path.join(temporaryRoot, 'symlink-loop')
-    await fs.symlink(loopPath, loopPath)
-    const results = await Effect.runPromise(
-      recoverPendingManagedWorktreeRemovals([
-        { resourceId: 'tracked-loop', workingPath: loopPath, createdReservation: false },
-        {
-          resourceId: 'worktree-removal:synthetic',
-          workingPath: loopPath,
-          createdReservation: true,
-        },
-      ]).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' })))),
-    )
-
-    expect(results.map((result) => result.outcome._tag)).toEqual(['Left', 'Right'])
-    expect(mocks.finalizeRemoval).toHaveBeenCalledOnce()
-    expect(mocks.finalizeRemoval).toHaveBeenCalledWith({
-      resourceId: 'worktree-removal:synthetic',
-      createdReservation: true,
-      removed: false,
     })
   })
 

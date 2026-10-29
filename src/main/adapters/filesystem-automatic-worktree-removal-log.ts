@@ -2,10 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import {
-  AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS,
-  type AutomaticWorktreeRemovalLog,
-  type AutomaticWorktreeRemovalRun,
+import type {
+  AutomaticWorktreeRemovalLog,
+  AutomaticWorktreeRemovalRun,
 } from '@shared/types/worktree-inventory'
 import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
@@ -35,7 +34,7 @@ const storedRunSchema = Schema.Struct({
   id: Schema.String,
   startedAt: Schema.Number,
   finishedAt: Schema.Number,
-  archivedDays: Schema.Literal(...AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS),
+  archivedDays: Schema.Number,
   removed: Schema.Array(removedSchema),
   failed: Schema.Array(
     Schema.Struct({ path: Schema.String, projectPath: Schema.String, message: Schema.String }),
@@ -45,18 +44,19 @@ const storedRunSchema = Schema.Struct({
 
 const storedLogSchema = Schema.Struct({
   version: Schema.Literal(1),
+  lastCheckedAt: Schema.NullOr(Schema.Number),
   runs: Schema.Array(storedRunSchema),
 })
 
 type StoredRun = typeof storedRunSchema.Type
 type StoredLog = typeof storedLogSchema.Type
 
-const EMPTY_LOG: StoredLog = { version: 1, runs: [] }
+const EMPTY_LOG: StoredLog = { version: 1, lastCheckedAt: null, runs: [] }
 
 function toLog(stored: StoredLog): AutomaticWorktreeRemovalLog {
   const runs = stored.runs.map(({ announced: _announced, ...run }) => run)
   const unannounced = stored.runs.find((run) => !run.announced && run.removed.length > 0)
-  return { runs, unannouncedRunId: unannounced?.id ?? null }
+  return { lastCheckedAt: stored.lastCheckedAt, runs, unannouncedRunId: unannounced?.id ?? null }
 }
 
 async function readStoredLog(file: string): Promise<StoredLog> {
@@ -99,12 +99,16 @@ async function writeStoredLog(file: string, log: StoredLog) {
 /** A JSON record under the user data folder; writes are serialized and atomic. */
 export function createAutomaticWorktreeRemovalLogStore(resolveFile: () => string) {
   let writes: Promise<unknown> = Promise.resolve()
-  const update = (change: (log: StoredLog) => StoredLog) => {
+  function update<A>(
+    change: (log: StoredLog) => { readonly log: StoredLog; readonly result: A },
+  ): Promise<A> {
     const next = writes
       .catch(() => undefined)
       .then(async () => {
         const file = resolveFile()
-        await writeStoredLog(file, change(await readStoredLog(file)))
+        const changed = change(await readStoredLog(file))
+        await writeStoredLog(file, changed.log)
+        return changed.result
       })
     writes = next
     return next
@@ -122,13 +126,21 @@ export function createAutomaticWorktreeRemovalLogStore(resolveFile: () => string
     record: (run: AutomaticWorktreeRemovalRun) =>
       Effect.tryPromise({
         try: () =>
-          update((log) => ({
-            version: 1,
-            runs: [{ ...run, announced: false } satisfies StoredRun, ...log.runs].slice(
-              0,
-              AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT,
-            ),
-          })),
+          update((log) => {
+            // A quiet daily check only moves the check time, so it never pushes out a removal.
+            const kept = run.removed.length > 0 || run.failed.length > 0
+            const runs = kept
+              ? [{ ...run, announced: false } satisfies StoredRun, ...log.runs]
+              : log.runs
+            return {
+              log: {
+                version: 1,
+                lastCheckedAt: run.startedAt,
+                runs: runs.slice(0, AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT),
+              },
+              result: undefined,
+            }
+          }),
         catch: asError('Could not save the automatic worktree removal record.'),
       }),
     acknowledge: (runId) =>
@@ -136,12 +148,15 @@ export function createAutomaticWorktreeRemovalLogStore(resolveFile: () => string
         try: () =>
           update((log) => {
             const index = log.runs.findIndex((run) => run.id === runId)
-            if (index < 0) return log
+            if (index < 0 || log.runs[index]?.announced) return { log, result: false }
             return {
-              version: 1,
-              runs: log.runs.map((run, position) =>
-                position >= index ? { ...run, announced: true } : run,
-              ),
+              log: {
+                ...log,
+                runs: log.runs.map((run, position) =>
+                  position >= index ? { ...run, announced: true } : run,
+                ),
+              },
+              result: true,
             }
           }),
         catch: asError('Could not save the automatic worktree removal record.'),

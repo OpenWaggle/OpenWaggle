@@ -167,11 +167,13 @@ describe('a worktree in use', () => {
         }),
       ]),
     )
+    // A local Session opened inside the worktree is archived too, so it is named as well.
+    const visitor = { ...OPEN_SESSION, sessionId: 'visitor', title: 'Local look', owner: false }
     api.manageProjectActions.mockImplementation(async (request) =>
       preview(request, {
         usage: {
           path: '/wt/open',
-          sessions: [OPEN_SESSION],
+          sessions: [OPEN_SESSION, visitor],
           blockers: [{ kind: 'session', message: 'Archive that Session first.' }],
         },
       }),
@@ -187,7 +189,8 @@ describe('a worktree in use', () => {
       name: 'Archive its Sessions and remove this worktree?',
     })
     expect(await within(dialog).findByText(/Archives:\s*Fix the login bug/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/Unarchiving a Session later recreates/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Archives:\s*Local look/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/If you restore a Session later/)).toBeInTheDocument()
     await confirmIn('Archive its Sessions and remove this worktree?', 'Archive & remove')
 
     await waitFor(() =>

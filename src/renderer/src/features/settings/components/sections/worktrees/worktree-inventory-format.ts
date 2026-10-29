@@ -39,6 +39,7 @@ export function attentionLabel(attention: WorktreeAttention) {
     .with({ kind: 'cleanup-failed' }, () => 'Workspace cleanup failed')
     .with({ kind: 'locked' }, () => 'Locked by Git')
     .with({ kind: 'unknown-state' }, () => 'Git could not report its changes')
+    .with({ kind: 'unmanaged' }, () => 'Created outside OpenWaggle')
     .exhaustive()
 }
 

@@ -126,18 +126,18 @@ The storage card adds up the space each worktree would free and splits it into t
 ### Groups
 
 - **Safe to remove**: every change is committed and on a remote, and no open session uses it. **Remove** asks once more in the row, then removes it.
-- **Needs a decision**: removing it would lose something only it holds, such as uncommitted changes or commits that are not on any remote, or its Workspace cleanup failed. **Discard & remove** or **Remove** opens a confirmation that says what would be lost.
+- **Needs a decision**: it has uncommitted changes or commits that are not on any remote, it was created outside OpenWaggle, it is locked, its Workspace cleanup failed, or Git could not report its state. **Discard & remove** or **Remove** opens a confirmation that says what would be lost.
 - **In use**: an open session, a run, a terminal, or a Project Action uses it. This group starts collapsed. **Archive & remove** archives every session in the worktree and then removes it; the confirmation names each session. It is unavailable while a run, terminal or action uses the worktree, and the row says which.
 
-Worktrees OpenWaggle manages appear for every project. Worktrees created outside OpenWaggle appear only for the opened project. A managed worktree that no session uses is labelled **No Session uses this worktree** and can only be removed by hand. Use the project picker and search to narrow a long list.
+Worktrees OpenWaggle manages appear for every project. Worktrees created outside OpenWaggle appear only for the opened project, always under **Needs a decision**, because removing one also deletes ignored files such as `.env` that OpenWaggle cannot restore. A managed worktree that no session uses is labelled **No Session uses this worktree** and can only be removed by hand. Use the project picker and search to narrow a long list.
 
-Archiving a session keeps its worktree, so restoring the session is instant. If you remove the worktree of an archived session, unarchiving it later recreates the worktree from the kept branch and runs Workspace setup again.
+Archiving a session keeps its worktree, so restoring the session is instant. If you remove the worktree of an archived session and restore the session later, its next message offers to recreate the worktree from the kept branch or to continue in the current checkout.
 
 ### Automatic cleanup
 
 **Remove worktrees of archived Sessions automatically** is off until you turn it on. When it is on, OpenWaggle removes a managed worktree once every session in it has been archived for the number of days you choose (7, 14, 30, 60 or 90; 30 by default), in every project. It checks when the app starts and about once a day after that. It never removes a worktree with uncommitted changes, commits that are not on a remote, a failed cleanup, or a lock; those stay under **Needs a decision** with the reason. The line beside the setting previews what it would remove now.
 
-The card records the last run: when it ran and what it removed, with each session and its kept branch. After a run removes something, the next time the app opens it shows one notice with a **View** button that opens this page.
+The card shows when the rule last checked, and the last run that removed something, with each session and its kept branch. After a run removes something, the next time the app opens it shows one notice with a **View** button that opens this page.
 
 ### Cleanup failures and forced removal
 

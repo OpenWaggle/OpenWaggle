@@ -58,7 +58,7 @@ function entry(
 
 function layer(options: {
   readonly enabled: boolean
-  readonly runs?: readonly AutomaticWorktreeRemovalRun[]
+  readonly lastCheckedAt?: number
   readonly recorded: AutomaticWorktreeRemovalRun[]
 }) {
   return Layer.mergeAll(
@@ -73,9 +73,14 @@ function layer(options: {
       flushForTests: () => Effect.void,
     }),
     Layer.succeed(AutomaticWorktreeRemovalLogStore, {
-      read: () => Effect.succeed({ runs: options.runs ?? [], unannouncedRunId: null }),
+      read: () =>
+        Effect.succeed({
+          lastCheckedAt: options.lastCheckedAt ?? null,
+          runs: [],
+          unannouncedRunId: null,
+        }),
       record: (run) => Effect.sync(() => void options.recorded.push(run)),
-      acknowledge: () => Effect.void,
+      acknowledge: () => Effect.succeed(false),
     }),
     Layer.succeed(WorktreeSpaceService, {
       measure: () => Effect.die('not used'),
@@ -89,8 +94,10 @@ function layer(options: {
 }
 
 /** The mocked inventory and removal need none of the services the real ones read. */
-function runPass(options: Parameters<typeof layer>[0]) {
-  const provided = runAutomaticWorktreeRemovalPass(() => NOW).pipe(Effect.provide(layer(options)))
+function runPass(options: Parameters<typeof layer>[0], isDraining = () => false) {
+  const provided = runAutomaticWorktreeRemovalPass(() => NOW, isDraining).pipe(
+    Effect.provide(layer(options)),
+  )
   return Effect.runPromise(
     fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, Error, never>, typeof provided>(
       provided,
@@ -113,16 +120,33 @@ describe('Automatic worktree removal pass', () => {
 
   it('runs at most once a day', async () => {
     const recorded: AutomaticWorktreeRemovalRun[] = []
-    const lastRun: AutomaticWorktreeRemovalRun = {
-      id: 'last',
-      startedAt: NOW - 1,
-      finishedAt: NOW - 1,
-      archivedDays: 30,
-      removed: [],
-      failed: [],
-    }
-    await expect(runPass({ enabled: true, runs: [lastRun], recorded })).resolves.toBeNull()
+    await expect(runPass({ enabled: true, lastCheckedAt: NOW - 1, recorded })).resolves.toBeNull()
     expect(listWorktreeInventoryMock).not.toHaveBeenCalled()
+  })
+
+  it('starts nothing while the Host drains, and stops between worktrees once it does', async () => {
+    await expect(runPass({ enabled: true, recorded: [] }, () => true)).resolves.toBeNull()
+    expect(listWorktreeInventoryMock).not.toHaveBeenCalled()
+
+    listWorktreeInventoryMock.mockReturnValue(
+      Effect.succeed({
+        projects: [],
+        problems: [],
+        entries: [
+          entry('/wt/a', { kind: 'due', dueAt: 1 }),
+          entry('/wt/b', { kind: 'due', dueAt: 1 }),
+        ],
+      }),
+    )
+    let draining = false
+    removeHostUiWorktreeMock.mockImplementation(() =>
+      Effect.sync(() => {
+        draining = true
+        return { ok: true }
+      }),
+    )
+    const run = await runPass({ enabled: true, recorded: [] }, () => draining)
+    expect(run?.removed.map((removed) => removed.path)).toEqual(['/wt/a'])
   })
 
   it('removes only due worktrees, one at a time, and records what happened', async () => {

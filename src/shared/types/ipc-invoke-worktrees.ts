@@ -19,5 +19,6 @@ export interface IpcWorktreesInvokeChannelMap {
     return: GitWorktreeMutationResult
   }
   'worktrees:automatic-removal-log': { args: []; return: AutomaticWorktreeRemovalLog }
-  'worktrees:acknowledge-automatic-removal': { args: [runId: string]; return: undefined }
+  /** True for the one window that announced the run. */
+  'worktrees:acknowledge-automatic-removal': { args: [runId: string]; return: boolean }
 }

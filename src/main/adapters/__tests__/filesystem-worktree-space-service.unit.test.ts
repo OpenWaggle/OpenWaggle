@@ -89,6 +89,21 @@ describe('Reclaimable space of a worktree', () => {
     expect(order).toEqual(['start a', 'end a', 'start b', 'end b'])
   })
 
+  it('does not cache a walk that a removal overtook', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const service = createWorktreeSpaceService({ measure: async () => gate.then(() => 1) })
+
+    const walk = Effect.runPromise(service.measure(root))
+    await Effect.runPromise(service.forget(root))
+    release()
+    await walk
+
+    await expect(Effect.runPromise(service.cached(root))).resolves.toBeNull()
+  })
+
   it('reports a folder it cannot read as a failure', async () => {
     const service = createWorktreeSpaceService()
     await expect(Effect.runPromise(service.measure(path.join(root, 'missing')))).rejects.toThrow(

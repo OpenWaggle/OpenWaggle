@@ -79,6 +79,7 @@ export function createWorktreeApiMocks() {
       path: '/wt',
     })),
     getAutomaticWorktreeRemovalLog: vi.fn<() => Promise<AutomaticWorktreeRemovalLog>>(async () => ({
+      lastCheckedAt: null,
       runs: [],
       unannouncedRunId: null,
     })),

@@ -22,7 +22,8 @@ const GROUP_COPY: Record<
   },
   decide: {
     title: 'Needs a decision',
-    description: 'Removing these would lose uncommitted changes or commits only they hold.',
+    description:
+      'These hold uncommitted changes or commits not on a remote, were created outside OpenWaggle, are locked, failed their cleanup, or could not be checked.',
     open: true,
   },
   'in-use': {
@@ -32,7 +33,6 @@ const GROUP_COPY: Record<
   },
 }
 
-/** One group of worktrees, with its count and size; In use starts collapsed. */
 /** What every row in the list shares. */
 export interface WorktreeRowContext {
   readonly space: WorktreeSpaceByPath
@@ -43,6 +43,7 @@ export interface WorktreeRowContext {
   readonly onConfirm: (request: WorktreeRemovalRequest) => void
 }
 
+/** One group of worktrees, with its count and size; In use starts collapsed. */
 export function WorktreeGroup(props: {
   readonly group: WorktreeInventoryGroup
   readonly entries: readonly WorktreeInventoryEntry[]
@@ -72,29 +73,31 @@ export function WorktreeGroup(props: {
           {String(props.entries.length)} · about {formatBytes(bytes)}
         </span>
       </Button>
-      {open ? (
-        <>
-          <p className="pl-5.5 text-xs text-text-tertiary">{copy.description}</p>
-          <ul
-            id={listId}
-            aria-label={copy.title}
-            className="overflow-hidden rounded-lg border border-border bg-bg"
-          >
-            {props.entries.map((entry) => (
-              <WorktreeInventoryRow
-                key={entry.path}
-                entry={entry}
-                projectName={context.projectNames.get(entry.projectPath) ?? entry.projectPath}
-                space={context.space.get(entry.path)}
-                busy={context.busyPaths.has(entry.path)}
-                now={context.now}
-                onRemove={context.onRemove}
-                onConfirm={context.onConfirm}
-              />
-            ))}
-          </ul>
-        </>
-      ) : null}
+      {/* Always rendered, so the toggle's aria-controls names an element that exists. */}
+      <div id={listId} hidden={!open} className="space-y-2">
+        {open ? (
+          <>
+            <p className="pl-5.5 text-xs text-text-tertiary">{copy.description}</p>
+            <ul
+              aria-label={copy.title}
+              className="overflow-hidden rounded-lg border border-border bg-bg"
+            >
+              {props.entries.map((entry) => (
+                <WorktreeInventoryRow
+                  key={entry.path}
+                  entry={entry}
+                  projectName={context.projectNames.get(entry.projectPath) ?? entry.projectPath}
+                  space={context.space.get(entry.path)}
+                  busy={context.busyPaths.has(entry.path)}
+                  now={context.now}
+                  onRemove={context.onRemove}
+                  onConfirm={context.onConfirm}
+                />
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
     </section>
   )
 }

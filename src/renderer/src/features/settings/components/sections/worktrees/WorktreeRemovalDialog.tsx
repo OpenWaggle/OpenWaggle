@@ -43,7 +43,7 @@ function removalTitle(request: WorktreeRemovalRequest) {
 }
 
 const RECREATE_NOTE =
-  'Unarchiving a Session later recreates the worktree from the kept branch and runs Workspace setup again.'
+  'If you restore a Session later, it offers to recreate the worktree from the kept branch, or to continue in the current checkout.'
 
 function removalConsequence(request: WorktreeRemovalRequest) {
   if (request.archiveSessions) {
@@ -93,11 +93,13 @@ function PreviewDetails(props: {
   const { preview } = props
   const warning = unpublishedWarning(preview)
   const owners = preview.usage.sessions.filter((session) => session.owner)
+  // Archive & remove archives every Session working in it, so it names every one (ADR 0060).
+  const listed = props.request.archiveSessions ? preview.usage.sessions : owners
   const blockers = removalBlockers(preview, props.request)
   return (
     <div className="mt-3 space-y-2 text-xs leading-5">
       <p className="text-text-secondary">Branch: {preview.branch ?? 'detached'}</p>
-      {owners.map((session) => (
+      {listed.map((session) => (
         <p key={session.sessionId} className="text-text-secondary">
           {props.request.archiveSessions && !session.archived ? 'Archives' : 'Session'}:{' '}
           {session.title}

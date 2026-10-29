@@ -141,6 +141,17 @@ describe('Archive & remove', () => {
     expect(mocks.remove).not.toHaveBeenCalled()
   })
 
+  it('says the Sessions stay archived when the removal is then refused', async () => {
+    mocks.usage.mockReturnValue(usage())
+    mocks.remove.mockReturnValue(
+      Effect.succeed({ ok: false, code: 'dirty-worktree', message: 'It has uncommitted changes.' }),
+    )
+    await expect(run()).resolves.toMatchObject({
+      ok: false,
+      message: 'Archived 1 Session, but the worktree was kept: It has uncommitted changes.',
+    })
+  })
+
   it('refuses a folder that is not a registered linked worktree', async () => {
     await expect(run(PROJECT)).rejects.toThrow(/no longer registered/)
     await expect(run('/elsewhere')).rejects.toThrow(/no longer registered/)

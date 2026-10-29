@@ -9,7 +9,7 @@ import { useAutomaticWorktreeRemovalNotice } from '../useAutomaticWorktreeRemova
 
 const { getLog, acknowledge, navigate } = vi.hoisted(() => ({
   getLog: vi.fn<() => Promise<AutomaticWorktreeRemovalLog>>(),
-  acknowledge: vi.fn(async (_runId: string) => undefined),
+  acknowledge: vi.fn(async (_runId: string) => true),
   navigate: vi.fn(),
 }))
 vi.mock('@/shared/lib/ipc', () => ({
@@ -51,7 +51,7 @@ beforeEach(() => {
 })
 
 it('says once what Automatic worktree removal freed, and opens Settings > Worktrees', async () => {
-  getLog.mockResolvedValue({ runs: [RUN], unannouncedRunId: 'run-1' })
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: 'run-1' })
   renderHook(() => useAutomaticWorktreeRemovalNotice())
 
   await waitFor(() =>
@@ -65,8 +65,17 @@ it('says once what Automatic worktree removal freed, and opens Settings > Worktr
   expect(navigate).toHaveBeenCalledWith({ to: '/settings/$tab', params: { tab: 'worktrees' } })
 })
 
+it('leaves the notice to the window that claimed the run', async () => {
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: 'run-1' })
+  acknowledge.mockResolvedValueOnce(false)
+  renderHook(() => useAutomaticWorktreeRemovalNotice())
+
+  await waitFor(() => expect(acknowledge).toHaveBeenCalledWith('run-1'))
+  expect(useUIStore.getState().toastData).toBeNull()
+})
+
 it('stays quiet when every run has been announced', async () => {
-  getLog.mockResolvedValue({ runs: [RUN], unannouncedRunId: null })
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: null })
   renderHook(() => useAutomaticWorktreeRemovalNotice())
 
   await waitFor(() => expect(getLog).toHaveBeenCalled())

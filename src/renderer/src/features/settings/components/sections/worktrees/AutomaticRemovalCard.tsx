@@ -1,5 +1,6 @@
 import {
   AUTOMATIC_WORKTREE_REMOVAL_DAY_OPTIONS,
+  type AutomaticWorktreeRemovalLog,
   type AutomaticWorktreeRemovalRun,
   type AutomaticWorktreeRemovalSettings,
   isAutomaticWorktreeRemovalDays,
@@ -48,30 +49,39 @@ function runSummary(run: AutomaticWorktreeRemovalRun) {
       ? 'removed nothing'
       : `removed ${plural(run.removed.length, 'worktree', 'worktrees')} (about ${formatBytes(freed)})`
   const failed = run.failed.length > 0 ? `, ${String(run.failed.length)} failed` : ''
-  return `Last run ${formatRelativeTime(run.finishedAt)} · ${removed}${failed}`
+  return `Last removal ${formatRelativeTime(run.finishedAt)} · ${removed}${failed}`
 }
 
-function LastRun({ run }: { readonly run: AutomaticWorktreeRemovalRun }) {
-  if (run.removed.length === 0 && run.failed.length === 0) {
-    return <p className="text-xs text-text-tertiary">{runSummary(run)}</p>
-  }
+/** When the rule last checked, and the last run that removed or failed to remove something. */
+function RunHistory({ log }: { readonly log: AutomaticWorktreeRemovalLog }) {
+  const run = log.runs[0]
+  const checked =
+    log.lastCheckedAt === null ? null : (
+      <p className="text-xs text-text-tertiary">
+        Last checked {formatRelativeTime(log.lastCheckedAt)}
+      </p>
+    )
+  if (!run) return checked
   return (
-    <details className="text-xs text-text-tertiary">
-      <summary className="cursor-pointer">{runSummary(run)}</summary>
-      <ul className="mt-2 space-y-1 pl-4">
-        {run.removed.map((removed) => (
-          <li key={removed.path}>
-            {removed.sessionTitles.join(', ') || worktreeFolderName(removed.path)} ·{' '}
-            {projectName(removed.projectPath)} · branch {removed.branch ?? 'detached'} kept
-          </li>
-        ))}
-        {run.failed.map((failed) => (
-          <li key={failed.path} className="text-error-text">
-            {worktreeFolderName(failed.path)}: {failed.message}
-          </li>
-        ))}
-      </ul>
-    </details>
+    <>
+      {checked}
+      <details className="text-xs text-text-tertiary">
+        <summary className="cursor-pointer">{runSummary(run)}</summary>
+        <ul className="mt-2 space-y-1 pl-4">
+          {run.removed.map((removed) => (
+            <li key={removed.path}>
+              {removed.sessionTitles.join(', ') || worktreeFolderName(removed.path)} ·{' '}
+              {projectName(removed.projectPath)} · branch {removed.branch ?? 'detached'} kept
+            </li>
+          ))}
+          {run.failed.map((failed) => (
+            <li key={failed.path} className="text-error-text">
+              {worktreeFolderName(failed.path)}: {failed.message}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </>
   )
 }
 
@@ -86,7 +96,6 @@ export function AutomaticRemovalCard(props: {
 }) {
   const daysId = useId()
   const log = useAutomaticWorktreeRemovalLog()
-  const lastRun = log.data?.runs[0]
   return (
     <section
       aria-label="Automatic cleanup"
@@ -133,7 +142,7 @@ export function AutomaticRemovalCard(props: {
           {previewLine(props.rule, props.entries, props.space, props.now)}
         </span>
       </div>
-      {lastRun ? <LastRun run={lastRun} /> : null}
+      {log.data ? <RunHistory log={log.data} /> : null}
     </section>
   )
 }

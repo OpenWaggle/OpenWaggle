@@ -72,6 +72,10 @@ function archiveSession(sessionId: string) {
   })
 }
 
+function archivedCount(count: number) {
+  return `Archived ${String(count)} ${count === 1 ? 'Session' : 'Sessions'}`
+}
+
 function refused(message: string): GitWorktreeMutationResult {
   return { ok: false, code: 'worktree-in-use', message }
 }
@@ -98,14 +102,29 @@ export function archiveAndRemoveWorktreeOperation(rawProjectPath: unknown, rawPa
     if (running) {
       return refused(`The Session “${running.title}” has a Run in this worktree. Stop it first.`)
     }
+    let archived = 0
     for (const session of usage.sessions) {
       if (session.archived) continue
-      yield* archiveSession(session.sessionId)
+      const outcome = yield* Effect.either(archiveSession(session.sessionId))
+      if (outcome._tag === 'Left') {
+        if (archived === 0) return yield* Effect.fail(outcome.left)
+        const reason = outcome.left instanceof Error ? outcome.left.message : String(outcome.left)
+        return refused(
+          `${archivedCount(archived)}, but “${session.title}” could not be archived: ${reason} The worktree was kept.`,
+        )
+      }
+      archived += 1
     }
-    return yield* removeHostUiWorktree(projectPath, {
+    const result = yield* removeHostUiWorktree(projectPath, {
       path: payload.path,
       ...(payload.force ? { force: true } : {}),
     })
+    // The Sessions stay archived; say so rather than report only why the worktree was kept.
+    if (result.ok || archived === 0) return result
+    return {
+      ...result,
+      message: `${archivedCount(archived)}, but the worktree was kept: ${result.message}`,
+    }
   })
 }
 
@@ -122,6 +141,6 @@ export function acknowledgeAutomaticWorktreeRemovalOperation(rawRunId: unknown) 
   return Effect.gen(function* () {
     const runId = decodeUnknownOrThrow(automaticWorktreeRemovalRunIdSchema, rawRunId)
     const log = yield* AutomaticWorktreeRemovalLogStore
-    yield* log.acknowledge(runId)
+    return yield* log.acknowledge(runId)
   })
 }

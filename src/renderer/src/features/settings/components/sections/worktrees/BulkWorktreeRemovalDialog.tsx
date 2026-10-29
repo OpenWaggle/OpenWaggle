@@ -29,7 +29,7 @@ export function BulkWorktreeRemovalDialog(props: {
         <p className="mt-2 text-xs leading-5 text-text-secondary">
           None of them has uncommitted changes or commits that are not on a remote, and no open
           Session uses them. Their folders are deleted, including ignored files such as .env and
-          node_modules. Branches are kept, and unarchiving a Session recreates its worktree.
+          node_modules. Branches are kept, so a restored Session can recreate its worktree.
         </p>
         <ul
           aria-label="Worktrees to remove"

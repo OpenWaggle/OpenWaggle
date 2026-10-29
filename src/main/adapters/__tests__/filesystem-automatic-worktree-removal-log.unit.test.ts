@@ -43,17 +43,30 @@ describe('Automatic worktree removal record', () => {
   it('starts empty, keeps the newest run first, and announces a run that removed something', async () => {
     const store = createAutomaticWorktreeRemovalLogStore(() => file)
     await expect(Effect.runPromise(store.read())).resolves.toEqual({
+      lastCheckedAt: null,
       runs: [],
       unannouncedRunId: null,
     })
 
     await Effect.runPromise(store.record(run('first', 2)))
-    await Effect.runPromise(store.record(run('quiet', 0)))
+    await Effect.runPromise(store.record(run('second', 1)))
     const log = await Effect.runPromise(store.read())
 
-    expect(log.runs.map((entry) => entry.id)).toEqual(['quiet', 'first'])
-    // A run that removed nothing is never announced.
-    expect(log.unannouncedRunId).toBe('first')
+    expect(log.runs.map((entry) => entry.id)).toEqual(['second', 'first'])
+    expect(log.unannouncedRunId).toBe('second')
+  })
+
+  it('records a quiet check as its time only, so it never pushes out a removal', async () => {
+    const store = createAutomaticWorktreeRemovalLogStore(() => file)
+    await Effect.runPromise(store.record(run('removed', 1)))
+    for (let index = 0; index <= AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT; index += 1) {
+      await Effect.runPromise(
+        store.record({ ...run(`quiet-${String(index)}`, 0), startedAt: 50 + index }),
+      )
+    }
+    const log = await Effect.runPromise(store.read())
+    expect(log.runs.map((entry) => entry.id)).toEqual(['removed'])
+    expect(log.lastCheckedAt).toBe(50 + AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT)
   })
 
   it('announces a run once, together with every older run', async () => {
@@ -61,17 +74,23 @@ describe('Automatic worktree removal record', () => {
     await Effect.runPromise(store.record(run('old', 1)))
     await Effect.runPromise(store.record(run('new', 1)))
 
-    await Effect.runPromise(store.acknowledge('new'))
+    // Two windows opening together: only the first claims it.
+    const claims = await Promise.all([
+      Effect.runPromise(store.acknowledge('new')),
+      Effect.runPromise(store.acknowledge('new')),
+    ])
 
+    expect(claims.sort()).toEqual([false, true])
     await expect(Effect.runPromise(store.read())).resolves.toMatchObject({
       unannouncedRunId: null,
     })
+    await expect(Effect.runPromise(store.acknowledge('old'))).resolves.toBe(false)
   })
 
   it('keeps only the newest runs', async () => {
     const store = createAutomaticWorktreeRemovalLogStore(() => file)
     for (let index = 0; index <= AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT; index += 1) {
-      await Effect.runPromise(store.record(run(`run-${String(index)}`, 0)))
+      await Effect.runPromise(store.record(run(`run-${String(index)}`, 1)))
     }
     const log = await Effect.runPromise(store.read())
     expect(log.runs).toHaveLength(AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT)
@@ -83,6 +102,7 @@ describe('Automatic worktree removal record', () => {
     await fs.mkdir(path.dirname(file), { recursive: true })
     await fs.writeFile(file, '{not json')
     await expect(Effect.runPromise(store.read())).resolves.toEqual({
+      lastCheckedAt: null,
       runs: [],
       unannouncedRunId: null,
     })

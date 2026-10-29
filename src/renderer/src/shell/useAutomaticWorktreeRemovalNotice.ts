@@ -44,7 +44,8 @@ export function useAutomaticWorktreeRemovalNotice() {
       try {
         const run = unannouncedRun(await api.getAutomaticWorktreeRemovalLog())
         if (cancelled || !run) return
-        await api.acknowledgeAutomaticWorktreeRemoval(run.id)
+        // Only the window that claimed the run announces it.
+        if (!(await api.acknowledgeAutomaticWorktreeRemoval(run.id)) || cancelled) return
         const bytes = run.removed.reduce((sum, removed) => sum + (removed.reclaimableBytes ?? 0), 0)
         announce(run.removed.length, bytes)
       } catch (error) {

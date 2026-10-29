@@ -41,6 +41,8 @@ export type WorktreeAttention =
   | { readonly kind: 'locked' }
   /** Git could not report its changes or commits, so nothing can be promised about it. */
   | { readonly kind: 'unknown-state' }
+  /** Created outside OpenWaggle: nothing records what its ignored files are for. */
+  | { readonly kind: 'unmanaged' }
 
 export type WorktreeInventoryGroup = 'safe' | 'decide' | 'in-use'
 
@@ -143,13 +145,16 @@ export interface AutomaticWorktreeRemovalRun {
   readonly id: string
   readonly startedAt: number
   readonly finishedAt: number
-  readonly archivedDays: AutomaticWorktreeRemovalDays
+  /** The rule's days when it ran; a number, so a record outlives a change to the choices. */
+  readonly archivedDays: number
   readonly removed: readonly AutomaticWorktreeRemovalRemoved[]
   readonly failed: readonly AutomaticWorktreeRemovalFailure[]
 }
 
 export interface AutomaticWorktreeRemovalLog {
-  /** Newest first. */
+  /** When the rule last checked, whether or not it found anything; null before the first check. */
+  readonly lastCheckedAt: number | null
+  /** Runs that removed or failed to remove something, newest first. */
   readonly runs: readonly AutomaticWorktreeRemovalRun[]
   /** The newest run that removed something and has not been announced; null when none. */
   readonly unannouncedRunId: string | null

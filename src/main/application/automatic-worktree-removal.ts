@@ -11,6 +11,7 @@ import { createLogger } from '../logger'
 import { AutomaticWorktreeRemovalLogStore } from '../ports/automatic-worktree-removal-log'
 import { WorktreeSpaceService } from '../ports/worktree-space-service'
 import { SettingsService } from '../services/settings-service'
+import { getSessionHostEventRuntime } from '../session-host/session-host-events'
 import { removeHostUiWorktree } from './host-ui-worktree-operation'
 import { listWorktreeInventory } from './worktree-inventory'
 
@@ -30,17 +31,24 @@ function errorMessage(error: unknown) {
 /**
  * One pass of Automatic worktree removal (ADR 0060): remove every worktree the rule finds due,
  * one at a time, each through the same checked removal Settings uses, and record what happened.
- * Null when the rule is off or a pass ran within the last day.
+ * Null when the rule is off, a pass ran within the last day, or the Host is draining.
  */
-export function runAutomaticWorktreeRemovalPass(now: () => number = Date.now) {
+export function runAutomaticWorktreeRemovalPass(
+  now: () => number = Date.now,
+  isDraining: () => boolean = () => false,
+) {
   return Effect.gen(function* () {
+    if (isDraining()) return null
     const settings = yield* (yield* SettingsService).get()
     const rule = settings.automaticWorktreeRemoval
     if (!rule.enabled) return null
     const log = yield* AutomaticWorktreeRemovalLogStore
-    const lastRun = (yield* log.read()).runs[0]
+    const { lastCheckedAt } = yield* log.read()
     const startedAt = now()
-    if (lastRun && startedAt - lastRun.startedAt < AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS) {
+    if (
+      lastCheckedAt !== null &&
+      startedAt - lastCheckedAt < AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS
+    ) {
       return null
     }
     const space = yield* WorktreeSpaceService
@@ -48,6 +56,8 @@ export function runAutomaticWorktreeRemovalPass(now: () => number = Date.now) {
     const removed: AutomaticWorktreeRemovalRemoved[] = []
     const failed: AutomaticWorktreeRemovalFailure[] = []
     for (const entry of inventory.entries) {
+      // A draining Host hands over or shuts down; the rest waits for the next pass.
+      if (isDraining()) break
       if (entry.automaticRemoval.kind !== 'due') continue
       const measured = yield* space.cached(entry.path)
       const result = yield* removeHostUiWorktree(entry.projectPath, { path: entry.path }).pipe(
@@ -91,7 +101,9 @@ export const runAutomaticWorktreeRemovalBackground = Effect.forkScoped(
   Effect.sleep(AUTOMATIC_WORKTREE_REMOVAL_START_DELAY).pipe(
     Effect.zipRight(
       Effect.forever(
-        runAutomaticWorktreeRemovalPass().pipe(
+        runAutomaticWorktreeRemovalPass(Date.now, () =>
+          getSessionHostEventRuntime().liveness.isDraining(),
+        ).pipe(
           Effect.catchAllCause((cause) =>
             Effect.sync(() => {
               if (Cause.isInterruptedOnly(cause)) return

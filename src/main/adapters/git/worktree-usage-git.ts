@@ -21,18 +21,26 @@ export async function countUnpublishedCommits(worktreePath: string): Promise<num
  * folder counts once). Ignored files are not counted. Null when Git cannot tell.
  */
 export async function countUncommittedChanges(worktreePath: string): Promise<number | null> {
-  const result = await runGit(worktreePath, ['status', '--porcelain=v1', '-z'], {
-    timeoutMs: STATUS_TIMEOUT_MS,
-  })
+  /*
+   * `--no-optional-locks`: the page reads every worktree, including ones a Run is using, and
+   * must not take `index.lock` to refresh the index. `--untracked-files=normal` overrides a
+   * `status.showUntrackedFiles=no` setting, which would make new files look safe to delete.
+   */
+  const result = await runGit(
+    worktreePath,
+    ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=normal'],
+    { timeoutMs: STATUS_TIMEOUT_MS },
+  )
   if (result.code !== 0) return null
-  // `-z` ends each entry with NUL; a rename adds its source path as one more NUL-ended field.
+  // `-z` ends each entry with NUL; a rename or copy, staged (X) or in the worktree (Y), adds
+  // its source path as one more NUL-ended field.
   let count = 0
   const fields = result.stdout.split('\0')
   for (let index = 0; index < fields.length; index += 1) {
     const field = fields[index] ?? ''
     if (field.length === 0) continue
     count += 1
-    if (field.startsWith('R') || field.startsWith('C')) index += 1
+    if (/^[RC]|^.[RC]/.test(field)) index += 1
   }
   return count
 }

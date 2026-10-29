@@ -71,6 +71,11 @@ describe('Worktree groups', () => {
       { kind: 'unknown-state' },
     ])
     expect(classifyWorktree(facts({ cleanupFailed: true })).group).toBe('decide')
+    // A clean worktree made outside OpenWaggle always goes through the confirmation.
+    expect(classifyWorktree(facts({ managed: false, sessions: [] }))).toEqual({
+      group: 'decide',
+      attention: [{ kind: 'unmanaged' }],
+    })
   })
 
   it('is in use while open Sessions, Runs, terminals or Actions use it', () => {

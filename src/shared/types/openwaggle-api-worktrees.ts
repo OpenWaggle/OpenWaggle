@@ -19,5 +19,6 @@ export interface OpenWaggleWorktreesApi {
     payload: WorktreeArchiveAndRemovePayload,
   ): Promise<GitWorktreeMutationResult>
   getAutomaticWorktreeRemovalLog(): Promise<AutomaticWorktreeRemovalLog>
-  acknowledgeAutomaticWorktreeRemoval(runId: string): Promise<void>
+  /** True when this call announced the run; another window may have announced it first. */
+  acknowledgeAutomaticWorktreeRemoval(runId: string): Promise<boolean>
 }

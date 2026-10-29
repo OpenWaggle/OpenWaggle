@@ -143,15 +143,16 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
         const pendingHandoffs = pendingOperations.filter(
           (operation) => operation.operation === 'handoff',
         )
+        /*
+         * Only a removal sets `releasing`. One the Host lost is finalized like any other, bound or
+         * not: archived Sessions keep their binding, so their Workspace goes back to `ready` and
+         * is never left refusing every Run (ADR 0060).
+         */
         const pendingWorktreeRemovals = yield* sql<PendingWorktreeRemovalRow>`
           SELECT resources.id, resources.working_path
           FROM workspace_resources AS resources
           WHERE resources.kind = ${'managed-worktree'}
             AND resources.lifecycle_state = ${'releasing'}
-            AND NOT EXISTS (
-              SELECT 1 FROM session_workspace_bindings AS bindings
-              WHERE bindings.workspace_id = resources.id
-            )
           ORDER BY resources.created_at, resources.id
         `
         const recoverableOperations = pendingOperations.filter(

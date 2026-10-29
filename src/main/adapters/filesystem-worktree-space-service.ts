@@ -102,6 +102,8 @@ export function createWorktreeSpaceService(
   const cache = new Map<string, WorktreeSpaceMeasurement>()
   const inFlight = new Map<string, Promise<WorktreeSpaceMeasurement>>()
   let queue: Promise<unknown> = Promise.resolve()
+  /** Bumped by `forget`, so a walk that started before a removal does not cache a stale size. */
+  const generations = new Map<string, number>()
 
   const fresh = (worktreePath: string) => {
     const known = cache.get(worktreePath)
@@ -113,15 +115,20 @@ export function createWorktreeSpaceService(
     if (known) return Promise.resolve(known)
     const running = inFlight.get(worktreePath)
     if (running) return running
+    const generation = generations.get(worktreePath) ?? 0
     const next = queue
       .catch(() => undefined)
       .then(async () => {
         const reclaimableBytes = await measureFolder(worktreePath)
         const measurement = { reclaimableBytes, measuredAt: now() }
-        cache.set(worktreePath, measurement)
+        if ((generations.get(worktreePath) ?? 0) === generation) {
+          cache.set(worktreePath, measurement)
+        }
         return measurement
       })
-      .finally(() => inFlight.delete(worktreePath))
+      .finally(() => {
+        if (inFlight.get(worktreePath) === next) inFlight.delete(worktreePath)
+      })
     queue = next
     inFlight.set(worktreePath, next)
     return next
@@ -136,7 +143,10 @@ export function createWorktreeSpaceService(
     cached: (worktreePath) => Effect.sync(() => fresh(path.resolve(worktreePath))),
     forget: (worktreePath) =>
       Effect.sync(() => {
-        cache.delete(path.resolve(worktreePath))
+        const resolved = path.resolve(worktreePath)
+        cache.delete(resolved)
+        inFlight.delete(resolved)
+        generations.set(resolved, (generations.get(resolved) ?? 0) + 1)
       }),
   })
 }

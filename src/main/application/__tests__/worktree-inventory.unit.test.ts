@@ -166,6 +166,10 @@ describe('Settings > Worktrees inventory', () => {
       cleanupFailure: { preparation: {} },
       attention: [{ kind: 'cleanup-failed' }, { kind: 'unknown-state' }],
     })
-    expect(byPath.get('/open-feature')).toMatchObject({ managed: false, group: 'safe' })
+    expect(byPath.get('/open-feature')).toMatchObject({
+      managed: false,
+      group: 'decide',
+      attention: [{ kind: 'unmanaged' }],
+    })
   })
 })
