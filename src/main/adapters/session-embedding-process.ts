@@ -36,10 +36,17 @@ export interface SessionEmbeddingProcessConfig {
  * The parent's `disconnect` (or its exit) ends the child. The child kills itself with SIGKILL
  * instead of `process.exit()`: a normal exit runs onnxruntime-node's static `Ort::Env`
  * destructor, which calls `std::terminate()` once the model is loaded. The resulting SIGABRT made
- * macOS show "OpenWaggle quit unexpectedly" every time the child went idle. There is nothing to
- * flush, and the OS reclaims the memory either way.
+ * macOS show "OpenWaggle quit unexpectedly" every time the child went idle. A thrown error or an
+ * unhandled rejection after the model loads would exit, and abort, the same way, so it is written
+ * to stderr (the parent keeps the tail) and the child is killed. There is nothing to flush, and
+ * the OS reclaims the memory either way.
  */
 const EMBEDDING_PROCESS_SOURCE = `
+function die(error) {
+  process.stderr.write(String((error && error.stack) || error) + '\\n', () => process.kill(process.pid, 'SIGKILL'))
+}
+process.on('uncaughtException', die)
+process.on('unhandledRejection', die)
 const config = JSON.parse(process.argv[process.argv.length - 1])
 const transformers = require(config.transformersPath)
 let extractor

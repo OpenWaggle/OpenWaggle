@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -45,6 +46,46 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 5_000) {
   }
 }
 
+interface RecordedEmbeddingProcess {
+  readonly embedding: SessionEmbeddingProcess
+  readonly children: ChildProcess[]
+  readonly exits: { code: number | null; signal: NodeJS.Signals | null }[]
+}
+
+/** The real embedding child, with its process handle and how it ended recorded. */
+function recordedEmbeddingProcess(
+  transformersPath: string,
+  idleExitMs?: number,
+): RecordedEmbeddingProcess {
+  const children: ChildProcess[] = []
+  const exits: RecordedEmbeddingProcess['exits'] = []
+  const embedding = new SessionEmbeddingProcess(
+    () => ({ modelId: 'model', revision: 'main', dtype: 'q8' }),
+    {
+      transformersPath,
+      ...(idleExitMs === undefined ? {} : { idleExitMs }),
+      spawnChild: (config) => {
+        const child = spawnEmbeddingChild(config)
+        children.push(child)
+        child.on('exit', (code, signal) => exits.push({ code, signal }))
+        return child
+      },
+    },
+  )
+  return { embedding, children, exits }
+}
+
+/**
+ * The child ended by its own SIGKILL: a normal exit would run onnxruntime-node's static `Ort::Env`
+ * destructor, which aborts. The parent never signalled it, so its grace kill did not do this.
+ */
+function expectKilledItself({ children, exits }: RecordedEmbeddingProcess) {
+  expect(children.map((child) => child.killed)).toEqual([false])
+  // Windows has no signals: libuv's SIGKILL is `TerminateProcess(handle, 1)`.
+  if (process.platform === 'win32') expect(exits).toEqual([{ code: 1, signal: null }])
+  else expect(exits).toEqual([{ code: null, signal: 'SIGKILL' }])
+}
+
 describe('Session embedding off the Host (D3)', () => {
   it('embeds in a child process that exits when idle and starts again on demand', async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
@@ -81,26 +122,23 @@ describe('Session embedding off the Host (D3)', () => {
   it('ends an idle child with SIGKILL so onnxruntime exit teardown cannot abort it', async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
     directories.push(directory)
-    const transformers = fakeTransformers(directory)
-    const exits: { code: number | null; signal: NodeJS.Signals | null }[] = []
-    const embedding = new SessionEmbeddingProcess(
-      () => ({ modelId: 'model', revision: 'main', dtype: 'q8' }),
-      {
-        transformersPath: transformers.file,
-        idleExitMs: 100,
-        spawnChild: (config) => {
-          const child = spawnEmbeddingChild(config)
-          child.on('exit', (code, signal) => exits.push({ code, signal }))
-          return child
-        },
-      },
-    )
+    const recorded = recordedEmbeddingProcess(fakeTransformers(directory).file, 100)
 
-    await embedding.embed(['a'])
-    await waitUntil(() => exits.length === 1)
-    // A normal exit would run onnxruntime-node's static `Ort::Env` destructor, which aborts.
-    if (process.platform === 'win32') expect(exits[0]?.code).not.toBe(0)
-    else expect(exits[0]).toEqual({ code: null, signal: 'SIGKILL' })
+    await recorded.embedding.embed(['a'])
+    // Well inside `stop()`'s 5 s grace kill, so only the child's own kill can pass.
+    await waitUntil(() => recorded.exits.length === 1, 2_000)
+    expectKilledItself(recorded)
+  })
+
+  it('kills a child that throws instead of letting it exit normally', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ow-embedding-'))
+    directories.push(directory)
+    const broken = path.join(directory, 'broken.cjs')
+    writeFileSync(broken, "throw new Error('no onnxruntime here')")
+    const recorded = recordedEmbeddingProcess(broken)
+
+    await expect(recorded.embedding.embed(['a'])).rejects.toThrow('no onnxruntime here')
+    expectKilledItself(recorded)
   })
 
   it('fails a pending embedding when the child cannot load the model', async () => {
