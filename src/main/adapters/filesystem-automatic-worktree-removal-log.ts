@@ -55,8 +55,10 @@ const EMPTY_LOG: StoredLog = { version: 1, lastCheckedAt: null, runs: [] }
 
 function toLog(stored: StoredLog): AutomaticWorktreeRemovalLog {
   const runs = stored.runs.map(({ announced: _announced, ...run }) => run)
-  const unannounced = stored.runs.find((run) => !run.announced && run.removed.length > 0)
-  return { lastCheckedAt: stored.lastCheckedAt, runs, unannouncedRunId: unannounced?.id ?? null }
+  const unannouncedRunIds = stored.runs
+    .filter((run) => !run.announced && run.removed.length > 0)
+    .map((run) => run.id)
+  return { lastCheckedAt: stored.lastCheckedAt, runs, unannouncedRunIds }
 }
 
 async function readStoredLog(file: string): Promise<StoredLog> {

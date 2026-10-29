@@ -64,6 +64,15 @@ vi.mock('../../services/git/session-worktree-path', () => ({
 
 const { listWorktreeInventory } = await import('../worktree-inventory')
 
+const OTHER_WORKTREES = [
+  { path: '/other', isMain: true },
+  { path: '/managed/old', isMain: false },
+  { path: '/managed/failed', isMain: false },
+  // In the shared managed folder, but another profile's: this database has no record of it.
+  { path: '/managed/foreign', isMain: false },
+  { path: '/other-by-hand', isMain: false },
+]
+
 const WORKTREES: Record<string, readonly { path: string; isMain: boolean; locked?: boolean }[]> = {
   '/open': [
     { path: '/open', isMain: true },
@@ -72,14 +81,14 @@ const WORKTREES: Record<string, readonly { path: string; isMain: boolean; locked
   ],
   // The opened project through one of its own subfolders lists the same repository again.
   '/open/packages/app': [{ path: '/open', isMain: true }],
-  '/other': [
-    { path: '/other', isMain: true },
-    { path: '/managed/old', isMain: false },
-    { path: '/managed/failed', isMain: false },
-    // In the shared managed folder, but another profile's: this database has no record of it.
-    { path: '/managed/foreign', isMain: false },
-    { path: '/other-by-hand', isMain: false },
+  // Known only through a subfolder: the main checkout `/sub` is no project OpenWaggle knows.
+  '/sub/packages/app': [
+    { path: '/sub', isMain: true },
+    { path: '/managed/sub', isMain: false },
   ],
+  '/other': OTHER_WORKTREES,
+  // Listed first from inside one of its own linked worktrees; `/other` lists it again.
+  '/other-by-hand': OTHER_WORKTREES,
 }
 
 const layer = Layer.mergeAll(
@@ -88,7 +97,7 @@ const layer = Layer.mergeAll(
       Effect.succeed({
         ...DEFAULT_SETTINGS,
         projectPath: '/open',
-        recentProjects: ['/open/packages/app'],
+        recentProjects: ['/open/packages/app', '/other-by-hand', '/sub/packages/app'],
         projectDisplayNames: { '/other': 'Other app' },
         automaticWorktreeRemoval: { enabled: true, archivedDays: 30 },
       }),
@@ -144,12 +153,18 @@ describe('Settings > Worktrees inventory', () => {
       '/managed/foreign',
       '/managed/old',
       '/managed/open',
+      '/managed/sub',
       '/open-feature',
     ])
+    // Each repository acts through a project OpenWaggle knows, from its main checkout if it can.
     expect(listed.projects).toEqual([
       { projectPath: '/open', name: 'open', opened: true },
       { projectPath: '/other', name: 'Other app', opened: false },
+      { projectPath: '/sub/packages/app', name: 'app', opened: false },
     ])
+    expect(listed.entries.find((entry) => entry.path === '/managed/sub')).toMatchObject({
+      projectPath: '/sub/packages/app',
+    })
     expect(listed.problems).toEqual([])
   })
 
@@ -170,7 +185,8 @@ describe('Settings > Worktrees inventory', () => {
     })
     expect(byPath.get('/managed/failed')).toMatchObject({
       group: 'decide',
-      cleanupFailure: { preparation: {} },
+      // Its recovery runs in the project whose cleanup failed.
+      cleanupFailure: { projectPath: '/other', preparation: {} },
       attention: [{ kind: 'cleanup-failed' }, { kind: 'unknown-state' }],
     })
     expect(byPath.get('/managed/foreign')).toMatchObject({

@@ -43,7 +43,8 @@ const FAILED = preparation(
 const SUCCEEDED = preparation(fromPartial({ status: 'succeeded', output: '' }))
 
 /** One archived worktree whose Workspace cleanup failed and kept it (ADR 0038). */
-function failedWorktree(cleanupFailure: WorktreeCleanupFailure) {
+function failedWorktree(failure: Omit<WorktreeCleanupFailure, 'projectPath'>) {
+  const cleanupFailure: WorktreeCleanupFailure = { projectPath: PROJECT, ...failure }
   api.getWorktreeInventory.mockResolvedValue(
     inventory([
       entry({

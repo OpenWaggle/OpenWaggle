@@ -20,10 +20,16 @@ export const AutomaticWorktreeRemovalNoticeCopy = {
   action: 'View',
 } as const
 
-function unannouncedRun(log: AutomaticWorktreeRemovalLog) {
-  return log.unannouncedRunId === null
-    ? undefined
-    : log.runs.find((run) => run.id === log.unannouncedRunId)
+/**
+ * Every unannounced run as one: a Host that ran for days while the app was closed removed
+ * worktrees in several runs, and the notice says what they freed together.
+ */
+function unannouncedRemovals(log: AutomaticWorktreeRemovalLog) {
+  const ids = new Set(log.unannouncedRunIds)
+  const runs = log.runs.filter((run) => ids.has(run.id))
+  const newest = runs[0]
+  if (!newest) return null
+  return { newestRunId: newest.id, removed: runs.flatMap((run) => run.removed) }
 }
 
 /**
@@ -48,11 +54,13 @@ export function useAutomaticWorktreeRemovalNotice() {
     let cancelled = false
     void (async () => {
       try {
-        const run = unannouncedRun(await api.getAutomaticWorktreeRemovalLog())
-        if (cancelled || !run) return
-        // Only the window that claimed the run announces it.
-        if (!(await api.acknowledgeAutomaticWorktreeRemoval(run.id)) || cancelled) return
-        announce(run.removed.length, automaticRemovalFreedBytes(run))
+        const removals = unannouncedRemovals(await api.getAutomaticWorktreeRemovalLog())
+        if (cancelled || !removals) return
+        // Only the window that claimed the runs announces them.
+        if (!(await api.acknowledgeAutomaticWorktreeRemoval(removals.newestRunId)) || cancelled) {
+          return
+        }
+        announce(removals.removed.length, automaticRemovalFreedBytes(removals))
       } catch (error) {
         logger.warn('Could not read the automatic worktree removal record', {
           error: error instanceof Error ? error.message : String(error),

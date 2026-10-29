@@ -33,7 +33,7 @@ async function filesystemIdentity(candidate: string) {
 /**
  * The Workspace resources of the folder being removed. A resource records its Session's project
  * path, which may be a subfolder or a linked worktree of the repository, while removal runs from
- * the main checkout, so the folder alone identifies it.
+ * another known project of the repository, so the folder alone identifies it.
  */
 async function findRemovalCandidates(
   workingPath: string,

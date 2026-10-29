@@ -47,7 +47,7 @@ describe('Automatic worktree removal record', () => {
     await expect(Effect.runPromise(store.read())).resolves.toEqual({
       lastCheckedAt: null,
       runs: [],
-      unannouncedRunId: null,
+      unannouncedRunIds: [],
     })
 
     await Effect.runPromise(store.record(run('first', 2), CHECKED))
@@ -55,7 +55,7 @@ describe('Automatic worktree removal record', () => {
     const log = await Effect.runPromise(store.read())
 
     expect(log.runs.map((entry) => entry.id)).toEqual(['second', 'first'])
-    expect(log.unannouncedRunId).toBe('second')
+    expect(log.unannouncedRunIds).toEqual(['second', 'first'])
   })
 
   it('records a quiet check as its time only, so it never pushes out a removal', async () => {
@@ -77,7 +77,7 @@ describe('Automatic worktree removal record', () => {
     await Effect.runPromise(store.record({ ...run('cut', 1), startedAt: 20 }, { checked: false }))
     await expect(Effect.runPromise(store.read())).resolves.toMatchObject({
       lastCheckedAt: 10,
-      unannouncedRunId: 'cut',
+      unannouncedRunIds: ['cut'],
     })
   })
 
@@ -94,7 +94,7 @@ describe('Automatic worktree removal record', () => {
 
     expect(claims.sort()).toEqual([false, true])
     await expect(Effect.runPromise(store.read())).resolves.toMatchObject({
-      unannouncedRunId: null,
+      unannouncedRunIds: [],
     })
     await expect(Effect.runPromise(store.acknowledge('old'))).resolves.toBe(false)
   })
@@ -116,7 +116,7 @@ describe('Automatic worktree removal record', () => {
     await expect(Effect.runPromise(store.read())).resolves.toEqual({
       lastCheckedAt: null,
       runs: [],
-      unannouncedRunId: null,
+      unannouncedRunIds: [],
     })
     await fs.writeFile(file, JSON.stringify({ version: 2, runs: [] }))
     await expect(Effect.runPromise(store.read())).resolves.toMatchObject({ runs: [] })

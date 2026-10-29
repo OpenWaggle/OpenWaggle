@@ -79,7 +79,7 @@ function layer(options: {
         Effect.succeed({
           lastCheckedAt: options.lastCheckedAt ?? null,
           runs: [],
-          unannouncedRunId: null,
+          unannouncedRunIds: [],
         }),
       record: (run, { checked }) =>
         Effect.sync(() => {

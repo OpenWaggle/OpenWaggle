@@ -51,7 +51,7 @@ beforeEach(() => {
 })
 
 it('says once what Automatic worktree removal freed, and opens Settings > Worktrees', async () => {
-  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: 'run-1' })
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunIds: ['run-1'] })
   renderHook(() => useAutomaticWorktreeRemovalNotice())
 
   await waitFor(() =>
@@ -71,7 +71,7 @@ it('claims no size when none of the removed worktrees was measured', async () =>
     ...RUN,
     removed: RUN.removed.map((removed) => ({ ...removed, reclaimableBytes: null })),
   }
-  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [unmeasured], unannouncedRunId: 'run-1' })
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [unmeasured], unannouncedRunIds: ['run-1'] })
   renderHook(() => useAutomaticWorktreeRemovalNotice())
 
   await waitFor(() =>
@@ -81,8 +81,29 @@ it('claims no size when none of the removed worktrees was measured', async () =>
   )
 })
 
+it('sums every run not yet announced, and claims them with the newest', async () => {
+  const newer: AutomaticWorktreeRemovalRun = {
+    ...RUN,
+    id: 'run-2',
+    removed: [{ ...RUN.removed[0], path: '/wt/c', reclaimableBytes: MEGABYTE }],
+  }
+  getLog.mockResolvedValue({
+    lastCheckedAt: 2,
+    runs: [newer, RUN],
+    unannouncedRunIds: ['run-2', 'run-1'],
+  })
+  renderHook(() => useAutomaticWorktreeRemovalNotice())
+
+  await waitFor(() =>
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'Automatic removal freed at least 2.0 MB (3 worktrees).',
+    }),
+  )
+  expect(acknowledge).toHaveBeenCalledWith('run-2')
+})
+
 it('leaves the notice to the window that claimed the run', async () => {
-  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: 'run-1' })
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunIds: ['run-1'] })
   acknowledge.mockResolvedValueOnce(false)
   renderHook(() => useAutomaticWorktreeRemovalNotice())
 
@@ -91,7 +112,7 @@ it('leaves the notice to the window that claimed the run', async () => {
 })
 
 it('stays quiet when every run has been announced', async () => {
-  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunId: null })
+  getLog.mockResolvedValue({ lastCheckedAt: 2, runs: [RUN], unannouncedRunIds: [] })
   renderHook(() => useAutomaticWorktreeRemovalNotice())
 
   await waitFor(() => expect(getLog).toHaveBeenCalled())

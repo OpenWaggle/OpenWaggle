@@ -14,7 +14,7 @@ const logger = createRendererLogger('settings')
 /** One requested removal and how far it may go. */
 export interface WorktreeRemovalRequest {
   readonly path: string
-  /** The main checkout the removal runs from. */
+  /** A known project of the worktree's repository, which the removal runs from. */
   readonly projectPath: string
   /** Delete anyway: skip the Workspace cleanup. */
   readonly skipCleanup: boolean

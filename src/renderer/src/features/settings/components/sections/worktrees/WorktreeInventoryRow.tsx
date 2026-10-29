@@ -1,8 +1,10 @@
 import type { WorktreeInventoryEntry } from '@shared/types/worktree-inventory'
+import { decideAutomaticWorktreeRemoval } from '@shared/utils/automatic-worktree-removal'
 import { FolderOpen } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { WorkspaceCleanupFailure } from '@/features/project-actions/components'
+import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { cn } from '@/shared/lib/cn'
 import { formatBytes } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
@@ -12,7 +14,7 @@ import type { WorktreeRemovalRequest } from './use-worktree-removal'
 import {
   archivedAgo,
   attentionLabel,
-  daysBetween,
+  daysUntil,
   keptReasonLabel,
   worktreeTitle,
 } from './worktree-inventory-format'
@@ -75,8 +77,13 @@ function MetaLine(props: Pick<WorktreeRowProps, 'entry' | 'projectName' | 'now'>
   return <span className="truncate text-xs text-text-tertiary">{parts.join(' · ')}</span>
 }
 
+/**
+ * Decided from the rule as it is now, not as the list was read with, so changing the rule
+ * updates every row at once.
+ */
 function AutomaticRemovalNote({ entry, now }: Pick<WorktreeRowProps, 'entry' | 'now'>) {
-  const decision = entry.automaticRemoval
+  const rule = usePreferencesStore((state) => state.settings.automaticWorktreeRemoval)
+  const decision = decideAutomaticWorktreeRemoval(entry, rule, now)
   if (decision.kind === 'kept') {
     return (
       <span className="text-xs text-warning">
@@ -85,7 +92,7 @@ function AutomaticRemovalNote({ entry, now }: Pick<WorktreeRowProps, 'entry' | '
     )
   }
   if (decision.kind === 'waiting') {
-    const days = Math.max(1, daysBetween(now, decision.dueAt))
+    const days = daysUntil(now, decision.dueAt)
     return (
       <span className="text-xs text-text-tertiary">
         Removed automatically in {String(days)} {days === 1 ? 'day' : 'days'}
@@ -283,7 +290,7 @@ export function WorktreeInventoryRow(props: WorktreeRowProps) {
       </div>
       {entry.cleanupFailure ? (
         <WorkspaceCleanupFailure
-          projectPath={entry.projectPath}
+          projectPath={entry.cleanupFailure.projectPath}
           initial={entry.cleanupFailure.preparation}
           generationMismatch={entry.cleanupFailure.generationMismatch}
           generationMismatchMessage={entry.cleanupFailure.generationMismatchMessage}

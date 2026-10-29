@@ -87,7 +87,7 @@ it('previews a different number of days before it is saved', async () => {
 it('records the last check and the last removal, with its Sessions and branches', async () => {
   api.getAutomaticWorktreeRemovalLog.mockResolvedValue({
     lastCheckedAt: Date.now(),
-    unannouncedRunId: null,
+    unannouncedRunIds: [],
     runs: [
       {
         id: 'run',
@@ -114,4 +114,21 @@ it('records the last check and the last removal, with its Sessions and branches'
   ).toBeInTheDocument()
   expect(screen.getByText(/Old experiment · project · branch ow\/gone kept/)).toBeInTheDocument()
   expect(screen.getByText(/^Last checked /)).toBeInTheDocument()
+})
+
+it('counts each row down by the rule as it is now, rounding up', async () => {
+  preferences.settings.automaticWorktreeRemoval = { enabled: true, archivedDays: 30 }
+  // The Host decided with the rule off; the row follows the rule the page shows.
+  api.getWorktreeInventory.mockResolvedValue(
+    inventory([
+      entry({
+        path: '/wt/recent',
+        archivedAt: archivedDaysAgo(20) + DAY / 2,
+        automaticRemoval: { kind: 'not-applicable' },
+      }),
+    ]),
+  )
+  renderWithQueryClient(<WorktreesSection />)
+
+  expect(await screen.findByText('Removed automatically in 11 days')).toBeInTheDocument()
 })

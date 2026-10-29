@@ -72,6 +72,8 @@ export type AutomaticWorktreeRemovalDecision =
 
 /** A Workspace cleanup that failed and retained the worktree (ADR 0038), as removal recovers it. */
 export interface WorktreeCleanupFailure {
+  /** The project whose Workspace cleanup failed, which its recovery reads and retries in. */
+  readonly projectPath: string
   readonly preparation: WorkspacePreparation
   readonly generationMismatch?: boolean
   readonly generationMismatchMessage?: string
@@ -80,7 +82,10 @@ export interface WorktreeCleanupFailure {
 /** One worktree on Settings > Worktrees. Main checkouts are never listed. */
 export interface WorktreeInventoryEntry {
   readonly path: string
-  /** The repository's main checkout, which removal runs from. */
+  /**
+   * A project OpenWaggle knows in the worktree's repository (the opened project, a recent one,
+   * or a Session's), which every action on the worktree runs from. Not always the main checkout.
+   */
   readonly projectPath: string
   readonly branch: string | null
   /** Recorded by this profile as a managed Workspace. */
@@ -168,6 +173,9 @@ export interface AutomaticWorktreeRemovalLog {
   readonly lastCheckedAt: number | null
   /** Runs that removed or failed to remove something, newest first. */
   readonly runs: readonly AutomaticWorktreeRemovalRun[]
-  /** The newest run that removed something and has not been announced; null when none. */
-  readonly unannouncedRunId: string | null
+  /**
+   * Runs that removed something and have not been announced, newest first. One notice covers
+   * them all; acknowledging the newest marks every older one announced too.
+   */
+  readonly unannouncedRunIds: readonly string[]
 }

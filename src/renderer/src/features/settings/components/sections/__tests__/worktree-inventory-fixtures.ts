@@ -81,7 +81,7 @@ export function createWorktreeApiMocks() {
     getAutomaticWorktreeRemovalLog: vi.fn<() => Promise<AutomaticWorktreeRemovalLog>>(async () => ({
       lastCheckedAt: null,
       runs: [],
-      unannouncedRunId: null,
+      unannouncedRunIds: [],
     })),
     manageProjectActions: vi.fn<
       (request: ActionManagementRequest) => Promise<ActionManagementResult>

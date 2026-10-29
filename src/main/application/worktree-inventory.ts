@@ -32,7 +32,10 @@ const PROJECT_READ_CONCURRENCY = 4
 const WORKTREE_CHECK_CONCURRENCY = 6
 
 interface ListedRepository {
+  /** The known, authorized project path that listed it; Settings acts through it. */
   readonly projectPath: string
+  /** That path is in the main checkout rather than in one of the linked worktrees. */
+  readonly listedFromMain: boolean
   readonly canonicalMain: string
   readonly opened: boolean
   readonly worktrees: readonly GitWorktreeInfo[]
@@ -63,6 +66,10 @@ function errorMessage(error: unknown) {
 /**
  * One listing per repository: a project opened as a subfolder, or through one of its own
  * worktrees, lists the same worktrees again, so repositories are keyed by their main checkout.
+ * A repository keeps the known project path that listed it, not its main checkout, which may
+ * be no project OpenWaggle knows: Settings acts through that path, so it must be authorized.
+ * A path inside the main checkout is preferred over one inside a linked worktree, which a
+ * removal of that worktree could not run from.
  */
 function listRepositories(
   projectPaths: readonly string[],
@@ -94,13 +101,26 @@ function listRepositories(
       const opened =
         openedCanonical !== null &&
         canonicalPaths.some((worktreePath) => isWithin(openedCanonical, worktreePath))
+      const listedFrom = yield* Effect.promise(() => canonical(listing.projectPath))
+      const listedFromMain = !listing.worktrees.some(
+        (worktree, index) =>
+          !worktree.isMain && isWithin(listedFrom, canonicalPaths[index] ?? worktree.path),
+      )
       const known = repositories.get(canonicalMain)
       if (known) {
-        if (opened && !known.opened) repositories.set(canonicalMain, { ...known, opened })
+        const projectPath =
+          listedFromMain && !known.listedFromMain ? listing.projectPath : known.projectPath
+        repositories.set(canonicalMain, {
+          ...known,
+          projectPath,
+          listedFromMain: known.listedFromMain || listedFromMain,
+          opened: known.opened || opened,
+        })
         continue
       }
       repositories.set(canonicalMain, {
-        projectPath: main.path,
+        projectPath: listing.projectPath,
+        listedFromMain,
         canonicalMain,
         opened,
         worktrees: listing.worktrees,
@@ -161,7 +181,7 @@ function readCleanupFailures(
       for (const workspace of retained?.workspaces ?? []) {
         const key = yield* Effect.promise(() => canonical(workspace.path))
         const { path: _path, ...failure } = workspace
-        failures.set(key, failure)
+        failures.set(key, { projectPath, ...failure })
       }
     }
     return failures

@@ -8,6 +8,14 @@ import { formatBytes } from '@/shared/lib/format'
 
 const MS_PER_DAY = 86_400_000
 
+/**
+ * Days left until a deadline, rounded up and at least 1, so a countdown to a deletion never
+ * says less time than is left.
+ */
+export function daysUntil(now: number, deadline: number) {
+  return Math.max(1, Math.ceil((deadline - now) / MS_PER_DAY))
+}
+
 /** Whole days between two times, never negative. */
 export function daysBetween(from: number, to: number) {
   return Math.max(0, Math.floor((to - from) / MS_PER_DAY))
