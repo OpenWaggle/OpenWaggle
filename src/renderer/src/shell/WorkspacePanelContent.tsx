@@ -50,12 +50,18 @@ interface WorkspacePanelContentProps {
   readonly sidePanelKey: string
 }
 
+/**
+ * A surface that fills what the panel header leaves, as a flex column, so its own `flex-1`
+ * scroll region gets a bounded height and scrolls instead of being cut off at the panel's edge.
+ */
+const FILLED_SURFACE_CLASS = 'flex min-h-0 flex-1 flex-col'
+
 export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   const updateBrowser = useWorkspacePanelStore((state) => state.updateBrowser)
   const showToast = useUIStore((state) => state.showToast)
   if (props.activeSurface?.kind === 'all-panels') {
     return (
-      <PanelErrorBoundary name="All panels" className="size-full">
+      <PanelErrorBoundary name="All panels" className={FILLED_SURFACE_CLASS}>
         <Suspense fallback={null}>
           <LazyAllPanelsSurface />
         </Suspense>
@@ -64,7 +70,7 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   }
   if (props.activeSurface?.kind === 'project-actions') {
     return (
-      <PanelErrorBoundary name="Project Actions" className="size-full">
+      <PanelErrorBoundary name="Project Actions" className={FILLED_SURFACE_CLASS}>
         <Suspense fallback={null}>
           <LazyWorkspaceProjectActionsSurface owner={props.owner} />
         </Suspense>
@@ -73,7 +79,7 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   }
   if (props.activeSurface?.kind === 'scheduled-tasks') {
     return (
-      <PanelErrorBoundary name="Scheduled tasks" className="size-full">
+      <PanelErrorBoundary name="Scheduled tasks" className={FILLED_SURFACE_CLASS}>
         <Suspense fallback={null}>
           <LazyWorkspaceScheduledTasksSurface />
         </Suspense>
@@ -82,7 +88,7 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
   }
   if (props.activeSurface?.kind === 'action')
     return (
-      <PanelErrorBoundary name="Action run" className="size-full">
+      <PanelErrorBoundary name="Action run" className={FILLED_SURFACE_CLASS}>
         <Suspense fallback={null}>
           <LazyActionRunPanel
             key={`${props.owner.ownerKey}:${props.activeSurface.runId}`}

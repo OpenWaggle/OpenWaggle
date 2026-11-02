@@ -137,3 +137,49 @@ function runReachStep(
     return { verdict: true, followRuns: reach === true ? [] : [reach] }
   })
 }
+
+/**
+ * Whether a Session's own authority reaches every project: a root Session acting for the local
+ * user or a catalog-wide profile, with no narrower authority snapshot. A Run in it started by a
+ * caller that also reaches every project may then act in any project. Unreadable data counts as
+ * reaching every project, since callers use this to refuse that reach. A Session with no execution
+ * profile reaches nothing; callers report a missing target Session on their own.
+ */
+export function sessionReachesEveryProject(
+  sql: SqlClient.SqlClient,
+  sessionId: string,
+): Effect.Effect<boolean, unknown> {
+  return Effect.gen(function* () {
+    const rows = yield* sql<Omit<RunSourceRow, 'initiator_caller_id'>>`
+      SELECT session_execution_profiles.authority_origin_caller_id,
+        session_execution_profiles.authority_scope_snapshot_json,
+        COALESCE(session_spawn_lineage.parent_session_id, session_lineage.parent_session_id)
+          AS parent_session_id,
+        session_client_profiles.scope_json AS profile_scope_json,
+        session_client_profiles.revoked_at AS profile_revoked_at
+      FROM session_execution_profiles
+      LEFT JOIN session_spawn_lineage
+        ON session_spawn_lineage.child_session_id = session_execution_profiles.session_id
+      LEFT JOIN session_lineage
+        ON session_lineage.session_id = session_execution_profiles.session_id
+      LEFT JOIN session_client_profiles
+        ON session_execution_profiles.authority_origin_caller_id =
+          ${'profile:'} || session_client_profiles.id
+      WHERE session_execution_profiles.session_id = ${sessionId}
+      LIMIT 1
+    `
+    const row = rows[0]
+    if (!row) return false
+    return yield* Effect.try(() =>
+      rootSessionReachesEveryProject({
+        isRoot: row.parent_session_id === null,
+        originCallerId: row.authority_origin_caller_id,
+        liveProfileScope:
+          row.profile_scope_json && row.profile_revoked_at === null
+            ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
+            : undefined,
+        snapshotScope: decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope,
+      }),
+    ).pipe(Effect.orElseSucceed(() => true))
+  })
+}

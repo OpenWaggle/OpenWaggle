@@ -64,3 +64,31 @@ describe('Scheduled task migration', () => {
     }
   })
 })
+
+describe('Scheduled task authority limits migration', () => {
+  it('adds an empty authority limits column after the ones before it', async () => {
+    const { SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION } = await import(
+      '../scheduled-task-authority-limits-migration'
+    )
+    const { APP_MIGRATIONS } = await import('../database-migrations')
+    expect(SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION.id).toBe(86)
+    expect(APP_MIGRATIONS.at(-1)).toBe(SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(
+      SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION.id,
+    )
+    const database = migratedDatabase()
+    try {
+      insertTask(database, { id: 'launch', kind: 'launch', target: null })
+      for (const statement of SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION.statements) {
+        database.exec(statement)
+      }
+      expect(
+        database
+          .prepare("SELECT authority_limits_json FROM scheduled_tasks WHERE id = 'launch'")
+          .get(),
+      ).toEqual({ authority_limits_json: null })
+    } finally {
+      database.close()
+    }
+  })
+})

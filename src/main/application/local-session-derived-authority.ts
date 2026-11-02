@@ -13,6 +13,7 @@ import {
 import { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
+import { applyAuthorityLimits } from './local-session-authority-limits'
 import { narrowNamedProfileCaller } from './local-session-profile-narrowing'
 
 export interface LocalSessionAuthorizationTarget {
@@ -128,6 +129,7 @@ export function refreshNamedProfileCaller(
     }),
     Effect.flatMap(expandTransientWorkspaceScope),
     Effect.flatMap(narrowNamedProfileCaller),
+    Effect.flatMap(applyAuthorityLimits),
     Effect.flatMap(refreshEventAdmissionSessionIds),
   )
 }

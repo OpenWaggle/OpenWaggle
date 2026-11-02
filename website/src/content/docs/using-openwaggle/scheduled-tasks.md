@@ -106,11 +106,15 @@ A gated Heartbeat's row and detail lead with its last check, such as **Last chec
 | A Launch schedule's previous Session is still running | That firing is skipped. A task has at most one run in progress. |
 | The Host is running as many Runs as it may | That firing is skipped and recorded. |
 | The Heartbeat's Session was archived | The Heartbeat pauses and asks for attention. Deleting the Session deletes the Heartbeat. |
-| The access profile or agent that created the task lost its authority | The task stops and asks for attention. |
+| The access profile that created the task was revoked or can no longer schedule work | The task stops and asks for attention. Deleting the Session of an agent that created a task does not stop it. |
 
 ## What a run is allowed to do
 
 A Scheduled task never does more than whoever created it could do by hand. Each run checks the creator's authority again, so revoking a CLI access profile stops that profile's tasks.
+
+A task an agent created for you runs as you, within what that agent could do when it created it. It does not depend on the agent's Session: you can archive or delete that Session and the task keeps running. If the agent could do less than you (for example, its Session asks for approval), **Created by** says the task runs with limited access, and it keeps those limits until you change its prompt, what it runs, its stop condition or its Wake check. From then on it runs with your full access. Pausing, resuming or rescheduling it keeps the limits.
+
+An agent can't use a task to get around its limits. A Launch schedule an agent creates must use a project that already has a Session or Workspace in OpenWaggle. An agent that has to ask for approval can't schedule a Heartbeat into a YOLO Session, and an agent limited to one project can't schedule one into a Session that reaches every project. When an agent changes the prompt of one of your tasks, the task keeps only what both you and that agent may do. If a Heartbeat stops because its Session now has more access than the task (for example, you switched that Session to YOLO), change its prompt or Session yourself to run it with your access. The same goes for a CLI client profile and the tasks it owns.
 
 A run uses the Authorization mode of its target: the Session's for a Heartbeat, the project's for a Launch schedule. With **YOLO (Full Access)** it works within its workspace unattended. With **Ask for Approval**, a request waits for you like any other, and the Session shows that it needs attention. There is no unattended mode that skips approvals.
 

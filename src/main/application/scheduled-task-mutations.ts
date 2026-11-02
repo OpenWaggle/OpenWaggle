@@ -11,7 +11,11 @@ import {
   type ScheduledTaskRecordChanges,
   ScheduledTaskRepository,
 } from '../ports/scheduled-task-repository'
-import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
+import {
+  admitTarget,
+  changedHeartbeatBoundaryRefusal,
+  runsAsAfterUpdate,
+} from './scheduled-task-authority'
 import {
   DEFAULT_HEARTBEAT_FIELDS,
   heartbeatFieldsFor,
@@ -22,7 +26,6 @@ import {
 import { scheduledTaskHooks } from './scheduled-task-hooks'
 import { nextFiringOf, presentScheduledTask } from './scheduled-task-presentation'
 import type { ScheduledTaskPrincipal } from './scheduled-task-principal'
-import { authorizeScheduledTaskTarget } from './scheduled-task-target-authorization'
 
 /** Tasks one owner may keep; scheduling is recurring spend, so a runaway agent stops here. */
 export const SCHEDULED_TASKS_PER_OWNER_LIMIT = 200
@@ -31,26 +34,6 @@ export { rejectedOutcome }
 
 function defaultPolicy(kind: ScheduledTaskKind) {
   return kind === 'heartbeat' ? ('failures-only' as const) : ('every-run' as const)
-}
-
-/** The target's project, after checking the caller could send its run request by hand. */
-function admitTarget(principal: ScheduledTaskPrincipal, target: ScheduledTaskTarget) {
-  return Effect.gen(function* () {
-    let projectPath: string | null = target.kind === 'launch' ? target.projectPath : null
-    if (target.kind === 'heartbeat') {
-      const targets = yield* SessionAuthorizationTargetRepository
-      const resolved = yield* targets.resolve(target.sessionId).pipe(Effect.option)
-      if (resolved._tag === 'None') {
-        return rejectedOutcome('target_not_found', 'That Session was not found.')
-      }
-      projectPath = resolved.value.projectPath
-    }
-    const authorization = yield* authorizeScheduledTaskTarget(principal.caller, target)
-    if (!authorization.authorized) {
-      return rejectedOutcome(authorization.code, authorization.message)
-    }
-    return { effect: 'admitted', projectPath } as const
-  })
 }
 
 function scheduleRejection(
@@ -115,6 +98,7 @@ export function createScheduledTask(input: {
       creatorCallerId: principal.creatorCallerId,
       creator: principal.creator,
       creatorWorkingDirectory: principal.workingDirectory,
+      authorityLimits: principal.authorityLimits,
       kind,
       name: task.name.trim(),
       prompt: task.prompt,
@@ -222,6 +206,8 @@ function mergedRecord(current: ScheduledTaskRecord, patch: ScheduledTaskPatch, n
 
 function recordChanges(record: ScheduledTaskRecord): ScheduledTaskRecordChanges {
   return {
+    creatorCallerId: record.creatorCallerId,
+    authorityLimits: record.authorityLimits,
     name: record.name,
     prompt: record.prompt,
     enabled: record.enabled,
@@ -263,15 +249,16 @@ export function updateScheduledTask(input: {
     }
     const heartbeatRefusal = heartbeatOnlyRefusal(current.kind, patch.heartbeat)
     if (heartbeatRefusal) return heartbeatRefusal
+    const runsAs = yield* runsAsAfterUpdate(principal, current, patch)
     const heartbeat = yield* heartbeatFieldsFor({
       principal,
       current,
       settings: patch.heartbeat,
       sessionId: targetSessionOf(current.target),
-      runsAs: current.creatorCallerId,
+      runsAs: runsAs.creatorCallerId,
       now,
     })
-    const merged = { ...mergedRecord({ ...current, ...heartbeat }, patch, now) }
+    const merged = { ...mergedRecord({ ...current, ...heartbeat, ...runsAs }, patch, now) }
     const stopRefusal = stopConditionRefusal(merged)
     if (stopRefusal) return stopRefusal
     if (scheduleChanged(current, patch)) {
@@ -284,6 +271,8 @@ export function updateScheduledTask(input: {
       if (admission.effect === 'rejected') return admission
       projectPath = admission.projectPath
     }
+    const boundary = yield* changedHeartbeatBoundaryRefusal(current, merged)
+    if (boundary) return rejectedOutcome('target_scope_denied', boundary)
     if (merged.enabled && merged.nextRunAt === null) {
       return rejectedOutcome('schedule_ended', 'This schedule has no firing left.')
     }
