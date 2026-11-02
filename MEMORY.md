@@ -206,7 +206,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Prior-turn thinking (C15, October 2026): Bedrock Opus 5.5 bills earlier turns' thinking blocks in full as input (a 2-turn probe: 246 vs 99 input tokens with and without them). Stripping them, or Anthropic's `clear_thinking` with keep < all, changes the prompt at the stripped turn, so each user turn rewrites the previous turn to the cache; a replay of 528 real Sessions netted about +0.7%. Not shipped; revisit only if a provider stops billing it or offers a cache-neutral edit.
 - Pi session file reuse (D6, October 2026): `SessionManager.open(..., { reuseParsedFile: true })` and `setSessionFile(file, { reuseParsedFile: true })` (patched; `REUSE_PARSED_PI_FILE` in `agent-kernel/constants.ts`) keep a module-level parse per file (at most 4 files / 64 MiB of file bytes, 10 min idle) and parse only the appended tail when device, inode, and the first and last 4 KiB before the cached end are unchanged; a shrunk, replaced or rewritten file (`pi --resume`), an old-version file, or an unfinished last line takes Pi's full load. A 174 MB file reopened after a Run's appends took 454 ms -> 1 ms, but its parse held 566 MiB of heap (parsed entries take 1.2-3.4x their file bytes), so the bound was lowered from 256 MiB after review: a file over 64 MiB is parsed whole on every open again. Parsed entry objects are shared between managers, so never mutate an entry or message loaded from a Pi file; each manager gets its own array. `clearParsedSessionFileCache()` releases it (an idle Host should call it).
 - ADR 0025 amendment (October 2026): automatic compaction runs at `min(percentage, 400k tokens)` (Pi `compaction.maxThresholdTokens`, injected and stripped like the percentage; 400k beat 300k in a replay of 528 real Sessions: -30.5% vs -33.0% spend with 106 vs 472 compactions). Idle compaction: after a Run settles with >=200k context in `streaming` warming mode, `IdleCacheWarming` keeps the Pi session and, a minute before the prompt cache expires, calls the patched `AgentSession.precomputeIdleCompaction`, which replays the last request byte-identically plus the answer and the handoff instruction (a cache read; Pi's normal Portable summary sends a serialized transcript and shares nothing with the cache). The next Run installs it with `setPendingCompaction` only if the cache expired meanwhile; Pi applies it in `_prepareNewTurn` as a `threshold` compaction if the branch still ends at the same entry and the model is unchanged. In memory only.
-- These changes require Pi core/provider patches, not an extension. On each Pi upgrade, regenerate both pnpm patches and re-audit generated model capability metadata, cold resume, repeated native replay, malformed native output, portable tail fit, and tool-loop scheduling.
+- These changes require Pi core/provider patches, not an extension. On each Pi upgrade, regenerate both pnpm patches, move or drop the pi-ai `packageExtensions` entry in `pnpm-workspace.yaml` (its selector names the Pi version), and re-audit generated model capability metadata, cold resume, repeated native replay, malformed native output, portable tail fit, and tool-loop scheduling.
 
 ## Renderer And Session Memory
 
@@ -1976,15 +1976,17 @@ command), native `sample`, and a SQL-timing wrapper patched into the built bundl
   `AWS_SHARED_CREDENTIALS_FILE` / `AWS_CONFIG_FILE` paths) were not picked up until restart: the
   AWS SDK caches those files per process (`filePromises` in `@smithy/core/config`), so a new
   client read the old keys again. Two paths: temporary STS keys a login tool rewrites (saml2aws)
-  fail as `ExpiredTokenException` and are retried at once; a long-term IAM key a script rotated
+  fail as `ExpiredTokenException` and are retried after 2 s; a long-term IAM key a script rotated
   and deleted fails as `UnrecognizedClientException`, is not retried, drops the clients, and the
   next request uses the new key. The pi-ai patch gives each new client
-  `credentialDefaultProvider: defaultProvider({ ...init, ignoreCache: true })` (one file read per
-  client, not per request); `packageExtensions` in `pnpm-workspace.yaml` adds
+  `credentialDefaultProvider: defaultProvider({ ...init, ignoreCache: true })`: the files are read
+  again whenever a client resolves credentials, so once per client for static keys and on each
+  refresh (about hourly) for SSO or assume-role, never per request; `packageExtensions` in `pnpm-workspace.yaml` adds
   `@aws-sdk/credential-provider-node` to pi-ai with the Bedrock client's range, and
   `pi-bedrock-rotated-credentials.unit.test.ts` checks both resolve to one copy. A retry that
-  also fails as expired drops the clients again, so the request after renewal does not fail
-  once more on the retry's memoized keys. Same approach as the proposed upstream fix for Pi
+  also fails on its credentials (expired or refused) drops the clients again, before the Run sees
+  the failure; that saves the next request a failed attempt and the 2 s retry. Dropping is
+  Host-wide (`clearBedrockClients`): every profile's client re-resolves credentials and reconnects. Same approach as the proposed upstream fix for Pi
   #11221; drop both on the Pi upgrade that has it.
 - The Title model fallback to the Session model already existed; what was missing was memory.
   Automatic chose a Bedrock Haiku the account could not use, so every new Session paid an

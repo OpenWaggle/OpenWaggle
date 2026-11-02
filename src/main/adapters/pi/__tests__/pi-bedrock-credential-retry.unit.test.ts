@@ -122,6 +122,33 @@ describe('Amazon Bedrock expired credential retry', () => {
     expect(invalidateClients).toHaveBeenCalledTimes(2)
   })
 
+  it('drops the clients again when AWS refused the keys the retry resolved', async () => {
+    const refused =
+      'UnrecognizedClientException: The security token included in the request is invalid.'
+    const provider = scriptedProvider([[failed(EXPIRED)], [failed(refused)]])
+    const invalidateClients = vi.fn()
+    const stream = withExpiredCredentialRetry(provider, { wait: noWait, invalidateClients })
+
+    const { result } = await collect(stream(MODEL, 'context', {}))
+
+    expect(result.errorMessage).toBe(refused)
+    expect(invalidateClients).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the clients before the Run sees the failed retry end', async () => {
+    const provider = scriptedProvider([[failed(EXPIRED)], [failed(`${EXPIRED} again`)]])
+    const order: string[] = []
+    const stream = withExpiredCredentialRetry(provider, {
+      wait: noWait,
+      invalidateClients: () => order.push('invalidate'),
+    })
+
+    const attempt = stream(MODEL, 'context', {})
+    await attempt.result().then(() => order.push('result'))
+
+    expect(order).toEqual(['invalidate', 'invalidate', 'result'])
+  })
+
   it('keeps the retry client when the retry answered', async () => {
     const provider = scriptedProvider([[failed(EXPIRED)], answered('Hello')])
     const invalidateClients = vi.fn()

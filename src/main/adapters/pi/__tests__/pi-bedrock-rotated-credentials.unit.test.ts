@@ -17,7 +17,7 @@ import {
 
 /**
  * Static AWS keys in the shared credentials file, rotated while OpenWaggle runs (saml2aws, a
- * a script). The AWS SDK caches that file for the life of the process, so a new client after
+ * script). The AWS SDK caches that file for the life of the process, so a new client after
  * the old keys stopped working still signed with them until OpenWaggle restarted (Pi #11221).
  */
 

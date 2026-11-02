@@ -92,15 +92,34 @@ function terminalMessage(event: AssistantMessageEvent) {
   return undefined
 }
 
-async function relay(attempt: AssistantMessageEventStream, target: AssistantMessageEventStream) {
+/** Whether a failed attempt's client holds credentials that the next request must not reuse. */
+function failedOnCredentials(result: AssistantMessage) {
+  if (result.stopReason !== 'error') return false
+  const message = result.errorMessage ?? ''
+  return isExpiredCredentialMessage(message) || isRejectedCredentialMessage(message)
+}
+
+/**
+ * Relays an attempt. `beforeEnd` sees its final message before the target does: the event stream
+ * settles `result()` when the terminal event is pushed, and the Run may continue from there.
+ */
+async function relay(
+  attempt: AssistantMessageEventStream,
+  target: AssistantMessageEventStream,
+  beforeEnd: (result: AssistantMessage) => void,
+) {
   let terminal: AssistantMessage | undefined
   for await (const event of attempt) {
-    terminal = terminalMessage(event) ?? terminal
+    const final = terminalMessage(event)
+    if (final && !terminal) beforeEnd(final)
+    terminal = final ?? terminal
     target.push(event)
   }
-  const result = terminal ?? (await attempt.result())
-  target.end(result)
-  return result
+  if (!terminal) {
+    terminal = await attempt.result()
+    beforeEnd(terminal)
+  }
+  target.end(terminal)
 }
 
 type ModelIdentity = Pick<Model<Api>, 'api' | 'provider' | 'id'>
@@ -154,9 +173,11 @@ interface ExpiredCredentialRetryDependencies {
  * reaches the Run, which reports it as expired credentials. Credentials AWS refuses outright
  * (rotated or revoked keys, a bad signature, access denied) fail at once, but drop the cached
  * clients too: the SDK memoizes static credentials for a client's life, so the user's fix would
- * otherwise not apply until the client sat unused for ten minutes. A retry that fails as expired
- * again drops the clients once more, so the request after the user renews them is not refused
- * on the retry client's memoized credentials.
+ * otherwise not apply until the client sat unused for ten minutes. A retry that fails on its
+ * credentials again (expired or refused) drops the clients once more, which saves the next
+ * request a failed attempt and the retry delay. Dropping is Host-wide: every cached Bedrock
+ * client, of every profile and region, resolves its credentials and opens a connection again on
+ * its next request. Requests already streaming keep their client.
  */
 export function withExpiredCredentialRetry<
   TModel extends ModelIdentity,
@@ -198,15 +219,12 @@ export function withExpiredCredentialRetry<
         target.end()
         return
       }
-      const retried = await relay(stream(model, context, options), target)
-      if (
-        retried.stopReason === 'error' &&
-        isExpiredCredentialMessage(retried.errorMessage ?? '')
-      ) {
-        // Still expired. The retry's client memoized the same credentials, so drop it too: the
-        // request after the user renews them resolves them again instead of failing once more.
-        dependencies.invalidateClients?.()
-      }
+      await relay(stream(model, context, options), target, (retried) => {
+        // Still expired, or refused. The retry's client memoized those credentials, so drop it
+        // before the Run continues: the next request resolves them again instead of spending a
+        // failed attempt and the retry delay on them.
+        if (failedOnCredentials(retried)) dependencies.invalidateClients?.()
+      })
     }
     run().catch((error: unknown) => {
       logger.error('Expired credential retry failed', { error: String(error) })
