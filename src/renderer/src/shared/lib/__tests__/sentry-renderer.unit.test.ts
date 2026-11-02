@@ -110,4 +110,58 @@ describe('Sentry renderer options', () => {
     expect(sentry.init).toHaveBeenCalledOnce()
     expect(sentry.captureException).toHaveBeenCalledWith(error)
   })
+
+  it('tags a report with the API method whose rejected call reported it', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Unit tests have no window.api, so the bridge rejects with its own missing-method error,
+    // which the wrapper tags with the method name exactly like a preload rejection.
+    const { api } = await import('../ipc')
+    const rejected = await api.getSettings().then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+
+    const event: ErrorEvent = {
+      type: undefined,
+      exception: {
+        values: [
+          {
+            type: 'Error',
+            value: 'connect ECONNREFUSED 127.0.0.1:443',
+            mechanism: {
+              type: 'auto.browser.global_handlers.onunhandledrejection',
+              handled: false,
+            },
+          },
+        ],
+      },
+    }
+    const untagged: ErrorEvent = {
+      type: undefined,
+      exception: {
+        values: [
+          {
+            type: 'Error',
+            value: 'getaddrinfo ENOTFOUND api.example.com',
+            mechanism: {
+              type: 'auto.browser.global_handlers.onunhandledrejection',
+              handled: false,
+            },
+          },
+        ],
+      },
+    }
+
+    const options = createSentryRendererOptions()
+    const tagged = await options.beforeSend?.(event, { originalException: rejected })
+    expect(tagged?.tags).toEqual({
+      'openwaggle.error_origin': 'unhandled',
+      'openwaggle.api_method': 'getSettings',
+    })
+
+    const plain = await options.beforeSend?.(untagged, { originalException: new Error() })
+    expect(plain?.tags).toEqual({ 'openwaggle.error_origin': 'unhandled' })
+
+    consoleSpy.mockRestore()
+  })
 })

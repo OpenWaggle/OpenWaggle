@@ -36,6 +36,13 @@ export const ERROR_REPORTING_RENDERER_SWITCH = '--openwaggle-error-reporting'
 export const ERROR_REPORT_ORIGIN_TAG = 'openwaggle.error_origin'
 
 /**
+ * Tag naming the renderer API method whose rejected call reported the error. IPC errors lose
+ * their stack crossing the preload bridge, so an unhandled renderer rejection otherwise names
+ * no call site; the method name does not depend on a stack to survive it.
+ */
+export const ERROR_REPORT_API_METHOD_TAG = 'openwaggle.api_method'
+
+/**
  * Where an error the app reports came from. Only `application` keeps its message text, and only
  * a call site whose messages are known to hold no user content may pass it; an error reported
  * without an origin keeps only its type and code.

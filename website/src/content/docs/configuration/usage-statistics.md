@@ -145,6 +145,7 @@ A report keeps only:
 
 - the error type, a short code, and the stack trace. An error type defined by code outside the app, such as a Pi extension, is reported as `Error`
 - when it happened, which OpenWaggle process reported it, and the app version and build channel
+- for an unhandled rejection from one of the app's own API calls, the name of the method that rejected, such as `getSettings`. The name comes from OpenWaggle's own bridge, never from your files or commands
 - the operating system name and version, the CPU architecture, and the Electron, Chrome, and Node.js versions
 
 The short code is something like an HTTP status, `http-429`, or a Node.js code, `ECONNRESET`. The app drops the message text of every report, because a message can quote your files, commands, or model output. The one exception is a handled error that the app explicitly reports as an application error, which it does only where the message cannot hold your content. No code does that today.
