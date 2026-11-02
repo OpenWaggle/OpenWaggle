@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type { SessionCapability } from '@shared/types/session-capability'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { buildSessionsToolPayload, createSessionsToolExtension } from '../sessions-tool-extension'
@@ -6,11 +7,13 @@ import { hiveHelpText } from './hive-help.test-utils'
 
 const source = { sessionId: 'session-queen', runId: 'run-current' }
 
-async function registeredHiveTool() {
+async function registeredHiveTool(sessionCapabilities?: readonly SessionCapability[]) {
   const registerTool = vi.fn()
-  await createSessionsToolExtension({ ...source, workingDirectory: '/project' })(
-    fromPartial<ExtensionAPI>({ registerTool }),
-  )
+  await createSessionsToolExtension({
+    ...source,
+    workingDirectory: '/project',
+    ...(sessionCapabilities ? { sessionCapabilities } : {}),
+  })(fromPartial<ExtensionAPI>({ registerTool }))
   return registerTool.mock.calls[0]?.[0]
 }
 
@@ -55,12 +58,20 @@ describe('Hive tool search of archived Sessions', () => {
     )
   })
 
-  // `queueState: "running"` with `activeRunId: null` read as a stuck Session to an agent; it is a
-  // Follow-up queue that is not paused on an idle Session (#351 fixed only the CLI's human output).
-  it('explains status queueState and activeRunId', async () => {
-    const help = JSON.parse(await hiveHelpText(await registeredHiveTool(), 'status'))
-    expect(help.rules.join('\n')).toMatch(
-      /status queueState running means the Follow-up queue is not paused.*activeRunId null means the Session is idle/,
+  it('offers fullTranscript and a wider scope for the retry only when the grant can use them', async () => {
+    const queen = JSON.parse(await hiveHelpText(await registeredHiveTool(), 'search')).rules.join(
+      '\n',
     )
+    expect(queen).toMatch(
+      /search again with includeArchived and fullTranscript, and catalogScope all if it may be in another project/,
+    )
+    expect(queen).toMatch(/A later page's cursor needs the same options/)
+
+    // A full-transcript search also needs sessions:read, so a discover-only grant is not told to.
+    const discoverOnly = JSON.parse(
+      await hiveHelpText(await registeredHiveTool(['sessions:discover']), 'search'),
+    ).rules.join('\n')
+    expect(discoverOnly).toMatch(/search again with includeArchived, and catalogScope all/)
+    expect(discoverOnly).not.toContain('fullTranscript')
   })
 })
