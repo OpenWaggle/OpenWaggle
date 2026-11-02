@@ -324,7 +324,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ### Streaming render cost (v1 performance, October 2026)
 
-- **The build's React Compiler runs under Babel 8, where `isLVal()` is false for `AssignmentPattern`.** Unpatched, compiler 1.0.0 bailed out of every component or hook that destructures with a default (`function Row({ muted = false })`), and `panicThreshold: 'none'` shipped them uncompiled: 262 bailouts in 143 renderer files at beta.27. `patches/babel-plugin-react-compiler@1.0.0.patch` fixes it; `scripts/__tests__/react-compiler-coverage.unit.test.ts` fails if an upgrade regresses it. Research tools that run the compiler under Babel 7 do not see this class.
+- **The build's React Compiler runs under Babel 8, where `isLVal()` is false for `AssignmentPattern`.** Unpatched, compiler 1.0.0 bailed out of every component or hook that destructures with a default (`function Row({ muted = false })`), and `panicThreshold: 'none'` shipped them uncompiled: 262 bailouts in 143 renderer files at beta.27. `patches/babel-plugin-react-compiler@1.0.0.patch` fixes it; `scripts/__tests__/react-compiler-coverage.unit.test.ts` fails if an upgrade regresses it. Reported upstream as facebook/react#36868 and #37406; PR #36956 has the same fix. Research tools that run the compiler under Babel 7 do not see this class.
 - `pnpm check:react-compiler` recompiles `features/chat` and `features/composer` and fails on any bailout. Common causes and fixes: `try/finally` or `try` without `catch` (use `withFinally`/`attempt` from `shared/lib/async-outcome.ts`, or move the body to a module function), conditionals inside `try`, reading `x.someRef` off a hook result during render (destructure it), passing an object of refs or a ref-writing closure to a function during render (create it in a `useState` initializer), a hook called as a value (`useStore.getState()` in the hook body), a default parameter that is an object literal, and hand-written `useCallback`/`useMemo` the compiler cannot preserve. A function that calls no hook is not compiled unless it says `'use memo'`.
 - A streamed text or reasoning token only lengthens a part of the streaming message: it updates `messagesBySessionIdRef` and `live-stream-message-store`, and only that message's bubble re-renders (`useLiveStreamMessage`). Every other event commits the chat's message list, which carries all tokens since. So `useAgentChat().messages` can be behind the screen by the current text block; tests that check what the transcript shows use `withLiveStreamMessages`. `messagesBySessionIdRef` must never be synced back from state.
 - The GUI main process coalesces `agent:event` deltas per window (`utils/agent-event-delivery.ts`): 33 ms for Sessions the window names through `agent:set-shown-sessions`, 250 ms for the rest. `broadcastToWindows` flushes pending deltas first, so no other channel overtakes an earlier token. Renderer code subscribes to `agent:event` only through `shared/lib/agent-event-hub.ts`.
@@ -1972,6 +1972,13 @@ command), native `sample`, and a SQL-timing wrapper patched into the built bundl
   per configuration (see Pi Runtime Memory), so without that the retry would reuse the failing
   credential provider. Bedrock emits `start` only after
   `client.send` returns, so a credential failure is always the first event.
+- Static keys rotated in `~/.aws/credentials` (saml2aws, cron) still failed after that retry: the
+  AWS SDK caches the shared files per process (`filePromises` in `@smithy/core/config`), so the
+  new client read the old keys again. The pi-ai patch gives each new client
+  `credentialDefaultProvider: defaultProvider({ ...init, ignoreCache: true })` (one file read per
+  client, not per request); `packageExtensions` in `pnpm-workspace.yaml` adds
+  `@aws-sdk/credential-provider-node` to pi-ai, pinned to the Bedrock client's version. Same
+  approach as the proposed upstream fix for Pi #11221; drop both on the Pi upgrade that has it.
 - The Title model fallback to the Session model already existed; what was missing was memory.
   Automatic chose a Bedrock Haiku the account could not use, so every new Session paid an
   `AccessDeniedException` first. `TitleModelRefusals` (Host-wide, `pi-title-model-refusals.ts`)

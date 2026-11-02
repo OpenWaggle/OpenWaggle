@@ -17,10 +17,19 @@ export interface ServerOptions {
   readonly rejectExpired?: number
   /** The first `rejectInvalid` requests fail like AWS rejects a revoked or rotated access key. */
   readonly rejectInvalid?: number
+  /** Requests signed with one of these access key IDs fail like expired STS credentials. */
+  readonly expiredAccessKeyIds?: readonly string[]
 }
 
-function rejection(options: ServerOptions, request: number) {
-  if (request <= (options.rejectExpired ?? 0)) {
+/** The access key ID a SigV4 `Authorization` header was signed with. */
+export function signingAccessKeyId(headers: IncomingHttpHeaders) {
+  return /Credential=([^/]+)\//.exec(headers.authorization ?? '')?.[1]
+}
+
+function rejection(options: ServerOptions, request: number, headers: IncomingHttpHeaders) {
+  const accessKeyId = signingAccessKeyId(headers)
+  const expiredKey = accessKeyId !== undefined && options.expiredAccessKeyIds?.includes(accessKeyId)
+  if (request <= (options.rejectExpired ?? 0) || expiredKey) {
     return {
       type: 'ExpiredTokenException',
       message: 'The security token included in the request is expired',
@@ -51,7 +60,7 @@ export async function withBedrockServer<T>(
         body: Buffer.concat(chunks).toString(),
         connection,
       })
-      const rejected = rejection(options, requests.length)
+      const rejected = rejection(options, requests.length, request.headers)
       if (rejected) {
         response.writeHead(403, {
           'content-type': 'application/json',
