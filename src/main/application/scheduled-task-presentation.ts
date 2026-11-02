@@ -69,6 +69,12 @@ function presentHeartbeat(record: ScheduledTaskRecord): HeartbeatSettings | null
   }
 }
 
+/** Who created the task, and whether its runs are held to an agent's narrower access. */
+function presentedCreator(record: ScheduledTaskRecord) {
+  if (!record.authorityLimits) return record.creator
+  return { ...record.creator, label: `${record.creator.label} (runs with limited access)` }
+}
+
 export function presentScheduledTask(
   record: ScheduledTaskRecord,
   lastRun: ScheduledTaskRun | null,
@@ -87,7 +93,7 @@ export function presentScheduledTask(
     target: record.target,
     notificationPolicy: record.notificationPolicy,
     projectPath: record.projectPath,
-    creator: record.creator,
+    creator: presentedCreator(record),
     attention: record.attention,
     nextRunAt: record.enabled ? record.nextRunAt : null,
     nextNominalAt: record.enabled ? record.nextNominalAt : null,

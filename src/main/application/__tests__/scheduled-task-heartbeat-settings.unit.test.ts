@@ -69,4 +69,16 @@ describe('Wake check approval (#388)', () => {
       pendingSince: null,
     })
   })
+
+  it('stays pending for an agent held to Ask for Approval, even in a YOLO Session', async () => {
+    release = installScheduledTaskHooks({ sessionAuthorizationMode: () => Effect.succeed('yolo') })
+    const limited = fromPartial<ScheduledTaskPrincipal>({
+      localUser: false,
+      authorityLimits: { capabilities: [], scope: {}, authorizationCeiling: 'ask-for-approval' },
+    })
+    expect((await fields(limited)).wakeCheck).toMatchObject({
+      approvedCommand: null,
+      pendingSince: 7,
+    })
+  })
 })

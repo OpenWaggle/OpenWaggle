@@ -1,15 +1,99 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { parseJsonUnknown } from '@shared/schema'
+import { decodeLocalSessionProfileScope } from '@shared/schemas/local-session-profile'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
-import type { ScheduledTaskRepositoryShape } from '../ports/scheduled-task-repository'
+import {
+  isLocalUserCallerId,
+  isProfileCallerId,
+} from '../domain/session-control/root-session-project-reach'
+import type {
+  ScheduledTaskAuthorityBoundary,
+  ScheduledTaskRepositoryShape,
+} from '../ports/scheduled-task-repository'
+import { sessionAgentAuthorizationBoundary } from '../session-host/session-agent-run-ceiling'
+import { sessionReachesEveryProject } from './session-agent-run-project-reach'
 import { repositoryError } from './sqlite-scheduled-task-rows'
 
 type SessionMethods = Pick<
   ScheduledTaskRepositoryShape,
-  'sessionAuthorityOrigin' | 'sessionActivity'
+  | 'sessionAuthorityOrigin'
+  | 'sessionActivity'
+  | 'sessionAuthorityBoundary'
+  | 'callerAuthorityBoundary'
+  | 'projectKnown'
 >
+
+const NO_REACH: ScheduledTaskAuthorityBoundary = {
+  reachesEveryProject: false,
+  authorizationCeiling: 'ask-for-approval',
+}
+
+function sessionAuthorityBoundary(sql: SqlClient.SqlClient, sessionId: string) {
+  return Effect.gen(function* () {
+    const exists = yield* sql<{ readonly id: string }>`
+      SELECT session_id AS id FROM session_execution_profiles WHERE session_id = ${sessionId} LIMIT 1
+    `
+    if (exists.length === 0) return null
+    const reachesEveryProject = yield* sessionReachesEveryProject(sql, sessionId)
+    const boundary = yield* sessionAgentAuthorizationBoundary(sql, sessionId)
+    return {
+      reachesEveryProject,
+      authorizationCeiling: boundary.authorizationCeiling,
+    } satisfies ScheduledTaskAuthorityBoundary
+  }).pipe(Effect.mapError(repositoryError('session-authority-boundary')))
+}
+
+/** An unreadable scope counts as every project, since callers refuse on that reach. */
+function profileReachesEveryProject(scopeJson: string) {
+  try {
+    return decodeLocalSessionProfileScope(parseJsonUnknown(scopeJson)).all === true
+  } catch {
+    return true
+  }
+}
+
+function callerAuthorityBoundary(sql: SqlClient.SqlClient, callerId: string) {
+  if (isLocalUserCallerId(callerId)) {
+    return Effect.succeed<ScheduledTaskAuthorityBoundary>({
+      reachesEveryProject: true,
+      authorizationCeiling: 'yolo',
+    })
+  }
+  if (!isProfileCallerId(callerId)) return Effect.succeed(NO_REACH)
+  return sql<{
+    readonly scope_json: string
+    readonly authorization_ceiling: AgentAuthorizationMode
+    readonly revoked_at: number | null
+  }>`
+    SELECT scope_json, authorization_ceiling, revoked_at FROM session_client_profiles
+    WHERE id = ${callerId.slice('profile:'.length)} LIMIT 1
+  `.pipe(
+    Effect.map((rows): ScheduledTaskAuthorityBoundary => {
+      const profile = rows[0]
+      if (!profile || profile.revoked_at !== null) return NO_REACH
+      return {
+        reachesEveryProject: profileReachesEveryProject(profile.scope_json),
+        authorizationCeiling: profile.authorization_ceiling,
+      }
+    }),
+    Effect.mapError(repositoryError('caller-authority-boundary')),
+  )
+}
 
 export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMethods {
   return {
+    sessionAuthorityBoundary: (sessionId) => sessionAuthorityBoundary(sql, sessionId),
+    callerAuthorityBoundary: (callerId) => callerAuthorityBoundary(sql, callerId),
+    projectKnown: (projectPath) =>
+      sql<{ readonly known: number }>`
+        SELECT EXISTS (SELECT 1 FROM sessions WHERE project_path = ${projectPath})
+          OR EXISTS (SELECT 1 FROM workspace_resources WHERE project_path = ${projectPath})
+          AS known
+      `.pipe(
+        Effect.map((rows) => rows[0]?.known === 1),
+        Effect.mapError(repositoryError('project-known')),
+      ),
     sessionAuthorityOrigin: (sessionId) =>
       sql<{
         readonly authority_origin_caller_id: string

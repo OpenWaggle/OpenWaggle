@@ -1,5 +1,7 @@
 import { decodeUnknownExactOrThrow, parseJsonUnknown } from '@shared/schema'
+import { decodeLocalSessionProfileManagementEnvelope } from '@shared/schemas/local-session-profile'
 import { decodeScheduledTaskTarget, decodeTaskSchedule } from '@shared/schemas/scheduled-task'
+import type { LocalSessionAuthorityLimits } from '@shared/types/local-session-profile'
 import {
   HEARTBEAT_AUTO_PAUSE_REASONS,
   HEARTBEAT_RUN_OUTCOMES,
@@ -13,6 +15,7 @@ import {
   type ScheduledTaskRunOutcome,
 } from '@shared/types/scheduled-task'
 import { Schema } from 'effect'
+import { NO_AUTHORITY_LIMITS } from '../application/local-session-authority-limits'
 import { ScheduledTaskRepositoryError } from '../errors'
 import type {
   ScheduledTaskRecord,
@@ -31,6 +34,7 @@ export interface ScheduledTaskRow {
   readonly creator_label: string
   readonly creator_session_id: string | null
   readonly creator_working_directory: string | null
+  readonly authority_limits_json: string | null
   readonly kind: string
   readonly name: string
   readonly prompt: string
@@ -84,7 +88,7 @@ export interface ScheduledTaskRunRow {
 }
 
 export const SCHEDULED_TASK_COLUMNS = `id, owner_key, creator_caller_id, creator_kind, creator_label,
-  creator_session_id, creator_working_directory, kind, name, prompt, enabled, schedule_json,
+  creator_session_id, creator_working_directory, authority_limits_json, kind, name, prompt, enabled, schedule_json,
   time_zone, anchor_at, ends_at, max_runs, target_json, project_path, notification_policy,
   attention_reason, attention_message, attention_since, next_run_at, next_nominal_at,
   waiting_since, run_count, stop_when, indefinite, idle_pause_after, consecutive_idle_runs,
@@ -113,6 +117,19 @@ function creatorOf(row: ScheduledTaskRow): ScheduledTaskCreator {
     kind: decodeUnknownExactOrThrow(creatorKindSchema, row.creator_kind),
     label: row.creator_label,
     ...(row.creator_session_id ? { sessionId: row.creator_session_id } : {}),
+  }
+}
+
+/**
+ * Unreadable limits hold the task to nothing, so its runs are refused and it shows as needing
+ * attention, rather than failing every read of the task list and with it every other task.
+ */
+function authorityLimitsOf(row: ScheduledTaskRow): LocalSessionAuthorityLimits | null {
+  if (row.authority_limits_json === null) return null
+  try {
+    return decodeLocalSessionProfileManagementEnvelope(parseJsonUnknown(row.authority_limits_json))
+  } catch {
+    return NO_AUTHORITY_LIMITS
   }
 }
 
@@ -151,6 +168,7 @@ export function decodeScheduledTaskRow(row: ScheduledTaskRow): ScheduledTaskReco
     creatorCallerId: row.creator_caller_id,
     creator: creatorOf(row),
     creatorWorkingDirectory: row.creator_working_directory,
+    authorityLimits: authorityLimitsOf(row),
     kind: decodeUnknownExactOrThrow(kindSchema, row.kind),
     name: row.name,
     prompt: row.prompt,

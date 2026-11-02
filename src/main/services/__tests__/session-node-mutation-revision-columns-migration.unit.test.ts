@@ -47,11 +47,10 @@ describe('upgrading a database through migration 85', () => {
 
   it('is one this binary supports, after 84 in the ledger', () => {
     expect(SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID).toBe(85)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
       SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID,
     )
     const ids = APP_MIGRATIONS.map(({ id }) => id)
-    expect(ids.at(-1)).toBe(SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID)
     expect(ids.indexOf(SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID)).toBeGreaterThan(
       ids.indexOf(PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID),
     )
