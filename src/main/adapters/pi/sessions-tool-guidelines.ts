@@ -43,6 +43,9 @@ function catalogDefaultsGuideline(discovery: readonly string[], permits: Permits
     permits('list')
       ? 'list leaves archived Sessions out unless archived is true, which lists only archived ones.'
       : '',
+    permits('search')
+      ? 'search leaves archived Sessions out unless includeArchived is true; when a Session the user names is missing, search again with includeArchived and fullTranscript.'
+      : '',
     permits('delegations_list')
       ? 'delegations_list shows every state, newest first, unless states narrows it.'
       : '',
@@ -196,6 +199,9 @@ function sessionsToolGuidelines(permits: Permits) {
     ...catalogGuidelines(permits),
     'Wherever a sessionId, sessionIds, parentSessionId, workerSessionId, or report target takes a Session identity, a Session link the user pasted (openwaggle://sessions/<session-id>) works as it is.',
     runControlGuideline(permits),
+    permits('status')
+      ? 'status queueState running means the Follow-up queue is not paused, not that a Run is active; activeRunId null means the Session is idle.'
+      : undefined,
     permits('wait') ? WAIT_ESSENTIAL : undefined,
     thinkingGuideline(permits),
     interactionGuideline(permits),

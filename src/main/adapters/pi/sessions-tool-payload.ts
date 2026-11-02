@@ -96,6 +96,7 @@ function catalogPayload(
           ...(input.cursor ? { cursor: input.cursor } : {}),
           ...(input.fullTranscript ? { searchScope: 'full-transcript' as const } : {}),
           ...(input.mode ? { mode: input.mode } : {}),
+          ...(input.includeArchived ? { includeArchived: true } : {}),
           ...(input.requireFresh ? { requireFresh: true } : {}),
           ...(input.waitTimeoutMs === undefined ? {} : { waitTimeoutMs: input.waitTimeoutMs }),
           ...filter,

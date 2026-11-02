@@ -22,3 +22,11 @@ export const sessionsToolListArchived = Type.Optional(
     description: 'true lists only archived Sessions; by default list leaves them out.',
   }),
 )
+
+/** search leaves archived Sessions out by default; this adds them, marked archived: true. */
+export const sessionsToolSearchIncludeArchived = Type.Optional(
+  Type.Boolean({
+    description:
+      'true also searches archived Sessions, which results mark archived: true; by default search leaves them out.',
+  }),
+)
