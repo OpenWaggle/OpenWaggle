@@ -82,8 +82,18 @@ async function relayUnlessCredentialsExpired(
     terminal = terminalMessage(event) ?? terminal
     target.push(event)
   }
-  target.end(terminal ?? (await attempt.result()))
+  target.end(terminal ?? (await settledResult(attempt)))
   return { kind: 'relayed' }
+}
+
+/**
+ * The result of an attempt that ended without a `done` or `error` event. `end(result)` settles it
+ * before the iteration finishes; a bare `end()` never does, so waiting on it would hang the Run.
+ */
+async function settledResult(attempt: AssistantMessageEventStream) {
+  const result = await Promise.race([attempt.result(), Promise.resolve(undefined)])
+  if (result === undefined) throw new Error('The Amazon Bedrock stream ended without a result')
+  return result
 }
 
 function terminalMessage(event: AssistantMessageEvent) {
@@ -116,7 +126,7 @@ async function relay(
     target.push(event)
   }
   if (!terminal) {
-    terminal = await attempt.result()
+    terminal = await settledResult(attempt)
     beforeEnd(terminal)
   }
   target.end(terminal)
@@ -189,6 +199,14 @@ export function withExpiredCredentialRetry<
 ): ProviderStream<TModel, TContext, TOptions> {
   const wait = dependencies.wait ?? waitUnlessAborted
   const delayMs = dependencies.delayMs ?? EXPIRED_CREDENTIAL_RETRY_DELAY_MS
+  /** A failure to close clients must not replace the provider's error the Run classifies. */
+  const dropClients = () => {
+    try {
+      dependencies.invalidateClients?.()
+    } catch (error) {
+      logger.warn('Could not drop the cached Amazon Bedrock clients', { error: String(error) })
+    }
+  }
   return (model, context, options) => {
     const target = createAssistantMessageEventStream()
     const run = async () => {
@@ -205,7 +223,7 @@ export function withExpiredCredentialRetry<
               model: error.model,
             },
           )
-          dependencies.invalidateClients?.()
+          dropClients()
         },
       )
       if (first.kind === 'relayed') return
@@ -213,7 +231,7 @@ export function withExpiredCredentialRetry<
         provider: first.error.provider,
         model: first.error.model,
       })
-      dependencies.invalidateClients?.()
+      dropClients()
       if (!(await wait(delayMs, options?.signal))) {
         target.push(abortedEvent(first.error))
         target.end()
@@ -223,7 +241,7 @@ export function withExpiredCredentialRetry<
         // Still expired, or refused. The retry's client memoized those credentials, so drop it
         // before the Run continues: the next request resolves them again instead of spending a
         // failed attempt and the retry delay on them.
-        if (failedOnCredentials(retried)) dependencies.invalidateClients?.()
+        if (failedOnCredentials(retried)) dropClients()
       })
     }
     run().catch((error: unknown) => {

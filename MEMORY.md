@@ -1978,16 +1978,16 @@ command), native `sample`, and a SQL-timing wrapper patched into the built bundl
   client read the old keys again. Two paths: temporary STS keys a login tool rewrites (saml2aws)
   fail as `ExpiredTokenException` and are retried after 2 s; a long-term IAM key a script rotated
   and deleted fails as `UnrecognizedClientException`, is not retried, drops the clients, and the
-  next request uses the new key. The pi-ai patch gives each new client
-  `credentialDefaultProvider: defaultProvider({ ...init, ignoreCache: true })`: the files are read
-  again whenever a client resolves credentials, so once per client for static keys and on each
-  refresh (about hourly) for SSO or assume-role, never per request; `packageExtensions` in `pnpm-workspace.yaml` adds
+  next request uses the new key. The pi-ai patch gives each new client `credentialDefaultProvider:
+  defaultProvider({ ...init, ignoreCache: true })`: the files are read again whenever a client
+  resolves credentials, so once per client for static keys and on each refresh (about hourly) for
+  SSO or assume-role, never per request; `packageExtensions` in `pnpm-workspace.yaml` adds
   `@aws-sdk/credential-provider-node` to pi-ai with the Bedrock client's range, and
-  `pi-bedrock-rotated-credentials.unit.test.ts` checks both resolve to one copy. A retry that
-  also fails on its credentials (expired or refused) drops the clients again, before the Run sees
-  the failure; that saves the next request a failed attempt and the 2 s retry. Dropping is
-  Host-wide (`clearBedrockClients`): every profile's client re-resolves credentials and reconnects. Same approach as the proposed upstream fix for Pi
-  #11221; drop both on the Pi upgrade that has it.
+  `pi-bedrock-rotated-credentials.unit.test.ts` checks both resolve to one copy. A retry that also
+  fails on its credentials (expired or refused) drops the clients again, before the Run sees the
+  failure; that saves the next request a failed attempt and the 2 s retry. Dropping is Host-wide
+  (`clearBedrockClients`): every profile's client re-resolves credentials and reconnects. Same
+  approach as the proposed upstream fix for Pi #11221; drop both on the Pi upgrade that has it.
 - The Title model fallback to the Session model already existed; what was missing was memory.
   Automatic chose a Bedrock Haiku the account could not use, so every new Session paid an
   `AccessDeniedException` first. `TitleModelRefusals` (Host-wide, `pi-title-model-refusals.ts`)
