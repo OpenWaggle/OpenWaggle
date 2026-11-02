@@ -151,7 +151,7 @@ function dispatchFiring(
       ...firing.run,
       ...(dispatch.context ? { context: dispatch.context } : {}),
     })
-    const settlement = yield* assertScheduledLaunchProjectKnown(sql, caller, payload).pipe(
+    const settlement = yield* assertScheduledLaunchProjectKnown(sql, record, caller, payload).pipe(
       Effect.zipRight(dispatchScheduledTaskCommand({ caller, payload })),
       Effect.map(settlementOfDispatch),
       Effect.catchAll((error) => Effect.succeed(settlementOfFailure(error))),
@@ -190,7 +190,14 @@ export function fireScheduledTask(
 ) {
   return Effect.gen(function* () {
     const repository = yield* ScheduledTaskRepository
-    const { record, now } = input
+    const { now } = input
+    const resolution = yield* resolveScheduledTaskCaller(sql, input.record)
+    // A task deleted meanwhile has nothing left to fire or record.
+    if (!resolution.live && 'deleted' in resolution) return 'recorded' as const
+    const record = resolution.live ? resolution.record : input.record
+    // A concurrent edit that turned the task off or rescheduled it wins over its scheduled firing.
+    const changed = !record.enabled || record.nextRunAt !== input.record.nextRunAt
+    if (input.trigger === 'schedule' && changed) return 'recorded' as const
     const timing = firingTiming(record, input.trigger, now)
     const previous = yield* repository.lastStartedRun(record.id)
     const firing: Firing = {
@@ -199,7 +206,6 @@ export function fireScheduledTask(
       timing,
       run: newRunStart(record, timing, now, previous),
     }
-    const resolution = yield* resolveScheduledTaskCaller(sql, record)
     if (!resolution.live) {
       return yield* stopWithAttention(firing, 'creator-authority-revoked', resolution.message)
     }

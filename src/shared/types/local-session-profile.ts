@@ -59,4 +59,13 @@ export interface LocalSessionCallerIdentity {
    * can only narrow it.
    */
   readonly profileNarrowing?: LocalSessionProfileAuthority
+  /**
+   * Authority this caller never exceeds, whatever its identity holds live. A Scheduled task a
+   * Session agent created runs as the agent's owner within the agent's authority at creation
+   * (ADR 0058), and the Host applies these again each time it refreshes the caller.
+   */
+  readonly authorityLimits?: LocalSessionAuthorityLimits
 }
+
+/** Capabilities, scope and Authorization ceiling a caller is held within. */
+export type LocalSessionAuthorityLimits = LocalSessionProfileManagementEnvelope

@@ -77,10 +77,13 @@ function heldForApproval(record: ScheduledTaskRecord, now: number) {
   return Effect.gen(function* () {
     const wakeCheck = record.wakeCheck
     if (!wakeCheck || wakeCheckApproval(wakeCheck) === 'approved') return false
-    const mode = yield* scheduledTaskHooks().sessionAuthorizationMode(
-      record.target.kind === 'heartbeat' ? record.target.sessionId : '',
-      record.creatorCallerId,
-    )
+    const mode =
+      record.authorityLimits?.authorizationCeiling === 'ask-for-approval'
+        ? 'ask-for-approval'
+        : yield* scheduledTaskHooks().sessionAuthorizationMode(
+            record.target.kind === 'heartbeat' ? record.target.sessionId : '',
+            record.creatorCallerId,
+          )
     if (mode === 'ask-for-approval') {
       yield* markWakeCheckPending(record, now)
       return true

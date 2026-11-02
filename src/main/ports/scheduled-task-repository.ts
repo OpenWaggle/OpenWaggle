@@ -1,3 +1,5 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
+import type { LocalSessionAuthorityLimits } from '@shared/types/local-session-profile'
 import type {
   HeartbeatAutoPause,
   HeartbeatWakeCheckFailurePolicy,
@@ -17,6 +19,12 @@ import { Context, type Effect } from 'effect'
 import type { HeartbeatRunContext } from '../domain/scheduled-tasks/heartbeat-run-context'
 import type { ScheduledTaskRepositoryError } from '../errors'
 
+/** Whether a caller or Session reaches every project, and its Authorization ceiling. */
+export interface ScheduledTaskAuthorityBoundary {
+  readonly reachesEveryProject: boolean
+  readonly authorizationCeiling: AgentAuthorizationMode
+}
+
 /** A Heartbeat's stored Wake check and the exact command the user approved, if any. */
 export interface StoredHeartbeatWakeCheck {
   readonly command: string
@@ -27,8 +35,11 @@ export interface StoredHeartbeatWakeCheck {
 
 /**
  * A Scheduled task as the Session Host stores it. `ownerKey` names whose task it is (the local
- * user, or one CLI client profile, for that profile's agents too); `creatorCallerId` is the exact
- * caller whose authority every run revalidates (ADR 0057, ADR 0058).
+ * user, or one CLI client profile, for that profile's agents too); `creatorCallerId` is the caller
+ * each run acts as, whose authority it revalidates (ADR 0057, ADR 0058): the local user or a CLI
+ * client profile, also for a task a Session agent created, never the agent itself. `creator`
+ * records who created the task. Tasks stored before that rule may still name a Session agent
+ * until the Host adopts them.
  */
 export interface ScheduledTaskRecord {
   readonly id: string
@@ -36,6 +47,12 @@ export interface ScheduledTaskRecord {
   readonly creatorCallerId: string
   readonly creator: ScheduledTaskCreator
   readonly creatorWorkingDirectory: string | null
+  /**
+   * The authority a task a Session agent created runs within: that agent's at creation, or null
+   * when it held its owner's whole authority (ADR 0058). The task never depends on the creating
+   * Session still existing.
+   */
+  readonly authorityLimits: LocalSessionAuthorityLimits | null
   readonly kind: ScheduledTaskKind
   readonly name: string
   readonly prompt: string
@@ -73,6 +90,8 @@ export interface NewScheduledTaskRecord extends ScheduledTaskRecord {
 export type ScheduledTaskRecordChanges = Partial<
   Pick<
     ScheduledTaskRecord,
+    | 'creatorCallerId'
+    | 'authorityLimits'
     | 'name'
     | 'prompt'
     | 'enabled'
@@ -225,6 +244,21 @@ export interface ScheduledTaskRepositoryShape {
     { readonly originCallerId: string; readonly title: string; readonly archived: boolean } | null,
     ScheduledTaskRepositoryError
   >
+  /**
+   * A Session's own authority boundary: whether its agent may act in every project when the
+   * caller that starts its Run may, and its Authorization ceiling. Null when it does not exist.
+   */
+  readonly sessionAuthorityBoundary: (
+    sessionId: string,
+  ) => Effect.Effect<ScheduledTaskAuthorityBoundary | null, ScheduledTaskRepositoryError>
+  /** What a task's owner (the caller its runs act as) reaches, read live; nothing when revoked. */
+  readonly callerAuthorityBoundary: (
+    callerId: string,
+  ) => Effect.Effect<ScheduledTaskAuthorityBoundary, ScheduledTaskRepositoryError>
+  /** Whether OpenWaggle knows a project: a Session or Workspace already uses it (ADR 0042). */
+  readonly projectKnown: (
+    projectPath: string,
+  ) => Effect.Effect<boolean, ScheduledTaskRepositoryError>
   /** What a Scheduled task run checks about a Session before it sends anything. */
   readonly sessionActivity: (
     sessionId: string,

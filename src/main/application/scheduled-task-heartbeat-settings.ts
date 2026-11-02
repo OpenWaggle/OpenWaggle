@@ -73,7 +73,11 @@ function wakeCheckFor(input: {
       return { command, onFailure, approvedCommand: command, pendingSince: null }
     }
     if (input.current?.command === command) return { ...input.current, onFailure }
-    const mode = yield* scheduledTaskHooks().sessionAuthorizationMode(input.sessionId, input.runsAs)
+    // A Session agent held to ask-for-approval cannot set a command that runs unapproved.
+    const mode =
+      input.principal.authorityLimits?.authorizationCeiling === 'ask-for-approval'
+        ? 'ask-for-approval'
+        : yield* scheduledTaskHooks().sessionAuthorizationMode(input.sessionId, input.runsAs)
     return {
       command,
       onFailure,

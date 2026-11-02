@@ -1,27 +1,23 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SessionId } from '@shared/types/brand'
-import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Cause from 'effect/Cause'
 import type * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import { runHostWakeCheck } from '../adapters/scheduled-tasks/wake-check-process'
-import { hasAnyActiveRun } from '../application/active-session-runs'
-import { stopScheduledTask } from '../application/scheduled-task-bookkeeping'
 import { settleHeartbeatRunOutcome } from '../application/scheduled-task-heartbeat-commands'
 import {
   type HeartbeatRunEnd,
   installScheduledTaskHooks,
 } from '../application/scheduled-task-hooks'
 import { createLogger } from '../logger'
-import {
-  type ScheduledTaskRecord,
-  ScheduledTaskRepository,
-  type ScheduledTaskSessionActivity,
-} from '../ports/scheduled-task-repository'
-import { resolveScheduledTaskCaller } from './scheduled-task-caller'
-import { dispatchScheduledTaskCommand } from './scheduled-task-dispatch'
+import { ScheduledTaskRepository } from '../ports/scheduled-task-repository'
 import { fireScheduledTask } from './scheduled-task-firing'
 import { settleInterruptedFirings } from './scheduled-task-interrupted-runs'
+import {
+  archiveFinishedLaunches,
+  forTask,
+  pauseArchivedHeartbeats,
+  stopRevokedCreators,
+} from './scheduled-task-sweeps'
 import { tryGetSessionHostEventRuntime } from './session-host-events'
 
 const logger = createLogger('scheduled-tasks')
@@ -31,7 +27,6 @@ export const SCHEDULED_TASK_TICK_MS = 30_000
 /** A Heartbeat waiting for its Session looks again this often. */
 const BUSY_RECHECK_MS = 60_000
 const DUE_BATCH_LIMIT = 8
-const ARCHIVE_SWEEP_RUNS = 10
 /** Ticks between checks that every enabled task's creator still holds its authority. */
 const AUTHORITY_SWEEP_TICKS = 10
 
@@ -63,98 +58,6 @@ function updateLivenessHold(state: SchedulerState, hold: boolean) {
   }
 }
 
-function pauseArchivedHeartbeats(enabled: readonly ScheduledTaskRecord[], now: number) {
-  return Effect.gen(function* () {
-    const repository = yield* ScheduledTaskRepository
-    for (const record of enabled) {
-      if (record.target.kind !== 'heartbeat') continue
-      const activity = yield* repository.sessionActivity(record.target.sessionId)
-      if (activity && !activity.archived) continue
-      yield* stopScheduledTask(record, {
-        reason: activity ? 'target-session-archived' : 'target-session-missing',
-        message: activity
-          ? 'Its Session was archived; restore the Session and turn the Heartbeat back on.'
-          : 'Its Session no longer exists.',
-        since: now,
-      })
-    }
-  })
-}
-
-/**
- * Stops tasks whose creator lost its authority, such as a revoked CLI client profile, so they
- * show as needing attention before their next fire time (ADR 0057). Local-user tasks never lose it.
- */
-function stopRevokedCreators(
-  sql: SqlClient.SqlClient,
-  enabled: readonly ScheduledTaskRecord[],
-  now: number,
-) {
-  return Effect.gen(function* () {
-    for (const record of enabled) {
-      if (record.creator.kind === 'local-user') continue
-      const resolution = yield* resolveScheduledTaskCaller(sql, record)
-      if (resolution.live) continue
-      yield* stopScheduledTask(record, {
-        reason: 'creator-authority-revoked',
-        message: resolution.message,
-        since: now,
-      })
-    }
-  })
-}
-
-/** A launched Session whose one Run completed, with nothing waiting and nothing pinned. */
-function finishedUntouched(sessionId: string, activity: ScheduledTaskSessionActivity | null) {
-  return (
-    activity !== null &&
-    !activity.archived &&
-    activity.activeRunId === null &&
-    !hasAnyActiveRun(SessionId(sessionId)) &&
-    activity.followUpCount === 0 &&
-    !activity.pinned &&
-    activity.runCount === 1 &&
-    activity.latestRunStatus === 'completed'
-  )
-}
-
-/**
- * Archives Sessions a Launch schedule started once they finished, when the task asks for it and
- * the user never touched them: their one Run completed, nothing waits, and nothing is pinned.
- */
-function archiveFinishedLaunches(
-  sql: SqlClient.SqlClient,
-  enabled: readonly ScheduledTaskRecord[],
-) {
-  return Effect.gen(function* () {
-    const repository = yield* ScheduledTaskRepository
-    for (const record of enabled) {
-      if (record.target.kind !== 'launch' || !record.target.archiveFinishedSessions) continue
-      const runs = yield* repository.listRuns({ taskId: record.id, limit: ARCHIVE_SWEEP_RUNS })
-      for (const run of runs) {
-        if (run.status !== 'started' || !run.sessionId) continue
-        const activity = yield* repository.sessionActivity(run.sessionId)
-        if (!finishedUntouched(run.sessionId, activity)) continue
-        const resolution = yield* resolveScheduledTaskCaller(sql, record)
-        if (!resolution.live) break
-        const key = `scheduled-task-archive:${run.id}`
-        yield* dispatchScheduledTaskCommand({
-          caller: resolution.caller,
-          payload: {
-            contract: 'session-control-v2',
-            request: {
-              contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-              requestId: key,
-              idempotencyKey: key,
-              command: { operation: 'archive', sessionId: run.sessionId },
-            },
-          },
-        }).pipe(Effect.catchAll(() => Effect.void))
-      }
-    }
-  })
-}
-
 function fireDue(sql: SqlClient.SqlClient, state: SchedulerState, now: number) {
   return Effect.gen(function* () {
     const repository = yield* ScheduledTaskRepository
@@ -163,11 +66,23 @@ function fireDue(sql: SqlClient.SqlClient, state: SchedulerState, now: number) {
       if (state.inProgress.has(record.id)) continue
       if ((state.recheckAfter.get(record.id) ?? 0) > now) continue
       state.inProgress.add(record.id)
-      const outcome = yield* fireScheduledTask(sql, { record, trigger: 'schedule', now }).pipe(
-        Effect.ensuring(Effect.sync(() => state.inProgress.delete(record.id))),
+      yield* forTask(
+        record,
+        'fire',
+        fireScheduledTask(sql, { record, trigger: 'schedule', now }).pipe(
+          Effect.tap((outcome) =>
+            Effect.sync(() => {
+              if (outcome === 'waiting') state.recheckAfter.set(record.id, now + BUSY_RECHECK_MS)
+              else state.recheckAfter.delete(record.id)
+            }),
+          ),
+          // A firing that failed waits like a busy one rather than retrying on every tick.
+          Effect.tapErrorCause(() =>
+            Effect.sync(() => state.recheckAfter.set(record.id, now + BUSY_RECHECK_MS)),
+          ),
+          Effect.ensuring(Effect.sync(() => state.inProgress.delete(record.id))),
+        ),
       )
-      if (outcome === 'waiting') state.recheckAfter.set(record.id, now + BUSY_RECHECK_MS)
-      else state.recheckAfter.delete(record.id)
     }
   })
 }
