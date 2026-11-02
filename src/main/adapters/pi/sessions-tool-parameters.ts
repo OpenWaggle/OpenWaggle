@@ -17,6 +17,7 @@ import {
   sessionsToolCatalogScope,
   sessionsToolListArchived,
   sessionsToolProjectPath,
+  sessionsToolSearchIncludeArchived,
 } from './sessions-tool-catalog-parameters'
 import { sessionsToolCollaborationParameters } from './sessions-tool-collaboration-parameters'
 import { sessionsToolControlParameters } from './sessions-tool-control-parameters'
@@ -264,6 +265,7 @@ export const sessionsToolParameters = Type.Union([
         description: 'Defaults to hybrid discovery or lexical full-transcript search.',
       }),
     ),
+    includeArchived: sessionsToolSearchIncludeArchived,
     requireFresh: Type.Optional(Type.Boolean()),
     waitTimeoutMs: Type.Optional(Type.Integer({ minimum: 0, maximum: SESSION_QUERY_MAX_WAIT_MS })),
   }),

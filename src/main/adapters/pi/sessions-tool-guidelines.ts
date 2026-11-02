@@ -37,12 +37,18 @@ function rootGuideline(permits: Permits) {
   return undefined
 }
 
+/** fullTranscript also needs sessions:read, so a discover-only grant is not told to use it. */
+function archivedSearchGuideline(readsTranscripts: boolean) {
+  return `search leaves archived Sessions out unless includeArchived is true; when a Session the user names is missing, search again with includeArchived${readsTranscripts ? ' and fullTranscript' : ''}, and catalogScope all if it may be in another project. A later page's cursor needs the same options.`
+}
+
 function catalogDefaultsGuideline(discovery: readonly string[], permits: Permits) {
   return [
     `${both(discovery)} ${discovery.length === 1 ? 'looks' : 'look'} at your current project by default, every worktree of it included; catalogScope project names another project and catalogScope all every Session you can reach.`,
     permits('list')
       ? 'list leaves archived Sessions out unless archived is true, which lists only archived ones.'
       : '',
+    permits('search') ? archivedSearchGuideline(permits('read')) : '',
     permits('delegations_list')
       ? 'delegations_list shows every state, newest first, unless states narrows it.'
       : '',
@@ -196,6 +202,9 @@ function sessionsToolGuidelines(permits: Permits) {
     ...catalogGuidelines(permits),
     'Wherever a sessionId, sessionIds, parentSessionId, workerSessionId, or report target takes a Session identity, a Session link the user pasted (openwaggle://sessions/<session-id>) works as it is.',
     runControlGuideline(permits),
+    permits('status')
+      ? 'status queueState running means the Follow-up queue is not paused, not that a Run is active; activeRunId null means the Session is idle.'
+      : undefined,
     permits('wait') ? WAIT_ESSENTIAL : undefined,
     thinkingGuideline(permits),
     interactionGuideline(permits),
