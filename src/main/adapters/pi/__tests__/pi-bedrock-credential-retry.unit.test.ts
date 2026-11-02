@@ -111,6 +111,27 @@ describe('Amazon Bedrock expired credential retry', () => {
     expect(result).toMatchObject({ stopReason: 'error', errorMessage: `${EXPIRED} again` })
   })
 
+  it('drops the clients again when the retry also failed on expired credentials', async () => {
+    const provider = scriptedProvider([[failed(EXPIRED)], [failed(`${EXPIRED} again`)]])
+    const invalidateClients = vi.fn()
+    const stream = withExpiredCredentialRetry(provider, { wait: noWait, invalidateClients })
+
+    await collect(stream(MODEL, 'context', {}))
+
+    // Once before the retry, and once after it: the retry's client holds the same credentials.
+    expect(invalidateClients).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the retry client when the retry answered', async () => {
+    const provider = scriptedProvider([[failed(EXPIRED)], answered('Hello')])
+    const invalidateClients = vi.fn()
+    const stream = withExpiredCredentialRetry(provider, { wait: noWait, invalidateClients })
+
+    await collect(stream(MODEL, 'context', {}))
+
+    expect(invalidateClients).toHaveBeenCalledTimes(1)
+  })
+
   it('does not retry other failures', async () => {
     const provider = scriptedProvider([[failed('ValidationException: bad request')]])
     const stream = withExpiredCredentialRetry(provider, { wait: noWait })

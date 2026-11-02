@@ -1,6 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { stream as streamBedrock } from '@earendil-works/pi-ai/api/bedrock-converse-stream'
 import { clearBedrockClients } from '@earendil-works/pi-ai/bedrock-provider'
 import { AMAZON_BEDROCK_MODELS } from '@earendil-works/pi-ai/providers/amazon-bedrock.models'
@@ -15,8 +17,8 @@ import {
 
 /**
  * Static AWS keys in the shared credentials file, rotated while OpenWaggle runs (saml2aws, a
- * cron job). The AWS SDK caches that file for the life of the process, so a new client after
- * the old keys expired still signed with them until OpenWaggle restarted (Pi #11221).
+ * a script). The AWS SDK caches that file for the life of the process, so a new client after
+ * the old keys stopped working still signed with them until OpenWaggle restarted (Pi #11221).
  */
 
 const MODEL = AMAZON_BEDROCK_MODELS['eu.anthropic.claude-haiku-4-5-20251001-v1:0']
@@ -59,31 +61,37 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
+const ENV = {
+  AWS_PROFILE: PROFILE,
+  AWS_BEDROCK_FORCE_HTTP1: '1',
+  no_proxy: '127.0.0.1',
+  NO_PROXY: '127.0.0.1',
+}
+
+function retryingCall(baseUrl: string) {
+  const retrying = withExpiredCredentialRetry(streamBedrock, {
+    delayMs: 0,
+    invalidateClients: clearBedrockClients,
+  })
+  return () =>
+    retrying({ ...MODEL, baseUrl }, normalizeContext(userContext()), {
+      region: 'eu-west-1',
+      maxRetries: 0,
+      env: ENV,
+    }).result()
+}
+
 describe('Amazon Bedrock keys rotated in the shared credentials file', () => {
   it('signs the retry after an expired-token failure with the rotated keys', async () => {
     writeCredentials('AKIAOLDKEY')
-    const expiredAccessKeyIds: string[] = []
+    const expired = new Set<string>()
     const { first, second, signedWith } = await withBedrockServer(
       async (baseUrl, requests) => {
-        const retrying = withExpiredCredentialRetry(streamBedrock, {
-          delayMs: 0,
-          invalidateClients: clearBedrockClients,
-        })
-        const call = () =>
-          retrying({ ...MODEL, baseUrl }, normalizeContext(userContext()), {
-            region: 'eu-west-1',
-            maxRetries: 0,
-            env: {
-              AWS_PROFILE: PROFILE,
-              AWS_BEDROCK_FORCE_HTTP1: '1',
-              no_proxy: '127.0.0.1',
-              NO_PROXY: '127.0.0.1',
-            },
-          }).result()
+        const call = retryingCall(baseUrl)
         const first = await call()
-        // The login tool writes new keys, and AWS stops accepting the old ones.
+        // The login tool writes new temporary keys, and AWS stops accepting the old ones.
         writeCredentials('AKIANEWKEY')
-        expiredAccessKeyIds.push('AKIAOLDKEY')
+        expired.add('AKIAOLDKEY')
         const second = await call()
         return {
           first,
@@ -91,7 +99,7 @@ describe('Amazon Bedrock keys rotated in the shared credentials file', () => {
           signedWith: requests.map((request) => signingAccessKeyId(request.headers)),
         }
       },
-      { expiredAccessKeyIds },
+      { isExpiredAccessKey: (accessKeyId) => expired.has(accessKeyId) },
     )
 
     expect(first.stopReason).toBe('stop')
@@ -99,5 +107,45 @@ describe('Amazon Bedrock keys rotated in the shared credentials file', () => {
     // The cached client still holds the old keys and fails once; the retry's new client reads
     // the file again.
     expect(signedWith).toEqual(['AKIAOLDKEY', 'AKIAOLDKEY', 'AKIANEWKEY'])
+  })
+
+  it('signs the next request after AWS refused a replaced IAM key with the new keys', async () => {
+    writeCredentials('AKIAOLDKEY')
+    const revoked = new Set<string>()
+    const { first, second, third, signedWith } = await withBedrockServer(
+      async (baseUrl, requests) => {
+        const call = retryingCall(baseUrl)
+        const first = await call()
+        // A rotation script writes a new access key and deletes the old one.
+        writeCredentials('AKIANEWKEY')
+        revoked.add('AKIAOLDKEY')
+        const second = await call()
+        const third = await call()
+        return {
+          first,
+          second,
+          third,
+          signedWith: requests.map((request) => signingAccessKeyId(request.headers)),
+        }
+      },
+      { isRevokedAccessKey: (accessKeyId) => revoked.has(accessKeyId) },
+    )
+
+    expect(first.stopReason).toBe('stop')
+    // A refused key is not retried: that request fails, and the next one reads the file again.
+    expect(second.errorMessage).toContain('UnrecognizedClientException')
+    expect(third.stopReason).toBe('stop')
+    expect(signedWith).toEqual(['AKIAOLDKEY', 'AKIAOLDKEY', 'AKIANEWKEY'])
+  })
+
+  it('uses the credential chain copy the Bedrock client resolves', () => {
+    // packageExtensions gives pi-ai the same range as @aws-sdk/client-bedrock-runtime, so one
+    // copy of the chain is installed and bundled.
+    const piAi = fileURLToPath(import.meta.resolve('@earendil-works/pi-ai'))
+    const fromPiAi = createRequire(piAi).resolve('@aws-sdk/credential-provider-node')
+    const client = createRequire(piAi).resolve('@aws-sdk/client-bedrock-runtime')
+    const fromClient = createRequire(client).resolve('@aws-sdk/credential-provider-node')
+
+    expect(realpathSync(fromPiAi)).toBe(realpathSync(fromClient))
   })
 })

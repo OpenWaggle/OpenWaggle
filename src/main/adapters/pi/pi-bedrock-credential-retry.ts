@@ -98,7 +98,9 @@ async function relay(attempt: AssistantMessageEventStream, target: AssistantMess
     terminal = terminalMessage(event) ?? terminal
     target.push(event)
   }
-  target.end(terminal ?? (await attempt.result()))
+  const result = terminal ?? (await attempt.result())
+  target.end(result)
+  return result
 }
 
 type ModelIdentity = Pick<Model<Api>, 'api' | 'provider' | 'id'>
@@ -152,7 +154,9 @@ interface ExpiredCredentialRetryDependencies {
  * reaches the Run, which reports it as expired credentials. Credentials AWS refuses outright
  * (rotated or revoked keys, a bad signature, access denied) fail at once, but drop the cached
  * clients too: the SDK memoizes static credentials for a client's life, so the user's fix would
- * otherwise not apply until the client sat unused for ten minutes.
+ * otherwise not apply until the client sat unused for ten minutes. A retry that fails as expired
+ * again drops the clients once more, so the request after the user renews them is not refused
+ * on the retry client's memoized credentials.
  */
 export function withExpiredCredentialRetry<
   TModel extends ModelIdentity,
@@ -194,7 +198,15 @@ export function withExpiredCredentialRetry<
         target.end()
         return
       }
-      await relay(stream(model, context, options), target)
+      const retried = await relay(stream(model, context, options), target)
+      if (
+        retried.stopReason === 'error' &&
+        isExpiredCredentialMessage(retried.errorMessage ?? '')
+      ) {
+        // Still expired. The retry's client memoized the same credentials, so drop it too: the
+        // request after the user renews them resolves them again instead of failing once more.
+        dependencies.invalidateClients?.()
+      }
     }
     run().catch((error: unknown) => {
       logger.error('Expired credential retry failed', { error: String(error) })

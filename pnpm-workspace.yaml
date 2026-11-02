@@ -213,10 +213,11 @@ allowBuilds:
 packageExtensions:
   # The pi-ai patch builds Bedrock clients whose default credential chain rereads the shared AWS
   # files (`ignoreCache`), so keys rotated in ~/.aws/credentials apply without a restart (Pi
-  # #11221). The same version the Bedrock client already depends on, so nothing new is installed.
+  # #11221). The same range @aws-sdk/client-bedrock-runtime declares, so both resolve to one copy
+  # (pi-bedrock-rotated-credentials.unit.test.ts checks it).
   "@earendil-works/pi-ai@1.4.0":
     dependencies:
-      "@aws-sdk/credential-provider-node": 3.972.83
+      "@aws-sdk/credential-provider-node": ^3.972.82
 
 patchedDependencies:
   '@earendil-works/pi-ai@1.4.0': patches/@earendil-works__pi-ai@1.4.0.patch

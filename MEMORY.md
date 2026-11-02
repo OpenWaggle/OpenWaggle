@@ -1972,13 +1972,20 @@ command), native `sample`, and a SQL-timing wrapper patched into the built bundl
   per configuration (see Pi Runtime Memory), so without that the retry would reuse the failing
   credential provider. Bedrock emits `start` only after
   `client.send` returns, so a credential failure is always the first event.
-- Static keys rotated in `~/.aws/credentials` (saml2aws, cron) still failed after that retry: the
-  AWS SDK caches the shared files per process (`filePromises` in `@smithy/core/config`), so the
-  new client read the old keys again. The pi-ai patch gives each new client
+- Keys replaced in the shared AWS files (`~/.aws/credentials`, `~/.aws/config`, or the
+  `AWS_SHARED_CREDENTIALS_FILE` / `AWS_CONFIG_FILE` paths) were not picked up until restart: the
+  AWS SDK caches those files per process (`filePromises` in `@smithy/core/config`), so a new
+  client read the old keys again. Two paths: temporary STS keys a login tool rewrites (saml2aws)
+  fail as `ExpiredTokenException` and are retried at once; a long-term IAM key a script rotated
+  and deleted fails as `UnrecognizedClientException`, is not retried, drops the clients, and the
+  next request uses the new key. The pi-ai patch gives each new client
   `credentialDefaultProvider: defaultProvider({ ...init, ignoreCache: true })` (one file read per
   client, not per request); `packageExtensions` in `pnpm-workspace.yaml` adds
-  `@aws-sdk/credential-provider-node` to pi-ai, pinned to the Bedrock client's version. Same
-  approach as the proposed upstream fix for Pi #11221; drop both on the Pi upgrade that has it.
+  `@aws-sdk/credential-provider-node` to pi-ai with the Bedrock client's range, and
+  `pi-bedrock-rotated-credentials.unit.test.ts` checks both resolve to one copy. A retry that
+  also fails as expired drops the clients again, so the request after renewal does not fail
+  once more on the retry's memoized keys. Same approach as the proposed upstream fix for Pi
+  #11221; drop both on the Pi upgrade that has it.
 - The Title model fallback to the Session model already existed; what was missing was memory.
   Automatic chose a Bedrock Haiku the account could not use, so every new Session paid an
   `AccessDeniedException` first. `TitleModelRefusals` (Host-wide, `pi-title-model-refusals.ts`)

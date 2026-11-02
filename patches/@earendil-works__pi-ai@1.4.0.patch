@@ -80,7 +80,7 @@ index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a
  //# sourceMappingURL=bedrock-converse-stream.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c36235c8e 100644
+index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0984ee70d 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
 @@ -1,5 +1,7 @@
@@ -212,7 +212,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
              const response = await client.send(command, { abortSignal: options.signal });
              responseRequestId = normalizeDiagnosticValue(response.$metadata.requestId);
              if (!observedRawResponse && response.$metadata.httpStatusCode !== undefined) {
-@@ -242,9 +270,143 @@ export const stream = (model, context, options = {}) => {
+@@ -242,9 +270,144 @@ export const stream = (model, context, options = {}) => {
              stream.push({ type: "error", reason: output.stopReason, error: output });
              stream.end();
          }
@@ -300,9 +300,10 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
 +            client: new BedrockRuntimeClient({
 +                ...config,
 +                // The SDK caches the shared AWS files for the life of the process, so a new client
-+                // would sign with keys a login tool (saml2aws, a cron job) already replaced in
-+                // ~/.aws/credentials. Each new client reads them again; a cached client keeps its
-+                // credentials until it is dropped after they expire (#11221).
++                // would sign with keys a login tool or script (saml2aws, a key rotation) already
++                // replaced in ~/.aws/credentials. Each new client reads them again; a cached client
++                // keeps its credentials until it is dropped after AWS rejects them as expired or
++                // invalid (#11221).
 +                credentialDefaultProvider: (init) => defaultProvider({ ...init, ignoreCache: true }),
 +                ...(requestHandlerSpec ? { requestHandler: requestHandlerSpec.create() } : {}),
 +            }),
@@ -356,7 +357,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
  /**
   * Human-readable prefixes for Bedrock SDK exception names.
   * The downstream retry logic in agent-session matches patterns like
-@@ -356,7 +518,7 @@ function bedrockUserAgent(identity) {
+@@ -356,7 +519,7 @@ function bedrockUserAgent(identity) {
   * SigV4 / auth headers (`x-amz-*`, `authorization`, `host`) are silently skipped;
   * all other caller headers override any existing same-named header on the request.
   */
@@ -365,7 +366,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
      const middleware = (next) => async (args) => {
          const request = args.request;
          if (request && typeof request === "object" && "headers" in request) {
-@@ -369,7 +531,7 @@ function addCustomHeadersMiddleware(client, headers) {
+@@ -369,7 +532,7 @@ function addCustomHeadersMiddleware(client, headers) {
          }
          return next(args);
      };
@@ -374,7 +375,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
  }
  function isSmithyHttpResponse(response) {
      if (!response || typeof response !== "object")
-@@ -388,7 +550,7 @@ function toProviderResponse(response) {
+@@ -388,7 +551,7 @@ function toProviderResponse(response) {
   * `onResponse`. Capture the raw Smithy HTTP response at the deserialize step,
   * after the SDK receives the response but before the event stream is consumed.
   */
@@ -383,7 +384,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
      const middleware = (next) => async (args) => {
          const result = await next(args);
          const providerResponse = toProviderResponse(result.response);
-@@ -398,7 +560,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
+@@ -398,7 +561,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
          }
          return result;
      };
@@ -392,7 +393,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
  }
  export const streamSimple = (model, context, options) => {
      const base = {
-@@ -473,7 +635,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+@@ -473,7 +636,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
      }
      else if (delta?.toolUse && block?.type === "toolCall") {
          block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
@@ -401,7 +402,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
          stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
      }
      else if (delta?.reasoningContent) {
-@@ -540,6 +702,10 @@ function flushRedactedContent(block) {
+@@ -540,6 +703,10 @@ function flushRedactedContent(block) {
   */
  function finalizeStreamingBlock(block) {
      delete block.index;
@@ -412,7 +413,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
      // partialJson is only a streaming scratch buffer; never persist it.
      delete block.partialJson;
      flushRedactedContent(block);
-@@ -591,15 +757,7 @@ function getModelMatchCandidates(modelId, modelName) {
+@@ -591,15 +758,7 @@ function getModelMatchCandidates(modelId, modelName) {
      });
  }
  function supportsAdaptiveThinking(modelId, modelName) {
@@ -429,7 +430,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
  }
  function supportsNativeXhighEffort(model) {
      const candidates = getModelMatchCandidates(model.id, model.name);
-@@ -715,17 +873,50 @@ function supportsPromptCaching(model, env) {
+@@ -715,17 +874,50 @@ function supportsPromptCaching(model, env) {
  function supportsThinkingSignature(model) {
      return isAnthropicClaudeModel(model);
  }
@@ -488,7 +489,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
  }
  function normalizeToolCallId(id) {
      const sanitized = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-@@ -924,7 +1115,7 @@ function convertMessages(context, model, cacheRetention, env) {
+@@ -924,7 +1116,7 @@ function convertMessages(context, model, cacheRetention, env) {
      }
      return result;
  }
@@ -497,7 +498,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..a4d767be1354762829da6cedebb65c2c
      if (!tools?.length)
          return undefined;
      if (toolChoice === "none")
-@@ -940,6 +1131,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
+@@ -940,6 +1132,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
              },
          };
      });
