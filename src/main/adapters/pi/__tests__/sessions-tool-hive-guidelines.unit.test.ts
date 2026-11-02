@@ -74,3 +74,21 @@ describe('Hive tool next-actor guidance (#380)', () => {
     )
   })
 })
+
+// `queueState: "running"` with `activeRunId: null` read as a stuck Session to an agent; it is a
+// Follow-up queue that is not paused on an idle Session (#351 fixed only the CLI's human output).
+describe('Hive tool status guidance', () => {
+  it('explains status queueState and activeRunId', async () => {
+    const registerTool = vi.fn()
+    await createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const help = JSON.parse(await hiveHelpText(registerTool.mock.calls[0]?.[0], 'status'))
+    expect(help.rules.join('\n')).toMatch(
+      /status queueState running means the Follow-up queue is not paused.*activeRunId null means the Session is idle/,
+    )
+  })
+})
