@@ -89,6 +89,8 @@ async function relayUnlessCredentialsExpired(
 /**
  * The result of an attempt that ended without a `done` or `error` event. `end(result)` settles it
  * before the iteration finishes; a bare `end()` never does, so waiting on it would hang the Run.
+ * The race relies on Pi's `EventStream.result()` returning its stored, already settled promise,
+ * with no extra tick; the "no error event" retry tests fail if a Pi upgrade changes that.
  */
 async function settledResult(attempt: AssistantMessageEventStream) {
   const result = await Promise.race([attempt.result(), Promise.resolve(undefined)])
