@@ -20,14 +20,24 @@ import {
   init,
   linkedErrorsIntegration,
 } from '@sentry/electron/renderer'
-import { errorReportingDataCollection } from '@shared/error-reporting/error-report-constants'
+import {
+  ERROR_REPORT_API_METHOD_TAG,
+  errorReportingDataCollection,
+} from '@shared/error-reporting/error-report-constants'
 import { scrubErrorReportEvent } from '@shared/error-reporting/error-report-scrubbing'
+import { rejectedApiMethodOf } from './ipc'
 
 /**
  * Drops what the renderer must not hand over. The text rules wait for the main process, which
  * knows the home directory and applies them to every renderer report before sending it.
  */
-function scrubbed<Report extends Event>(event: Report, hint: EventHint) {
+function scrubbed<Report extends Event>(event: Report, hint: EventHint): Report {
+  const rejectedMethod = rejectedApiMethodOf(hint.originalException)
+  if (rejectedMethod !== undefined) {
+    // A method name is the bridge's own, so no text rule needs to drop it, and scrubbing keeps
+    // tags: this is how a stackless IPC rejection still says which call failed.
+    event.tags = { ...event.tags, [ERROR_REPORT_API_METHOD_TAG]: rejectedMethod }
+  }
   scrubErrorReportEvent(event, { originalException: hint.originalException, scrubText: false })
   return event
 }

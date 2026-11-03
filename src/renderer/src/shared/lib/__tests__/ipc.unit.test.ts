@@ -52,6 +52,47 @@ describe('ipc', () => {
       expect(fakeApi.getSettings).toHaveBeenCalledTimes(1)
     })
 
+    it('names the API method on a rejected call, and returns the same wrapper per method', async () => {
+      const failure = new Error('connect ECONNREFUSED 127.0.0.1:443')
+      const untagged = new Error('getaddrinfo ENOTFOUND api.example.com')
+      const fakeApi = {
+        getSettings: vi.fn().mockRejectedValue(failure),
+        listSessionProjectPage: vi.fn().mockRejectedValue(untagged),
+        onAgentEvent: vi.fn(() => () => {}),
+      }
+      setWindow({ api: fakeApi })
+
+      const { api, rejectedApiMethodOf } = await import('../ipc')
+
+      // The same error object rejects, now attributable; without the fix it stays untagged.
+      await expect(api.getSettings()).rejects.toBe(failure)
+      expect(rejectedApiMethodOf(failure)).toBe('getSettings')
+      expect(rejectedApiMethodOf(untagged)).toBeUndefined()
+      await expect(api.listSessionProjectPage(50)).rejects.toBe(untagged)
+      expect(rejectedApiMethodOf(untagged)).toBe('listSessionProjectPage')
+      expect(rejectedApiMethodOf('not an object')).toBeUndefined()
+
+      // One wrapper per name, so property access keeps returning one stable function.
+      expect(api.getSettings).toBe(api.getSettings)
+      expect(api.getSettings).not.toBe(api.listSessionProjectPage)
+
+      // A subscription's unsubscribe function is not a promise, so it passes through unwrapped.
+      const unsubscribe = api.onAgentEvent(() => {})
+      expect(() => unsubscribe()).not.toThrow()
+    })
+
+    it('does not rename an error a later call reports again', async () => {
+      const failure = new Error('TypeError: fetch failed')
+      const first = vi.fn().mockRejectedValue(failure)
+      const second = vi.fn().mockRejectedValue(failure)
+      setWindow({ api: { getSettings: first, listSessionProjectPage: second } })
+
+      const { api, rejectedApiMethodOf } = await import('../ipc')
+      await expect(api.getSettings()).rejects.toBe(failure)
+      await expect(api.listSessionProjectPage(50)).rejects.toBe(failure)
+      expect(rejectedApiMethodOf(failure)).toBe('getSettings')
+    })
+
     it('uses fallback behavior for missing methods on a stale preload api', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       setWindow({ api: { getSettings: vi.fn() } })
@@ -96,6 +137,19 @@ describe('ipc', () => {
       expect(typeof unsubscribe).toBe('function')
       // Calling unsubscribe should not throw
       expect(() => unsubscribe()).not.toThrow()
+
+      consoleSpy.mockRestore()
+    })
+
+    it('names the missing method on its rejected promise, for error reports', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { api, rejectedApiMethodOf } = await import('../ipc')
+
+      const failure = await api.getSettings().then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      expect(rejectedApiMethodOf(failure)).toBe('getSettings')
 
       consoleSpy.mockRestore()
     })
