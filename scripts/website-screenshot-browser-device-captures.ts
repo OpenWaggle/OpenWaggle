@@ -1,7 +1,5 @@
 import type { Page } from '@playwright/test'
 import { openPreview, waitForGuest } from './website-screenshot-browser-capture'
-import { BROWSER_THREAD_TITLE } from './website-screenshot-fixture'
-import { type FixtureSite, startFixtureSite } from './website-screenshot-fixture-site'
 import {
   around,
   centerOf,
@@ -12,6 +10,8 @@ import {
   settleForShot,
   writeScreenshot,
 } from './website-screenshot-capture-kit'
+import { BROWSER_THREAD_TITLE } from './website-screenshot-fixture'
+import { type FixtureSite, startFixtureSite } from './website-screenshot-fixture-site'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
 import {
   type CaptureContext,
@@ -19,8 +19,8 @@ import {
   openSession,
   setSessionSummary,
   showRailSurface,
-  waitForUi,
   UI_TIMEOUT_MS,
+  waitForUi,
 } from './website-screenshot-ui'
 
 /** iPhone SE fits the panel at full size, so the guest is not scaled down to fit. */
@@ -29,8 +29,7 @@ const PHONE_WIDTH_PX = 375
 const PHONE_HEIGHT_PX = 667
 const GUEST_RESIZE_TIMEOUT_MS = 30_000
 const GUEST_POLL_MS = 100
-const ANNOTATION_COMMENT =
-  'The third card is cut off on phones. Stack the stats in one column.'
+const ANNOTATION_COMMENT = 'The third card is cut off on phones. Stack the stats in one column.'
 const ANNOTATED_MESSAGE = 'Fix this on phone widths and keep the cards readable.'
 
 type PreviewGuest = Awaited<ReturnType<typeof waitForGuest>>
@@ -136,14 +135,12 @@ async function annotateStatsRow(context: CaptureContext, site: FixtureSite) {
     .locator('html[data-openwaggle-annotation-tool]')
     .waitFor({ state: 'attached', timeout: UI_TIMEOUT_MS })
   // The gap between two stat cards belongs to their row, so the click selects `section.stats`.
-  const cards = await guest.page
-    .locator('.stat')
-    .evaluateAll((elements) =>
-      elements.map((element) => {
-        const { left, right, top, bottom } = element.getBoundingClientRect()
-        return { left, right, top, bottom }
-      }),
-    )
+  const cards = await guest.page.locator('.stat').evaluateAll((elements) =>
+    elements.map((element) => {
+      const { left, right, top, bottom } = element.getBoundingClientRect()
+      return { left, right, top, bottom }
+    }),
+  )
   const [first, second] = cards
   if (!first || !second) throw new Error('The fixture dashboard has no stat cards.')
   const gap = centerOf({

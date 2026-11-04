@@ -1,15 +1,15 @@
-import { THREAD_TITLE } from './website-screenshot-fixture'
 import { shootWindow } from './website-screenshot-capture-kit'
+import { THREAD_TITLE } from './website-screenshot-fixture'
 import {
   type CaptureContext,
   closeRightPanel,
+  GIT_READY_TIMEOUT_MS,
   openSession,
   setSessionSummary,
   showRailSurface,
-  GIT_READY_TIMEOUT_MS,
+  UI_TIMEOUT_MS,
   waitForGitStatus,
   waitForUi,
-  UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
 
 async function openThread(context: CaptureContext) {

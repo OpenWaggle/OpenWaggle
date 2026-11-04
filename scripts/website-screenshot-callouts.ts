@@ -123,4 +123,3 @@ export async function drawCallouts(image: Buffer, clip: Region, callouts: readon
     .png()
     .toBuffer()
 }
-

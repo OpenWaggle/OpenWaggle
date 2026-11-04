@@ -101,5 +101,9 @@ export async function writeMcpFixture(homeDir: string) {
   }
   const openWaggleDir = path.join(homeDir, '.openwaggle')
   await fs.mkdir(openWaggleDir, { recursive: true })
-  await fs.writeFile(path.join(openWaggleDir, 'mcp.json'), `${JSON.stringify(config, null, JSON_INDENT)}\n`, 'utf8')
+  await fs.writeFile(
+    path.join(openWaggleDir, 'mcp.json'),
+    `${JSON.stringify(config, null, JSON_INDENT)}\n`,
+    'utf8',
+  )
 }

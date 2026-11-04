@@ -4,14 +4,20 @@
  * `pnpm website:schemas` writes them and `published-json-schemas.unit.test.ts` fails when a
  * committed file drifts from what this module generates.
  */
-import { PROJECT_ACTIONS_SCHEMA_FILE, projectActionsJsonSchema } from './published-json-schemas-actions'
+import {
+  PROJECT_ACTIONS_SCHEMA_FILE,
+  projectActionsJsonSchema,
+} from './published-json-schemas-actions'
 import type { JsonSchemaNode } from './published-json-schemas-effect'
 import { MCP_SCHEMA_FILE, mcpConfigJsonSchema } from './published-json-schemas-mcp'
 import {
   PROJECT_SETTINGS_SCHEMA_FILE,
   projectSettingsJsonSchema,
 } from './published-json-schemas-settings'
-import { WAGGLE_PRESETS_SCHEMA_FILE, wagglePresetsJsonSchema } from './published-json-schemas-waggle'
+import {
+  WAGGLE_PRESETS_SCHEMA_FILE,
+  wagglePresetsJsonSchema,
+} from './published-json-schemas-waggle'
 
 interface PublishedJsonSchema {
   /** File name under `website/public/schemas/`. */

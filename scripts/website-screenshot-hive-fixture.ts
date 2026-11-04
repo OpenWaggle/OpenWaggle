@@ -1,4 +1,4 @@
-import { seedHive, type SeedHiveWorkerInput } from './support/session-fixtures'
+import { type SeedHiveWorkerInput, seedHive } from './support/session-fixtures'
 import type { ScreenshotProject } from './website-screenshot-project'
 
 export const HIVE_QUEEN_TITLE = 'Prepare the 1.0 release'
@@ -82,7 +82,8 @@ function buildQueenMessages(now: number, project: ScreenshotProject) {
             id: 'website-hive-search',
             name: 'web_search',
             args: { query: 'Electron 43 release notes' },
-            result: 'Electron 43.0.0 release notes: https://releases.electronjs.org/release/v43.0.0',
+            result:
+              'Electron 43.0.0 release notes: https://releases.electronjs.org/release/v43.0.0',
             isError: false,
             duration: WEB_SEARCH_DURATION_MS,
           },

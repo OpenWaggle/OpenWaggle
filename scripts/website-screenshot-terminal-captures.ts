@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Page } from '@playwright/test'
-import { THREAD_TITLE } from './website-screenshot-fixture'
 import {
   CROP_MARGIN_PX,
   centerOf,
@@ -10,7 +9,8 @@ import {
   shootRegion,
   unionRegion,
 } from './website-screenshot-capture-kit'
-import { type CaptureContext, openSession, waitForUi, UI_TIMEOUT_MS } from './website-screenshot-ui'
+import { THREAD_TITLE } from './website-screenshot-fixture'
+import { type CaptureContext, openSession, UI_TIMEOUT_MS, waitForUi } from './website-screenshot-ui'
 
 const SHELL_OUTPUT_TIMEOUT_MS = 60_000
 const TERMINAL_PANEL_HEIGHT_PX = 420
@@ -63,7 +63,11 @@ async function writeShellFixture(context: CaptureContext) {
   const projectPath = settings.projectPath
   if (projectPath === null) throw new Error('The screenshot project is not open.')
   await fs.mkdir(path.join(projectPath, 'tests'), { recursive: true })
-  await fs.writeFile(path.join(projectPath, 'tests', 'release-notes.test.mjs'), RELEASE_NOTES_TEST, 'utf8')
+  await fs.writeFile(
+    path.join(projectPath, 'tests', 'release-notes.test.mjs'),
+    RELEASE_NOTES_TEST,
+    'utf8',
+  )
 }
 
 /** Removes the fixture tests, so later captures show only the README edit in Git status. */
@@ -169,10 +173,12 @@ export async function captureTerminalSplitPanes(context: CaptureContext) {
   const panel = await regionOf(await terminalPanel(page))
   const clip = panel
   const tabList = page.getByRole('tablist', { name: 'Terminal tabs' })
-  const tabs = unionRegion(await Promise.all((await tabList.getByRole('tab').all()).map((tab) => regionOf(tab))),
+  const tabs = unionRegion(
+    await Promise.all((await tabList.getByRole('tab').all()).map((tab) => regionOf(tab))),
     { x: 0, y: 0 },
   )
-  const controls = unionRegion(await Promise.all(
+  const controls = unionRegion(
+    await Promise.all(
       ['New terminal', 'Split terminal side by side', 'Split terminal vertically'].map((name) =>
         regionOf(page.getByRole('button', { name, exact: true })),
       ),
@@ -235,7 +241,8 @@ export async function captureTerminalAddToChat(context: CaptureContext) {
   // The pane's header row ("Pane 2 · Shell") and its rows down to below the menu.
   const header = await regionOf(page.getByText(/^Pane 2/).first())
   // It ends on a row's lower edge, so no line of output is cut in half.
-  const rowsAround = unionRegion([header, await regionOf(rows.nth(MENU_CROP_LAST_ROW)), await regionOf(menu)],
+  const rowsAround = unionRegion(
+    [header, await regionOf(rows.nth(MENU_CROP_LAST_ROW)), await regionOf(menu)],
     { x: MENU_CROP_MARGIN_PX, y: 0 },
   )
   const clip = {
@@ -262,11 +269,7 @@ export async function captureTerminalContextChip(context: CaptureContext) {
     await page.keyboard.type(CHAT_QUESTION)
   }
   const composer = await regionOf(page.locator('section[aria-label="Composer file drop zone"]'))
-  await shootRegion(
-    context,
-    'terminal-context-chip.png',
-    unionRegion([composer], CROP_MARGIN_PX),
-  )
+  await shootRegion(context, 'terminal-context-chip.png', unionRegion([composer], CROP_MARGIN_PX))
   await page.locator('header').getByRole('button', { name: 'Hide terminal' }).click()
   await removeTestFixture(context)
   await waitForUi(page)

@@ -24,7 +24,6 @@ const COMPACTION_ANSWER_MINUTES_AGO = 2
 const WORKTREE_PROMPT_MINUTES_AGO = 22
 const WORKTREE_ANSWER_MINUTES_AGO = 20
 
-
 const COMPACTION_NODE_ID = 'website-compaction-summary-1'
 
 /**

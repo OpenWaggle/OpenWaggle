@@ -67,7 +67,9 @@ export function selectedScreenshots(argv: readonly string[]): readonly WebsiteSc
   if (flagIndex < 0) return WEBSITE_SCREENSHOTS
   const names = (argv[flagIndex + 1] ?? '').split(',').filter((name) => name.length > 0)
   const selected = WEBSITE_SCREENSHOTS.filter((file) => names.includes(file.replace(/\.png$/, '')))
-  const unknown = names.filter((name) => !WEBSITE_SCREENSHOTS.some((file) => file === `${name}.png`))
+  const unknown = names.filter(
+    (name) => !WEBSITE_SCREENSHOTS.some((file) => file === `${name}.png`),
+  )
   if (unknown.length > 0 || selected.length === 0) {
     throw new Error(
       `Unknown screenshot for --only: ${unknown.join(', ') || '(none)'}. Known: ${WEBSITE_SCREENSHOTS.join(', ')}`,

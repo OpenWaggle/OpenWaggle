@@ -44,7 +44,10 @@ async function openFeatureSession(context: CaptureContext, title: string) {
   await leaveSettings(page)
   if (await context.seedFeatureSessionsOnce()) {
     await page.reload()
-    await page.getByRole('button', { name: 'New session' }).first().waitFor({ timeout: UI_TIMEOUT_MS })
+    await page
+      .getByRole('button', { name: 'New session' })
+      .first()
+      .waitFor({ timeout: UI_TIMEOUT_MS })
   }
   await openSession(page, title)
 }
@@ -58,12 +61,17 @@ export async function captureAllPanels(context: CaptureContext) {
   await withWindowSize(context, ALL_PANELS_WINDOW, async () => {
     await showRailSurface(page, 'All panels')
     const panel = await regionOf(page.getByRole('region', { name: 'All panels' }))
-    await shootRegion(context, 'right-panel-all-panels.png', {
-      x: panel.x,
-      y: 0,
-      width: ALL_PANELS_WINDOW.width - panel.x,
-      height: ALL_PANELS_WINDOW.height,
-    }, { hideScrollbars: true })
+    await shootRegion(
+      context,
+      'right-panel-all-panels.png',
+      {
+        x: panel.x,
+        y: 0,
+        width: ALL_PANELS_WINDOW.width - panel.x,
+        height: ALL_PANELS_WINDOW.height,
+      },
+      { hideScrollbars: true },
+    )
   })
   await closeRightPanel(page)
 }
@@ -78,9 +86,15 @@ export async function captureCodemodeCard(context: CaptureContext) {
   await expandTurn.click({ timeout: UI_TIMEOUT_MS })
   const card = page.getByRole('button', { name: /^Ran a script/ }).first()
   await card.click({ timeout: UI_TIMEOUT_MS })
-  await page.getByRole('region', { name: 'Script output' }).or(page.getByLabel('Script output')).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  await page
+    .getByRole('region', { name: 'Script output' })
+    .or(page.getByLabel('Script output'))
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
   const cardRoot = card.locator('xpath=..')
-  await shootRegion(context, 'codemode-script-card.png', around(await regionOf(cardRoot)), { hideScrollbars: true })
+  await shootRegion(context, 'codemode-script-card.png', around(await regionOf(cardRoot)), {
+    hideScrollbars: true,
+  })
 }
 
 /** The Context compacted marker between the messages before and after a manual compaction. */
@@ -96,12 +110,17 @@ export async function captureCompactionMarker(context: CaptureContext) {
   const lastReply = await regionOf(page.getByText('passes: 14 tests', { exact: false }).first())
   const column = await regionOf(page.locator('[data-compaction-timeline-state]').first())
   const left = column.x - CROP_MARGIN_PX
-  await shootRegion(context, 'context-compacted.png', {
-    x: left,
-    y: firstReply.y - tight,
-    width: Math.min(transcript.x + transcript.width, left + COMPACTION_CROP_MAX_WIDTH_PX) - left,
-    height: lastReply.y + lastReply.height + tight - (firstReply.y - tight),
-  }, { hideScrollbars: true })
+  await shootRegion(
+    context,
+    'context-compacted.png',
+    {
+      x: left,
+      y: firstReply.y - tight,
+      width: Math.min(transcript.x + transcript.width, left + COMPACTION_CROP_MAX_WIDTH_PX) - left,
+      height: lastReply.y + lastReply.height + tight - (firstReply.y - tight),
+    },
+    { hideScrollbars: true },
+  )
 }
 
 /** The missing-worktree notice above the message box, with its two recovery actions. */
@@ -110,35 +129,58 @@ export async function captureMissingWorktree(context: CaptureContext) {
   await openFeatureSession(context, MISSING_WORKTREE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
-  const notice = await regionOf(page.getByRole('button', { name: 'Recreate worktree' }).locator('xpath=../..'))
+  const notice = await regionOf(
+    page.getByRole('button', { name: 'Recreate worktree' }).locator('xpath=../..'),
+  )
   const composer = await regionOf(page.getByRole('region', { name: 'Composer file drop zone' }))
   const top = notice.y - CROP_MARGIN_PX
   const left = Math.min(notice.x, composer.x) - CROP_MARGIN_PX
   const right = Math.max(notice.x + notice.width, composer.x + composer.width) + CROP_MARGIN_PX
-  await shootRegion(context, 'missing-worktree.png', {
-    x: left,
-    y: top,
-    width: right - left,
-    height: composer.y + composer.height + CROP_MARGIN_PX - top,
-  }, { hideScrollbars: true })
+  await shootRegion(
+    context,
+    'missing-worktree.png',
+    {
+      x: left,
+      y: top,
+      width: right - left,
+      height: composer.y + composer.height + CROP_MARGIN_PX - top,
+    },
+    { hideScrollbars: true },
+  )
 }
 
 /** Settings > Skills with a project skill selected. */
 export async function captureSettingsSkills(context: CaptureContext) {
   const { page } = context
   await openSettingsSection(page, 'Skills')
-  await page.getByRole('button', { name: /review-change/ }).first().click({ timeout: UI_TIMEOUT_MS })
-  await page.getByText('Read the diff and the affected callers', { exact: false }).first().waitFor({ timeout: UI_TIMEOUT_MS })
-  await withWindowSize(context, SETTINGS_WINDOW, () => shootSettingsContent(context, 'settings-skills.png', SKILLS_CROP_BOTTOM_PX))
+  await page
+    .getByRole('button', { name: /review-change/ })
+    .first()
+    .click({ timeout: UI_TIMEOUT_MS })
+  await page
+    .getByText('Read the diff and the affected callers', { exact: false })
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
+  await withWindowSize(context, SETTINGS_WINDOW, () =>
+    shootSettingsContent(context, 'settings-skills.png', SKILLS_CROP_BOTTOM_PX),
+  )
 }
 
 /** Settings > Agents with a project agent definition selected. */
 export async function captureSettingsAgents(context: CaptureContext) {
   const { page } = context
   await openSettingsSection(page, 'Agents')
-  await page.getByRole('button', { name: /release-verifier/ }).first().click({ timeout: UI_TIMEOUT_MS })
-  await page.getByText('Work through the release checklist', { exact: false }).first().waitFor({ timeout: UI_TIMEOUT_MS })
-  await withWindowSize(context, SETTINGS_WINDOW, () => shootSettingsContent(context, 'settings-agents.png', AGENTS_CROP_BOTTOM_PX))
+  await page
+    .getByRole('button', { name: /release-verifier/ })
+    .first()
+    .click({ timeout: UI_TIMEOUT_MS })
+  await page
+    .getByText('Work through the release checklist', { exact: false })
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
+  await withWindowSize(context, SETTINGS_WINDOW, () =>
+    shootSettingsContent(context, 'settings-agents.png', AGENTS_CROP_BOTTOM_PX),
+  )
 }
 
 /** Settings > Permissions: the default access mode, the project override and saved approvals. */
@@ -147,7 +189,11 @@ export async function captureSettingsPermissions(context: CaptureContext) {
   await openSettingsSection(page, 'Permissions')
   await withWindowSize(context, NARROW_SETTINGS_WINDOW, async () => {
     const emptyState = await regionOf(page.getByText(/no saved approvals/i).first())
-    await shootSettingsContent(context, 'settings-permissions.png', emptyState.y + emptyState.height + THRICE * CROP_MARGIN_PX)
+    await shootSettingsContent(
+      context,
+      'settings-permissions.png',
+      emptyState.y + emptyState.height + THRICE * CROP_MARGIN_PX,
+    )
   })
 }
 
@@ -155,7 +201,10 @@ export async function captureSettingsPermissions(context: CaptureContext) {
 export async function captureSettingsShortcuts(context: CaptureContext) {
   const { page } = context
   await openSettingsSection(page, 'Shortcuts')
-  await page.getByRole('heading', { name: 'Keyboard shortcuts' }).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  await page
+    .getByRole('heading', { name: 'Keyboard shortcuts' })
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
   await withWindowSize(context, SETTINGS_WINDOW, async () => {
     // End below a whole row rather than halfway through the next one.
     const row = await regionOf(page.getByText('Inspect branches and session history').first())

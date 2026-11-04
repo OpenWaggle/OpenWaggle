@@ -1,34 +1,14 @@
-import {
-  captureCodingAgent,
-  captureGitWorkflow,
-  captureSessionTree,
-} from './website-screenshot-conversation-captures'
 import { captureBrowserPreview } from './website-screenshot-browser-capture'
-import {
-  captureAllPanels,
-  captureCodemodeCard,
-  captureCompactionMarker,
-  captureMissingWorktree,
-  captureSettingsAgents,
-  captureSettingsPermissions,
-  captureSettingsShortcuts,
-  captureSettingsSkills,
-} from './website-screenshot-feature-captures'
-import {
-  captureContextMeter,
-  captureWaggleConversation,
-  captureWaggleSettings,
-} from './website-screenshot-waggle-captures'
 import {
   captureBrowserAnnotation,
   captureBrowserAnnotationChip,
   captureBrowserDeviceToolbar,
 } from './website-screenshot-browser-device-captures'
 import {
-  captureExtensionReview,
-  captureExtensionSettingsSection,
-  captureExtensionSurfaces,
-} from './website-screenshot-extension-captures'
+  captureCodingAgent,
+  captureGitWorkflow,
+  captureSessionTree,
+} from './website-screenshot-conversation-captures'
 import {
   captureApprovalRequest,
   captureCommandPalette,
@@ -52,6 +32,21 @@ import {
   captureProjectActionsPanel,
 } from './website-screenshot-essentials-workspace-captures'
 import {
+  captureExtensionReview,
+  captureExtensionSettingsSection,
+  captureExtensionSurfaces,
+} from './website-screenshot-extension-captures'
+import {
+  captureAllPanels,
+  captureCodemodeCard,
+  captureCompactionMarker,
+  captureMissingWorktree,
+  captureSettingsAgents,
+  captureSettingsPermissions,
+  captureSettingsShortcuts,
+  captureSettingsSkills,
+} from './website-screenshot-feature-captures'
+import {
   captureHiveNextActor,
   captureHiveTree,
   captureScheduledTasks,
@@ -59,6 +54,7 @@ import {
   captureSessionSummary,
   captureSettingsWorktrees,
 } from './website-screenshot-hive-captures'
+import type { WebsiteScreenshot } from './website-screenshot-manifest'
 import {
   captureMcpServerDetail,
   captureMcpServerError,
@@ -69,11 +65,17 @@ import {
   captureTerminalContextChip,
   captureTerminalSplitPanes,
 } from './website-screenshot-terminal-captures'
-import type { WebsiteScreenshot } from './website-screenshot-manifest'
 import type { CaptureContext } from './website-screenshot-ui'
+import {
+  captureContextMeter,
+  captureWaggleConversation,
+  captureWaggleSettings,
+} from './website-screenshot-waggle-captures'
 
 /** Every website image and the capture that makes it; the manifest's order is the run order. */
-export const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => Promise<void>>> = {
+export const CAPTURES: Readonly<
+  Record<WebsiteScreenshot, (context: CaptureContext) => Promise<void>>
+> = {
   'hive-sessions.png': captureHiveTree,
   'hive-next-actor.png': captureHiveNextActor,
   'session-summary.png': captureSessionSummary,

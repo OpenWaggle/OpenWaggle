@@ -1,7 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
-import { compositeGuestImage, settleForShot, writeScreenshot } from './website-screenshot-capture-kit'
+import {
+  compositeGuestImage,
+  settleForShot,
+  writeScreenshot,
+} from './website-screenshot-capture-kit'
 import { BROWSER_THREAD_TITLE } from './website-screenshot-fixture'
 import { startFixtureSite } from './website-screenshot-fixture-site'
 import {

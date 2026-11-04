@@ -27,7 +27,9 @@ function projectSettingsForJsonSchema() {
 }
 
 const SETTINGS_OVERLAY: JsonSchemaOverlay = {
-  '/properties/preferences': { description: 'Project preferences OpenWaggle writes from Settings.' },
+  '/properties/preferences': {
+    description: 'Project preferences OpenWaggle writes from Settings.',
+  },
   '/properties/preferences/properties/model': {
     deprecated: true,
     description:

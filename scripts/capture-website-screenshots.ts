@@ -2,31 +2,35 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, expect, type Page } from '@playwright/test'
 import { stopElectronQaSessionHost } from './electron-qa-shutdown'
 import { launchOpenWaggleElectron } from './playwright-electron-launcher'
-import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
-import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
-import { featureSessionSeeder } from './website-screenshot-feature-sessions'
+import { CAPTURES } from './website-screenshot-captures'
 import { MODEL_SCENARIOS } from './website-screenshot-essentials-scenarios'
 import { settleEssentials } from './website-screenshot-essentials-setup'
+import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
+import { featureSessionSeeder } from './website-screenshot-feature-sessions'
 import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
 } from './website-screenshot-fixture'
 import { seedHiveExample } from './website-screenshot-hive-fixture'
-import { publishScreenshots, selectedScreenshots, type WebsiteScreenshot } from './website-screenshot-manifest'
+import {
+  publishScreenshots,
+  selectedScreenshots,
+  type WebsiteScreenshot,
+} from './website-screenshot-manifest'
+import { startFixtureModelServer } from './website-screenshot-model-server'
+import { writeFixturePiAgent } from './website-screenshot-pi-agent'
 import {
   createScreenshotProject,
   SCREENSHOT_WORKTREE_IDS,
   type ScreenshotProject,
 } from './website-screenshot-project'
-import { startFixtureModelServer } from './website-screenshot-model-server'
-import { writeFixturePiAgent } from './website-screenshot-pi-agent'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
-import { CAPTURES } from './website-screenshot-captures'
 import { type CaptureContext, recordFailureEvidence, WINDOW_SIZE } from './website-screenshot-ui'
+import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
@@ -51,12 +55,9 @@ async function launchApp(profile: ScratchProfile, projectPath: string) {
     hidden: true,
   })
   const page = await app.firstWindow()
-  await app.evaluate(
-    async ({ BrowserWindow }, { width, height }) => {
-      BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
-    },
-    WINDOW_SIZE,
-  )
+  await app.evaluate(async ({ BrowserWindow }, { width, height }) => {
+    BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
+  }, WINDOW_SIZE)
   await expect(page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
   const runtime = await page.evaluate(() => ({
     hasApi: typeof window.api.getSessionDetail === 'function',

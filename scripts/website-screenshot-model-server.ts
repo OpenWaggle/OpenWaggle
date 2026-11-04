@@ -117,7 +117,8 @@ export function parseAnthropicRequest(body: unknown): ModelRequest {
     model: modelOf(body),
     system: isRecord(body) ? textOf(body.system) : '',
     messages: bodyMessages(body).flatMap((message): ModelMessage[] => {
-      if (message.role === 'assistant') return [{ role: 'assistant', text: textOf(message.content) }]
+      if (message.role === 'assistant')
+        return [{ role: 'assistant', text: textOf(message.content) }]
       if (message.role !== 'user') return []
       const parts = partsOf(message.content)
       const toolTurn = parts.length > 0 && parts.every(isToolResult)

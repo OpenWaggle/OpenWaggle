@@ -20,9 +20,9 @@ import {
   fencedBlocks,
   mcpFileErrorsAtRuntime,
   publishedSchemaErrors,
+  REPOSITORY_ROOT,
   readActionsFileAtRuntime,
   readSettingsFileAtRuntime,
-  REPOSITORY_ROOT,
   readWagglePresetsFileAtRuntime,
   record,
   removeScratchDirectories,
@@ -164,10 +164,7 @@ const scheduledTasksExport: ExampleKind = {
   check: async (value) => {
     const filePath = path.join(scratchDirectory('ow-schedules-example-'), 'tasks.json')
     writeFileSync(filePath, JSON.stringify(value))
-    const commands = await buildSchedulesCliCommands(
-      'import',
-      parseMcpCliArguments([filePath]),
-    )
+    const commands = await buildSchedulesCliCommands('import', parseMcpCliArguments([filePath]))
     const inputs = commands.map((command) => {
       if (command.operation !== 'create') throw new Error('import must only create tasks.')
       return command.input
@@ -183,9 +180,7 @@ const scheduledTasksExport: ExampleKind = {
       }),
     )
     expect(
-      exportedTasks(
-        fromPartial<ScheduledTasksResponse>({ outcome: { effect: 'listed', tasks } }),
-      ),
+      exportedTasks(fromPartial<ScheduledTasksResponse>({ outcome: { effect: 'listed', tasks } })),
     ).toEqual(value)
   },
 }
@@ -268,7 +263,9 @@ describe('published schema URLs in the docs', () => {
     const named = new Set<string>()
     for (const page of pages) {
       const markdown = await readFile(path.join(docsRoot, page), 'utf8')
-      for (const match of markdown.matchAll(/https:\/\/openwaggle\.ai\/schemas\/([\w.-]+\.json)/gu)) {
+      for (const match of markdown.matchAll(
+        /https:\/\/openwaggle\.ai\/schemas\/([\w.-]+\.json)/gu,
+      )) {
         named.add(match[1] ?? '')
       }
     }

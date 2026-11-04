@@ -1,16 +1,21 @@
 import type { Page } from '@playwright/test'
-import { CROP_MARGIN_PX, regionOf, shootRegion, unionRegion } from './website-screenshot-capture-kit'
+import {
+  CROP_MARGIN_PX,
+  regionOf,
+  shootRegion,
+  unionRegion,
+} from './website-screenshot-capture-kit'
 import { TOOL_ROWS_SESSION_TITLE } from './website-screenshot-essentials-fixture'
 import { prepareEssentials } from './website-screenshot-essentials-setup'
 import {
   type CaptureContext,
-  GIT_READY_TIMEOUT_MS,
   closeRightPanel,
+  GIT_READY_TIMEOUT_MS,
   openSession,
   showRailSurface,
+  UI_TIMEOUT_MS,
   waitForGitStatus,
   waitForUi,
-  UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
 
 /** The fixture change's added lines a review comment covers, and a second comment's line. */

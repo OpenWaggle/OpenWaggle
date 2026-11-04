@@ -117,7 +117,9 @@ export async function streamOpenAiReply(
   if (reply.kind === 'tools') {
     reply.calls.forEach((call, index) => {
       const fn = { name: call.name, arguments: JSON.stringify(call.arguments) }
-      send(chunk({ tool_calls: [{ index, id: toolCallId(index), type: 'function', function: fn }] }))
+      send(
+        chunk({ tool_calls: [{ index, id: toolCallId(index), type: 'function', function: fn }] }),
+      )
     })
   }
   const finish = () => {

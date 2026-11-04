@@ -32,7 +32,8 @@ const secretReference = {
     secret: {
       type: 'string',
       minLength: 1,
-      description: 'Name of a secret saved in Settings > MCP > Secrets. It replaces the whole value.',
+      description:
+        'Name of a secret saved in Settings > MCP > Secrets. It replaces the whole value.',
     },
   },
   additionalProperties: false,
@@ -74,7 +75,8 @@ const baseProperties = {
 
 const stdioServer = {
   type: 'object',
-  description: 'A local server OpenWaggle starts as a program. The command is not run through a shell.',
+  description:
+    'A local server OpenWaggle starts as a program. The command is not run through a shell.',
   required: ['command'],
   properties: {
     type: { const: 'stdio' },
@@ -157,7 +159,10 @@ const remoteServer = {
   additionalProperties: false,
   allOf: [
     {
-      if: { required: ['type'], properties: { type: { enum: ['http', 'streamable-http', 'sse'] } } },
+      if: {
+        required: ['type'],
+        properties: { type: { enum: ['http', 'streamable-http', 'sse'] } },
+      },
       then: { properties: { url: { pattern: '^https?://' } } },
     },
     {
@@ -171,9 +176,7 @@ const overrideEntry = {
   type: 'object',
   description:
     'Changes a server an earlier file defines, such as a global server in one project, and keeps the rest of it.',
-  properties: Object.fromEntries(
-    MCP_OVERRIDE_KEYS.map((key) => [key, baseProperties[key]]),
-  ),
+  properties: Object.fromEntries(MCP_OVERRIDE_KEYS.map((key) => [key, baseProperties[key]])),
   additionalProperties: false,
 }
 
@@ -193,8 +196,7 @@ export function mcpConfigJsonSchema(): JsonSchemaNode {
         $schema: { type: 'string', description: 'The JSON Schema for this file.' },
         mcpServers: {
           type: 'object',
-          description:
-            'Servers by name. Names that differ only in - and _ count as the same name.',
+          description: 'Servers by name. Names that differ only in - and _ count as the same name.',
           propertyNames: { pattern: MCP_SERVER_NAME.source },
           additionalProperties: { $ref: '#/$defs/server' },
         },
@@ -204,7 +206,13 @@ export function mcpConfigJsonSchema(): JsonSchemaNode {
         },
       },
       $defs: {
-        server: { anyOf: [{ $ref: '#/$defs/stdio' }, { $ref: '#/$defs/remote' }, { $ref: '#/$defs/override' }] },
+        server: {
+          anyOf: [
+            { $ref: '#/$defs/stdio' },
+            { $ref: '#/$defs/remote' },
+            { $ref: '#/$defs/override' },
+          ],
+        },
         stdio: stdioServer,
         remote: remoteServer,
         override: overrideEntry,

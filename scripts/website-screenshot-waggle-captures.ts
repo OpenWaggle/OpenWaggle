@@ -55,7 +55,10 @@ async function editWagglePreset(page: Page) {
   await leaveSettings(page)
   await enableWaggleModels(page)
   await page.reload()
-  await page.getByRole('button', { name: 'Settings', exact: true }).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  await page
+    .getByRole('button', { name: 'Settings', exact: true })
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
   await openSettingsSection(page, 'Waggle Mode')
   await page.getByRole('button', { name: new RegExp(`^${WAGGLE_PRESET_NAME} Sequential`) }).click()
   const modelButtons = page.getByRole('button', { name: 'Claude Opus 4.6' })
@@ -113,7 +116,7 @@ const WAGGLE_TURNS: Readonly<Record<number, string>> = {
     '- `upload()` not retrying is deliberate: a retried upload can create a duplicate.',
     '- The timer leak is real, and `client.test.ts` has no test for it.',
     '',
-    "Add `ApiError`, but keep uploads out of automatic retries.",
+    'Add `ApiError`, but keep uploads out of automatic retries.',
   ].join('\n'),
   3: [
     'That is a fair correction on uploads. Revised plan:',
@@ -172,8 +175,15 @@ async function ensureHeldWaggleRun(context: CaptureContext) {
   await page
     .getByText(new RegExp(`Turn ${String(HELD_WAGGLE_TURN)}/\\d+: Architect`))
     .waitFor({ timeout: RUN_TIMEOUT_MS })
-  await page.locator('header').getByText(WAGGLE_THREAD_TITLE).first().waitFor({ timeout: RUN_TIMEOUT_MS })
-  await page.getByText('That is a fair correction on uploads').first().waitFor({ timeout: RUN_TIMEOUT_MS })
+  await page
+    .locator('header')
+    .getByText(WAGGLE_THREAD_TITLE)
+    .first()
+    .waitFor({ timeout: RUN_TIMEOUT_MS })
+  await page
+    .getByText('That is a fair correction on uploads')
+    .first()
+    .waitFor({ timeout: RUN_TIMEOUT_MS })
   waggleRunHeld = true
 }
 
@@ -197,9 +207,14 @@ export async function captureContextMeter(context: CaptureContext) {
   await ensureHeldWaggleRun(context)
   // Let the held turn finish, so the Run ends normally and the meter reads its final usage.
   context.model.release(WAGGLE_PROMPT)
-  await page.getByTitle('Stop & dismiss Waggle').waitFor({ state: 'hidden', timeout: RUN_TIMEOUT_MS })
+  await page
+    .getByTitle('Stop & dismiss Waggle')
+    .waitFor({ state: 'hidden', timeout: RUN_TIMEOUT_MS })
   waggleRunHeld = false
-  const meter = page.getByRole('img', { name: 'Context usage meter' }).locator('visible=true').first()
+  const meter = page
+    .getByRole('img', { name: 'Context usage meter' })
+    .locator('visible=true')
+    .first()
   await page.getByRole('button', { name: 'Send message' }).waitFor({ timeout: RUN_TIMEOUT_MS })
   // The ring shows the percentage once the Run's usage snapshot arrives.
   await expect(meter.locator('xpath=..')).toHaveText(/[1-9]\d*$/, { timeout: RUN_TIMEOUT_MS })

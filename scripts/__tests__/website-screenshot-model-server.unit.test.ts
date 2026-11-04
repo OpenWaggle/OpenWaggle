@@ -65,7 +65,9 @@ describe('scriptedReply over Chat Completions', () => {
     const assistant = { role: 'assistant', content: 'x' }
     const reply = scriptedReply(
       SCENARIOS,
-      parseOpenAiRequest({ messages: [user('Open the notes page'), assistant, assistant, assistant] }),
+      parseOpenAiRequest({
+        messages: [user('Open the notes page'), assistant, assistant, assistant],
+      }),
     )
     expect(reply).toEqual({ kind: 'text', text: 'The preview is open.' })
   })
@@ -88,7 +90,9 @@ describe('scriptedReply over Anthropic Messages', () => {
         messages: [user([{ type: 'text', text: 'Review the client please' }])],
       }),
     )
-    expect(reply).toMatchObject({ text: JSON.stringify({ title: 'Review client errors', needsRefinement: false }) })
+    expect(reply).toMatchObject({
+      text: JSON.stringify({ title: 'Review client errors', needsRefinement: false }),
+    })
   })
 
   it('counts a tool-result message as a tool turn, not as the user', () => {
@@ -160,7 +164,10 @@ describe('startFixtureModelServer', () => {
 
   it('refuses paths it does not serve, such as the Responses API', async () => {
     server = await startFixtureModelServer(SCENARIOS)
-    const response = await fetch(`${server.openAiBaseUrl}/responses`, { method: 'POST', body: '{}' })
+    const response = await fetch(`${server.openAiBaseUrl}/responses`, {
+      method: 'POST',
+      body: '{}',
+    })
     expect(response.status).toBe(404)
   })
 })

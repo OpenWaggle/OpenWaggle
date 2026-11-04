@@ -54,7 +54,8 @@ const WAGGLE_OVERLAY: JsonSchemaOverlay = {
   ...agentSlotOverlay(0),
   ...agentSlotOverlay(1),
   [`${PRESET}/properties/config/properties/stop/properties/primary`]: {
-    description: 'consensus: stop when the agents agree (Consensus). user-stop: run until you stop it (Manual).',
+    description:
+      'consensus: stop when the agents agree (Consensus). user-stop: run until you stop it (Manual).',
   },
   [`${PRESET}/properties/config/properties/stop/properties/maxTurnsSafety`]: {
     description: 'Turn limit, a safety cap in either mode. The Settings slider offers 4 to 20.',

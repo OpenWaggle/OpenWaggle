@@ -26,7 +26,7 @@ function invocationOverlay(pointer: string): JsonSchemaOverlay {
     [`${command}/properties/command`]: {
       ...NON_BLANK,
       description:
-        "The command line, run by your shell. It receives OPENWAGGLE_PROJECT_ROOT and OPENWAGGLE_WORKTREE_PATH.",
+        'The command line, run by your shell. It receives OPENWAGGLE_PROJECT_ROOT and OPENWAGGLE_WORKTREE_PATH.',
     },
     [`${command}/properties/directory`]: {
       pattern: RELATIVE_PATH_PATTERN,

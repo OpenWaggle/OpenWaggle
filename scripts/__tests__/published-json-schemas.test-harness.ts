@@ -6,17 +6,17 @@ import { fileURLToPath } from 'node:url'
 import { safeDecodeUnknown } from '@shared/schema'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import JsonSchema from 'typebox/schema'
+import { readPiWagglePresetsFileData } from '../../packages/pi-waggle/src/preset-storage'
 import { readActionManifest } from '../../src/main/adapters/project-actions/action-manifest-file'
 import { loadProjectConfigStrict } from '../../src/main/config/project-config'
-import {
-  EMPTY_ACTION_MANIFEST,
-  resolveActionCatalog,
-} from '../../src/main/domain/project-action-catalog'
 import {
   type McpConfigLayer,
   mergeMcpConfigLayers,
 } from '../../src/main/domain/mcp/config/mcp-config-merge'
-import { readPiWagglePresetsFileData } from '../../packages/pi-waggle/src/preset-storage'
+import {
+  EMPTY_ACTION_MANIFEST,
+  resolveActionCatalog,
+} from '../../src/main/domain/project-action-catalog'
 import { PUBLISHED_SCHEMA_DIRECTORY } from '../published-json-schemas'
 
 export const REPOSITORY_ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -89,7 +89,9 @@ export function mcpFileErrorsAtRuntime(value: unknown, baseNames: readonly strin
       path: '/home/.pi/agent/mcp.json',
       content: {
         kind: 'parsed',
-        value: { mcpServers: Object.fromEntries(baseNames.map((name) => [name, { command: 'base' }])) },
+        value: {
+          mcpServers: Object.fromEntries(baseNames.map((name) => [name, { command: 'base' }])),
+        },
       },
     },
     {
@@ -167,7 +169,8 @@ export function record(value: unknown): Record<string, unknown> {
 
 export async function patternOf(fileName: string, pointer: readonly string[]) {
   let node: unknown = await readPublishedSchema(fileName)
-  for (const segment of pointer) node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
+  for (const segment of pointer)
+    node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
   const pattern = record(node).pattern
   if (typeof pattern !== 'string') throw new Error(`No pattern at ${pointer.join('/')}.`)
   return new RegExp(pattern, 'u')

@@ -182,7 +182,12 @@ export async function shootRegion(
   const meta = await sharp(pixels).metadata()
   const image =
     meta.width === size.width ? pixels : await sharp(pixels).resize(size).png().toBuffer()
-  await writeScreenshot(context, file, await drawCallouts(image, clip, options.callouts ?? []), options)
+  await writeScreenshot(
+    context,
+    file,
+    await drawCallouts(image, clip, options.callouts ?? []),
+    options,
+  )
 }
 
 /** The whole window at CSS scale, like the overview images. */
@@ -195,7 +200,12 @@ export async function shootWindow(
   await settleForShot(page, options.keepFocus)
   const image = await page.screenshot({ animations: 'disabled', scale: 'css' })
   const clip = { x: 0, y: 0, ...(await windowSize(page)) }
-  await writeScreenshot(context, file, await drawCallouts(image, clip, options.callouts ?? []), options)
+  await writeScreenshot(
+    context,
+    file,
+    await drawCallouts(image, clip, options.callouts ?? []),
+    options,
+  )
 }
 
 /**

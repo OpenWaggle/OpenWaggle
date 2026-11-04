@@ -22,8 +22,8 @@ import {
   ensureLiveSessions,
   openDraft,
   prepareEssentials,
-  sendMessage,
   SIDEBAR_PAD_PX,
+  sendMessage,
   sidebar,
   TIGHT_PAD_PX,
 } from './website-screenshot-essentials-setup'

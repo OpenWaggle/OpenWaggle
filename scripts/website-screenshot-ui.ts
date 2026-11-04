@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { expect, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, expect, type Page } from '@playwright/test'
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import type { FixtureModelServer } from './website-screenshot-model-server'
 
@@ -50,7 +50,11 @@ export async function openSession(page: Page, title: string) {
   console.info('[website-shots] opening session', title)
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
   await sidebar.getByRole('button', { name: title, exact: true }).first().click()
-  await page.locator('header').getByText(title, { exact: true }).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  await page
+    .locator('header')
+    .getByText(title, { exact: true })
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
   await blurFocusedControl(page)
 }
 

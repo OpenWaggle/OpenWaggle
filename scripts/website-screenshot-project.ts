@@ -47,7 +47,12 @@ export async function createScreenshotProject(input: {
   await git(projectPath, ['commit', '-m', 'chore: seed screenshot fixture'])
 
   const realProjectPath = await fs.realpath(projectPath)
-  const worktreeRoot = path.join(input.homeDir, '.openwaggle', 'worktrees', path.basename(realProjectPath))
+  const worktreeRoot = path.join(
+    input.homeDir,
+    '.openwaggle',
+    'worktrees',
+    path.basename(realProjectPath),
+  )
   await fs.mkdir(worktreeRoot, { recursive: true })
   const worktrees: ScreenshotWorktree[] = []
   for (const id of input.worktreeIds) {

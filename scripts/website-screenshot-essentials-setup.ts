@@ -10,7 +10,6 @@ import {
   ESSENTIALS_PROJECT_NAME,
   type EssentialsProject,
 } from './website-screenshot-essentials-project'
-import { FIXTURE_MODEL_REF } from './website-screenshot-pi-agent'
 import {
   APPROVAL_PROMPT,
   APPROVAL_TITLE,
@@ -20,13 +19,14 @@ import {
   WORKING_PROMPT,
   WORKING_TITLE,
 } from './website-screenshot-essentials-scenarios'
+import { FIXTURE_MODEL_REF } from './website-screenshot-pi-agent'
 import {
   type CaptureContext,
   closeRightPanel,
   openSession,
   showRailSurface,
-  waitForUi,
   UI_TIMEOUT_MS,
+  waitForUi,
 } from './website-screenshot-ui'
 
 /** The smaller crop margins where a neighbour sits close. */

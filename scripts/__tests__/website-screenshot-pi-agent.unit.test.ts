@@ -23,7 +23,11 @@ describe('the screenshot Pi agent directory', () => {
 
   it('sends every OpenAI and Anthropic model a fixture key can use to the loopback server', async () => {
     const homeDir = path.join(scratch, 'home')
-    await writeFixturePiAgent({ userDataDir: path.join(scratch, 'user-data'), homeDir, model: FIXTURE_MODEL })
+    await writeFixturePiAgent({
+      userDataDir: path.join(scratch, 'user-data'),
+      homeDir,
+      model: FIXTURE_MODEL,
+    })
     const agentDir = path.join(homeDir, '.pi', 'agent')
     // Pi's own loader, so the test fails if Pi stops applying a provider-level baseUrl to its catalog.
     const { ModelRuntime } = await import('@earendil-works/pi-coding-agent')
@@ -44,7 +48,9 @@ describe('the screenshot Pi agent directory', () => {
         if (!model.baseUrl.startsWith(LOOPBACK) || !prepared.baseUrl.startsWith(LOOPBACK)) {
           offProvider.push(`${provider}/${model.id} ${prepared.baseUrl}`)
         }
-        expect(resolution).toMatchObject({ auth: { apiKey: expect.stringContaining('website-fixture') } })
+        expect(resolution).toMatchObject({
+          auth: { apiKey: expect.stringContaining('website-fixture') },
+        })
       }
     }
     expect(offProvider).toEqual([])

@@ -1,13 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
 import {
-  deleteFixtureExtension,
-  FIXTURE_EXTENSION_NAME,
-  GITHUB_API_URL_PATTERN,
-  githubIssuesFixture,
-  installFixtureExtension,
-} from './website-screenshot-extension-fixture'
-import { HIVE_QUEEN_TITLE } from './website-screenshot-hive-fixture'
-import {
   around,
   numbered,
   regionOf,
@@ -16,14 +8,22 @@ import {
   shootWindow,
   writeScreenshot,
 } from './website-screenshot-capture-kit'
+import {
+  deleteFixtureExtension,
+  FIXTURE_EXTENSION_NAME,
+  GITHUB_API_URL_PATTERN,
+  githubIssuesFixture,
+  installFixtureExtension,
+} from './website-screenshot-extension-fixture'
+import { HIVE_QUEEN_TITLE } from './website-screenshot-hive-fixture'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
 import {
   type CaptureContext,
   closeRightPanel,
   openSession,
   showRailSurface,
-  waitForUi,
   UI_TIMEOUT_MS,
+  waitForUi,
 } from './website-screenshot-ui'
 
 const HTTP_OK = 200
@@ -51,10 +51,9 @@ function settingsContributions(page: Page) {
 
 /** The fixture settings form's button, shown once its frame has loaded every module. */
 function settingsSave(page: Page) {
-  return extensionFrame(settingsContributions(page), 'GitHub Issues Settings').getByRole(
-    'button',
-    { name: 'Save configuration' },
-  )
+  return extensionFrame(settingsContributions(page), 'GitHub Issues Settings').getByRole('button', {
+    name: 'Save configuration',
+  })
 }
 
 /** The package's card in Settings > Extensions. */
@@ -62,7 +61,10 @@ function packageCard(page: Page) {
   return page
     .locator('div')
     .filter({
-      has: page.getByRole('heading', { name: FIXTURE_EXTENSION_NAME, level: PACKAGE_HEADING_LEVEL }),
+      has: page.getByRole('heading', {
+        name: FIXTURE_EXTENSION_NAME,
+        level: PACKAGE_HEADING_LEVEL,
+      }),
     })
     .filter({ has: packageButton(page, 'Remove') })
     .last()

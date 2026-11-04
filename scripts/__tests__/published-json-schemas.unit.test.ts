@@ -144,8 +144,16 @@ describe('the actions.json schema agrees with the runtime reader', () => {
       manifest({ actions: [{ ...action, kind: 'service', allowConcurrent: true }] }),
       /\[0\][\s\S]*Predicate refinement failure[\s\S]*"kind":"service","allowConcurrent":true/u,
     ],
-    ['a blank name', manifest({ actions: [{ ...action, name: '   ' }] }), /\["name"\][\s\S]*actual " {3}"/u],
-    ['an unknown icon', manifest({ actions: [{ ...action, icon: 'rocket' }] }), /\["icon"\][\s\S]*actual "rocket"/u],
+    [
+      'a blank name',
+      manifest({ actions: [{ ...action, name: '   ' }] }),
+      /\["name"\][\s\S]*actual " {3}"/u,
+    ],
+    [
+      'an unknown icon',
+      manifest({ actions: [{ ...action, icon: 'rocket' }] }),
+      /\["icon"\][\s\S]*actual "rocket"/u,
+    ],
     [
       'a folder outside the workspace',
       manifest({
@@ -153,7 +161,11 @@ describe('the actions.json schema agrees with the runtime reader', () => {
       }),
       /\["directory"\][\s\S]*actual "\.\.\/other"/u,
     ],
-    ['an id with a space', manifest({ actions: [{ ...action, id: 'run tests' }] }), /\["id"\][\s\S]*actual "run tests"/u],
+    [
+      'an id with a space',
+      manifest({ actions: [{ ...action, id: 'run tests' }] }),
+      /\["id"\][\s\S]*actual "run tests"/u,
+    ],
   ])('rejects %s', async (_name, file, reason) => {
     expect(await publishedSchemaErrors(ACTIONS, file)).not.toEqual([])
     // The reader must reject the file for this reason, not for an unrelated mistake in the case.
@@ -246,7 +258,10 @@ describe('the settings.json schema agrees with the runtime reader', () => {
       throw new Error('The sourceControl enums are missing.')
     }
     for (const provider of [...providers, 'bitbucket', 'unsupported']) {
-      const { hosts } = parseProjectSourceControlConfig({ hosts: { 'git.acme.io': provider } }, '/p')
+      const { hosts } = parseProjectSourceControlConfig(
+        { hosts: { 'git.acme.io': provider } },
+        '/p',
+      )
       expect(hosts['git.acme.io'] === provider, String(provider)).toBe(providers.includes(provider))
     }
     for (const destination of [...destinations, 'browser']) {
@@ -276,4 +291,3 @@ describe('the settings.json schema agrees with the runtime reader', () => {
     })
   })
 })
-
