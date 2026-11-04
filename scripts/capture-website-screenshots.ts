@@ -29,6 +29,7 @@ import {
 import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
 import { registerFeatureSessions } from './website-screenshot-feature-sessions'
 import { startScreenshotModel } from './website-screenshot-feature-model'
+import {
   captureBrowserAnnotation,
   captureBrowserAnnotationChip,
   captureBrowserDeviceToolbar,
