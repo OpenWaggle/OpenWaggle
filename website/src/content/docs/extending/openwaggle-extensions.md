@@ -613,7 +613,7 @@ A contribution should bind to a Pi-native identity:
 A single Pi tool or custom message can have multiple OpenWaggle renderers across different surfaces. The transcript is the durable audit trail; dialogs, side panels, status widgets, and composer actions are auxiliary live surfaces.
 
 ```mermaid
-flowchart LR
+flowchart TD
   A["Pi agent loop"] --> B["Pi tool call, custom message, or interaction request"]
   B --> C["OpenWaggle projects a public event DTO"]
   C --> D{"Matching extension renderer?"}
@@ -625,7 +625,7 @@ flowchart LR
   H -- "No" --> I["Transcript keeps durable record"]
   H -- "Yes" --> J["Renderer calls sdk.surface.respondInteraction(response)"]
   J --> K["OpenWaggle broker validates and returns response to Pi"]
-  K --> A
+  K --> L["Pi continues the agent loop"]
 ```
 
 The feedback path is intentionally one-way through OpenWaggle-owned surface actions. Extension UI collects the user's response through `context.sdk.surface.respondInteraction(response)`, then OpenWaggle validates that response against the pending interaction before returning it to Pi. Renderer modules do not mutate Pi sessions or OpenWaggle internal stores directly.

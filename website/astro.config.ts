@@ -4,6 +4,8 @@ import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
+import { rehypeZoomableImages } from './src/lib/markdown-images';
+import { remarkMermaidDiagrams } from './src/lib/markdown-mermaid';
 import { isIndexablePage } from './src/lib/sitemap';
 import { rehypeTrailingSlashLinks } from './src/lib/site-paths';
 
@@ -18,9 +20,12 @@ export default defineConfig({
   integrations: [mdx(), sitemap({ filter: isIndexablePage })],
   markdown: {
     processor: unified({
+      // Runs before Shiki, so ```mermaid blocks become diagrams rather than highlighted code.
+      remarkPlugins: [remarkMermaidDiagrams],
       rehypePlugins: [
         [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
         rehypeTrailingSlashLinks,
+        rehypeZoomableImages,
       ],
     }),
   },
