@@ -3,8 +3,8 @@
  * the definition (`suggestedAgent`). Pure: no files, no catalog. The match is lexical and
  * deliberately conservative, because it only ever produces a hint, and a wrong hint would give
  * the next Worker the wrong instructions. A role counts only where the objective states its own
- * role in so many words, a clause near its start that opens with "You are", "Act as" or "As"
- * ("You are an independent code reviewer with…"), and only when the definition's name is the
+ * role in so many words, the first clause near its start that opens with "You are" or "Act as"
+ * ("You are an independent code reviewer with…"), outside any quoted text, and only when the definition's name is the
  * head of that phrase: "the implementer, not the reviewer", "the reviewer's findings", "then hand
  * off to the reviewer" and a title name no role. A share of the definition's description words
  * must then appear anywhere in the title or objective.
@@ -25,10 +25,27 @@ export const SUGGESTION_DESCRIPTION_SHARE = 0.25
 /** A role phrase counts only in a clause that starts within this many characters. */
 export const ROLE_OPENING_LENGTH = 240
 
-const CLAUSE_END = /[.;!?\n]+/u
-/** Bullets, numbers and emphasis before a clause's first word: `- `, `* `, `1) `, `**`. */
-const LIST_MARKER = /^(?:[-*•+]+\s*|\d+[.)]\s*|_+)*/u
-const ROLE_OPENER = /^(?:you\s+are|you['’]re|act\s+as|acting\s+as|serve\s+as|work\s+as|as)\s+/iu
+/** A clause: text up to a sentence end or a line break. */
+const CLAUSE = /[^.;!?\n]+/gu
+/**
+ * Bullets, numbers and emphasis before a clause's first word: `- `, `* `, `1) `, `**`. A `1.`
+ * needs no branch: the clause split already leaves the `1` as a clause of its own.
+ */
+const LIST_MARKER = /^(?:[-*•+]+\s*|\d+\)\s*|_+)*/u
+/**
+ * Text quoted for someone else, blanked before clauses are read: a fenced block, a blockquote
+ * line, and a double-quoted span, an unclosed one to the end. Single quotes are left alone, since
+ * they are also apostrophes.
+ */
+// `(?![\s\S])` is the end of the input; `$` is a line end here, under the m flag.
+const QUOTED =
+  /```[\s\S]*?(?:```|(?![\s\S]))|^[ \t]*>.*$|"[^"]*(?:"|(?![\s\S]))|“[^”]*(?:”|(?![\s\S]))/gmu
+/**
+ * Openers that address the Worker. A bare "As" or "Acting as" is left out: in an objective it is
+ * as often a conjunction or someone else's role ("As the reviewer of PR #405 found, fix…",
+ * "Acting as the reviewer, I found…") as the Worker's own.
+ */
+const ROLE_OPENER = /^(?:you\s+are|you['’]re|act\s+as|serve\s+as|work\s+as)\s+/iu
 /** Words that may open the role's noun phrase without being part of it, once, before its words. */
 const DETERMINERS = new Set(['a', 'an', 'the', 'our', 'this', 'one', 'another'])
 /** Adverbs that may come before the determiner: "You are now the reviewer". */
@@ -197,23 +214,27 @@ function rolePhrase(rest: string) {
   return phrase
 }
 
-/** "As reviewer, I found…": the role is the speaker's, not the Worker's. */
-const SPEAKER_AFTER_ROLE = /^as\b[^,]*,\s*(?:i|we|my|our|i['’]ve|i['’]m|we['’]ve|we['’]re)\b/iu
+/**
+ * "Act as the reviewer, I found…", "Serve as reviewer: Worker 2 flagged…": a role followed by a
+ * separate subject is the speaker's or someone else's, not the Worker's. An imperative after it
+ * starts lowercase ("Act as reviewer, review the diff"), so it still states the Worker's role.
+ */
+const SPEAKER_AFTER_ROLE =
+  /^(?:[Aa]ct\s+as|[Ss]erve\s+as|[Ww]ork\s+as)\b[^,:—–]*[,:—–]\s*(?:(?:[Ii]|[Ww]e|[Mm]y|[Oo]ur|[Ii]t|[Tt]hey|[Hh]e|[Ss]he|[Tt]he|[Aa]n?|[Tt]his|[Tt]hat)\b|\p{Lu})/u
 
 /**
  * The objective's role statement: the phrase of the first clause near its start that opens with
- * "You are", "Act as" or "As". Only the first counts, so a later "As the reviewer, I found…" does
- * not override "You are the implementer"; an empty phrase there (the opener led elsewhere) means
+ * "You are" or "Act as". Only the first counts, so a later "Act as the reviewer…" does not
+ * override "You are the implementer"; an empty phrase there (the opener led elsewhere) means
  * the objective states no role.
  */
 function rolePhrases(objective: string) {
-  let offset = 0
-  for (const clause of objective.split(CLAUSE_END)) {
-    if (offset >= ROLE_OPENING_LENGTH) break
-    offset += clause.length + 1
-    // A list marker may come first; a quote or a blockquote is someone else's objective quoted
-    // here ("Give each Worker this objective: \"You are a reviewer…\""), never this one's role.
-    const opened = clause.trim().replace(LIST_MARKER, '')
+  // Someone else's objective quoted here ("Give each Worker this objective: \"You are a
+  // reviewer…\"") is never this one's role; blanking keeps every offset where it was.
+  const own = objective.replace(QUOTED, (quoted) => ' '.repeat(quoted.length))
+  for (const match of own.matchAll(CLAUSE)) {
+    if (match.index >= ROLE_OPENING_LENGTH) break
+    const opened = match[0].trim().replace(LIST_MARKER, '')
     const opener = ROLE_OPENER.exec(opened)
     if (!opener) continue
     if (SPEAKER_AFTER_ROLE.test(opened)) return []

@@ -15,17 +15,35 @@ const IMPLEMENTER = {
 /** Where the matcher stops reading a role: quotes, other speakers, its limits. */
 describe('suggestAgentDefinition boundaries', () => {
   it('takes only the first role statement, and none that is the speaker’s', () => {
+    expect(
+      suggestAgentDefinition(
+        {
+          objective:
+            'You are the implementer. As the reviewer, I found regressions and missing tests in the diff; fix the correctness findings on the branch and open a merge request.',
+        },
+        [REVIEWER, IMPLEMENTER],
+      ),
+    ).toEqual(IMPLEMENTER)
     for (const objective of [
-      'You are the implementer. As the reviewer, I found regressions and missing tests in the diff; fix the correctness findings.',
       'As reviewer, I flagged correctness regressions and missing tests. Fix them in the diff of the branch against the ticket.',
+      'Acting as the reviewer, I found three regressions in the diff of the branch against the ticket and the guidelines.',
+      'As the reviewers in round 2 flagged, fix the correctness bugs, regressions and missing tests in the diff of the branch.',
+      'As the reviewer of PR #405 found, the diff has correctness bugs, regressions and missing tests against the ticket. Fix them.',
+      'As the reviewer and I discussed, fix the correctness bugs and regressions in the diff of the branch against the ticket.',
+      'As reviewer: I found three regressions in the diff of the branch against the ticket and the guidelines.',
+      'As the reviewer — I found three regressions in the diff of the branch against the ticket and the guidelines.',
+      'As reviewer, Worker 2 flagged three regressions in the diff of the branch against the ticket and the guidelines.',
     ]) {
       expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
-      expect(suggestAgentDefinition({ objective }, [REVIEWER, IMPLEMENTER])).not.toEqual(REVIEWER)
     }
   })
 
   it('never reads a role from a quoted objective for another Worker', () => {
     for (const objective of [
+      'Spawn three Workers, each with this objective: "Review PR #405 against main. You are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines."',
+      'Give each Worker this objective: “Check PR 405. You are an independent reviewer with a fresh context, against the ticket and the project guidelines.”',
+      'Coordinate the review. Each Worker gets:\n```\nReview PR 405.\nYou are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.\n```',
+      'Coordinate the review. Each Worker gets:\n> Review PR 405. You are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.',
       'Spawn two Workers and merge their findings. Give each this objective:\n"You are an independent reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines."',
       'Spawn two Workers and merge their findings. Give each this objective:\n> You are an independent reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
     ]) {
@@ -50,8 +68,12 @@ describe('suggestAgentDefinition boundaries', () => {
     expect(
       read(`${'Context for the change. '.repeat(11)}You are the reviewer.${tail}`),
     ).toBeUndefined()
+    // Multi-character sentence breaks count in full toward the opening.
+    expect(
+      read(`${'Context for the change.\n\n'.repeat(10)}You are the reviewer.${tail}`),
+    ).toBeUndefined()
     expect(read(`You are the independent senior lead staff code reviewer.${tail}`)).toBeUndefined()
-    expect(read(`As reviewers, check the change.${tail}`)).toEqual(REVIEWER)
+    expect(read(`You are the reviewers for this change.${tail}`)).toEqual(REVIEWER)
     expect(read(`You are the reviewer it's assigned to.${tail}`)).toEqual(REVIEWER)
   })
 
