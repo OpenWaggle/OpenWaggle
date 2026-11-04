@@ -93,6 +93,10 @@ A first message in **Current checkout** gets a **Starting session** card for the
 
 If checkout creation fails, the card keeps the submitted turn visible and adds **Retry**. The details disclose the Git operation and error instead of replacing it with a generic spinner. Once the agent starts, the large card becomes a small expandable **Worktree created** row. That row remains in the transcript after reload as a record of where the session began. Local sessions and cancelled worktree launches do not get that row.
 
+![A first message sent in New worktree mode, with the Worktree created row expanded above the agent's reply: Preparing the session worktree, Fetching origin/main, Creating and then Created the ow/session branch from origin/main, and Starting the task in the new worktree](/screenshots/worktree-first-send.png)
+
+_Expand **Worktree created** to see what each step did, such as the ref it fetched and the branch it created._
+
 A configured preparation profile adds **Workspace setup** after checkout creation. Setup must succeed before the first agent turn. A failed or review-blocked setup has its own output and controls in **Session Summary > Workspace preparation**, including **Retry setup**, **Check the setup**, and **Continue anyway** where applicable. Development servers belong in on-demand Project actions, not setup. See [Workspace preparation](/docs/developer-workflow/built-in-terminal#workspace-preparation).
 
 ### Recovering a missing worktree
@@ -124,6 +128,8 @@ To rename or delete a Git branch or set its upstream, use the [built-in terminal
 Toggle the diff panel with `Cmd+D` / `Ctrl+D`, by clicking the diff stats in the header, or with **Changes** on the [panel rail](/docs/using-openwaggle/right-panel). It appears in the right panel. Drag its edge to resize between 360 and 900 px; every right panel shares that width, and it is remembered between launches.
 
 The right panel shows one panel at a time, so opening the diff replaces the [Session Tree](/docs/using-openwaggle/session-tree), Browser or any other panel that was showing.
+
+![A session with the diff panel open on the right: Changes for the Opened checkout, the Working tree tab, README.md with two added lines, the changed-file tree, and Commit, Revert all and Stage all along the bottom](/screenshots/feature-git-workflow.png)
 
 ### Diff scope
 
@@ -180,6 +186,8 @@ While a review is open, a bar shows `N pending comments` with:
 
 `Cmd/Ctrl+Enter` submits a comment or the review; `Escape` cancels.
 
+![The diff panel maximized during a review: a Pending comment on lines 3 to 7 of src/upload/retry.ts, a comment box open on line 24 with Cancel, Add comment and Add to review, and the bar reading 1 pending comment with Discard review and Submit review](/screenshots/diff-review-comment.png)
+
 ### Staged Git actions
 
 The bottom bar's primary button adapts to the state of your working tree, upstream, and remote. Depending on that state it reads **Commit**, **Commit & push**, **Commit, push & PR** (**MR** on GitLab), **Push**, **Push & create PR**, **Create PR**, **View PR**, **Pull**, **Publish repository**, or **Sync ref**.
@@ -211,6 +219,8 @@ Click **Open commit dialog** in the header. Hover the icon to see its label.
 3. Enter your commit message.
 4. Choose **Amend last commit** only if you intend to replace the previous commit rather than create a new one.
 5. Use **Refresh** if files changed while the dialog was open. This also refreshes the header's diff stats.
+
+![The Commit changes dialog: 1/1 files selected with +8 / -1, a commit message typed in, Amend last commit unchecked, src/upload/retry.ts checked, and Cancel and Commit](/screenshots/commit-dialog.png)
 
 On success a toast confirms the commit and the diff stats refresh. In New-worktree mode the commit lands in the session's worktree, leaving the opened checkout untouched.
 

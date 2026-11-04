@@ -13,6 +13,8 @@ Actions run in the selected session's workspace. For a worktree session, that me
 
 The panel lists every saved action under **Run in this session’s workspace**. Each row shows the action's icon and name, the command or script it runs, its keyboard shortcut if it has one, and the state of its latest run, such as **Running**, **Ready**, **Completed**, or **Failed**.
 
+![The Project Actions panel with four saved actions: Dev server Running with Stop, Restart and Show output, Run tests with no run yet, Lint Failed and Build Completed, then Add action and Manage actions](/screenshots/project-actions-panel.png)
+
 - **Run** starts the action in the selected session's workspace. A row is disabled, with the reason beside it, when its script no longer exists in this workspace.
 - While an action runs, **Stop** ends that run and **Restart** replaces it using the current definition. An action allowed to run several copies keeps **Run** and offers **Stop** for its latest run.
 - **Show output** opens the latest run's output, status, and controls in the panel.
@@ -31,12 +33,16 @@ The panel asks you to open a project when none is open, and to select a session 
 - Closing the tab closes only the view. The action keeps running; use **Stop** in Project Actions to end it. Stop and Restart are not in the terminal tab.
 - Action output tabs come back with the terminal drawer after you restart OpenWaggle, and reconnect to the run's retained output.
 
+![The terminal drawer with a locked Dev server · action output tab, Read-only and running above the dev server's output, and a note that Stop and Restart are in Project Actions](/screenshots/action-output-terminal.png)
+
 ## Save and run a command
 
 1. Open **Add action** in the Project Actions panel, or **Settings > Project actions > Add action**. A panel opens on the right. It names the project it saves to; Settings has its own project picker, and the panel says so when that project differs from your current session's.
 2. Answer **What should it run?** Choose **A script from this project** and pick one, or choose **A command I type myself** and type it, such as `pnpm test`.
 3. Answer **What should it be called?** Picking a script suggests a readable name, such as **Run tests**. Each name must be different from the project's other actions, ignoring letter case.
 4. Click **Save action**. Saving does not run the command. When you saved from Project Actions in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
+
+![The New action panel for fieldnotes: What should it run? with A script from this project chosen and the project's dev, test, build and lint scripts listed, What should it be called?, Optional settings, and Cancel and Save action](/screenshots/project-action-add.png)
 
 Everything under **Optional settings** already has a sensible default, shown in plain words next to each question. Click **Change** only when the default is wrong. The line above **Save action** summarises what will happen; click it to read the full sentence.
 

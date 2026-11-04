@@ -11,6 +11,10 @@ Attach a file when the agent needs something outside the project, such as a scre
 
 ### How to attach
 
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+_**+** is number 3 and the microphone for [voice input](#voice-input) is number 8._
+
 1. Click **+** beside the message box and choose **Attach files**, or drag files onto the message box.
 2. Check the filename chips above your draft. Click a chip's X to remove a file.
 3. Write what you want the agent to do with the files, then send the message.
