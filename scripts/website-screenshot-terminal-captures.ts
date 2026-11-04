@@ -61,6 +61,13 @@ async function writeShellFixture(context: CaptureContext) {
   await fs.writeFile(path.join(projectPath, 'tests', 'release-notes.test.mjs'), RELEASE_NOTES_TEST, 'utf8')
 }
 
+/** Removes the fixture tests, so later captures show only the README edit in Git status. */
+async function removeTestFixture(context: CaptureContext) {
+  const settings = await context.page.evaluate(() => window.api.getSettings())
+  if (settings.projectPath === null) return
+  await fs.rm(path.join(settings.projectPath, 'tests'), { recursive: true, force: true })
+}
+
 function terminalPanes(page: Page) {
   return page.locator('.xterm')
 }
@@ -261,5 +268,6 @@ export async function captureTerminalContextChip(context: CaptureContext) {
     clip: await enclosingRegion(page, [composer], { x: CROP_PADDING_PX, y: CROP_PADDING_PX }),
   })
   await page.locator('header').getByRole('button', { name: 'Hide terminal' }).click()
+  await removeTestFixture(context)
   await waitForUi(page)
 }
