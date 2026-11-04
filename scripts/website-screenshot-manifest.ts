@@ -4,7 +4,7 @@ import path from 'node:path'
 /**
  * Every image under `website/public/screenshots/`, each produced by one capture of
  * `capture-website-screenshots.ts`. A screenshot the script cannot regenerate drifts from the
- * app; one the website does not use is dead weight (`screenshot-references.test.ts`).
+ * app; one the website does not use is dead weight (`screenshot-references.unit.test.ts`).
  */
 export const WEBSITE_SCREENSHOTS = [
   'hive-sessions.png',
