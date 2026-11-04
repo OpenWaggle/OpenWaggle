@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const windowOptions = vi.hoisted(() => ({ captured: [] as unknown[] }))
+const windowOptions = vi.hoisted(() => {
+  const captured: unknown[] = []
+  return { captured }
+})
 
 vi.mock('node:os', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:os')>()),
