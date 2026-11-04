@@ -21,7 +21,7 @@ import {
   selectedScreenshots,
   type WebsiteScreenshot,
 } from './website-screenshot-manifest'
-import { startFixtureModelServer } from './website-screenshot-model-server'
+import { type FixtureModelServer, startFixtureModelServer } from './website-screenshot-model-server'
 import { writeFixturePiAgent } from './website-screenshot-pi-agent'
 import {
   createScreenshotProject,
@@ -165,8 +165,9 @@ async function main() {
   let page: Page | null = null
   // The one scripted model behind every real Run; Pi reaches it through the scratch agent
   // directory's auth.json and models.json, written before the first launch.
-  const model = await startFixtureModelServer([...MODEL_SCENARIOS, WAGGLE_SCENARIO])
+  let model: FixtureModelServer | null = null
   try {
+    model = await startFixtureModelServer([...MODEL_SCENARIOS, WAGGLE_SCENARIO])
     await writeFixturePiAgent({ ...profile, model })
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
@@ -203,7 +204,7 @@ async function main() {
     }
     await app?.close().catch(() => undefined)
     // Ends any Run still streaming from it before the Host is asked to drain.
-    await model.close()
+    await model?.close()
     await releaseScratchProfile(profile)
   }
 }
