@@ -15,7 +15,7 @@ export interface Region {
  * Where a numbered badge sits around the outlined `region`. `band` puts it in a strip added
  * under the crop, with a line up to the region and no outline, so it never covers the control.
  */
-export type BadgePlacement =
+type BadgePlacement =
   | 'above'
   | 'below'
   | 'left'

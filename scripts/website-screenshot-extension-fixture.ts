@@ -6,7 +6,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 /** The repository's development fixture extension (`fixtures/extensions/`). */
-export const FIXTURE_EXTENSION_ID = 'openwaggle-github-issues-overview'
+const FIXTURE_EXTENSION_ID = 'openwaggle-github-issues-overview'
 export const FIXTURE_EXTENSION_NAME = 'GitHub Issues Overview'
 /** Every request the fixture makes; the capture answers them with `githubIssuesFixture`. */
 export const GITHUB_API_URL_PATTERN = 'https://api.github.com/**'

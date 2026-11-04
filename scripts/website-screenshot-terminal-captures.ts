@@ -2,7 +2,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Page } from '@playwright/test'
 import { THREAD_TITLE } from './website-screenshot-fixture'
-import { centerOf, numbered, regionOf, shootRegion, unionRegion } from './website-screenshot-capture-kit'
+import {
+  CROP_MARGIN_PX,
+  centerOf,
+  numbered,
+  regionOf,
+  shootRegion,
+  unionRegion,
+} from './website-screenshot-capture-kit'
 import { type CaptureContext, openSession, waitForUi, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
 const SHELL_OUTPUT_TIMEOUT_MS = 60_000
@@ -15,10 +22,9 @@ const FIRST_PASSING_TEST_ROW = 1
 const LAST_PASSING_TEST_ROW = 2
 const MENU_POINTER_ACROSS_ROW = 0.75
 const MENU_POINTER_ROW_INSET_PX = 3
-const CROP_PADDING_PX = 16
 /** The menu crop ends below this row of the test pane, past the menu's last item. */
 const MENU_CROP_LAST_ROW = 9
-const MENU_CROP_PADDING_PX = 8
+const MENU_CROP_MARGIN_PX = 8
 
 /**
  * A fixed prompt, so the panes show the folder name and no user, host or path. The terminal's
@@ -230,12 +236,12 @@ export async function captureTerminalAddToChat(context: CaptureContext) {
   const header = await regionOf(page.getByText(/^Pane 2/).first())
   // It ends on a row's lower edge, so no line of output is cut in half.
   const rowsAround = unionRegion([header, await regionOf(rows.nth(MENU_CROP_LAST_ROW)), await regionOf(menu)],
-    { x: MENU_CROP_PADDING_PX, y: 0 },
+    { x: MENU_CROP_MARGIN_PX, y: 0 },
   )
   const clip = {
     ...rowsAround,
-    y: rowsAround.y - MENU_CROP_PADDING_PX,
-    height: rowsAround.height + MENU_CROP_PADDING_PX,
+    y: rowsAround.y - MENU_CROP_MARGIN_PX,
+    height: rowsAround.height + MENU_CROP_MARGIN_PX,
   }
   // The pointer is parked outside the menu, so no item shows a hover state; the menu stays open.
   await shootRegion(context, 'terminal-add-to-chat.png', clip)
@@ -259,7 +265,7 @@ export async function captureTerminalContextChip(context: CaptureContext) {
   await shootRegion(
     context,
     'terminal-context-chip.png',
-    unionRegion([composer], CROP_PADDING_PX),
+    unionRegion([composer], CROP_MARGIN_PX),
   )
   await page.locator('header').getByRole('button', { name: 'Hide terminal' }).click()
   await removeTestFixture(context)

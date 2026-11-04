@@ -1,7 +1,6 @@
 import path from 'node:path'
 import { expect, type Page } from '@playwright/test'
 import { SupportedModelId } from '@shared/types/brand'
-import type { OpenWaggleApi } from '@shared/types/ipc'
 import {
   seedEssentialsSessions,
   TOOL_ROWS_SESSION_TITLE,
@@ -30,16 +29,7 @@ import {
   UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
 
-declare global {
-  interface Window {
-    readonly api: OpenWaggleApi
-  }
-}
-
-/** Worktree creation, git status and the source control host check can each take a while. */
-export const GIT_READY_TIMEOUT_MS = 120_000
-/** Space around a crop's subject, and the smaller margins where a neighbour sits close. */
-export const CROP_PAD_PX = 16
+/** The smaller crop margins where a neighbour sits close. */
 export const SIDEBAR_PAD_PX = 8
 export const TIGHT_PAD_PX = 6
 

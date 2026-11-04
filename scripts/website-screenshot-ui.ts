@@ -1,13 +1,21 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page } from '@playwright/test'
+import type { OpenWaggleApi } from '@shared/types/ipc'
 import type { FixtureModelServer } from './website-screenshot-model-server'
 
 const UI_SETTLE_DELAY_MS = 400
-const GIT_READY_TIMEOUT_MS = 120_000
+/** Worktree creation, git status and the source control host check can each take a while. */
+export const GIT_READY_TIMEOUT_MS = 120_000
 export const UI_TIMEOUT_MS = 30_000
 /** The window every capture starts and ends in. */
 export const WINDOW_SIZE = { width: 1600, height: 1000 } as const
+
+declare global {
+  interface Window {
+    readonly api: OpenWaggleApi
+  }
+}
 
 export interface CaptureContext {
   readonly app: ElectronApplication
@@ -16,6 +24,12 @@ export interface CaptureContext {
   readonly evidenceDir: string
   /** The scripted model every real Run talks to. */
   readonly model: FixtureModelServer
+  /**
+   * Seeds the feature Sessions into the running app's Host database the first time it is called
+   * and resolves true then (the caller reloads), false afterwards. They wait for the first capture
+   * that needs them, so the older captures keep their sidebars unchanged.
+   */
+  readonly seedFeatureSessionsOnce: () => Promise<boolean>
 }
 
 export async function waitForUi(page: Page) {

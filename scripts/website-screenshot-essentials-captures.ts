@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import {
   type Callout,
+  CROP_MARGIN_PX,
   type Region,
   regionOf,
   shootRegion,
@@ -18,9 +19,7 @@ import {
   WORKTREE_PROMPT,
 } from './website-screenshot-essentials-scenarios'
 import {
-  CROP_PAD_PX,
   ensureLiveSessions,
-  GIT_READY_TIMEOUT_MS,
   openDraft,
   prepareEssentials,
   sendMessage,
@@ -28,7 +27,13 @@ import {
   sidebar,
   TIGHT_PAD_PX,
 } from './website-screenshot-essentials-setup'
-import { type CaptureContext, openSession, waitForUi, UI_TIMEOUT_MS } from './website-screenshot-ui'
+import {
+  type CaptureContext,
+  GIT_READY_TIMEOUT_MS,
+  openSession,
+  UI_TIMEOUT_MS,
+  waitForUi,
+} from './website-screenshot-ui'
 
 /** Room above a control row for the callout badges. */
 const CALLOUT_HEADROOM_PX = 34
@@ -46,7 +51,7 @@ async function composerRegion(page: Page): Promise<Region> {
   const dock = await regionOf(
     composer(page).locator('xpath=ancestor::*[contains(@class, "rounded")][1]'),
   )
-  const box = unionRegion([environment, toolbar, dock], CROP_PAD_PX)
+  const box = unionRegion([environment, toolbar, dock], CROP_MARGIN_PX)
   return { ...box, y: box.y - CALLOUT_HEADROOM_PX, height: box.height + CALLOUT_HEADROOM_PX }
 }
 
@@ -99,7 +104,7 @@ export async function captureSlashCommandMenu(context: CaptureContext) {
   const menu = page.getByRole('menu', { name: 'Slash command menu' })
   await menu.getByRole('menuitem', { name: /^release-notes/ }).waitFor({ timeout: UI_TIMEOUT_MS })
   await waitForUi(page)
-  const region = unionRegion([await regionOf(menu), await composerDockRegion(page)], CROP_PAD_PX)
+  const region = unionRegion([await regionOf(menu), await composerDockRegion(page)], CROP_MARGIN_PX)
   await shootRegion(context, 'slash-command-menu.png', region, { keepFocus: true })
   await page.keyboard.press('Escape')
   await page.keyboard.press('Backspace')
@@ -122,7 +127,7 @@ export async function captureCommandPalette(context: CaptureContext) {
   await shootRegion(
     context,
     'command-palette.png',
-    unionRegion([await regionOf(panel)], CROP_PAD_PX),
+    unionRegion([await regionOf(panel)], CROP_MARGIN_PX),
     {
       keepFocus: true,
     },
@@ -145,7 +150,7 @@ export async function captureApprovalRequest(context: CaptureContext) {
   // The request above the composer, with its scope menu open over the conversation.
   const region = unionRegion(
     [await regionOf(ribbon), await composerDockRegion(page), await regionOf(scopes)],
-    CROP_PAD_PX,
+    CROP_MARGIN_PX,
   )
   await shootRegion(context, 'approval-request.png', region, { keepFocus: true })
   await page.keyboard.press('Escape')
@@ -163,7 +168,7 @@ export async function captureQueuedFollowUps(context: CaptureContext) {
   await shootRegion(
     context,
     'queued-follow-ups.png',
-    unionRegion([await regionOf(queue), await composerDockRegion(page)], CROP_PAD_PX),
+    unionRegion([await regionOf(queue), await composerDockRegion(page)], CROP_MARGIN_PX),
   )
 }
 
@@ -227,12 +232,12 @@ export async function captureToolRows(context: CaptureContext) {
     const logBox = await regionOf(log)
     const textBox = await regionOf(first)
     const spawnBox = await regionOf(spawn)
-    const left = textBox.x - CROP_PAD_PX
-    const top = textBox.y - CROP_PAD_PX
+    const left = textBox.x - CROP_MARGIN_PX
+    const top = textBox.y - CROP_MARGIN_PX
     return {
       x: left,
       y: top,
-      width: Math.min(logBox.x + logBox.width, spawnBox.x + spawnBox.width + CROP_PAD_PX) - left,
+      width: Math.min(logBox.x + logBox.width, spawnBox.x + spawnBox.width + CROP_MARGIN_PX) - left,
       // The reply starts just below the spawn row; a small margin keeps it out of the crop.
       height: spawnBox.y + spawnBox.height + TIGHT_PAD_PX - top,
     }
@@ -265,7 +270,7 @@ export async function captureWorktreeFirstSend(context: CaptureContext) {
   await shootRegion(context, 'worktree-first-send.png', async () =>
     unionRegion(
       [await regionOf(prompt), await regionOf(created), await regionOf(reply)],
-      CROP_PAD_PX,
+      CROP_MARGIN_PX,
     ),
   )
   if ((await created.getAttribute('aria-expanded')) !== 'true') {

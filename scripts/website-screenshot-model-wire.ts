@@ -6,7 +6,7 @@ import type http from 'node:http'
  * stops before its end and returns the function that finishes it as an ordinary end of turn.
  */
 
-export interface ScriptedToolCall {
+interface ScriptedToolCall {
   readonly name: string
   readonly arguments: Readonly<Record<string, unknown>>
 }
@@ -36,7 +36,7 @@ export type ScriptedReply =
       readonly delayMs?: number
     }
 
-export type StreamedReply = Exclude<ScriptedReply, { readonly kind: 'error' }>
+type StreamedReply = Exclude<ScriptedReply, { readonly kind: 'error' }>
 
 const HTTP_OK = 200
 /** Text arrives in a few pieces, as from a real provider. */

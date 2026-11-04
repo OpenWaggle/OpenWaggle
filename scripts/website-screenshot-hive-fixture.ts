@@ -2,7 +2,7 @@ import { seedHive, type SeedHiveWorkerInput } from './support/session-fixtures'
 import type { ScreenshotProject } from './website-screenshot-project'
 
 export const HIVE_QUEEN_TITLE = 'Prepare the 1.0 release'
-export const HIVE_STUCK_WORKER_TITLE = 'Verify queue and steering behavior'
+const HIVE_STUCK_WORKER_TITLE = 'Verify queue and steering behavior'
 export const HIVE_NESTED_WORKER_TITLE = "Check the guide's screenshots"
 
 const MINUTE_MS = 60_000
@@ -36,15 +36,6 @@ const HIVE_WORKERS: readonly HiveWorkerFixture[] = [
   { title: 'Summarize open security advisories', delegationState: 'accepted' },
   { title: 'Draft the migration notes', delegationState: 'cancelled', archived: true },
 ]
-
-/** The groups the Hive panel's By next actor view shows for this fixture, in order. */
-export const HIVE_NEXT_ACTOR_GROUPS = [
-  'Needs you',
-  'Waiting for Queen',
-  'Waiting for Review the Hive user guide',
-  'Working',
-  'Closed',
-] as const
 
 export function hiveWorkerFixtures() {
   return HIVE_WORKERS

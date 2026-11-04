@@ -32,7 +32,7 @@ const COMPACTION_NODE_ID = 'website-compaction-summary-1'
  * becomes the `compaction_summary` node Pi's compaction entry projects to, so the transcript
  * shows its Context compacted marker with the older messages above it.
  */
-export async function seedCompactionSession(userDataDir: string, projectPath: string) {
+async function seedCompactionSession(userDataDir: string, projectPath: string) {
   const now = Date.now()
   const sessionId = await seedSingleSession(userDataDir, {
     title: COMPACTION_THREAD_TITLE,
@@ -146,7 +146,7 @@ export async function seedCompactionSession(userDataDir: string, projectPath: st
 }
 
 /** A Session whose managed worktree folder was deleted, so new messages are blocked. */
-export async function seedMissingWorktreeSession(
+async function seedMissingWorktreeSession(
   userDataDir: string,
   project: ScreenshotProject,
   homeDir: string,
@@ -189,29 +189,24 @@ export async function seedMissingWorktreeSession(
   })
 }
 
-interface FeatureSessionsInput {
+/**
+ * Seeds the feature Sessions into the running app's Host database on the first call, which
+ * resolves true (the caller reloads), and does nothing after that. The first capture that needs
+ * them calls it (`CaptureContext.seedFeatureSessionsOnce`), after the older captures ran, so
+ * those keep their sidebars unchanged.
+ */
+export function featureSessionSeeder(input: {
   readonly userDataDir: string
   readonly project: ScreenshotProject
   readonly homeDir: string
-}
-
-let pendingFeatureSessions: FeatureSessionsInput | null = null
-
-/**
- * Remembers where to seed the feature Sessions. They are seeded by the first capture that needs
- * them, after the older captures ran, so those keep their sidebars unchanged.
- */
-export function registerFeatureSessions(input: FeatureSessionsInput) {
-  pendingFeatureSessions = input
-}
-
-/** Seeds the feature Sessions once into the running app's Host database; the caller reloads. */
-export async function seedFeatureSessionsOnce() {
-  const input = pendingFeatureSessions
-  if (!input) return false
-  pendingFeatureSessions = null
-  await seedCodemodeSession(input.userDataDir, input.project.projectPath)
-  await seedCompactionSession(input.userDataDir, input.project.projectPath)
-  await seedMissingWorktreeSession(input.userDataDir, input.project, input.homeDir)
-  return true
+}) {
+  let seeded = false
+  return async () => {
+    if (seeded) return false
+    seeded = true
+    await seedCodemodeSession(input.userDataDir, input.project.projectPath)
+    await seedCompactionSession(input.userDataDir, input.project.projectPath)
+    await seedMissingWorktreeSession(input.userDataDir, input.project, input.homeDir)
+    return true
+  }
 }

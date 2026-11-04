@@ -3,8 +3,9 @@ import { openPreview, waitForGuest } from './website-screenshot-browser-capture'
 import { BROWSER_THREAD_TITLE } from './website-screenshot-fixture'
 import { type FixtureSite, startFixtureSite } from './website-screenshot-fixture-site'
 import {
+  around,
+  centerOf,
   compositeGuestImage,
-  type Region,
   cropImage,
   devicePixelRatio,
   regionOf,
@@ -28,10 +29,6 @@ const PHONE_WIDTH_PX = 375
 const PHONE_HEIGHT_PX = 667
 const GUEST_RESIZE_TIMEOUT_MS = 30_000
 const GUEST_POLL_MS = 100
-/** Room around the composer, so its outline is not cut by the crop. */
-const COMPOSER_MARGIN_PX = 16
-const BOTH_SIDES = 2
-const HALF = 2
 const ANNOTATION_COMMENT =
   'The third card is cut off on phones. Stack the stats in one column.'
 const ANNOTATED_MESSAGE = 'Fix this on phone widths and keep the cards readable.'
@@ -149,7 +146,12 @@ async function annotateStatsRow(context: CaptureContext, site: FixtureSite) {
     )
   const [first, second] = cards
   if (!first || !second) throw new Error('The fixture dashboard has no stat cards.')
-  const gap = { x: (first.right + second.left) / HALF, y: (first.top + first.bottom) / HALF }
+  const gap = centerOf({
+    x: first.right,
+    y: first.top,
+    width: second.left - first.right,
+    height: first.bottom - first.top,
+  })
   await guest.page.mouse.click(gap.x, gap.y)
   await waitForUi(page)
   await guest.page.keyboard.type(ANNOTATION_COMMENT)
@@ -183,12 +185,8 @@ export async function captureBrowserAnnotationChip(context: CaptureContext) {
     await settleForShot(page)
     const ratio = await devicePixelRatio(page)
     const composer = await regionOf(page.getByRole('region', { name: 'Composer file drop zone' }))
-    const area: Region = {
-      x: composer.x - COMPOSER_MARGIN_PX,
-      y: composer.y - COMPOSER_MARGIN_PX,
-      width: composer.width + COMPOSER_MARGIN_PX * BOTH_SIDES,
-      height: composer.height + COMPOSER_MARGIN_PX * BOTH_SIDES,
-    }
+    // Room around the composer, so its outline is not cut by the crop.
+    const area = around(composer)
     const windowImage = await page.screenshot({ animations: 'disabled', scale: 'device' })
     await writeScreenshot(
       context,

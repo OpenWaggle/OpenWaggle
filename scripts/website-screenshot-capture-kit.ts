@@ -117,7 +117,7 @@ interface WriteOptions {
 }
 
 /** A palette PNG: the app's flat colours survive, and the file stays small. */
-export async function optimizePng(image: Buffer, maxWidth?: number) {
+async function optimizePng(image: Buffer, maxWidth?: number) {
   const meta = await sharp(image).metadata()
   const pipeline =
     maxWidth !== undefined && (meta.width ?? 0) > maxWidth

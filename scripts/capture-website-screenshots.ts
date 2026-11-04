@@ -7,7 +7,7 @@ import { stopElectronQaSessionHost } from './electron-qa-shutdown'
 import { launchOpenWaggleElectron } from './playwright-electron-launcher'
 import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
 import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
-import { registerFeatureSessions } from './website-screenshot-feature-sessions'
+import { featureSessionSeeder } from './website-screenshot-feature-sessions'
 import { MODEL_SCENARIOS } from './website-screenshot-essentials-scenarios'
 import { settleEssentials } from './website-screenshot-essentials-setup'
 import {
@@ -88,7 +88,6 @@ async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProje
   await seedMarketingSession(profile.userDataDir, project.projectPath)
   await seedBrowserSession(profile.userDataDir, project.projectPath)
   const hive = await seedHiveExample(profile.userDataDir, project)
-  registerFeatureSessions({ userDataDir: profile.userDataDir, project, homeDir: profile.homeDir })
   await first.app.close()
   const launched = await launchApp(profile, project.projectPath)
   await createScheduledTasks(
@@ -101,7 +100,12 @@ async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProje
   )
   await launched.page.reload()
   await expect(launched.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
-  return launched
+  const seedFeatureSessionsOnce = featureSessionSeeder({
+    userDataDir: profile.userDataDir,
+    project,
+    homeDir: profile.homeDir,
+  })
+  return { ...launched, seedFeatureSessionsOnce }
 }
 
 function observeRendererErrors(page: Page) {
@@ -175,7 +179,14 @@ async function main() {
     page = launched.page
     const rendererErrors = observeRendererErrors(launched.page)
     await runCaptures(
-      { app, page: launched.page, outputDir: stagingDir, evidenceDir, model },
+      {
+        app,
+        page: launched.page,
+        outputDir: stagingDir,
+        evidenceDir,
+        model,
+        seedFeatureSessionsOnce: launched.seedFeatureSessionsOnce,
+      },
       screenshots,
     )
     if (rendererErrors.length > 0) {

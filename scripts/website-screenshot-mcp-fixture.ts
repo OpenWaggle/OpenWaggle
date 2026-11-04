@@ -6,7 +6,7 @@ const FIXTURE_FOLDER = 'mcp-fixtures'
 export const MCP_CONNECTED_SERVER = 'release-notes'
 export const MCP_FAILING_SERVER = 'issue-tracker'
 export const MCP_SECRET_SERVER = 'deploy-status'
-export const MCP_MISSING_SECRET = 'DEPLOY_STATUS_AUTHORIZATION'
+const MCP_MISSING_SECRET = 'DEPLOY_STATUS_AUTHORIZATION'
 const JSON_INDENT = 2
 
 /**

@@ -1,13 +1,10 @@
 import type { Page } from '@playwright/test'
-import { regionOf, shootRegion, unionRegion } from './website-screenshot-capture-kit'
+import { CROP_MARGIN_PX, regionOf, shootRegion, unionRegion } from './website-screenshot-capture-kit'
 import { TOOL_ROWS_SESSION_TITLE } from './website-screenshot-essentials-fixture'
-import {
-  CROP_PAD_PX,
-  GIT_READY_TIMEOUT_MS,
-  prepareEssentials,
-} from './website-screenshot-essentials-setup'
+import { prepareEssentials } from './website-screenshot-essentials-setup'
 import {
   type CaptureContext,
+  GIT_READY_TIMEOUT_MS,
   closeRightPanel,
   openSession,
   showRailSurface,
@@ -157,7 +154,7 @@ export async function captureProjectActionsPanel(context: CaptureContext) {
   const addBox = await regionOf(addAction)
   await shootRegion(context, 'project-actions-panel.png', {
     ...panelBox,
-    height: addBox.y + addBox.height + CROP_PAD_PX - panelBox.y,
+    height: addBox.y + addBox.height + CROP_MARGIN_PX - panelBox.y,
   })
 }
 

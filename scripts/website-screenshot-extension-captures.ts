@@ -8,6 +8,7 @@ import {
 } from './website-screenshot-extension-fixture'
 import { HIVE_QUEEN_TITLE } from './website-screenshot-hive-fixture'
 import {
+  around,
   numbered,
   regionOf,
   settleForShot,
@@ -29,8 +30,6 @@ const HTTP_OK = 200
 /** Settings > Extensions titles its page with an h2 and each package card with an h3. */
 const PAGE_HEADING_LEVEL = 2
 const PACKAGE_HEADING_LEVEL = 3
-const CROP_MARGIN_PX = 12
-const BOTH_SIDES = 2
 /** Space kept between the crop's bottom edge and the Save button it leaves out. */
 const SAVE_BUTTON_GAP_PX = 6
 /** Text every issue-summary surface of the fixture shows once it has read `githubIssuesFixture`. */
@@ -205,11 +204,10 @@ export async function captureExtensionSettingsSection(context: CaptureContext) {
     await waitForUi(page)
     const section = await regionOf(region)
     const saveTop = (await regionOf(save)).y
+    const crop = around(section)
     await shootRegion(context, 'extensions-settings-section.png', {
-      x: section.x - CROP_MARGIN_PX,
-      y: section.y - CROP_MARGIN_PX,
-      width: section.width + CROP_MARGIN_PX * BOTH_SIDES,
-      height: saveTop - SAVE_BUTTON_GAP_PX - (section.y - CROP_MARGIN_PX),
+      ...crop,
+      height: saveTop - SAVE_BUTTON_GAP_PX - crop.y,
     })
   })
 }

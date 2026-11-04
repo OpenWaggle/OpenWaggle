@@ -6,12 +6,11 @@ import {
   openSession,
   setSessionSummary,
   showRailSurface,
+  GIT_READY_TIMEOUT_MS,
   waitForGitStatus,
   waitForUi,
   UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
-
-const GIT_READY_TIMEOUT_MS = 120_000
 
 async function openThread(context: CaptureContext) {
   await openSession(context.page, THREAD_TITLE)

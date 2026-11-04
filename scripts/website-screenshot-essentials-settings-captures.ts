@@ -1,13 +1,15 @@
 import type { Page } from '@playwright/test'
-import { regionOf, shootRegion, spanRegion, unionRegion } from './website-screenshot-capture-kit'
 import {
-  CROP_PAD_PX,
-  GIT_READY_TIMEOUT_MS,
-  prepareEssentials,
-  TIGHT_PAD_PX,
-} from './website-screenshot-essentials-setup'
+  CROP_MARGIN_PX,
+  regionOf,
+  shootRegion,
+  spanRegion,
+  unionRegion,
+} from './website-screenshot-capture-kit'
+import { prepareEssentials, TIGHT_PAD_PX } from './website-screenshot-essentials-setup'
 import {
   type CaptureContext,
+  GIT_READY_TIMEOUT_MS,
   leaveSettings,
   openSettingsSection,
   UI_TIMEOUT_MS,
@@ -49,7 +51,7 @@ export async function captureSettingsConnections(context: CaptureContext) {
       top: await regionOf(heading),
       bottom,
       across: bottom,
-      pad: CROP_PAD_PX,
+      pad: CROP_MARGIN_PX,
       bottomPad: TIGHT_PAD_PX,
     })
   })
@@ -73,7 +75,7 @@ export async function captureSettingsApiKeyProviders(context: CaptureContext) {
   await shootRegion(
     context,
     'settings-api-key-providers.png',
-    spanRegion({ top: header, bottom: lastRow, across: header, pad: CROP_PAD_PX }),
+    spanRegion({ top: header, bottom: lastRow, across: header, pad: CROP_MARGIN_PX }),
   )
   await setProviderGroup(page, 'API Key Providers', false)
   await leaveSettings(page)
@@ -92,7 +94,7 @@ export async function captureSettingsOAuthProviders(context: CaptureContext) {
   await shootRegion(
     context,
     'settings-oauth-providers.png',
-    unionRegion([await regionOf(toggle), await regionOf(list)], CROP_PAD_PX),
+    unionRegion([await regionOf(toggle), await regionOf(list)], CROP_MARGIN_PX),
   )
   await setProviderGroup(page, 'OAuth Providers', false)
   await leaveSettings(page)

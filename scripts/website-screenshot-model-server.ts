@@ -144,7 +144,7 @@ function scenarioTurn(scenarios: readonly ModelScenario[], request: ModelRequest
   return null
 }
 
-export function isTitleRequest(request: ModelRequest) {
+function isTitleRequest(request: ModelRequest) {
   return TITLE_PROMPT_PREFIXES.some((prefix) => request.system.startsWith(prefix))
 }
 

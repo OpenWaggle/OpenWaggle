@@ -10,7 +10,7 @@ export const SCREENSHOT_WORKTREE_IDS = ['3f9c2a1e', '7b41d0c8'] as const
 
 export const OUTPUT_IMAGE_RELATIVE_PATH = path.join('docs', 'release-notes-preview.png')
 
-export interface ScreenshotWorktree {
+interface ScreenshotWorktree {
   readonly id: string
   readonly path: string
   readonly branch: string

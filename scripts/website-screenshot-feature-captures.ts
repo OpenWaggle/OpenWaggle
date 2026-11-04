@@ -11,7 +11,6 @@ import {
   COMPACTION_THREAD_TITLE,
   MISSING_WORKTREE_THREAD_TITLE,
 } from './website-screenshot-feature-fixture'
-import { seedFeatureSessionsOnce } from './website-screenshot-feature-sessions'
 import { THREAD_TITLE } from './website-screenshot-fixture'
 import {
   type CaptureContext,
@@ -34,14 +33,16 @@ const COMPACTION_CROP_MAX_WIDTH_PX = 720
 /** Where the Skills and Agents crops end, below their selected item's preview. */
 const SKILLS_CROP_BOTTOM_PX = 520
 const AGENTS_CROP_BOTTOM_PX = 700
-const HALF = 0.5
+/** Half the usual crop margin, where a neighbour sits close. */
+const TIGHT_MARGIN_PX = 8
 const TWICE = 2
 const THRICE = 3
 
 /** Seeds the feature Sessions on first use and reloads, so the sidebar lists them. */
-async function openFeatureSession(page: Page, title: string) {
+async function openFeatureSession(context: CaptureContext, title: string) {
+  const { page } = context
   await leaveSettings(page)
-  if (await seedFeatureSessionsOnce()) {
+  if (await context.seedFeatureSessionsOnce()) {
     await page.reload()
     await page.getByRole('button', { name: 'New session' }).first().waitFor({ timeout: UI_TIMEOUT_MS })
   }
@@ -70,7 +71,7 @@ export async function captureAllPanels(context: CaptureContext) {
 /** A finished codemode call, expanded to show its tool calls, script and output. */
 export async function captureCodemodeCard(context: CaptureContext) {
   const { page } = context
-  await openFeatureSession(page, CODEMODE_THREAD_TITLE)
+  await openFeatureSession(context, CODEMODE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
   const expandTurn = page.getByRole('button', { name: 'Expand turn details' }).first()
@@ -85,13 +86,13 @@ export async function captureCodemodeCard(context: CaptureContext) {
 /** The Context compacted marker between the messages before and after a manual compaction. */
 export async function captureCompactionMarker(context: CaptureContext) {
   const { page } = context
-  await openFeatureSession(page, COMPACTION_THREAD_TITLE)
+  await openFeatureSession(context, COMPACTION_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
   const transcript = await regionOf(page.getByRole('log', { name: 'Chat messages' }))
   const firstReply = await regionOf(page.getByText('Still to do:', { exact: false }).first())
   // Tight above and below, so the neighbouring bullet and the message actions stay out.
-  const tight = CROP_MARGIN_PX * HALF
+  const tight = TIGHT_MARGIN_PX
   const lastReply = await regionOf(page.getByText('passes: 14 tests', { exact: false }).first())
   const column = await regionOf(page.locator('[data-compaction-timeline-state]').first())
   const left = column.x - CROP_MARGIN_PX
@@ -106,7 +107,7 @@ export async function captureCompactionMarker(context: CaptureContext) {
 /** The missing-worktree notice above the message box, with its two recovery actions. */
 export async function captureMissingWorktree(context: CaptureContext) {
   const { page } = context
-  await openFeatureSession(page, MISSING_WORKTREE_THREAD_TITLE)
+  await openFeatureSession(context, MISSING_WORKTREE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
   const notice = await regionOf(page.getByRole('button', { name: 'Recreate worktree' }).locator('xpath=../..'))
