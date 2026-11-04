@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { IDLE_ROW_COLOR_VAR } from '@shared/types/session-status'
-import { ChessQueen, Pickaxe } from 'lucide-react'
+import { Bot, ChessQueen, Pickaxe } from 'lucide-react'
 import { useState } from 'react'
 import { useSessionStore } from '@/features/sessions/state'
 import { SessionItemContextMenu } from '@/features/sidebar/components'
@@ -67,10 +67,36 @@ function hiveRolePresentation(session: { readonly lineage?: { readonly role?: st
   return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
 }
 
+/** A model reference without its provider: `spark/GLM-5.3-Flash` reads `GLM-5.3-Flash`. */
+function shortModelName(modelId: string) {
+  return modelId.slice(modelId.lastIndexOf('/') + 1) || modelId
+}
+
+/**
+ * The Agent definition a Session was created from, with the thinking level and model it was
+ * created with: the row's identity line ("reviewer · high · GLM-5.3-Flash"). Null for a Session
+ * created without one.
+ */
+export function hiveAgentPresentation(session: HiveSession) {
+  const lineage = session.lineage
+  const name = lineage?.agentDefinitionName
+  if (!name) return null
+  const modelId = lineage.agentModelId ?? null
+  return {
+    name,
+    thinking: lineage.agentThinkingLevel ?? null,
+    modelId,
+    model: modelId ? shortModelName(modelId) : null,
+  }
+}
+
+export type HiveAgentPresentation = NonNullable<ReturnType<typeof hiveAgentPresentation>>
+
 /** Everything a Hive row shows, from its Session and the live stores it subscribes to. */
 export function useHiveRowView(session: HiveSession, isRoot: boolean) {
   const sessionId = SessionId(String(session.id))
   const { statusColor, state } = useHiveSessionState(session)
+  const agent = hiveAgentPresentation(session)
   const isPinned = usePinnedSessionsStore((store) =>
     store.pins.some((pin) => String(pin.sessionId) === String(sessionId)),
   )
@@ -80,6 +106,7 @@ export function useHiveRowView(session: HiveSession, isRoot: boolean) {
     isPinned,
     statusColor: statusColor ?? IDLE_ROW_COLOR_VAR,
     state,
+    agent,
     role: isRoot ? { Icon: ChessQueen, label: 'Queen' } : hiveRolePresentation(session),
     // projectName takes the last segment of either separator, so Windows paths shorten too.
     workspace: session.worktreePath ? projectName(session.worktreePath) : 'Checkout',
@@ -100,6 +127,7 @@ export function hiveRowAccessibleName(
 ) {
   const parts = [
     `Open ${view.role.label} Session: ${view.session.title}`,
+    ...(view.agent ? [`agent ${view.agent.name}`] : []),
     ...(parentTitle === null ? [] : [`spawned by ${parentTitle}`]),
     ...(view.isPinned ? ['pinned'] : []),
     `state ${view.state.label}`,
@@ -109,16 +137,25 @@ export function hiveRowAccessibleName(
   return parts.join(', ')
 }
 
-/** The role glyph, coloured when the row needs you, and the live status dot. */
+/**
+ * The role glyph, coloured when the row needs you, and the live status dot. A Worker created from
+ * an Agent definition shows the agent glyph in the agent colour instead of the pickaxe.
+ */
 export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
-  const Icon = view.role.Icon
+  const agentWorker = view.agent !== null && view.role.label === 'Worker'
+  const Icon = agentWorker ? Bot : view.role.Icon
   return (
     <>
       <Icon
         aria-hidden="true"
+        data-agent-glyph={agentWorker ? 'true' : undefined}
         className={cn(
           'size-3.5 shrink-0',
-          view.state.needsYou ? 'text-warning' : 'text-text-tertiary',
+          view.state.needsYou
+            ? 'text-warning'
+            : agentWorker
+              ? 'text-info-text'
+              : 'text-text-tertiary',
         )}
       />
       <span
@@ -127,6 +164,38 @@ export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
         style={{ backgroundColor: view.statusColor }}
       />
     </>
+  )
+}
+
+function agentIdentityTitle(agent: HiveAgentPresentation) {
+  return [
+    `Agent definition: ${agent.name}`,
+    ...(agent.thinking ? [`thinking ${agent.thinking}`] : []),
+    ...(agent.modelId ? [`model ${agent.modelId}`] : []),
+  ].join(' · ')
+}
+
+/**
+ * "reviewer · high · GLM-5.3-Flash" under the title of a Session created from an Agent
+ * definition: which definition it runs, and what it was created with. Visual only: the row's
+ * accessible name already names the agent.
+ */
+export function HiveAgentIdentity({ view }: { readonly view: HiveRowView }) {
+  const agent = view.agent
+  if (agent === null) return null
+  const details = [agent.thinking, agent.model].filter((part): part is string => part !== null)
+  return (
+    <span
+      aria-hidden="true"
+      data-hive-agent={agent.name}
+      className="block truncate text-xs text-text-tertiary"
+      title={agentIdentityTitle(agent)}
+    >
+      <span className="text-info-text">{agent.name}</span>
+      {details.map((part) => (
+        <span key={part}> · {part}</span>
+      ))}
+    </span>
   )
 }
 

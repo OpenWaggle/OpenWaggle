@@ -58,3 +58,12 @@ export interface ResolvedAgentDefinitionSnapshot extends AgentDefinitionDocument
   readonly sourcePath: string
   readonly contentDigest: string
 }
+
+/** The Agent definition a Session summary's lineage names, with what it was created with. */
+export interface AgentDefinitionLineageFacts {
+  readonly agentDefinitionName?: string
+  /** The model a Session created from an Agent definition was created with. */
+  readonly agentModelId?: string
+  /** The thinking level a Session created from an Agent definition was created with. */
+  readonly agentThinkingLevel?: ThinkingLevel
+}

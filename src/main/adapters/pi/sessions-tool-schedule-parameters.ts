@@ -14,7 +14,10 @@ import {
   SCHEDULED_TASK_TIME_ZONE_MAX_LENGTH,
 } from '@shared/types/scheduled-task'
 import { Type } from 'typebox'
-import { sessionsToolProjectPath } from './sessions-tool-catalog-parameters'
+import {
+  sessionsToolAgentDefinitionName,
+  sessionsToolProjectPath,
+} from './sessions-tool-catalog-parameters'
 
 const scheduleTaskId = Type.String({ minLength: 1 })
 
@@ -131,7 +134,7 @@ const launchTarget = {
     Type.String({ description: "This task's Runs only; a Heartbeat's Session keeps its own." }),
   ),
   thinking: Type.Optional(Type.String()),
-  agent: Type.Optional(Type.String()),
+  agent: sessionsToolAgentDefinitionName,
   archiveFinishedSessions: Type.Optional(Type.Boolean()),
 }
 

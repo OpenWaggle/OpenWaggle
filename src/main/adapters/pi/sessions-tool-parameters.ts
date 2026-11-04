@@ -12,8 +12,10 @@ import {
   SESSION_QUERY_WAIT_TARGET_LIMIT,
 } from '@shared/types/session-query'
 import { type Static, Type } from 'typebox'
+import { sessionsToolAgentDefinitionParameters } from './sessions-tool-agent-definition-parameters'
 import { sessionsToolAttachmentPaths as attachmentPaths } from './sessions-tool-attachment-parameters'
 import {
+  sessionsToolAgentDefinitionName,
   sessionsToolCatalogScope,
   sessionsToolListArchived,
   sessionsToolProjectPath,
@@ -26,8 +28,6 @@ import { sessionsToolExportOperationParameters } from './sessions-tool-export-op
 import { sessionsToolReadParameters } from './sessions-tool-query-parameters'
 import { sessionsToolQueueParameters } from './sessions-tool-queue-parameters'
 import { sessionsToolScheduleParameters } from './sessions-tool-schedule-parameters'
-
-const AGENT_DEFINITION_RESULT_LIMIT = 100
 
 const sessionTitle = Type.String({
   minLength: SESSION_TITLE_MIN_LENGTH,
@@ -49,7 +49,7 @@ const rootWorkspace = Type.Optional(
 )
 
 const rootSpecialization = {
-  agent: Type.Optional(Type.String()),
+  agent: sessionsToolAgentDefinitionName,
   model: Type.Optional(Type.String()),
   thinking: Type.Optional(Type.String()),
 }
@@ -293,15 +293,7 @@ export const sessionsToolParameters = Type.Union([
     correlationId: Type.Optional(Type.String({ minLength: 1 })),
     timeoutMs: Type.Integer({ minimum: 0, maximum: SESSION_QUERY_MAX_WAIT_MS }),
   }),
-  Type.Object({
-    action: Type.Literal('agent_definitions_list'),
-    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: AGENT_DEFINITION_RESULT_LIMIT })),
-  }),
-  Type.Object({
-    action: Type.Literal('agent_definitions_search'),
-    query: Type.String({ minLength: 1 }),
-    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: AGENT_DEFINITION_RESULT_LIMIT })),
-  }),
+  ...sessionsToolAgentDefinitionParameters,
 ])
 
 export type SessionsToolParameters = Static<typeof sessionsToolParameters>

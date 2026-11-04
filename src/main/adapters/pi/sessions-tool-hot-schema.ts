@@ -25,7 +25,7 @@ export const HIVE_HELP_ACTION = 'help'
  * performance research: the full schema was about 4,800 o200k tokens on every request).
  */
 const HOT_ACTION_PROPERTIES: ReadonlyMap<string, readonly string[]> = new Map([
-  ['spawn', ['objective', 'title', 'workspace', 'deliverables', 'acceptanceCriteria']],
+  ['spawn', ['objective', 'title', 'agent', 'workspace', 'deliverables', 'acceptanceCriteria']],
   ['wait', ['sessionIds', 'timeoutMs', 'condition']],
   ['status', ['sessionId']],
   ['follow_up', ['sessionId', 'text']],

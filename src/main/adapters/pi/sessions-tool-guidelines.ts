@@ -37,6 +37,19 @@ function rootGuideline(permits: Permits) {
   return undefined
 }
 
+/**
+ * Agent definitions are named roles a new Session can run with. The guideline used to say only
+ * "discover them on demand; do not assume named roles exist", which agents read as "skip them":
+ * they wrote each role into the objective by hand next to a definition made for it.
+ */
+function agentDefinitionGuideline(permits: Permits) {
+  const starts = permitted(permits, ['spawn', 'launch', 'create'])
+  if (starts.length === 0) {
+    return 'agent_definitions_list and agent_definitions_search show Agent definitions by name and description.'
+  }
+  return `When an Agent definition fits a role, ${either(starts)} with agent: "<name>" and keep the role out of objective; available_agents lists the project's, and agent_definitions_list and agent_definitions_search find them (projectPath for another project). Never pass a name that no list shows.`
+}
+
 /** fullTranscript also needs sessions:read, so a discover-only grant is not told to use it. */
 function archivedSearchGuideline(readsTranscripts: boolean) {
   return `search leaves archived Sessions out unless includeArchived is true; when a Session the user names is missing, search again with includeArchived${readsTranscripts ? ' and fullTranscript' : ''}, and catalogScope all if it may be in another project. A later page's cursor needs the same options.`
@@ -221,7 +234,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Search before reading broad history, and page transcript items deliberately.'
       : undefined,
     ...exportGuidelines(permits),
-    'Discover optional Agent definitions on demand; do not assume named roles exist.',
+    agentDefinitionGuideline(permits),
   ].filter((guideline): guideline is string => guideline !== undefined && guideline !== '')
 }
 

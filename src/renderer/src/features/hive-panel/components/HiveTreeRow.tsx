@@ -4,6 +4,7 @@ import type { HiveRowParent, HiveTreeRow } from '../lib/hive-tree-model'
 import {
   HIVE_ROW_CLASS,
   HIVE_ROW_GRID_STYLE,
+  HiveAgentIdentity,
   HivePinnedBadge,
   HiveRowGlyphs,
   HiveRowMenu,
@@ -80,6 +81,7 @@ export function HiveTreeListItem({
             <HiveRowGlyphs view={view} />
             <span className="flex min-w-0 flex-1 flex-col">
               <HiveRowTitle view={view} />
+              <HiveAgentIdentity view={view} />
             </span>
             <HivePinnedBadge view={view} />
           </span>

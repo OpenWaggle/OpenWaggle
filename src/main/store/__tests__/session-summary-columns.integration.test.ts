@@ -194,6 +194,7 @@ describe('session summary columns survive the live SQL path', () => {
             ${worker.id},
             ${JSON.stringify({
               modelId: 'openai/gpt-5.4',
+              thinkingLevel: 'high',
               agentDefinitionName: 'security-reviewer',
             })},
             ${'gui:local-user'}, ${'ask-for-approval'}, ${1}, ${1}
@@ -215,7 +216,11 @@ describe('session summary columns survive the live SQL path', () => {
       parentSessionId: queen.id,
       hiveRootSessionId: queen.id,
       agentDefinitionName: 'security-reviewer',
+      // The Hive panel's identity line names what the Worker was created with.
+      agentModelId: 'openai/gpt-5.4',
+      agentThinkingLevel: 'high',
     })
+    expect(queenTree?.session.lineage).not.toHaveProperty('agentModelId')
   })
 
   /**

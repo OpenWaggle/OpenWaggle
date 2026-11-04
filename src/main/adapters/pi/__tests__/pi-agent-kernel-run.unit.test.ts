@@ -253,7 +253,7 @@ describe('runPiAgentKernel', () => {
         workingPath: '/repo/worktree',
         visualizationDirectory: '/visualizations/session-waggle',
         scratchDirectory: '/scratch/session-waggle',
-        sessionsExtensionFactory: runMocks.sessionsExtensionFactory,
+        sessionsExtensionFactory: expect.any(Function),
       }),
     )
     expect(runMocks.runPiSession).not.toHaveBeenCalled()
