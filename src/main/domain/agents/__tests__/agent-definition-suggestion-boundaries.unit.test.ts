@@ -25,11 +25,21 @@ describe('suggestAgentDefinition boundaries', () => {
         [REVIEWER, IMPLEMENTER],
       ),
     ).toEqual(IMPLEMENTER)
-    expect(
-      read(
-        'You are the implementer. Act as the reviewer of your own diff against the ticket and the project guidelines.',
-      ),
-    ).toBeUndefined()
+    for (const objective of [
+      'You are the implementer. Act as the reviewer of your own diff against the ticket and the project guidelines.',
+      'You are "the implementer". Act as the reviewer: review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+    ]) {
+      expect(read(objective)).toBeUndefined()
+    }
+  })
+
+  it('reads no compound role', () => {
+    for (const objective of [
+      'You are the reviewer and fixer for PR #405: review the diff against the ticket and the project guidelines, then fix every finding.',
+      'You are a reviewer or implementer, whichever the diff needs, against the ticket and the project guidelines with a fresh context.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
   })
 
   it('reads no role after a separate subject, the speaker’s or another Worker’s', () => {
@@ -79,6 +89,7 @@ describe('suggestAgentDefinition boundaries', () => {
       'Give each Worker this objective: “Check PR 405. You are an independent reviewer with a fresh context, against the ticket and the project guidelines.”',
       'Coordinate the review. Each Worker gets:\n```\nReview PR 405.\nYou are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.\n```',
       'Coordinate the review. Each Worker gets:\n> Review PR 405. You are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.',
+      'Coordinate the review of PR #405. Spawn three Workers, one per area, each with this objective:\nYou are an independent code reviewer. Review the diff against the ticket and the project guidelines with a fresh context.',
       "Spawn three reviewer Workers. Each gets: 'Review PR 405. You are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.'",
       "Spawn three reviewer Workers. Each gets: ‘Review PR 405. You are an independent reviewer with a fresh context, and it's against the ticket and the project guidelines.’",
       'Spawn two Workers and merge their findings. Give each this objective:\n"You are an independent reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines."',

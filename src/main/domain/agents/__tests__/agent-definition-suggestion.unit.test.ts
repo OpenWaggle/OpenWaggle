@@ -219,6 +219,7 @@ describe('suggestAgentDefinition', () => {
       'Serve as reviewer: review the diff of the branch against the ticket and the project guidelines with a fresh context.',
       'Act as the independent reviewer of this branch, and review the diff against the ticket and the project guidelines with a fresh context.',
       '- You are a reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
+      'Role:\nYou are a reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
     ]) {
       expect(suggestAgentDefinition({ objective }, [REVIEWER])).toEqual(REVIEWER)
     }

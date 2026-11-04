@@ -1,0 +1,158 @@
+/**
+ * Where a spawn objective states its own role: the noun phrase of its first role statement
+ * ("You are an independent code reviewer…") outside quoted or introduced text. Pure, and read only
+ * by the Agent definition suggestion.
+ */
+
+/** A role phrase counts only in a clause that starts within this many characters. */
+export const ROLE_OPENING_LENGTH = 240
+
+/** A clause: text up to a sentence end or a line break. */
+const CLAUSE = /[^.;!?\n]+/gu
+/**
+ * Bullets, numbers and emphasis before a clause's first word: `- `, `* `, `1) `, `**`. A `1.`
+ * needs no branch: the clause split already leaves the `1` as a clause of its own.
+ */
+const LIST_MARKER = /^(?:[-*•+]+\s*|\d+\)\s*|_+)*/u
+/** Only this much of an objective is searched for quotes and statements; the rest is never read. */
+const READ_LENGTH = 4096
+/**
+ * Text quoted for someone else, marked before clauses are read: a fenced block (``` or ~~~), an
+ * indented or blockquote line, an inline code span, a double-quoted span (an unclosed one to the
+ * end), and a single-quoted one. A single quote counts only with no letter or digit outside it,
+ * so an apostrophe ("reviewer's", "it's") neither opens nor closes one.
+ */
+// `(?![\s\S])` is the end of the input; `$` is a line end here, under the m flag.
+const QUOTED = new RegExp(
+  [
+    '(```|~~~)[\\s\\S]*?(?:\\1|(?![\\s\\S]))',
+    '^(?:[ \\t]*>| {4}|\\t).*$',
+    '`[^`\\n]*`',
+    '"[^"]*(?:"|(?![\\s\\S]))',
+    '“[^”]*(?:”|(?![\\s\\S]))',
+    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}]))*['’](?![\\p{L}\\p{N}])",
+  ].join('|'),
+  'gmu',
+)
+/**
+ * What a quoted span becomes: one mark, then spaces, so every offset stays where it was. A role
+ * phrase that reaches the mark is no role ("You are \"not\" the reviewer", "the reviewer
+ * \"assistant\""), and an opener whose whole phrase is quoted still ends the scan with none.
+ */
+const QUOTE_MARK = '\uE000'
+/**
+ * Openers that address the Worker. A bare "As" or "Acting as" is left out: in an objective it is
+ * as often a conjunction or someone else's role ("As the reviewer of PR #405 found, fix…",
+ * "Acting as the reviewer, I found…") as the Worker's own.
+ */
+const ROLE_OPENER = /^(?:you\s+are|you['’]re|act\s+as|serve\s+as|work\s+as)\s+/iu
+/** Words that may open the role's noun phrase without being part of it, once, before its words. */
+const DETERMINERS = new Set(['a', 'an', 'the', 'our', 'this', 'one', 'another'])
+/** Adverbs that may come before the determiner: "You are now the reviewer". */
+const LEADING_ADVERBS = new Set(['now', 'also', 'again', 'still'])
+/** Bases of a 's that is a contraction ("who's", "it's"), which ends the phrase, not a possessive. */
+const CONTRACTION_BASES = new Set(['who', 'that', 'it', 'here', 'there', 'what', 'he', 'she'])
+/**
+ * Words that end the role's noun phrase: what follows them is not the role itself. "and" and "or"
+ * are not among them: "the reviewer and fixer" reads on to its head, "fixer", which no single
+ * definition's name is.
+ */
+const PHRASE_BREAKS = new Set(
+  'for of to with who whom whose that which on in at from not than by about as into over under while when where so then'.split(
+    ' ',
+  ),
+)
+/** The longest noun phrase read after the opener, determiner excluded; a longer one is no role. */
+const MAX_PHRASE_WORDS = 5
+/** A line ending in a colon with more words than this introduces someone else's text. */
+const MAX_LABEL_WORDS = 3
+
+export function nameWords(name: string) {
+  // Every word of the name, short ones included: `ux-reviewer` and `qa` keep their qualifier.
+  return name
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+}
+
+/** Whether a word is a plural possessive ("reviewers'"), whose head is the next word. */
+function isPluralPossessive(word: string) {
+  return /s['’]$/u.test(word.replace(/[^\p{L}\p{N}'’]+$/u, ''))
+}
+
+/**
+ * "independent code reviewer" from "an independent code reviewer with a fresh context": the
+ * noun phrase right after the opener, a determiner that opens it left out. A possessive means
+ * its head is another noun ("the reviewer's assistant"), so it gives no phrase.
+ */
+function rolePhrase(rest: string) {
+  const phrase: string[] = []
+  let opening = true
+  for (const raw of rest.split(/\s+/u)) {
+    if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw)) return []
+    // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
+    const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
+    if (contraction) return CONTRACTION_BASES.has(contraction[1] ?? '') ? phrase : []
+    const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
+    const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
+    if (core === '' || PHRASE_BREAKS.has(core)) break
+    if (opening && LEADING_ADVERBS.has(core)) continue
+    const opens = opening
+    opening = false
+    if (opens && DETERMINERS.has(core)) continue
+    phrase.push(...nameWords(core))
+    if (phrase.length > MAX_PHRASE_WORDS) return []
+    if (core !== word) break
+  }
+  return phrase
+}
+
+/**
+ * "Act as the reviewer, I found…", "Serve as reviewer: Worker 2 flagged…": a role followed by a
+ * separate subject is the speaker's or someone else's, not the Worker's. An imperative after it
+ * starts lowercase ("Act as reviewer, review the diff"), so it still states the Worker's role.
+ * Read on the text after an "Act as", "Serve as" or "Work as" opener, whatever its case.
+ */
+// The separator is the first comma, colon, dash (an ASCII one spaced: " - ", " -- ") or ellipsis.
+const SPEAKER_AFTER_ROLE =
+  /^(?:[^,:—–…\s]|\s(?!-{1,2}\s))*(?:[,:—–…]|\s-{1,2}(?=\s))\s*(?:(?:[Ii]|[Ww]e|[Mm]y|[Oo]ur|[Ii]t|[Tt]hey|[Hh]e|[Ss]he|[Tt]he|[Aa]n?|[Tt]his|[Tt]hat)\b|\p{Lu})/u
+
+/**
+ * The text up to the end of a line that ends in a colon and introduces what follows ("…each
+ * with this objective:"), after which the text is someone else's, quoted or not. A label of up
+ * to three words ("Role:", "Your task:") introduces the objective's own text, so it does not cut.
+ */
+function beforeIntroducingLine(text: string) {
+  let start = 0
+  for (const line of text.split('\n')) {
+    start += line.length + 1
+    if (/:\s*$/u.test(line) && line.trim().split(/\s+/u).length > MAX_LABEL_WORDS)
+      return text.slice(0, start)
+  }
+  return text
+}
+
+/**
+ * The objective's role statement: the phrase of the first clause near its start that opens with
+ * "You are", "You're", "Act as", "Serve as" or "Work as". Only the first counts, so a later "Act
+ * as the reviewer…" does not override "You are the implementer"; an empty phrase there (the
+ * opener led elsewhere) means the objective states no role.
+ */
+export function roleStatement(objective: string): readonly string[] {
+  // Someone else's objective quoted here ("Give each Worker this objective: \"You are a
+  // reviewer…\"") is never this one's role.
+  const marked = objective
+    .slice(0, READ_LENGTH)
+    .replace(QUOTED, (quoted) => QUOTE_MARK.padEnd(quoted.length))
+  for (const match of beforeIntroducingLine(marked).matchAll(CLAUSE)) {
+    if (match.index >= ROLE_OPENING_LENGTH) break
+    const opened = match[0].trim().replace(LIST_MARKER, '')
+    const opener = ROLE_OPENER.exec(opened)
+    if (!opener) continue
+    const rest = opened.slice(opener[0].length)
+    // "You are …" addresses the Worker whatever follows; only an "… as" opener can be a speaker's.
+    const speaker = !/^you/iu.test(opener[0]) && SPEAKER_AFTER_ROLE.test(rest)
+    return speaker ? [] : rolePhrase(rest)
+  }
+  return []
+}
