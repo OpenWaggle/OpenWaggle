@@ -107,6 +107,19 @@ describe('suggestAgentDefinition', () => {
   })
 
   it('prefers the definition whose whole name the objective states over a generic one', () => {
+    const code = { ...REVIEWER, name: 'code-reviewer' }
+    expect(
+      suggestAgentDefinition(
+        {
+          objective:
+            'You are an independent code reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
+        },
+        [REVIEWER, code],
+      ),
+    ).toEqual(code)
+  })
+
+  it('names a multi-word definition only when the phrase states every word', () => {
     const security = {
       name: 'security-reviewer',
       description:

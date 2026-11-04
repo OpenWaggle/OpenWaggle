@@ -26,6 +26,8 @@ export const SUGGESTION_DESCRIPTION_SHARE = 0.25
 export const ROLE_OPENING_LENGTH = 240
 
 const CLAUSE_END = /[.;!?\n]+/u
+/** Bullets, numbers and emphasis before a clause's first word: `- `, `* `, `1) `, `**`. */
+const LIST_MARKER = /^(?:[-*•+]+\s*|\d+[.)]\s*|_+)*/u
 const ROLE_OPENER = /^(?:you\s+are|you['’]re|act\s+as|acting\s+as|serve\s+as|work\s+as|as)\s+/iu
 /** Words that may open the role's noun phrase without being part of it, once, before its words. */
 const DETERMINERS = new Set(['a', 'an', 'the', 'our', 'this', 'one', 'another'])
@@ -195,18 +197,29 @@ function rolePhrase(rest: string) {
   return phrase
 }
 
-/** The role phrases of the clauses that open with "You are", "Act as" or "As" near the start. */
+/** "As reviewer, I found…": the role is the speaker's, not the Worker's. */
+const SPEAKER_AFTER_ROLE = /^as\b[^,]*,\s*(?:i|we|my|our|i['’]ve|i['’]m|we['’]ve|we['’]re)\b/iu
+
+/**
+ * The objective's role statement: the phrase of the first clause near its start that opens with
+ * "You are", "Act as" or "As". Only the first counts, so a later "As the reviewer, I found…" does
+ * not override "You are the implementer"; an empty phrase there (the opener led elsewhere) means
+ * the objective states no role.
+ */
 function rolePhrases(objective: string) {
-  const phrases: string[][] = []
   let offset = 0
   for (const clause of objective.split(CLAUSE_END)) {
     if (offset >= ROLE_OPENING_LENGTH) break
     offset += clause.length + 1
-    const opened = clause.trim().replace(/^[^\p{L}]+/u, '')
+    // A list marker may come first; a quote or a blockquote is someone else's objective quoted
+    // here ("Give each Worker this objective: \"You are a reviewer…\""), never this one's role.
+    const opened = clause.trim().replace(LIST_MARKER, '')
     const opener = ROLE_OPENER.exec(opened)
-    if (opener) phrases.push(rolePhrase(opened.slice(opener[0].length)))
+    if (!opener) continue
+    if (SPEAKER_AFTER_ROLE.test(opened)) return []
+    return [rolePhrase(opened.slice(opener[0].length))]
   }
-  return phrases
+  return []
 }
 
 function namesWord(phraseWord: string | undefined, nameWord: string) {
@@ -250,8 +263,8 @@ function score(candidate: AgentDefinitionCandidate, objective: ObjectiveWords) {
 
 /**
  * The one definition the objective most plainly describes, or undefined when none does or two
- * fit about equally well. A name the objective states more of wins first: "security reviewer"
- * names `security-reviewer`, though the generic `reviewer` may share more of its description.
+ * fit about equally well. A name the objective states more of wins first: "an independent code
+ * reviewer" names `code-reviewer` over `reviewer`, though both match it.
  */
 export function suggestAgentDefinition(
   input: AgentDefinitionSuggestionInput,

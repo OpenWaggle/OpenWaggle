@@ -148,7 +148,7 @@ export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
 }
 
 /**
- * "reviewer · high · GLM-5.3-Flash" under the title of a Session created from an Agent
+ * "reviewer · High · GLM-5.3-Flash" under the title of a Session created from an Agent
  * definition: which definition it runs, and what it runs with. Visual only: the row's
  * accessible name carries the same three parts.
  */
