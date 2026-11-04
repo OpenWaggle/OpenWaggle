@@ -52,7 +52,7 @@ describe('HivePanel Agent definitions (identity line)', () => {
     const row = treeItem('review-1')
     expect(row).toHaveAccessibleName(
       expect.stringMatching(
-        /^Open Worker Session: review-1, agent reviewer, thinking High, model spark\/GLM-5\.3-Flash-EXL3, spawned by queen/u,
+        /^Open Worker Session: review-1, spawned by queen, agent reviewer, thinking High, model spark\/GLM-5\.3-Flash-EXL3/u,
       ),
     )
     const identity = row.querySelector('[data-hive-agent="reviewer"]')
@@ -91,7 +91,9 @@ describe('HivePanel Agent definitions (identity line)', () => {
     const row = treeItem('review-1')
     expect(row.querySelector('[data-hive-agent]')).toHaveTextContent(/^reviewer$/u)
     expect(row).toHaveAccessibleName(
-      expect.stringMatching(/^Open Worker Session: review-1, agent reviewer, spawned by queen/u),
+      expect.stringMatching(
+        /^Open Worker Session: review-1, spawned by queen, agent reviewer, state /u,
+      ),
     )
   })
 
@@ -127,7 +129,7 @@ describe('HivePanel Agent definitions (identity line)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'By next actor' }))
 
-    const row = await screen.findByRole('button', { name: /Session: review-1, agent reviewer/u })
+    const row = await screen.findByRole('button', { name: /Session: review-1, .*agent reviewer/u })
     expect(within(row).getByText('reviewer')).toHaveClass('text-info-text')
     expect(row.querySelector('[data-hive-agent="reviewer"]')).toHaveTextContent(
       'reviewer · High · GLM-5.3-Flash-EXL3',

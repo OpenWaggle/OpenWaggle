@@ -30,6 +30,9 @@ const QUOTED = new RegExp(
     '`[^`\\n]*`',
     '"[^"]*(?:"|(?![\\s\\S]))',
     '“[^”]*(?:”|(?![\\s\\S]))',
+    // One quoted word ('tests', 'docs') closes at its own quote, before the longer form below
+    // could read that quote as a possessive and run on to an unrelated later quote.
+    "(?<![\\p{L}\\p{N}])['‘][^\\s'’]+['’](?![\\p{L}\\p{N}])",
     // Inside, an apostrophe before a letter ("it's") or a plural possessive ("Workers' findings")
     // goes on; greedy, the span still falls back to that s' when no later quote closes it.
     "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}])|(?<=s)['’](?=[ \\t]+\\p{Ll}))*['’](?![\\p{L}\\p{N}])",

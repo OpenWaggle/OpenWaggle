@@ -81,6 +81,19 @@ describe('roleStatement', () => {
     }
   })
 
+  it('closes a quoted word ending in s at its own quote', () => {
+    expect(
+      roleStatement(
+        `Rerun the 'tests' job first. You are the reviewer. Then check the 'lint' output.`,
+      ),
+    ).toEqual(['reviewer'])
+    expect(
+      roleStatement(
+        `Summarize the 'reviews' tab changes. You are the implementer. Rerun the 'lint' job. Act as the reviewer.`,
+      ),
+    ).toEqual(['implementer'])
+  })
+
   it('takes an apostrophe for no quote', () => {
     expect(roleStatement(`Use the '90s rules. You are the reviewer. It's fine.`)).toEqual([
       'reviewer',

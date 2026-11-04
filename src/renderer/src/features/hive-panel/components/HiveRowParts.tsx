@@ -98,7 +98,8 @@ export type HiveRowView = ReturnType<typeof useHiveRowView>
 /**
  * The row's accessible name. It carries every cell, because a name set on the row replaces its
  * content for assistive technology: without the state and Workspace here, they would be silent.
- * The parent comes right after the title, in the words every surface uses (#377).
+ * The parent comes right after the title, in the words every surface uses (#377), and the Agent
+ * definition identity after it.
  */
 export function hiveRowAccessibleName(
   view: HiveRowView,
@@ -107,8 +108,8 @@ export function hiveRowAccessibleName(
 ) {
   const parts = [
     `Open ${view.role.label} Session: ${view.session.title}`,
-    ...(view.agent ? [agentAccessibleName(view.agent)] : []),
     ...(parentTitle === null ? [] : [`spawned by ${parentTitle}`]),
+    ...(view.agent ? [agentAccessibleName(view.agent)] : []),
     ...(view.isPinned ? ['pinned'] : []),
     `state ${view.state.label}`,
     `workspace ${view.workspace}`,
