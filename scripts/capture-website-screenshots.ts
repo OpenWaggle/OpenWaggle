@@ -12,6 +12,16 @@ import {
 } from './website-screenshot-conversation-captures'
 import { captureBrowserPreview } from './website-screenshot-browser-capture'
 import {
+  captureBrowserAnnotation,
+  captureBrowserAnnotationChip,
+  captureBrowserDeviceToolbar,
+} from './website-screenshot-browser-device-captures'
+import {
+  captureExtensionReview,
+  captureExtensionSettingsSection,
+  captureExtensionSurfaces,
+} from './website-screenshot-extension-captures'
+import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
@@ -58,6 +68,12 @@ const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => 
   'feature-git-workflow.png': captureGitWorkflow,
   'session-tree-panel.png': captureSessionTree,
   'feature-browser-preview.png': captureBrowserPreview,
+  'browser-preview-device-toolbar.png': captureBrowserDeviceToolbar,
+  'browser-preview-annotation.png': captureBrowserAnnotation,
+  'browser-preview-annotation-chip.png': captureBrowserAnnotationChip,
+  'extensions-review.png': captureExtensionReview,
+  'extensions-settings-section.png': captureExtensionSettingsSection,
+  'extensions-surfaces.png': captureExtensionSurfaces,
 }
 
 interface ScratchProfile {

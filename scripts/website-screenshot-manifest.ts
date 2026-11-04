@@ -17,6 +17,12 @@ export const WEBSITE_SCREENSHOTS = [
   'feature-git-workflow.png',
   'session-tree-panel.png',
   'feature-browser-preview.png',
+  'browser-preview-device-toolbar.png',
+  'browser-preview-annotation.png',
+  'browser-preview-annotation-chip.png',
+  'extensions-review.png',
+  'extensions-settings-section.png',
+  'extensions-surfaces.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]
