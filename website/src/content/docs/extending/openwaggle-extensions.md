@@ -185,6 +185,17 @@ Choose the surface by the job the extension is doing, not by the framework used 
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
 
+The [development fixture](#development-fixture) contributes to most of these surfaces. Here it is around a Session after it was trusted, enabled and reloaded:
+
+![A Session with the GitHub Issues Overview fixture loaded, numbered 1 to 4: its side panel open on the right with issue counts and a list of issues, a second side panel icon on the Panel rail with a dot, a GitHub Issues Transcript Summary card at the end of the transcript, and a GitHub Issues Status widget above the composer](/screenshots/extensions-surfaces.png)
+
+1. A side panel (`sidePanels`), opened from its icon on the Panel rail. The header reads **Extension side panel** above the contribution title.
+2. The icon of the fixture's second side panel. The dot marks an extension panel you have not opened yet. Opening the panel, or **All panels**, clears it.
+3. A transcript renderer (`transcriptRenderers`), shown as a card at the end of the transcript.
+4. A status widget (`statusWidgets`), shown above the composer.
+
+Settings sections are not in this view. They appear in **Settings > Extensions** under **Extension settings**; see [Install extensions](/docs/extending/plugins#review-and-enable-a-package).
+
 ## Side panel icons
 
 A side panel can declare an optional `icon`, which OpenWaggle shows on the Panel rail and in All panels. Only `sidePanels` accept it. Use one of two forms:

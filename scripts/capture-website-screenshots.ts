@@ -29,6 +29,15 @@ import {
 import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
 import { registerFeatureSessions } from './website-screenshot-feature-sessions'
 import { startScreenshotModel } from './website-screenshot-feature-model'
+  captureBrowserAnnotation,
+  captureBrowserAnnotationChip,
+  captureBrowserDeviceToolbar,
+} from './website-screenshot-browser-device-captures'
+import {
+  captureExtensionReview,
+  captureExtensionSettingsSection,
+  captureExtensionSurfaces,
+} from './website-screenshot-extension-captures'
 import {
   PROJECT_NAME,
   seedBrowserSession,
@@ -103,6 +112,12 @@ const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => 
   'mcp-servers.png': captureMcpServers,
   'mcp-server-detail.png': captureMcpServerDetail,
   'mcp-server-error.png': captureMcpServerError,
+  'browser-preview-device-toolbar.png': captureBrowserDeviceToolbar,
+  'browser-preview-annotation.png': captureBrowserAnnotation,
+  'browser-preview-annotation-chip.png': captureBrowserAnnotationChip,
+  'extensions-review.png': captureExtensionReview,
+  'extensions-settings-section.png': captureExtensionSettingsSection,
+  'extensions-surfaces.png': captureExtensionSurfaces,
 }
 
 interface ScratchProfile {

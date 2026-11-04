@@ -34,6 +34,12 @@ export const WEBSITE_SCREENSHOTS = [
   'mcp-servers.png',
   'mcp-server-detail.png',
   'mcp-server-error.png',
+  'browser-preview-device-toolbar.png',
+  'browser-preview-annotation.png',
+  'browser-preview-annotation-chip.png',
+  'extensions-review.png',
+  'extensions-settings-section.png',
+  'extensions-surfaces.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]

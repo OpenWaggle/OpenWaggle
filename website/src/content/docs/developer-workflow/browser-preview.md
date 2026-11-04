@@ -57,10 +57,14 @@ system browser as a silent fallback.
 
 ## Responsive and device testing
 
-Open the device toolbar for a responsive viewport or a named phone, tablet, foldable, or display
-preset. Width and height can be edited directly, the aspect ratio can be locked, and fixed
+Choose **Open device toolbar** in the options menu for a responsive viewport or a named phone,
+tablet, foldable, or display preset. Width and height can be edited directly, the aspect ratio can be locked, and fixed
 viewports can be rotated. Closing the toolbar returns the tab to fill-panel sizing. Page zoom and
 viewport emulation are independent, so changing one does not silently rewrite the other.
+
+![Browser preview with the device toolbar open: the iPhone SE (375 × 667) preset, width and height fields, aspect-ratio lock, rotate and close buttons, and a dashboard page drawn at phone size with resize rails at its sides and bottom](/screenshots/browser-preview-device-toolbar.png)
+
+_A local dashboard at iPhone SE size. Its third stat card runs off the right edge, which is easy to miss at panel width._
 
 In fixed mode, drag the left, right, or bottom resize rail or either bottom corner. You can focus a
 rail and use its arrow keys to resize by 10 CSS pixels; hold `Shift` for 50-pixel steps. The preview fits the selected size inside the panel. Cancelling a drag restores the previous size.
@@ -98,7 +102,15 @@ Choose **Capture screenshot** to save a PNG of the preview. For feedback attache
 1. Select an element, or draw a region around the part you want to discuss.
 2. Add a comment or temporary style changes to show what you mean.
 3. Press `Enter` to attach it to your draft, or `Escape` to cancel.
-4. Review the **Browser preview** chip, write your request, and send it.
+4. Review the chip in your draft, write your request, and send it.
+
+![Annotation tools over the phone-sized dashboard: a Select, Region, Draw and Erase toolbar with 1 target, the row of stat cards outlined and labelled section.stats, and a comment editor below it with the comment typed and an Attach button](/screenshots/browser-preview-annotation.png)
+
+_Clicking the gap between two cards selected the row that holds them._
+
+![The message composer with the attached annotation: a chip showing the comment, the page title and the selected section, and 1 element, with the request typed below it](/screenshots/browser-preview-annotation-chip.png)
+
+_The chip shows your comment, or **Browser preview** when you left none. Remove it with its close button._
 
 For example, ask: "On this phone-sized page, keep the checkout button visible without covering the order total."
 
