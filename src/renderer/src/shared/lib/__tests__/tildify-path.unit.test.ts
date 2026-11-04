@@ -39,4 +39,17 @@ describe('tildifyPath', () => {
       ),
     ).toBe('.agents/skills/review/SKILL.md')
   })
+
+  it('shortens the home directory main passed, wherever it is', () => {
+    const home = '/private/tmp/openwaggle-shots-x1/home'
+    expect(tildifyPath(`${home}/.openwaggle/mcp.json`, home)).toBe('~/.openwaggle/mcp.json')
+    expect(tildifyPath(home, `${home}/`)).toBe('~')
+    expect(tildifyPath('C:\\Profiles\\Diego\\mcp.json', 'c:\\profiles\\diego')).toBe('~\\mcp.json')
+  })
+
+  it('leaves a sibling of the home directory alone', () => {
+    expect(tildifyPath('/srv/home-other/mcp.json', '/srv/home')).toBe('/srv/home-other/mcp.json')
+    expect(tildifyPath('/srv/project/mcp.json', '/srv/home')).toBe('/srv/project/mcp.json')
+    expect(tildifyPath('/Users/diego/mcp.json', '/')).toBe('~/mcp.json')
+  })
 })
