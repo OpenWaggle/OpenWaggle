@@ -12,6 +12,34 @@ import {
 } from './website-screenshot-conversation-captures'
 import { captureBrowserPreview } from './website-screenshot-browser-capture'
 import {
+  captureAllPanels,
+  captureCodemodeCard,
+  captureCompactionMarker,
+  captureMissingWorktree,
+  captureSettingsAgents,
+  captureSettingsPermissions,
+  captureSettingsShortcuts,
+  captureSettingsSkills,
+} from './website-screenshot-feature-captures'
+import {
+  captureContextMeter,
+  captureWaggleConversation,
+  captureWaggleSettings,
+} from './website-screenshot-waggle-captures'
+import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
+import { registerFeatureSessions } from './website-screenshot-feature-sessions'
+import { startScreenshotModel } from './website-screenshot-feature-model'
+import {
+  captureBrowserAnnotation,
+  captureBrowserAnnotationChip,
+  captureBrowserDeviceToolbar,
+} from './website-screenshot-browser-device-captures'
+import {
+  captureExtensionReview,
+  captureExtensionSettingsSection,
+  captureExtensionSurfaces,
+} from './website-screenshot-extension-captures'
+import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
@@ -36,6 +64,16 @@ import {
   type ScreenshotProject,
 } from './website-screenshot-project'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
+import {
+  captureMcpServerDetail,
+  captureMcpServerError,
+  captureMcpServers,
+} from './website-screenshot-mcp-captures'
+import {
+  captureTerminalAddToChat,
+  captureTerminalContextChip,
+  captureTerminalSplitPanes,
+} from './website-screenshot-terminal-captures'
 import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -58,6 +96,29 @@ const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => 
   'feature-git-workflow.png': captureGitWorkflow,
   'session-tree-panel.png': captureSessionTree,
   'feature-browser-preview.png': captureBrowserPreview,
+  'right-panel-all-panels.png': captureAllPanels,
+  'codemode-script-card.png': captureCodemodeCard,
+  'context-compacted.png': captureCompactionMarker,
+  'missing-worktree.png': captureMissingWorktree,
+  'settings-skills.png': captureSettingsSkills,
+  'settings-agents.png': captureSettingsAgents,
+  'settings-permissions.png': captureSettingsPermissions,
+  'settings-shortcuts.png': captureSettingsShortcuts,
+  'settings-waggle-mode.png': captureWaggleSettings,
+  'waggle-conversation.png': captureWaggleConversation,
+  'context-meter.png': captureContextMeter,
+  'terminal-split-panes.png': captureTerminalSplitPanes,
+  'terminal-add-to-chat.png': captureTerminalAddToChat,
+  'terminal-context-chip.png': captureTerminalContextChip,
+  'mcp-servers.png': captureMcpServers,
+  'mcp-server-detail.png': captureMcpServerDetail,
+  'mcp-server-error.png': captureMcpServerError,
+  'browser-preview-device-toolbar.png': captureBrowserDeviceToolbar,
+  'browser-preview-annotation.png': captureBrowserAnnotation,
+  'browser-preview-annotation-chip.png': captureBrowserAnnotationChip,
+  'extensions-review.png': captureExtensionReview,
+  'extensions-settings-section.png': captureExtensionSettingsSection,
+  'extensions-surfaces.png': captureExtensionSurfaces,
 }
 
 interface ScratchProfile {
@@ -113,6 +174,7 @@ async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProje
   await seedMarketingSession(profile.userDataDir, project.projectPath)
   await seedBrowserSession(profile.userDataDir, project.projectPath)
   const hive = await seedHiveExample(profile.userDataDir, project)
+  registerFeatureSessions({ userDataDir: profile.userDataDir, project, homeDir: profile.homeDir })
   await first.app.close()
   const launched = await launchApp(profile, project.projectPath)
   await createScheduledTasks(
@@ -181,6 +243,7 @@ async function main() {
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
   let app: ElectronApplication | null = null
+  let model: Awaited<ReturnType<typeof startScreenshotModel>> | null = null
   try {
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
@@ -188,6 +251,8 @@ async function main() {
       homeDir: profile.homeDir,
       worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
+    await addFeatureProjectFiles(project)
+    model = await startScreenshotModel(profile.homeDir)
     const launched = await launchSeededApp(profile, project)
     app = launched.app
     const rendererErrors = observeRendererErrors(launched.page)
@@ -202,6 +267,7 @@ async function main() {
     console.info('[website-shots] screenshot capture complete')
   } finally {
     await app?.close().catch(() => undefined)
+    await model?.close()
     await releaseScratchProfile(profile)
   }
 }

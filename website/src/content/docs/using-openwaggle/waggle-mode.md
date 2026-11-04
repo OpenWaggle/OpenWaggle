@@ -32,6 +32,10 @@ flowchart LR
 4. Save the preset.
 5. In a conversation, type `/` and select the saved Waggle preset. It appears as a chip beside your prompt and applies to that send only.
 
+![Settings > Waggle Mode with the built-in Code Review preset selected and marked Edited: Agent A, the Architect, on Claude Opus 4.6 in blue, Agent B, the Reviewer, on Claude Sonnet 4.6 in amber, each with a role description, and Collaboration set to stop on Consensus within 8 turns](/screenshots/settings-waggle-mode.png)
+
+*Changing a preset marks it **Edited** until you choose **Save Changes**. **New Custom Preset** saves the form as a new preset instead.*
+
 Try a bounded task:
 
 ```text
@@ -99,6 +103,10 @@ A preset that does not match this format is skipped without an error, so check t
 3. They alternate until the configured stopping condition or turn limit is reached.
 
 The execution bar above the message box appears while the collaboration is starting or running. It disappears when the collaboration finishes, stops, or fails. You can stop it rather than waiting for the turn limit.
+
+![A Waggle conversation started with the Code Review preset: Turn 1 by the Architect in blue, Turn 2 by the Reviewer in amber, and Turn 3 by the Architect still running, with the execution bar above the message box naming both agents and their models and showing Turn 3/8](/screenshots/waggle-conversation.png)
+
+*Each turn starts with its number, agent and model, in that agent's color. The **×** at the end of the execution bar stops the collaboration.*
 
 ## Conflict tracking
 

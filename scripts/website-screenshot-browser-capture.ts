@@ -17,7 +17,7 @@ import {
 const GUEST_TIMEOUT_MS = 30_000
 const GUEST_POLL_MS = 100
 
-interface ViewBounds {
+export interface ViewBounds {
   readonly x: number
   readonly y: number
   readonly width: number
@@ -37,7 +37,7 @@ async function guestViewBounds(context: CaptureContext, url: string) {
   }, url)
 }
 
-async function waitForGuest(context: CaptureContext, url: string) {
+export async function waitForGuest(context: CaptureContext, url: string) {
   const deadline = Date.now() + GUEST_TIMEOUT_MS
   while (Date.now() < deadline) {
     const page = context.app.windows().find((candidate) => candidate.url().startsWith(url))
@@ -73,7 +73,7 @@ async function compositeGuest(input: {
     .toBuffer()
 }
 
-async function openPreview(page: Page, url: string) {
+export async function openPreview(page: Page, url: string) {
   const address = page.getByRole('textbox', { name: 'Preview address' }).first()
   await address.waitFor({ timeout: GUEST_TIMEOUT_MS })
   await address.fill(url)
