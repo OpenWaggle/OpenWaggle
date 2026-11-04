@@ -5,9 +5,24 @@
  */
 const HOME_DIRECTORY_RENDERER_SWITCH = '--openwaggle-home-directory='
 
-/** The renderer argument for `home`; none for an empty home or the filesystem root. */
+const WINDOWS_DRIVE_ROOT = /^[A-Za-z]:$/u
+/** `//server` with forward slashes. A `//server/share` can be a home: per-user home shares exist. */
+const UNC_SERVER_ROOT = /^\/\/[^/]+$/u
+
+/**
+ * `home` with forward slashes and no trailing separators, or null when that leaves a filesystem
+ * root (`/`, `C:\`, `\\server`) or nothing: shortening a root would turn every path on it
+ * into `~`.
+ */
+export function homeDirectoryRoot(home: string): string | null {
+  const root = home.replaceAll('\\', '/').replace(/\/+$/u, '')
+  if (root === '' || WINDOWS_DRIVE_ROOT.test(root) || UNC_SERVER_ROOT.test(root)) return null
+  return root
+}
+
+/** The renderer argument for `home`; none for an empty home or a filesystem root. */
 export function homeDirectoryRendererArguments(home: string): readonly string[] {
-  return home.replace(/[\\/]+$/u, '') === '' ? [] : [`${HOME_DIRECTORY_RENDERER_SWITCH}${home}`]
+  return homeDirectoryRoot(home) === null ? [] : [`${HOME_DIRECTORY_RENDERER_SWITCH}${home}`]
 }
 
 /** The home directory main passed in a renderer's `process.argv`, or null. */

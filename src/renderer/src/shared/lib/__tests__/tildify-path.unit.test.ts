@@ -71,4 +71,10 @@ describe('tildifyPath', () => {
     expect(tildifyPath('\\\\srv\\home', '\\\\srv\\home\\')).toBe('~')
     expect(tildifyPath('\\\\srv\\home-other\\x', '\\\\srv\\home')).toBe('\\\\srv\\home-other\\x')
   })
+
+  it('treats a home at a filesystem root as unknown', () => {
+    expect(tildifyPath('C:\\Projects\\app', 'C:\\')).toBe('C:\\Projects\\app')
+    expect(tildifyPath('/opt/app', '/')).toBe('/opt/app')
+    expect(tildifyPath('\\\\srv\\share\\x', '\\\\srv')).toBe('\\\\srv\\share\\x')
+  })
 })

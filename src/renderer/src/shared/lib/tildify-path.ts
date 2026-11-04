@@ -1,3 +1,4 @@
+import { homeDirectoryRoot } from '@shared/home-directory-argument'
 import { formatDisplayPath } from './display-path'
 import { api } from './ipc'
 
@@ -16,11 +17,9 @@ function withForwardSlashes(path: string) {
   return path.replaceAll('\\', '/')
 }
 
-/** The home directory without trailing separators, or null when nothing is left (`/`). */
+/** The home directory with forward slashes, or null when it is unknown or a filesystem root. */
 function usableHomeRoot(home: string | null) {
-  if (home === null) return null
-  const root = withForwardSlashes(home).replace(/\/+$/u, '')
-  return root === '' ? null : root
+  return home === null ? null : homeDirectoryRoot(home)
 }
 
 /**
