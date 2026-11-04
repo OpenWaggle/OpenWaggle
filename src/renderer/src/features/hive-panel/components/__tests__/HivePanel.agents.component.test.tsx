@@ -52,14 +52,14 @@ describe('HivePanel Agent definitions (identity line)', () => {
     const row = treeItem('review-1')
     expect(row).toHaveAccessibleName(
       expect.stringMatching(
-        /^Open Worker Session: review-1, agent reviewer, thinking high, model spark\/GLM-5\.3-Flash-EXL3, spawned by queen/u,
+        /^Open Worker Session: review-1, agent reviewer, thinking High, model spark\/GLM-5\.3-Flash-EXL3, spawned by queen/u,
       ),
     )
     const identity = row.querySelector('[data-hive-agent="reviewer"]')
-    expect(identity).toHaveTextContent('reviewer · high · GLM-5.3-Flash-EXL3')
+    expect(identity).toHaveTextContent('reviewer · High · GLM-5.3-Flash-EXL3')
     expect(identity).toHaveAttribute(
       'title',
-      'Agent definition: reviewer · thinking high · model spark/GLM-5.3-Flash-EXL3',
+      'Agent definition: reviewer · thinking High · model spark/GLM-5.3-Flash-EXL3',
     )
     expect(row.querySelector('[data-agent-glyph="true"]')).not.toBeNull()
 
@@ -67,6 +67,22 @@ describe('HivePanel Agent definitions (identity line)', () => {
     expect(plain.querySelector('[data-hive-agent]')).toBeNull()
     expect(plain.querySelector('[data-agent-glyph]')).toBeNull()
     expect(plain).not.toHaveAccessibleName(expect.stringContaining('agent'))
+  })
+
+  it('names a thinking level as the composer does, and Off as no thinking', async () => {
+    await renderHive([
+      worker('review-1', { ...reviewer, agentThinkingLevel: 'xhigh' }),
+      worker('review-2', { ...reviewer, agentThinkingLevel: 'off' }),
+    ])
+
+    expect(treeItem('review-1').querySelector('[data-hive-agent]')).toHaveTextContent(
+      'reviewer · Extra High · GLM-5.3-Flash-EXL3',
+    )
+    const off = treeItem('review-2')
+    expect(off.querySelector('[data-hive-agent]')).toHaveTextContent(
+      'reviewer · No thinking · GLM-5.3-Flash-EXL3',
+    )
+    expect(off).toHaveAccessibleName(expect.stringContaining('agent reviewer, thinking Off'))
   })
 
   it('shows only the name when the profile carries no model or thinking level', async () => {
@@ -114,7 +130,7 @@ describe('HivePanel Agent definitions (identity line)', () => {
     const row = await screen.findByRole('button', { name: /Session: review-1, agent reviewer/u })
     expect(within(row).getByText('reviewer')).toHaveClass('text-info-text')
     expect(row.querySelector('[data-hive-agent="reviewer"]')).toHaveTextContent(
-      'reviewer · high · GLM-5.3-Flash-EXL3',
+      'reviewer · High · GLM-5.3-Flash-EXL3',
     )
   })
 })

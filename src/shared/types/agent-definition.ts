@@ -60,14 +60,14 @@ export interface ResolvedAgentDefinitionSnapshot extends AgentDefinitionDocument
 }
 
 /**
- * The Agent definition a Session summary's lineage names, with the model and thinking level the
- * Session runs with now: its execution profile's, which the model picker and a Run's thinking
- * level change after creation.
+ * The Agent definition a Session summary's lineage names, with its execution profile's model and
+ * thinking level now, which the model picker and a Run's thinking level change after creation.
+ * The thinking level is the one set for the Session; a model without that level runs lower.
  */
 export interface AgentDefinitionLineageFacts {
   readonly agentDefinitionName?: string
   /** The model a Session created from an Agent definition runs with. */
   readonly agentModelId?: string
-  /** The thinking level a Session created from an Agent definition runs with. */
+  /** The thinking level set for a Session created from an Agent definition. */
   readonly agentThinkingLevel?: ThinkingLevel
 }

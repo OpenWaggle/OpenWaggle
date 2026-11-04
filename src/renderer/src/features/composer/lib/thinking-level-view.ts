@@ -1,5 +1,5 @@
+import { THINKING_LEVEL_LABELS } from '@shared/constants/thinking-level-labels'
 import type { ThinkingLevel } from '@shared/types/settings'
-import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
 
 interface ThinkingLevelTitleInput {
   readonly hasSelectedModel: boolean

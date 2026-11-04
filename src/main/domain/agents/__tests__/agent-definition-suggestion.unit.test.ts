@@ -202,6 +202,8 @@ describe('suggestAgentDefinition', () => {
 
   it('reads "As the …" and a role after a leading bullet', () => {
     for (const objective of [
+      'You are the second reviewer of this branch. Review the diff against the ticket and the project guidelines with a fresh context.',
+      'As reviewer, review the diff of the branch against the ticket and the project guidelines with a fresh context.',
       'As the independent reviewer of this branch, review the diff against the ticket and the project guidelines with a fresh context.',
       '- You are a reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
     ]) {
@@ -251,5 +253,35 @@ describe('suggestAgentDefinition', () => {
     ]) {
       expect(suggestAgentDefinition({ objective }, [REVIEWER])).toEqual(REVIEWER)
     }
+  })
+
+  it('reads no role when anything but a role modifier comes before the head', () => {
+    for (const objective of [
+      'You are coordinating three independent reviewers for PR #405: spawn one Worker per area, each reviewing the full diff of the branch against the ticket and the project guidelines with a fresh context, then merge their findings.',
+      'You are the fix-up implementer after reviewers flagged regressions. Fix the regressions in the diff of the branch against the ticket and the guidelines.',
+      'You are the implementer working alongside reviewers. Keep the diff of the branch within the ticket and the project guidelines.',
+      'You are a follow-up Worker unblocking reviewers today. Review the diff of the branch against the ticket and the project guidelines.',
+      'You are no longer reviewer: implement the fixes in the diff of the branch against the ticket and the project guidelines.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
+  })
+
+  it('treats a curly apostrophe like a straight one', () => {
+    for (const objective of [
+      'You are the reviewer’s assistant: collect the diff of the branch against the ticket and the project guidelines.',
+      'You are the reviewers’ pair: review the diff of the branch against the ticket and the project guidelines.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
+    expect(
+      suggestAgentDefinition(
+        {
+          objective:
+            'You’re the reviewer who’s checking this change. Review the diff of the branch against the ticket and the project guidelines.',
+        },
+        [REVIEWER],
+      ),
+    ).toEqual(REVIEWER)
   })
 })

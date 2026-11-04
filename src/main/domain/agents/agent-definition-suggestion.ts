@@ -39,8 +39,19 @@ const PHRASE_BREAKS = new Set(
     ' ',
   ),
 )
-/** The longest noun phrase read after the opener, determiner excluded. */
+/** The longest noun phrase read after the opener, determiner excluded; a longer one is no role. */
 const MAX_PHRASE_WORDS = 5
+/**
+ * The only words, besides the name's own, that may come before the role's head. Closed on
+ * purpose: a verb, a count, a preposition or another role before it ("coordinating three
+ * reviewers", "the implementer after reviewers", "no longer reviewer") means the phrase is not a
+ * plain statement of the role, and the hint stays silent rather than guess.
+ */
+const ROLE_MODIFIERS = new Set(
+  'independent senior junior lead principal staff dedicated second final fresh context new primary main sole external strict careful thorough skeptical sceptical impartial neutral unbiased critical experienced read only readonly code'.split(
+    ' ',
+  ),
+)
 /** A definition needs at least this many description words to be compared at all. */
 const MIN_DESCRIPTION_WORDS = 4
 /** Words shorter than this carry no role. */
@@ -178,7 +189,8 @@ function rolePhrase(rest: string) {
     }
     opening = false
     phrase.push(...nameWords(core))
-    if (core !== word || phrase.length >= MAX_PHRASE_WORDS) break
+    if (phrase.length > MAX_PHRASE_WORDS) return []
+    if (core !== word) break
   }
   return phrase
 }
@@ -202,17 +214,19 @@ function namesWord(phraseWord: string | undefined, nameWord: string) {
 }
 
 /**
- * Whether a role phrase is this name: every name word in it, as written or plural, and the
- * phrase's head (its last word) the name's last word. Unstemmed, so `tester` or `planner` is not
- * named by "the tests" or "the plan".
+ * Whether a role phrase is this name: its head (its last word) the name's last word, every name
+ * word in it, and every other word a role modifier, all as written or plural. Unstemmed, so
+ * `tester` or `planner` is not named by "the tests" or "the plan".
  */
 function namesRole(name: readonly string[], objective: ObjectiveWords) {
   const last = name.at(-1)
   if (last === undefined) return false
+  const isNameWord = (phraseWord: string) => name.some((word) => namesWord(phraseWord, word))
   return objective.roles.some(
     (phrase) =>
       namesWord(phrase.at(-1), last) &&
-      name.every((word) => phrase.some((phraseWord) => namesWord(phraseWord, word))),
+      name.every((word) => phrase.some((phraseWord) => namesWord(phraseWord, word))) &&
+      phrase.slice(0, -1).every((word) => isNameWord(word) || ROLE_MODIFIERS.has(word)),
   )
 }
 

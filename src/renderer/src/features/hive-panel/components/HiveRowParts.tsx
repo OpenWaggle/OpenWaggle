@@ -13,6 +13,11 @@ import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
 import { useHiveSessionState } from '../hooks/useHiveSessionState'
+import {
+  agentAccessibleName,
+  agentIdentityTitle,
+  hiveAgentPresentation,
+} from '../lib/hive-agent-presentation'
 
 /**
  * The Hive rows are a three-column table (ADR 0051 review): Session, Workspace, State — with one
@@ -65,40 +70,6 @@ export type HiveRowMenuState = ReturnType<typeof useRowMenu>
 function hiveRolePresentation(session: { readonly lineage?: { readonly role?: string } | null }) {
   const isQueen = session.lineage?.role === 'queen'
   return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
-}
-
-/** A model reference without its provider: `spark/GLM-5.3-Flash` reads `GLM-5.3-Flash`. */
-function shortModelName(modelId: string) {
-  return modelId.slice(modelId.lastIndexOf('/') + 1) || modelId
-}
-
-/**
- * The Agent definition a Session was created from, with the thinking level and model it runs
- * with now: the row's identity line ("reviewer · high · GLM-5.3-Flash"). Null for a Session
- * created without one.
- */
-export function hiveAgentPresentation(session: HiveSession) {
-  const lineage = session.lineage
-  const name = lineage?.agentDefinitionName
-  if (!name) return null
-  const modelId = lineage.agentModelId ?? null
-  return {
-    name,
-    thinking: lineage.agentThinkingLevel ?? null,
-    modelId,
-    model: modelId ? shortModelName(modelId) : null,
-  }
-}
-
-export type HiveAgentPresentation = NonNullable<ReturnType<typeof hiveAgentPresentation>>
-
-/** "agent reviewer, thinking high, model spark/GLM-5.3-Flash": the identity line, read aloud. */
-function agentAccessibleName(agent: HiveAgentPresentation) {
-  return [
-    `agent ${agent.name}`,
-    ...(agent.thinking ? [`thinking ${agent.thinking}`] : []),
-    ...(agent.modelId ? [`model ${agent.modelId}`] : []),
-  ].join(', ')
 }
 
 /** Everything a Hive row shows, from its Session and the live stores it subscribes to. */
@@ -176,14 +147,6 @@ export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
   )
 }
 
-function agentIdentityTitle(agent: HiveAgentPresentation) {
-  return [
-    `Agent definition: ${agent.name}`,
-    ...(agent.thinking ? [`thinking ${agent.thinking}`] : []),
-    ...(agent.modelId ? [`model ${agent.modelId}`] : []),
-  ].join(' · ')
-}
-
 /**
  * "reviewer · high · GLM-5.3-Flash" under the title of a Session created from an Agent
  * definition: which definition it runs, and what it runs with. Visual only: the row's
@@ -192,7 +155,7 @@ function agentIdentityTitle(agent: HiveAgentPresentation) {
 export function HiveAgentIdentity({ view }: { readonly view: HiveRowView }) {
   const agent = view.agent
   if (agent === null) return null
-  const details = [agent.thinking, agent.model].filter((part): part is string => part !== null)
+  const details = [agent.thinkingLine, agent.model].filter((part): part is string => part !== null)
   return (
     <span
       aria-hidden="true"

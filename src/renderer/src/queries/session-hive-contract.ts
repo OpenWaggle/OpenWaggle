@@ -19,7 +19,7 @@ export interface HiveLineage {
   readonly directWorkerCount: number
   readonly activeDirectWorkerCount: number
   readonly agentDefinitionName?: string | null
-  /** Set with agentDefinitionName: what the Worker runs with now (Hive panel identity line). */
+  /** Set with agentDefinitionName: the Worker's model and thinking level setting (Hive panel identity line). */
   readonly agentModelId?: string | null
   readonly agentThinkingLevel?: ThinkingLevel | null
   readonly delegationState?: HiveDelegationState | null
