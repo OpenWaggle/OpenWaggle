@@ -3,6 +3,7 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { Button } from '@/shared/ui/Button'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { useUIStore } from '@/shell/ui-store'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { SyntaxThemePicker } from './SyntaxThemePicker'
 import { TerminalPaletteSettings } from './TerminalPaletteSettings'
 import { TypographySettings } from './TypographySettings'
@@ -175,7 +176,7 @@ function AccessibilityAppearanceSettings() {
 
 export function AppearanceSection() {
   return (
-    <div className="mx-auto max-w-6xl space-y-9 pb-10">
+    <SettingsSectionContainer className="space-y-9 pb-10">
       <header className="max-w-2xl">
         <h2 className="text-xl font-semibold tracking-tight text-text-primary">Appearance</h2>
         <p className="mt-1.5 text-sm leading-6 text-text-tertiary">
@@ -189,6 +190,6 @@ export function AppearanceSection() {
       <RightPanelAppearanceSettings />
       <ReviewAppearanceSettings />
       <AccessibilityAppearanceSettings />
-    </div>
+    </SettingsSectionContainer>
   )
 }

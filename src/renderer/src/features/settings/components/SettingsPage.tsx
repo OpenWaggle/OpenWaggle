@@ -58,14 +58,8 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
         <SettingsNav activeTab={activeTab} />
 
         {/* Content area — fills available width */}
-        <div
-          className={cn(
-            'min-w-0 flex-1',
-            activeTab === 'skills' || activeTab === 'agents' || activeTab === 'scheduled'
-              ? 'overflow-hidden'
-              : 'overflow-y-auto px-4 py-5 @min-[640px]/settings:px-10 @min-[640px]/settings:py-8',
-          )}
-        >
+        {/* Each tab roots itself in SettingsSectionContainer, which owns scroll and padding. */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <SettingsTabContent tab={activeTab} />
         </div>
       </div>

@@ -7,6 +7,7 @@ import { useSessions } from '@/features/sessions/hooks'
 import { useExtensionsSectionController } from '@/features/settings/hooks/useExtensionsSectionController'
 import { usePreferences } from '@/features/settings/hooks/useSettings'
 import { projectName } from '@/shared/lib/format'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { ExtensionContributionSummary } from './ExtensionContributionSummary'
 import { ExtensionDiagnostics } from './ExtensionDiagnostics'
 import { ExtensionPackageCard } from './ExtensionPackageCard'
@@ -257,7 +258,7 @@ export function ExtensionsSection() {
   }
 
   return (
-    <div className="space-y-6">
+    <SettingsSectionContainer className="space-y-6">
       <ExtensionsSectionHeading
         projectCount={projectPaths.length}
         loading={loading}
@@ -291,6 +292,6 @@ export function ExtensionsSection() {
           No extension packages discovered.
         </p>
       )}
-    </div>
+    </SettingsSectionContainer>
   )
 }

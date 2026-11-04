@@ -1,6 +1,6 @@
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { RefreshCw, Sparkles } from 'lucide-react'
-import { useResourceProject } from '@/features/settings'
+import { SettingsSectionContainer, useResourceProject } from '@/features/settings'
 import { useSkills } from '@/features/skills/hooks/useSkills'
 import { cn } from '@/shared/lib/cn'
 import { formatDisplayPath } from '@/shared/lib/display-path'
@@ -218,7 +218,7 @@ function SkillsPanelContent({
   const selectedSkill = catalog?.skills.find((skill) => skill.id === selectedSkillId) ?? null
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-bg">
+    <SettingsSectionContainer layout="fill" className="overflow-hidden bg-bg">
       <SkillsPanelHeader project={project} onRefresh={() => void refresh()} />
       {project.folderError && (
         <p
@@ -245,7 +245,7 @@ function SkillsPanelContent({
           previewMarkdown={previewMarkdown}
         />
       </div>
-    </div>
+    </SettingsSectionContainer>
   )
 }
 
@@ -255,7 +255,7 @@ export function SkillsPanel() {
 
   if (!projectPath) {
     return (
-      <div className="flex h-full min-w-0 flex-col bg-bg">
+      <SettingsSectionContainer layout="fill" className="bg-bg">
         <SkillsPanelHeader project={project} onRefresh={() => {}} />
         {project.folderError && (
           <p
@@ -268,7 +268,7 @@ export function SkillsPanel() {
         <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
           Open a project folder to browse its skills.
         </div>
-      </div>
+      </SettingsSectionContainer>
     )
   }
 

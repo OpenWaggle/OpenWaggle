@@ -9,6 +9,7 @@ import { usePreferencesStore } from '@/features/settings/state/preferences-store
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { AutomaticRemovalCard } from './worktrees/AutomaticRemovalCard'
 import { BulkWorktreeRemovalDialog } from './worktrees/BulkWorktreeRemovalDialog'
 import { useWorktreeInventory, useWorktreeSpace } from './worktrees/use-worktree-inventory'
@@ -184,7 +185,7 @@ export function WorktreesSection() {
   }
 
   return (
-    <div className="space-y-5">
+    <SettingsSectionContainer className="space-y-5">
       <WorktreesHeader
         refreshing={inventory.isFetching}
         onRefresh={() => void inventory.refetch()}
@@ -249,6 +250,6 @@ export function WorktreesSection() {
           onClose={() => setBulkOpen(false)}
         />
       ) : null}
-    </div>
+    </SettingsSectionContainer>
   )
 }
