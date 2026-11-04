@@ -52,4 +52,23 @@ describe('tildifyPath', () => {
     expect(tildifyPath('/srv/project/mcp.json', '/srv/home')).toBe('/srv/project/mcp.json')
     expect(tildifyPath('/Users/diego/mcp.json', '/')).toBe('~/mcp.json')
   })
+
+  it('never guesses another home when the real home is known', () => {
+    expect(tildifyPath('/Users/bob/x', '/Users/diego')).toBe('/Users/bob/x')
+    expect(tildifyPath('/home/bob/.pi/mcp.json', '/home/diego')).toBe('/home/bob/.pi/mcp.json')
+    expect(tildifyPath('C:\\Users\\bob\\x', 'C:\\Users\\diego')).toBe('C:\\Users\\bob\\x')
+  })
+
+  it('compares Windows separators normalised', () => {
+    expect(tildifyPath('C:/Users/Diego/.openwaggle/mcp.json', 'C:\\Users\\Diego')).toBe(
+      '~/.openwaggle/mcp.json',
+    )
+    expect(tildifyPath('c:\\users\\diego\\mcp.json', 'C:/Users/Diego/')).toBe('~\\mcp.json')
+  })
+
+  it('shortens a UNC home directory, ignoring case', () => {
+    expect(tildifyPath('\\\\srv\\home\\x', '\\\\SRV\\Home')).toBe('~\\x')
+    expect(tildifyPath('\\\\srv\\home', '\\\\srv\\home\\')).toBe('~')
+    expect(tildifyPath('\\\\srv\\home-other\\x', '\\\\srv\\home')).toBe('\\\\srv\\home-other\\x')
+  })
 })

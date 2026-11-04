@@ -1,7 +1,8 @@
 import { formatDisplayPath } from './display-path'
 import { api } from './ipc'
 
-const WINDOWS_DRIVE_PATH = /^[A-Za-z]:[\\/]/u
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:\//u
+const WINDOWS_UNC_PATH = /^\/\/[^/]/u
 
 /** The home directory the preload exposes; absent outside Electron and in most tests. */
 function windowHomeDirectory() {
@@ -10,31 +11,34 @@ function windowHomeDirectory() {
   return typeof home === 'string' ? home : null
 }
 
-/** `path` from `home` as `~…`, or null when it is not inside it. Windows drives ignore case. */
-function underHomeDirectory(path: string, home: string) {
-  const root = home.replace(/[\\/]+$/u, '')
-  if (root === '') return null
-  const windows = WINDOWS_DRIVE_PATH.test(root)
-  const head = path.slice(0, root.length)
-  if (windows ? head.toLowerCase() !== root.toLowerCase() : head !== root) return null
-  const tail = path.slice(root.length)
-  if (tail === '') return '~'
-  return tail.startsWith('/') || (windows && tail.startsWith('\\')) ? `~${tail}` : null
+/** Forward slashes only, so `C:\Users\x` and `C:/Users/x` compare equal. */
+function withForwardSlashes(path: string) {
+  return path.replaceAll('\\', '/')
+}
+
+/** The home directory without trailing separators, or null when nothing is left (`/`). */
+function usableHomeRoot(home: string | null) {
+  if (home === null) return null
+  const root = withForwardSlashes(home).replace(/\/+$/u, '')
+  return root === '' ? null : root
 }
 
 /**
- * Abbreviate the OS home-directory prefix of a filesystem path to `~` for
- * display, so the meaningful tail of long paths (e.g. `~/.openwaggle/...`) stays
- * visible instead of being eaten by the home prefix and truncated.
- *
- * Display-only. The home directory main passes to the window (`api.getHomeDirectory()`) is shortened
- * wherever it is; without it, this matches the common macOS/Linux/Windows home roots and
- * leaves any other path unchanged (never fabricates or hides a non-home path).
+ * `path` from `root` as `~…`, or null when it is not inside it. Separators are compared
+ * normalised; Windows drive and UNC paths ignore case. The tail keeps the path's own separators.
  */
-export function tildifyPath(path: string, homeDirectory = windowHomeDirectory()): string {
-  const displayPath = formatDisplayPath(path, [])
-  const fromHome = homeDirectory === null ? null : underHomeDirectory(displayPath, homeDirectory)
-  if (fromHome !== null) return fromHome
+function underHomeDirectory(path: string, root: string) {
+  const comparable = withForwardSlashes(path)
+  const caseInsensitive = WINDOWS_DRIVE_PATH.test(`${root}/`) || WINDOWS_UNC_PATH.test(root)
+  const head = comparable.slice(0, root.length)
+  if (caseInsensitive ? head.toLowerCase() !== root.toLowerCase() : head !== root) return null
+  const tail = path.slice(root.length)
+  if (tail === '') return '~'
+  return tail.startsWith('/') || tail.startsWith('\\') ? `~${tail}` : null
+}
+
+/** The common macOS/Linux/Windows home roots, used only when the real home is unknown. */
+function guessedHomePath(displayPath: string) {
   const unix = /^\/(?:Users|home)\/([^/]+)(\/.*)?$/.exec(displayPath)
   if (unix) {
     const [, name, tail] = unix
@@ -49,4 +53,21 @@ export function tildifyPath(path: string, homeDirectory = windowHomeDirectory())
     return winSystem.has(name ?? '') ? displayPath : `~${tail ?? ''}`
   }
   return displayPath
+}
+
+/**
+ * Abbreviate the OS home-directory prefix of a filesystem path to `~` for
+ * display, so the meaningful tail of long paths (e.g. `~/.openwaggle/...`) stays
+ * visible instead of being eaten by the home prefix and truncated.
+ *
+ * Display-only. When main passed the home directory (`api.getHomeDirectory()`), only that
+ * directory is shortened, wherever it is; another user's home stays as it is. Only without
+ * it does this guess the common macOS/Linux/Windows home roots. A non-home path is never
+ * changed.
+ */
+export function tildifyPath(path: string, homeDirectory = windowHomeDirectory()): string {
+  const displayPath = formatDisplayPath(path, [])
+  const homeRoot = usableHomeRoot(homeDirectory)
+  if (homeRoot === null) return guessedHomePath(displayPath)
+  return underHomeDirectory(displayPath, homeRoot) ?? displayPath
 }
