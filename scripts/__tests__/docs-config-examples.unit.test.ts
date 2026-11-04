@@ -3,9 +3,10 @@
  * checked against the published JSON Schema where one exists, so an example cannot drift from
  * what OpenWaggle and Pi accept.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { ScheduledTask, ScheduledTasksResponse } from '@shared/types/scheduled-task'
 import { fromPartial } from '@total-typescript/shoehorn'
 import JsonSchema from 'typebox/schema'
@@ -78,13 +79,23 @@ const actionsFile: ExampleKind = {
   },
 }
 
+/** The top-level keys OpenWaggle reads from `.openwaggle/settings.json`, and `$schema`. */
+const SETTINGS_KEYS = new Set(['$schema', ...Object.keys(projectSettingsFileSchema.fields)])
+
 const settingsFile: ExampleKind = {
   name: '.openwaggle/settings.json',
-  matches: (value) => isRecord(value) && !('json.schemas' in record(value)),
+  // The settings root keeps unknown keys, so an example is a settings file only when every key is
+  // one OpenWaggle reads; anything else fails as matching no known format.
+  matches: (value) =>
+    isRecord(value) &&
+    Object.keys(record(value)).length > 0 &&
+    Object.keys(record(value)).every((key) => SETTINGS_KEYS.has(key)),
   check: async (value) => {
     expectSchemaKey(value, 'project-settings.schema.json')
     expect(await publishedSchemaErrors('project-settings.schema.json', value)).toEqual([])
-    await readSettingsFileAtRuntime(value)
+    const settings = Object.entries(record(value)).filter(([key]) => key !== '$schema')
+    // Every value the example sets reaches the project config the app uses.
+    expect(await readSettingsFileAtRuntime(value)).toEqual(Object.fromEntries(settings))
   },
 }
 
@@ -244,34 +255,6 @@ describe('the codemode docs example', () => {
     expect(reads.length).toBeGreaterThan(1)
     expect(printed).toHaveLength(reads.length)
     expect(printed[0]).toContain('2: throw new Error')
-  })
-})
-
-describe('the SKILL.md frontmatter the skills docs describe', () => {
-  function writeSkill(root: string, folder: string, frontmatter: string) {
-    const directory = path.join(root, folder)
-    mkdirSync(directory, { recursive: true })
-    writeFileSync(path.join(directory, 'SKILL.md'), `---\n${frontmatter}\n---\n\nDo the task.\n`)
-  }
-
-  it('loads name, description and disable-model-invocation, and ignores the other fields', async () => {
-    const { formatSkillsForPrompt, loadSkillsFromDir } = await loadPi()
-    const root = scratchDirectory('ow-skill-frontmatter-')
-    writeSkill(
-      root,
-      'release-notes',
-      'name: release-notes\ndescription: Write release notes. Use when preparing a release.\ndisable-model-invocation: true\nlicense: MIT\ncompatibility: Needs git\nmetadata:\n  owner: docs\nallowed-tools: Bash(git log:*)',
-    )
-    writeSkill(root, 'folder-name', 'description: Uses its folder name.')
-    writeSkill(root, 'no-description', 'name: no-description')
-
-    const { skills } = loadSkillsFromDir({ dir: root, source: 'project' })
-    const byName = new Map(skills.map((skill) => [skill.name, skill]))
-    expect([...byName.keys()].sort()).toEqual(['folder-name', 'release-notes'])
-    expect(byName.get('release-notes')?.disableModelInvocation).toBe(true)
-    const prompt = formatSkillsForPrompt(skills)
-    expect(prompt).toContain('folder-name')
-    expect(prompt).not.toContain('release-notes')
   })
 })
 

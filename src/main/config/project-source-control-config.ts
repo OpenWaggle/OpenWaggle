@@ -1,6 +1,10 @@
-import type { SourceControlProviderId } from '@shared/types/change-request'
+import {
+  SOURCE_CONTROL_PROVIDER_IDS,
+  type SourceControlProviderId,
+} from '@shared/types/change-request'
 import type { JsonObject } from '@shared/types/json'
 import {
+  CHANGE_REQUEST_OPEN_DESTINATIONS,
   type ChangeRequestOpenDestination,
   isSourceControlHostName,
   type SourceControlHostDeclarations,
@@ -26,11 +30,11 @@ export interface ProjectSourceControlConfigUpdate {
 }
 
 function isProvider(value: unknown): value is SourceControlProviderId {
-  return value === 'github' || value === 'gitlab'
+  return SOURCE_CONTROL_PROVIDER_IDS.some((id) => id === value)
 }
 
 function isDestination(value: unknown): value is ChangeRequestOpenDestination {
-  return value === 'inspector' || value === 'website'
+  return CHANGE_REQUEST_OPEN_DESTINATIONS.some((destination) => destination === value)
 }
 
 function isJsonObject(value: unknown): value is JsonObject {
