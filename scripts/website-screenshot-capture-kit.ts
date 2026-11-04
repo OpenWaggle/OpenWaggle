@@ -1,202 +1,275 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Locator, Page } from '@playwright/test'
-import sharp, { type Sharp } from 'sharp'
+import sharp from 'sharp'
+import { type Callout, drawCallouts, type Region } from './website-screenshot-callouts'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
-import { type CaptureContext, blurFocusedControl, waitForUi } from './website-screenshot-ui'
+import { blurFocusedControl, type CaptureContext, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
-/** Crop, callout and window helpers shared by the feature-page captures. */
+/**
+ * The one crop, callout and image-writing kit every website capture uses. Regions are CSS pixels
+ * of the window, as Playwright's `boundingBox()` reports them; crops are taken at twice that
+ * size, so small controls stay sharp on high-density screens, and every image is written as a
+ * 256-colour palette PNG except the full-window originals, which stay lossless.
+ */
 
-export const UI_TIMEOUT_MS = 30_000
-export const WINDOW_WIDTH_PX = 1600
-export const WINDOW_HEIGHT_PX = 1000
-/** Crops are taken at device scale (2x on Retina) and scaled to at most this width. */
-const MAX_CROP_WIDTH_PX = 1600
+export { type Callout, centerOf, numbered, type Region } from './website-screenshot-callouts'
+
+/** Space around a crop's subject. */
 export const CROP_MARGIN_PX = 16
-const CALLOUT_RADIUS_PX = 15
-const CALLOUT_FONT_PX = 17
-const CALLOUT_GAP_PX = 4
-const CALLOUT_BAND_PX = 48
-const TWICE = 2
-const HALF = 0.5
-/** sharp's palette PNG settings: near-lossless quantization at maximum compression. */
-const PNG_QUALITY = 95
+const CROP_SCALE = 2
+const SETTINGS_MAX_WIDTH_PX = 1600
+/** A cropped page keeps its overlay scrollbar at the crop's edge, where it reads as a stray line. */
+const HIDE_SCROLLBARS = '::-webkit-scrollbar { display: none !important; }'
+const PNG_COLOURS = 256
 const PNG_EFFORT = 10
-const PNG_COMPRESSION = 9
+const PNG_COMPRESSION_LEVEL = 9
+const STABLE_POLL_MS = 200
+const STABLE_ATTEMPTS = 25
 
-export interface Clip {
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
+export async function regionOf(locator: Locator): Promise<Region> {
+  await locator.waitFor({ timeout: UI_TIMEOUT_MS })
+  const box = await locator.boundingBox({ timeout: UI_TIMEOUT_MS })
+  if (!box) throw new Error(`No bounding box for ${locator.toString()}.`)
+  return box
 }
 
-/** A palette PNG keeps flat UI captures well under the website's size budget. */
-export async function optimizePng(image: Buffer | Sharp) {
-  const pipeline = Buffer.isBuffer(image) ? sharp(image) : image
-  const metadata = await pipeline.clone().metadata()
-  const resized =
-    metadata.width !== undefined && metadata.width > MAX_CROP_WIDTH_PX
-      ? pipeline.resize({ width: MAX_CROP_WIDTH_PX })
-      : pipeline
-  return resized.png({
-    palette: true,
-    quality: PNG_QUALITY,
-    effort: PNG_EFFORT,
-    compressionLevel: PNG_COMPRESSION,
-  }).toBuffer()
+/** The smallest region holding every one given, grown by `pad` on each side. */
+export function unionRegion(
+  regions: readonly Region[],
+  pad: number | { readonly x: number; readonly y: number } = 0,
+): Region {
+  const padX = typeof pad === 'number' ? pad : pad.x
+  const padY = typeof pad === 'number' ? pad : pad.y
+  const left = Math.min(...regions.map((region) => region.x)) - padX
+  const top = Math.min(...regions.map((region) => region.y)) - padY
+  const right = Math.max(...regions.map((region) => region.x + region.width)) + padX
+  const bottom = Math.max(...regions.map((region) => region.y + region.height)) + padY
+  return { x: left, y: top, width: right - left, height: bottom - top }
 }
 
-export async function writeScreenshot(context: CaptureContext, file: WebsiteScreenshot, image: Buffer) {
+/** `region` grown by `margin` on every side. */
+export function around(region: Region, margin = CROP_MARGIN_PX) {
+  return unionRegion([region], margin)
+}
+
+/**
+ * From the top of `top` to the bottom of `bottom`, across `across`'s columns, padded by `pad`
+ * except below, where `bottomPad` keeps the next block out of the crop.
+ */
+export function spanRegion(options: {
+  readonly top: Region
+  readonly bottom: Region
+  readonly across: Region
+  readonly pad: number
+  readonly bottomPad?: number
+}): Region {
+  const { top, bottom, across, pad, bottomPad = pad } = options
+  const y = top.y - pad
+  return {
+    x: across.x - pad,
+    y,
+    width: across.width + pad + pad,
+    height: bottom.y + bottom.height + bottomPad - y,
+  }
+}
+
+/** Whole CSS pixels inside the window, keeping the region's far edges where they were. */
+function windowSize(page: Page) {
+  return page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
+}
+
+async function clipInWindow(page: Page, region: Region): Promise<Region> {
+  const view = await windowSize(page)
+  const x = Math.max(0, Math.floor(region.x))
+  const y = Math.max(0, Math.floor(region.y))
+  return {
+    x,
+    y,
+    width: Math.min(view.width, Math.ceil(region.x + region.width)) - x,
+    height: Math.min(view.height, Math.ceil(region.y + region.height)) - y,
+  }
+}
+
+/** Parks the pointer and, unless asked not to, drops focus: no hover state or focus ring. */
+export async function settleForShot(page: Page, keepFocus = false) {
+  await page.mouse.move(1, 1)
+  if (!keepFocus) await blurFocusedControl(page)
+}
+
+/** Measures until two readings agree, so a crop does not catch content mid-scroll. */
+async function stableRegion(measure: () => Promise<Region>) {
+  let previous = await measure()
+  for (let attempt = 0; attempt < STABLE_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, STABLE_POLL_MS))
+    const next = await measure()
+    if (JSON.stringify(next) === JSON.stringify(previous)) return next
+    previous = next
+  }
+  throw new Error('The capture region kept moving.')
+}
+
+interface WriteOptions {
+  /** Scales the image down to at most this many pixels wide. */
+  readonly maxWidth?: number
+  /** Writes the PNG as captured: the original full-window images are not reduced to a palette. */
+  readonly lossless?: boolean
+}
+
+/** A palette PNG: the app's flat colours survive, and the file stays small. */
+export async function optimizePng(image: Buffer, maxWidth?: number) {
+  const meta = await sharp(image).metadata()
+  const pipeline =
+    maxWidth !== undefined && (meta.width ?? 0) > maxWidth
+      ? sharp(image).resize({ width: maxWidth })
+      : sharp(image)
+  return pipeline
+    .png({
+      palette: true,
+      colours: PNG_COLOURS,
+      effort: PNG_EFFORT,
+      compressionLevel: PNG_COMPRESSION_LEVEL,
+    })
+    .toBuffer()
+}
+
+/** Writes the website image, and a copy beside the run's other QA evidence. */
+export async function writeScreenshot(
+  context: CaptureContext,
+  file: WebsiteScreenshot,
+  image: Buffer,
+  options: WriteOptions = {},
+) {
   const target = path.join(context.outputDir, file)
-  await fs.writeFile(target, image)
+  await fs.writeFile(target, options.lossless ? image : await optimizePng(image, options.maxWidth))
   await fs.copyFile(target, path.join(context.evidenceDir, file))
   console.info(`[website-shots] wrote ${file}`)
 }
 
-async function settle(page: Page) {
-  await page.mouse.move(1, 1)
-  await blurFocusedControl(page)
+interface ShotOptions extends WriteOptions {
+  readonly callouts?: readonly Callout[]
+  /** Keep focus where it is, for an open menu that closes when its field loses focus. */
+  readonly keepFocus?: boolean
+  /** Hides overlay scrollbars, which a crop would otherwise keep at its edge as a stray line. */
+  readonly hideScrollbars?: boolean
 }
 
 /**
- * A region of the window at device scale, so small controls stay sharp. A cropped page keeps
- * its overlay scrollbar at the crop's edge, where it reads as a stray line, so it is hidden.
+ * A region of the window at twice CSS size, with optional callouts. A region given as a function
+ * is measured after the pointer and focus have settled, since leaving a control can scroll the
+ * page under it.
  */
-export async function captureClip(page: Page, clip: Clip) {
-  await settle(page)
-  return page.screenshot({
+export async function shootRegion(
+  context: CaptureContext,
+  file: WebsiteScreenshot,
+  region: Region | (() => Promise<Region>),
+  options: ShotOptions = {},
+) {
+  const { page } = context
+  await settleForShot(page, options.keepFocus)
+  const clip = await clipInWindow(
+    page,
+    typeof region === 'function' ? await stableRegion(region) : region,
+  )
+  const pixels = await page.screenshot({
     clip,
     animations: 'disabled',
     scale: 'device',
-    style: '::-webkit-scrollbar { display: none !important; }',
+    ...(options.hideScrollbars ? { style: HIDE_SCROLLBARS } : {}),
   })
+  // A display at another density would change the image size; keep every run's the same.
+  const size = { width: clip.width * CROP_SCALE, height: clip.height * CROP_SCALE }
+  const meta = await sharp(pixels).metadata()
+  const image =
+    meta.width === size.width ? pixels : await sharp(pixels).resize(size).png().toBuffer()
+  await writeScreenshot(context, file, await drawCallouts(image, clip, options.callouts ?? []), options)
 }
 
-export async function shootClip(context: CaptureContext, file: WebsiteScreenshot, clip: Clip) {
-  await writeScreenshot(context, file, await optimizePng(await captureClip(context.page, clip)))
-}
-
-export async function shootWindow(context: CaptureContext, file: WebsiteScreenshot) {
-  await settle(context.page)
-  const image = await context.page.screenshot({ animations: 'disabled', scale: 'css' })
-  await writeScreenshot(context, file, await optimizePng(image))
-}
-
-export async function box(locator: Locator) {
-  await locator.waitFor({ timeout: UI_TIMEOUT_MS })
-  const bounds = await locator.boundingBox()
-  if (!bounds) throw new Error('A screenshot target has no bounding box.')
-  return bounds
-}
-
-export function around(bounds: Clip, margin = CROP_MARGIN_PX): Clip {
-  return {
-    x: Math.max(0, bounds.x - margin),
-    y: Math.max(0, bounds.y - margin),
-    width: bounds.width + TWICE * margin,
-    height: bounds.height + TWICE * margin,
-  }
-}
-
-async function setWindowSize(context: CaptureContext, size: { width: number; height: number }) {
-  await context.app.evaluate(async ({ BrowserWindow }, bounds) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds(bounds)
-  }, size)
-  await context.page.waitForFunction(
-    ({ width, height }) => window.innerWidth === width && window.innerHeight === height,
-    size,
-  )
-  await waitForUi(context.page)
-}
-
-export async function openSettingsSection(page: Page, section: string) {
-  const back = page.getByRole('button', { name: 'Back to app' })
-  if (!(await back.isVisible())) await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
-  await page.getByRole('button', { name: section, exact: true }).first().click()
-  await waitForUi(page)
-}
-
-export async function leaveSettings(page: Page) {
-  const back = page.getByRole('button', { name: 'Back to app' })
-  if (await back.isVisible()) await back.click()
-  await waitForUi(page)
-}
-
-interface Callout {
-  readonly label: string
-  /** Horizontal centre of the marker and the bottom of what it points to, in CSS pixels of the clip. */
-  readonly x: number
-  readonly pointsToY: number
+/** The whole window at CSS scale, like the overview images. */
+export async function shootWindow(
+  context: CaptureContext,
+  file: WebsiteScreenshot,
+  options: ShotOptions = {},
+) {
+  const { page } = context
+  await settleForShot(page, options.keepFocus)
+  const image = await page.screenshot({ animations: 'disabled', scale: 'css' })
+  const clip = { x: 0, y: 0, ...(await windowSize(page)) }
+  await writeScreenshot(context, file, await drawCallouts(image, clip, options.callouts ?? []), options)
 }
 
 /**
- * Numbered markers in a band added under a crop, each with a short line up to the element it
- * names. Positions come from the elements' bounding boxes, so the numbers land in the same place
- * on every run and never cover the control.
+ * The Settings content to the right of the section list, down to `bottom` (CSS pixels), scaled to
+ * at most `SETTINGS_MAX_WIDTH_PX` so a whole Settings page reads at the size of the other images.
  */
-export async function drawCallouts(image: Buffer, clip: Clip, callouts: readonly Callout[]) {
-  const metadata = await sharp(image).metadata()
-  const width = metadata.width ?? clip.width
-  const height = metadata.height ?? clip.height
-  const scale = width / clip.width
-  const band = CALLOUT_BAND_PX * scale
-  // The band takes the colour of the crop's bottom-left pixel.
-  const { data } = await sharp(image)
-    .extract({ left: 0, top: height - 1, width: 1, height: 1 })
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  const [r = 0, g = 0, b = 0] = data
-  const background = { r, g, b, alpha: 1 }
-  const markers = callouts
-    .map(({ label, x, pointsToY }) => {
-      const cx = x * scale
-      const r = CALLOUT_RADIUS_PX * scale
-      const cy = height + band * HALF
-      return [
-        `<line x1="${String(cx)}" y1="${String(cy - r)}" x2="${String(cx)}" y2="${String((pointsToY + CALLOUT_GAP_PX) * scale)}" stroke="#f5a524" stroke-width="${String(TWICE * scale)}"/>`,
-        `<circle cx="${String(cx)}" cy="${String(cy)}" r="${String(r)}" fill="#f5a524"/>`,
-        `<text x="${String(cx)}" y="${String(cy)}" dy="0.35em" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="${String(CALLOUT_FONT_PX * scale)}" fill="#14161a">${label}</text>`,
-      ].join('')
-    })
-    .join('')
-  const extendedHeight = height + Math.round(band)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${String(width)}" height="${String(extendedHeight)}">${markers}</svg>`
-  const extended = await sharp(image)
-    .extend({ bottom: Math.round(band), background })
-    .png()
-    .toBuffer()
-  return sharp(extended).composite([{ input: Buffer.from(svg), left: 0, top: 0 }])
-}
-
-/** Runs a capture at another window size, then restores the standard one. */
-export async function withWindowSize<T>(
-  context: CaptureContext,
-  size: { width: number; height: number },
-  capture: () => Promise<T>,
-) {
-  await setWindowSize(context, size)
-  try {
-    return await capture()
-  } finally {
-    await setWindowSize(context, { width: WINDOW_WIDTH_PX, height: WINDOW_HEIGHT_PX })
-  }
-}
-
-/** The settings content to the right of the section list, at device scale. */
 export async function shootSettingsContent(
   context: CaptureContext,
   file: WebsiteScreenshot,
   bottom?: number,
 ) {
   const { page } = context
-  const navigation = await box(page.getByRole('navigation').filter({ hasText: 'Permissions' }).last())
-  const viewport = page.viewportSize() ?? { width: WINDOW_WIDTH_PX, height: WINDOW_HEIGHT_PX }
+  const navigation = await regionOf(
+    page.getByRole('navigation').filter({ hasText: 'Permissions' }).last(),
+  )
+  const view = await windowSize(page)
   const left = navigation.x + navigation.width
-  await shootClip(context, file, {
-    x: left,
-    y: navigation.y,
-    width: viewport.width - left,
-    height: (bottom ?? viewport.height) - navigation.y,
-  })
+  await shootRegion(
+    context,
+    file,
+    {
+      x: left,
+      y: navigation.y,
+      width: view.width - left,
+      height: (bottom ?? view.height) - navigation.y,
+    },
+    { maxWidth: SETTINGS_MAX_WIDTH_PX, hideScrollbars: true },
+  )
+}
+
+/** How many image pixels one CSS pixel covers in a `scale: 'device'` screenshot. */
+export function devicePixelRatio(page: Page) {
+  return page.evaluate(() => window.devicePixelRatio)
+}
+
+function scaled(region: Region, ratio: number) {
+  return {
+    left: Math.round(region.x * ratio),
+    top: Math.round(region.y * ratio),
+    width: Math.round(region.width * ratio),
+    height: Math.round(region.height * ratio),
+  }
+}
+
+/**
+ * Places a Browser preview guest's own screenshot at its native view's bounds, at any screenshot
+ * scale. A hidden window's screenshot leaves the native view out (MEMORY.md, Electron Runtime).
+ */
+export async function compositeGuestImage(input: {
+  readonly renderer: Buffer
+  readonly guest: Buffer
+  readonly bounds: Region
+  readonly ratio: number
+}) {
+  const target = scaled(input.bounds, input.ratio)
+  const guestMeta = await sharp(input.guest).metadata()
+  if (guestMeta.width !== target.width || guestMeta.height !== target.height) {
+    throw new Error(
+      `Browser guest is ${String(guestMeta.width)}x${String(guestMeta.height)}, but its view is ${String(target.width)}x${String(target.height)}.`,
+    )
+  }
+  return sharp(input.renderer)
+    .composite([{ input: input.guest, left: target.left, top: target.top }])
+    .png()
+    .toBuffer()
+}
+
+/** Cuts `region` out of a screenshot taken at `ratio` image pixels per CSS pixel. */
+export async function cropImage(image: Buffer, region: Region, ratio: number) {
+  const meta = await sharp(image).metadata()
+  const area = scaled(region, ratio)
+  const left = Math.max(0, area.left)
+  const top = Math.max(0, area.top)
+  const width = Math.min(area.width, (meta.width ?? 0) - left)
+  const height = Math.min(area.height, (meta.height ?? 0) - top)
+  return sharp(image).extract({ left, top, width, height }).png().toBuffer()
 }

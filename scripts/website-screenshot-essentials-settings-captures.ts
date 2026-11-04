@@ -1,30 +1,21 @@
 import type { Page } from '@playwright/test'
-import { regionOf, shootRegion, spanRegion, unionRegion } from './website-screenshot-callouts'
+import { regionOf, shootRegion, spanRegion, unionRegion } from './website-screenshot-capture-kit'
 import {
   CROP_PAD_PX,
   GIT_READY_TIMEOUT_MS,
   prepareEssentials,
   TIGHT_PAD_PX,
-  UI_TIMEOUT_MS,
 } from './website-screenshot-essentials-setup'
-import { type CaptureContext, waitForUi } from './website-screenshot-ui'
+import {
+  type CaptureContext,
+  leaveSettings,
+  openSettingsSection,
+  UI_TIMEOUT_MS,
+  waitForUi,
+} from './website-screenshot-ui'
 
 /** Amazon Bedrock, Ant Ling, Anthropic (configured) and the provider after it. */
 const API_KEY_ROWS_SHOWN = 4
-
-async function openSettingsSection(page: Page, section: string) {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('button', { name: section, exact: true }).first().click()
-  await page
-    .getByRole('heading', { name: section, exact: true })
-    .waitFor({ timeout: UI_TIMEOUT_MS })
-  await waitForUi(page)
-}
-
-async function closeSettings(page: Page) {
-  await page.getByRole('button', { name: 'Back to app' }).first().click()
-  await waitForUi(page)
-}
 
 /** One of the Connections provider groups, opened or closed. */
 async function setProviderGroup(page: Page, title: string, open: boolean) {
@@ -41,7 +32,7 @@ async function setProviderGroup(page: Page, title: string, open: boolean) {
 export async function captureSettingsConnections(context: CaptureContext) {
   const { page } = context
   await prepareEssentials(context)
-  await openSettingsSection(page, 'Connections')
+  await openSettingsSection(page, 'Connections', 'Connections')
   await setProviderGroup(page, 'API Key Providers', false)
   await setProviderGroup(page, 'OAuth Providers', false)
   const selected = page.getByText(/models selected$/).first()
@@ -62,14 +53,14 @@ export async function captureSettingsConnections(context: CaptureContext) {
       bottomPad: TIGHT_PAD_PX,
     })
   })
-  await closeSettings(page)
+  await leaveSettings(page)
 }
 
 /** The first rows of API Key Providers, where the fixture's Anthropic key shows as configured. */
 export async function captureSettingsApiKeyProviders(context: CaptureContext) {
   const { page } = context
   await prepareEssentials(context)
-  await openSettingsSection(page, 'Connections')
+  await openSettingsSection(page, 'Connections', 'Connections')
   await setProviderGroup(page, 'OAuth Providers', false)
   const toggle = await setProviderGroup(page, 'API Key Providers', true)
   const anthropic = page.getByRole('button', { name: 'Edit Anthropic API key' })
@@ -85,14 +76,14 @@ export async function captureSettingsApiKeyProviders(context: CaptureContext) {
     spanRegion({ top: header, bottom: lastRow, across: header, pad: CROP_PAD_PX }),
   )
   await setProviderGroup(page, 'API Key Providers', false)
-  await closeSettings(page)
+  await leaveSettings(page)
 }
 
 /** OAuth Providers opened: every sign-in provider with its connection switch. */
 export async function captureSettingsOAuthProviders(context: CaptureContext) {
   const { page } = context
   await prepareEssentials(context)
-  await openSettingsSection(page, 'Connections')
+  await openSettingsSection(page, 'Connections', 'Connections')
   await setProviderGroup(page, 'API Key Providers', false)
   const toggle = await setProviderGroup(page, 'OAuth Providers', true)
   const list = toggle.locator('xpath=following-sibling::*[1]')
@@ -104,5 +95,5 @@ export async function captureSettingsOAuthProviders(context: CaptureContext) {
     unionRegion([await regionOf(toggle), await regionOf(list)], CROP_PAD_PX),
   )
   await setProviderGroup(page, 'OAuth Providers', false)
-  await closeSettings(page)
+  await leaveSettings(page)
 }

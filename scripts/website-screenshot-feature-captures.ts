@@ -1,14 +1,10 @@
 import type { Page } from '@playwright/test'
 import {
   around,
-  box,
   CROP_MARGIN_PX,
-  leaveSettings,
-  openSettingsSection,
-  shootClip,
+  regionOf,
+  shootRegion,
   shootSettingsContent,
-  UI_TIMEOUT_MS,
-  withWindowSize,
 } from './website-screenshot-capture-kit'
 import {
   CODEMODE_THREAD_TITLE,
@@ -20,9 +16,13 @@ import { THREAD_TITLE } from './website-screenshot-fixture'
 import {
   type CaptureContext,
   closeRightPanel,
+  leaveSettings,
   openSession,
+  openSettingsSection,
   setSessionSummary,
   showRailSurface,
+  UI_TIMEOUT_MS,
+  withWindowSize,
 } from './website-screenshot-ui'
 
 /** Smaller windows for Settings pages, so their content is not stretched across 1600 pixels. */
@@ -56,13 +56,13 @@ export async function captureAllPanels(context: CaptureContext) {
   await setSessionSummary(page, false)
   await withWindowSize(context, ALL_PANELS_WINDOW, async () => {
     await showRailSurface(page, 'All panels')
-    const panel = await box(page.getByRole('region', { name: 'All panels' }))
-    await shootClip(context, 'right-panel-all-panels.png', {
+    const panel = await regionOf(page.getByRole('region', { name: 'All panels' }))
+    await shootRegion(context, 'right-panel-all-panels.png', {
       x: panel.x,
       y: 0,
       width: ALL_PANELS_WINDOW.width - panel.x,
       height: ALL_PANELS_WINDOW.height,
-    })
+    }, { hideScrollbars: true })
   })
   await closeRightPanel(page)
 }
@@ -79,7 +79,7 @@ export async function captureCodemodeCard(context: CaptureContext) {
   await card.click({ timeout: UI_TIMEOUT_MS })
   await page.getByRole('region', { name: 'Script output' }).or(page.getByLabel('Script output')).first().waitFor({ timeout: UI_TIMEOUT_MS })
   const cardRoot = card.locator('xpath=..')
-  await shootClip(context, 'codemode-script-card.png', around(await box(cardRoot)))
+  await shootRegion(context, 'codemode-script-card.png', around(await regionOf(cardRoot)), { hideScrollbars: true })
 }
 
 /** The Context compacted marker between the messages before and after a manual compaction. */
@@ -88,19 +88,19 @@ export async function captureCompactionMarker(context: CaptureContext) {
   await openFeatureSession(page, COMPACTION_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
-  const transcript = await box(page.getByRole('log', { name: 'Chat messages' }))
-  const firstReply = await box(page.getByText('Still to do:', { exact: false }).first())
+  const transcript = await regionOf(page.getByRole('log', { name: 'Chat messages' }))
+  const firstReply = await regionOf(page.getByText('Still to do:', { exact: false }).first())
   // Tight above and below, so the neighbouring bullet and the message actions stay out.
   const tight = CROP_MARGIN_PX * HALF
-  const lastReply = await box(page.getByText('passes: 14 tests', { exact: false }).first())
-  const column = await box(page.locator('[data-compaction-timeline-state]').first())
+  const lastReply = await regionOf(page.getByText('passes: 14 tests', { exact: false }).first())
+  const column = await regionOf(page.locator('[data-compaction-timeline-state]').first())
   const left = column.x - CROP_MARGIN_PX
-  await shootClip(context, 'context-compacted.png', {
+  await shootRegion(context, 'context-compacted.png', {
     x: left,
     y: firstReply.y - tight,
     width: Math.min(transcript.x + transcript.width, left + COMPACTION_CROP_MAX_WIDTH_PX) - left,
     height: lastReply.y + lastReply.height + tight - (firstReply.y - tight),
-  })
+  }, { hideScrollbars: true })
 }
 
 /** The missing-worktree notice above the message box, with its two recovery actions. */
@@ -109,17 +109,17 @@ export async function captureMissingWorktree(context: CaptureContext) {
   await openFeatureSession(page, MISSING_WORKTREE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
-  const notice = await box(page.getByRole('button', { name: 'Recreate worktree' }).locator('xpath=../..'))
-  const composer = await box(page.getByRole('region', { name: 'Composer file drop zone' }))
+  const notice = await regionOf(page.getByRole('button', { name: 'Recreate worktree' }).locator('xpath=../..'))
+  const composer = await regionOf(page.getByRole('region', { name: 'Composer file drop zone' }))
   const top = notice.y - CROP_MARGIN_PX
   const left = Math.min(notice.x, composer.x) - CROP_MARGIN_PX
   const right = Math.max(notice.x + notice.width, composer.x + composer.width) + CROP_MARGIN_PX
-  await shootClip(context, 'missing-worktree.png', {
+  await shootRegion(context, 'missing-worktree.png', {
     x: left,
     y: top,
     width: right - left,
     height: composer.y + composer.height + CROP_MARGIN_PX - top,
-  })
+  }, { hideScrollbars: true })
 }
 
 /** Settings > Skills with a project skill selected. */
@@ -145,7 +145,7 @@ export async function captureSettingsPermissions(context: CaptureContext) {
   const { page } = context
   await openSettingsSection(page, 'Permissions')
   await withWindowSize(context, NARROW_SETTINGS_WINDOW, async () => {
-    const emptyState = await box(page.getByText(/no saved approvals/i).first())
+    const emptyState = await regionOf(page.getByText(/no saved approvals/i).first())
     await shootSettingsContent(context, 'settings-permissions.png', emptyState.y + emptyState.height + THRICE * CROP_MARGIN_PX)
   })
 }
@@ -157,7 +157,7 @@ export async function captureSettingsShortcuts(context: CaptureContext) {
   await page.getByRole('heading', { name: 'Keyboard shortcuts' }).first().waitFor({ timeout: UI_TIMEOUT_MS })
   await withWindowSize(context, SETTINGS_WINDOW, async () => {
     // End below a whole row rather than halfway through the next one.
-    const row = await box(page.getByText('Inspect branches and session history').first())
+    const row = await regionOf(page.getByText('Inspect branches and session history').first())
     await shootSettingsContent(
       context,
       'settings-shortcuts.png',

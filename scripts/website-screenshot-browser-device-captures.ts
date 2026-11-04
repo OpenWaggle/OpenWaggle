@@ -4,13 +4,13 @@ import { BROWSER_THREAD_TITLE } from './website-screenshot-fixture'
 import { type FixtureSite, startFixtureSite } from './website-screenshot-fixture-site'
 import {
   compositeGuestImage,
-  type CssRegion,
+  type Region,
   cropImage,
   devicePixelRatio,
   regionOf,
   settleForShot,
   writeScreenshot,
-} from './website-screenshot-image'
+} from './website-screenshot-capture-kit'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
 import {
   type CaptureContext,
@@ -19,6 +19,7 @@ import {
   setSessionSummary,
   showRailSurface,
   waitForUi,
+  UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
 
 /** iPhone SE fits the panel at full size, so the guest is not scaled down to fit. */
@@ -27,7 +28,6 @@ const PHONE_WIDTH_PX = 375
 const PHONE_HEIGHT_PX = 667
 const GUEST_RESIZE_TIMEOUT_MS = 30_000
 const GUEST_POLL_MS = 100
-const UI_TIMEOUT_MS = 30_000
 /** Room around the composer, so its outline is not cut by the crop. */
 const COMPOSER_MARGIN_PX = 16
 const BOTH_SIDES = 2
@@ -183,7 +183,7 @@ export async function captureBrowserAnnotationChip(context: CaptureContext) {
     await settleForShot(page)
     const ratio = await devicePixelRatio(page)
     const composer = await regionOf(page.getByRole('region', { name: 'Composer file drop zone' }))
-    const area: CssRegion = {
+    const area: Region = {
       x: composer.x - COMPOSER_MARGIN_PX,
       y: composer.y - COMPOSER_MARGIN_PX,
       width: composer.width + COMPOSER_MARGIN_PX * BOTH_SIDES,

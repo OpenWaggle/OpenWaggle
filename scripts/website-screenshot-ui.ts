@@ -1,32 +1,25 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page } from '@playwright/test'
-import type { WebsiteScreenshot } from './website-screenshot-manifest'
+import type { FixtureModelServer } from './website-screenshot-model-server'
 
 const UI_SETTLE_DELAY_MS = 400
 const GIT_READY_TIMEOUT_MS = 120_000
-const UI_TIMEOUT_MS = 30_000
+export const UI_TIMEOUT_MS = 30_000
+/** The window every capture starts and ends in. */
+export const WINDOW_SIZE = { width: 1600, height: 1000 } as const
 
 export interface CaptureContext {
   readonly app: ElectronApplication
   readonly page: Page
   readonly outputDir: string
   readonly evidenceDir: string
+  /** The scripted model every real Run talks to. */
+  readonly model: FixtureModelServer
 }
 
 export async function waitForUi(page: Page) {
   await page.waitForTimeout(UI_SETTLE_DELAY_MS)
-}
-
-/** Writes the website image, and a copy beside the run's other QA evidence. */
-export async function shoot(context: CaptureContext, file: WebsiteScreenshot) {
-  const target = path.join(context.outputDir, file)
-  // Park the pointer in a corner so no hover state or tooltip lands in the image.
-  await context.page.mouse.move(1, 1)
-  await blurFocusedControl(context.page)
-  await context.page.screenshot({ path: target, animations: 'disabled', scale: 'css' })
-  await fs.copyFile(target, path.join(context.evidenceDir, file))
-  console.info(`[website-shots] wrote ${file}`)
 }
 
 export async function waitForGitStatus(page: Page) {
@@ -85,6 +78,62 @@ export async function setSessionSummary(page: Page, open: boolean) {
   const summary = page.getByRole('complementary', { name: 'Session Summary' })
   if (open) await summary.waitFor({ timeout: UI_TIMEOUT_MS })
   else await summary.waitFor({ state: 'hidden', timeout: UI_TIMEOUT_MS })
+  await waitForUi(page)
+}
+
+interface WindowSize {
+  readonly width: number
+  readonly height: number
+}
+
+async function setWindowSize(context: CaptureContext, size: WindowSize) {
+  await context.app.evaluate(async ({ BrowserWindow }, bounds) => {
+    BrowserWindow.getAllWindows()[0]?.setBounds(bounds)
+  }, size)
+  await context.page.waitForFunction(
+    ({ width, height }) => window.innerWidth === width && window.innerHeight === height,
+    size,
+  )
+  await waitForUi(context.page)
+}
+
+/** Runs a capture at another window size, then restores the standard one. */
+export async function withWindowSize<T>(
+  context: CaptureContext,
+  size: WindowSize,
+  capture: () => Promise<T>,
+) {
+  await setWindowSize(context, size)
+  try {
+    return await capture()
+  } finally {
+    await setWindowSize(context, WINDOW_SIZE)
+  }
+}
+
+/**
+ * Opens a Settings section, from the app or from another section, and waits for `heading` when
+ * given (a section's heading is not always its name: Shortcuts says Keyboard shortcuts).
+ */
+export async function openSettingsSection(page: Page, section: string, heading?: string) {
+  const back = page.getByRole('button', { name: 'Back to app' }).first()
+  if (!(await back.isVisible())) {
+    await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
+  }
+  await page.getByRole('button', { name: section, exact: true }).first().click()
+  if (heading) {
+    await page
+      .getByRole('heading', { name: heading, exact: true })
+      .first()
+      .waitFor({ timeout: UI_TIMEOUT_MS })
+  }
+  await waitForUi(page)
+}
+
+/** Back to the app, when Settings is open. */
+export async function leaveSettings(page: Page) {
+  const back = page.getByRole('button', { name: 'Back to app' }).first()
+  if (await back.isVisible()) await back.click()
   await waitForUi(page)
 }
 

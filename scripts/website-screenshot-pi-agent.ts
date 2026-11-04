@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { playwrightElectronHome } from './playwright-electron-launcher'
+import type { FixtureModelServer } from './website-screenshot-model-server'
 
 /** The model the scripted endpoint stands in for: the one the seeded Sessions already use. */
 export const FIXTURE_MODEL_REF = 'openai/gpt-5.4'
@@ -23,17 +24,22 @@ const FIXTURE_CREDENTIALS = {
 } as const
 
 /**
- * Writes the scratch Pi agent directory's `auth.json` and `models.json` before the app starts.
- * `models.json` replaces OpenAI's GPT-5.4 with the same model served over Chat Completions by the
- * scripted endpoint at `modelBaseUrl`, and sends every other OpenAI and Anthropic model there too,
- * where it fails, so no request with a fixture key can reach a real provider (the automatic Title
- * model picks a cheaper OpenAI model unless the capture chooses GPT-5.4).
+ * Writes the scratch Pi agent directory's `auth.json` and `models.json` before the app starts;
+ * nothing else writes them. Both providers go to the one scripted model server, so no request
+ * with a fixture key can reach a real provider:
+ *
+ * - `anthropic` keeps Pi's catalog (real names, 1M context windows) and only moves its base URL,
+ *   so every Claude model is answered over Anthropic Messages (the Waggle captures).
+ * - `openai` replaces GPT-5.4 with the same model over Chat Completions (the essentials captures).
+ *   Every other OpenAI model keeps the Responses API, which the server answers with a 404, so the
+ *   essentials choose GPT-5.4 as their Title model too.
  */
 export async function writeFixturePiAgent(input: {
   readonly userDataDir: string
   readonly homeDir: string
-  readonly modelBaseUrl: string
+  readonly model: Pick<FixtureModelServer, 'openAiBaseUrl' | 'anthropicBaseUrl'>
 }) {
+  const openAiBaseUrl = input.model.openAiBaseUrl
   const { piAgentDir } = playwrightElectronHome(input)
   await fs.mkdir(piAgentDir, { recursive: true })
   await fs.writeFile(
@@ -43,15 +49,15 @@ export async function writeFixturePiAgent(input: {
   )
   const models = {
     providers: {
-      anthropic: { baseUrl: input.modelBaseUrl },
+      anthropic: { baseUrl: input.model.anthropicBaseUrl },
       openai: {
-        baseUrl: input.modelBaseUrl,
+        baseUrl: openAiBaseUrl,
         models: [
           {
             id: FIXTURE_MODEL_ID,
             name: 'GPT-5.4',
             api: 'openai-completions',
-            baseUrl: input.modelBaseUrl,
+            baseUrl: openAiBaseUrl,
             reasoning: true,
             input: ['text', 'image'],
             contextWindow: FIXTURE_CONTEXT_WINDOW,

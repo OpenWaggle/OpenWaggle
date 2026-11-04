@@ -5,12 +5,11 @@ import {
   MCP_SECRET_SERVER,
   writeMcpFixture,
 } from './website-screenshot-mcp-fixture'
-import { enclosingRegion, regionOf, shootRegion } from './website-screenshot-region-capture'
-import { type CaptureContext, waitForUi } from './website-screenshot-ui'
+import { regionOf, shootRegion, unionRegion } from './website-screenshot-capture-kit'
+import { type CaptureContext, leaveSettings, waitForUi, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
-const UI_TIMEOUT_MS = 30_000
 const CHECK_TIMEOUT_MS = 60_000
-const CROP_PADDING = { x: 16, y: 16 }
+const CROP_PADDING_PX = 16
 
 function serverList(page: Page) {
   return page.getByRole('list', { name: 'MCP servers' })
@@ -70,11 +69,6 @@ async function checkFixtureServers(context: CaptureContext) {
   await ensureChecked(context.page, MCP_FAILING_SERVER, 'Failed')
 }
 
-async function leaveSettings(page: Page) {
-  await page.getByRole('button', { name: 'Back to app' }).first().click()
-  await waitForUi(page)
-}
-
 /** The server list: one connected with its tool count, one failed, one waiting for a secret. */
 export async function captureMcpServers(context: CaptureContext) {
   const { page } = context
@@ -82,9 +76,7 @@ export async function captureMcpServers(context: CaptureContext) {
   const heading = await regionOf(page.getByRole('heading', { name: 'Servers', exact: true }))
   const addServer = await regionOf(page.getByRole('button', { name: 'Add server' }))
   const list = await regionOf(serverList(page))
-  await shootRegion(context, 'mcp-servers.png', {
-    clip: await enclosingRegion(page, [heading, addServer, list], CROP_PADDING),
-  })
+  await shootRegion(context, 'mcp-servers.png', unionRegion([heading, addServer, list], CROP_PADDING_PX))
   await leaveSettings(page)
 }
 
@@ -97,9 +89,7 @@ export async function captureMcpServerDetail(context: CaptureContext) {
   const top = await regionOf(page.getByRole('button', { name: 'All servers' }))
   const check = await regionOf(page.getByRole('button', { name: 'Check connection' }))
   const remove = await regionOf(page.getByRole('button', { name: 'Remove' }))
-  await shootRegion(context, 'mcp-server-detail.png', {
-    clip: await enclosingRegion(page, [top, check, remove], CROP_PADDING),
-  })
+  await shootRegion(context, 'mcp-server-detail.png', unionRegion([top, check, remove], CROP_PADDING_PX))
   await backToServers(page)
   await leaveSettings(page)
 }
@@ -113,9 +103,7 @@ export async function captureMcpServerError(context: CaptureContext) {
   await output.waitFor({ timeout: UI_TIMEOUT_MS })
   const top = await regionOf(page.getByRole('button', { name: 'All servers' }))
   const check = await regionOf(page.getByRole('button', { name: 'Check connection' }))
-  await shootRegion(context, 'mcp-server-error.png', {
-    clip: await enclosingRegion(page, [top, check, await regionOf(output)], CROP_PADDING),
-  })
+  await shootRegion(context, 'mcp-server-error.png', unionRegion([top, check, await regionOf(output)], CROP_PADDING_PX))
   await backToServers(page)
   await leaveSettings(page)
 }

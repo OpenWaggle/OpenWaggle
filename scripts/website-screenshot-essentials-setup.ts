@@ -27,6 +27,7 @@ import {
   openSession,
   showRailSurface,
   waitForUi,
+  UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
 
 declare global {
@@ -35,7 +36,6 @@ declare global {
   }
 }
 
-export const UI_TIMEOUT_MS = 30_000
 /** Worktree creation, git status and the source control host check can each take a while. */
 export const GIT_READY_TIMEOUT_MS = 120_000
 /** Space around a crop's subject, and the smaller margins where a neighbour sits close. */

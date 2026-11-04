@@ -5,83 +5,18 @@ import { fileURLToPath } from 'node:url'
 import { expect, type ElectronApplication, type Page } from '@playwright/test'
 import { stopElectronQaSessionHost } from './electron-qa-shutdown'
 import { launchOpenWaggleElectron } from './playwright-electron-launcher'
-import {
-  captureCodingAgent,
-  captureGitWorkflow,
-  captureSessionTree,
-} from './website-screenshot-conversation-captures'
-import { captureBrowserPreview } from './website-screenshot-browser-capture'
-import {
-  captureAllPanels,
-  captureCodemodeCard,
-  captureCompactionMarker,
-  captureMissingWorktree,
-  captureSettingsAgents,
-  captureSettingsPermissions,
-  captureSettingsShortcuts,
-  captureSettingsSkills,
-} from './website-screenshot-feature-captures'
-import {
-  captureContextMeter,
-  captureWaggleConversation,
-  captureWaggleSettings,
-} from './website-screenshot-waggle-captures'
+import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
 import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
 import { registerFeatureSessions } from './website-screenshot-feature-sessions'
-import { startScreenshotModel } from './website-screenshot-feature-model'
-import {
-  captureBrowserAnnotation,
-  captureBrowserAnnotationChip,
-  captureBrowserDeviceToolbar,
-} from './website-screenshot-browser-device-captures'
-import {
-  captureExtensionReview,
-  captureExtensionSettingsSection,
-  captureExtensionSurfaces,
-} from './website-screenshot-extension-captures'
-import {
-  captureApprovalRequest,
-  captureCommandPalette,
-  captureComposerControls,
-  captureQueuedFollowUps,
-  captureSidebarStates,
-  captureSlashCommandMenu,
-  captureToolRows,
-  captureWorktreeFirstSend,
-} from './website-screenshot-essentials-captures'
 import { MODEL_SCENARIOS } from './website-screenshot-essentials-scenarios'
 import { settleEssentials } from './website-screenshot-essentials-setup'
-import {
-  captureSettingsApiKeyProviders,
-  captureSettingsConnections,
-  captureSettingsOAuthProviders,
-} from './website-screenshot-essentials-settings-captures'
-import {
-  captureActionOutputTerminal,
-  captureCommitDialog,
-  captureDiffReviewComment,
-  captureProjectActionAdd,
-  captureProjectActionsPanel,
-} from './website-screenshot-essentials-workspace-captures'
 import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
 } from './website-screenshot-fixture'
-import {
-  captureHiveNextActor,
-  captureHiveTree,
-  captureScheduledTasks,
-  captureSessionResources,
-  captureSessionSummary,
-  captureSettingsWorktrees,
-} from './website-screenshot-hive-captures'
 import { seedHiveExample } from './website-screenshot-hive-fixture'
-import {
-  publishScreenshots,
-  selectedScreenshots,
-  type WebsiteScreenshot,
-} from './website-screenshot-manifest'
+import { publishScreenshots, selectedScreenshots, type WebsiteScreenshot } from './website-screenshot-manifest'
 import {
   createScreenshotProject,
   SCREENSHOT_WORKTREE_IDS,
@@ -90,78 +25,15 @@ import {
 import { startFixtureModelServer } from './website-screenshot-model-server'
 import { writeFixturePiAgent } from './website-screenshot-pi-agent'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
-import {
-  captureMcpServerDetail,
-  captureMcpServerError,
-  captureMcpServers,
-} from './website-screenshot-mcp-captures'
-import {
-  captureTerminalAddToChat,
-  captureTerminalContextChip,
-  captureTerminalSplitPanes,
-} from './website-screenshot-terminal-captures'
-import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
+import { CAPTURES } from './website-screenshot-captures'
+import { type CaptureContext, recordFailureEvidence, WINDOW_SIZE } from './website-screenshot-ui'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
-const WINDOW_WIDTH_PX = 1600
-const WINDOW_HEIGHT_PX = 1000
 /** The scratch profile's parent on macOS and Linux: its short paths show in Settings > Worktrees. */
 const POSIX_TEMP_DIR = '/tmp'
 /** `node` and the script path come before the user's arguments. */
 const USER_ARGUMENT_OFFSET = 2
-
-const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => Promise<void>>> = {
-  'hive-sessions.png': captureHiveTree,
-  'hive-next-actor.png': captureHiveNextActor,
-  'session-summary.png': captureSessionSummary,
-  'session-resources.png': captureSessionResources,
-  'scheduled-tasks.png': captureScheduledTasks,
-  'settings-worktrees.png': captureSettingsWorktrees,
-  'feature-coding-agent.png': captureCodingAgent,
-  'feature-git-workflow.png': captureGitWorkflow,
-  'session-tree-panel.png': captureSessionTree,
-  'feature-browser-preview.png': captureBrowserPreview,
-  'right-panel-all-panels.png': captureAllPanels,
-  'codemode-script-card.png': captureCodemodeCard,
-  'context-compacted.png': captureCompactionMarker,
-  'missing-worktree.png': captureMissingWorktree,
-  'settings-skills.png': captureSettingsSkills,
-  'settings-agents.png': captureSettingsAgents,
-  'settings-permissions.png': captureSettingsPermissions,
-  'settings-shortcuts.png': captureSettingsShortcuts,
-  'settings-waggle-mode.png': captureWaggleSettings,
-  'waggle-conversation.png': captureWaggleConversation,
-  'context-meter.png': captureContextMeter,
-  'terminal-split-panes.png': captureTerminalSplitPanes,
-  'terminal-add-to-chat.png': captureTerminalAddToChat,
-  'terminal-context-chip.png': captureTerminalContextChip,
-  'mcp-servers.png': captureMcpServers,
-  'mcp-server-detail.png': captureMcpServerDetail,
-  'mcp-server-error.png': captureMcpServerError,
-  'browser-preview-device-toolbar.png': captureBrowserDeviceToolbar,
-  'browser-preview-annotation.png': captureBrowserAnnotation,
-  'browser-preview-annotation-chip.png': captureBrowserAnnotationChip,
-  'extensions-review.png': captureExtensionReview,
-  'extensions-settings-section.png': captureExtensionSettingsSection,
-  'extensions-surfaces.png': captureExtensionSurfaces,
-  'composer-controls.png': captureComposerControls,
-  'settings-connections.png': captureSettingsConnections,
-  'settings-api-key-providers.png': captureSettingsApiKeyProviders,
-  'settings-oauth-providers.png': captureSettingsOAuthProviders,
-  'slash-command-menu.png': captureSlashCommandMenu,
-  'command-palette.png': captureCommandPalette,
-  'approval-request.png': captureApprovalRequest,
-  'queued-follow-ups.png': captureQueuedFollowUps,
-  'sidebar-states.png': captureSidebarStates,
-  'tool-rows.png': captureToolRows,
-  'diff-review-comment.png': captureDiffReviewComment,
-  'commit-dialog.png': captureCommitDialog,
-  'worktree-first-send.png': captureWorktreeFirstSend,
-  'project-actions-panel.png': captureProjectActionsPanel,
-  'project-action-add.png': captureProjectActionAdd,
-  'action-output-terminal.png': captureActionOutputTerminal,
-}
 
 interface ScratchProfile {
   readonly root: string
@@ -183,7 +55,7 @@ async function launchApp(profile: ScratchProfile, projectPath: string) {
     async ({ BrowserWindow }, { width, height }) => {
       BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
     },
-    { width: WINDOW_WIDTH_PX, height: WINDOW_HEIGHT_PX },
+    WINDOW_SIZE,
   )
   await expect(page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
   const runtime = await page.evaluate(() => ({
@@ -285,13 +157,12 @@ async function main() {
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
   let app: ElectronApplication | null = null
-  let model: Awaited<ReturnType<typeof startScreenshotModel>> | null = null
   let page: Page | null = null
-  // The scripted model behind the essentials screenshots' real Runs; Pi reaches it through the
-  // scratch agent directory's models.json, written before the first launch.
-  const modelServer = await startFixtureModelServer(MODEL_SCENARIOS)
+  // The one scripted model behind every real Run; Pi reaches it through the scratch agent
+  // directory's auth.json and models.json, written before the first launch.
+  const model = await startFixtureModelServer([...MODEL_SCENARIOS, WAGGLE_SCENARIO])
   try {
-    await writeFixturePiAgent({ ...profile, modelBaseUrl: modelServer.baseUrl })
+    await writeFixturePiAgent({ ...profile, model })
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
       projectPath: path.join(root, PROJECT_NAME),
@@ -299,13 +170,12 @@ async function main() {
       worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
     await addFeatureProjectFiles(project)
-    model = await startScreenshotModel(profile.homeDir)
     const launched = await launchSeededApp(profile, project)
     app = launched.app
     page = launched.page
     const rendererErrors = observeRendererErrors(launched.page)
     await runCaptures(
-      { app, page: launched.page, outputDir: stagingDir, evidenceDir },
+      { app, page: launched.page, outputDir: stagingDir, evidenceDir, model },
       screenshots,
     )
     if (rendererErrors.length > 0) {
@@ -320,9 +190,8 @@ async function main() {
       })
     }
     await app?.close().catch(() => undefined)
-    await model?.close()
     // Ends any Run still streaming from it before the Host is asked to drain.
-    await modelServer.close()
+    await model.close()
     await releaseScratchProfile(profile)
   }
 }

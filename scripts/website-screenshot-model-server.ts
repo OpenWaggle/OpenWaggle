@@ -1,239 +1,238 @@
 import http from 'node:http'
 import type { AddressInfo, Socket } from 'node:net'
+import {
+  type FinishHeldReply,
+  type ScriptedReply,
+  sendErrorReply,
+  streamAnthropicReply,
+  streamOpenAiReply,
+} from './website-screenshot-model-wire'
+
+export type { ScriptedReply } from './website-screenshot-model-wire'
 
 /**
- * A scripted stand-in for an OpenAI-compatible Chat Completions endpoint, so the website
- * screenshots can show states only a real Run produces (an approval request, a busy Session with
- * queued follow-ups, a failed Run) without a provider account or network access. The scratch Pi
- * agent directory points one model at it (`website-screenshot-pi-agent.ts`); the app, Pi and the
- * Session Host run unchanged.
+ * The one scripted model behind every real Run in the website screenshots, so they can show
+ * states only a Run produces (an approval request, a busy Session with queued follow-ups, a failed
+ * Run, a live Waggle) with no provider account, network or cost. One loopback server speaks both
+ * OpenAI Chat Completions and Anthropic Messages; the scratch Pi agent directory sends the
+ * `openai` and `anthropic` providers to it (`website-screenshot-pi-agent.ts`), and the app, Pi and
+ * the Session Host run unchanged.
  */
 
-interface ScriptedToolCall {
-  readonly name: string
-  readonly arguments: Readonly<Record<string, unknown>>
+/** A request in either wire format, reduced to what the scripts choose replies by. */
+export interface ModelMessage {
+  readonly role: 'user' | 'assistant' | 'tool'
+  readonly text: string
 }
 
-export type ScriptedReply =
-  | { readonly kind: 'text'; readonly text: string; readonly reasoning?: string }
-  | { readonly kind: 'tools'; readonly calls: readonly ScriptedToolCall[]; readonly text?: string }
-  /** Streams `reasoning`, then keeps the response open until the server closes. */
-  | { readonly kind: 'hold'; readonly reasoning: string }
-  | {
-      readonly kind: 'error'
-      readonly status: number
-      readonly message: string
-      /** Answers this late, so the capture can leave the Session first. */
-      readonly delayMs?: number
-    }
+export interface ModelRequest {
+  readonly model: string
+  readonly system: string
+  readonly messages: readonly ModelMessage[]
+}
 
 export interface ModelScenario {
   /** Text in one of the conversation's user messages that selects this scenario. */
   readonly match: string
   /** The title the Title model gives a Session that opens with this scenario. */
   readonly title: string
-  /** One reply per assistant turn after the matching user message. */
-  readonly replies: readonly ScriptedReply[]
+  /**
+   * One reply per assistant turn after the matching user message (the last one repeats), or a
+   * function of the request and that turn number.
+   */
+  readonly replies:
+    | readonly ScriptedReply[]
+    | ((request: ModelRequest, turn: number) => ScriptedReply)
 }
 
-interface FixtureModelServer {
+export interface FixtureModelServer {
   /** The OpenAI-compatible base URL, ending in `/v1`. */
-  readonly baseUrl: string
+  readonly openAiBaseUrl: string
+  /** The Anthropic base URL; the SDK adds `/v1/messages`. */
+  readonly anthropicBaseUrl: string
+  /**
+   * Finishes the held replies of the scenario with this `match` as ordinary ends of turn, now
+   * and from then on: a later held reply of that scenario finishes as soon as it is streamed.
+   */
+  release(match: string): void
+  /** Stops the server; replies still held open are cut off. */
   close(): Promise<void>
 }
 
-const COMPLETIONS_PATH = '/v1/chat/completions'
-const HTTP_OK = 200
 const HTTP_NOT_FOUND = 404
 const HTTP_BAD_REQUEST = 400
-const TITLE_PROMPT_PREFIX = 'Generate a title'
+/** The Host's title prompts (`session-title-prompts.ts`) open with one of these. */
+const TITLE_PROMPT_PREFIXES = ['Generate a title', 'Regenerate the title'] as const
 const FALLBACK_TITLE = 'Review the project'
-/** Text arrives in a few pieces, as from a real provider. */
-const STREAM_PIECE_CHARS = 48
-const STREAM_PIECE_DELAY_MS = 15
-const HOLD_KEEPALIVE_MS = 2_000
-const MS_PER_SECOND = 1000
-const FIXTURE_PROMPT_TOKENS = 18_400
-const FIXTURE_COMPLETION_TOKENS = 220
-
-interface ChatMessage {
-  readonly role: string
-  readonly content: unknown
+const FALLBACK_REPLY: ScriptedReply = {
+  kind: 'text',
+  text: 'I can help with that. What would you like me to look at first?',
 }
 
 function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function messageText(content: unknown) {
+function partsOf(content: unknown): readonly unknown[] {
+  return Array.isArray(content) ? content : []
+}
+
+function textOf(content: unknown) {
   if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
+  return partsOf(content)
     .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
     .join('\n')
 }
 
-function chatMessages(body: unknown): readonly ChatMessage[] {
-  if (!isRecord(body) || !Array.isArray(body.messages)) return []
-  return body.messages.flatMap((message) =>
-    isRecord(message) && typeof message.role === 'string'
-      ? [{ role: message.role, content: message.content }]
-      : [],
-  )
+function modelOf(body: unknown) {
+  return isRecord(body) && typeof body.model === 'string' ? body.model : ''
+}
+
+function bodyMessages(body: unknown) {
+  return isRecord(body) ? partsOf(body.messages).filter(isRecord) : []
+}
+
+/** A Chat Completions body: system and developer messages make up the system text. */
+export function parseOpenAiRequest(body: unknown): ModelRequest {
+  const messages = bodyMessages(body)
+  const isSystem = (role: unknown) => role === 'system' || role === 'developer'
+  return {
+    model: modelOf(body),
+    system: messages
+      .filter((message) => isSystem(message.role))
+      .map((message) => textOf(message.content))
+      .join('\n'),
+    messages: messages.flatMap((message) =>
+      message.role === 'user' || message.role === 'assistant' || message.role === 'tool'
+        ? [{ role: message.role, text: textOf(message.content) }]
+        : [],
+    ),
+  }
+}
+
+/** An Anthropic Messages body: a user message made only of tool results counts as a tool turn. */
+export function parseAnthropicRequest(body: unknown): ModelRequest {
+  const isToolResult = (part: unknown) => isRecord(part) && part.type === 'tool_result'
+  return {
+    model: modelOf(body),
+    system: isRecord(body) ? textOf(body.system) : '',
+    messages: bodyMessages(body).flatMap((message): ModelMessage[] => {
+      if (message.role === 'assistant') return [{ role: 'assistant', text: textOf(message.content) }]
+      if (message.role !== 'user') return []
+      const parts = partsOf(message.content)
+      const toolTurn = parts.length > 0 && parts.every(isToolResult)
+      return [{ role: toolTurn ? 'tool' : 'user', text: textOf(message.content) }]
+    }),
+  }
 }
 
 function findScenario(scenarios: readonly ModelScenario[], text: string) {
   return scenarios.find((scenario) => text.includes(scenario.match)) ?? null
 }
 
-/** The scenario a request belongs to and how many assistant turns it has had since. */
-export function scriptedReply(scenarios: readonly ModelScenario[], body: unknown): ScriptedReply {
-  const messages = chatMessages(body)
-  const system = messages.find(
-    (message) => message.role === 'system' || message.role === 'developer',
-  )
-  const userTexts = messages
-    .filter((message) => message.role === 'user')
-    .map((message) => messageText(message.content))
-  if (system && messageText(system.content).startsWith(TITLE_PROMPT_PREFIX)) {
-    const scenario = userTexts
-      .map((text) => findScenario(scenarios, text))
-      .find((found) => found !== null)
-    return {
-      kind: 'text',
-      text: JSON.stringify({ title: scenario?.title ?? FALLBACK_TITLE, needsRefinement: false }),
-    }
-  }
+/** The scenario a request belongs to: the latest user message that names one. */
+function scenarioTurn(scenarios: readonly ModelScenario[], request: ModelRequest) {
+  const { messages } = request
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message?.role !== 'user') continue
-    const scenario = findScenario(scenarios, messageText(message.content))
+    const scenario = findScenario(scenarios, message.text)
     if (!scenario) continue
     const turn = messages.slice(index + 1).filter((later) => later.role === 'assistant').length
-    return (
-      scenario.replies[turn] ??
-      scenario.replies[scenario.replies.length - 1] ?? { kind: 'text', text: 'Done.' }
-    )
+    return { scenario, turn }
   }
-  return { kind: 'text', text: 'I can help with that. What would you like me to look at first?' }
+  return null
 }
 
-function chunk(delta: Readonly<Record<string, unknown>>, finishReason: string | null = null) {
-  return {
-    id: 'chatcmpl-website-fixture',
-    object: 'chat.completion.chunk',
-    created: Math.floor(Date.now() / MS_PER_SECOND),
-    model: 'fixture',
-    choices: [{ index: 0, delta, finish_reason: finishReason }],
-  }
+export function isTitleRequest(request: ModelRequest) {
+  return TITLE_PROMPT_PREFIXES.some((prefix) => request.system.startsWith(prefix))
 }
 
-function pieces(text: string) {
-  const parts: string[] = []
-  for (let start = 0; start < text.length; start += STREAM_PIECE_CHARS) {
-    parts.push(text.slice(start, start + STREAM_PIECE_CHARS))
+/** The reply a request gets: a title, the scenario's reply for its turn, or a fallback. */
+export function scriptedReply(
+  scenarios: readonly ModelScenario[],
+  request: ModelRequest,
+): ScriptedReply {
+  if (isTitleRequest(request)) {
+    const title =
+      request.messages
+        .filter((message) => message.role === 'user')
+        .map((message) => findScenario(scenarios, message.text))
+        .find((scenario) => scenario !== null)?.title ?? FALLBACK_TITLE
+    return { kind: 'text', text: JSON.stringify({ title, needsRefinement: false }) }
   }
-  return parts
+  const found = scenarioTurn(scenarios, request)
+  if (!found) return FALLBACK_REPLY
+  const { replies } = found.scenario
+  if (typeof replies === 'function') return replies(request, found.turn)
+  return replies[found.turn] ?? replies.at(-1) ?? FALLBACK_REPLY
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+/** The text of the request's last user message, such as a Waggle turn's instructions. */
+export function lastUserText(request: ModelRequest) {
+  return request.messages.findLast((message) => message.role === 'user')?.text ?? ''
 }
 
-async function streamReply(response: http.ServerResponse, reply: ScriptedReply) {
-  if (reply.kind === 'error') {
-    await delay(reply.delayMs ?? 0)
-    response.writeHead(reply.status, { 'content-type': 'application/json' })
-    response.end(
-      JSON.stringify({ error: { message: reply.message, type: 'invalid_request_error' } }),
-    )
-    return
-  }
-  response.writeHead(HTTP_OK, {
-    'content-type': 'text/event-stream',
-    'cache-control': 'no-cache',
-    connection: 'keep-alive',
-  })
-  const send = (payload: unknown) => response.write(`data: ${JSON.stringify(payload)}\n\n`)
-  send(chunk({ role: 'assistant', content: '' }))
-  const reasoning = reply.kind === 'text' || reply.kind === 'hold' ? reply.reasoning : undefined
-  for (const piece of pieces(reasoning ?? '')) {
-    send(chunk({ reasoning_content: piece }))
-    await delay(STREAM_PIECE_DELAY_MS)
-  }
-  // Held open: the Run stays busy until the capture is done with it. Empty chunks keep the
-  // stream from looking stalled, which would make Pi retry (the sidebar then says Connecting).
-  if (reply.kind === 'hold') {
-    const keepAlive = setInterval(() => send(chunk({})), HOLD_KEEPALIVE_MS)
-    response.on('close', () => clearInterval(keepAlive))
-    return
-  }
-  const text = reply.text ?? ''
-  for (const piece of pieces(text)) {
-    send(chunk({ content: piece }))
-    await delay(STREAM_PIECE_DELAY_MS)
-  }
-  if (reply.kind === 'tools') {
-    reply.calls.forEach((call, index) => {
-      send(
-        chunk({
-          tool_calls: [
-            {
-              index,
-              id: `call_website_${String(Date.now())}_${String(index)}`,
-              type: 'function',
-              function: { name: call.name, arguments: JSON.stringify(call.arguments) },
-            },
-          ],
-        }),
-      )
-    })
-  }
-  send(chunk({}, reply.kind === 'tools' ? 'tool_calls' : 'stop'))
-  send({
-    ...chunk({}),
-    choices: [],
-    usage: {
-      prompt_tokens: FIXTURE_PROMPT_TOKENS,
-      completion_tokens: FIXTURE_COMPLETION_TOKENS,
-      total_tokens: FIXTURE_PROMPT_TOKENS + FIXTURE_COMPLETION_TOKENS,
-    },
-  })
-  response.end('data: [DONE]\n\n')
+type WireFormat = 'openai' | 'anthropic'
+
+function wireFormatOf(request: http.IncomingMessage): WireFormat | null {
+  if (request.method !== 'POST') return null
+  // The Anthropic SDK may add a query, such as `?beta=true`.
+  const { pathname } = new URL(request.url ?? '/', 'http://127.0.0.1')
+  if (pathname === '/v1/chat/completions') return 'openai'
+  if (pathname === '/v1/messages') return 'anthropic'
+  return null
 }
 
 async function readBody(request: http.IncomingMessage) {
   const parts: Buffer[] = []
-  for await (const part of request)
+  for await (const part of request) {
     parts.push(Buffer.isBuffer(part) ? part : Buffer.from(String(part)))
+  }
   return Buffer.concat(parts).toString('utf8')
 }
 
-/** Starts the endpoint on a loopback port; `close()` also ends responses still held open. */
+interface HeldReply {
+  readonly match: string | null
+  readonly finish: FinishHeldReply
+}
+
+/** Starts the endpoint on a loopback port. Any other path, such as `/v1/responses`, is a 404. */
 export async function startFixtureModelServer(
   scenarios: readonly ModelScenario[],
-  /** Sees each request body and the reply chosen for it, for diagnosing a capture. */
-  onRequest?: (body: unknown, reply: ScriptedReply) => void,
+  /** Sees each request and the reply chosen for it, for diagnosing a capture. */
+  onRequest?: (request: ModelRequest, reply: ScriptedReply) => void,
 ): Promise<FixtureModelServer> {
   const sockets = new Set<Socket>()
+  const held = new Set<HeldReply>()
+  const released = new Set<string>()
+  const answer = async (format: WireFormat, raw: string, response: http.ServerResponse) => {
+    const body: unknown = JSON.parse(raw)
+    const request = format === 'openai' ? parseOpenAiRequest(body) : parseAnthropicRequest(body)
+    const reply = scriptedReply(scenarios, request)
+    onRequest?.(request, reply)
+    if (reply.kind === 'error') return sendErrorReply(response, format, reply)
+    const finish =
+      format === 'openai'
+        ? await streamOpenAiReply(response, reply)
+        : await streamAnthropicReply(response, request.model, reply)
+    if (!finish) return
+    const entry = { match: scenarioTurn(scenarios, request)?.scenario.match ?? null, finish }
+    if (entry.match !== null && released.has(entry.match)) {
+      finish()
+      return
+    }
+    held.add(entry)
+    response.on('close', () => held.delete(entry))
+  }
   const server = http.createServer((request, response) => {
-    if (request.method !== 'POST' || request.url !== COMPLETIONS_PATH) {
+    const format = wireFormatOf(request)
+    if (!format) {
       response.writeHead(HTTP_NOT_FOUND).end()
       return
     }
     void readBody(request)
-      .then(async (raw) => {
-        let body: unknown
-        try {
-          body = JSON.parse(raw)
-        } catch {
-          response.writeHead(HTTP_BAD_REQUEST).end()
-          return
-        }
-        const reply = scriptedReply(scenarios, body)
-        onRequest?.(body, reply)
-        await streamReply(response, reply)
-      })
+      .then((raw) => answer(format, raw, response))
       .catch((error: unknown) => {
         console.error('[website-shots] fixture model request failed', error)
         if (!response.headersSent) response.writeHead(HTTP_BAD_REQUEST)
@@ -246,10 +245,21 @@ export async function startFixtureModelServer(
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address: AddressInfo | string | null = server.address()
-  if (address === null || typeof address === 'string')
+  if (address === null || typeof address === 'string') {
     throw new Error('Fixture model server has no port.')
+  }
+  const origin = `http://127.0.0.1:${String(address.port)}`
   return {
-    baseUrl: `http://127.0.0.1:${String(address.port)}/v1`,
+    openAiBaseUrl: `${origin}/v1`,
+    anthropicBaseUrl: origin,
+    release: (match) => {
+      released.add(match)
+      for (const entry of held) {
+        if (entry.match !== match) continue
+        held.delete(entry)
+        entry.finish()
+      }
+    },
     close: () =>
       new Promise<void>((resolve) => {
         for (const socket of sockets) socket.destroy()

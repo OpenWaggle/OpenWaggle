@@ -8,15 +8,13 @@ import {
 } from './website-screenshot-extension-fixture'
 import { HIVE_QUEEN_TITLE } from './website-screenshot-hive-fixture'
 import {
-  type Callout,
-  type CssRegion,
-  cropImage,
-  devicePixelRatio,
-  drawCallouts,
+  numbered,
   regionOf,
   settleForShot,
+  shootRegion,
+  shootWindow,
   writeScreenshot,
-} from './website-screenshot-image'
+} from './website-screenshot-capture-kit'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
 import {
   type CaptureContext,
@@ -24,14 +22,13 @@ import {
   openSession,
   showRailSurface,
   waitForUi,
+  UI_TIMEOUT_MS,
 } from './website-screenshot-ui'
 
-const UI_TIMEOUT_MS = 30_000
 const HTTP_OK = 200
 /** Settings > Extensions titles its page with an h2 and each package card with an h3. */
 const PAGE_HEADING_LEVEL = 2
 const PACKAGE_HEADING_LEVEL = 3
-const CSS_SCALE = 1
 const CROP_MARGIN_PX = 12
 const BOTH_SIDES = 2
 /** Space kept between the crop's bottom edge and the Save button it leaves out. */
@@ -206,19 +203,14 @@ export async function captureExtensionSettingsSection(context: CaptureContext) {
     await save.waitFor({ timeout: UI_TIMEOUT_MS })
     await region.scrollIntoViewIfNeeded()
     await waitForUi(page)
-    await settleForShot(page)
     const section = await regionOf(region)
     const saveTop = (await regionOf(save)).y
-    const area: CssRegion = {
+    await shootRegion(context, 'extensions-settings-section.png', {
       x: section.x - CROP_MARGIN_PX,
       y: section.y - CROP_MARGIN_PX,
       width: section.width + CROP_MARGIN_PX * BOTH_SIDES,
       height: saveTop - SAVE_BUTTON_GAP_PX - (section.y - CROP_MARGIN_PX),
-    }
-    const ratio = await devicePixelRatio(page)
-    const image = await page.screenshot({ animations: 'disabled', scale: 'device' })
-    const cropped = await cropImage(image, area, ratio)
-    await writeScreenshot(context, 'extensions-settings-section.png', cropped)
+    })
   })
 }
 
@@ -262,23 +254,17 @@ export async function captureExtensionSurfaces(context: CaptureContext) {
     await waitForUi(page)
     await settleForShot(page)
     const rail = page.getByRole('navigation', { name: 'Panels' })
-    const callouts: Callout[] = [
-      { label: '1', region: await regionOf(sidePanel), badge: 'outside-left-top' },
+    const callouts = numbered([
+      { region: await regionOf(sidePanel), badge: 'left-top' },
       {
-        label: '2',
         region: await regionOf(rail.getByRole('button', { name: /^GitHub Session Resources/ })),
-        badge: 'outside-left',
+        badge: 'left',
       },
-      { label: '3', region: await regionOf(transcriptCard), badge: 'inside-top-right' },
-      { label: '4', region: await regionOf(statusWidgets), badge: 'inside-top-right' },
-    ]
+      { region: await regionOf(transcriptCard), badge: 'inside-top-right' },
+      { region: await regionOf(statusWidgets), badge: 'inside-top-right' },
+    ])
     // The whole window at CSS scale, like the other overview images.
-    const windowImage = await page.screenshot({ animations: 'disabled', scale: 'css' })
-    await writeScreenshot(
-      context,
-      'extensions-surfaces.png',
-      await drawCallouts(windowImage, callouts, CSS_SCALE),
-    )
+    await shootWindow(context, 'extensions-surfaces.png', { callouts })
     await closeRightPanel(page)
   })
 }

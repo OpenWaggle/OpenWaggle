@@ -1,11 +1,9 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import type { Locator, Page } from '@playwright/test'
-import sharp, { type Sharp } from 'sharp'
-import type { WebsiteScreenshot } from './website-screenshot-manifest'
-import { blurFocusedControl, type CaptureContext } from './website-screenshot-ui'
+import { match } from '@diegogbrisa/ts-match'
+import sharp from 'sharp'
 
-/** A rectangle in CSS pixels of the page. */
+/** Numbered callouts drawn over a crop; `website-screenshot-capture-kit.ts` is the entry point. */
+
+/** A rectangle in CSS pixels of the window, as Playwright's `boundingBox()` reports it. */
 export interface Region {
   readonly x: number
   readonly y: number
@@ -13,170 +11,116 @@ export interface Region {
   readonly height: number
 }
 
-/** A numbered label drawn at a control, explained in a list under the image. */
+/**
+ * Where a numbered badge sits around the outlined `region`. `band` puts it in a strip added
+ * under the crop, with a line up to the region and no outline, so it never covers the control.
+ */
+export type BadgePlacement =
+  | 'above'
+  | 'below'
+  | 'left'
+  | 'right'
+  | 'left-top'
+  | 'inside-top-right'
+  | 'band'
+
 export interface Callout {
   readonly number: number
   readonly region: Region
+  /** Defaults to `above`. */
+  readonly badge?: BadgePlacement
 }
 
-/** Crops are taken at twice CSS size so small controls stay sharp on high-density screens. */
-const CROP_SCALE = 2
-const CALLOUT_RADIUS_PX = 11
-const CALLOUT_GAP_PX = 4
-const CALLOUT_OUTLINE_PAD_PX = 3
-const CALLOUT_CORNER_PX = 7
-const CALLOUT_FONT_PX = 13
 const CALLOUT_COLOR = '#f2b544'
-const CALLOUT_STROKE_PX = 1.5
-const HALVES = 2
-const PNG_COMPRESSION_LEVEL = 9
 const CALLOUT_TEXT_COLOR = '#17181c'
-const PNG_COLOURS = 256
-const PNG_EFFORT = 10
+const BADGE_RADIUS_PX = 11
+const BADGE_GAP_PX = 4
+const BADGE_FONT_PX = 13
+const OUTLINE_PAD_PX = 3
+const OUTLINE_CORNER_PX = 7
+const OUTLINE_STROKE_PX = 1.5
+const BAND_HEIGHT_PX = 48
+const HALVES = 2
 
-export async function regionOf(locator: Locator): Promise<Region> {
-  const box = await locator.boundingBox()
-  if (!box) throw new Error(`No bounding box for ${locator.toString()}.`)
-  return box
+/** Callouts numbered 1, 2, 3… in the order given, which is the order the docs explain them. */
+export function numbered(targets: readonly Omit<Callout, 'number'>[]): Callout[] {
+  return targets.map((target, index) => ({ ...target, number: index + 1 }))
 }
 
-/** The smallest region holding every one given, grown by `pad` on each side. */
-/**
- * From the top of `top` to the bottom of `bottom`, across `across`'s columns, padded by `pad`
- * except below, where `bottomPad` keeps the next block out of the crop.
- */
-export function spanRegion(options: {
-  readonly top: Region
-  readonly bottom: Region
-  readonly across: Region
-  readonly pad: number
-  readonly bottomPad?: number
-}): Region {
-  const { top, bottom, across, pad, bottomPad = pad } = options
-  const y = top.y - pad
-  return {
-    x: across.x - pad,
-    y,
-    width: across.width + pad + pad,
-    height: bottom.y + bottom.height + bottomPad - y,
-  }
+export function centerOf(region: Region) {
+  return { x: region.x + region.width / HALVES, y: region.y + region.height / HALVES }
 }
 
-export function unionRegion(regions: readonly Region[], pad = 0): Region {
-  const left = Math.min(...regions.map((region) => region.x)) - pad
-  const top = Math.min(...regions.map((region) => region.y)) - pad
-  const right = Math.max(...regions.map((region) => region.x + region.width)) + pad
-  const bottom = Math.max(...regions.map((region) => region.y + region.height)) + pad
-  return { x: left, y: top, width: right - left, height: bottom - top }
+function badgeCentre(callout: Callout, clipBottom: number) {
+  const { region } = callout
+  const offset = BADGE_RADIUS_PX + BADGE_GAP_PX + OUTLINE_PAD_PX
+  const insideTop = region.y - OUTLINE_PAD_PX + BADGE_GAP_PX + BADGE_RADIUS_PX
+  const { x: centreX, y: centreY } = centerOf(region)
+  return match(callout.badge ?? 'above')
+    .with('above', () => ({ x: centreX, y: region.y - offset }))
+    .with('below', () => ({ x: centreX, y: region.y + region.height + offset }))
+    .with('left', () => ({ x: region.x - offset, y: centreY }))
+    .with('right', () => ({ x: region.x + region.width + offset, y: centreY }))
+    .with('left-top', () => ({ x: region.x - offset, y: insideTop }))
+    .with('inside-top-right', () => ({
+      x: region.x + region.width + OUTLINE_PAD_PX - BADGE_GAP_PX - BADGE_RADIUS_PX,
+      y: insideTop,
+    }))
+    .with('band', () => ({ x: centreX, y: clipBottom + BAND_HEIGHT_PX / HALVES }))
+    .exhaustive()
 }
 
-function roundRegion(region: Region): Region {
-  const x = Math.max(0, Math.floor(region.x))
-  const y = Math.max(0, Math.floor(region.y))
-  return {
-    x,
-    y,
-    width: Math.ceil(region.x + region.width) - x,
-    height: Math.ceil(region.y + region.height) - y,
-  }
+/** One callout's shapes, in CSS pixels of the page (the SVG is translated to the clip). */
+function calloutShapes(callout: Callout, clipBottom: number) {
+  const { region } = callout
+  const badge = badgeCentre(callout, clipBottom)
+  const marker =
+    callout.badge === 'band'
+      ? `<line x1="${String(badge.x)}" y1="${String(badge.y - BADGE_RADIUS_PX)}" x2="${String(badge.x)}" y2="${String(region.y + region.height + BADGE_GAP_PX)}" stroke="${CALLOUT_COLOR}" stroke-width="${String(OUTLINE_STROKE_PX)}"/>`
+      : `<rect x="${String(region.x - OUTLINE_PAD_PX)}" y="${String(region.y - OUTLINE_PAD_PX)}" width="${String(region.width + OUTLINE_PAD_PX * HALVES)}" height="${String(region.height + OUTLINE_PAD_PX * HALVES)}" rx="${String(OUTLINE_CORNER_PX)}" fill="none" stroke="${CALLOUT_COLOR}" stroke-width="${String(OUTLINE_STROKE_PX)}"/>`
+  return [
+    marker,
+    `<circle cx="${String(badge.x)}" cy="${String(badge.y)}" r="${String(BADGE_RADIUS_PX)}" fill="${CALLOUT_COLOR}"/>`,
+    `<text x="${String(badge.x)}" y="${String(badge.y)}" dy="0.36em" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="${String(BADGE_FONT_PX)}" fill="${CALLOUT_TEXT_COLOR}">${String(callout.number)}</text>`,
+  ].join('')
 }
 
-/**
- * An outline around each control and a numbered badge centred above it, as an SVG the size of
- * the crop. Positions are deterministic: they come from the controls' bounding boxes.
- */
-function calloutSvg(clip: Region, callouts: readonly Callout[]) {
-  const scale = (value: number) => value * CROP_SCALE
-  const shapes = callouts.map(({ number, region }) => {
-    const left = region.x - clip.x - CALLOUT_OUTLINE_PAD_PX
-    const top = region.y - clip.y - CALLOUT_OUTLINE_PAD_PX
-    const width = region.width + CALLOUT_OUTLINE_PAD_PX + CALLOUT_OUTLINE_PAD_PX
-    const height = region.height + CALLOUT_OUTLINE_PAD_PX + CALLOUT_OUTLINE_PAD_PX
-    const cx = left + width / HALVES
-    const cy = top - CALLOUT_GAP_PX - CALLOUT_RADIUS_PX
-    return [
-      `<rect x="${scale(left)}" y="${scale(top)}" width="${scale(width)}" height="${scale(height)}" rx="${scale(CALLOUT_CORNER_PX)}" fill="none" stroke="${CALLOUT_COLOR}" stroke-width="${scale(CALLOUT_STROKE_PX)}"/>`,
-      `<circle cx="${scale(cx)}" cy="${scale(cy)}" r="${scale(CALLOUT_RADIUS_PX)}" fill="${CALLOUT_COLOR}"/>`,
-      `<text x="${scale(cx)}" y="${scale(cy)}" dy="0.36em" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="${scale(CALLOUT_FONT_PX)}" fill="${CALLOUT_TEXT_COLOR}">${String(number)}</text>`,
-    ].join('')
-  })
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${scale(clip.width)}" height="${scale(clip.height)}">${shapes.join('')}</svg>`,
-  )
-}
-
-/** A lossless palette PNG: the app's flat colours survive, and the file stays small. */
-function optimizedPng(image: Sharp) {
-  return image
-    .png({
-      palette: true,
-      colours: PNG_COLOURS,
-      effort: PNG_EFFORT,
-      compressionLevel: PNG_COMPRESSION_LEVEL,
-    })
+/** The image with a strip of `band` pixels added under it, in its bottom-left pixel's colour. */
+async function withBand(image: Buffer, height: number, band: number) {
+  const { data } = await sharp(image)
+    .extract({ left: 0, top: height - 1, width: 1, height: 1 })
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const [r = 0, g = 0, b = 0] = data
+  return sharp(image)
+    .extend({ bottom: band, background: { r, g, b, alpha: 1 } })
+    .png()
     .toBuffer()
 }
 
-async function writeScreenshot(context: CaptureContext, file: WebsiteScreenshot, png: Buffer) {
-  const target = path.join(context.outputDir, file)
-  await fs.writeFile(target, png)
-  await fs.copyFile(target, path.join(context.evidenceDir, file))
-  console.info(`[website-shots] wrote ${file}`)
-}
-
-interface ShotOptions {
-  readonly callouts?: readonly Callout[]
-  /** Keep focus where it is, for an open menu that closes when its field loses focus. */
-  readonly keepFocus?: boolean
-}
-
-async function settlePointer(page: Page, keepFocus: boolean) {
-  // Park the pointer in a corner so no hover state or tooltip lands in the image.
-  await page.mouse.move(1, 1)
-  if (!keepFocus) await blurFocusedControl(page)
-}
-
-const STABLE_POLL_MS = 200
-const STABLE_ATTEMPTS = 25
-
-/** Measures until two readings agree, so a crop does not catch content mid-scroll. */
-async function stableRegion(measure: () => Promise<Region>) {
-  let previous = await measure()
-  for (let attempt = 0; attempt < STABLE_ATTEMPTS; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, STABLE_POLL_MS))
-    const next = await measure()
-    if (JSON.stringify(next) === JSON.stringify(previous)) return next
-    previous = next
-  }
-  throw new Error('The capture region kept moving.')
-}
-
 /**
- * A region of the window at twice CSS size, with optional numbered callouts. A region given as a
- * function is measured after the pointer and focus have settled, since leaving a control can
- * scroll the page under it.
+ * Draws numbered callouts over an image of `clip`. Positions come from the controls' bounding
+ * boxes, so the numbers land in the same place on every run; the SVG's view box is in CSS pixels,
+ * so they look the same at any image scale. A `band` callout adds its strip under the image, in
+ * the colour of the image's bottom-left pixel.
  */
-export async function shootRegion(
-  context: CaptureContext,
-  file: WebsiteScreenshot,
-  region: Region | (() => Promise<Region>),
-  options: ShotOptions = {},
-) {
-  const callouts = options.callouts ?? []
-  await settlePointer(context.page, options.keepFocus ?? false)
-  const clip = roundRegion(typeof region === 'function' ? await stableRegion(region) : region)
-  const pixels = await context.page.screenshot({ clip, animations: 'disabled', scale: 'device' })
-  const metadata = await sharp(pixels).metadata()
-  const expectedWidth = clip.width * CROP_SCALE
-  // A display at another density would place the callouts wrongly; resize to the expected scale.
-  const image =
-    metadata.width === expectedWidth
-      ? sharp(pixels)
-      : sharp(pixels).resize({ width: expectedWidth, height: clip.height * CROP_SCALE })
-  const base = await image.png().toBuffer()
-  const annotated =
-    callouts.length === 0
-      ? sharp(base)
-      : sharp(base).composite([{ input: calloutSvg(clip, callouts), left: 0, top: 0 }])
-  await writeScreenshot(context, file, await optimizedPng(annotated))
+export async function drawCallouts(image: Buffer, clip: Region, callouts: readonly Callout[]) {
+  if (callouts.length === 0) return image
+  const meta = await sharp(image).metadata()
+  const width = meta.width ?? clip.width
+  const height = meta.height ?? clip.height
+  const scale = width / clip.width
+  const band = callouts.some((callout) => callout.badge === 'band')
+    ? Math.round(BAND_HEIGHT_PX * scale)
+    : 0
+  const base = band > 0 ? await withBand(image, height, band) : image
+  const clipBottom = clip.y + height / scale
+  const shapes = callouts.map((callout) => calloutShapes(callout, clipBottom)).join('')
+  const viewBox = [clip.x, clip.y, width / scale, (height + band) / scale].map(String).join(' ')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${String(width)}" height="${String(height + band)}" viewBox="${viewBox}">${shapes}</svg>`
+  return sharp(base)
+    .composite([{ input: Buffer.from(svg), left: 0, top: 0 }])
+    .png()
+    .toBuffer()
 }
+

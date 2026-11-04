@@ -6,7 +6,7 @@ import {
   shootRegion,
   spanRegion,
   unionRegion,
-} from './website-screenshot-callouts'
+} from './website-screenshot-capture-kit'
 import {
   INTERRUPTED_SESSION_TITLE,
   TOOL_ROWS_SESSION_TITLE,
@@ -27,9 +27,8 @@ import {
   SIDEBAR_PAD_PX,
   sidebar,
   TIGHT_PAD_PX,
-  UI_TIMEOUT_MS,
 } from './website-screenshot-essentials-setup'
-import { type CaptureContext, openSession, waitForUi } from './website-screenshot-ui'
+import { type CaptureContext, openSession, waitForUi, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
 /** Room above a control row for the callout badges. */
 const CALLOUT_HEADROOM_PX = 34
@@ -195,8 +194,14 @@ export async function captureSidebarStates(context: CaptureContext) {
     across: navBox,
     pad: SIDEBAR_PAD_PX,
   })
-  // The sidebar's own edges frame the crop; only the top and bottom are padded.
-  await shootRegion(context, 'sidebar-states.png', { ...span, x: navBox.x, width: navBox.width })
+  // The sidebar's own edges frame the crop; only the top and bottom are padded. Its overlay
+  // scrollbar shows for a moment after the list scrolls, so it is hidden.
+  await shootRegion(
+    context,
+    'sidebar-states.png',
+    { ...span, x: navBox.x, width: navBox.width },
+    { hideScrollbars: true },
+  )
 }
 
 /**
