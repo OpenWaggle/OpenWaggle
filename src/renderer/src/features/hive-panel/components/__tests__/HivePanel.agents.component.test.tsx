@@ -51,7 +51,9 @@ describe('HivePanel Agent definitions (identity line)', () => {
 
     const row = treeItem('review-1')
     expect(row).toHaveAccessibleName(
-      expect.stringMatching(/^Open Worker Session: review-1, agent reviewer, spawned by queen/u),
+      expect.stringMatching(
+        /^Open Worker Session: review-1, agent reviewer, thinking high, model spark\/GLM-5\.3-Flash-EXL3, spawned by queen/u,
+      ),
     )
     const identity = row.querySelector('[data-hive-agent="reviewer"]')
     expect(identity).toHaveTextContent('reviewer · high · GLM-5.3-Flash-EXL3')
@@ -70,7 +72,11 @@ describe('HivePanel Agent definitions (identity line)', () => {
   it('shows only the name when the profile carries no model or thinking level', async () => {
     await renderHive([worker('review-1', { agentDefinitionName: 'reviewer' })])
 
-    expect(treeItem('review-1').querySelector('[data-hive-agent]')).toHaveTextContent(/^reviewer$/u)
+    const row = treeItem('review-1')
+    expect(row.querySelector('[data-hive-agent]')).toHaveTextContent(/^reviewer$/u)
+    expect(row).toHaveAccessibleName(
+      expect.stringMatching(/^Open Worker Session: review-1, agent reviewer, spawned by queen/u),
+    )
   })
 
   it('counts the Hive’s Workers per definition in the toolbar, most used first', async () => {
@@ -83,6 +89,12 @@ describe('HivePanel Agent definitions (identity line)', () => {
 
     const summaryLine = document.querySelector('[data-hive-agent-summary]')
     expect(summaryLine).toHaveTextContent('reviewer ×2 · planner ×1')
+    // A truncated summary still shows its whole text on hover.
+    expect(screen.getByTitle('reviewer ×2 · planner ×1')).toBeInTheDocument()
+    // Only the summary gives up width; the toggles keep one line beside a long one.
+    for (const name of ['Show archived', 'By next actor']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('shrink-0', 'whitespace-nowrap')
+    }
     expect(screen.getByText('Agent definitions in this Hive: reviewer ×2, planner ×1')).toHaveClass(
       'sr-only',
     )

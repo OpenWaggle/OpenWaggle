@@ -108,6 +108,7 @@ describe('Hive tool Agent-definition guidance', () => {
     expect(text).toMatch(
       /When an Agent definition fits a role, spawn, launch, or create with agent: "<name>" and keep the role out of objective; available_agents lists/,
     )
+    expect(text).toContain('find them (projectPath for another project).')
     expect(text).not.toMatch(/do not assume named roles exist/)
   })
 
@@ -122,5 +123,7 @@ describe('Hive tool Agent-definition guidance', () => {
 
     const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
     expect(text).toMatch(/When an Agent definition fits a role, spawn with agent: "<name>"/)
+    // A spawn-only Session is refused another project's catalog, so it is not offered one.
+    expect(text).not.toContain('projectPath for another project')
   })
 })

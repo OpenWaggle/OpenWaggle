@@ -1,5 +1,3 @@
-import { realpath } from 'node:fs/promises'
-import path from 'node:path'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
@@ -10,20 +8,20 @@ import type {
 import type { SessionCapability } from '@shared/types/session-capability'
 import { isRecord } from '@shared/utils/validation'
 import type { TSchema } from 'typebox'
-import {
-  type AgentDefinitionProjectResolver,
-  resolveAgentDefinitionProject,
-} from '../../agent-definition-project'
-import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
-import { suggestAgentDefinition } from '../../domain/agents/agent-definition-suggestion'
+import type { AgentDefinitionProjectResolver } from '../../agent-definition-project'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { executeSessionToolCommand } from '../../session-host/session-tool-gateway'
 import { describeError } from '../../utils/describe-error'
+import {
+  agentDefinitionProjectForTool,
+  isAgentDefinitionAction,
+  queryAgentDefinitionsForTool,
+  spawnAgentHint,
+} from './sessions-tool-agent-definition-actions'
 import { authorizeAttachments, authorizeExport } from './sessions-tool-authorization'
 import {
   assertSessionsToolActionPermitted,
-  permitsSessionsToolAction,
   permittedSessionsToolVariants,
   type SessionsToolActionGrant,
   sessionsToolSchemaForGrant,
@@ -35,7 +33,6 @@ import {
 } from './sessions-tool-guidelines'
 import { hiveHelp } from './sessions-tool-help'
 import { HIVE_HELP_ACTION } from './sessions-tool-hot-schema'
-import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
 import { hiveResultText } from './sessions-tool-result'
 import { executeScheduleToolAction } from './sessions-tool-schedule-approval'
@@ -59,81 +56,8 @@ interface SessionsToolExtensionInput {
   readonly resolveAgentDefinitionProject?: AgentDefinitionProjectResolver
 }
 
+export { queryAgentDefinitionsForTool } from './sessions-tool-agent-definition-actions'
 export { buildSessionsToolPayload } from './sessions-tool-payload'
-
-export function queryAgentDefinitionsForTool(
-  input: AgentDefinitionToolParameters,
-  projectPath: string,
-  enabledByName: Readonly<Record<string, boolean>> = {},
-) {
-  return discoverAgentDefinitions({
-    projectPath,
-    ...(input.action === 'agent_definitions_search' ? { query: input.query } : {}),
-    ...(input.limit === undefined ? {} : { limit: input.limit }),
-    enabledByName,
-  })
-}
-
-type AgentDefinitionToolParameters = Extract<
-  SessionsToolParameters,
-  { action: 'agent_definitions_list' | 'agent_definitions_search' }
->
-
-/** Every spelling of a directory: as given, then its real path when a symlink makes them differ. */
-async function directorySpellings(directory: string) {
-  const given = path.resolve(directory)
-  const real = await realpath(given).catch(() => given)
-  return new Set([given, real])
-}
-
-async function sameDirectory(left: string, right: string) {
-  const [leftSpellings, rightSpellings] = await Promise.all([
-    directorySpellings(left),
-    directorySpellings(right),
-  ])
-  return [...leftSpellings].some((spelling) => rightSpellings.has(spelling))
-}
-
-/**
- * The project and toggles an agent-definition action reads: the caller's own project, or the
- * project its projectPath names. Another project needs launch or create, the actions that start a
- * Session there with one of its definitions, and it must be a project the user opened in
- * OpenWaggle, as launch requires; a folder that is not one is refused, never read in its place.
- */
-async function agentDefinitionProjectForTool(
-  params: AgentDefinitionToolParameters,
-  input: SessionsToolExtensionInput,
-  grant: SessionsToolActionGrant,
-) {
-  const own = input.projectPath ?? input.workingDirectory
-  const ownProject = { projectPath: own, enabledByName: input.agentDefinitionToggles ?? {} }
-  const requested = params.projectPath
-  if (requested === undefined) return ownProject
-  if (!path.isAbsolute(requested)) {
-    throw new Error(`${params.action} refused: projectPath must be an absolute project path.`)
-  }
-  const resolved = await (input.resolveAgentDefinitionProject ?? resolveAgentDefinitionProject)(
-    requested,
-  )
-  if (await sameDirectory(resolved.projectPath, own)) return ownProject
-  if (!permitsSessionsToolAction('launch', grant) && !permitsSessionsToolAction('create', grant)) {
-    throw new Error(
-      `${params.action} refused: this Session can read only its own project's Agent definitions; another project needs launch or create.`,
-    )
-  }
-  if (!resolved.known) {
-    throw new Error(
-      `${params.action} refused: ${requested} is not a project in OpenWaggle. Pass the absolute path of a project as list with catalogScope all shows it.`,
-    )
-  }
-  return { projectPath: resolved.projectPath, enabledByName: resolved.enabledByName }
-}
-
-function isAgentDefinitionAction(
-  params: SessionsToolParameters,
-): params is AgentDefinitionToolParameters {
-  return params.action === 'agent_definitions_list' || params.action === 'agent_definitions_search'
-}
 
 function sendSessionsToolCommand(
   input: SessionsToolExtensionInput,
@@ -194,7 +118,9 @@ async function executeSessionsToolCall(
     details: result,
   })
   if (isAgentDefinitionAction(params)) {
-    const project = await agentDefinitionProjectForTool(params, input, grant)
+    const project = await agentDefinitionProjectForTool(params, input, grant, (payload) =>
+      sendSessionsToolCommand(input, payload, signal),
+    )
     return successfulToolResult(
       await queryAgentDefinitionsForTool(params, project.projectPath, project.enabledByName),
     )
@@ -220,46 +146,6 @@ async function executeSessionsToolCall(
   return hint
     ? { ...toolResult, content: [...toolResult.content, { type: 'text' as const, text: hint }] }
     : toolResult
-}
-
-function spawnedWorker(result: LocalSessionCommandResult) {
-  return isMatching(
-    { contract: 'session-lifecycle-v2', response: { outcome: { effect: 'spawned-worker' } } },
-    result,
-  )
-}
-
-/**
- * After a spawn without `agent` whose objective restates an Agent definition's role, a hint that
- * names the definition, so the next Worker in that role is spawned with it. It never blocks or
- * changes the spawn, and a catalog that cannot be read gives no hint.
- */
-async function spawnAgentHint(
-  params: SessionsToolParameters,
-  result: LocalSessionCommandResult,
-  input: SessionsToolExtensionInput,
-) {
-  if (params.action !== 'spawn' || params.agent !== undefined || !spawnedWorker(result)) {
-    return undefined
-  }
-  const definitions = await discoverAgentDefinitions({
-    projectPath: input.projectPath ?? input.workingDirectory,
-    enabledByName: input.agentDefinitionToggles ?? {},
-  }).then(
-    (catalog) => catalog.definitions.filter((definition) => definition.valid),
-    (error: unknown) => {
-      logger.warn('Agent definitions could not be read for a spawn hint', {
-        error: describeError(error),
-      })
-      return []
-    },
-  )
-  const suggested = suggestAgentDefinition(
-    { objective: params.objective, ...(params.title ? { title: params.title } : {}) },
-    definitions,
-  )
-  if (!suggested) return undefined
-  return `suggestedAgent: ${JSON.stringify(suggested.name)}. This objective describes the role of the Agent definition ${JSON.stringify(suggested.name)} (${JSON.stringify(suggested.description)}). If that is this Worker's role, spawn the next such Worker with agent: ${JSON.stringify(suggested.name)} and an objective that carries only its task.`
 }
 
 function failedToolResult(error: unknown) {

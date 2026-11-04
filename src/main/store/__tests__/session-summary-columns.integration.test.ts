@@ -216,7 +216,7 @@ describe('session summary columns survive the live SQL path', () => {
       parentSessionId: queen.id,
       hiveRootSessionId: queen.id,
       agentDefinitionName: 'security-reviewer',
-      // The Hive panel's identity line names what the Worker was created with.
+      // The Hive panel's identity line names what the Worker runs with.
       agentModelId: 'openai/gpt-5.4',
       agentThinkingLevel: 'high',
     })

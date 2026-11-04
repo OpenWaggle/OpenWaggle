@@ -4,8 +4,14 @@ import path from 'node:path'
 import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { discoverAgentDefinitions } from '../../../agents/agent-definition-discovery'
 import { installSessionToolGateway } from '../../../session-host/session-tool-gateway'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
+
+vi.mock('../../../agents/agent-definition-discovery', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../agents/agent-definition-discovery')>()
+  return { ...actual, discoverAgentDefinitions: vi.fn(actual.discoverAgentDefinitions) }
+})
 
 const SPAWNED = {
   contract: 'session-lifecycle-v2' as const,
@@ -30,6 +36,19 @@ const SPAWNED = {
   },
 }
 
+const REJECTED = {
+  contract: 'session-lifecycle-v2' as const,
+  response: {
+    ...SPAWNED.response,
+    outcome: {
+      operation: 'spawn' as const,
+      effect: 'rejected' as const,
+      code: 'parent_concurrency_limit',
+      retryable: true,
+    },
+  },
+}
+
 const REVIEW_OBJECTIVE =
   'You are an independent code reviewer with a fresh context; you did not write this change. Review the diff of the branch against main, the project guidelines and its ticket, and report findings by severity.'
 
@@ -47,7 +66,10 @@ describe('hive spawn suggests a matching Agent definition', () => {
 
   async function spawn(
     params: Record<string, unknown>,
-    options: { readonly toggles?: Readonly<Record<string, boolean>> } = {},
+    options: {
+      readonly toggles?: Readonly<Record<string, boolean>>
+      readonly gatewayResult?: typeof SPAWNED | typeof REJECTED
+    } = {},
   ) {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-spawn-hint-'))
     temporaryRoots.push(projectPath)
@@ -64,7 +86,7 @@ Review it.
 `,
       'utf8',
     )
-    const gateway = vi.fn(async () => SPAWNED)
+    const gateway = vi.fn(async () => options.gatewayResult ?? SPAWNED)
     releaseGateway = installSessionToolGateway(gateway)
     let tool: ToolDefinition | undefined
     createSessionsToolExtension({
@@ -128,6 +150,30 @@ Review it.
       { toggles: { reviewer: false } },
     )
 
+    expect(result?.content).toHaveLength(1)
+  })
+
+  it('keeps the spawn result whole when the catalog cannot be read', async () => {
+    vi.mocked(discoverAgentDefinitions).mockRejectedValueOnce(new Error('unreadable'))
+
+    const { result } = await spawn({
+      title: 'Independent code review',
+      objective: REVIEW_OBJECTIVE,
+    })
+
+    expect(discoverAgentDefinitions).toHaveBeenCalled()
+    expect(result?.isError).toBeFalsy()
+    expect(result?.details).toEqual(SPAWNED)
+    expect(result?.content).toHaveLength(1)
+  })
+
+  it('adds nothing when the spawn did not start a Worker', async () => {
+    const { result } = await spawn(
+      { title: 'Independent code review', objective: REVIEW_OBJECTIVE },
+      { gatewayResult: REJECTED },
+    )
+
+    expect(result?.details).toEqual(REJECTED)
     expect(result?.content).toHaveLength(1)
   })
 })

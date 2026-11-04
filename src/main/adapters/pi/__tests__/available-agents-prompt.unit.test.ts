@@ -111,6 +111,15 @@ describe('available_agents section', () => {
     expect(text.match(/<agent /g)).toHaveLength(AVAILABLE_AGENTS_PROMPT_LIMIT)
     expect(text).toContain('More are defined: agent_definitions_list and agent_definitions_search')
   })
+
+  it('cuts a description by code point, never between the halves of a surrogate pair', () => {
+    const emoji = '🐝'.repeat(AVAILABLE_AGENT_DESCRIPTION_LIMIT + 5)
+
+    const text = availableAgentsPromptSection([{ name: 'bee', description: emoji }], QUEEN) ?? ''
+    const description = text.match(/<agent name="bee">(.*)<\/agent>/)?.[1] ?? ''
+
+    expect(description).toBe(`${'🐝'.repeat(AVAILABLE_AGENT_DESCRIPTION_LIMIT - 1)}…`)
+  })
 })
 
 describe('createAvailableAgentsPromptExtension', () => {
@@ -132,6 +141,28 @@ describe('createAvailableAgentsPromptExtension', () => {
     )
     expect(sections?.[AVAILABLE_AGENTS_PROMPT_SECTION]).toContain('<agent name="reviewer">')
     expect(sections?.[AVAILABLE_AGENTS_PROMPT_SECTION]).not.toContain('broken')
+  })
+
+  it('drops invalid definitions before the cut, so they never take a valid one’s slot', async () => {
+    const names = Array.from(
+      { length: 30 },
+      (_, index) => `agent-${String(index).padStart(2, '0')}`,
+    )
+    const discover = catalog(
+      names.map((name, index) => definition(name, 'Short role.', index !== 3 && index !== 7)),
+    )
+    const [sections] = await promptSections(
+      createAvailableAgentsPromptExtension({ projectPath: '/project', discover }),
+    )
+    const text = sections?.[AVAILABLE_AGENTS_PROMPT_SECTION] ?? ''
+
+    expect(discover).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: Number.POSITIVE_INFINITY }),
+    )
+    expect(text.match(/<agent /g)).toHaveLength(AVAILABLE_AGENTS_PROMPT_LIMIT)
+    expect(text).toContain('<agent name="agent-25">')
+    expect(text).not.toContain('<agent name="agent-03">')
+    expect(text).toContain('More are defined')
   })
 
   it('reads the catalog once per Run and writes the same bytes every turn', async () => {

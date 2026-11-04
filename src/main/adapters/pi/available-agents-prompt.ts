@@ -1,7 +1,10 @@
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type { SessionCapability } from '@shared/types/session-capability'
-import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
+import {
+  ALL_AGENT_DEFINITIONS,
+  discoverAgentDefinitions,
+} from '../../agents/agent-definition-discovery'
 import { agentToolAllowlist } from '../../domain/agents/agent-tool-allowlist'
 import { createLogger } from '../../logger'
 import { describeError } from '../../utils/describe-error'
@@ -39,8 +42,10 @@ function escapeXml(text: string) {
 
 function shortDescription(description: string) {
   const flat = description.replace(/\s+/g, ' ').trim()
-  if (flat.length <= AVAILABLE_AGENT_DESCRIPTION_LIMIT) return flat
-  const cut = flat.slice(0, AVAILABLE_AGENT_DESCRIPTION_LIMIT - 1)
+  // Counted and cut by code point, so a cut never splits a surrogate pair into a lone half.
+  const codePoints = Array.from(flat)
+  if (codePoints.length <= AVAILABLE_AGENT_DESCRIPTION_LIMIT) return flat
+  const cut = codePoints.slice(0, AVAILABLE_AGENT_DESCRIPTION_LIMIT - 1).join('')
   const boundary = cut.lastIndexOf(' ')
   const kept =
     boundary >= AVAILABLE_AGENT_DESCRIPTION_LIMIT * WORD_BOUNDARY_MIN_SHARE
@@ -107,7 +112,8 @@ async function loadAvailableAgents(
     const { definitions } = await (input.discover ?? discoverAgentDefinitions)({
       projectPath: input.projectPath,
       enabledByName: input.agentDefinitionToggles ?? {},
-      limit: AVAILABLE_AGENTS_PROMPT_LIMIT + 1,
+      // Invalid definitions are dropped before the section's cut, so they never take a slot.
+      limit: ALL_AGENT_DEFINITIONS,
     })
     return definitions
       .filter((definition) => definition.valid)

@@ -44,6 +44,20 @@ describe('suggestAgentDefinition', () => {
     ).toBeUndefined()
   })
 
+  it('does not count the name toward the description share', () => {
+    const reviewer = {
+      name: 'reviewer',
+      description:
+        'Independent code reviewer for pull requests and diffs: correctness, regressions, security, and missing tests.',
+    }
+    expect(
+      suggestAgentDefinition(
+        { objective: 'Fix the flaky test in the reviewer assignment code path.' },
+        [reviewer],
+      ),
+    ).toBeUndefined()
+  })
+
   it('suggests nothing when two definitions fit about equally well', () => {
     const twin = { ...REVIEWER, name: 'review' }
     expect(

@@ -64,7 +64,8 @@ function nextActorFacts(row: SessionLineageRow) {
 }
 
 /**
- * The Agent definition a Session runs, with the model and thinking level it was created with
+ * The Agent definition a Session runs, with the model and thinking level its execution profile
+ * holds now, which the model picker and a Run's thinking level may have changed since creation
  * (the Hive panel's identity line); a Session not created from a definition has none of them.
  */
 function agentDefinitionLineage(row: SessionLineageRow) {

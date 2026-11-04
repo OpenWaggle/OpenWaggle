@@ -113,7 +113,11 @@ function score(
   if (nameWords.size === 0 || ![...nameWords].every((word) => objective.role.has(word))) {
     return undefined
   }
-  const described = words(candidate.description)
+  // The name already passed its own test; counting it again here would give every objective that
+  // names the role a free share of a description that repeats the name ("code reviewer").
+  const described = new Set(
+    [...words(candidate.description)].filter((word) => !nameWords.has(word)),
+  )
   if (described.size < MIN_DESCRIPTION_WORDS) return undefined
   let shared = 0
   for (const word of described) if (objective.all.has(word)) shared += 1

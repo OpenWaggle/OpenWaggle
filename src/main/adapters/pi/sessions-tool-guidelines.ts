@@ -47,7 +47,10 @@ function agentDefinitionGuideline(permits: Permits) {
   if (starts.length === 0) {
     return 'agent_definitions_list and agent_definitions_search show Agent definitions by name and description.'
   }
-  return `When an Agent definition fits a role, ${either(starts)} with agent: "<name>" and keep the role out of objective; available_agents lists the project's, and agent_definitions_list and agent_definitions_search find them (projectPath for another project). Never pass a name that no list shows.`
+  // Another project's catalog is read only by a Session that can start a Session there.
+  const otherProject =
+    permits('launch') || permits('create') ? ' (projectPath for another project)' : ''
+  return `When an Agent definition fits a role, ${either(starts)} with agent: "<name>" and keep the role out of objective; available_agents lists the project's, and agent_definitions_list and agent_definitions_search find them${otherProject}. Never pass a name that no list shows.`
 }
 
 /** fullTranscript also needs sessions:read, so a discover-only grant is not told to use it. */

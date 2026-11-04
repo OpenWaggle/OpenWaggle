@@ -131,8 +131,9 @@ function HiveTreeBody({
   )
 }
 
+// shrink-0 and whitespace-nowrap: only the agent summary beside them gives up width, by truncating.
 const TOGGLE_CLASS =
-  'rounded-md border px-2 py-0.5 text-xs transition-colors hover:bg-bg-hover hover:text-text-primary'
+  'shrink-0 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs transition-colors hover:bg-bg-hover hover:text-text-primary'
 
 function toggleClass(pressed: boolean) {
   return cn(
@@ -177,7 +178,7 @@ function HiveAgentSummary({
       className="mr-auto flex min-w-0 items-center gap-1.5 text-xs text-info-text"
     >
       <Bot aria-hidden="true" className="size-3.5 shrink-0" />
-      <span aria-hidden="true" className="truncate">
+      <span aria-hidden="true" className="truncate" title={parts.join(' · ')}>
         {parts.join(' · ')}
       </span>
       <span className="sr-only">Agent definitions in this Hive: {parts.join(', ')}</span>

@@ -73,8 +73,8 @@ function shortModelName(modelId: string) {
 }
 
 /**
- * The Agent definition a Session was created from, with the thinking level and model it was
- * created with: the row's identity line ("reviewer · high · GLM-5.3-Flash"). Null for a Session
+ * The Agent definition a Session was created from, with the thinking level and model it runs
+ * with now: the row's identity line ("reviewer · high · GLM-5.3-Flash"). Null for a Session
  * created without one.
  */
 export function hiveAgentPresentation(session: HiveSession) {
@@ -91,6 +91,15 @@ export function hiveAgentPresentation(session: HiveSession) {
 }
 
 export type HiveAgentPresentation = NonNullable<ReturnType<typeof hiveAgentPresentation>>
+
+/** "agent reviewer, thinking high, model spark/GLM-5.3-Flash": the identity line, read aloud. */
+function agentAccessibleName(agent: HiveAgentPresentation) {
+  return [
+    `agent ${agent.name}`,
+    ...(agent.thinking ? [`thinking ${agent.thinking}`] : []),
+    ...(agent.modelId ? [`model ${agent.modelId}`] : []),
+  ].join(', ')
+}
 
 /** Everything a Hive row shows, from its Session and the live stores it subscribes to. */
 export function useHiveRowView(session: HiveSession, isRoot: boolean) {
@@ -127,7 +136,7 @@ export function hiveRowAccessibleName(
 ) {
   const parts = [
     `Open ${view.role.label} Session: ${view.session.title}`,
-    ...(view.agent ? [`agent ${view.agent.name}`] : []),
+    ...(view.agent ? [agentAccessibleName(view.agent)] : []),
     ...(parentTitle === null ? [] : [`spawned by ${parentTitle}`]),
     ...(view.isPinned ? ['pinned'] : []),
     `state ${view.state.label}`,
@@ -177,8 +186,8 @@ function agentIdentityTitle(agent: HiveAgentPresentation) {
 
 /**
  * "reviewer · high · GLM-5.3-Flash" under the title of a Session created from an Agent
- * definition: which definition it runs, and what it was created with. Visual only: the row's
- * accessible name already names the agent.
+ * definition: which definition it runs, and what it runs with. Visual only: the row's
+ * accessible name carries the same three parts.
  */
 export function HiveAgentIdentity({ view }: { readonly view: HiveRowView }) {
   const agent = view.agent
