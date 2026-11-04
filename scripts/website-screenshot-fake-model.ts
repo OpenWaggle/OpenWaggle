@@ -42,7 +42,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function textOf(content: unknown): string {
+function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
@@ -50,15 +50,18 @@ function textOf(content: unknown): string {
     .join('\n')
 }
 
-function parseRequest(raw: string): FakeModelRequest {
-  let body: unknown = {}
+function parseJson(raw: string): unknown {
   try {
-    body = JSON.parse(raw)
+    return JSON.parse(raw)
   } catch {
-    body = {}
+    return {}
   }
+}
+
+function parseRequest(raw: string): FakeModelRequest {
+  const body = parseJson(raw)
   const record = isRecord(body) ? body : {}
-  const messages = Array.isArray(record.messages) ? record.messages : []
+  const messages: readonly unknown[] = Array.isArray(record.messages) ? record.messages : []
   const texts = messages.map((message) => (isRecord(message) ? textOf(message.content) : ''))
   const userMessages = messages.filter((message) => isRecord(message) && message.role === 'user')
   const lastUser = userMessages.at(-1)

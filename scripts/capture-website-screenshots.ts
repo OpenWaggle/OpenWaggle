@@ -15,19 +15,19 @@ import {
   captureAllPanels,
   captureCodemodeCard,
   captureCompactionMarker,
-  captureContextMeter,
   captureMissingWorktree,
   captureSettingsAgents,
   captureSettingsPermissions,
   captureSettingsShortcuts,
   captureSettingsSkills,
-  captureWaggleConversation,
-  captureWaggleSettings,
 } from './website-screenshot-feature-captures'
 import {
-  addFeatureProjectFiles,
-  registerFeatureSessions,
-} from './website-screenshot-feature-fixture'
+  captureContextMeter,
+  captureWaggleConversation,
+  captureWaggleSettings,
+} from './website-screenshot-waggle-captures'
+import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
+import { registerFeatureSessions } from './website-screenshot-feature-sessions'
 import { startScreenshotModel } from './website-screenshot-feature-model'
 import {
   PROJECT_NAME,
