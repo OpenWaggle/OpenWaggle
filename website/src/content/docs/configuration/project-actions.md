@@ -25,11 +25,11 @@ The panel asks you to open a project when none is open, and to select a session 
 
 ## Follow output in the terminal
 
-**Open in terminal** in the Project Actions panel, or in a run's output view, opens a read-only tab in the bottom terminal drawer, labelled like **dev · action output** with a lock icon. It shows the run's retained and live output with the same rendering as your terminals, so colours, scrollback, search, links, and copying work as they do there. It attaches to the existing run; it does not start a shell or run the command again, and it does not accept typing.
+**Open in terminal** in the Project Actions panel, or in a run's output view, opens a read-only tab in the bottom terminal drawer, labelled with the action's name, such as **Dev server · action output**, with a lock icon. It shows the run's retained and live output with the same rendering as your terminals, so colours, scrollback, search, links, and copying work as they do there. It attaches to the existing run; it does not start a shell or run the command again, and it does not accept typing.
 
 - Each action has one such tab per session. Choosing **Open in terminal** again focuses it.
 - When the action restarts, from the panel, a shortcut, or an agent, the tab follows the new run. Earlier output stays above a **restarted** divider.
-- When a run ends, the tab keeps its final output and shows how it ended, such as `dev failed · exit 1`.
+- When a run ends, the tab keeps its final output and shows how it ended, such as `Dev server failed · exit 1`.
 - Closing the tab closes only the view. The action keeps running; use **Stop** in Project Actions to end it. Stop and Restart are not in the terminal tab.
 - Action output tabs come back with the terminal drawer after you restart OpenWaggle, and reconnect to the run's retained output.
 
