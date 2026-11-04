@@ -104,4 +104,49 @@ describe('suggestAgentDefinition', () => {
       ),
     ).toBeUndefined()
   })
+
+  it('prefers the definition whose whole name the objective states over a generic one', () => {
+    const security = {
+      name: 'security-reviewer',
+      description:
+        'Audit a change for injection, secrets, authorization gaps and unsafe dependencies before it merges.',
+    }
+    expect(
+      suggestAgentDefinition(
+        {
+          title: 'Security review: MR !302',
+          objective:
+            'You are an independent security reviewer with a fresh context; you did not write this change. Review the diff of the branch against the ticket and the project guidelines, and audit it for injection and secrets.',
+        },
+        [REVIEWER, security],
+      ),
+    ).toEqual(security)
+  })
+
+  it('does not take the plain noun or verb for an -er name', () => {
+    const tester = {
+      name: 'tester',
+      description:
+        'Write and run tests for a change, cover edge cases and regressions, and report what fails.',
+    }
+    expect(
+      suggestAgentDefinition(
+        {
+          title: 'Implement upload size cap',
+          objective:
+            'Implement the upload size cap on a fresh branch with tests covering the edge cases, run the test suite, and report what changed.',
+        },
+        [tester, PLANNER],
+      ),
+    ).toBeUndefined()
+    expect(
+      suggestAgentDefinition(
+        {
+          objective:
+            'You are the tester for this change: write and run tests that cover its edge cases and regressions, and report what fails.',
+        },
+        [tester],
+      ),
+    ).toEqual(tester)
+  })
 })

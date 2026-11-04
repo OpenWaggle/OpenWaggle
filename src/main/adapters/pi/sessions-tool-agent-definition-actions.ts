@@ -1,12 +1,10 @@
-import { randomUUID } from 'node:crypto'
-import { realpath } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { isMatching } from '@diegogbrisa/ts-match'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
-import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import {
   type AgentDefinitionProjectResolver,
   resolveAgentDefinitionProject,
@@ -17,6 +15,7 @@ import {
 } from '../../agents/agent-definition-discovery'
 import { suggestAgentDefinition } from '../../domain/agents/agent-definition-suggestion'
 import { createLogger } from '../../logger'
+import { agentDefinitionProjectProbe } from '../../session-host/agent-definition-project-probe'
 import { describeError } from '../../utils/describe-error'
 import {
   permitsSessionsToolAction,
@@ -77,33 +76,37 @@ async function sameDirectory(left: string, right: string) {
   return [...leftSpellings].some((spelling) => rightSpellings.has(spelling))
 }
 
-/**
- * Asks the Session Host for one Session of the project, as `list` with `catalogScope: project`
- * does. The Host authorizes the project as a target of this caller, by the same scope rule as
- * launch and create (only a root Session whose Run reaches every project may name another one), so
- * its refusal (`target_scope_denied`) is the answer for a project outside the caller's scope, the
- * same whether the path is a project or not. A caller in scope learns whether it has Sessions.
- */
+/** Whether the project has a Session, asked of the Host, which first authorizes it as a target. */
 async function projectHasSessions(projectPath: string, send: SendSessionCommand) {
-  const result = await send({
-    contract: 'session-query-v2',
-    request: {
-      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-      requestId: randomUUID(),
-      query: { operation: 'list', limit: 1, projectPath, archived: false },
-    },
-  })
+  const result = await send(agentDefinitionProjectProbe(projectPath))
   if (result.contract !== 'session-query-v2') return false
   const outcome = result.response.outcome
   return outcome.operation === 'list' && 'sessions' in outcome && outcome.sessions.length > 0
 }
 
+async function isDirectory(directory: string) {
+  return stat(directory).then(
+    (stats) => stats.isDirectory(),
+    () => false,
+  )
+}
+
 /**
  * The project and toggles an agent-definition action reads: the caller's own project, or the
- * project its projectPath names. Another project needs launch or create, the actions that start a
- * Session there with one of its definitions, the Host's authorization of that project as a target,
- * and a project OpenWaggle knows (opened by the user, or with a Session); a folder that is none of
- * these is refused, never read in its place.
+ * project its projectPath names. Another project needs what reading it from the Host needs
+ * (`sessions:discover` and the Host's authorization of that project as a target, the scope rule
+ * launch and create follow) and `sessions:create`, since only a Session that can start one there
+ * has a use for its definitions. It must then be a project OpenWaggle knows: open in OpenWaggle
+ * (Settings or a managed worktree), or with a Session there. A project open in OpenWaggle with no
+ * Session yet is readable on purpose: it is the user's project, and launch there reports its own
+ * refusal. A folder that is none of these is refused, never read in its place.
+ *
+ * The capabilities are the Run's grant; a CLI profile's live capabilities are applied by the Host
+ * to the probe (discover), not to create, so a root whose origin profile later lost
+ * `sessions:create` can still read names and descriptions in a project it can list Sessions of.
+ * A directory that does not exist is refused before the Host is asked, so the Host's error for a
+ * path it cannot resolve never reaches the agent; like `list`, that tells the caller only whether
+ * the directory exists.
  */
 export async function agentDefinitionProjectForTool(
   params: AgentDefinitionToolParameters,
@@ -122,18 +125,23 @@ export async function agentDefinitionProjectForTool(
     requested,
   )
   if (await sameDirectory(resolved.projectPath, own)) return ownProject
-  if (!permitsSessionsToolAction('launch', grant) && !permitsSessionsToolAction('create', grant)) {
+  const startsThere =
+    permitsSessionsToolAction('launch', grant) || permitsSessionsToolAction('create', grant)
+  if (!startsThere || !permitsSessionsToolAction('list', grant)) {
     throw new Error(
-      `capability_denied: ${params.action} for another project requires sessions:create, as launch and create there do; this Session reads only its own project's Agent definitions.`,
+      `capability_denied: ${params.action} for another project requires sessions:create, as launch and create there do, and sessions:discover; this Session reads only its own project's Agent definitions.`,
     )
   }
+  if (!(await isDirectory(resolved.projectPath))) throw notAProject(params.action, requested)
   const hasSessions = await projectHasSessions(resolved.projectPath, send)
-  if (!resolved.known && !hasSessions) {
-    throw new Error(
-      `${params.action} refused: ${requested} is not a project in OpenWaggle. It is neither open in OpenWaggle nor has a Session there; ask the user to open it in OpenWaggle first.`,
-    )
-  }
+  if (!resolved.known && !hasSessions) throw notAProject(params.action, requested)
   return { projectPath: resolved.projectPath, enabledByName: resolved.enabledByName }
+}
+
+function notAProject(action: string, requested: string) {
+  return new Error(
+    `${action} refused: ${requested} is not a project in OpenWaggle. It is neither open in OpenWaggle nor has a Session there; ask the user to open it in OpenWaggle first.`,
+  )
 }
 
 function spawnedWorker(result: LocalSessionCommandResult) {

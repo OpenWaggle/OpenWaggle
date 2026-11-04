@@ -96,38 +96,57 @@ function stem(word: string) {
   return word
 }
 
-function words(text: string) {
-  const stems = new Set<string>()
-  for (const word of text.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)) {
-    if (word.length < MIN_WORD_LENGTH || STOP_WORDS.has(word)) continue
-    stems.add(stem(word))
-  }
-  return stems
+function tokens(text: string) {
+  return text
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= MIN_WORD_LENGTH && !STOP_WORDS.has(word))
 }
 
-function score(
-  candidate: AgentDefinitionCandidate,
-  objective: { readonly role: ReadonlySet<string>; readonly all: ReadonlySet<string> },
-) {
-  const nameWords = words(candidate.name)
-  if (nameWords.size === 0 || ![...nameWords].every((word) => objective.role.has(word))) {
-    return undefined
-  }
+function words(text: string) {
+  return new Set(tokens(text).map(stem))
+}
+
+interface ObjectiveWords {
+  /** The title and the objective's opening, as written: where a role is stated. */
+  readonly role: ReadonlySet<string>
+  /** Stems of the title and the whole objective. */
+  readonly all: ReadonlySet<string>
+}
+
+/**
+ * Whether the name's words, as written or plural, are where the role is stated. Unstemmed, so a
+ * `tester` or `planner` definition is not named by "run the tests" or "plan the work".
+ */
+function namesRole(nameWords: readonly string[], objective: ObjectiveWords) {
+  return (
+    nameWords.length > 0 &&
+    nameWords.every((word) => objective.role.has(word) || objective.role.has(`${word}s`))
+  )
+}
+
+function score(candidate: AgentDefinitionCandidate, objective: ObjectiveWords) {
+  const nameWords = tokens(candidate.name)
+  if (!namesRole(nameWords, objective)) return undefined
   // The name already passed its own test; counting it again here would give every objective that
   // names the role a free share of a description that repeats the name ("code reviewer").
+  const nameStems = new Set(nameWords.map(stem))
   const described = new Set(
-    [...words(candidate.description)].filter((word) => !nameWords.has(word)),
+    [...words(candidate.description)].filter((word) => !nameStems.has(word)),
   )
   if (described.size < MIN_DESCRIPTION_WORDS) return undefined
   let shared = 0
   for (const word of described) if (objective.all.has(word)) shared += 1
   const share = shared / described.size
-  return share >= SUGGESTION_DESCRIPTION_SHARE ? share : undefined
+  return share >= SUGGESTION_DESCRIPTION_SHARE
+    ? { share, nameLength: new Set(nameWords).size }
+    : undefined
 }
 
 /**
  * The one definition the objective most plainly describes, or undefined when none does or two
- * fit about equally well.
+ * fit about equally well. A name the objective states more of wins first: "security reviewer"
+ * names `security-reviewer`, though the generic `reviewer` may share more of its description.
  */
 export function suggestAgentDefinition(
   input: AgentDefinitionSuggestionInput,
@@ -135,17 +154,20 @@ export function suggestAgentDefinition(
 ): AgentDefinitionCandidate | undefined {
   const title = input.title ?? ''
   const objective = {
-    role: words(`${title}\n${input.objective.slice(0, ROLE_OPENING_LENGTH)}`),
+    role: new Set(tokens(`${title}\n${input.objective.slice(0, ROLE_OPENING_LENGTH)}`)),
     all: words(`${title}\n${input.objective}`),
   }
   const ranked = candidates
     .flatMap((candidate) => {
       const value = score(candidate, objective)
-      return value === undefined ? [] : [{ candidate, value }]
+      return value === undefined ? [] : [{ candidate, ...value }]
     })
-    .sort((left, right) => right.value - left.value)
+    .sort((left, right) => right.nameLength - left.nameLength || right.share - left.share)
   const [best, runnerUp] = ranked
   if (!best) return undefined
-  if (runnerUp && best.value - runnerUp.value < AMBIGUITY_MARGIN) return undefined
-  return best.candidate
+  const tied =
+    runnerUp !== undefined &&
+    runnerUp.nameLength === best.nameLength &&
+    best.share - runnerUp.share < AMBIGUITY_MARGIN
+  return tied ? undefined : best.candidate
 }

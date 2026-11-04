@@ -50,6 +50,9 @@ afterEach(async () => {
 })
 
 const WORKTREE_PATH = '/wt/openwaggle/session-under-test'
+// The model and thinking level every Hive Session runs with; only a Worker has a definition.
+const ACTIVE_PROFILE = { modelId: 'openai/gpt-5.4', thinkingLevel: 'high' }
+const REVIEWER = 'security-reviewer'
 
 /**
  * A SELECT column list is invisible to the type checker. `sql<SessionSummaryRow>` asserts
@@ -191,12 +194,10 @@ describe('session summary columns survive the live SQL path', () => {
             session_id, profile_json, authority_origin_caller_id,
             authorization_ceiling, created_at, updated_at
           ) VALUES (
-            ${worker.id},
-            ${JSON.stringify({
-              modelId: 'openai/gpt-5.4',
-              thinkingLevel: 'high',
-              agentDefinitionName: 'security-reviewer',
-            })},
+            ${worker.id}, ${JSON.stringify({ ...ACTIVE_PROFILE, agentDefinitionName: REVIEWER })},
+            ${'gui:local-user'}, ${'ask-for-approval'}, ${1}, ${1}
+          ), (
+            ${queen.id}, ${JSON.stringify(ACTIVE_PROFILE)},
             ${'gui:local-user'}, ${'ask-for-approval'}, ${1}, ${1}
           )
         `
@@ -216,11 +217,11 @@ describe('session summary columns survive the live SQL path', () => {
       parentSessionId: queen.id,
       hiveRootSessionId: queen.id,
       agentDefinitionName: 'security-reviewer',
-      // The Hive panel's identity line names what the Worker runs with.
       agentModelId: 'openai/gpt-5.4',
       agentThinkingLevel: 'high',
     })
-    expect(queenTree?.session.lineage).not.toHaveProperty('agentModelId')
+    const plain = queenTree?.session.lineage
+    expect([plain?.agentModelId, plain?.agentThinkingLevel]).toEqual([undefined, undefined])
   })
 
   /**

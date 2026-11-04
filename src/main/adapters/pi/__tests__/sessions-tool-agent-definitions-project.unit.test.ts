@@ -150,7 +150,8 @@ describe('hive agent-definition discovery for a named project', () => {
         payload: expect.objectContaining({
           contract: 'session-query-v2',
           request: expect.objectContaining({
-            query: { operation: 'list', limit: 1, projectPath: other, archived: false },
+            // Archived Sessions count: a project whose Sessions are all archived is still one.
+            query: { operation: 'list', limit: 1, projectPath: other },
           }),
         }),
       }),
@@ -199,6 +200,37 @@ describe('hive agent-definition discovery for a named project', () => {
     )
   })
 
+  it('refuses a directory that does not exist without asking the Host', async () => {
+    const { root, own } = await projects()
+    const { call, gateway } = hiveTool({ own, known: [own] })
+
+    const result = await call({
+      action: 'agent_definitions_list',
+      projectPath: path.join(root, 'missing'),
+    })
+
+    expect(result.content).toEqual([
+      { type: 'text', text: expect.stringContaining('is not a project in OpenWaggle') },
+    ])
+    expect(gateway).not.toHaveBeenCalled()
+  })
+
+  it('refuses another project to a Session that can create but not discover Sessions', async () => {
+    const { own, other } = await projects()
+    const { call, gateway } = hiveTool({
+      own,
+      known: [own, other],
+      capabilities: ['sessions:create', 'sessions:start'],
+    })
+
+    const result = await call({ action: 'agent_definitions_list', projectPath: other })
+
+    expect(result.content).toEqual([
+      { type: 'text', text: expect.stringMatching(/^capability_denied: .*sessions:discover/) },
+    ])
+    expect(gateway).not.toHaveBeenCalled()
+  })
+
   it('refuses another project, without asking the Host, to a Session that cannot create', async () => {
     const { own, other } = await projects()
     const { call, gateway } = hiveTool({
@@ -234,7 +266,7 @@ describe('hive agent-definition discovery for a named project', () => {
     expect(known.content).toEqual([
       { type: 'text', text: expect.stringContaining('(target_scope_denied)') },
     ])
-    // A refused caller cannot tell a project from any other directory.
+    // A refused caller cannot tell a project from any other existing directory.
     expect(notAProject.content).toEqual(known.content)
   })
 
