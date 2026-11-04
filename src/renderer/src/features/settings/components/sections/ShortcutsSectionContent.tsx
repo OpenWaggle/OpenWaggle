@@ -6,6 +6,7 @@ import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 import type { ShortcutBrowserRow, ShortcutConflictSource } from '../../lib/shortcut-browser-model'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { BuiltInShortcutRow } from '../shortcuts/BuiltInShortcutRow'
 import { PanelShortcutsGroup } from '../shortcuts/PanelShortcutsGroup'
 import { AddShortcutBinding, ProjectShortcutRow } from '../shortcuts/ProjectShortcutRows'
@@ -140,7 +141,7 @@ export function ShortcutsSectionContent(props: {
   readonly actions: ShortcutsSectionActions
 }) {
   return (
-    <div className="max-w-5xl space-y-5">
+    <SettingsSectionContainer className="space-y-5">
       <ShortcutsHeader model={props.model} actions={props.actions} />
       <ShortcutSearch query={props.model.query} onSearch={props.actions.onSearch} />
       {props.model.adding ? (
@@ -188,6 +189,6 @@ export function ShortcutsSectionContent(props: {
         evaluate to false until provided by the runtime. Project Actions remain editable under
         Project actions.
       </p>
-    </div>
+    </SettingsSectionContainer>
   )
 }
