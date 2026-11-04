@@ -112,7 +112,7 @@ _Clicking the gap between two cards selected the row that holds them._
 
 ![The message composer with the attached annotation: a chip showing the comment, the page title and the selected section, and 1 element, with the request typed below it](/screenshots/browser-preview-annotation-chip.png)
 
-_The chip shows your comment, or **Browser preview** when you left none. Remove it with its close button._
+_The chip shows your comment, or the selected element's text or selector when you left none. Remove it with its close button._
 
 For example, ask: "On this phone-sized page, keep the checkout button visible without covering the order total."
 
