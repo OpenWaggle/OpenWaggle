@@ -117,7 +117,7 @@ function editor(page: Page) {
 /** A new-session draft in the essentials project, with nothing typed. */
 export async function openDraft(page: Page) {
   // The project heading's own New session: the sidebar's one drafts in the open Session's
-  // project, and opening a fieldnotes Session first would clear its Done state.
+  // project, and opening a jotter Session first would clear its Done state.
   await page
     .getByRole('navigation', { name: 'Sidebar' })
     .getByRole('button', { name: `New session in ${ESSENTIALS_PROJECT_NAME}`, exact: true })

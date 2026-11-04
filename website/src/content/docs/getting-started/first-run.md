@@ -59,7 +59,7 @@ Send the message. The conversation shows the response and the tool activity used
 
 When an approval request appears, inspect the proposed action and its target. Use **Allow once** if you want that action to proceed. Otherwise, choose **Continue without** and explain what the agent should do instead. Asking the agent not to edit is an instruction, not a security boundary.
 
-![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in fieldnotes](/screenshots/approval-request.png)
+![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in jotter](/screenshots/approval-request.png)
 
 _**Allow…** opens the broader choices. See [Approvals and permissions](/docs/configuration/approvals-permissions#respond-to-an-approval-request) before you use them._
 

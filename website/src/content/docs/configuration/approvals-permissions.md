@@ -44,9 +44,9 @@ flowchart TD
   request -->|"Continue without"| skip["The agent continues without it"]
 ```
 
-![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in fieldnotes](/screenshots/approval-request.png)
+![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in jotter](/screenshots/approval-request.png)
 
-_The scope choices are under **Allow…**. Here, **Always allow** would cover opening the browser preview in the fieldnotes project._
+_The scope choices are under **Allow…**. Here, **Always allow** would cover opening the browser preview in the jotter project._
 
 - **Allow once** permits this request without saving a broader approval.
 - **Continue without** declines the request so the agent can continue without that action. Explain an alternative in the conversation if needed.

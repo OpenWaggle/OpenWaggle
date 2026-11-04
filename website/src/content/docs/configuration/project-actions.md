@@ -42,7 +42,7 @@ The panel asks you to open a project when none is open, and to select a session 
 3. Answer **What should it be called?** Picking a script suggests a readable name, such as **Run tests**. Each name must be different from the project's other actions, ignoring letter case.
 4. Click **Save action**. Saving does not run the command. When you saved from Project Actions in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
 
-![The New action panel for fieldnotes: What should it run? with A script from this project chosen and the project's dev, test, build and lint scripts listed, What should it be called?, Optional settings, and Cancel and Save action](/screenshots/project-action-add.png)
+![The New action panel for jotter: What should it run? with A script from this project chosen and the project's dev, test, build and lint scripts listed, What should it be called?, Optional settings, and Cancel and Save action](/screenshots/project-action-add.png)
 
 Everything under **Optional settings** already has a sensible default, shown in plain words next to each question. Click **Change** only when the default is wrong. The line above **Save action** summarises what will happen; click it to read the full sentence.
 

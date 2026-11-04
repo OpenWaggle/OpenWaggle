@@ -16,7 +16,7 @@ const SPAWN_DURATION_MS = 420
 const RETRY_CHANGE_LINE = 17
 
 const TEST_OUTPUT = [
-  ' RUN  v3.2.4 fieldnotes',
+  ' RUN  v3.2.4 jotter',
   '',
   ' ✓ src/upload/__tests__/retry.test.ts (6 tests) 112ms',
   '',
@@ -48,7 +48,7 @@ const RETRY_DISPLAY_DIFF = [
 ].join('\n')
 
 const LOG_SUMMARY = [
-  'service:fieldnotes-api @route:/attachments, last 7 days',
+  'service:jotter-api @route:/attachments, last 7 days',
   '  status 503  412 events  (retried, 97% succeeded on the next attempt)',
   '  status 413   88 events  (retried 3 times each, never succeeded)',
   '  status 401   23 events  (retried 3 times each, never succeeded)',
@@ -132,7 +132,7 @@ export function toolRowsAssistantParts(workerSessionId: string) {
     {
       id: 'website-essentials-logs',
       name: 'mcp__datadog__search_datadog_logs',
-      args: { query: 'service:fieldnotes-api @route:/attachments status:error', from: 'now-7d' },
+      args: { query: 'service:jotter-api @route:/attachments status:error', from: 'now-7d' },
       result: textResult(LOG_SUMMARY),
       duration: LOGS_DURATION_MS,
     },

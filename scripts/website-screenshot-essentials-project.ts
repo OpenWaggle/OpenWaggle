@@ -4,7 +4,7 @@ import { fixtureGit } from './website-screenshot-fixture-git'
 
 const JSON_INDENT = 2
 
-export const ESSENTIALS_PROJECT_NAME = 'fieldnotes'
+export const ESSENTIALS_PROJECT_NAME = 'jotter'
 /** A managed worktree on a feature branch with an upstream it is ahead of and behind. */
 const ESSENTIALS_WORKTREE_ID = '5d2e81b4'
 const ESSENTIALS_FEATURE_BRANCH = 'feature/settings-schema'
@@ -15,7 +15,7 @@ export interface EssentialsProject {
 }
 
 const PACKAGE_JSON = {
-  name: 'fieldnotes',
+  name: 'jotter',
   version: '0.4.0',
   private: true,
   type: 'module',
@@ -32,7 +32,7 @@ const PACKAGE_JSON = {
 const SCRIPT_FILES: Readonly<Record<string, string>> = {
   'scripts/test.mjs': [
     'const lines = [',
-    "  ' RUN  v3.2.4 fieldnotes',",
+    "  ' RUN  v3.2.4 jotter',",
     "  '',",
     "  ' ✓ src/notes/__tests__/notes-store.test.ts (14 tests) 38ms',",
     "  ' ✓ src/sync/__tests__/conflict-resolver.test.ts (9 tests) 21ms',",
@@ -114,7 +114,7 @@ const RETRY_SOURCE_CHANGED = RETRY_SOURCE.replace(
 
 const PROJECT_FILES: Readonly<Record<string, string>> = {
   'README.md': [
-    '# Fieldnotes',
+    '# Jotter',
     '',
     'A small team notebook: notes, attachments and offline sync.',
     '',
@@ -225,7 +225,7 @@ export async function createEssentialsProject(input: {
     '.openwaggle/actions.json': `${JSON.stringify(ACTION_MANIFEST, null, JSON_INDENT)}\n`,
   })
   await git(projectPath, ['add', '.'])
-  await git(projectPath, ['commit', '-m', 'chore: start fieldnotes'])
+  await git(projectPath, ['commit', '-m', 'chore: start jotter'])
   await git(projectPath, ['remote', 'add', 'origin', remotePath])
   await git(projectPath, ['push', '-u', 'origin', 'main'])
 

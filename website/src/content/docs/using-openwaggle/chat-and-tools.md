@@ -93,7 +93,7 @@ A few things to know:
 
 The sidebar groups sessions by project. Each row shows a title, its current state, and a timestamp. Hover a row to see its actions without hiding the timestamp.
 
-![The sidebar with its state chips and one fieldnotes session in each state: Error, Working with Thinking, Input, a Done Hive with one Worker and two conversation branches, and an Interrupted session in its own worktree, 2 commits ahead and 1 behind](/screenshots/sidebar-states.png)
+![The sidebar with its state chips and one jotter session in each state: Error, Working with Thinking, Input, a Done Hive with one Worker and two conversation branches, and an Interrupted session in its own worktree, 2 commits ahead and 1 behind](/screenshots/sidebar-states.png)
 
 ### What a row tells you
 

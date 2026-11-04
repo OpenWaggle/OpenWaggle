@@ -82,7 +82,7 @@ export const MODEL_SCENARIOS: readonly ModelScenario[] = [
       {
         kind: 'text',
         text: [
-          '**Fieldnotes 0.5**',
+          '**Jotter 0.5**',
           '',
           '- Settings files move to schema version 2, with an automatic migration.',
           '- Uploads no longer retry client errors.',
