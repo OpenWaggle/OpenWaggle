@@ -22,6 +22,11 @@ const DIAGRAM_COLORS = {
 const STYLE_BLOCK = /<style>[\s\S]*?<\/style>/u;
 const ID_ATTRIBUTE = /\sid="([^"]+)"/gu;
 const MIN_SCALE = 0.7;
+// beautiful-mermaid parses `note` lines in state and sequence diagrams but draws nothing for them.
+const NOTE_LINE = /^\s*note\s+(?:left of|right of|over)\b/imu;
+// An optional first-class accessible name: `%% alt: The Delegation states`.
+const ALT_LINE = /^\s*%%\s*alt:\s*(.*?)\s*$/mu;
+const TRAILING_COLON = /\s*:\s*$/u;
 
 /** Escapes text for an HTML text node or a double-quoted attribute. */
 function escapeHtml(text: string) {
@@ -43,16 +48,21 @@ function prefixIds(svg: string, prefix: string) {
 
 /**
  * Renders Mermaid source to the HTML of a diagram figure: the SVG, then the source text in a
- * collapsed disclosure so it can be read or copied.
+ * collapsed disclosure so it can be read or copied. The SVG is one image named `label`, so a
+ * screen reader announces the label instead of the diagram's text nodes in layout order.
  */
-export function renderMermaidFigure(source: string, idPrefix: string): string {
+export function renderMermaidFigure(source: string, idPrefix: string, label: string): string {
+  if (NOTE_LINE.test(source)) {
+    throw new Error('It has a `note` line, which beautiful-mermaid does not draw. Put the note in the text instead.');
+  }
+  if (!label.trim()) throw new Error('It needs an accessible name.');
   const rendered = renderMermaidSVG(source.trim(), { ...DIAGRAM_COLORS, transparent: true });
   // The SVG shrinks to the text column, but no further than a readable scale; a wider diagram
   // scrolls inside its figure instead.
   const width = Number(/<svg [^>]*\bwidth="([\d.]+)"/u.exec(rendered)?.[1] ?? 0);
   const minWidth = Math.round(width * MIN_SCALE);
   const svg = prefixIds(rendered.replace(STYLE_BLOCK, ''), idPrefix)
-    .replace('<svg ', '<svg class="mermaid-svg" ')
+    .replace('<svg ', `<svg class="mermaid-svg" role="img" aria-label="${escapeHtml(label.trim())}" `)
     .replace(/(<svg [^>]*\bstyle=")/u, `$1min-width:${minWidth}px;`);
   if (/<style|url\(\s*['"]?https?:/iu.test(svg)) {
     throw new Error('The rendered SVG carries its own styles or remote resources, which the site does not allow.');
@@ -80,6 +90,25 @@ interface MarkdownFile {
   path?: string;
 }
 
+function plainText(node: MdastNode): string {
+  if (typeof node.value === 'string') return node.value;
+  return (node.children ?? []).map(plainText).join('');
+}
+
+/**
+ * The diagram's accessible name and the source to draw: a `%% alt:` line when the block has one,
+ * otherwise the paragraph that introduces the diagram, without its closing colon.
+ */
+function diagramLabel(source: string, previous: MdastNode | undefined) {
+  const alt = ALT_LINE.exec(source);
+  if (alt) return { label: alt[1] ?? '', source: source.replace(ALT_LINE, '').trim() };
+  const lead = previous?.type === 'paragraph' ? plainText(previous).replace(/\s+/gu, ' ').trim() : '';
+  if (!lead) {
+    throw new Error('Introduce the diagram with a paragraph, or give it a `%% alt: <description>` line.');
+  }
+  return { label: lead.replace(TRAILING_COLON, ''), source };
+}
+
 /**
  * Remark plugin: replaces each ```mermaid code block with a rendered diagram. It runs before
  * Shiki, so the block never becomes a highlighted code block.
@@ -94,7 +123,8 @@ export function remarkMermaidDiagrams() {
         if (child.type === 'code' && child.lang === 'mermaid') {
           count += 1;
           try {
-            children[index] = { type: 'html', value: renderMermaidFigure(child.value ?? '', `mermaid-${count}`) };
+            const { label, source } = diagramLabel(child.value ?? '', children[index - 1]);
+            children[index] = { type: 'html', value: renderMermaidFigure(source, `mermaid-${count}`, label) };
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`Mermaid diagram ${count} in ${file.path ?? 'a Markdown file'} failed to render: ${message}`, {
