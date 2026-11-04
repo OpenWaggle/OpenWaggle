@@ -47,14 +47,14 @@ Skills, extensions, prompts, and themes can live in these project folders. When 
 .openwaggle > .pi > .agents
 ```
 
-For a skill named `review`, OpenWaggle stops at the first folder that has one:
+Pi matches skills by the `name` in their frontmatter, not by folder name. For a skill named `review`, OpenWaggle stops at the first folder that has one:
 
 ```mermaid
 flowchart LR
-  A[".openwaggle/skills/review"] -->|"if missing"| B[".pi/skills/review"] -->|"if missing"| C[".agents/skills/review"]
+  A[".openwaggle/skills"] -->|"no skill named review"| B[".pi/skills"] -->|"no skill named review"| C[".agents/skills"]
 ```
 
-For example, `.openwaggle/skills/review/SKILL.md` takes precedence over a same-name skill in `.agents/skills`. This is useful when you need an OpenWaggle-specific version without changing files used by other tools.
+For example, `.openwaggle/skills/review/SKILL.md` takes precedence over a skill in `.agents/skills` with the same `name`, whatever its folder is called. This is useful when you need an OpenWaggle-specific version without changing files used by other tools.
 
 A project might contain:
 
@@ -105,8 +105,9 @@ OpenWaggle publishes a JSON Schema for each project file whose format it owns. A
 | `.openwaggle/actions.json` | [`project-actions-v1.schema.json`](https://openwaggle.ai/schemas/project-actions-v1.schema.json) | Not allowed |
 | `~/.openwaggle/mcp.json`, `.openwaggle/mcp.json` | [`mcp.schema.json`](https://openwaggle.ai/schemas/mcp.schema.json) | Supported |
 | `.pi/waggle-presets.json`, `~/.pi/agent/waggle-presets.json` | [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json) | Removed when Settings saves the file |
+| Frontmatter of `.openwaggle/agents/*.md`, OpenWaggle v1 format | [`agent-definition-v1.schema.json`](https://openwaggle.ai/schemas/agent-definition-v1.schema.json) | Supported in the frontmatter, see [Agent Definitions](/docs/extending/agent-definitions#openwaggle-v1-format) |
 
-Each schema lives at `https://openwaggle.ai/schemas/` followed by its file name. Where the key is supported, name the schema at the top of the file, and OpenWaggle keeps the key when it writes the file:
+Each schema lives at `https://openwaggle.ai/schemas/` followed by its file name. Where the key is supported, name the schema at the top of the file. OpenWaggle keeps the key when it writes `settings.json` or `mcp.json`:
 
 ```json
 {

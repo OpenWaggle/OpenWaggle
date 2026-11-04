@@ -25,7 +25,7 @@ Your checkout and a managed worktree are two folders on two branches, backed by 
 flowchart TD
   repo[("Repository history<br/>commits and branches")]
   checkout["Current checkout<br/>the folder you opened<br/>on your branch"]
-  worktree["New worktree<br/>~/.openwaggle/worktrees/&lt;repository&gt;/&lt;workspaceId&gt;<br/>on branch ow/session-&lt;workspaceId&gt;"]
+  worktree["New worktree<br/>~/.openwaggle/worktrees/&lt;project folder name&gt;/&lt;workspaceId&gt;<br/>on branch ow/session-&lt;workspaceId&gt;"]
   repo --- checkout
   repo --- worktree
 ```

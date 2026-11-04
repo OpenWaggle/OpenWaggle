@@ -91,8 +91,7 @@ flowchart TD
   kind -- "Yes, it finishes by itself" --> done["The command exits<br/>Stops when done"]
   kind -- "No, it keeps running until I stop it" --> service["Keeps running"]
   service --> stop["You choose Stop"]
-  service --> release["The last Session using the workspace<br/>releases it, for example when it is archived"]
-  release --> cleanup["Workspace cleanup and removal"]
+  service --> release["The last Session using the workspace<br/>releases it, for example when it is archived.<br/>The run stops before workspace cleanup."]
 ```
 
 ## Open a dev-server preview
@@ -184,10 +183,10 @@ Settings writes `.openwaggle/actions.json` for you, so you rarely need to edit i
 | Field | Meaning |
 | --- | --- |
 | `version` | Always `1`. |
-| `actions[].id` | A stable identifier of letters, digits, `.`, `_`, and `-`. Settings generates one; every action needs a different one. |
+| `actions[].id` | A stable identifier of letters, digits, `.`, `_`, and `-` that starts with a letter or digit. Settings generates one; every action needs a different one. |
 | `actions[].name` | The name in the Project Actions panel. |
 | `actions[].icon` | `play`, `test`, `lint`, `configure`, `build`, or `debug`. |
-| `actions[].invocation` | What runs. `"type": "command"` runs `command` in your shell, in `directory`. `"type": "task"` links to a project script: `provider` is `package-script`, `hatch-script` (with `environment` for the Hatch environment), or `cargo-alias`; `source` is the file that defines it; `task` is its name; `directory` is where it runs. |
+| `actions[].invocation` | What runs. `"type": "command"` runs `command` in your shell, in `directory`. `"type": "task"` links to a project script described in `task`: `provider` is `package-script`, `hatch-script` (with `environment` for the Hatch environment), or `cargo-alias`; `source` is the file that defines it; `task` is its name; `directory` is where it runs. |
 | `directory`, `source` | Relative to the workspace root, with forward slashes. `.` is the root. `..` is not allowed. |
 | `actions[].kind` | `task` for **Stops when done**, `service` for **Keeps running**. |
 | `actions[].allowConcurrent` | `true` for **Start another copy**. A `service` must use `false`. |
@@ -197,7 +196,7 @@ Settings writes `.openwaggle/actions.json` for you, so you rarely need to edit i
 | `profiles` | Extra setup profiles, each `{ "id", "name" }`. The `default` profile needs no entry. |
 | `preparation[]` | Setup and cleanup. `profileId` names the profile, `phase` is `setup` or `cleanup`, and `invocation` works as for actions. A profile has at most one of each. |
 
-All keys are required except `previewUrl` and `shortcutRules`. OpenWaggle does not guess at a file with a missing or unknown key. **Settings > Project actions** shows the error, and the project's actions, including your private ones, are unavailable until you fix the file. Shared setup and cleanup in this file still wait for each person's review before they run, as described below.
+All keys are required except `previewUrl`, `shortcutRules`, and a task's `environment`. OpenWaggle does not guess at a file with a missing or unknown key. **Settings > Project actions** shows the error, and the project's actions, including your private ones, are unavailable until you fix the file. Shared setup and cleanup in this file still wait for each person's review before they run, as described below.
 
 The file has a JSON Schema, [`project-actions-v1.schema.json`](https://openwaggle.ai/schemas/project-actions-v1.schema.json). Do not add a `"$schema"` key, which counts as an unknown key. To get completion and checks in your editor, associate the schema with the file instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
 

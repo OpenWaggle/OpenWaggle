@@ -44,8 +44,8 @@ Pi, the agent runtime used by OpenWaggle, reads the frontmatter. These are the f
 
 | Field | Required | What it does |
 | --- | --- | --- |
-| `name` | Yes, for **Settings > Skills** | The skill's name and its `/skill:name` command. Use lowercase letters, digits, and single hyphens, up to 64 characters. Without a `name`, Pi uses the folder name, but **Settings > Skills** reports the skill as an error. |
-| `description` | Yes | When the agent should use the skill, up to 1024 characters. Pi skips a skill without one. In the agent's list of skills, OpenWaggle shortens it to about 160 characters and keeps a "Use when…" sentence whole when it can. |
+| `name` | Yes, for **Settings > Skills** | The skill's name and its `/skill:name` command. Use lowercase letters, digits, and single hyphens, up to 64 characters. Pi warns about a name that breaks these rules but still loads the skill. Without a `name`, Pi uses the folder name, but **Settings > Skills** reports the skill as an error. |
+| `description` | Yes | When the agent should use the skill, up to 1024 characters. Pi warns about a longer one but still loads the skill. Pi skips a skill without a description. In the agent's list of skills, OpenWaggle shortens it to about 160 characters and keeps a "Use when…" sentence whole when it can. |
 | `disable-model-invocation` | No | `true` leaves the skill out of the agent's list, so the agent never loads it by itself. Type `/skill:name` to use it. |
 
 The Agent Skills format also defines `license`, `compatibility`, `metadata`, and `allowed-tools`. Pi accepts a file that has them and ignores them, so `allowed-tools` does not approve any tool in advance.

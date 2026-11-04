@@ -129,26 +129,7 @@ The right panel shows one panel at a time, so opening the diff replaces the [Ses
 
 Tabs at the top choose what you are reviewing:
 
-Each tab compares a different pair of states:
-
-```mermaid
-flowchart LR
-  subgraph wt["Working tree"]
-    direction LR
-    h1["HEAD"] -->|"uncommitted changes"| d1["Files on disk"]
-  end
-  subgraph br["Branch"]
-    direction LR
-    mb["Merge base with the base ref"] -->|"commits on this branch"| h2["HEAD"]
-  end
-  subgraph tu["Turns"]
-    direction LR
-    t0["Snapshot after the previous turn"] -->|"one agent turn"| t1["Snapshot after this turn"]
-  end
-```
-
-
-- **Working tree** shows uncommitted changes in the session's working tree.
+- **Working tree** shows uncommitted changes in the session's working tree, from `git diff HEAD`. An untracked file does not appear until you stage it.
 - **Branch** shows changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch and then names it, so the label reads `Automatic · origin/main` once the diff has loaded. Resolution asks the remote, in this order:
   1. `origin/HEAD`, the remote-tracking symref a clone sets up;
   2. the remote directly, when that symref is missing locally;
@@ -160,6 +141,24 @@ flowchart LR
 
   If you are already sitting on the default branch, `HEAD` and the base are the same commit, so the Branch tab shows no changes; use **Working tree** to review uncommitted work there.
 - **Turns** shows changes captured during individual agent turns, when those checkpoints are available. The dropdown lists each turn with its `+`/`−` counts.
+
+Each tab compares a different pair of states:
+
+```mermaid
+flowchart LR
+  subgraph wt["Working tree"]
+    direction LR
+    h1["HEAD"] -->|"uncommitted changes"| d1["Tracked files on disk"]
+  end
+  subgraph br["Branch"]
+    direction LR
+    mb["Merge base with the base ref"] -->|"commits on this branch"| h2["HEAD"]
+  end
+  subgraph tu["Turns"]
+    direction LR
+    t0["Snapshot after the previous turn"] -->|"one agent turn"| t1["Snapshot after this turn"]
+  end
+```
 
 ### Reading diffs
 

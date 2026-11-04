@@ -14,7 +14,7 @@ This page is for developers tracing agent execution or extending the app. You do
 When you send a message:
 
 1. OpenWaggle resolves the active project session and selected provider-qualified model.
-2. The main process calls the `AgentKernelService` port.
+2. The main process sends a Session Control `message` command to the Session Host, which calls the `AgentKernelService` port.
 3. The Pi adapter creates project-scoped Pi services.
 4. Pi executes the run using its native session, model, auth, tool, and compaction behavior.
 5. OpenWaggle translates Pi session events into vendor-free `AgentTransportEvent` values for the renderer.

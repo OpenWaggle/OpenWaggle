@@ -64,7 +64,7 @@ Every Heartbeat run is a full agent turn in its Session, and a long Session make
 
 **A way to finish.** Creating a Heartbeat needs a Stop condition, an end date, a run limit, or **Runs indefinitely**, in the app, the command line and the agent's `hive` tool. The Run reads its Stop condition; once it is met, the agent pauses the Heartbeat and says why. A Heartbeat created before this rule is marked as running indefinitely, and its detail says it has no end.
 
-**A Wake check.** A Heartbeat may run a shell command before each firing, such as `gh pr checks 42 | grep -i fail`. The Session Host runs it in the Session's workspace, as a [project action](/docs/configuration/project-actions) would: your shell, your access, no chat context, the OpenWaggle app variables removed, at most 30 seconds, and up to 16 KiB of output.
+**A Wake check.** A Heartbeat may run a shell command before each firing, such as `gh pr checks 42 | grep -i fail || true`, which prints the failing checks and prints nothing when none fail. Keep the `|| true`. `grep` exits 1 when it finds no match, and a non-zero exit starts the Run. The Session Host runs the command in the Session's workspace, as a [project action](/docs/configuration/project-actions) would: your shell, your access, no chat context, the OpenWaggle app variables removed, at most 30 seconds, and up to 16 KiB of output.
 
 | The Wake check | What happens |
 | --- | --- |
@@ -143,7 +143,7 @@ A Heartbeat tells you about failures and tasks that need attention only, so a qu
 ```sh
 openwaggle schedules list
 openwaggle schedules create heartbeat <session> --name "Watch CI" --every 30m --stop-when "CI is green" \
-  --wake-if "gh pr checks 42 | grep -i fail" "Fix the failing checks."
+  --wake-if "gh pr checks 42 | grep -i fail || true" "Fix the failing checks."
 openwaggle schedules approve-wake-check <task-id>
 openwaggle schedules create launch . --name "Morning triage" --daily 09:00 --weekdays weekdays --prompt-file triage.md
 openwaggle schedules show <task-id>
@@ -177,7 +177,7 @@ openwaggle schedules import tasks.json
 
 Add `--json` for versioned machine output. `export` prints tasks as JSON that `import` creates again under your identity. Tasks are stored only by the Session Host. No file creates one, and a project cannot share one.
 
-`openwaggle schedules export` writes a JSON array with one object per task; `--project <path>` limits it to one project. This export holds a Heartbeat and a Launch schedule:
+`openwaggle schedules export` writes a JSON array with one object per task; `--project <path>` limits it to one project, and `--session <session>` to the Heartbeats of one Session. This export holds a Heartbeat and a Launch schedule:
 
 ```json
 [
@@ -199,7 +199,7 @@ Add `--json` for versioned machine output. `export` prints tasks as JSON that `i
       "indefinite": false,
       "idlePauseAfter": 3,
       "wakeCheck": {
-        "command": "gh pr checks 42 | grep -i fail",
+        "command": "gh pr checks 42 | grep -i fail || true",
         "onFailure": "wake"
       }
     }
