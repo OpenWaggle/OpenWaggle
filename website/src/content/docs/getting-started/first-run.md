@@ -23,6 +23,8 @@ A provider supplies access to AI models. You connect your account once, then cho
 2. Expand **API Key Providers** to enter a provider's API key, or **OAuth Providers** to sign in through your browser.
 3. Under **Available Models**, enable a model you have access to. Enabled models appear in the model selector beside the message box.
 
+![Settings > Connections with API Key Providers and OAuth Providers collapsed, Source control, and Available Models with three models selected](/screenshots/settings-connections.png)
+
 For other authentication methods or connection problems, see [Providers and models](/docs/providers/overview).
 
 ## Open your project
@@ -33,8 +35,12 @@ Select your enabled model beside the message box. If the same model appears unde
 
 Before sending a message, check the other controls above and beside the message box:
 
-- Choose **Current checkout** to work in the folder you opened. The agent's edits will change files in that folder. Start on a development branch, with unrelated work committed or saved elsewhere.
-- Set agent access to **Ask for approval**. This asks before protected actions. It does not prompt for every file read or guarantee that the agent cannot edit files.
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+- Choose **Current checkout** (1) to work in the folder you opened. The agent's edits will change files in that folder. Start on a development branch (2), with unrelated work committed or saved elsewhere.
+- Set agent access (4) to **Ask for approval**. This asks before protected actions. It does not prompt for every file read or guarantee that the agent cannot edit files.
+
+The model selector is number 5. The other numbered controls are described in [Conversations and tools](/docs/using-openwaggle/chat-and-tools#sessions).
 
 Before a new conversation's first run, OpenWaggle tries to fast-forward the current branch from its upstream. A failed pull does not block the conversation, so check that your local files are current.
 
@@ -52,6 +58,10 @@ Read the relevant files, but don't edit files or run commands yet.
 Send the message. The conversation shows the response and the tool activity used to produce it. Read the answer and check the files it refers to. Correct any assumptions before asking for changes.
 
 When an approval request appears, inspect the proposed action and its target. Use **Allow once** if you want that action to proceed. Otherwise, choose **Continue without** and explain what the agent should do instead. Asking the agent not to edit is an instruction, not a security boundary.
+
+![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in fieldnotes](/screenshots/approval-request.png)
+
+_**Allow…** opens the broader choices. See [Approvals and permissions](/docs/configuration/approvals-permissions#respond-to-an-approval-request) before you use them._
 
 ## Make a small change
 

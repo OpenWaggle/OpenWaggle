@@ -12,6 +12,30 @@ import {
 } from './website-screenshot-conversation-captures'
 import { captureBrowserPreview } from './website-screenshot-browser-capture'
 import {
+  captureApprovalRequest,
+  captureCommandPalette,
+  captureComposerControls,
+  captureQueuedFollowUps,
+  captureSidebarStates,
+  captureSlashCommandMenu,
+  captureToolRows,
+  captureWorktreeFirstSend,
+} from './website-screenshot-essentials-captures'
+import { MODEL_SCENARIOS } from './website-screenshot-essentials-scenarios'
+import { settleEssentials } from './website-screenshot-essentials-setup'
+import {
+  captureSettingsApiKeyProviders,
+  captureSettingsConnections,
+  captureSettingsOAuthProviders,
+} from './website-screenshot-essentials-settings-captures'
+import {
+  captureActionOutputTerminal,
+  captureCommitDialog,
+  captureDiffReviewComment,
+  captureProjectActionAdd,
+  captureProjectActionsPanel,
+} from './website-screenshot-essentials-workspace-captures'
+import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
@@ -35,6 +59,8 @@ import {
   SCREENSHOT_WORKTREE_IDS,
   type ScreenshotProject,
 } from './website-screenshot-project'
+import { startFixtureModelServer } from './website-screenshot-model-server'
+import { writeFixturePiAgent } from './website-screenshot-pi-agent'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
 import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
 
@@ -58,6 +84,22 @@ const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => 
   'feature-git-workflow.png': captureGitWorkflow,
   'session-tree-panel.png': captureSessionTree,
   'feature-browser-preview.png': captureBrowserPreview,
+  'composer-controls.png': captureComposerControls,
+  'settings-connections.png': captureSettingsConnections,
+  'settings-api-key-providers.png': captureSettingsApiKeyProviders,
+  'settings-oauth-providers.png': captureSettingsOAuthProviders,
+  'slash-command-menu.png': captureSlashCommandMenu,
+  'command-palette.png': captureCommandPalette,
+  'approval-request.png': captureApprovalRequest,
+  'queued-follow-ups.png': captureQueuedFollowUps,
+  'sidebar-states.png': captureSidebarStates,
+  'tool-rows.png': captureToolRows,
+  'diff-review-comment.png': captureDiffReviewComment,
+  'commit-dialog.png': captureCommitDialog,
+  'worktree-first-send.png': captureWorktreeFirstSend,
+  'project-actions-panel.png': captureProjectActionsPanel,
+  'project-action-add.png': captureProjectActionAdd,
+  'action-output-terminal.png': captureActionOutputTerminal,
 }
 
 interface ScratchProfile {
@@ -181,7 +223,12 @@ async function main() {
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
   let app: ElectronApplication | null = null
+  let page: Page | null = null
+  // The scripted model behind the essentials screenshots' real Runs; Pi reaches it through the
+  // scratch agent directory's models.json, written before the first launch.
+  const modelServer = await startFixtureModelServer(MODEL_SCENARIOS)
   try {
+    await writeFixturePiAgent({ ...profile, modelBaseUrl: modelServer.baseUrl })
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
       projectPath: path.join(root, PROJECT_NAME),
@@ -190,6 +237,7 @@ async function main() {
     })
     const launched = await launchSeededApp(profile, project)
     app = launched.app
+    page = launched.page
     const rendererErrors = observeRendererErrors(launched.page)
     await runCaptures(
       { app, page: launched.page, outputDir: stagingDir, evidenceDir },
@@ -201,7 +249,14 @@ async function main() {
     await publishScreenshots({ stagingDir, outputDir: SCREENSHOT_OUTPUT_DIR, screenshots })
     console.info('[website-shots] screenshot capture complete')
   } finally {
+    if (page) {
+      await settleEssentials(page).catch((error: unknown) => {
+        console.warn('[website-shots] could not settle the essentials Sessions', error)
+      })
+    }
     await app?.close().catch(() => undefined)
+    // Ends any Run still streaming from it before the Host is asked to drain.
+    await modelServer.close()
     await releaseScratchProfile(profile)
   }
 }

@@ -11,6 +11,10 @@ You usually do not need to manage this yourself. When a conversation gets long, 
 
 ## Context meter
 
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+_The context meter is number 7. In a new session it reads 0, beside GPT-5.4's 272k token window._
+
 When there is enough space beside the message box, the context ring shows the percentage of the selected model's context window in use. The adjacent number is the window's token limit. Hover for usage details.
 
 With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that produced the latest response, because each real model has its own limit.

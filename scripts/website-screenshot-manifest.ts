@@ -17,6 +17,23 @@ export const WEBSITE_SCREENSHOTS = [
   'feature-git-workflow.png',
   'session-tree-panel.png',
   'feature-browser-preview.png',
+  // First-session essentials (website-screenshot-essentials-captures.ts), captured last.
+  'composer-controls.png',
+  'settings-connections.png',
+  'settings-api-key-providers.png',
+  'settings-oauth-providers.png',
+  'slash-command-menu.png',
+  'command-palette.png',
+  'approval-request.png',
+  'queued-follow-ups.png',
+  'sidebar-states.png',
+  'tool-rows.png',
+  'diff-review-comment.png',
+  'commit-dialog.png',
+  'worktree-first-send.png',
+  'project-actions-panel.png',
+  'project-action-add.png',
+  'action-output-terminal.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]

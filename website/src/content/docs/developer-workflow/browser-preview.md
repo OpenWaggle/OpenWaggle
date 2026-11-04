@@ -16,6 +16,8 @@ Each session has its own browser tabs. Switching sessions hides the previous ses
 3. Enter the server's URL, such as `http://localhost:3000`, or choose a detected local server from the launcher.
 4. Use the page normally. Back, forward, reload, and the address field work like browser controls.
 
+![A session with the browser preview on the right, showing a local dashboard page under Human control, its address field, and the conversation about it on the left](/screenshots/feature-browser-preview.png)
+
 You can also choose **Browser preview** in the right panel. A development-server action can detect its URL from output and open a preview when ready if **Open preview when ready** is enabled. Starting an action does not mean the server is ready yet.
 
 To open links and terminal port chips here, set **Settings > General > Links > Open web links in** to **OpenWaggle**.
