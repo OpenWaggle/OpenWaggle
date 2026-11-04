@@ -3,10 +3,11 @@
  * the definition (`suggestedAgent`). Pure: no files, no catalog. The match is lexical and
  * deliberately conservative, because it only ever produces a hint, and a wrong hint would give
  * the next Worker the wrong instructions. A role counts only where the objective states its own
- * role in so many words, the first clause near its start that opens with "You are" or "Act as"
- * ("You are an independent code reviewer with…"), outside any quoted text, and only when the definition's name is the
- * head of that phrase: "the implementer, not the reviewer", "the reviewer's findings", "then hand
- * off to the reviewer" and a title name no role. A share of the definition's description words
+ * role in so many words: the first clause near its start, outside any quoted text, that opens
+ * with "You are", "You're", "Act as", "Serve as" or "Work as" ("You are an independent code
+ * reviewer with…"), and only when the definition's name is the head of that phrase: "the
+ * implementer, not the reviewer", "the reviewer's findings", "then hand off to the reviewer"
+ * and a title name no role. A share of the definition's description words
  * must then appear anywhere in the title or objective.
  */
 
@@ -34,12 +35,21 @@ const CLAUSE = /[^.;!?\n]+/gu
 const LIST_MARKER = /^(?:[-*•+]+\s*|\d+\)\s*|_+)*/u
 /**
  * Text quoted for someone else, blanked before clauses are read: a fenced block, a blockquote
- * line, and a double-quoted span, an unclosed one to the end. Single quotes are left alone, since
- * they are also apostrophes.
+ * line, a double-quoted span (an unclosed one to the end), and a single-quoted one. A single
+ * quote counts only with no letter or digit outside it, so an apostrophe ("reviewer's", "it's")
+ * neither opens nor closes one. Blanking can only remove a role, never add one.
  */
 // `(?![\s\S])` is the end of the input; `$` is a line end here, under the m flag.
-const QUOTED =
-  /```[\s\S]*?(?:```|(?![\s\S]))|^[ \t]*>.*$|"[^"]*(?:"|(?![\s\S]))|“[^”]*(?:”|(?![\s\S]))/gmu
+const QUOTED = new RegExp(
+  [
+    '```[\\s\\S]*?(?:```|(?![\\s\\S]))',
+    '^[ \\t]*>.*$',
+    '"[^"]*(?:"|(?![\\s\\S]))',
+    '“[^”]*(?:”|(?![\\s\\S]))',
+    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}]))*['’](?![\\p{L}\\p{N}])",
+  ].join('|'),
+  'gmu',
+)
 /**
  * Openers that address the Worker. A bare "As" or "Acting as" is left out: in an objective it is
  * as often a conjunction or someone else's role ("As the reviewer of PR #405 found, fix…",
@@ -161,8 +171,8 @@ function words(text: string) {
 }
 
 interface ObjectiveWords {
-  /** The noun phrases the objective states its role with, as written, lowercased. */
-  readonly roles: readonly (readonly string[])[]
+  /** The noun phrase the objective states its role with, as written, lowercased; [] for none. */
+  readonly role: readonly string[]
   /** Stems of the title and the whole objective. */
   readonly all: ReadonlySet<string>
 }
@@ -186,9 +196,8 @@ function isPossessive(raw: string, word: string) {
 
 /**
  * "independent code reviewer" from "an independent code reviewer with a fresh context": the
- * noun phrase right after the opener. A determiner may open it once; one later on means the
- * opener led into something else ("You are helping the reviewer", "As per the reviewer"), and a
- * possessive means its head is another noun ("the reviewer's assistant"), so both give no phrase.
+ * noun phrase right after the opener, a determiner that opens it left out. A possessive means
+ * its head is another noun ("the reviewer's assistant"), so it gives no phrase.
  */
 function rolePhrase(rest: string) {
   const phrase: string[] = []
@@ -201,12 +210,9 @@ function rolePhrase(rest: string) {
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
     if (core === '' || PHRASE_BREAKS.has(core)) break
     if (opening && LEADING_ADVERBS.has(core)) continue
-    if (DETERMINERS.has(core)) {
-      if (!opening) return []
-      opening = false
-      continue
-    }
+    const opens = opening
     opening = false
+    if (opens && DETERMINERS.has(core)) continue
     phrase.push(...nameWords(core))
     if (phrase.length > MAX_PHRASE_WORDS) return []
     if (core !== word) break
@@ -219,16 +225,17 @@ function rolePhrase(rest: string) {
  * separate subject is the speaker's or someone else's, not the Worker's. An imperative after it
  * starts lowercase ("Act as reviewer, review the diff"), so it still states the Worker's role.
  */
+// The separator is the first comma, colon, dash (an ASCII one spaced: " - ", " -- ") or ellipsis.
 const SPEAKER_AFTER_ROLE =
-  /^(?:[Aa]ct\s+as|[Ss]erve\s+as|[Ww]ork\s+as)\b[^,:—–]*[,:—–]\s*(?:(?:[Ii]|[Ww]e|[Mm]y|[Oo]ur|[Ii]t|[Tt]hey|[Hh]e|[Ss]he|[Tt]he|[Aa]n?|[Tt]his|[Tt]hat)\b|\p{Lu})/u
+  /^(?:[Aa]ct|[Ss]erve|[Ww]ork)\s+as\b(?:[^,:—–…\s]|\s(?!-{1,2}\s))*(?:[,:—–…]|\s-{1,2}(?=\s))\s*(?:(?:[Ii]|[Ww]e|[Mm]y|[Oo]ur|[Ii]t|[Tt]hey|[Hh]e|[Ss]he|[Tt]he|[Aa]n?|[Tt]his|[Tt]hat)\b|\p{Lu})/u
 
 /**
  * The objective's role statement: the phrase of the first clause near its start that opens with
- * "You are" or "Act as". Only the first counts, so a later "Act as the reviewer…" does not
+ * "You are", "You're", "Act as", "Serve as" or "Work as". Only the first counts, so a later "Act as the reviewer…" does not
  * override "You are the implementer"; an empty phrase there (the opener led elsewhere) means
  * the objective states no role.
  */
-function rolePhrases(objective: string) {
+function roleStatement(objective: string): readonly string[] {
   // Someone else's objective quoted here ("Give each Worker this objective: \"You are a
   // reviewer…\"") is never this one's role; blanking keeps every offset where it was.
   const own = objective.replace(QUOTED, (quoted) => ' '.repeat(quoted.length))
@@ -238,7 +245,7 @@ function rolePhrases(objective: string) {
     const opener = ROLE_OPENER.exec(opened)
     if (!opener) continue
     if (SPEAKER_AFTER_ROLE.test(opened)) return []
-    return [rolePhrase(opened.slice(opener[0].length))]
+    return rolePhrase(opened.slice(opener[0].length))
   }
   return []
 }
@@ -256,11 +263,11 @@ function namesRole(name: readonly string[], objective: ObjectiveWords) {
   const last = name.at(-1)
   if (last === undefined) return false
   const isNameWord = (phraseWord: string) => name.some((word) => namesWord(phraseWord, word))
-  return objective.roles.some(
-    (phrase) =>
-      namesWord(phrase.at(-1), last) &&
-      name.every((word) => phrase.some((phraseWord) => namesWord(phraseWord, word))) &&
-      phrase.slice(0, -1).every((word) => isNameWord(word) || ROLE_MODIFIERS.has(word)),
+  const phrase = objective.role
+  return (
+    namesWord(phrase.at(-1), last) &&
+    name.every((word) => phrase.some((phraseWord) => namesWord(phraseWord, word))) &&
+    phrase.slice(0, -1).every((word) => isNameWord(word) || ROLE_MODIFIERS.has(word))
   )
 }
 
@@ -293,7 +300,7 @@ export function suggestAgentDefinition(
 ): AgentDefinitionCandidate | undefined {
   const title = input.title ?? ''
   const objective = {
-    roles: rolePhrases(input.objective),
+    role: roleStatement(input.objective),
     all: words(`${title}\n${input.objective}`),
   }
   const ranked = candidates

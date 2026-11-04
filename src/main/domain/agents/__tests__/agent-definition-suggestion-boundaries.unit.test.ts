@@ -14,28 +14,63 @@ const IMPLEMENTER = {
 
 /** Where the matcher stops reading a role: quotes, other speakers, its limits. */
 describe('suggestAgentDefinition boundaries', () => {
-  it('takes only the first role statement, and none that is the speaker’s', () => {
+  it('takes only the first role statement', () => {
+    const read = (objective: string) => suggestAgentDefinition({ objective }, [REVIEWER])
     expect(
       suggestAgentDefinition(
         {
           objective:
-            'You are the implementer. As the reviewer, I found regressions and missing tests in the diff; fix the correctness findings on the branch and open a merge request.',
+            'You are the implementer. Act as the reviewer of your own diff afterwards; fix the correctness findings on the branch and open a merge request.',
         },
         [REVIEWER, IMPLEMENTER],
       ),
     ).toEqual(IMPLEMENTER)
+    expect(
+      read(
+        'You are the implementer. Act as the reviewer of your own diff against the ticket and the project guidelines.',
+      ),
+    ).toBeUndefined()
+  })
+
+  it('reads no role after a separate subject, the speaker’s or another Worker’s', () => {
+    const tail =
+      ' three regressions in the diff of the branch against the ticket and the guidelines.'
     for (const objective of [
-      'As reviewer, I flagged correctness regressions and missing tests. Fix them in the diff of the branch against the ticket.',
-      'Acting as the reviewer, I found three regressions in the diff of the branch against the ticket and the guidelines.',
-      'As the reviewers in round 2 flagged, fix the correctness bugs, regressions and missing tests in the diff of the branch.',
-      'As the reviewer of PR #405 found, the diff has correctness bugs, regressions and missing tests against the ticket. Fix them.',
-      'As the reviewer and I discussed, fix the correctness bugs and regressions in the diff of the branch against the ticket.',
-      'As reviewer: I found three regressions in the diff of the branch against the ticket and the guidelines.',
-      'As the reviewer — I found three regressions in the diff of the branch against the ticket and the guidelines.',
-      'As reviewer, Worker 2 flagged three regressions in the diff of the branch against the ticket and the guidelines.',
+      `Act as the reviewer, I found${tail}`,
+      `Serve as reviewer: Worker 2 flagged${tail}`,
+      `Work as the reviewer — I found${tail}`,
+      `Act as the reviewer - I found${tail}`,
+      `Act as reviewer -- Worker 2 flagged${tail}`,
+      `Act as reviewer… we found${tail}`,
     ]) {
       expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
     }
+    // An imperative after the separator is still the Worker's role.
+    expect(
+      suggestAgentDefinition({ objective: `Act as the reviewer - review${tail}` }, [REVIEWER]),
+    ).toEqual(REVIEWER)
+  })
+
+  it('reads no bare "As" or "Acting as" as an opener', () => {
+    for (const objective of [
+      'As reviewer, review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+      'Acting as the reviewer, review the diff of the branch against the ticket and the project guidelines.',
+      'As the reviewer of PR #405 found, the diff has correctness bugs, regressions and missing tests against the ticket. Fix them.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
+  })
+
+  it('reads no role whose head is another noun', () => {
+    expect(
+      suggestAgentDefinition(
+        {
+          objective:
+            'You are the reviewer assistant. Review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+        },
+        [REVIEWER],
+      ),
+    ).toBeUndefined()
   })
 
   it('never reads a role from a quoted objective for another Worker', () => {
@@ -44,6 +79,8 @@ describe('suggestAgentDefinition boundaries', () => {
       'Give each Worker this objective: “Check PR 405. You are an independent reviewer with a fresh context, against the ticket and the project guidelines.”',
       'Coordinate the review. Each Worker gets:\n```\nReview PR 405.\nYou are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.\n```',
       'Coordinate the review. Each Worker gets:\n> Review PR 405. You are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.',
+      "Spawn three reviewer Workers. Each gets: 'Review PR 405. You are an independent reviewer with a fresh context. Check the diff against the ticket and the project guidelines.'",
+      "Spawn three reviewer Workers. Each gets: ‘Review PR 405. You are an independent reviewer with a fresh context, and it's against the ticket and the project guidelines.’",
       'Spawn two Workers and merge their findings. Give each this objective:\n"You are an independent reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines."',
       'Spawn two Workers and merge their findings. Give each this objective:\n> You are an independent reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
     ]) {

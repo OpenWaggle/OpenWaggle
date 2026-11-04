@@ -52,7 +52,7 @@ describe('suggestAgentDefinition', () => {
     }
     expect(
       suggestAgentDefinition(
-        { objective: 'Fix the flaky test in the reviewer assignment code path.' },
+        { objective: 'You are the reviewer. Fix the flaky test in the assignment code path.' },
         [reviewer],
       ),
     ).toBeUndefined()
@@ -249,7 +249,7 @@ describe('suggestAgentDefinition', () => {
     for (const objective of [
       'You are helping the reviewer: review the diff of the branch against the ticket and the project guidelines.',
       'You are replacing the reviewer, so review the diff of the branch against the ticket and the project guidelines.',
-      'As per the reviewer, fix the regression in the diff of the branch against the ticket and the project guidelines.',
+      'Act as per the reviewer, fix the regression in the diff of the branch against the ticket and the project guidelines.',
       'You are no longer the reviewer: review the diff of the branch against the ticket and the project guidelines.',
       "You are the reviewers' pair: review the diff of the branch against the ticket and the project guidelines.",
     ]) {
