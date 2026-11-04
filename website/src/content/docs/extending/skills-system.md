@@ -60,7 +60,7 @@ OpenWaggle loads project resources in this order. For skills with the same name,
 .agents/skills/
 ```
 
-Enabled OpenWaggle extension packages can add skill resource roots between `.openwaggle/skills/` and `.pi/skills/`. Pi also discovers user/global skills. The Settings catalog scans `.openwaggle/skills/` and root `.agents/skills/`, so it is not a complete inventory of every skill Pi can load.
+[Resource precedence](/docs/configuration/per-project-config#resource-precedence) draws this lookup as a diagram. Enabled OpenWaggle extension packages can add skill resource roots between `.openwaggle/skills/` and `.pi/skills/`. Pi also discovers user/global skills. The Settings catalog scans `.openwaggle/skills/` and root `.agents/skills/`, so it is not a complete inventory of every skill Pi can load.
 
 Catalog toggles filter loaded skills before Pi builds the agent's context. For the two catalog roots, the toggle key is the normalized skill directory name. For other Pi-loaded skills, including global/user, `.pi/skills/`, and ancestor `.agents/skills/` resources, it is the normalized skill name. An explicit disabled toggle therefore also excludes a matching skill from those sources in that project without changing other projects. Pi still controls discovery outside the catalog.
 

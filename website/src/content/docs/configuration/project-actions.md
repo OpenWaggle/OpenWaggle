@@ -83,6 +83,18 @@ Switching sessions or closing the output view does not stop a run. Managed runs 
 
 Actions that keep running stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop an action another session still uses. They stop before workspace cleanup and removal.
 
+The answer to **Does it stop on its own?** decides what ends a run:
+
+```mermaid
+flowchart TD
+  start["Run the action"] --> kind{"Does it stop on its own?"}
+  kind -- "Yes, it finishes by itself" --> done["The command exits<br/>Stops when done"]
+  kind -- "No, it keeps running until I stop it" --> service["Keeps running"]
+  service --> stop["You choose Stop"]
+  service --> release["The last Session using the workspace<br/>releases it, for example when it is archived"]
+  release --> cleanup["Workspace cleanup and removal"]
+```
+
 ## Open a dev-server preview
 
 Save your server command with **No, it keeps running until I stop it**. Then, under **Optional settings > Open it in the browser preview?**, choose **Yes, open the preview when the server is ready**. Picking a `dev` or `start` script turns this on for you.

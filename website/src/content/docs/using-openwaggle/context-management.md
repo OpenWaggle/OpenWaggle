@@ -47,6 +47,18 @@ Compaction happens before a model request, not while a reply is streaming. If th
 
 The model also needs room to reply. OpenWaggle may compact before your chosen percentage if that output reserve would otherwise run out.
 
+The threshold is the lowest of three limits. Pi's `compaction.reserveTokens` sets the reply room and `compaction.keepRecentTokens` sets how much recent context stays in full:
+
+```mermaid
+flowchart TD
+  grow["Context grows with messages, files, and tool results"] --> check{"At the threshold?"}
+  check -- "No" --> grow
+  check -- "Yes, before the next model request" --> compact["Compaction"]
+  limits["Threshold is the lowest of:<br/>your percentage of the window, 80% by default<br/>the window minus reserveTokens, 16,384 by default<br/>400,000 tokens"] -.-> check
+  compact --> summary["Older context becomes a summary"]
+  compact --> recent["Portable compaction keeps the latest<br/>keepRecentTokens, 20,000 by default, in full"]
+```
+
 ### Compaction while you are away
 
 Providers keep a conversation's prompt cache for about five minutes; after that, your next message pays to send the whole context again. When you leave a session idle with at least 200,000 tokens of context, OpenWaggle prepares the compacted form shortly before that cache expires, while it is still cheap to read. If you come back after the cache expired, the session continues from the compacted form and the conversation shows a **Context automatically compacted** marker. If you come back sooner, the prepared summary is dropped and nothing changes. It is skipped when **Keep prompt caches warm** is **Off** or **Between runs**, and it is not kept across an OpenWaggle restart. The summary request counts toward the session's usage.

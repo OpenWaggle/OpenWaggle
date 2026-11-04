@@ -7,6 +7,20 @@ section: "Help"
 
 OpenWaggle stores conversation data locally, but a local session is not the same as a local AI request. When you use a hosted model, your messages and any file contents, attachments, or tool output included in its context are sent to that provider. The provider's data-handling policy applies.
 
+With a hosted model, only the model context leaves your computer for the provider:
+
+```mermaid
+flowchart LR
+  subgraph local["Stays on your computer"]
+    db["Session database and Pi transcript files"]
+    files["Project files the agent has not read"]
+    voice["Voice transcription"]
+  end
+  context["Model context<br/>messages, file contents,<br/>attachments, tool output"]
+  provider["Hosted model provider"]
+  context -->|"sent with each request"| provider
+```
+
 Before working on sensitive code:
 
 - Check the selected provider and whether your organization permits sending that code to it.

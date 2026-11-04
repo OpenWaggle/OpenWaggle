@@ -20,6 +20,25 @@ When you send a message:
 5. OpenWaggle translates Pi session events into vendor-free `AgentTransportEvent` values for the renderer.
 6. The SQLite projection stores session nodes, branches, and UI read models.
 
+The same path across the processes, for a message that starts a Run:
+
+```mermaid
+sequenceDiagram
+  participant R as Renderer
+  participant M as Main process
+  participant H as Session Host
+  participant P as Pi
+  R->>M: agent:send-message
+  M->>H: Session Control message command
+  H->>P: Start a Run through AgentKernelService
+  P-->>H: Pi session events
+  H->>H: Update the SQLite projection
+  H-->>M: AgentTransportEvent
+  M-->>R: AgentTransportEvent over IPC
+```
+
+If the Session already has a Run or waiting Follow-ups, the Session Host queues the message as a Follow-up instead of starting a Run.
+
 Pi executes the tools enabled for the run. OpenWaggle renders their events in the transcript and applies its session policy through the Pi adapter.
 
 ## Session files

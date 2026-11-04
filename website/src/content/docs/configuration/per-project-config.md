@@ -47,6 +47,13 @@ Skills, extensions, prompts, and themes can live in these project folders. When 
 .openwaggle > .pi > .agents
 ```
 
+For a skill named `review`, OpenWaggle stops at the first folder that has one:
+
+```mermaid
+flowchart LR
+  A[".openwaggle/skills/review"] -->|"if missing"| B[".pi/skills/review"] -->|"if missing"| C[".agents/skills/review"]
+```
+
 For example, `.openwaggle/skills/review/SKILL.md` takes precedence over a same-name skill in `.agents/skills`. This is useful when you need an OpenWaggle-specific version without changing files used by other tools.
 
 A project might contain:
@@ -98,6 +105,19 @@ MCP servers have their own files. OpenWaggle reads them in this order, and for t
 <project>/.mcp.json
 <project>/.pi/mcp.json
 <project>/.openwaggle/mcp.json
+```
+
+Each file overrides a same-name server from the files above it, so the later file wins:
+
+```mermaid
+flowchart TD
+  subgraph global["Global files"]
+    G1["~/.pi/agent/mcp.json"] -->|"overridden by"| G2["~/.openwaggle/mcp.json"]
+  end
+  subgraph project["Project files"]
+    P1["&lt;project&gt;/.mcp.json"] -->|"overridden by"| P2["&lt;project&gt;/.pi/mcp.json"] -->|"overridden by"| P3["&lt;project&gt;/.openwaggle/mcp.json"]
+  end
+  G2 -->|"overridden by"| P1
 ```
 
 See [MCP configuration](/docs/configuration/mcp#where-servers-are-configured) for examples and secrets.

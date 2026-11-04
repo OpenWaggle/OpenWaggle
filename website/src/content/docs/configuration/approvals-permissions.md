@@ -23,6 +23,21 @@ The project picker here only selects which project's permissions you are inspect
 
 Read the action, requester, and target before approving. For a command, consider its effects rather than only its name. For an external tool, check which service or account it will reach.
 
+This is the path a protected action takes before it runs:
+
+```mermaid
+flowchart TD
+  action["The agent asks for a protected action"] --> mode{"Access mode"}
+  mode -- "YOLO (Full Access)" --> run["The action runs"]
+  mode -- "Ask for Approval" --> saved{"Saved approval?"}
+  saved -- "Yes, it covers this request" --> run
+  saved -- "No" --> request["Approval request"]
+  request -->|"Allow once"| run
+  request -->|"Allow for this session"| run
+  request -->|"Always allow…"| run
+  request -->|"Continue without"| skip["The agent continues without it"]
+```
+
 - **Allow once** permits this request without saving a broader approval.
 - **Continue without** declines the request so the agent can continue without that action. Explain an alternative in the conversation if needed.
 - When scope choices are available, **Allow for this session** allows matching requests in that session. The **Always allow…** choice names the requester, target, and project it will cover.

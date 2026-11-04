@@ -19,6 +19,17 @@ Two sessions using the same checkout share its files and Git branch; separate ch
 
 A Git worktree is another checkout of the same repository in a separate directory. It shares the repository's history but has its own files and checked-out branch. Use one when you want an agent to work separately from your current checkout.
 
+Your checkout and a managed worktree are two folders on two branches, backed by one repository:
+
+```mermaid
+flowchart TD
+  repo[("Repository history<br/>commits and branches")]
+  checkout["Current checkout<br/>the folder you opened<br/>on your branch"]
+  worktree["New worktree<br/>~/.openwaggle/worktrees/&lt;repository&gt;/&lt;workspaceId&gt;<br/>on branch ow/session-&lt;workspaceId&gt;"]
+  repo --- checkout
+  repo --- worktree
+```
+
 1. Open a new session under your project.
 2. Choose **New worktree** above the message box.
 3. Use the adjacent branch picker to select a base branch. Uncommitted changes are not copied into the new checkout.

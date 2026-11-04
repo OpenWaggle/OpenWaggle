@@ -60,6 +60,21 @@ For a worktree that no session uses any more, **Remove** in **Settings > Worktre
 
 Closing or restarting the desktop window does not cancel active agent work. OpenWaggle's background session service keeps it running. Reopen the app and select the session to check its progress.
 
+The background session service is the Session Host. It owns agent Runs and managed Project actions, while terminal shells belong to the desktop app:
+
+```mermaid
+flowchart LR
+  subgraph desktop["Desktop app: stops when you quit"]
+    term["Interactive terminal shells"]
+    preview["Browser previews"]
+  end
+  subgraph host["Session Host: keeps running"]
+    runs["Agent Runs"]
+    actions["Managed Project actions"]
+  end
+  desktop <-->|"reconnects when you reopen the app"| host
+```
+
 To stop active work, use the square **Cancel** button beside the message box and wait for cancellation to finish. Inspect the last tool results and file changes before asking the agent to continue. Cancelling cannot undo completed edits or retract a request already sent to an external service.
 
 Quitting the desktop window and stopping the background service are different actions. Database recovery commands below need exclusive access, so they refuse to proceed while another process owns the database. Do not remove ownership files or force database access to get around that refusal.

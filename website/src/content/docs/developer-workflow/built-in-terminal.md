@@ -266,6 +266,21 @@ The built-in terminal runs your interactive commands. The agent's `bash` tool ru
 
 Interactive terminal shells belong to the desktop app. Agent runs and managed Project actions belong to a separate background process, the Session Host. Closing the desktop leaves those runs alive while their workspace remains in use. Interactive terminals and browser operations still need the desktop connected; the CLI does not create an invisible terminal as a fallback.
 
+This is what keeps running after you close the desktop app:
+
+```mermaid
+flowchart LR
+  subgraph desktop["Desktop app: stops when you quit"]
+    term["Interactive terminal shells"]
+    preview["Browser previews"]
+  end
+  subgraph host["Session Host: keeps running"]
+    runs["Agent Runs"]
+    actions["Managed Project actions"]
+  end
+  desktop <-->|"reconnects when you reopen the app"| host
+```
+
 Quit the app normally when possible so it can confirm that terminal processes and previews have closed. If a previous exit did not confirm cleanup, a later launch shows a banner that starts with **Desktop tools are paused**. It sits below the header, or at the bottom of the window in Settings. You can still view sessions, but terminals, browser previews, archiving or deleting sessions, and removing worktrees stay blocked. Restarting does not clear this uncertainty or automatically kill old processes.
 
 Check that nothing you started from the previous window's terminals is still running, such as a dev server, a file watcher, or a background job, and that no Git operation was interrupted. Then choose **Recover desktop tools** on the banner. OpenWaggle treats the previous window as closed and attaches the current one. You can then open terminals and previews and archive sessions again; reopen a terminal that failed to start while tools were paused. If something from the old window is still running when you recover, OpenWaggle cannot stop it, and archiving or deleting its worktree can remove files out from under it. The banner stays until you recover, because it is the only way to do so.

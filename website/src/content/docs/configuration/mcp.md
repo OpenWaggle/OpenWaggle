@@ -59,7 +59,7 @@ OpenWaggle reads five files, in this order:
 | `<project>/.pi/mcp.json` | Pi's servers for the project |
 | `<project>/.openwaggle/mcp.json` | OpenWaggle's servers for the project |
 
-When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one.
+When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one. [MCP config precedence](/docs/configuration/per-project-config#mcp-config-precedence) draws this order as a diagram.
 
 Pi's global file moves with Pi's agent folder: if you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there. If a project is your home folder, or its `.openwaggle` folder links to `~/.openwaggle`, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`; OpenWaggle reads it once, as the global file, and a switch for that project only is not available, since it would change every project. If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
 

@@ -9,6 +9,17 @@ Use a Hive when a task has parts that can be assigned to independent agents. For
 
 A Hive is a family of sessions. The session that starts it is the **Queen**; its descendants are **Workers**. These names describe lineage, not blanket authority. A Worker can create more Workers when permitted, and the Queen does not automatically gain permission to control every session.
 
+Each Worker reports to the Session that spawned it, so a Hive is a tree:
+
+```mermaid
+flowchart TD
+  Q["Queen Session"] -->|spawns| W1["Worker"]
+  Q -->|spawns| W2["Worker"]
+  W2 -->|spawns| W3["Worker"]
+  W1 -.->|submits its result| Q
+  W3 -.->|submits its result| W2
+```
+
 Each Worker is a saved, independent session with its own transcript, active run, message queue, model settings, and workspace. It can continue after the Queen's current run ends. Workers live in the **Hive** panel, a built-in Right panel surface, rather than the left sidebar. The header shows the Hive role and optional [agent definition](/docs/extending/agent-definitions).
 
 For two agents taking sequential turns in the *same* conversation, use [Waggle Mode](/docs/using-openwaggle/waggle-mode) instead.
@@ -121,6 +132,21 @@ Session capabilities constrain the native `hive` tool and authenticated Session 
 ## Delegation lifecycle
 
 Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost. A Worker that marks its Delegation `needs_attention` itself, asking its parent for help, keeps that state when that Run ends, even if it replied with text: that reply explains what it needs and is not submitted as a result. Once the parent answers, a later Run that completes with a reply is captured for review as usual.
+
+These are the Delegation states and the moves between them. The Worker can also mark itself `waiting`, and the parent can cancel a Delegation in any state before it is accepted.
+
+```mermaid
+stateDiagram-v2
+  [*] --> working: Parent spawns the Worker
+  working --> needs_attention: Worker asks for help, or its Run fails
+  working --> ready_for_review: Worker submits, or its Run ends with a reply
+  needs_attention --> ready_for_review: Worker submits
+  ready_for_review --> revision_requested: Parent requests a revision
+  revision_requested --> ready_for_review: Worker submits a new revision
+  ready_for_review --> accepted: Parent accepts
+  accepted --> revision_requested: Parent reopens
+  ready_for_review --> cancelled: Parent cancels
+```
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
 

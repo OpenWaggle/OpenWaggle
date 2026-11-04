@@ -9,6 +9,21 @@ Waggle Mode is optional. It lets two configured agents take turns on one task in
 
 The agents work **sequentially**, not in parallel. They share the conversation and working directory. If you want independent sessions with their own transcripts and workspaces, use a [Hive](/docs/using-openwaggle/hives-and-sessions) instead.
 
+A Waggle takes turns inside one Session, while a Hive runs separate Sessions side by side:
+
+```mermaid
+flowchart LR
+  subgraph waggle["Waggle: one Session"]
+    direction LR
+    A1["Agent A turn"] --> B1["Agent B turn"] --> A2["Agent A turn"]
+  end
+  subgraph hive["Hive: separate Sessions"]
+    direction TB
+    Q["Queen Session"] --> W1["Worker Session<br/>own transcript and workspace"]
+    Q --> W2["Worker Session<br/>own transcript and workspace"]
+  end
+```
+
 ## Setting up presets
 
 1. Open **Settings > Waggle Mode**.
