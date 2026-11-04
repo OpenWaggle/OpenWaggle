@@ -51,7 +51,7 @@ function agentDefinitionGuideline(permits: Permits) {
   // its Sessions, as agentDefinitionProjectForTool requires.
   const readsOtherProjects = (permits('launch') || permits('create')) && permits('list')
   const otherProject = readsOtherProjects ? ' (projectPath for another project)' : ''
-  return `When an Agent definition fits a role, ${either(starts)} with agent: "<name>" and keep the role out of objective; available_agents lists the project's, and agent_definitions_list and agent_definitions_search find them${otherProject}. Never pass a name that no list shows.`
+  return `When an Agent definition fits a role, ${either(starts)} with agent: "<name>" and give it only the task, not the role; available_agents lists the project's, and agent_definitions_list and agent_definitions_search find them${otherProject}. Never pass a name that no list shows.`
 }
 
 /** fullTranscript also needs sessions:read, so a discover-only grant is not told to use it. */

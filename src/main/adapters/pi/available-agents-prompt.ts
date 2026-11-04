@@ -66,6 +66,9 @@ function startPhrase(permits: (action: string) => boolean) {
 }
 
 /**
+ * The text names the task, not `objective`: create takes none, and an objective passed to it
+ * would be dropped.
+ *
  * The `available_agents` system prompt section: the project's enabled, valid Agent definitions,
  * names and descriptions only, for a Session that can start one. Without it, agents wrote each
  * role into the objective by hand and never passed `agent` (25 hand-written reviewer Workers in
@@ -82,7 +85,7 @@ export function availableAgentsPromptSection(
   const listed = agents.slice(0, AVAILABLE_AGENTS_PROMPT_LIMIT)
   const more = agents.length > listed.length
   return [
-    `Agent definitions of this project. When one fits a role, ${start} with agent: "<name>" instead of describing the role yourself: the new Session runs with the definition's instructions, model, tools, and workspace, so its objective carries only the task.`,
+    `Agent definitions of this project. When one fits a role, ${start} with agent: "<name>" instead of describing the role yourself: the new Session runs with the definition's instructions, model, tools, and workspace, so give it only the task, not the role.`,
     ...listed.map(
       (agent) =>
         `<agent name="${escapeXml(agent.name)}">${escapeXml(shortDescription(agent.description))}</agent>`,

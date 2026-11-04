@@ -63,7 +63,9 @@ describe('available_agents section', () => {
     expect(text).toContain(
       'When one fits a role, spawn a Worker or launch a root Session with agent: "<name>"',
     )
-    expect(text).toContain('so its objective carries only the task.')
+    expect(text).toContain('so give it only the task, not the role.')
+    // create takes no objective, so the section never names one.
+    expect(text).not.toContain('objective')
     expect(text).toContain(
       '<agent name="reviewer">Review a merge request with a fresh context. Use for an independent review.</agent>',
     )

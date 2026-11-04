@@ -75,7 +75,7 @@ describe('hive two-tier schema', () => {
 
     expect(agent).toMatchObject({ type: 'string' })
     expect(agent.description).toMatch(/available_agents or agent_definitions_list/)
-    expect(agent.description).toMatch(/put only the task in objective/)
+    expect(agent.description).toMatch(/give it only the task, not the role/)
   })
 
   it('declares a union of object shapes as one object, so report stays short', () => {

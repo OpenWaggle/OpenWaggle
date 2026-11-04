@@ -59,14 +59,15 @@ describe('suggestAgentDefinition', () => {
   })
 
   it('suggests nothing when two definitions fit about equally well', () => {
-    const twin = { ...REVIEWER, name: 'review' }
+    const senior = { ...REVIEWER, name: 'senior-reviewer' }
+    const code = { ...REVIEWER, name: 'code-reviewer' }
     expect(
       suggestAgentDefinition(
         {
           objective:
-            'You are an independent reviewer who did not write the code: review the diff of this branch against the guidelines and the ticket with a fresh context.',
+            'You are a senior code reviewer who did not write the code: review the diff of this branch against the guidelines and the ticket with a fresh context.',
         },
-        [REVIEWER, twin],
+        [senior, code],
       ),
     ).toBeUndefined()
   })
@@ -156,6 +157,55 @@ describe('suggestAgentDefinition', () => {
       'Implement the change described below with tests; a reviewer Worker will review the diff of the branch for correctness, regressions and the project guidelines.',
     ]) {
       expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
+  })
+
+  it('reads the role only where the objective states its own, with the name as its head', () => {
+    for (const input of [
+      {
+        objective:
+          'Act as the implementer for the ticket, then hand off the diff of the branch to the reviewer against the project guidelines.',
+      },
+      {
+        objective:
+          'You are the implementer, not the reviewer: implement the ticket and keep the diff of the branch within the project guidelines.',
+      },
+      {
+        objective:
+          'Fix the bug you are seeing and tell the reviewer what changed in the diff of the branch against the ticket.',
+      },
+      {
+        objective:
+          'Do not act as a reviewer; implement the ticket and keep the diff of the branch within the project guidelines.',
+      },
+      {
+        objective:
+          "Address the reviewer's findings on branch feat/x: fix the regression in the diff against the ticket and the guidelines.",
+      },
+      {
+        title: 'Fix reviewer findings round 2',
+        objective:
+          'Reviewer findings to fix on the branch. Fix the regression in the diff against the ticket and the project guidelines.',
+      },
+      {
+        objective:
+          'Implement the ticket on the branch and ask the reviewer to check the diff against the project guidelines with a fresh context',
+      },
+      {
+        objective:
+          "You are the reviewer's assistant: collect the diff of the branch against the ticket and the project guidelines.",
+      },
+    ]) {
+      expect(suggestAgentDefinition(input, [REVIEWER])).toBeUndefined()
+    }
+  })
+
+  it('reads "As the …" and a role after a leading bullet', () => {
+    for (const objective of [
+      'As the independent reviewer of this branch, review the diff against the ticket and the project guidelines with a fresh context.',
+      '- You are a reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toEqual(REVIEWER)
     }
   })
 })

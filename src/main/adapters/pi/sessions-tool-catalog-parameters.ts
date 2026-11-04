@@ -26,7 +26,7 @@ export const sessionsToolProjectPath = Type.Optional(
 export const sessionsToolAgentDefinitionName = Type.Optional(
   Type.String({
     description:
-      'An Agent definition name from available_agents or agent_definitions_list. The new Session runs with its instructions, model, tools, and workspace; put only the task in objective.',
+      'An Agent definition name from available_agents or agent_definitions_list. The new Session runs with its instructions, model, tools, and workspace; give it only the task, not the role.',
   }),
 )
 
