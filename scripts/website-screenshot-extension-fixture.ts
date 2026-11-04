@@ -12,6 +12,8 @@ export const FIXTURE_EXTENSION_NAME = 'GitHub Issues Overview'
 export const GITHUB_API_URL_PATTERN = 'https://api.github.com/**'
 
 const DAY_MS = 86_400_000
+/** Every issue was updated at this time of day (UTC), so re-runs on one day give the same dates. */
+const ISSUE_UPDATE_TIME_OF_DAY_MS = 9 * 3_600_000
 /** Kept out of Git status, so the header's change count stays the README edit. */
 const PROJECT_EXCLUDE_ENTRY = '.openwaggle/'
 
@@ -91,11 +93,12 @@ const FIXTURE_ISSUES: readonly FixtureIssue[] = [
 
 /** The fixture's issues in the shape of GitHub's REST `GET /repos/{owner}/{repo}/issues`. */
 export function githubIssuesFixture(now: number) {
+  const today = Math.floor(now / DAY_MS) * DAY_MS + ISSUE_UPDATE_TIME_OF_DAY_MS
   return FIXTURE_ISSUES.map((issue) => ({
     number: issue.number,
     title: issue.title,
     html_url: `https://github.com/OpenWaggle/OpenWaggle/issues/${String(issue.number)}`,
-    updated_at: new Date(now - issue.updatedDaysAgo * DAY_MS).toISOString(),
+    updated_at: new Date(today - issue.updatedDaysAgo * DAY_MS).toISOString(),
     labels: issue.labels.map((name) => ({ name })),
   }))
 }
