@@ -28,6 +28,12 @@ export const WEBSITE_SCREENSHOTS = [
   'settings-waggle-mode.png',
   'waggle-conversation.png',
   'context-meter.png',
+  'terminal-split-panes.png',
+  'terminal-add-to-chat.png',
+  'terminal-context-chip.png',
+  'mcp-servers.png',
+  'mcp-server-detail.png',
+  'mcp-server-error.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]
