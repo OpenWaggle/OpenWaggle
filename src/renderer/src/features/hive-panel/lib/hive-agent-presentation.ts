@@ -47,3 +47,23 @@ export function agentIdentityTitle(agent: HiveAgentPresentation) {
     ...(agent.modelId ? [`model ${agent.modelId}`] : []),
   ].join(' · ')
 }
+
+/** How many of the Hive's loaded Sessions run each Agent definition, most used first. */
+export function hiveAgentCounts(
+  root: HiveSession | null,
+  members: readonly HiveSession[],
+): readonly HiveAgentCount[] {
+  const counts = new Map<string, number>()
+  for (const session of [...(root ? [root] : []), ...members]) {
+    const name = session.lineage?.agentDefinitionName
+    if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return [...counts]
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+}
+
+export interface HiveAgentCount {
+  readonly name: string
+  readonly count: number
+}

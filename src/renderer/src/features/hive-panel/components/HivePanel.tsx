@@ -7,7 +7,6 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import { Bot, ChessQueen, X } from 'lucide-react'
 import { useSessionStatusStore } from '@/features/sessions/state'
-import type { HiveSession } from '@/queries/session-hive-contract'
 import {
   type HiveTreePage,
   hiveTreeMembers,
@@ -16,6 +15,7 @@ import {
 } from '@/queries/session-hive-tree'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { type HiveAgentCount, hiveAgentCounts } from '../lib/hive-agent-presentation'
 import { buildHiveTreeModel, type HiveStatusOf } from '../lib/hive-tree-model'
 import { buildHiveTreeItems, type HiveTreeItem } from '../lib/hive-tree-structure'
 import { useHivePanelViewStore } from '../state/hive-panel-view-store'
@@ -140,26 +140,6 @@ function toggleClass(pressed: boolean) {
     TOGGLE_CLASS,
     pressed ? 'border-accent/60 text-text-primary' : 'border-border text-text-secondary',
   )
-}
-
-/** How many of the Hive's loaded Sessions run each Agent definition, most used first. */
-export function hiveAgentCounts(
-  root: HiveSession | null,
-  members: readonly HiveSession[],
-): readonly HiveAgentCount[] {
-  const counts = new Map<string, number>()
-  for (const session of [...(root ? [root] : []), ...members]) {
-    const name = session.lineage?.agentDefinitionName
-    if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
-  }
-  return [...counts]
-    .map(([name, count]) => ({ name, count }))
-    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
-}
-
-interface HiveAgentCount {
-  readonly name: string
-  readonly count: number
 }
 
 /** "reviewer ×6 · planner ×2": which Agent definitions this Hive's Sessions run. */
