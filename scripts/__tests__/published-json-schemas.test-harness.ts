@@ -146,12 +146,16 @@ export async function fencedBlocks(docsPage: string): Promise<readonly FencedBlo
   }))
 }
 
-export async function runtimeAccepts(read: () => Promise<unknown>) {
+/**
+ * Why the runtime reader rejected a file, or `null` when it read the file. Tests match the
+ * reason, so a case cannot pass because the reader rejected it for an unrelated mistake.
+ */
+export async function runtimeRejection(read: () => Promise<unknown>): Promise<string | null> {
   try {
     await read()
-    return true
-  } catch {
-    return false
+    return null
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
   }
 }
 

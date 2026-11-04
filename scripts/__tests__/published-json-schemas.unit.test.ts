@@ -5,6 +5,7 @@ import { actionRelativePathSchema } from '@shared/schemas/action-definitions'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import { afterEach, describe, expect, it } from 'vitest'
 import { updateProjectConfig } from '../../src/main/config/project-config'
+import { parseProjectSourceControlConfig } from '../../src/main/config/project-source-control-config'
 import { stalePublishedJsonSchemas } from '../generate-published-json-schemas'
 import { PUBLISHED_JSON_SCHEMAS, PUBLISHED_SCHEMA_DIRECTORY } from '../published-json-schemas'
 import { SETTINGS_OPEN_OBJECT_KEYS } from '../published-json-schemas-settings'
@@ -17,7 +18,7 @@ import {
   readSettingsFileAtRuntime,
   record,
   removeScratchDirectories,
-  runtimeAccepts,
+  runtimeRejection,
   scratchDirectory,
 } from './published-json-schemas.test-harness'
 
@@ -122,23 +123,41 @@ describe('the actions.json schema agrees with the runtime reader', () => {
   })
 
   it.each([
-    ['a $schema key', { $schema: 'https://openwaggle.ai/schemas/project-actions-v1.schema.json', ...manifest({}) }],
-    ['an unknown action key', manifest({ actions: [{ ...action, cwd: '.' }] })],
-    ['a missing preparation list', { version: 1, actions: [], profiles: [] }],
-    ['version 2', manifest({ version: 2 })],
-    ['a service that allows copies', manifest({ actions: [{ ...action, kind: 'service', allowConcurrent: true }] })],
-    ['a blank name', manifest({ actions: [{ ...action, name: '   ' }] })],
-    ['an unknown icon', manifest({ actions: [{ ...action, icon: 'rocket' }] })],
+    [
+      'a $schema key',
+      { $schema: 'https://openwaggle.ai/schemas/project-actions-v1.schema.json', ...manifest({}) },
+      /\["\$schema"\][\s\S]*is unexpected/u,
+    ],
+    [
+      'an unknown action key',
+      manifest({ actions: [{ ...action, cwd: '.' }] }),
+      /\["cwd"\][\s\S]*is unexpected/u,
+    ],
+    [
+      'a missing preparation list',
+      { version: 1, actions: [], profiles: [] },
+      /\["preparation"\][\s\S]*is missing/u,
+    ],
+    ['version 2', manifest({ version: 2 }), /\["version"\][\s\S]*Expected 1, actual 2/u],
+    [
+      'a service that allows copies',
+      manifest({ actions: [{ ...action, kind: 'service', allowConcurrent: true }] }),
+      /\[0\][\s\S]*Predicate refinement failure[\s\S]*"kind":"service","allowConcurrent":true/u,
+    ],
+    ['a blank name', manifest({ actions: [{ ...action, name: '   ' }] }), /\["name"\][\s\S]*actual " {3}"/u],
+    ['an unknown icon', manifest({ actions: [{ ...action, icon: 'rocket' }] }), /\["icon"\][\s\S]*actual "rocket"/u],
     [
       'a folder outside the workspace',
       manifest({
         actions: [{ ...action, invocation: { ...action.invocation, directory: '../other' } }],
       }),
+      /\["directory"\][\s\S]*actual "\.\.\/other"/u,
     ],
-    ['an id with a space', manifest({ actions: [{ ...action, id: 'run tests' }] })],
-  ])('rejects %s', async (_name, file) => {
+    ['an id with a space', manifest({ actions: [{ ...action, id: 'run tests' }] }), /\["id"\][\s\S]*actual "run tests"/u],
+  ])('rejects %s', async (_name, file, reason) => {
     expect(await publishedSchemaErrors(ACTIONS, file)).not.toEqual([])
-    expect(await runtimeAccepts(() => readActionsFileAtRuntime(file))).toBe(false)
+    // The reader must reject the file for this reason, not for an unrelated mistake in the case.
+    expect(await runtimeRejection(() => readActionsFileAtRuntime(file))).toMatch(reason)
   })
 
   it('has the folder pattern of actionRelativePathSchema', async () => {
@@ -197,13 +216,48 @@ describe('the settings.json schema agrees with the runtime reader', () => {
   })
 
   it.each([
-    ['an unknown access mode', { preferences: { authorizationMode: 'read-only' } }],
-    ['a zero Worker limit', { sessionHost: { parentConcurrencyLimit: 0 } }],
-    ['a fractional Worker limit', { sessionHost: { parentConcurrencyLimit: 1.5 } }],
-    ['a pi value that is not an object', { pi: [] }],
-  ])('rejects %s', async (_name, file) => {
+    [
+      'an unknown access mode',
+      { preferences: { authorizationMode: 'read-only' } },
+      /preferences\.authorizationMode: Expected "yolo", actual "read-only"/u,
+    ],
+    [
+      'a zero Worker limit',
+      { sessionHost: { parentConcurrencyLimit: 0 } },
+      /sessionHost\.parentConcurrencyLimit: Must be a positive safe integer/u,
+    ],
+    [
+      'a fractional Worker limit',
+      { sessionHost: { parentConcurrencyLimit: 1.5 } },
+      /sessionHost\.parentConcurrencyLimit: Must be a positive safe integer/u,
+    ],
+    ['a pi value that is not an object', { pi: [] }, /pi: Expected \{[^}]*\}, actual \[\]/u],
+  ])('rejects %s', async (_name, file, reason) => {
     expect(await publishedSchemaErrors(SETTINGS, file)).not.toEqual([])
-    expect(await runtimeAccepts(() => readSettingsFileAtRuntime(file))).toBe(false)
+    expect(await runtimeRejection(() => readSettingsFileAtRuntime(file))).toMatch(reason)
+  })
+
+  it('lists exactly the source-control values the runtime keeps', async () => {
+    const settings = record(record(await readPublishedSchema(SETTINGS)).properties)
+    const properties = record(record(settings.sourceControl).properties)
+    const providers = record(record(properties.hosts).additionalProperties).enum
+    const destinations = record(properties.changeRequestOpenDestination).enum
+    if (!Array.isArray(providers) || !Array.isArray(destinations)) {
+      throw new Error('The sourceControl enums are missing.')
+    }
+    for (const provider of [...providers, 'bitbucket', 'unsupported']) {
+      const { hosts } = parseProjectSourceControlConfig({ hosts: { 'git.acme.io': provider } }, '/p')
+      expect(hosts['git.acme.io'] === provider, String(provider)).toBe(providers.includes(provider))
+    }
+    for (const destination of [...destinations, 'browser']) {
+      const parsed = parseProjectSourceControlConfig(
+        { changeRequestOpenDestination: destination },
+        '/p',
+      )
+      expect(parsed.changeRequestOpenDestination === destination, String(destination)).toBe(
+        destinations.includes(destination),
+      )
+    }
   })
 
   it('keeps a $schema key when OpenWaggle rewrites the file', async () => {

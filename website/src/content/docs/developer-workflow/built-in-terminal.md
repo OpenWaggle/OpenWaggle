@@ -288,12 +288,14 @@ flowchart LR
     term["Interactive terminal shells"]
     preview["Browser previews"]
   end
-  subgraph host["Session Host: keeps running"]
+  subgraph host["Session Host: runs while it has work"]
     runs["Agent Runs"]
     actions["Managed Project actions"]
   end
   desktop <-->|"reconnects when you reopen the app"| host
 ```
+
+With no desktop app or other client attached and no work left, the Session Host exits after an idle period, 5 minutes by default.
 
 Quit the app normally when possible so it can confirm that terminal processes and previews have closed. If a previous exit did not confirm cleanup, a later launch shows a banner that starts with **Desktop tools are paused**. It sits below the header, or at the bottom of the window in Settings. You can still view sessions, but terminals, browser previews, archiving or deleting sessions, and removing worktrees stay blocked. Restarting does not clear this uncertainty or automatically kill old processes.
 

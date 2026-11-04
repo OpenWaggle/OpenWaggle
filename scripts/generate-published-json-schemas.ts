@@ -1,6 +1,7 @@
 /**
- * Writes the published JSON Schemas to `website/public/schemas/`, or with `--check` lists the
- * files that differ from what the runtime schemas generate and exits non-zero.
+ * Writes the published JSON Schemas to `website/public/schemas/`. `published-json-schemas.unit.test.ts`
+ * fails, through `stalePublishedJsonSchemas`, when a committed file differs from what the runtime
+ * schemas generate, so `pnpm test:unit` and `pnpm verify` catch drift.
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -10,9 +11,6 @@ import {
   PUBLISHED_SCHEMA_DIRECTORY,
   renderPublishedJsonSchema,
 } from './published-json-schemas'
-
-const ARGUMENT_START_INDEX = 2
-const FAILURE_EXIT_CODE = 1
 
 async function readIfPresent(filePath: string) {
   try {
@@ -34,17 +32,8 @@ export async function stalePublishedJsonSchemas(root: string) {
   return stale
 }
 
-async function main(args: readonly string[]) {
+async function main() {
   const root = process.cwd()
-  if (args.includes('--check')) {
-    const stale = await stalePublishedJsonSchemas(root)
-    if (stale.length === 0) return
-    process.stderr.write(
-      `Published JSON Schemas are out of date. Run pnpm website:schemas.\n${stale.join('\n')}\n`,
-    )
-    process.exitCode = FAILURE_EXIT_CODE
-    return
-  }
   for (const schema of PUBLISHED_JSON_SCHEMAS) {
     const filePath = path.join(root, PUBLISHED_SCHEMA_DIRECTORY, schema.fileName)
     await writeFile(filePath, renderPublishedJsonSchema(schema.build()), 'utf8')
@@ -53,5 +42,5 @@ async function main(args: readonly string[]) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main(process.argv.slice(ARGUMENT_START_INDEX))
+  void main()
 }

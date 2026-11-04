@@ -7,18 +7,22 @@ section: "Help"
 
 OpenWaggle stores conversation data locally, but a local session is not the same as a local AI request. When you use a hosted model, your messages and any file contents, attachments, or tool output included in its context are sent to that provider. The provider's data-handling policy applies.
 
-With a hosted model, only the model context leaves your computer for the provider:
+With hosted models, two requests carry your data off your computer. Each model request sends the model context to the session model's provider. Titling a session sends the opening message to the Title model, which can belong to a different provider. Refining the title after the first reply, or regenerating it, sends an excerpt of the conversation and the names of its attachments. Pi also adds [project instruction files](/docs/extending/agents-md) such as `AGENTS.md`, and the names and descriptions of available skills, to the context without the agent reading them.
 
 ```mermaid
+%% alt: What stays on your computer, and the two requests that go to model providers
 flowchart LR
   subgraph local["Stays on your computer"]
     db["Session database and Pi transcript files"]
-    files["Project files the agent has not read"]
+    files["Project files the agent has not read<br/>and Pi has not loaded"]
     voice["Voice transcription"]
   end
-  context["Model context<br/>messages, file contents,<br/>attachments, tool output"]
-  provider["Hosted model provider"]
+  context["Model context<br/>messages, file contents, attachments,<br/>tool output, AGENTS.md,<br/>skill names and descriptions"]
+  provider["Session model's provider"]
+  title["Session-title request<br/>opening message or a<br/>conversation excerpt"]
+  titleProvider["Title model's provider"]
   context -->|"sent with each request"| provider
+  title -->|"sent when a title is generated"| titleProvider
 ```
 
 Before working on sensitive code:

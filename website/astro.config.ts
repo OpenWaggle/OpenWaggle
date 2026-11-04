@@ -23,9 +23,10 @@ export default defineConfig({
       // Runs before Shiki, so ```mermaid blocks become diagrams rather than highlighted code.
       remarkPlugins: [remarkMermaidDiagrams],
       rehypePlugins: [
+        // First, so the links it adds to images go through the link plugins below.
+        rehypeZoomableImages,
         [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
         rehypeTrailingSlashLinks,
-        rehypeZoomableImages,
       ],
     }),
   },

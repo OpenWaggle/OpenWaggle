@@ -13,9 +13,9 @@ describe('docs image lightbox', () => {
     expect(html).toContain('Open image file');
   });
 
-  it('moves focus into the dialog when it opens', () => {
+  it('runs the lightbox script, which docs-image-lightbox.unit.test.ts tests in a DOM', () => {
     const source = readFileSync(new URL('../DocsImageLightbox.astro', import.meta.url), 'utf8');
-    expect(source).toMatch(/dialog\.showModal\(\);\s*close\.focus\(\);/u);
+    expect(source).toMatch(/<script>[\s\S]*\benhanceDocsImageLightbox\(document\);[\s\S]*<\/script>/u);
   });
 
   it('is on every docs page', () => {

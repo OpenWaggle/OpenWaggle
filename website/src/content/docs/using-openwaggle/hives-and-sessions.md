@@ -133,19 +133,28 @@ Session capabilities constrain the native `hive` tool and authenticated Session 
 
 Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost. A Worker that marks its Delegation `needs_attention` itself, asking its parent for help, keeps that state when that Run ends, even if it replied with text: that reply explains what it needs and is not submitted as a result. Once the parent answers, a later Run that completes with a reply is captured for review as usual.
 
-These are the Delegation states and the moves between them. The Worker can also mark itself `waiting`, and the parent can cancel a Delegation in any state before it is accepted.
+These are the Delegation states and the main moves between them. Every state except `accepted` and `cancelled` is open. In an open state the Worker can set `working`, `waiting`, or `needs_attention` itself, and the parent can cancel the Delegation. "Run fails" covers a Worker Run that fails, is interrupted, or ends without a reply. An accepted Delegation can only be reopened.
 
 ```mermaid
+%% alt: The Delegation states and the main moves between them
 stateDiagram-v2
   [*] --> working: Parent spawns the Worker
-  working --> needs_attention: Worker asks for help, or its Run fails
-  working --> ready_for_review: Worker submits, or its Run ends with a reply
-  needs_attention --> ready_for_review: Worker submits
-  ready_for_review --> revision_requested: Parent requests a revision
-  revision_requested --> ready_for_review: Worker submits a new revision
+  state "Open" as open {
+    working --> waiting: Worker waits
+    waiting --> working: Worker resumes
+    working --> needs_attention: Worker asks for help, or its Run fails
+    waiting --> needs_attention: Run fails
+    needs_attention --> working: Parent answers, or a new Run starts
+    revision_requested --> needs_attention: Run fails
+    needs_attention --> revision_requested: New Run after a failed revision
+    working --> ready_for_review: Worker submits, or its Run ends with a reply
+    needs_attention --> ready_for_review: Worker submits
+    ready_for_review --> revision_requested: Parent asks for a revision, or amends the contract
+    revision_requested --> ready_for_review: Worker submits a new revision
+  }
   ready_for_review --> accepted: Parent accepts
   accepted --> revision_requested: Parent reopens
-  ready_for_review --> cancelled: Parent cancels
+  open --> cancelled: Parent cancels, from any open state
 ```
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.

@@ -4,7 +4,7 @@
  *
  * The runtime does not validate these files with Effect Schema: `validateMcpServerEntry` mirrors
  * Pi's hand-written checks so every file Pi reads means the same thing in OpenWaggle. This schema
- * is therefore built from the same constants, and `published-json-schemas.unit.test.ts` checks it
+ * is therefore built from the same constants, and `published-json-schemas-mcp-waggle.unit.test.ts` checks it
  * against `validateMcpServerEntry` and `mergeMcpConfigLayers` on a corpus of entries.
  */
 import {

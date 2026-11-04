@@ -1,4 +1,6 @@
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
+import { SOURCE_CONTROL_PROVIDER_IDS } from '@shared/types/change-request'
+import { CHANGE_REQUEST_OPEN_DESTINATIONS } from '@shared/types/source-control'
 import { Schema } from 'effect'
 import {
   type JsonSchemaNode,
@@ -64,10 +66,11 @@ const SETTINGS_OVERLAY: JsonSchemaOverlay = {
       hosts: {
         type: 'object',
         description: 'Provider by host name, such as "git.acme.io": "gitlab".',
-        additionalProperties: { enum: ['github', 'gitlab'] },
+        additionalProperties: { enum: [...SOURCE_CONTROL_PROVIDER_IDS] },
       },
       changeRequestOpenDestination: {
-        enum: ['inspector', 'website'],
+        // The values parseProjectSourceControlConfig keeps (project-source-control-config.ts).
+        enum: [...CHANGE_REQUEST_OPEN_DESTINATIONS],
         description: 'Where a pull or merge request opens: in the app or on the website.',
       },
     },

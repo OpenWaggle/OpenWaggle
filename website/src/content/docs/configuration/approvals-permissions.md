@@ -35,14 +35,14 @@ flowchart TD
   saved -- "Yes, it covers this request" --> run
   saved -- "No" --> request["Approval request"]
   request -->|"Allow once"| run
-  request -->|"Allow for this session"| run
-  request -->|"Always allow…"| run
+  request -->|"Allow… > Allow for this session"| run
+  request -->|"Allow… > Always allow…"| run
   request -->|"Continue without"| skip["The agent continues without it"]
 ```
 
 - **Allow once** permits this request without saving a broader approval.
 - **Continue without** declines the request so the agent can continue without that action. Explain an alternative in the conversation if needed.
-- When scope choices are available, **Allow for this session** allows matching requests in that session. The **Always allow…** choice names the requester, target, and project it will cover.
+- When scope choices are available, **Allow…** opens a menu of them. **Allow for this session** allows matching requests in that session. The **Always allow…** choice names the requester, target, and project it will cover.
 
 Use a saved approval only when you understand what later requests it covers. Approving a request does not prove its output is safe or that the requested change is correct.
 

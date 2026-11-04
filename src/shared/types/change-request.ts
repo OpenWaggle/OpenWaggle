@@ -1,6 +1,7 @@
 import type { SourceControlAttention } from './source-control'
 
-export type SourceControlProviderId = 'github' | 'gitlab'
+export const SOURCE_CONTROL_PROVIDER_IDS = ['github', 'gitlab'] as const
+export type SourceControlProviderId = (typeof SOURCE_CONTROL_PROVIDER_IDS)[number]
 
 export interface SourceControlProviderInfo {
   readonly id: SourceControlProviderId

@@ -7,7 +7,7 @@ section: "Multiple agents"
 
 Waggle Mode is optional. It lets two configured agents take turns on one task in the same conversation. For example, one can propose a change and the other can review it.
 
-The agents work **sequentially**, not in parallel. They share the conversation and working directory. If you want independent sessions with their own transcripts and workspaces, use a [Hive](/docs/using-openwaggle/hives-and-sessions) instead.
+The agents work **sequentially**, not in parallel. They share the conversation and working directory. If you want separate sessions, each with its own transcript and optionally its own worktree, use a [Hive](/docs/using-openwaggle/hives-and-sessions) instead.
 
 A Waggle takes turns inside one Session, while a Hive runs separate Sessions side by side:
 
@@ -19,8 +19,8 @@ flowchart LR
   end
   subgraph hive["Hive: separate Sessions"]
     direction TB
-    Q["Queen Session"] --> W1["Worker Session<br/>own transcript and workspace"]
-    Q --> W2["Worker Session<br/>own transcript and workspace"]
+    Q["Queen Session"] --> W1["Worker Session<br/>own transcript; shared checkout or own worktree"]
+    Q --> W2["Worker Session<br/>own transcript; shared checkout or own worktree"]
   end
 ```
 
@@ -91,10 +91,10 @@ Settings saves your presets as JSON. With a project open, they go to `.pi/waggle
 - `config.agents` holds Agent A and Agent B, in turn order. `model` is `$inherit` for the session's model, or a `provider/model` id. `color` is `blue`, `amber`, `emerald`, or `violet`.
 - `stop.primary` is `consensus` for **Consensus** or `user-stop` for **Manual**. `stop.maxTurnsSafety` is the turn limit, from 1 to 100 in the file.
 - `mode` is always `sequential`.
-- `createdAt` and `updatedAt` are times in milliseconds since 1970. Settings sets them when it saves.
+- `isBuiltIn`, `createdAt`, and `updatedAt` are required. Use `false` for `isBuiltIn`. `createdAt` and `updatedAt` are times in milliseconds since 1970, and Settings sets `updatedAt` each time it saves the preset.
 - `hiddenBuiltInPresetIds` hides built-in presets by id: `code-review`, `debate`, or `red-team`.
 
-A preset that does not match this format is skipped without an error, so check the list in **Settings > Waggle Mode** after editing the file by hand. The format has a JSON Schema, [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json). Settings rewrites the file without a `"$schema"` key, so associate the schema in your editor instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
+Settings skips a preset that does not match this format, without an error. It also removes that preset from the file the next time it saves or deletes a preset in that file, because it writes back only the presets it could read. A JSON syntax error hides every preset in the file, and saving a preset to that file fails until you fix it. After editing the file by hand, check the list in **Settings > Waggle Mode**. The format has a JSON Schema, [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json). Settings rewrites the file without a `"$schema"` key, so associate the schema in your editor instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
 
 ## How it works
 

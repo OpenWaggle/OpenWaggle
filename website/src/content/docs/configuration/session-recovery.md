@@ -70,12 +70,14 @@ flowchart LR
     term["Interactive terminal shells"]
     preview["Browser previews"]
   end
-  subgraph host["Session Host: keeps running"]
+  subgraph host["Session Host: runs while it has work"]
     runs["Agent Runs"]
     actions["Managed Project actions"]
   end
   desktop <-->|"reconnects when you reopen the app"| host
 ```
+
+With no desktop app or other client attached and no work left, the Session Host exits after an idle period, 5 minutes by default.
 
 To stop active work, use the square **Cancel** button beside the message box and wait for cancellation to finish. Inspect the last tool results and file changes before asking the agent to continue. Cancelling cannot undo completed edits or retract a request already sent to an external service.
 
