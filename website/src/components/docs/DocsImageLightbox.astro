@@ -1,53 +1,24 @@
 ---
 import Button from '@/components/ui/Button.astro';
+import { LIGHTBOX_IDS } from '@/lib/docs-image-lightbox';
 
-// Opens a docs image link (markdown-images.ts) in a modal dialog instead of leaving the page.
-// Without JavaScript, or with a modifier key held, the link opens the image file itself.
-// The native <dialog> keeps focus inside, closes on Escape, and returns focus to the link.
+// The dialog that docs-image-lightbox.ts opens for a docs image link (markdown-images.ts).
 ---
 
-<dialog id="docs-image-lightbox" class="docs-lightbox" aria-label="Full-size image">
+<dialog id={LIGHTBOX_IDS.dialog} class="docs-lightbox" aria-label="Full-size image">
   <div class="docs-lightbox-body">
-    <img id="docs-image-lightbox-image" class="docs-lightbox-image" alt="" />
+    <img id={LIGHTBOX_IDS.image} class="docs-lightbox-image" alt="" />
     <div class="docs-lightbox-actions">
-      <Button id="docs-image-lightbox-original" href="/" variant="secondary" size="small">Open image file</Button>
+      <Button id={LIGHTBOX_IDS.original} href="/" variant="secondary" size="small">Open image file</Button>
       <form method="dialog">
-        <Button id="docs-image-lightbox-close" type="submit" variant="secondary" size="small">Close</Button>
+        <Button id={LIGHTBOX_IDS.close} type="submit" variant="secondary" size="small">Close</Button>
       </form>
     </div>
   </div>
 </dialog>
 
 <script>
-  const dialog = document.getElementById('docs-image-lightbox');
-  const image = document.getElementById('docs-image-lightbox-image');
-  const original = document.getElementById('docs-image-lightbox-original');
-  const close = document.getElementById('docs-image-lightbox-close');
+  import { enhanceDocsImageLightbox } from '@/lib/docs-image-lightbox';
 
-  if (
-    dialog instanceof HTMLDialogElement &&
-    image instanceof HTMLImageElement &&
-    original instanceof HTMLAnchorElement &&
-    close instanceof HTMLButtonElement &&
-    typeof dialog.showModal === 'function'
-  ) {
-    document.addEventListener('click', (event) => {
-      if (event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      if (!(event.target instanceof Element)) return;
-      const link = event.target.closest('a.docs-image-link');
-      if (!(link instanceof HTMLAnchorElement)) return;
-      event.preventDefault();
-      image.src = link.href;
-      image.alt = link.querySelector('img')?.alt ?? '';
-      original.href = link.href;
-      dialog.showModal();
-      close.focus();
-    });
-
-    // A click on the image or the backdrop closes the dialog; the buttons keep their own action.
-    dialog.addEventListener('click', (event) => {
-      if (event.target === dialog || event.target === image) dialog.close();
-    });
-  }
+  enhanceDocsImageLightbox(document);
 </script>
