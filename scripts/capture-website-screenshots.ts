@@ -39,6 +39,7 @@ import {
   captureExtensionSettingsSection,
   captureExtensionSurfaces,
 } from './website-screenshot-extension-captures'
+import {
   captureApprovalRequest,
   captureCommandPalette,
   captureComposerControls,
