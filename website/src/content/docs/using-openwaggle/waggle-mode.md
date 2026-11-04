@@ -43,6 +43,55 @@ Do not edit files. Finish with agreed findings and any unresolved disagreements.
 
 Review the agents' findings yourself. Agreement between two agents is not proof that a change is correct, and each turn uses the selected provider's allowance or billing.
 
+## The presets file
+
+Settings saves your presets as JSON. With a project open, they go to `.pi/waggle-presets.json` in the project, so you can commit them for your team. Without one, they go to `~/.pi/agent/waggle-presets.json`. The list in Settings and the `/` menu combines the built-in presets, the user file, and the project file. A preset with the same `id` as a built-in or user preset replaces it, and the project file wins.
+
+```json
+{
+  "wagglePresets": [
+    {
+      "id": "api-review",
+      "name": "API review",
+      "description": "One agent proposes changes, the other checks them against callers and tests.",
+      "config": {
+        "mode": "sequential",
+        "agents": [
+          {
+            "label": "Proposer",
+            "model": "$inherit",
+            "roleDescription": "Identify failure cases and propose concrete changes.",
+            "color": "blue"
+          },
+          {
+            "label": "Checker",
+            "model": "anthropic/claude-sonnet-4-5",
+            "roleDescription": "Check each proposal against the callers and tests. Reject what they do not support.",
+            "color": "amber"
+          }
+        ],
+        "stop": {
+          "primary": "consensus",
+          "maxTurnsSafety": 8
+        }
+      },
+      "isBuiltIn": false,
+      "createdAt": 1767225600000,
+      "updatedAt": 1767225600000
+    }
+  ],
+  "hiddenBuiltInPresetIds": ["debate"]
+}
+```
+
+- `config.agents` holds Agent A and Agent B, in turn order. `model` is `$inherit` for the session's model, or a `provider/model` id. `color` is `blue`, `amber`, `emerald`, or `violet`.
+- `stop.primary` is `consensus` for **Consensus** or `user-stop` for **Manual**. `stop.maxTurnsSafety` is the turn limit, from 1 to 100 in the file.
+- `mode` is always `sequential`.
+- `createdAt` and `updatedAt` are times in milliseconds since 1970. Settings sets them when it saves.
+- `hiddenBuiltInPresetIds` hides built-in presets by id: `code-review`, `debate`, or `red-team`.
+
+A preset that does not match this format is skipped without an error, so check the list in **Settings > Waggle Mode** after editing the file by hand. The format has a JSON Schema, [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json). Settings rewrites the file without a `"$schema"` key, so associate the schema in your editor instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
+
 ## How it works
 
 1. Agent A receives the task and responds, using available tools when needed.

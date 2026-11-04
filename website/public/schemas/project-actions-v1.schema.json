@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwaggle.ai/schemas/project-actions-v1.schema.json",
+  "title": "OpenWaggle .openwaggle/actions.json",
+  "description": "Project actions and workspace preparation shared with everyone working on the project. Edit them in Settings > Project actions; OpenWaggle rejects a file with unknown keys.",
+  "type": "object",
+  "required": [
+    "version",
+    "actions",
+    "profiles",
+    "preparation"
+  ],
+  "properties": {
+    "version": {
+      "type": "number",
+      "enum": [
+        1
+      ],
+      "description": "File format version. Always 1."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "invocation",
+          "kind",
+          "allowConcurrent",
+          "autoOpenPreview"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+            "description": "Stable identifier: letters, digits, \".\", \"_\", and \"-\", starting with a letter or digit."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S",
+            "description": "Name shown in the panel. Give each action a different name."
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "play",
+              "test",
+              "lint",
+              "configure",
+              "build",
+              "debug"
+            ],
+            "description": "Icon shown beside the name."
+          },
+          "invocation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "command",
+                  "directory"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "command"
+                    ]
+                  },
+                  "command": {
+                    "type": "string",
+                    "maxLength": 8192,
+                    "pattern": "\\S",
+                    "description": "The command line, run by your shell. It receives OPENWAGGLE_PROJECT_ROOT and OPENWAGGLE_WORKTREE_PATH."
+                  },
+                  "directory": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "pattern": "^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$",
+                    "description": "Working folder relative to the workspace root, with forward slashes. \".\" is the root."
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "task"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "task"
+                    ]
+                  },
+                  "task": {
+                    "type": "object",
+                    "required": [
+                      "provider",
+                      "source",
+                      "task",
+                      "directory"
+                    ],
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "package-script",
+                          "hatch-script",
+                          "cargo-alias"
+                        ],
+                        "description": "package-script: a package.json script. hatch-script: a Hatch environment script. cargo-alias: a Cargo alias."
+                      },
+                      "source": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "pattern": "^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$",
+                        "description": "The file that defines the script, relative to the workspace root, such as package.json or packages/web/package.json."
+                      },
+                      "task": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "pattern": "\\S",
+                        "description": "The script or alias name, such as test."
+                      },
+                      "directory": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "pattern": "^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$",
+                        "description": "Folder the script runs in, relative to the workspace root. For a package script, the folder of its package.json."
+                      },
+                      "environment": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "pattern": "\\S",
+                        "description": "The Hatch environment of a hatch-script."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "A script the project defines. It stays linked: later runs use the script as it is in the session workspace."
+                  }
+                },
+                "additionalProperties": false
+              }
+            ],
+            "description": "What it runs: a command you typed (command) or a project script (task)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "task",
+              "service"
+            ],
+            "description": "task: finishes by itself, such as tests or a build (Stops when done). service: keeps running until stopped, such as a dev server (Keeps running)."
+          },
+          "allowConcurrent": {
+            "type": "boolean",
+            "description": "true starts another copy when you run it while it is still running. Must be false for a service."
+          },
+          "autoOpenPreview": {
+            "type": "boolean",
+            "description": "Open the browser preview when the server is ready."
+          },
+          "previewUrl": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Address to preview instead of the one detected in the output. http or https, without a user name or password."
+          },
+          "shortcutRules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "shortcut"
+              ],
+              "properties": {
+                "shortcut": {
+                  "type": "object",
+                  "required": [
+                    "key"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "mod": {
+                      "type": "boolean"
+                    },
+                    "ctrl": {
+                      "type": "boolean"
+                    },
+                    "shift": {
+                      "type": "boolean"
+                    },
+                    "alt": {
+                      "type": "boolean"
+                    },
+                    "meta": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "when": {
+                  "type": "string",
+                  "maxLength": 256,
+                  "description": "Condition for the binding, using context names with !, &&, ||, and parentheses."
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Precedence among the project action shortcuts. A later order wins."
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 256,
+            "description": "Keyboard shortcuts for the action, usually recorded in the action panel or Settings > Shortcuts. A project may have at most 256."
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "service"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "allowConcurrent": {
+                  "const": false
+                }
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 100,
+      "description": "Actions shown in the Project Actions panel. Each id must be different."
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+            "description": "Stable identifier: letters, digits, \".\", \"_\", and \"-\", starting with a letter or digit."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S",
+            "description": "Profile name shown when you create a worktree."
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 20,
+      "description": "Setup profiles. The default profile, with id \"default\", exists without an entry here."
+    },
+    "preparation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "profileId",
+          "phase",
+          "invocation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+            "description": "Stable identifier: letters, digits, \".\", \"_\", and \"-\", starting with a letter or digit."
+          },
+          "profileId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+            "description": "The profile it belongs to: \"default\", or the id of an entry in profiles."
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "setup",
+              "cleanup"
+            ],
+            "description": "setup runs when a new managed worktree is created, before the first agent turn. cleanup runs before the worktree is removed."
+          },
+          "invocation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "command",
+                  "directory"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "command"
+                    ]
+                  },
+                  "command": {
+                    "type": "string",
+                    "maxLength": 8192,
+                    "pattern": "\\S",
+                    "description": "The command line, run by your shell. It receives OPENWAGGLE_PROJECT_ROOT and OPENWAGGLE_WORKTREE_PATH."
+                  },
+                  "directory": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "pattern": "^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$",
+                    "description": "Working folder relative to the workspace root, with forward slashes. \".\" is the root."
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "task"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "task"
+                    ]
+                  },
+                  "task": {
+                    "type": "object",
+                    "required": [
+                      "provider",
+                      "source",
+                      "task",
+                      "directory"
+                    ],
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "package-script",
+                          "hatch-script",
+                          "cargo-alias"
+                        ],
+                        "description": "package-script: a package.json script. hatch-script: a Hatch environment script. cargo-alias: a Cargo alias."
+                      },
+                      "source": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "pattern": "^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$",
+                        "description": "The file that defines the script, relative to the workspace root, such as package.json or packages/web/package.json."
+                      },
+                      "task": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "pattern": "\\S",
+                        "description": "The script or alias name, such as test."
+                      },
+                      "directory": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "pattern": "^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$",
+                        "description": "Folder the script runs in, relative to the workspace root. For a package script, the folder of its package.json."
+                      },
+                      "environment": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "pattern": "\\S",
+                        "description": "The Hatch environment of a hatch-script."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "A script the project defines. It stays linked: later runs use the script as it is in the session workspace."
+                  }
+                },
+                "additionalProperties": false
+              }
+            ],
+            "description": "What it runs: a command you typed (command) or a project script (task)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100,
+      "description": "Setup and cleanup for managed worktrees: at most one of each per profile. A shared definition runs on a computer only after that person checks it and turns it on."
+    }
+  },
+  "additionalProperties": false
+}
