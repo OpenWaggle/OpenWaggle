@@ -375,3 +375,30 @@ export async function seedMissingWorktreeSession(
     ],
   })
 }
+
+interface FeatureSessionsInput {
+  readonly userDataDir: string
+  readonly project: ScreenshotProject
+  readonly homeDir: string
+}
+
+let pendingFeatureSessions: FeatureSessionsInput | null = null
+
+/**
+ * Remembers where to seed the feature Sessions. They are seeded by the first capture that needs
+ * them, after the older captures ran, so those keep their sidebars unchanged.
+ */
+export function registerFeatureSessions(input: FeatureSessionsInput) {
+  pendingFeatureSessions = input
+}
+
+/** Seeds the feature Sessions once into the running app's Host database; the caller reloads. */
+export async function seedFeatureSessionsOnce() {
+  const input = pendingFeatureSessions
+  if (!input) return false
+  pendingFeatureSessions = null
+  await seedCodemodeSession(input.userDataDir, input.project.projectPath)
+  await seedCompactionSession(input.userDataDir, input.project.projectPath)
+  await seedMissingWorktreeSession(input.userDataDir, input.project, input.homeDir)
+  return true
+}

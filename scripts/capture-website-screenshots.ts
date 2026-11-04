@@ -26,9 +26,7 @@ import {
 } from './website-screenshot-feature-captures'
 import {
   addFeatureProjectFiles,
-  seedCodemodeSession,
-  seedCompactionSession,
-  seedMissingWorktreeSession,
+  registerFeatureSessions,
 } from './website-screenshot-feature-fixture'
 import { startScreenshotModel } from './website-screenshot-feature-model'
 import {
@@ -144,9 +142,7 @@ async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProje
   await seedMarketingSession(profile.userDataDir, project.projectPath)
   await seedBrowserSession(profile.userDataDir, project.projectPath)
   const hive = await seedHiveExample(profile.userDataDir, project)
-  await seedCodemodeSession(profile.userDataDir, project.projectPath)
-  await seedCompactionSession(profile.userDataDir, project.projectPath)
-  await seedMissingWorktreeSession(profile.userDataDir, project, profile.homeDir)
+  registerFeatureSessions({ userDataDir: profile.userDataDir, project, homeDir: profile.homeDir })
   await first.app.close()
   const launched = await launchApp(profile, project.projectPath)
   await createScheduledTasks(

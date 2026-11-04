@@ -11,6 +11,7 @@ import {
   MISSING_WORKTREE_THREAD_TITLE,
   WAGGLE_PRESET_NAME,
   WAGGLE_THREAD_TITLE,
+  seedFeatureSessionsOnce,
 } from './website-screenshot-feature-fixture'
 import { screenshotModel } from './website-screenshot-feature-model'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
@@ -130,6 +131,16 @@ async function openSettingsSection(page: Page, section: string) {
   await waitForUi(page)
 }
 
+/** Seeds the feature Sessions on first use and reloads, so the sidebar lists them. */
+async function openFeatureSession(page: Page, title: string) {
+  await leaveSettings(page)
+  if (await seedFeatureSessionsOnce()) {
+    await page.reload()
+    await page.getByRole('button', { name: 'New session' }).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  }
+  await openSession(page, title)
+}
+
 async function leaveSettings(page: Page) {
   const back = page.getByRole('button', { name: 'Back to app' })
   if (await back.isVisible()) await back.click()
@@ -231,8 +242,7 @@ export async function captureAllPanels(context: CaptureContext) {
 /** A finished codemode call, expanded to show its tool calls, script and output. */
 export async function captureCodemodeCard(context: CaptureContext) {
   const { page } = context
-  await leaveSettings(page)
-  await openSession(page, CODEMODE_THREAD_TITLE)
+  await openFeatureSession(page, CODEMODE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
   const expandTurn = page.getByRole('button', { name: 'Expand turn details' }).first()
@@ -247,8 +257,7 @@ export async function captureCodemodeCard(context: CaptureContext) {
 /** The Context compacted marker between the messages before and after a manual compaction. */
 export async function captureCompactionMarker(context: CaptureContext) {
   const { page } = context
-  await leaveSettings(page)
-  await openSession(page, COMPACTION_THREAD_TITLE)
+  await openFeatureSession(page, COMPACTION_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
   const transcript = await box(page.getByRole('log', { name: 'Chat messages' }))
@@ -269,8 +278,7 @@ export async function captureCompactionMarker(context: CaptureContext) {
 /** The missing-worktree notice above the message box, with its two recovery actions. */
 export async function captureMissingWorktree(context: CaptureContext) {
   const { page } = context
-  await leaveSettings(page)
-  await openSession(page, MISSING_WORKTREE_THREAD_TITLE)
+  await openFeatureSession(page, MISSING_WORKTREE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
   const notice = await box(page.getByRole('button', { name: 'Recreate worktree' }).locator('xpath=../..'))
