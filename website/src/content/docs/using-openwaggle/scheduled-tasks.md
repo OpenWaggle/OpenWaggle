@@ -177,4 +177,57 @@ openwaggle schedules import tasks.json
 
 Add `--json` for versioned machine output. `export` prints tasks as JSON that `import` creates again under your identity. Tasks are stored only by the Session Host. No file creates one, and a project cannot share one.
 
+`openwaggle schedules export` writes a JSON array with one object per task; `--project <path>` limits it to one project. This export holds a Heartbeat and a Launch schedule:
+
+```json
+[
+  {
+    "name": "Watch CI",
+    "prompt": "Fix the failing checks.",
+    "enabled": true,
+    "schedule": { "kind": "interval", "everyMinutes": 30 },
+    "timeZone": "Europe/Madrid",
+    "endsAt": null,
+    "maxRuns": null,
+    "target": {
+      "kind": "heartbeat",
+      "sessionId": "3f6c1b9e-2d4a-4c8e-9b71-5a0e6d2f8c13"
+    },
+    "notificationPolicy": "failures-only",
+    "heartbeat": {
+      "stopWhen": "CI is green",
+      "indefinite": false,
+      "idlePauseAfter": 3,
+      "wakeCheck": {
+        "command": "gh pr checks 42 | grep -i fail",
+        "onFailure": "wake"
+      }
+    }
+  },
+  {
+    "name": "Morning triage",
+    "prompt": "Triage the issues opened since yesterday.",
+    "enabled": true,
+    "schedule": { "kind": "daily", "at": "09:00", "weekdays": [1, 2, 3, 4, 5] },
+    "timeZone": "Europe/Madrid",
+    "endsAt": null,
+    "maxRuns": null,
+    "target": {
+      "kind": "launch",
+      "projectPath": "/Users/you/code/shop",
+      "workspace": "new-worktree",
+      "archiveFinishedSessions": true
+    },
+    "notificationPolicy": "every-run"
+  }
+]
+```
+
+- `schedule` is `{ "kind": "interval", "everyMinutes" }`, `{ "kind": "daily", "at", "weekdays" }` with ISO weekdays (1 is Monday), or `{ "kind": "rrule", "rule" }`.
+- `endsAt` is a time in milliseconds since 1970, or `null`. `maxRuns` is a number of runs, or `null`.
+- `target` names the Session a Heartbeat wakes, or the project, workspace, and Agent definition (`agentDefinitionName`) a Launch schedule starts. A task with its own model or thinking level also has `modelId` or `thinkingLevel` there.
+- `heartbeat` appears only on a Heartbeat.
+
+The export leaves out task ids, run history, and status. A Heartbeat's `sessionId` names a Session on the computer that exported it. Importing that Heartbeat where no Session has that id is refused with `That Session was not found.`
+
 An access profile needs the `schedules:read` capability to list tasks and `schedules:manage` to change them. See [Hive CLI](/docs/developer-workflow/hive-cli) for `--profile`.

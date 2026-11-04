@@ -86,7 +86,48 @@ Choose **In the project** for an action, or project storage for setup or cleanup
 
 Each action, setup, and cleanup has its own storage choice. A private override can customize a shared definition without changing the repository copy. **Restore shared version** removes that override.
 
-Discovering shared setup or cleanup does not enable it. Review and enable the definition locally before automatic execution. Worktrees retain their selected preparation profile's snapshot until you explicitly adopt an update. See [Project actions](/docs/configuration/project-actions) for creating tasks, running services, and preparing workspaces.
+Discovering shared setup or cleanup does not enable it. Review and enable the definition locally before automatic execution. Worktrees retain their selected preparation profile's snapshot until you explicitly adopt an update. See [Project actions](/docs/configuration/project-actions) for creating tasks, running services, and preparing workspaces, and [What the shared file contains](/docs/configuration/project-actions#what-the-shared-file-contains) for an example `actions.json` and its fields.
+
+## JSON Schemas for editors
+
+OpenWaggle publishes a JSON Schema for each project file whose format it owns. An editor that knows the schema completes keys and flags mistakes before OpenWaggle reads the file.
+
+| File | Schema | `"$schema"` key |
+| --- | --- | --- |
+| `.openwaggle/settings.json` | [`project-settings.schema.json`](https://openwaggle.ai/schemas/project-settings.schema.json) | Supported |
+| `.openwaggle/actions.json` | [`project-actions-v1.schema.json`](https://openwaggle.ai/schemas/project-actions-v1.schema.json) | Not allowed |
+| `~/.openwaggle/mcp.json`, `.openwaggle/mcp.json` | [`mcp.schema.json`](https://openwaggle.ai/schemas/mcp.schema.json) | Supported |
+| `.pi/waggle-presets.json`, `~/.pi/agent/waggle-presets.json` | [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json) | Removed when Settings saves the file |
+
+Each schema lives at `https://openwaggle.ai/schemas/` followed by its file name. Where the key is supported, name the schema at the top of the file, and OpenWaggle keeps the key when it writes the file:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "sessionHost": {
+    "multiAgentEnabled": true
+  }
+}
+```
+
+OpenWaggle rejects an unknown key in `actions.json`, `"$schema"` included. Settings rewrites the Waggle presets file without it. For those two files, tell the editor which schema to use. In VS Code, add this to the project's `.vscode/settings.json`:
+
+```json
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["**/.openwaggle/actions.json"],
+      "url": "https://openwaggle.ai/schemas/project-actions-v1.schema.json"
+    },
+    {
+      "fileMatch": ["**/.pi/waggle-presets.json", "**/.pi/agent/waggle-presets.json"],
+      "url": "https://openwaggle.ai/schemas/waggle-presets.schema.json"
+    }
+  ]
+}
+```
+
+The settings schema does not check the `pi` object. It holds Pi's own settings, which [Pi's settings reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/settings.md) describes.
 
 ## MCP config precedence
 

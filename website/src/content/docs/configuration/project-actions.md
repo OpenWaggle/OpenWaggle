@@ -103,6 +103,92 @@ Storage is a per-definition choice. Sharing a test action does not share your ot
 
 When you edit a shared action, the question becomes **Who should get these changes?**. **Only me** keeps the shared version for everyone else and gives you a private version; Settings marks it **Locally overridden**. **Everyone on the project** updates the shared file. To move an action between private and shared without editing it, use **Storage and removal** in Settings.
 
+### What the shared file contains
+
+Settings writes `.openwaggle/actions.json` for you, so you rarely need to edit it. You will read it when a teammate's change to it shows up in a pull request. This file shares a test script that stops when done, a dev server that keeps running, and setup and cleanup for new worktrees:
+
+```json
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "test",
+      "name": "Run tests",
+      "icon": "test",
+      "invocation": {
+        "type": "task",
+        "task": {
+          "provider": "package-script",
+          "source": "package.json",
+          "task": "test",
+          "directory": "."
+        }
+      },
+      "kind": "task",
+      "allowConcurrent": false,
+      "autoOpenPreview": false
+    },
+    {
+      "id": "web-dev",
+      "name": "Web dev server",
+      "icon": "play",
+      "invocation": {
+        "type": "command",
+        "command": "pnpm dev --port 5173",
+        "directory": "apps/web"
+      },
+      "kind": "service",
+      "allowConcurrent": false,
+      "autoOpenPreview": true,
+      "previewUrl": "http://localhost:5173"
+    }
+  ],
+  "profiles": [],
+  "preparation": [
+    {
+      "id": "install",
+      "profileId": "default",
+      "phase": "setup",
+      "invocation": {
+        "type": "command",
+        "command": "pnpm install --frozen-lockfile",
+        "directory": "."
+      }
+    },
+    {
+      "id": "stop-containers",
+      "profileId": "default",
+      "phase": "cleanup",
+      "invocation": {
+        "type": "command",
+        "command": "docker compose down",
+        "directory": "."
+      }
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Always `1`. |
+| `actions[].id` | A stable identifier of letters, digits, `.`, `_`, and `-`. Settings generates one; every action needs a different one. |
+| `actions[].name` | The name in the Project Actions panel. |
+| `actions[].icon` | `play`, `test`, `lint`, `configure`, `build`, or `debug`. |
+| `actions[].invocation` | What runs. `"type": "command"` runs `command` in your shell, in `directory`. `"type": "task"` links to a project script: `provider` is `package-script`, `hatch-script` (with `environment` for the Hatch environment), or `cargo-alias`; `source` is the file that defines it; `task` is its name; `directory` is where it runs. |
+| `directory`, `source` | Relative to the workspace root, with forward slashes. `.` is the root. `..` is not allowed. |
+| `actions[].kind` | `task` for **Stops when done**, `service` for **Keeps running**. |
+| `actions[].allowConcurrent` | `true` for **Start another copy**. A `service` must use `false`. |
+| `actions[].autoOpenPreview` | `true` opens the browser preview when the server is ready. |
+| `actions[].previewUrl` | Optional. The address to preview instead of the one found in the output. |
+| `actions[].shortcutRules` | Optional. Keyboard shortcuts, recorded in the panel or in **Settings > Shortcuts**. |
+| `profiles` | Extra setup profiles, each `{ "id", "name" }`. The `default` profile needs no entry. |
+| `preparation[]` | Setup and cleanup. `profileId` names the profile, `phase` is `setup` or `cleanup`, and `invocation` works as for actions. A profile has at most one of each. |
+
+All keys are required except `previewUrl` and `shortcutRules`. OpenWaggle does not guess at a file with a missing or unknown key. **Settings > Project actions** shows the error, and the project's actions, including your private ones, are unavailable until you fix the file. Shared setup and cleanup in this file still wait for each person's review before they run, as described below.
+
+The file has a JSON Schema, [`project-actions-v1.schema.json`](https://openwaggle.ai/schemas/project-actions-v1.schema.json). Do not add a `"$schema"` key, which counts as an unknown key. To get completion and checks in your editor, associate the schema with the file instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
+
 ## Run setup for a new worktree
 
 Setup is separate from an on-demand Project Action. Configure it in **Settings > Project actions > Workspace preparation**:

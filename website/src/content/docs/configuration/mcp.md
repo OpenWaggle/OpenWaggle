@@ -89,6 +89,22 @@ Every file uses the same format:
 - `enabled: false` keeps a server without connecting to it.
 - `timeout` is how long a request may take, in seconds (default 60).
 
+OpenWaggle's two files have a JSON Schema, [`mcp.schema.json`](https://openwaggle.ai/schemas/mcp.schema.json). Name it at the top of `~/.openwaggle/mcp.json` or `.openwaggle/mcp.json` to get completion and checks in your editor; OpenWaggle keeps the key when it changes the file:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/mcp.schema.json",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+Do not point Pi's files or `.mcp.json` at it. The schema accepts secret references and SSE and WebSocket servers, which only OpenWaggle's files can hold.
+
 An entry with only `enabled`, `exposure`, or `toolExposure` changes a server defined in an earlier file and keeps the rest of it. For example, this in `.openwaggle/mcp.json` turns a global server off in one project:
 
 ```json
