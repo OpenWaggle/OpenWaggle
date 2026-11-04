@@ -15,7 +15,7 @@ export const sessionsToolCatalogScope = Type.Optional(
 export const sessionsToolProjectPath = Type.Optional(
   Type.String({
     description:
-      'Absolute path of a project in OpenWaggle, as list shows it. For list, search, delegations_list, and delegations_conflicts it applies only with catalogScope project. agent_definitions_list and agent_definitions_search read its Agent definitions (your own project by default; another project needs launch or create).',
+      'Absolute path of a project in OpenWaggle, as list shows it. For list, search, delegations_list, and delegations_conflicts it applies only with catalogScope project. agent_definitions_list and agent_definitions_search read its Agent definitions (your own project by default; another project needs launch or create, and list).',
   }),
 )
 

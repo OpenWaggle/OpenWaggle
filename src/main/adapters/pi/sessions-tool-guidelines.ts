@@ -47,9 +47,10 @@ function agentDefinitionGuideline(permits: Permits) {
   if (starts.length === 0) {
     return 'agent_definitions_list and agent_definitions_search show Agent definitions by name and description.'
   }
-  // Another project's catalog is read only by a Session that can start a Session there.
-  const otherProject =
-    permits('launch') || permits('create') ? ' (projectPath for another project)' : ''
+  // Another project's catalog is read only by a Session that can start a Session there and list
+  // its Sessions, as agentDefinitionProjectForTool requires.
+  const readsOtherProjects = (permits('launch') || permits('create')) && permits('list')
+  const otherProject = readsOtherProjects ? ' (projectPath for another project)' : ''
   return `When an Agent definition fits a role, ${either(starts)} with agent: "<name>" and keep the role out of objective; available_agents lists the project's, and agent_definitions_list and agent_definitions_search find them${otherProject}. Never pass a name that no list shows.`
 }
 

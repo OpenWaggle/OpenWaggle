@@ -126,4 +126,18 @@ describe('Hive tool Agent-definition guidance', () => {
     // A spawn-only Session is refused another project's catalog, so it is not offered one.
     expect(text).not.toContain('projectPath for another project')
   })
+
+  it('offers another project only to a Session that can also list its Sessions', async () => {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-root',
+      runId: 'run-current',
+      workingDirectory: '/project',
+      sessionCapabilities: ['sessions:create', 'sessions:start'],
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
+    expect(text).toMatch(/When an Agent definition fits a role, launch or create with agent/)
+    expect(text).not.toContain('projectPath for another project')
+  })
 })

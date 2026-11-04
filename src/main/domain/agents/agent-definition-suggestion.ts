@@ -4,7 +4,9 @@
  * deliberately conservative, because it only ever produces a hint. A role is stated in the title
  * and the objective's opening ("You are an independent code reviewer…"), while a long objective
  * mentions every role in passing ("then spawn a reviewer"), so the definition's name must appear
- * there, and a share of its description's words anywhere in the objective.
+ * there, and a share of its description's words anywhere in the objective. A short objective
+ * names the next role early too ("Fix the tests, then hand off to the reviewer"), so "there" is
+ * the title, the objective's first clause, and an explicit "you are … / act as …" phrase.
  */
 
 export interface AgentDefinitionCandidate {
@@ -19,8 +21,11 @@ export interface AgentDefinitionSuggestionInput {
 
 /** Share of a definition's description words the objective must use. */
 export const SUGGESTION_DESCRIPTION_SHARE = 0.25
-/** How much of the objective's start counts as where it states the role. */
+/** How much of the objective's start is searched for a "you are … / act as …" phrase. */
 export const ROLE_OPENING_LENGTH = 240
+
+const CLAUSE_END = /[.;,:!?\n]/u
+const ROLE_PHRASE = /\b(?:you are|you're|act as|acting as|serve as|work as)\b[^.;!?\n]*/giu
 /** A definition needs at least this many description words to be compared at all. */
 const MIN_DESCRIPTION_WORDS = 4
 /** Words shorter than this carry no role. */
@@ -143,6 +148,13 @@ function score(candidate: AgentDefinitionCandidate, objective: ObjectiveWords) {
     : undefined
 }
 
+/** Where an objective states its own role: its first clause and any "you are … / act as …". */
+function roleStatements(objective: string) {
+  const text = objective.trimStart()
+  const opening = text.slice(0, ROLE_OPENING_LENGTH)
+  return [text.split(CLAUSE_END, 1)[0] ?? '', ...(opening.match(ROLE_PHRASE) ?? [])]
+}
+
 /**
  * The one definition the objective most plainly describes, or undefined when none does or two
  * fit about equally well. A name the objective states more of wins first: "security reviewer"
@@ -154,7 +166,7 @@ export function suggestAgentDefinition(
 ): AgentDefinitionCandidate | undefined {
   const title = input.title ?? ''
   const objective = {
-    role: new Set(tokens(`${title}\n${input.objective.slice(0, ROLE_OPENING_LENGTH)}`)),
+    role: new Set(tokens(`${title}\n${roleStatements(input.objective).join('\n')}`)),
     all: words(`${title}\n${input.objective}`),
   }
   const ranked = candidates

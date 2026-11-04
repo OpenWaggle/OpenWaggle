@@ -64,7 +64,7 @@ describe('suggestAgentDefinition', () => {
       suggestAgentDefinition(
         {
           objective:
-            'Independent review: review the diff of this branch against the guidelines and the ticket with a fresh context, as a reviewer who did not write the code.',
+            'You are an independent reviewer who did not write the code: review the diff of this branch against the guidelines and the ticket with a fresh context.',
         },
         [REVIEWER, twin],
       ),
@@ -148,5 +148,14 @@ describe('suggestAgentDefinition', () => {
         [tester],
       ),
     ).toEqual(tester)
+  })
+
+  it('ignores a role a short objective hands off to', () => {
+    for (const objective of [
+      'Fix the failing tests in the security module, then hand off to the reviewer. Make sure the code is correct with no regressions against the project guidelines and the ticket.',
+      'Implement the change described below with tests; a reviewer Worker will review the diff of the branch for correctness, regressions and the project guidelines.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
   })
 })
