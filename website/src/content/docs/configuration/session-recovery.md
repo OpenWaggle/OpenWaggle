@@ -38,6 +38,8 @@ If an existing session's worktree was deleted, OpenWaggle blocks new messages an
 - **Recreate worktree** reattaches the session's branch in a new worktree. It preserves commits on that branch but cannot restore uncommitted files deleted with the old folder.
 - **Use current checkout** moves the session to the project folder you opened. Further agent edits affect that checkout, so check its branch and uncommitted work first.
 
+![The notice above the message box: This session's worktree no longer exists. Recreate it, or switch this session to the current checkout, with Recreate worktree and Use current checkout](/screenshots/missing-worktree.png)
+
 For a new session whose worktree creation failed, open **More details** on the **Worktree setup failed** card. Correct the reported Git problem and choose **Retry**. **Cancel** returns the submitted message to your draft. **Work locally** retries it in the current checkout instead.
 
 These actions change where the session runs; database restoration does not recover deleted working files. See [Missing-worktree recovery](/docs/developer-workflow/git-integration#recovering-a-missing-worktree).

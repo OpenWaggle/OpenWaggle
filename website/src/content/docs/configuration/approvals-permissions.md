@@ -15,6 +15,8 @@ Start with **Ask for Approval** while you learn how the agent works. This asks y
 4. Under **Selected project**, choose its mode or **Use default** to remove a project override.
 5. Check the agent-access control beside the message box before sending work. A session may have its own choice rather than inherit the default.
 
+![Settings > Permissions for the OpenWaggle project: Default access mode set to YOLO (Full Access), Selected project set to Use default, and an empty Saved approvals list](/screenshots/settings-permissions.png)
+
 OpenWaggle also offers **YOLO (Full Access)**. It automatically allows actions that use the app's authorization checks, without asking you each time. The shipped default is YOLO, so change it explicitly if you want approval prompts. Separate tool restrictions and ordinary questions can still apply.
 
 The project picker here only selects which project's permissions you are inspecting. It does not move your active conversation to that project.

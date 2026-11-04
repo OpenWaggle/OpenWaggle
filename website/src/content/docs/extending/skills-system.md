@@ -42,6 +42,8 @@ Keep the description specific. It helps the agent decide when the skill applies.
 
 Open **Settings > Skills** and choose the project in the header. Select a skill to preview its instructions, then enable or disable it for that project. The panel also shows the root `AGENTS.md` status.
 
+![Settings > Skills for the OpenWaggle project: AGENTS.md marked Found, two enabled skills, review-change and write-migration, and the selected review-change skill's instructions in the preview](/screenshots/settings-skills.png)
+
 The project picker can browse recent projects, projects with sessions, or another folder. Browsing does not change the project selected beside the message box.
 
 ## Slash references

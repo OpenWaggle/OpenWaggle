@@ -49,6 +49,8 @@ A codemode call appears in the conversation as **Ran a script** (or **Running a 
 
 Click the card to see the script itself and its full output, and to copy either. The card looks the same after you reopen the session.
 
+![An expanded Ran a script card with 4 tool calls: three reads and a grep, each with its arguments and duration, one read failed with a red × and its ENOENT error, then Copy script and Copy output, the JavaScript the agent wrote, and what the script printed](/screenshots/codemode-script-card.png)
+
 ## Cost and usage
 
 Model calls made from scripts count toward the session's cost and tokens, which you can see by hovering the context meter. See [Context management](/docs/using-openwaggle/context-management).

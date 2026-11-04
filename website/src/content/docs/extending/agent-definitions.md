@@ -14,6 +14,8 @@ An agent definition gives a new session a reusable role, such as a code reviewer
 3. Open **Settings > Agents**, choose the project, and preview the file. Keep the definition enabled if you want agents to select it for new sessions.
 4. Ask your agent to use the `code-reviewer` definition when creating a Worker. Include the task and file references the Worker needs.
 
+![Settings > Agents: the Hive controls for agent-created Workers, then the project's agent definitions, code-reviewer from .openwaggle/agents and release-verifier from .agents/agents, both enabled, with release-verifier selected and its frontmatter and instructions in the preview](/screenshots/settings-agents.png)
+
 Edit the Markdown file directly; Settings does not have a form editor. Changes apply to later sessions, not to a session already using the definition.
 
 A role is separate from Hive lineage. Queen and Worker describe which session started which. Either can use any available definition, or none. A definition can restrict existing permissions but cannot grant new ones.

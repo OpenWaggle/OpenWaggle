@@ -13,6 +13,11 @@ You usually do not need to manage this yourself. When a conversation gets long, 
 
 When there is enough space beside the message box, the context ring shows the percentage of the selected model's context window in use. The adjacent number is the window's token limit. Hover for usage details.
 
+![The right end of the message box toolbar, with the model and thinking level pickers, the context ring at 14, and / 1M after it, marked 1 and 2](/screenshots/context-meter.png)
+
+1. The context ring: 14% of the model's context window is in use.
+2. The window's token limit, here 1M tokens.
+
 With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that produced the latest response, because each real model has its own limit.
 
 The tooltip also shows the session's total tokens and cost, split by the real models that answered. Costs include model calls made from [codemode](/docs/using-openwaggle/codemode) scripts and prompt cache refreshes. Usage nobody can attribute to one model, such as script model calls and summaries, appears as **Tools and summaries**. Costs are what Pi's model catalog says the provider charges; your provider's bill is the final word.
@@ -34,6 +39,8 @@ Add instructions when particular details must survive:
 ```
 
 This is a command, not a request for an ordinary reply. OpenWaggle shows compaction progress in the conversation. After it finishes, a **Context compacted** marker stays in the conversation where the compaction happened, and you can continue with your next task.
+
+![A conversation with a Context compacted marker between the agent's earlier reply and the next request, which the agent answered from the compacted context](/screenshots/context-compacted.png)
 
 A summary may omit details. Keep lasting project conventions in project instructions and restate any critical constraint if the agent appears to have lost it.
 
