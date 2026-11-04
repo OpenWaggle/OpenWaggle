@@ -12,6 +12,26 @@ import {
 } from './website-screenshot-conversation-captures'
 import { captureBrowserPreview } from './website-screenshot-browser-capture'
 import {
+  captureAllPanels,
+  captureCodemodeCard,
+  captureCompactionMarker,
+  captureContextMeter,
+  captureMissingWorktree,
+  captureSettingsAgents,
+  captureSettingsPermissions,
+  captureSettingsShortcuts,
+  captureSettingsSkills,
+  captureWaggleConversation,
+  captureWaggleSettings,
+} from './website-screenshot-feature-captures'
+import {
+  addFeatureProjectFiles,
+  seedCodemodeSession,
+  seedCompactionSession,
+  seedMissingWorktreeSession,
+} from './website-screenshot-feature-fixture'
+import { startScreenshotModel } from './website-screenshot-feature-model'
+import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
@@ -58,6 +78,17 @@ const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => 
   'feature-git-workflow.png': captureGitWorkflow,
   'session-tree-panel.png': captureSessionTree,
   'feature-browser-preview.png': captureBrowserPreview,
+  'right-panel-all-panels.png': captureAllPanels,
+  'codemode-script-card.png': captureCodemodeCard,
+  'context-compacted.png': captureCompactionMarker,
+  'missing-worktree.png': captureMissingWorktree,
+  'settings-skills.png': captureSettingsSkills,
+  'settings-agents.png': captureSettingsAgents,
+  'settings-permissions.png': captureSettingsPermissions,
+  'settings-shortcuts.png': captureSettingsShortcuts,
+  'settings-waggle-mode.png': captureWaggleSettings,
+  'waggle-conversation.png': captureWaggleConversation,
+  'context-meter.png': captureContextMeter,
 }
 
 interface ScratchProfile {
@@ -113,6 +144,9 @@ async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProje
   await seedMarketingSession(profile.userDataDir, project.projectPath)
   await seedBrowserSession(profile.userDataDir, project.projectPath)
   const hive = await seedHiveExample(profile.userDataDir, project)
+  await seedCodemodeSession(profile.userDataDir, project.projectPath)
+  await seedCompactionSession(profile.userDataDir, project.projectPath)
+  await seedMissingWorktreeSession(profile.userDataDir, project, profile.homeDir)
   await first.app.close()
   const launched = await launchApp(profile, project.projectPath)
   await createScheduledTasks(
@@ -181,6 +215,7 @@ async function main() {
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
   let app: ElectronApplication | null = null
+  let model: Awaited<ReturnType<typeof startScreenshotModel>> | null = null
   try {
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
@@ -188,6 +223,8 @@ async function main() {
       homeDir: profile.homeDir,
       worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
+    await addFeatureProjectFiles(project)
+    model = await startScreenshotModel(profile.homeDir)
     const launched = await launchSeededApp(profile, project)
     app = launched.app
     const rendererErrors = observeRendererErrors(launched.page)
@@ -202,6 +239,7 @@ async function main() {
     console.info('[website-shots] screenshot capture complete')
   } finally {
     await app?.close().catch(() => undefined)
+    await model?.close()
     await releaseScratchProfile(profile)
   }
 }

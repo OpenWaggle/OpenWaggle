@@ -17,6 +17,17 @@ export const WEBSITE_SCREENSHOTS = [
   'feature-git-workflow.png',
   'session-tree-panel.png',
   'feature-browser-preview.png',
+  'right-panel-all-panels.png',
+  'codemode-script-card.png',
+  'context-compacted.png',
+  'missing-worktree.png',
+  'settings-skills.png',
+  'settings-agents.png',
+  'settings-permissions.png',
+  'settings-shortcuts.png',
+  'settings-waggle-mode.png',
+  'waggle-conversation.png',
+  'context-meter.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]
