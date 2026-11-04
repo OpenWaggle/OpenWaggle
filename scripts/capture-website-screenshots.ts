@@ -36,6 +36,16 @@ import {
   type ScreenshotProject,
 } from './website-screenshot-project'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
+import {
+  captureMcpServerDetail,
+  captureMcpServerError,
+  captureMcpServers,
+} from './website-screenshot-mcp-captures'
+import {
+  captureTerminalAddToChat,
+  captureTerminalContextChip,
+  captureTerminalSplitPanes,
+} from './website-screenshot-terminal-captures'
 import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -58,6 +68,12 @@ const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => 
   'feature-git-workflow.png': captureGitWorkflow,
   'session-tree-panel.png': captureSessionTree,
   'feature-browser-preview.png': captureBrowserPreview,
+  'terminal-split-panes.png': captureTerminalSplitPanes,
+  'terminal-add-to-chat.png': captureTerminalAddToChat,
+  'terminal-context-chip.png': captureTerminalContextChip,
+  'mcp-servers.png': captureMcpServers,
+  'mcp-server-detail.png': captureMcpServerDetail,
+  'mcp-server-error.png': captureMcpServerError,
 }
 
 interface ScratchProfile {

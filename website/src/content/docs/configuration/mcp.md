@@ -131,6 +131,8 @@ Select a server in **Settings > MCP** to see where it is defined, whether it is 
 - sign in or sign out;
 - remove it.
 
+![The page of a connected local server, release-notes: its description, the command it starts with, the file that defines it, the On switch with Turn off in this project, the Codemode and Hidden exposure choices, and its three tools, each set to Same as server (Codemode)](/screenshots/mcp-server-detail.png)
+
 A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`. Turning it back to what the other files give removes the switch from that entry, and the entry itself if nothing else is left in it, so later changes for every project apply to the project again.
 
 To keep one Session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. Its MCP servers stop at once, even during a reply, and its later replies start none. Turning it back on applies from your next message. Every Session uses MCP servers until you do this, and the change touches no file.
@@ -189,6 +191,8 @@ OpenWaggle remembers each server's tools from the last time it connected. A sess
 
 Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. A server that needs a secret you have not saved says **Needs secret** until you add it. Turning a server off or on, or saving one of its secrets again, clears the result of a check made before. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
 
+![The Servers list in Settings > MCP with three servers from OpenWaggle's file for all projects: deploy-status marked Needs secret DEPLOY_STATUS_AUTHORIZATION, issue-tracker Failed, and release-notes Connected with 3 tools](/screenshots/mcp-servers.png)
+
 A session's servers stop after 5 minutes without a new message (1 minute for a Worker whose result is under review, accepted, or cancelled), when the session is archived or deleted, when no OpenWaggle window or command is connected to the background Host, and when the Host stops. When more than three sessions have servers running, the one used least recently stops first; a session with a message in progress keeps its servers. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
 
 ## Apps, sampling, and input requests
@@ -200,6 +204,8 @@ A session's servers stop after 5 minutes without a new message (1 minute for a W
 ## When something fails
 
 Open **Settings > MCP** and select the server. Its error and the last lines it printed usually say what is wrong: a missing program, a wrong URL, or a sign-in that expired. Fix the configuration, then choose **Check connection**.
+
+![The page of a local server that failed to start, issue-tracker: the error MCP connection closed, then the last lines it printed, ending in Error: ISSUE_TRACKER_URL is not set](/screenshots/mcp-server-error.png)
 
 Files that cannot be read and entries that are not valid are listed at the top of **Settings > MCP**; other servers keep working, except while an upgrade's conversion is unfinished (see [After upgrading from an older OpenWaggle](#after-upgrading-from-an-older-openwaggle)).
 
