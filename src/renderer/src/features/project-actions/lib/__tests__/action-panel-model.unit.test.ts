@@ -246,7 +246,7 @@ describe('action panel wording', () => {
     })
     const sentence = actionSummarySentence(input)
     expect(`${sentence.before}${sentence.command}${sentence.after}`).toBe(
-      'Clicking “Start dev server” in + Action runs pnpm run dev in the project folder. It keeps running until you stop it and opens the browser preview when it is ready. Only you will have it. Saving does not run anything.',
+      'Clicking “Start dev server” in Project Actions runs pnpm run dev in the project folder. It keeps running until you stop it and opens the browser preview when it is ready. Only you will have it. Saving does not run anything.',
     )
     expect(actionSummaryLine({ ...input, sharedEdit: true }).after).toBe(
       ' · keeps running · only you get these changes',
