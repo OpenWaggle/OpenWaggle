@@ -1,11 +1,8 @@
-import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import { SupportedModelId } from '@shared/types/brand'
+import { fixtureGit } from './website-screenshot-fixture-git'
 import type { ScreenshotProject } from './website-screenshot-project'
-
-const execFileAsync = promisify(execFile)
 
 export const CODEMODE_THREAD_TITLE = 'Find the TODOs left in the API client'
 // No title may contain "Settings": the existing captures find the sidebar's Settings button by substring.
@@ -21,14 +18,6 @@ const MINUTE_MS = 60_000
 export function minutesAgo(now: number, minutes: number) {
   return now - minutes * MINUTE_MS
 }
-
-
-const GIT_IDENTITY = [
-  '-c',
-  'user.name=OpenWaggle Screenshot Fixture',
-  '-c',
-  'user.email=screenshots@openwaggle.local',
-] as const
 
 const PROJECT_FILES: Readonly<Record<string, string>> = {
   // Project Waggle presets live in `.pi/`; ignored, so saving one leaves the Changes panel alone.
@@ -92,16 +81,12 @@ const PROJECT_FILES: Readonly<Record<string, string>> = {
  * Project instructions, two skills and two agent definitions for Settings > Skills and Agents.
  * Committed, so the Changes panel still shows only the fixture's README edit.
  */
-export async function addFeatureProjectFiles(project: ScreenshotProject) {
+export async function addFeatureProjectFiles(project: ScreenshotProject, homeDir: string) {
   for (const [relativePath, content] of Object.entries(PROJECT_FILES)) {
     const target = path.join(project.projectPath, relativePath)
     await fs.mkdir(path.dirname(target), { recursive: true })
     await fs.writeFile(target, content, 'utf8')
   }
-  await execFileAsync('git', [...GIT_IDENTITY, 'add', ...Object.keys(PROJECT_FILES)], {
-    cwd: project.projectPath,
-  })
-  await execFileAsync('git', [...GIT_IDENTITY, 'commit', '-m', 'chore: add agent instructions'], {
-    cwd: project.projectPath,
-  })
+  await fixtureGit(project.projectPath, ['add', ...Object.keys(PROJECT_FILES)], homeDir)
+  await fixtureGit(project.projectPath, ['commit', '-m', 'chore: add agent instructions'], homeDir)
 }

@@ -169,7 +169,7 @@ async function main() {
       homeDir: profile.homeDir,
       worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
-    await addFeatureProjectFiles(project)
+    await addFeatureProjectFiles(project, profile.homeDir)
     const launched = await launchSeededApp(profile, project)
     app = launched.app
     page = launched.page

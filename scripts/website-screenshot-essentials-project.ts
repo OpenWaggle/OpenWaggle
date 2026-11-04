@@ -1,17 +1,8 @@
-import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { promisify } from 'node:util'
+import { fixtureGit } from './website-screenshot-fixture-git'
 
-const execFileAsync = promisify(execFile)
 const JSON_INDENT = 2
-
-const GIT_IDENTITY = [
-  '-c',
-  'user.name=Fieldnotes Screenshot Fixture',
-  '-c',
-  'user.email=screenshots@fieldnotes.local',
-] as const
 
 export const ESSENTIALS_PROJECT_NAME = 'fieldnotes'
 /** A managed worktree on a feature branch with an upstream it is ahead of and behind. */
@@ -21,10 +12,6 @@ const ESSENTIALS_FEATURE_BRANCH = 'feature/settings-schema'
 export interface EssentialsProject {
   readonly projectPath: string
   readonly featureWorktreePath: string
-}
-
-function git(cwd: string, args: readonly string[]) {
-  return execFileAsync('git', [...GIT_IDENTITY, ...args], { cwd })
 }
 
 const PACKAGE_JSON = {
@@ -226,6 +213,7 @@ export async function createEssentialsProject(input: {
   readonly scratchRoot: string
   readonly homeDir: string
 }): Promise<EssentialsProject> {
+  const git = (cwd: string, args: readonly string[]) => fixtureGit(cwd, args, input.homeDir)
   const projectPath = path.join(input.scratchRoot, ESSENTIALS_PROJECT_NAME)
   const remotePath = path.join(input.scratchRoot, 'remotes', `${ESSENTIALS_PROJECT_NAME}.git`)
   await fs.mkdir(projectPath, { recursive: true })
