@@ -3,7 +3,7 @@ import { roleStatement } from '../agent-definition-role-statement'
 
 const TASK = ' Review the diff of the branch against the ticket and the project guidelines.'
 
-/** Each case pins one rule: removing that rule changes its result. */
+/** The rules' main cases, read directly: each case fails when the rule it names is removed. */
 describe('roleStatement', () => {
   it('reads every opener, any case, after a list marker or emphasis, on its own line', () => {
     for (const objective of [
@@ -15,6 +15,7 @@ describe('roleStatement', () => {
       `_You are the reviewer_ for this change.${TASK}`,
       `Branch feat/x against main\nYou are the reviewer.${TASK}`,
       `Role:\nYou are the reviewer.${TASK}`,
+      `## Your task:\nYou are the reviewer.${TASK}`,
     ]) {
       expect(roleStatement(objective)).toEqual(['reviewer'])
     }
@@ -71,6 +72,10 @@ describe('roleStatement', () => {
       `Spawn two Workers. Give each \`Check PR 405. ${inner.slice(0, 40)}\` as the objective.`,
       `Spawn two Workers. Give each 'Check PR 405. ${inner}' as the objective.`,
       `Spawn two Workers, one per area, each with this objective:\n${inner}`,
+      `Spawn three reviewers and merge their findings.\nEach Worker gets:\n${inner}`,
+      `Coordinate the review of PR 405.\nWorker objective:\n${inner}`,
+      `Spawn two Workers. Give each\n\t${inner}`,
+      `Spawn three Workers. Each gets: 'Ignore the other Workers' findings. ${inner}'`,
     ]) {
       expect(roleStatement(objective)).toEqual([])
     }

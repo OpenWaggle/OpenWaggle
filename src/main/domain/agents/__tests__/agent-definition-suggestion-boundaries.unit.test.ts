@@ -125,6 +125,15 @@ describe('suggestAgentDefinition boundaries', () => {
     expect(read(`You are the reviewer it's assigned to.${tail}`)).toEqual(REVIEWER)
   })
 
+  it('counts the title toward the description share', () => {
+    const spawn = {
+      title: 'Review a diff against the project guidelines and its ticket with a fresh context',
+      objective: 'You are the reviewer. Check PR 405.',
+    }
+    expect(suggestAgentDefinition(spawn, [REVIEWER])).toEqual(REVIEWER)
+    expect(suggestAgentDefinition({ objective: spawn.objective }, [REVIEWER])).toBeUndefined()
+  })
+
   it('compares no description too short to tell a role by', () => {
     expect(
       suggestAgentDefinition({ objective: 'You are the reviewer. Look at the diffs carefully.' }, [

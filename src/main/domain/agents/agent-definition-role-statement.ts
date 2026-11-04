@@ -30,7 +30,9 @@ const QUOTED = new RegExp(
     '`[^`\\n]*`',
     '"[^"]*(?:"|(?![\\s\\S]))',
     '“[^”]*(?:”|(?![\\s\\S]))',
-    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}]))*['’](?![\\p{L}\\p{N}])",
+    // Inside, an apostrophe before a letter ("it's") or a plural possessive ("Workers' findings")
+    // goes on; greedy, the span still falls back to that s' when no later quote closes it.
+    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}])|(?<=s)['’](?=[ \\t]+\\p{Ll}))*['’](?![\\p{L}\\p{N}])",
   ].join('|'),
   'gmu',
 )
@@ -64,8 +66,9 @@ const PHRASE_BREAKS = new Set(
 )
 /** The longest noun phrase read after the opener, determiner excluded; a longer one is no role. */
 const MAX_PHRASE_WORDS = 5
-/** A line ending in a colon with more words than this introduces someone else's text. */
-const MAX_LABEL_WORDS = 3
+/** A label line that introduces the objective's own text: "Role:", "Your task:", "## Context:". */
+const OWN_LABEL =
+  /^[\s*_#>-]*(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)\s*:\s*$/iu
 
 export function nameWords(name: string) {
   // Every word of the name, short ones included: `ux-reviewer` and `qa` keep their qualifier.
@@ -119,15 +122,14 @@ const SPEAKER_AFTER_ROLE =
 
 /**
  * The text up to the end of a line that ends in a colon and introduces what follows ("…each
- * with this objective:"), after which the text is someone else's, quoted or not. A label of up
- * to three words ("Role:", "Your task:") introduces the objective's own text, so it does not cut.
+ * with this objective:", "Worker objective:"), after which the text is someone else's, quoted or
+ * not. Only a label of the objective's own (`OWN_LABEL`) does not cut.
  */
 function beforeIntroducingLine(text: string) {
   let start = 0
   for (const line of text.split('\n')) {
     start += line.length + 1
-    if (/:\s*$/u.test(line) && line.trim().split(/\s+/u).length > MAX_LABEL_WORDS)
-      return text.slice(0, start)
+    if (/:\s*$/u.test(line) && !OWN_LABEL.test(line)) return text.slice(0, start)
   }
   return text
 }
