@@ -104,6 +104,8 @@
     "website:build": "pnpm package-docs:check && pnpm --filter @openwaggle/website build",
     "website:preview": "pnpm --filter @openwaggle/website preview",
     "website:test": "pnpm --filter @openwaggle/website test",
+    "website:schemas": "tsx scripts/generate-published-json-schemas.ts",
+    "website:schemas:check": "tsx scripts/generate-published-json-schemas.ts --check",
     "docs:generate": "tsx scripts/generate-installed-docs.ts",
     "typecheck:tests": "tsx scripts/check-renderer-test-types.ts",
     "benchmark:syntax": "tsx scripts/benchmarks/syntax-highlighting.ts --check"
