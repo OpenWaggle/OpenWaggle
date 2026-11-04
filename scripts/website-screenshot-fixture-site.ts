@@ -1,5 +1,5 @@
 import http from 'node:http'
-import type { AddressInfo } from 'node:net'
+import { LOOPBACK_HOST, listenOnLoopback } from './website-screenshot-loopback'
 
 /** A small, self-contained product dashboard for the Browser preview screenshot. */
 const JOTTER_PAGE = `<!doctype html>
@@ -70,27 +70,10 @@ const HTTP_OK = 200
  */
 const PREFERRED_PORT = 47_318
 const ANY_FREE_PORT = 0
-const LOOPBACK_HOST = '127.0.0.1'
 
 export interface FixtureSite {
   readonly url: string
   readonly close: () => Promise<void>
-}
-
-function listen(server: http.Server, port: number) {
-  return new Promise<void>((resolve, reject) => {
-    const onError = (error: Error) => {
-      server.off('listening', onListening)
-      reject(error)
-    }
-    const onListening = () => {
-      server.off('error', onError)
-      resolve()
-    }
-    server.once('error', onError)
-    server.once('listening', onListening)
-    server.listen(port, LOOPBACK_HOST)
-  })
 }
 
 function isAddressInUse(error: unknown) {
@@ -103,19 +86,18 @@ export async function startFixtureSite(): Promise<FixtureSite> {
     response.writeHead(HTTP_OK, { 'content-type': 'text/html; charset=utf-8' })
     response.end(JOTTER_PAGE)
   })
+  let port: number
   try {
-    await listen(server, PREFERRED_PORT)
+    port = await listenOnLoopback(server, PREFERRED_PORT)
   } catch (error) {
     if (!isAddressInUse(error)) throw error
     console.warn(
       `[website-shots] port ${String(PREFERRED_PORT)} is taken; the Browser preview images will show another port`,
     )
-    await listen(server, ANY_FREE_PORT)
+    port = await listenOnLoopback(server, ANY_FREE_PORT)
   }
-  const address: AddressInfo | string | null = server.address()
-  if (address === null || typeof address === 'string') throw new Error('Fixture site has no port.')
   return {
-    url: `http://${LOOPBACK_HOST}:${String(address.port)}/`,
+    url: `http://${LOOPBACK_HOST}:${String(port)}/`,
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve())

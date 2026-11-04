@@ -1,5 +1,6 @@
 import http from 'node:http'
-import type { AddressInfo, Socket } from 'node:net'
+import type { Socket } from 'node:net'
+import { LOOPBACK_HOST, listenOnLoopback } from './website-screenshot-loopback'
 import {
   type FinishHeldReply,
   type ScriptedReply,
@@ -61,6 +62,8 @@ export interface FixtureModelServer {
 
 const HTTP_NOT_FOUND = 404
 const HTTP_BAD_REQUEST = 400
+/** Any free port: nothing in the images shows the model server's address. */
+const ANY_FREE_PORT = 0
 /** The Host's title prompts (`session-title-prompts.ts`) open with one of these. */
 const TITLE_PROMPT_PREFIXES = ['Generate a title', 'Regenerate the title'] as const
 const FALLBACK_TITLE = 'Review the project'
@@ -179,7 +182,7 @@ type WireFormat = 'openai' | 'anthropic'
 function wireFormatOf(request: http.IncomingMessage): WireFormat | null {
   if (request.method !== 'POST') return null
   // The Anthropic SDK may add a query, such as `?beta=true`.
-  const { pathname } = new URL(request.url ?? '/', 'http://127.0.0.1')
+  const { pathname } = new URL(request.url ?? '/', `http://${LOOPBACK_HOST}`)
   if (pathname === '/v1/chat/completions') return 'openai'
   if (pathname === '/v1/messages') return 'anthropic'
   return null
@@ -244,12 +247,8 @@ export async function startFixtureModelServer(
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address: AddressInfo | string | null = server.address()
-  if (address === null || typeof address === 'string') {
-    throw new Error('Fixture model server has no port.')
-  }
-  const origin = `http://127.0.0.1:${String(address.port)}`
+  const port = await listenOnLoopback(server, ANY_FREE_PORT)
+  const origin = `http://${LOOPBACK_HOST}:${String(port)}`
   return {
     openAiBaseUrl: `${origin}/v1`,
     anthropicBaseUrl: origin,
