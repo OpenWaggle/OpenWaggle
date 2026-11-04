@@ -208,4 +208,48 @@ describe('suggestAgentDefinition', () => {
       expect(suggestAgentDefinition({ objective }, [REVIEWER])).toEqual(REVIEWER)
     }
   })
+
+  it('keeps every word of a name, short ones included', () => {
+    const ux = { ...REVIEWER, name: 'ux-reviewer' }
+    const qa = { ...REVIEWER, name: 'qa' }
+    const generic =
+      'You are a code reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.'
+    const specific =
+      'You are the UX reviewer with a fresh context. Review the diff of the branch against the ticket and the project guidelines.'
+
+    expect(suggestAgentDefinition({ objective: generic }, [ux])).toBeUndefined()
+    expect(suggestAgentDefinition({ objective: specific }, [REVIEWER, ux])).toEqual(ux)
+    expect(
+      suggestAgentDefinition(
+        {
+          objective:
+            'You are the QA for this change. Review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+        },
+        [qa],
+      ),
+    ).toEqual(qa)
+  })
+
+  it('reads no role when the opener leads into a verb or a possessive', () => {
+    for (const objective of [
+      'You are helping the reviewer: review the diff of the branch against the ticket and the project guidelines.',
+      'You are replacing the reviewer, so review the diff of the branch against the ticket and the project guidelines.',
+      'As per the reviewer, fix the regression in the diff of the branch against the ticket and the project guidelines.',
+      'You are no longer the reviewer: review the diff of the branch against the ticket and the project guidelines.',
+      "You are the reviewers' pair: review the diff of the branch against the ticket and the project guidelines.",
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toBeUndefined()
+    }
+  })
+
+  it('reads the role past an adverb, a contraction after it, and any spacing', () => {
+    for (const objective of [
+      'You are now the reviewer. Review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+      "You are the reviewer who's checking this change. Review the diff of the branch against the ticket and the project guidelines.",
+      'You  are the reviewer. Review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+      'You\u00a0are the reviewer. Review the diff of the branch against the ticket and the project guidelines with a fresh context.',
+    ]) {
+      expect(suggestAgentDefinition({ objective }, [REVIEWER])).toEqual(REVIEWER)
+    }
+  })
 })

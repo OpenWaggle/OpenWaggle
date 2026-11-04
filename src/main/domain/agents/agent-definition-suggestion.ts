@@ -26,9 +26,13 @@ export const SUGGESTION_DESCRIPTION_SHARE = 0.25
 export const ROLE_OPENING_LENGTH = 240
 
 const CLAUSE_END = /[.;!?\n]+/u
-const ROLE_OPENER = /^(?:you are|you['’]re|act as|acting as|serve as|work as|as)\s+/iu
-/** Words that may open the role's noun phrase without being part of it. */
+const ROLE_OPENER = /^(?:you\s+are|you['’]re|act\s+as|acting\s+as|serve\s+as|work\s+as|as)\s+/iu
+/** Words that may open the role's noun phrase without being part of it, once, before its words. */
 const DETERMINERS = new Set(['a', 'an', 'the', 'our', 'this', 'one', 'another'])
+/** Adverbs that may come before the determiner: "You are now the reviewer". */
+const LEADING_ADVERBS = new Set(['now', 'also', 'again', 'still'])
+/** Bases of a 's that is a contraction ("who's", "it's"), which ends the phrase, not a possessive. */
+const CONTRACTION_BASES = new Set(['who', 'that', 'it', 'here', 'there', 'what', 'he', 'she'])
 /** Words that end the role's noun phrase: what follows them is not the role itself. */
 const PHRASE_BREAKS = new Set(
   'for of to with who whom whose that which on in at from and or but not nor than by about as into over under while when where so then'.split(
@@ -133,16 +137,47 @@ interface ObjectiveWords {
   readonly all: ReadonlySet<string>
 }
 
-/** "independent code reviewer" from "an independent code reviewer with a fresh context". */
+function nameWords(name: string) {
+  // Every word of the name, short ones included: `ux-reviewer` and `qa` keep their qualifier.
+  return name
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+}
+
+/** Whether a word is a possessive ("reviewer's", "reviewers'"), whose head is the next word. */
+function isPossessive(raw: string, word: string) {
+  const singular = /^(.*?)['’]s\b/u.exec(word)
+  if (singular)
+    return !CONTRACTION_BASES.has(singular[1] ?? '') && !PHRASE_BREAKS.has(singular[1] ?? '')
+  // A trailing quote after an s is a plural possessive unless the word opened with a quote.
+  return /s['’]$/u.test(word.replace(/[^\p{L}\p{N}'’]+$/u, '')) && !/^['’"“‘]/u.test(raw)
+}
+
+/**
+ * "independent code reviewer" from "an independent code reviewer with a fresh context": the
+ * noun phrase right after the opener. A determiner may open it once; one later on means the
+ * opener led into something else ("You are helping the reviewer", "As per the reviewer"), and a
+ * possessive means its head is another noun ("the reviewer's assistant"), so both give no phrase.
+ */
 function rolePhrase(rest: string) {
   const phrase: string[] = []
-  for (const [index, raw] of rest.split(/\s+/u).entries()) {
+  let opening = true
+  for (const raw of rest.split(/\s+/u)) {
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
-    // "the reviewer's findings": the role is what follows the possessive, never read here.
-    if (/['’]s\b/u.test(word)) return []
+    if (isPossessive(raw, word)) return []
+    // "who's", "it's": a contraction ends the phrase, as "who" or "it" would.
+    if (/['’]s\b/u.test(word)) break
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
     if (core === '' || PHRASE_BREAKS.has(core)) break
-    if (!(index === 0 && DETERMINERS.has(core))) phrase.push(...core.split('-').filter(Boolean))
+    if (opening && LEADING_ADVERBS.has(core)) continue
+    if (DETERMINERS.has(core)) {
+      if (!opening) return []
+      opening = false
+      continue
+    }
+    opening = false
+    phrase.push(...nameWords(core))
     if (core !== word || phrase.length >= MAX_PHRASE_WORDS) break
   }
   return phrase
@@ -171,22 +206,22 @@ function namesWord(phraseWord: string | undefined, nameWord: string) {
  * phrase's head (its last word) the name's last word. Unstemmed, so `tester` or `planner` is not
  * named by "the tests" or "the plan".
  */
-function namesRole(nameWords: readonly string[], objective: ObjectiveWords) {
-  const last = nameWords.at(-1)
+function namesRole(name: readonly string[], objective: ObjectiveWords) {
+  const last = name.at(-1)
   if (last === undefined) return false
   return objective.roles.some(
     (phrase) =>
       namesWord(phrase.at(-1), last) &&
-      nameWords.every((word) => phrase.some((phraseWord) => namesWord(phraseWord, word))),
+      name.every((word) => phrase.some((phraseWord) => namesWord(phraseWord, word))),
   )
 }
 
 function score(candidate: AgentDefinitionCandidate, objective: ObjectiveWords) {
-  const nameWords = tokens(candidate.name)
-  if (!namesRole(nameWords, objective)) return undefined
+  const name = nameWords(candidate.name)
+  if (!namesRole(name, objective)) return undefined
   // The name already passed its own test; counting it again here would give every objective that
   // names the role a free share of a description that repeats the name ("code reviewer").
-  const nameStems = new Set(nameWords.map(stem))
+  const nameStems = new Set(name.map(stem))
   const described = new Set(
     [...words(candidate.description)].filter((word) => !nameStems.has(word)),
   )
@@ -195,7 +230,7 @@ function score(candidate: AgentDefinitionCandidate, objective: ObjectiveWords) {
   for (const word of described) if (objective.all.has(word)) shared += 1
   const share = shared / described.size
   return share >= SUGGESTION_DESCRIPTION_SHARE
-    ? { share, nameLength: new Set(nameWords).size }
+    ? { share, nameLength: new Set(name).size }
     : undefined
 }
 
