@@ -1,11 +1,9 @@
 import type { Locator, Page } from '@playwright/test'
 import {
   around,
-  numbered,
   regionOf,
   settleForShot,
   shootRegion,
-  shootWindow,
   writeScreenshot,
 } from './website-screenshot-capture-kit'
 import {
@@ -215,8 +213,8 @@ export async function captureExtensionSettingsSection(context: CaptureContext) {
 }
 
 /**
- * Where one extension's surfaces appear around a Session, numbered: its side panel, a side panel
- * icon on the Panel rail still marked new, its transcript card, and its status widget.
+ * Where one extension's surfaces appear around a Session: its side panel, a side panel icon on
+ * the Panel rail still marked new, its transcript card, and its status widget.
  */
 export async function captureExtensionSurfaces(context: CaptureContext) {
   const { page } = context
@@ -253,18 +251,20 @@ export async function captureExtensionSurfaces(context: CaptureContext) {
     })
     await waitForUi(page)
     await settleForShot(page)
-    const rail = page.getByRole('navigation', { name: 'Panels' })
-    const callouts = numbered([
-      { region: await regionOf(sidePanel), badge: 'left-top' },
-      {
-        region: await regionOf(rail.getByRole('button', { name: /^GitHub Session Resources/ })),
-        badge: 'left',
-      },
-      { region: await regionOf(transcriptCard), badge: 'inside-top-right' },
-      { region: await regionOf(statusWidgets), badge: 'inside-top-right' },
-    ])
-    // The whole window at CSS scale, like the other overview images.
-    await shootWindow(context, 'extensions-surfaces.png', { callouts })
+    // Everything right of the sidebar: the transcript card and status widget in the chat, the
+    // side panel, and its icon on the Panel rail.
+    const sidebar = await regionOf(page.getByRole('navigation', { name: 'Sidebar' }))
+    const view = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }))
+    const left = sidebar.x + sidebar.width
+    await shootRegion(context, 'extensions-surfaces.png', {
+      x: left,
+      y: 0,
+      width: view.width - left,
+      height: view.height,
+    })
     await closeRightPanel(page)
   })
 }

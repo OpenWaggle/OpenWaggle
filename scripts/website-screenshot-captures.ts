@@ -5,6 +5,12 @@ import {
   captureBrowserDeviceToolbar,
 } from './website-screenshot-browser-device-captures'
 import {
+  captureComposerAgentAccessMenu,
+  captureComposerNewSession,
+  captureComposerPlusMenu,
+  captureComposerThinkingMenu,
+} from './website-screenshot-composer-captures'
+import {
   captureCodingAgent,
   captureGitWorkflow,
   captureSessionTree,
@@ -12,7 +18,6 @@ import {
 import {
   captureApprovalRequest,
   captureCommandPalette,
-  captureComposerControls,
   captureQueuedFollowUps,
   captureSidebarStates,
   captureSlashCommandMenu,
@@ -50,8 +55,9 @@ import {
   captureHiveNextActor,
   captureHiveTree,
   captureScheduledTasks,
-  captureSessionResources,
+  captureSessionResourcesBrowser,
   captureSessionSummary,
+  captureSessionSummaryAddSource,
   captureSettingsWorktrees,
 } from './website-screenshot-hive-captures'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
@@ -67,6 +73,14 @@ import {
 } from './website-screenshot-terminal-captures'
 import type { CaptureContext } from './website-screenshot-ui'
 import {
+  captureUsageCostPage,
+  captureUsageCostSidebarButton,
+} from './website-screenshot-usage-cost-captures'
+import {
+  captureVisualizationExpanded,
+  captureVisualizationInline,
+} from './website-screenshot-visualization-captures'
+import {
   captureContextMeter,
   captureWaggleConversation,
   captureWaggleSettings,
@@ -79,9 +93,12 @@ export const CAPTURES: Readonly<
   'hive-sessions.png': captureHiveTree,
   'hive-next-actor.png': captureHiveNextActor,
   'session-summary.png': captureSessionSummary,
-  'session-resources.png': captureSessionResources,
+  'session-summary-add-source.png': captureSessionSummaryAddSource,
+  'session-resources-browser.png': captureSessionResourcesBrowser,
   'scheduled-tasks.png': captureScheduledTasks,
   'settings-worktrees.png': captureSettingsWorktrees,
+  'usage-cost-page.png': captureUsageCostPage,
+  'usage-cost-sidebar-button.png': captureUsageCostSidebarButton,
   'feature-coding-agent.png': captureCodingAgent,
   'feature-git-workflow.png': captureGitWorkflow,
   'session-tree-panel.png': captureSessionTree,
@@ -109,7 +126,10 @@ export const CAPTURES: Readonly<
   'extensions-review.png': captureExtensionReview,
   'extensions-settings-section.png': captureExtensionSettingsSection,
   'extensions-surfaces.png': captureExtensionSurfaces,
-  'composer-controls.png': captureComposerControls,
+  'composer-new-session.png': captureComposerNewSession,
+  'composer-plus-menu.png': captureComposerPlusMenu,
+  'composer-thinking-menu.png': captureComposerThinkingMenu,
+  'composer-agent-access-menu.png': captureComposerAgentAccessMenu,
   'settings-connections.png': captureSettingsConnections,
   'settings-api-key-providers.png': captureSettingsApiKeyProviders,
   'settings-oauth-providers.png': captureSettingsOAuthProviders,
@@ -125,4 +145,6 @@ export const CAPTURES: Readonly<
   'project-actions-panel.png': captureProjectActionsPanel,
   'project-action-add.png': captureProjectActionAdd,
   'action-output-terminal.png': captureActionOutputTerminal,
+  'visualization-inline.png': captureVisualizationInline,
+  'visualization-expanded.png': captureVisualizationExpanded,
 }
