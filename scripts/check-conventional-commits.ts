@@ -2,6 +2,7 @@ import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
 import { isAncestor } from './git-ancestry'
 import { collectUpstreamUpdateMergeHashes } from './upstream-merge-attribution'
+import { checkPackageReleaseLines } from './package-release-lines'
 import { touchesPublishablePackage } from './publishable-package-diff'
 
 const execFile = promisify(execFileCallback)
@@ -31,6 +32,11 @@ export interface ConventionalCommitValidationOptions {
   readonly baseline?: string
   readonly cwd?: string
   readonly from?: string
+  /**
+   * Whether a missing package tag or a shallow clone fails the package documentation line check.
+   * CI fetches full history and tags, so it fails there; the local pre-push check skips with a warning.
+   */
+  readonly missingReleaseHistory?: 'fail' | 'skip'
   readonly prTitle?: string
   readonly to?: string
 }
@@ -284,14 +290,30 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
         ]
       : []
 
+  /*
+   * Release Please promotes pending package docs when a release opens a new major.minor line, and
+   * fails on its release branch after merge when they are missing. Predict that release from the
+   * same commits (and the title this pull request will be squashed under) and ask for the docs here.
+   */
+  const releaseLines = await checkPackageReleaseLines({
+    base: from,
+    cwd,
+    fallbackBase: effectiveFrom,
+    missingHistory: options.missingReleaseHistory ?? 'fail',
+    ...(options.prTitle === undefined ? {} : { prTitle: options.prTitle }),
+    to,
+  })
+
   return {
     commits,
     effectiveFrom,
+    releaseLineWarnings: releaseLines.skipped,
     to,
     violations: [
       ...validateConventionalCommitSubjects(commits, upstreamMergeHashes),
       ...prTitleViolations,
       ...packageReleaseIntentViolations,
+      ...releaseLines.violations,
     ],
   }
 }

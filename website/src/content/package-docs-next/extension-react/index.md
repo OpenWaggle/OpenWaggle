@@ -3,6 +3,7 @@ title: "@openwaggle/extension-react"
 description: "React components for OpenWaggle extension surfaces that use the SDK 0.2 theme contract."
 order: 3
 section: "Packages"
+kind: "guide"
 ---
 
 `@openwaggle/extension-react` provides small React components for extension surfaces that should match OpenWaggle without importing application renderer code, including host-themed source rendering.
@@ -17,7 +18,7 @@ Import the default host-aligned stylesheet once in the extension bundle:
 import '@openwaggle/extension-react/styles.css'
 ```
 
-## Mount A React Surface
+## Mount a React surface
 
 ```tsx
 import '@openwaggle/extension-react/styles.css'
@@ -48,7 +49,7 @@ export const mount: OpenWaggleFederatedModule['mount'] = (context) => {
 
 The OpenWaggle host adds `.ow-extension-root` to `context.root` and projects the SDK 0.2 appearance variables onto it. Standalone harnesses must add the same class and provide the SDK theme variables before rendering the components.
 
-## Migrating From 0.1
+## Migrating from 0.1
 
 Version 0.2 replaces the bespoke 0.1 spacing, radius, elevation, and fallback values with the Tailwind-standard extension theme contract from `@openwaggle/extension-sdk` 0.2.
 
@@ -56,11 +57,11 @@ Version 0.2 replaces the bespoke 0.1 spacing, radius, elevation, and fallback va
 - Replace `--ow-space-*` overrides with multiples of `--ow-spacing`.
 - Replace `--ow-radius-panel`, `--ow-radius-sm`, and `--ow-radius-md` overrides with the standard radius variables.
 - Replace `--ow-elevation-card` with `--ow-shadow-sm` and use the projected text-size and line-height pairs.
-- Do not rely on stylesheet fallback colours; the host or standalone harness owns the complete theme projection.
+- Do not rely on stylesheet fallback colours. The host or standalone harness provides the complete theme projection.
 
 ## Components
 
-The package exports `Alert`, `Badge`, `Button`, `Checkbox`, `Field`, `Input`, `Panel`, `Select`, `Stack`, `Textarea`, `SyntaxBlock`, and `SourceView`. Pass `context.sdk.surface.syntax` to the syntax components; the host supplies the active theme and worker-backed tokenization. See the [visual component catalogue](./components) and [complete API reference](./api-reference).
+The package exports `Alert`, `Badge`, `Button`, `Checkbox`, `Field`, `Input`, `Panel`, `Select`, `Stack`, `Textarea`, `SyntaxBlock`, and `SourceView`. Pass `context.sdk.surface.syntax` to the syntax components. The host supplies the active theme and worker-backed tokenization. See the [visual component catalogue](./components) and [complete API reference](./api-reference).
 
 ## Compatibility
 

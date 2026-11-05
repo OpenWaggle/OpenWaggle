@@ -1,8 +1,9 @@
 ---
-title: "Extension React Components"
+title: "Extension React component catalogue"
 description: "Visual and behavioral catalogue for the OpenWaggle React extension components."
 order: 2
-section: "Extension React"
+section: "Packages"
+kind: "reference"
 ---
 
 Import the package stylesheet and render the components beneath the host-provided `.ow-extension-root` element.
@@ -24,7 +25,7 @@ import '@openwaggle/extension-react/styles.css'
 </Panel>
 ```
 
-## Actions And Status
+## Actions and status
 
 `Button` supports `primary`, `secondary`, and `ghost` variants. `Badge` and `Alert` support `neutral`, `accent`, `success`, `warning`, `danger`, and `info` tones.
 
@@ -57,7 +58,7 @@ Use semantic tones only for their stated meaning. Do not use danger or warning m
 
 Keep labels visible, preserve keyboard interaction, and use native disabled and validation states. Package focus styles consume the host-projected focus ring and shadow variables.
 
-## Source And Syntax
+## Source and syntax
 
 `SyntaxBlock` renders host-produced token lines. `SourceView` uses the same contract and enables line numbers by default. Both accept a `syntax` capability from the mount context, source text, and either a canonical language or a path.
 
@@ -70,8 +71,8 @@ Keep labels visible, preserve keyboard interaction, and use native disabled and 
 />
 ```
 
-The component begins with safe Plain Text, then applies the latest host result. It ignores an obsolete async result after source changes. The host owns theme selection, language aliases, scheduling, caching, input limits, and fallback diagnostics; the extension never receives highlighted HTML.
+The component begins with safe Plain Text, then applies the latest host result. It ignores an obsolete async result after source changes. The host owns theme selection, language aliases, scheduling, caching, input limits, and fallback diagnostics. The extension never receives highlighted HTML.
 
-## Theme Contract
+## Theme contract
 
-The stylesheet consumes the complete `@openwaggle/extension-sdk` 0.2 appearance projection. OpenWaggle supplies it on the extension root. A standalone preview must apply `.ow-extension-root` and provide the same variables; the stylesheet intentionally has no independent fallback theme.
+The stylesheet consumes the complete `@openwaggle/extension-sdk` 0.2 appearance projection. OpenWaggle supplies it on the extension root. A standalone preview must apply `.ow-extension-root` and provide the same variables. The stylesheet has no fallback theme of its own.

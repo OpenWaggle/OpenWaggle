@@ -3,6 +3,7 @@ title: "@openwaggle/extension-sdk"
 description: "Browser-safe OpenWaggle extension SDK types, broker helpers, themes, host syntax highlighting, and federated-module context helpers."
 order: 2
 section: "Packages"
+kind: "guide"
 ---
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
@@ -11,9 +12,9 @@ Use it in extension modules that mount into OpenWaggle-owned containers. The pac
 
 <package-install packages="@openwaggle/extension-sdk"></package-install>
 
-The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe; Node.js is required for extension build tooling and package consumers.
+The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe. Node.js is required for extension build tooling and package consumers.
 
-## Main Imports
+## Main imports
 
 ```ts
 import type {
@@ -43,9 +44,9 @@ Supported public subpaths include:
 | `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
 | `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
 
-## Federated Module Example
+## Federated module example
 
-A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context; the extension owns the content appended to `context.root`.
+A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context, and the extension owns the content appended to `context.root`.
 
 ```ts
 import type { OpenWaggleFederatedModule } from '@openwaggle/extension-sdk'
@@ -86,7 +87,7 @@ const module: OpenWaggleFederatedModule = {
 export const mount = module.mount
 ```
 
-## Brokered Capability Calls
+## Brokered capability calls
 
 Extension code should call OpenWaggle through the broker SDK on the mount context instead of importing stores, IPC helpers, Electron APIs, or Pi SDK internals.
 
@@ -105,9 +106,9 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 }
 ```
 
-Declare matching capabilities and methods in `openwaggle.extension.json`; undeclared capability calls fail closed.
+Declare matching capabilities and methods in `openwaggle.extension.json`. A call to a capability the manifest does not declare fails.
 
-## Host Syntax Highlighting
+## Host syntax highlighting
 
 Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active Syntax theme, canonical language aliases, worker scheduling, size limits, caching, and safe Plain Text fallback.
 
@@ -119,9 +120,9 @@ const result = await context.sdk.surface.syntax.highlight({
 })
 ```
 
-You can provide `path` instead of `language` when the filename is the reliable signal. The result contains token lines rather than HTML, so extensions keep control of rendering without accepting executable or unsanitized host markup. Do not instantiate a second Shiki highlighter inside the extension frame; doing so bypasses the host's theme, worker, and performance policy.
+You can provide `path` instead of `language` when the filename is the reliable signal. The result contains token lines rather than HTML, so extensions keep control of rendering without accepting executable or unsanitized host markup. Do not instantiate a second Shiki highlighter inside the extension frame. A second highlighter bypasses the host's theme, worker, and performance policy.
 
-## Manifest Typing
+## Manifest typing
 
 Use the manifest type to keep package metadata aligned with the public extension contract.
 
@@ -200,7 +201,7 @@ export default {
 } satisfies OpenWaggleExtensionManifest
 ```
 
-A side panel's optional `icon` is its Panel rail icon. Use a bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `'ticket'`, or `{ svg: 'assets/panel-icon.svg' }` for a single-colour SVG file inside the package. The path must be relative to the package root (no leading `/` or `\` and no drive letter), must not contain empty, `.` or `..` segments, must not have leading or trailing whitespace or NUL bytes, must be at most 260 characters, and must end in `.svg`. OpenWaggle uses only the icon's shape and paints it in the rail's colours. A missing or unusable icon falls back to a letter tile and an extension diagnostic. Only side panels accept `icon`; `extensionSidePanelIconSchema` and the `ExtensionSidePanelIcon` type describe the accepted values. A runtime side panel registration must pass the same icon schema, and its SVG file must be one a manifest side panel declares.
+A side panel's optional `icon` is its Panel rail icon. Use a bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `'ticket'`, or `{ svg: 'assets/panel-icon.svg' }` for a single-colour SVG file inside the package. The path must be relative to the package root (no leading `/` or `\` and no drive letter), must not contain empty, `.` or `..` segments, must not have leading or trailing whitespace or NUL bytes, must be at most 260 characters, and must end in `.svg`. OpenWaggle uses only the icon's shape and paints it in the rail's colours. A missing or unusable icon falls back to a letter tile and an extension diagnostic. Only side panels accept `icon`. `extensionSidePanelIconSchema` and the `ExtensionSidePanelIcon` type describe the accepted values. A runtime side panel registration must pass the same icon schema, and its SVG file must be one a manifest side panel declares.
 
 The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK and is accepted by extension discovery.
 
@@ -229,11 +230,11 @@ export async function publishPreview(context: OpenWaggleExtensionMountContext) {
 }
 ```
 
-`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`; publishing the same key, kind, role, and normalized locator from one contribution is idempotent. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
+`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`. Publishing the same key, kind, role, and normalized locator again from one contribution changes nothing. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
 
 `list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same Resource Browser or image gallery as first-party resources.
 
-## Theme Contract
+## Theme contract
 
 `context.theme` is one projection of the host's Appearance across the SDK boundary. Every role in the contract resolves to a real host CSS variable when the extension runs inside OpenWaggle, so extension UI matches the host without a second token system.
 
@@ -259,7 +260,7 @@ export function mount(context: OpenWaggleExtensionMountContext) {
 
 Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallback tokens for extension tooling and standalone previews.
 
-## Boundary Rules
+## Boundary rules
 
 `@openwaggle/extension-sdk` is browser-safe. Extension modules that use it must still stay inside the public SDK surface:
 
@@ -271,7 +272,7 @@ Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallba
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).
 
-## Reference And Support
+## Reference and support
 
 - [Complete API reference](./api-reference)
 - [npm package](https://www.npmjs.com/package/@openwaggle/extension-sdk)
