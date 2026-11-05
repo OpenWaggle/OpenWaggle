@@ -3,35 +3,53 @@ title: "Packages"
 description: "OpenWaggle publishable packages for extension authors, Waggle policy, and Pi Waggle integration."
 order: 1
 section: "Packages"
+kind: "overview"
 ---
 
-OpenWaggle maintains publishable npm packages for extension authors and Waggle runtime integrations.
+OpenWaggle publishes npm packages for people who build extensions and for people who want Waggle mode outside the app. They are separate from the desktop app. Use them to build an OpenWaggle extension, to reuse Waggle mode's rules in your own program, or to add Waggle mode to Pi.
 
-These packages are separate from the OpenWaggle desktop app. Use them when you are building an OpenWaggle extension package, reusing Waggle mode policy outside the app, or installing Waggle mode in a Pi runtime.
-
-## Available Packages
+## The packages
 
 | Package | Use it for |
-|---------|------------|
-| [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) | Browser-safe extension types, broker helpers, theme helpers, UI class/style helpers, and federated-module mount context types. |
-| [`@openwaggle/extension-react`](/docs/packages/extension-react) | Optional React primitives for extension surfaces that want host-aligned controls and layout pieces. |
-| [`@openwaggle/waggle-core`](/docs/packages/waggle-core) | Runtime-neutral Waggle config, presets, prompts, state, consensus, and turn policy. |
-| [`@openwaggle/pi-waggle`](/docs/packages/pi-waggle) | Pi-native Waggle extension package built on top of `@openwaggle/waggle-core`. |
+| --- | --- |
+| [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) | Extension types, SDK helpers, theme helpers, UI class and style helpers, and the mount context types for federated modules, all safe to use in the browser |
+| [`@openwaggle/extension-react`](/docs/packages/extension-react) | Optional React components for extension surfaces that should look like the app's own controls and layout |
+| [`@openwaggle/waggle-core`](/docs/packages/waggle-core) | Waggle configuration, presets, prompts, state, consensus, and turn rules, with no runtime attached |
+| [`@openwaggle/pi-waggle`](/docs/packages/pi-waggle) | A Pi extension that adds Waggle mode, built on `@openwaggle/waggle-core` |
 
-## Install
+The packages are public, under the `@openwaggle` npm organization. Each package's guide and API reference are versioned by `major.minor`. The links above always open the latest version.
 
-Install only the packages your project needs:
+## Install a package
+
+Install only the packages your project needs.
+
+For a framework-neutral extension:
 
 ```bash
 pnpm add @openwaggle/extension-sdk
-pnpm add @openwaggle/extension-react @openwaggle/extension-sdk react react-dom
-pnpm add @openwaggle/waggle-core
-pnpm add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui
 ```
 
-The packages are public under the `@openwaggle` npm organization. Package guides and API references are versioned by `major.minor`; the unversioned links above always open the latest documentation line.
+For an extension written in React:
 
-## How The Packages Fit Together
+```bash
+pnpm add @openwaggle/extension-react @openwaggle/extension-sdk react react-dom
+```
+
+For Waggle's rules without Pi:
+
+```bash
+pnpm add @openwaggle/waggle-core
+```
+
+For Waggle mode in Pi:
+
+```bash
+pnpm add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui typebox
+```
+
+## How they fit together
+
+An arrow means "uses":
 
 ```text
 Framework-neutral extension ──> @openwaggle/extension-sdk
@@ -41,11 +59,21 @@ Any Waggle host ───────────────> @openwaggle/waggl
 Pi runtime ────────────────────> @openwaggle/pi-waggle ─────────> @openwaggle/waggle-core
 ```
 
-The arrows mean “uses.” Extension packages and Waggle packages solve separate problems; install both only when your project needs both capabilities.
+The extension packages and the Waggle packages solve separate problems. Install both kinds only if your project needs both.
 
-## Import Boundaries
+## Choose a package
 
-Consumers should import only documented package entry points and package subpaths. Do not import from `src`, `dist`, `dist-cjs`, or an arbitrary OpenWaggle checkout path.
+Use `@openwaggle/extension-sdk` for any OpenWaggle visual extension. It defines `mount(context)`, the theme data, SDK capability calls, manifest types, UI class names, and stylesheet helpers, and it is safe to use in the browser.
+
+Use `@openwaggle/extension-react` only when your extension surface is written in React and you want its ready-made components. React and React DOM stay peer dependencies of your extension project.
+
+Use `@openwaggle/waggle-core` when you want Waggle's rules without any Pi hooks.
+
+Use `@openwaggle/pi-waggle` to add Waggle mode to Pi. It depends on `@openwaggle/waggle-core`, so you install core separately only if you also import its APIs yourself.
+
+## Import only the public entry points
+
+Import from the documented package entry points and subpaths only. Never import from `src`, `dist`, `dist-cjs`, or a path inside an OpenWaggle checkout.
 
 ```ts
 import type { OpenWaggleFederatedModule } from '@openwaggle/extension-sdk'
@@ -54,20 +82,10 @@ import { getWaggleTurn } from '@openwaggle/waggle-core'
 import piWaggle from '@openwaggle/pi-waggle/extension'
 ```
 
-OpenWaggle packages publish built ESM, CommonJS, and TypeScript declarations behind their `package.json` export boundaries.
+Each package publishes built ESM, CommonJS, and TypeScript declarations behind the `exports` field of its `package.json`.
 
-## Which Package Should I Use?
-
-Use `@openwaggle/extension-sdk` for any OpenWaggle visual extension. It is the browser-safe author contract for `mount(context)`, theme data, brokered capability calls, manifest types, UI helper classes, and stylesheet helpers.
-
-Use `@openwaggle/extension-react` only when your extension surface is written in React and you want the provided primitive components. React and React DOM remain peer dependencies in the extension project.
-
-Use `@openwaggle/waggle-core` when you need reusable Waggle policy without Pi-specific runtime hooks.
-
-Use `@openwaggle/pi-waggle` when you are installing Waggle mode into Pi. It depends on `@openwaggle/waggle-core`, so Pi users do not need to install core separately unless they also import core APIs directly.
-
-## Related Docs
+## Related docs
 
 - [OpenWaggle Extensions](/docs/extending/openwaggle-extensions)
-- [Waggle Mode](/docs/using-openwaggle/waggle-mode)
-- [Pi Runtime](/docs/developer-workflow/pi-runtime)
+- [Waggle mode](/docs/using-openwaggle/waggle-mode)
+- [Pi runtime](/docs/developer-workflow/pi-runtime)

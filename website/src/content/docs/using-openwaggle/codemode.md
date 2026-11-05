@@ -3,36 +3,37 @@ title: "Codemode"
 description: "Let the agent write a short script that calls several tools in one step, and read what the script did."
 order: 4
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-Codemode is a tool that lets the agent write a small JavaScript program that calls its other tools. Instead of reading ten files one at a time, the agent can read all ten in one script and keep only the lines it needs. Only what the script prints reaches the model, so long outputs stay out of the conversation and the work finishes sooner.
+Codemode lets the agent write a small JavaScript program that calls its other tools. Instead of reading ten files one at a time, the agent can read all ten in one script and keep only the lines it needs. Only what the script prints reaches the model, so long output stays out of the conversation and the work finishes sooner.
 
-Codemode comes from Pi, the agent runtime under OpenWaggle. It works the same way in OpenWaggle as in the Pi command line.
+Codemode comes from Pi, the agent inside OpenWaggle, and works the same way as in the `pi` command.
 
-## When it is on
+## Turn codemode on or off
 
-Codemode is on in every session by default, whether or not you use MCP servers. The agent decides when a script helps. Most turns still use ordinary tool calls.
+Codemode is on in every session by default, whether or not you use MCP servers. The agent decides when a script helps, and most turns still use ordinary tool calls.
 
 To turn it off, open **Settings > General > Agent tools** and switch off **Codemode**. New runs stop offering it.
 
-If you also use Pi on its own, OpenWaggle follows your Pi settings until you choose in OpenWaggle: when `~/.pi/agent/settings.json` names codemode in `defaultTools` (for example `"defaultTools": ["-codemode"]`), the switch starts in that position. Once you flip the switch, your OpenWaggle choice wins over that file, and OpenWaggle never writes it there.
+If you also use Pi on its own, OpenWaggle follows your Pi settings until you choose in OpenWaggle. When `~/.pi/agent/settings.json` names codemode in `defaultTools`, for example `"defaultTools": ["-codemode"]`, the switch starts in that position. Once you flip the switch, your OpenWaggle choice wins over that file, and OpenWaggle never writes it there.
 
-Two exceptions still apply:
+Two things override the switch:
 
-- MCP servers whose tools run through codemode, the default (OpenWaggle also runs a file's `direct` this way), still turn it on, because their tools can only be called from scripts. See [MCP](/docs/configuration/mcp).
-- A project's `.pi/settings.json` that lists its own tools by name replaces the tool list, as Pi documents, so a project without codemode in that list runs without it.
+- An MCP server whose tools run through codemode, which is the default, turns codemode on, because its tools can only be called from scripts. OpenWaggle also runs a server set to `direct` this way. See [MCP](/docs/configuration/mcp).
+- A project's `.pi/settings.json` that lists its own tools by name replaces the tool list, as Pi documents. A project that leaves codemode out of that list runs without it.
 
 ## What the agent can do in a script
 
-A script runs in a sandbox with no file system, network, or timers of its own. It can only reach the outside world through tools:
+A script runs in a sandbox with no file system, network or timers of its own. It reaches the outside world only through tools. In a script, the agent can:
 
-- Call any tool the session can call, such as `read`, `bash`, `edit`, project actions, the browser preview, and MCP tools.
+- Call any tool the session can call, such as `read`, `bash`, `edit`, project actions, the browser preview and MCP tools.
 - Run several calls at once and combine the results.
-- Show images with `image()`, for example a screenshot it read or a picture an image model made.
-- Use non-chat models with your own provider credentials, such as a classifier that labels feedback or an image model that draws a picture. These run through `models.classify()` and `models.generateImages()`.
+- Show images with `image()`, such as a screenshot it read or a picture an image model made.
+- Use models that aren't chat models, with your own provider credentials: a classifier that labels feedback through `models.classify()`, or an image model that draws a picture through `models.generateImages()`.
 - Keep small values between scripts in the same branch of the conversation.
 
-Calls a script makes are real. If a script fails halfway, the calls it already made are not undone.
+A script's tool calls are real. If a script fails halfway, the calls it already made are not undone.
 
 ## What a script looks like
 
@@ -50,25 +51,25 @@ paths.forEach((path, index) => {
 })
 ```
 
-The three reads run at the same time. Each tool is a function on `tools` that takes the same arguments as a direct call, and `text()` adds a line to the output. The model gets back three short lists of line numbers, not the three files. The card shows the three `read` calls, and its details show this script and what it printed.
+The three reads run at the same time. Each tool is a function on `tools` that takes the same arguments as a direct call, and `text()` adds a line to the output. The model gets back three short lists of line numbers instead of three files. The card in the conversation shows the three `read` calls, and its details show the script and what it printed.
 
 ## Approvals still apply
 
-Every tool call a script makes goes through the same approval as a direct call. In **Ask for Approval**, a script that starts two project actions asks you twice, once per action, and a declined call fails inside the script without running. In **YOLO**, the calls run without asking, just as direct calls do. See [Approvals and permissions](/docs/configuration/approvals-permissions).
+Every tool call in a script goes through the same approval as a direct call. With **Ask for approval**, a script that starts two project actions asks you twice, once for each action, and a call you decline fails inside the script without running. With **YOLO**, the calls run without asking, as direct calls do. See [Approvals and permissions](/docs/configuration/approvals-permissions).
 
-## Reading a codemode card
+## Read a codemode card
 
-A codemode call appears in the conversation as **Ran a script** (or **Running a script…** while it works). A failed script keeps that text and ends with a red **×**. The card shows:
+A script appears in the conversation as **Ran a script**, or **Running a script…** while it works. A failed script keeps that label and ends with a red **×**. The card shows:
 
-- Each tool call the script made, with its kind icon, its arguments, whether it finished, failed or was cancelled (a red **×**), and how long it took. The list fills in while the script runs.
-- The cost of any model calls the script made, next to the call and in the card header.
+- Each tool call the script made, with its icon, its arguments, how long it took, and a red **×** if it failed or was cancelled. The list fills in while the script runs.
+- The cost of any model calls the script made, beside each call and in the card's header.
 - The images the script showed.
-- The error, when the script failed.
+- The error, if the script failed.
 
-Click the card to see the script itself and its full output, and to copy either. The card looks the same after you reopen the session.
+Click the card to see the script and its full output, and to copy either. The card looks the same when you reopen the session.
 
-![An expanded Ran a script card with 4 tool calls: three reads and a grep, each with its arguments and duration, one read failed with a red × and its ENOENT error, then Copy script and Copy output, the JavaScript the agent wrote, and its output: Script completed, the wall time, and the missing file and open TODOs the script returned](/screenshots/codemode-script-card.png)
+![An expanded Ran a script card with three reads and a grep, one read failed with its error, then the script and its output](/screenshots/codemode-script-card.png)
 
 ## Cost and usage
 
-Model calls made from scripts count toward the session's cost and tokens, which you can see by hovering the context meter. See [Context management](/docs/using-openwaggle/context-management).
+Model calls from scripts count toward the session's cost and tokens. Hover the context meter to see them. See [Context management](/docs/using-openwaggle/context-management#check-the-context-meter).

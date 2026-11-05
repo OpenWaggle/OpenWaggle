@@ -103,6 +103,12 @@ function buildQueenMessages(now: number, project: ScreenshotProject) {
             duration: READ_DURATION_MS,
           },
         },
+        {
+          // Part of the folded work, so the transcript shows no "[Image: …]" placeholder while
+          // Sources & outputs still lists the image as an output.
+          type: 'text',
+          text: `I drafted a first preview of the release notes page:\n\n![Release notes preview](${project.outputImagePath})`,
+        },
       ],
     },
     {
@@ -114,14 +120,14 @@ function buildQueenMessages(now: number, project: ScreenshotProject) {
         {
           type: 'text',
           text: [
-            'The Hive is running with four Worker Sessions:',
+            'The Hive is running with four worker sessions:',
             '',
-            '- Queue and steering verification failed its last Run and needs you.',
+            '- Queue and steering verification failed its last run and needs you.',
             '- CLI and GUI synchronization is ready for my review.',
-            '- The Hive user guide review is in progress, with a Worker of its own checking the screenshots.',
+            '- The Hive user guide review is in progress, with a worker of its own checking the screenshots.',
             '- The security advisories summary is accepted.',
             '',
-            `Here is a first preview of the release notes page:\n\n![Release notes preview](${project.outputImagePath})`,
+            'The first preview of the release notes page is in `docs/release-notes-preview.png`.',
           ].join('\n'),
         },
       ],

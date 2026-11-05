@@ -3,62 +3,57 @@ title: "Context management"
 description: "Understand the context meter and keep a long conversation usable with compaction."
 order: 9
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-A model's context window is the amount of information it can use in one request. Your messages, the agent's replies, file contents, tool results, and instructions all take space. Models measure that space in tokens, which are pieces of text rather than whole words.
+A model's context window is how much it can take in with one request. Your messages, the agent's replies, file contents, tool results and instructions all use space in it. Models measure that space in tokens, which are pieces of words.
 
-You usually do not need to manage this yourself. When a conversation gets long, OpenWaggle compacts its context so work can continue. Compaction replaces older context with a shorter representation while keeping recent work available. It does not delete the saved conversation, and the conversation view keeps all of it: messages from before a compaction stay above its **Context compacted** marker, while the model works from the compacted context.
+You usually don't have to manage this. When a conversation gets long, OpenWaggle compacts its context so work can go on. It replaces older context with a shorter summary and keeps recent work as it was. Compaction doesn't delete anything from the saved conversation, and you can still scroll through all of it. Messages from before a compaction stay above its **Context compacted** marker, while the model works from the compacted context.
 
-## Context meter
+## Check the context meter
 
-![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+The context meter sits at the right of the message box, beside the model and thinking level pickers, when there is room for it. Its ring shows the percentage of the selected model's context window in use, and the number after it is the window's size in tokens. Hover the meter for details:
 
-_The context meter is number 7. In a new session it reads 0, beside GPT-5.4's 272k token window._
+![The context meter beside the send button, showing 14 percent of a 1M token context window](/screenshots/context-meter.png)
 
-When there is enough space beside the message box, the context ring shows the percentage of the selected model's context window in use. The adjacent number is the window's token limit. Hover for usage details.
+- **Context** shows the tokens in use out of the window's size, and the percentage.
+- **Session** shows the session's total tokens and cost, then the cost and tokens of each model that answered.
 
-![The right end of the message box toolbar, with the model and thinking level pickers, the context ring at 14, and / 1M after it, marked 1 and 2](/screenshots/context-meter.png)
+Costs include model calls from [codemode](/docs/using-openwaggle/codemode) scripts and prompt cache refreshes. Usage that belongs to no single model, such as model calls from scripts and summaries, is listed as **Tools and summaries**. Costs are what Pi's model catalog says the provider charges. Your provider's bill has the final say. To see spending across all your sessions, open [Usage and cost](/docs/using-openwaggle/usage-and-cost).
 
-1. The context ring: 14% of the model's context window is in use.
-2. The window's token limit, here 1M tokens.
+With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that wrote the latest reply, because each real model has its own limit. While a turn is running, the meter stays on the model the turn started with, even if you pick another model.
 
-With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that produced the latest response, because each real model has its own limit.
+The meter shows the usage Pi reported for the latest response, not a live count as you type. It shows `?` while usage is unknown, for example after a compaction until the next response. If OpenWaggle can't load the usage, the details say **Context usage unavailable**. The meter only shows usage and has no controls. It doesn't show the compaction threshold or which kind of compaction ran.
 
-The tooltip also shows the session's total tokens and cost, split by the real models that answered. Costs include model calls made from [codemode](/docs/using-openwaggle/codemode) scripts and prompt cache refreshes. Usage nobody can attribute to one model, such as script model calls and summaries, appears as **Tools and summaries**. Costs are what Pi's model catalog says the provider charges; your provider's bill is the final word.
+## Compact a conversation yourself
 
-Usage comes from the runtime's context-usage snapshot, not a live estimate of each new word. It may show `?` when usage is not yet known, including after compaction until the next valid response. If loading usage fails, the tooltip says **Context usage unavailable**. The meter reports usage; it is not a control.
-
-## Manual compaction
-
-To compact before continuing a long task, wait until the agent is idle, type this in the message box (or pick **Compact session** from the `/` menu), and send it:
+To compact before you go on with a long task, wait until the agent is idle, then type this in the message box, or pick **Compact session** from the `/` menu, and send it:
 
 ```text
 /compact
 ```
 
-Add instructions when particular details must survive:
+To make sure some details survive, add instructions after the command:
 
 ```text
 /compact preserve the schema decisions, migration constraints, and tests still to run
 ```
 
-This is a command, not a request for an ordinary reply. OpenWaggle shows compaction progress in the conversation. After it finishes, a **Context compacted** marker stays in the conversation where the compaction happened, and you can continue with your next task.
+This runs a command. The agent doesn't reply to it as a message. The conversation shows the compaction's progress. When it is done, a **Context compacted** marker stays where the compaction happened, and you can carry on with your next task.
 
-![A conversation with a Context compacted marker between the agent's earlier reply and the next request, which the agent answered from the compacted context](/screenshots/context-compacted.png)
+![A conversation with a Context compacted marker between the agent's earlier reply and the next request](/screenshots/context-compacted.png)
 
-A summary may omit details. Keep lasting project conventions in project instructions and restate any critical constraint if the agent appears to have lost it.
+A summary can leave things out. Keep lasting project conventions in [project instructions](/docs/extending/agents-md), and repeat an important constraint if the agent seems to have lost it.
 
-## Automatic compaction
+## Change when compaction happens
 
-The default threshold is **80%** of the active model's context window. To change it, open **Settings > General > Context compaction**. The setting applies to every project and session.
+By default, OpenWaggle compacts when the context reaches 80% of the model's context window. To change the percentage, open **Settings > General > Context compaction**. The setting applies to every project and session.
 
-Whatever the percentage, automatic compaction runs by **400,000 tokens** at the latest. Every model request sends the whole context again, so on a model with a 1M-token window, letting it grow to 800k made each later request about twice as expensive and slow.
+Whatever the percentage, automatic compaction happens by 400,000 tokens at the latest. Every request sends the whole context again, so on a model with a 1M-token window, a context of 800,000 tokens makes each later request about twice as expensive and slow as one at 400,000 tokens.
 
-Compaction happens before a model request, not while a reply is streaming. If the agent is idle when usage crosses the threshold, OpenWaggle waits until the next message. During an ongoing task, it can compact between a tool result and the next model request.
+Compaction happens before a request to the model, never while a reply is streaming. If the agent is idle when the context crosses the threshold, OpenWaggle waits for your next message. During a task, it can compact between a tool result and the next request.
 
-The model also needs room to reply. OpenWaggle may compact before your chosen percentage if that output reserve would otherwise run out.
-
-The threshold is the lowest of three limits. Pi's `compaction.reserveTokens` sets the reply room and `compaction.keepRecentTokens` sets how much recent context stays in full:
+The model also needs room for its reply, so OpenWaggle may compact before your percentage when that room would run out. The threshold is the lowest of three limits. Pi's `compaction.reserveTokens` sets the room kept for the reply, and `compaction.keepRecentTokens` sets how much recent context stays in full:
 
 ```mermaid
 flowchart TD
@@ -70,36 +65,38 @@ flowchart TD
   compact --> recent["Portable compaction keeps the latest<br/>keepRecentTokens, 20,000 by default, in full"]
 ```
 
-### Compaction while you are away
+## Compaction while you are away
 
-Providers keep a conversation's prompt cache for about five minutes; after that, your next message pays to send the whole context again. When you leave a session idle with at least 200,000 tokens of context, OpenWaggle prepares the compacted form shortly before that cache expires, while it is still cheap to read. If you come back after the cache expired, the session continues from the compacted form and the conversation shows a **Context automatically compacted** marker. If you come back sooner, the prepared summary is dropped and nothing changes. It is skipped when **Keep prompt caches warm** is **Off** or **Between runs**, and it is not kept across an OpenWaggle restart. The summary request counts toward the session's usage.
+Providers keep a conversation's prompt cache for about five minutes. After that, your next message pays to send the whole context again. When you leave a session idle with at least 200,000 tokens of context, OpenWaggle prepares the compacted context shortly before the cache expires, while reading it is still cheap.
 
-### How compaction works
+If you come back after the cache expired, the session continues from the compacted context, and the conversation shows a **Context automatically compacted** marker. If you come back sooner, OpenWaggle drops the prepared summary and nothing changes. The summary request counts toward the session's usage.
 
-OpenWaggle uses the following mechanisms automatically. You do not need to select one:
+This doesn't happen when **Keep prompt caches warm** is **Off** or **Between runs**, and a prepared summary doesn't survive an OpenWaggle restart.
 
-- **Native** compaction uses a provider's compaction protocol when the model connection explicitly supports it. The resulting checkpoint can be reused only with a compatible connection.
-- **Portable** compaction asks the active model for a structured four-part handoff and keeps the recent conversation in full. Related tool calls and results stay together.
+## How compaction works
 
-You can still act on messages above a marker. Branching from one, or editing and resending it, continues from that point with that branch's own context, which does not include the later compaction. OpenWaggle compacts it again if it no longer fits. Forking or cloning copies the conversation up to that message into a new session. Search, exports, and session reads include the whole conversation.
+OpenWaggle picks one of two kinds of compaction for you:
 
-The saved conversation remains intact. If you switch to a model that cannot use a Native checkpoint, OpenWaggle rebuilds context from the original history using the new model. It does not call the previous provider. If the new model has a smaller window, the request leaves out the oldest complete exchanges after reserving room for instructions, tools, and output. Those exchanges remain in the saved history.
+- **Native** compaction uses the provider's own compaction when the model connection supports it. Only a compatible connection can reuse its result.
+- **Portable** compaction asks the model for a summary in four parts and keeps the recent conversation in full. A tool call and its result always stay together.
 
-The meter does not identify the mechanism or display the configured threshold. For the underlying Pi behavior, see [Compaction & Branch Summarization](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/compaction.md).
+You can still work with messages above a marker. Going back to one, or editing and resending it, continues from that point with that branch's own context, which doesn't include the later compaction. OpenWaggle compacts it again if it doesn't fit. Forking or cloning copies the conversation up to that message into a new session. Search, exports and session reads include the whole conversation.
+
+If you switch to a model that can't use a Native result, OpenWaggle rebuilds the context from the saved history with the new model. It doesn't call the previous provider. If the new model has a smaller window, the request leaves out the oldest complete exchanges, after keeping room for instructions, tools and the reply. Those exchanges stay in the saved history.
+
+For Pi's side of this, see [Compaction & Branch Summarization](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/compaction.md).
 
 ## Branch summaries
 
-A branch summary serves a different purpose. When you return to an earlier point in the [Session tree](/docs/using-openwaggle/session-tree), it can carry useful details from the work you are leaving into the new conversation branch.
+A branch summary is something else. When you go back to an earlier point in the [Session Tree](/docs/using-openwaggle/session-tree), it can carry what matters from the work you are leaving into the new branch. When OpenWaggle asks, choose:
 
-When prompted, choose:
+- **No summary** to continue from the earlier point without the later work.
+- **Summarize** to bring a summary of the later work.
+- **Custom** to write instructions for the summary in the message box, then send them. They shape the summary, and the agent doesn't treat them as a task.
+- **Cancel** to go back to where you were.
 
-- **No summary** to continue from the earlier point without that later context.
-- **Summarize** to keep a summary of the later work.
-- **Custom** to write summary instructions in the message box, then send them.
-- **Cancel** to return to your previous selection.
-
-Custom text is used for the summary, not sent as an ordinary task. For advanced configuration, Pi's `branchSummary.skipPrompt` setting skips this choice prompt.
+Pi's `branchSummary.skipPrompt` setting skips this question.
 
 ## Model limits
 
-Context size depends on the selected model. Choosing a model with a larger window can help with a large task, but it does not make every file in your project part of the conversation. The agent still needs to read the relevant files or receive them as references and attachments.
+How much fits depends on the model. A model with a bigger window helps with a large task, but it doesn't put your whole project into the conversation. The agent still has to read the files it needs, or get them from you as references and attachments.

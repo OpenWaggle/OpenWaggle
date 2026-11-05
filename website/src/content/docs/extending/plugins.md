@@ -3,55 +3,60 @@ title: "Install extensions"
 description: "Install a local extension, review its permissions, and enable or remove it in Settings."
 order: 6
 section: "Customize"
+kind: "guide"
 ---
 
-Extensions add features such as settings pages, side panels, commands, and agent tools. They run code, unlike [skills](/docs/extending/skills-system), which provide instructions. Only install extensions from a source you trust.
+An extension adds features to OpenWaggle, such as a settings page, a side panel, commands, or tools for the agent. Unlike a [skill](/docs/extending/skills-system), which is only instructions, an extension runs code on your computer. Install extensions only from a source you trust.
 
-OpenWaggle has an Extension Manager for local packages. It does not have a public marketplace or remote extension search.
+You install and manage extensions in **Settings > Extensions**. OpenWaggle installs local packages only. There is no public marketplace and no way to search for extensions online.
 
-## OpenWaggle extensions
+## Install a package in one project
 
-For a project-local package, put the complete extension directory at:
+Put the whole extension directory in the project:
 
 ```text
 <project>/.openwaggle/extensions/<extension-id>/
 ```
 
-The directory must contain `openwaggle.extension.json`, and its name must match the manifest's `id`. Keep the package's declared source and built files together. Follow the author's installation instructions rather than copying a single JavaScript file.
+The directory must contain `openwaggle.extension.json`, and the directory name must match the `id` in that manifest. Keep the package's source and built files together, as the author ships them. Follow the author's installation instructions instead of copying a single JavaScript file.
 
-Global packages live in OpenWaggle's app-data `extensions/` directory. They can affect every project where they are enabled. Use the approved package workflow for global installation; project-local installation is the narrower choice when you only need an extension in one repository.
+A project package affects only that project. Global packages live in the `extensions/` directory of OpenWaggle's app data and can affect every project where they are enabled. Install a global package through OpenWaggle's package workflow, and choose a project package when you only need the extension in one repository.
 
 ## Review and enable a package
 
+OpenWaggle finds the package, but does not run any of its code until you trust and enable it.
+
 1. Open **Settings > Extensions** and click **Refresh**.
-2. Find the package and check its path and scope. Read any diagnostics.
-3. Review its requested capabilities, network origins, runtime requirements, and any trusted local code. Check that its SDK compatibility range includes your installed app.
-4. If it requires a local build, inspect the build command before approving and running it. Build scripts execute local code. Build approval is separate from runtime trust.
+2. Find the package. Check its path and scope, and read any diagnostics.
+3. Review what it asks for: capabilities, network origins, runtime requirements, and any trusted local code it runs in the main process. Check that its SDK range includes your version of OpenWaggle.
+4. If it needs a local build, read the build command first. A build runs code on your computer. Choose **Approve and build** to run it. Approving the build does not trust the package.
 5. Choose **Trust**, then **Enable**, then **Reload**.
-6. Open the feature the extension adds, such as its settings section or side panel.
+6. Open what the extension adds, such as its settings section or side panel.
 
-![The GitHub Issues Overview package card in Settings > Extensions before review: Untrusted and Disabled, its path, version, content hash and SDK range, two capabilities and network access to api.github.com marked Needs consent, and the Trust, Enable, Remove and Disable for project buttons](/screenshots/extensions-review.png)
+**Enable** stays unavailable until you trust the package, and **Reload** appears once it is enabled. This is a package just found in a project, before review:
 
-_The repository's GitHub Issues Overview development fixture, just discovered in a project. Enable stays unavailable until you trust it, and Reload appears once it is enabled._
+![The GitHub Issues Overview package in Settings > Extensions, Untrusted and Disabled, with three requirements marked Needs consent and a Trust button](/screenshots/extensions-review.png)
+
+If **Enable** stays unavailable after you trust the package, point at it to see why. The reasons are missing or invalid files, an SDK range that does not include your version, a build that is not approved or that failed, error diagnostics, the extension being turned off for this project, or an update that waits for **Approve update**. Fix the problem it names. Reloading again does not help.
 
 An enabled package's settings sections appear at the top of **Settings > Extensions**, under **Extension settings**. Each one runs in its own frame.
 
-![Extension settings in Settings > Extensions: the GitHub Issues Settings section from the GitHub Issues Overview package, showing the extension's own form for repository owner, repository name and tracked labels](/screenshots/extensions-settings-section.png)
+![Extension settings in Settings > Extensions, showing the GitHub Issues Settings form with repository owner, repository name, and tracked labels](/screenshots/extensions-settings-section.png)
 
-To see where an extension's side panels, transcript cards and status widgets show up, see [Develop extensions](/docs/extending/openwaggle-extensions#contribution-surfaces-at-a-glance).
+To see where an extension's side panels, transcript cards, and status widgets appear, see [Build an extension](/docs/extending/openwaggle-extensions#choose-where-your-extension-appears).
 
-Discovery alone does not run the extension. Missing files, an incompatible SDK range, a failed build, or unresolved diagnostics can prevent enablement. Fix the reported problem rather than repeatedly reloading.
+## Update a package
 
-## Update, disable, or remove
+Trust covers the exact contents you reviewed. When the package's files change, OpenWaggle shows **Update available** and the new version needs your approval. Review the changed package, approve its build if it needs one, and choose **Approve update**. Then enable and reload it if needed.
 
-Trust applies to the package's reviewed contents. Changing its files creates an update that needs approval. Review the changed package, approve any required build and update, then enable and reload it if needed.
+## Turn off or remove a package
 
-Choose **Disable** to stop its contributions without deleting the package. For a global extension, use the project availability controls when you only want to disable it for one project.
+Choose **Disable** to stop everything the package adds without deleting it. For a global package, choose **Disable for project** on its card to turn it off in the current project only. When the package is in several projects, **Project availability** lists each one with its own button.
 
-Choose **Remove** and confirm to uninstall it. This lets OpenWaggle unregister its contributions before deleting the package. Global removal requires a separate confirmation because it affects other projects. Extension-owned storage is not automatically erased unless a separate data-deletion option is offered.
+Choose **Remove** and confirm to uninstall the package. OpenWaggle takes its features out of the app first, then deletes the package. Removing a global package asks for a second confirmation, because it affects other projects. OpenWaggle keeps the data the extension stored, unless it offers a separate option to delete it.
 
-If an agent helps create, update, or remove a package, review the exact package proposal and scope before approving it. Ask the agent to use OpenWaggle's package workflow, not to delete an installed directory directly.
+If an agent helps you create, update, or remove a package, review the change it proposes and its scope before you approve. Ask the agent to use OpenWaggle's package workflow instead of deleting an installed directory itself.
 
-## Develop your own extension
+## Build your own extension
 
-See [Develop extensions](/docs/extending/openwaggle-extensions) for the manifest, SDK, permissions, and build requirements. For changes to agent tools or runtime behavior, see [Pi extensions](/docs/extending/pi-extensions).
+See [Build an extension](/docs/extending/openwaggle-extensions) for the manifest, SDK, permissions, and build requirements. To change the agent's tools or runtime behavior, see [Pi extensions](/docs/extending/pi-extensions).

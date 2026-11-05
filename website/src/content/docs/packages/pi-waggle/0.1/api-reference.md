@@ -3,6 +3,7 @@ title: "@openwaggle/pi-waggle API"
 description: "Complete public API reference for @openwaggle/pi-waggle 0.1."
 order: 90
 section: "Packages"
+kind: "reference"
 ---
 
 <!-- Generated from the checked public package declarations. -->

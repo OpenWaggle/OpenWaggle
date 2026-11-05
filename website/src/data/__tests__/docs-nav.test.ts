@@ -27,7 +27,7 @@ describe('documentation navigation', () => {
       'configuration/mcp',
     ]));
     expect(docsNav.map((section) => section.title)).toEqual([
-      'Getting started', 'Using OpenWaggle', 'Customize', 'Multiple agents', 'Help',
+      'Getting started', 'Using OpenWaggle', 'Customize', 'Multiple agents', 'Help', 'Reference',
     ]);
   });
 
@@ -86,6 +86,6 @@ describe('documentation navigation', () => {
     expect(getPrevNext(lastUser.slug).next).toBeNull();
     expect(getPrevNext(firstDeveloper.slug).prev).toBeNull();
     expect(getPrevNext('getting-started/first-run')).toEqual({ prev: null, next: userItems[1] });
-    expect(getPrevNext('providers/api-key-auth')).toEqual({ prev: null, next: null });
+    expect(getPrevNext('not-in-the-navigation/page')).toEqual({ prev: null, next: null });
   });
 });

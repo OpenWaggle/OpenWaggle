@@ -1,13 +1,18 @@
 ---
 title: "Security and privacy"
-description: "Understand what stays on your machine, what can leave it, and what permissions do not protect."
+description: "What stays on your machine, what leaves it, and what OpenWaggle's permissions and sandboxes do not protect."
 order: 2
 section: "Help"
+kind: "guide"
 ---
 
-OpenWaggle stores conversation data locally, but a local session is not the same as a local AI request. When you use a hosted model, your messages and any file contents, attachments, or tool output included in its context are sent to that provider. The provider's data-handling policy applies.
+Read this page before you use OpenWaggle on code or data you need to keep private. OpenWaggle keeps your sessions on your computer, but a local session is not a local AI request. When you use a hosted model, your messages, and any file contents, attachments or tool output in the model's context, go to that model's provider, and the provider's data policy applies.
 
-With hosted models, model requests carry your data off your computer. Each one sends the model context to the provider of the model that answers it: the session's model, each agent's model in a [Waggle](/docs/using-openwaggle/waggle-mode), or the real model a [virtual model](/docs/providers/virtual-models) routes the request to. Compaction and branch summaries are model requests too, and a [codemode](/docs/using-openwaggle/codemode) script can send what it passes to the classifier or image models it calls. Titling a session sends the opening message to the Title model, which can belong to a different provider. Refining the title after the first reply, or regenerating it, sends an excerpt of the conversation and the names of its attachments. Pi also adds [project instruction files](/docs/extending/agents-md) such as `AGENTS.md`, and the names and descriptions of available skills, to the context without the agent reading them.
+## What leaves your computer
+
+Each model request sends the model's context to the provider of the model that answers it. That is the session's model, each agent's model in a [Waggle](/docs/using-openwaggle/waggle-mode), or the real model a [virtual model](/docs/providers/virtual-models) routes the request to. Compaction and branch summaries are model requests too. A [codemode](/docs/using-openwaggle/codemode) script can send what it passes to the classifier or image models it calls.
+
+Some text goes to a model without the agent reading it. Pi adds [project instruction files](/docs/extending/agents-md) such as `AGENTS.md`, and the names and descriptions of the available skills, to the context. Titling a session sends the opening message to the title model, which can belong to a different provider. Refining the title after the first reply, or regenerating it, sends an excerpt of the conversation and the names of its attachments.
 
 ```mermaid
 %% alt: What stays on your computer, and the requests that go to model providers
@@ -25,86 +30,82 @@ flowchart LR
   title -->|"sent when a title is generated"| titleProvider
 ```
 
-Before working on sensitive code:
+A local model endpoint can keep the model requests on your machine. Tools, extensions, browser pages and MCP servers can still reach the network, so a local model alone does not make your work offline. OpenWaggle itself also contacts the network, as described in [Usage statistics and update checks](#usage-statistics-and-update-checks).
 
-- Check the selected provider and whether your organization permits sending that code to it.
-- Choose **Ask for Approval** in **Settings > Permissions** if you want to review protected actions. This does not prompt before every edit or make the session read-only.
-- Review MCP servers, extensions, browser profiles, and saved approvals before using them with the project.
-- Keep secrets out of messages, committed configuration, and shared logs. Review the diff before committing changes.
+## Before you work on sensitive code
 
-A local model endpoint may keep inference on your machine. Tools, extensions, browser pages, and MCP services can still access the network. OpenWaggle does not guarantee an offline workflow simply because its sessions are local. OpenWaggle itself also contacts the network, as described in [Usage statistics and update checks](#usage-statistics-and-update-checks).
+- Check which provider you selected, and whether your organization allows sending this code to it.
+- Choose **Ask for Approval** in **Settings > Permissions** if you want to review protected actions. It does not ask before every edit, and it does not make the session read-only.
+- Review MCP servers, extensions, browser profiles and saved approvals before you use them with the project.
+- Keep secrets out of messages, committed configuration and shared logs.
+- Review the diff before you commit.
 
-## Local data
+## What OpenWaggle keeps on your computer
 
-OpenWaggle stores app-owned settings and session records in its application-data directory. The active session database is `session-host/session-host.sqlite`. Pi, the included agent engine, also maintains session transcript files. Treat conversations, attachments, logs, and terminal history as potentially sensitive local data.
+OpenWaggle keeps its settings and sessions in its app data folder. The session database is `session-host/session-host.sqlite`. Pi, the agent engine inside OpenWaggle, also keeps a transcript file for each session. Treat conversations, attachments, logs and terminal history as sensitive. [Data and file locations](/docs/reference/data-locations) lists where each kind of file lives on your platform.
 
-Waggle presets use separate files:
+Provider credentials are not in the session database. They come from Pi's `auth.json`, from environment variables, or from custom provider configuration. `auth.json` is in Pi's agent folder, `~/.pi/agent` unless `PI_CODING_AGENT_DIR` moves it. It is plain JSON, not encrypted like OpenWaggle's MCP secrets, so protect it as you would any secret file. Every Pi client that uses the same folder shares the credentials in it.
 
-- User presets default to `~/.pi/agent/waggle-presets.json`.
-- Project presets live in `<project>/.pi/waggle-presets.json`.
-
-Provider credentials are separate from the session database. They can come from Pi's default `~/.pi/agent/auth.json`, environment variables, or custom provider configuration. `PI_CODING_AGENT_DIR` changes the default Pi directory. The credential file is JSON, not OpenWaggle's encrypted MCP vault; protect it as a secret file. Other Pi clients using that directory share the stored credentials.
-
-MCP server files, secrets, and sign-ins have their own storage. Sign-ins are encrypted; Pi's own `mcp-auth.json` is read but never changed. See [MCP configuration](/docs/configuration/mcp#where-servers-are-configured). For an older installation's database recovery copy, see [Session recovery](/docs/configuration/session-recovery).
+OpenWaggle stores MCP servers, secrets and sign-ins apart from both, and it encrypts the secrets and sign-ins. OpenWaggle reads Pi's own `mcp-auth.json` but never changes it. See [Where servers are configured](/docs/configuration/mcp#where-servers-are-configured). For the recovery copy of an older session database, see [Recover an older session database](/docs/configuration/session-recovery#recover-an-older-session-database).
 
 ## Usage statistics and update checks
 
-Released builds send anonymous usage statistics and error reports to OpenWaggle, from the first launch. Statistics never include prompts, code, file paths, project names, or any identifier for you or your install. Turn both off in **Settings > General** or with `DO_NOT_TRACK=1`. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists every field, where the data goes, and your rights under the GDPR.
+Released builds send anonymous usage statistics and error reports to OpenWaggle from the first launch. They never include your prompts, code, file paths or project names, or any identifier for you or your install. Turn both off in **Settings > General**, or with `DO_NOT_TRACK=1`. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists what OpenWaggle sends, where it goes, and your rights under the GDPR.
 
 Released builds also ask GitHub for updates a few seconds after launch and every 4 hours, so GitHub receives your IP address. The statistics switch does not stop these checks. See [Update checks](/docs/configuration/usage-statistics#update-checks).
 
-## Voice
+## Voice input
 
-Voice transcription runs locally. OpenWaggle may download speech-model files on first use, but does not send audio to an external speech-to-text provider. Once you send the transcribed text as a message, it follows the same model-provider data path as typed text.
+Voice transcription runs on your computer. OpenWaggle may download the speech model on first use, but it never sends your audio to a speech-to-text service. Once you send the transcribed text, it goes to the model provider like any typed message.
 
-## Terminal and Pi Bash
+## The terminal and the agent's shell
 
-The built-in terminal is an interactive shell you control, not a sandbox. Its commands and child processes can read files and credentials available to that shell.
+The built-in terminal is a shell you control, not a sandbox. Its commands, and the programs they start, can read any file or credential your account can.
 
-Each terminal receives a fresh snapshot of the app's environment so toolchains, locale, authentication sockets, proxies, display settings, and exported variables remain usable. OpenWaggle removes its own control variables and known Electron/Node code-injection variables before launch. It also removes AppImage runtime paths on Linux and sets terminal capability markers. This cleanup is not a secret filter.
+Each terminal starts with a fresh copy of the app's environment, so your toolchains, locale, SSH agent, proxies, display settings and exported variables keep working. OpenWaggle removes its own control variables and the Electron and Node.js variables that can inject code. On Linux it also removes the AppImage runtime paths, and it sets the terminal type variables. This cleanup does not filter out secrets. [Environment variables](/docs/reference/environment-variables#set-for-project-actions-and-terminals) lists what it changes.
 
-Terminal output is retained locally under the app's application-data directory so panes can restore recent scrollback. Each terminal is capped at 5,000 lines and 10 MiB. Storage uses user-private directory and file permissions on platforms that support them. Closing a pane or tab, or deleting its session, deletes that terminal's retained history.
+OpenWaggle keeps recent terminal output in its app data folder, so a pane can show its scrollback again after a restart. It keeps at most 5,000 lines and 10 MiB for each terminal, in folders and files only your account can open on platforms that support that. Closing a pane or tab, or deleting its session, deletes that terminal's saved output.
 
-After a full app restart, OpenWaggle sanitizes terminal queries, clipboard controls, input modes, and full-screen terminal state before replaying old output. This does not mean retained text contains no secrets.
+After a full restart, OpenWaggle strips terminal queries, clipboard controls, input modes and full-screen state from old output before it shows it again. The text itself can still contain secrets.
 
-### Terminal links and selections
+The agent's `bash` tool is not the built-in terminal. Pi runs it, so don't assume the terminal's shell, startup files or environment cleanup apply to the agent's commands.
 
-Use Cmd-click on macOS or Ctrl-click on Windows and Linux to follow terminal links. OpenWaggle accepts HTTP and HTTPS links, safe `file:` links, and recognized file references. Other schemes are rejected.
+### Links and selections in the terminal
 
-Files within the session's working directory can open inside OpenWaggle. Files outside it can open only in your remembered choice of supported external editor. Opening an external file this way does not grant the agent access to that location.
+Cmd-click on macOS, or Ctrl-click on Windows and Linux, follows a terminal link. OpenWaggle opens HTTP and HTTPS links, safe `file:` links and file references it recognizes. It refuses other schemes.
 
-**Add selection to chat** puts selected terminal output into a removable item beside the message draft. It includes the working path and checkout information, and marks the text as untrusted output. It is not sent to the model until you send the draft. Treat command output as potentially misleading or malicious even when a local command produced it.
+A file inside the session's working folder can open inside OpenWaggle. A file outside it opens only in the external editor you chose before. Opening a file this way does not give the agent access to that location.
 
-The agent's Pi `bash` tool is separate from the built-in terminal. Do not assume the terminal's chosen shell, startup integration, or environment cleanup also applies to agent tool calls.
+**Add selection to chat** puts the selected terminal output beside your draft, as an item you can remove. It includes the working path and checkout details, and marks the text as untrusted output. Nothing goes to the model until you send the draft. Command output can be misleading or hostile even when a local command produced it.
 
 ## Browser previews
 
-When **Settings > General > Open web links in** is set to **OpenWaggle**, web links use a browser preview owned by the session. Its page process is sandboxed and has Node integration disabled. It denies permission requests except sanitized clipboard writes. Downloads, device access, certificate exceptions, embedded URL credentials, unapproved popups, and non-HTTP/HTTPS navigation are blocked. You can explicitly open the current URL in your system browser instead.
+When **Settings > General > Open web links in** is set to **OpenWaggle**, web links open in a browser preview that belongs to the session. The page runs in a sandbox with Node integration turned off. The preview refuses every permission request except clipboard writes, which Chromium sanitizes. It blocks downloads, device access, certificate exceptions, user names and passwords in URLs, popups you have not allowed, and navigation to anything other than HTTP or HTTPS. You can always open the current page in your system browser instead.
 
-A hidden preview may stay alive so background agent work can continue. Closing it, deleting its session, closing the app window, or quitting the app ends it. Reloading the trusted OpenWaggle interface retains its previews; navigating that interface away from the trusted app document closes them. A crashed preview page gets at most three automatic reload attempts in 30 seconds. Navigation, replacement, or closing the tab cancels pending recovery.
+A hidden preview can stay open so that background agent work can continue. Closing it, deleting its session, closing the app window or quitting the app ends it. Reloading OpenWaggle's own window keeps its previews, but navigating that window away from the app closes them. If a preview page crashes, OpenWaggle reloads it at most three times in 30 seconds. Navigating, replacing the page or closing the tab stops those reloads.
 
 ### Profiles and imported cookies
 
-Persistent browser profiles keep separate cookies and site data. Incognito uses an in-memory profile. Importing cookies copies supported records into an OpenWaggle profile and never writes back to the source browser. Decrypting a selected source may use your operating system's credential helper.
+Each saved browser profile has its own cookies and site data. Incognito keeps them in memory only. Importing cookies copies them into an OpenWaggle profile and never changes the browser you import from. Decrypting them may use your operating system's credential helper.
 
-Windows imports support Firefox and Helium only. Other Chromium sources are not offered there because OpenWaggle cannot safely decrypt Chrome 127 and later app-bound cookie encryption.
+On Windows you can import from Firefox and Helium only. OpenWaggle cannot safely decrypt the app-bound cookie encryption of Chrome 127 and later, so it does not offer other Chromium browsers there.
 
-Imported cookies may give the preview access to signed-in accounts. Review that access before letting an agent use the profile. Incognito does not hide network traffic or prevent a website from receiving submitted data.
+Imported cookies can sign the preview in to your accounts. Check what an account allows before you let an agent use that profile. Incognito does not hide your traffic or stop a website from receiving what you submit.
 
-### Agent browser access
+### Letting agents use the browser
 
-Control access separately in **Settings > Browser > Let agents open and drive the preview browser**. When disabled, or if the setting cannot be read, OpenWaggle withholds browser tools and their instructions. Browser operations recheck this permission, including during work already in progress.
+Agents can use the preview only when **Settings > Browser > Let agents open and drive the preview browser** is on. When it is off, or OpenWaggle cannot read the setting, agents get no browser tools and no instructions about them. Every browser action checks the setting again, including in work already running.
 
-Enabled operations still use scoped approvals, session ownership checks, and cancellation limits. Your input interrupts agent control. See [Approvals and permissions](/docs/configuration/approvals-permissions).
+When it is on, browser actions still ask for approval where your permissions require it, work only on the preview of the agent's own session, and stop when the run is cancelled. Typing or clicking in the preview takes control back from the agent. See [Approvals and permissions](/docs/configuration/approvals-permissions).
 
 ### Annotations
 
-Browser annotations run separately from the page's own JavaScript. OpenWaggle limits the size of selected elements, regions, drawings, text, and page metadata before accepting an annotation. Temporary style previews are restored after a screenshot or cancellation.
+Browser annotations run apart from the page's own JavaScript. OpenWaggle limits the size of the selected elements, regions, drawings, text and page details before it accepts an annotation. OpenWaggle undoes style previews once it has taken the screenshot or you cancel.
 
-Selectors, HTML, computed styles, and other page-derived details are marked as untrusted content in the attachment. Creating an annotation does not send it until you send the message draft. React source information is included only when the page exposes reliable development metadata.
+The attachment marks selectors, HTML, computed styles and other details from the page as untrusted. An annotation goes to the model only when you send the draft. It includes React source locations only when the page exposes reliable development information.
 
-## Electron boundary
+## How the desktop app is isolated
 
-For readers checking the desktop app's technical protections, the app interface runs with Node integration disabled, context isolation enabled, a sandbox, and a strict Content Security Policy. It communicates with privileged app functions through a typed preload bridge.
+The app's interface runs with Node integration turned off, context isolation on, a sandbox, and a strict Content Security Policy. It reaches the app's privileged functions only through a typed preload bridge.
 
-Those protections separate the interface from privileged operations. They do not sandbox your terminal, prove that an extension is trustworthy, or prevent a provider request from containing code you asked the agent to inspect.
+That keeps the interface apart from privileged operations. It does not sandbox your terminal, prove that an extension is safe, or stop a model request from containing code you asked the agent to look at.

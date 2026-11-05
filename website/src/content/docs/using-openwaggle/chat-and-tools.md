@@ -3,219 +3,220 @@ title: "Conversations and tools"
 description: "Give the agent a task, follow its tool activity, and continue work in a project conversation."
 order: 1
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-A session is a conversation about work in a project. It keeps your messages, the agent's replies, and a record of the tools it used. You can return to the same session later instead of explaining the task again.
+A session is a conversation about work in a project. It keeps your messages, the agent's replies and a record of every tool the agent used, so you can come back to it later instead of explaining the task again. This page covers the everyday work: starting a session, reading what the agent does, and steering it while it works.
 
-## Sessions
+## Start a session
 
-1. Select your project in the sidebar and choose **New session**, or open an existing session.
-2. For a new session, choose **Current checkout** or **New worktree** above the message box. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees) if you're unsure which to use.
-3. Choose a model beside the message box. If a model appears under several providers, choose the provider you connected.
+1. Select your project in the sidebar and choose **New session**, or open a session you already have.
+2. For a new session, choose **Current checkout** or **New worktree** above the message box. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees) if you're not sure which you want.
+3. Pick a model beside the message box. If a model is listed under several providers, pick the provider you connected.
 4. Describe the result you want, the files or behavior involved, and anything the agent must leave alone.
-
-![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
-
-1. **Current checkout** or **New worktree** sets where the session works. It is read-only after the first message.
-2. The run target is the branch the session runs on. In **New worktree** mode it is the base for the new worktree. See [Run target](/docs/developer-workflow/git-integration#run-target).
-3. **+** attaches files, references a project file, uses a skill, or starts a Waggle preset. See [Attachments and voice](/docs/using-openwaggle/attachments-voice).
-4. The access mode, here **Ask for approval**, decides whether protected actions ask you first. See [Approvals and permissions](/docs/configuration/approvals-permissions).
-5. The model selector lists the models you enabled.
-6. The thinking level sets how much reasoning effort the model spends. See [Thinking levels](/docs/configuration/thinking-levels).
-7. The context meter shows how much of the model's context window the session uses, beside the window's size. See [Context management](/docs/using-openwaggle/context-management).
-8. The microphone dictates a message. See [Voice input](/docs/using-openwaggle/attachments-voice#voice-input).
 
 For example:
 
 ```text
-Find where this app validates email addresses. Explain the current behavior
-and suggest a test for an address with surrounding spaces. Don't edit files yet.
+Find where this app validates email addresses.
+Explain the current behavior and suggest a test for an address with surrounding spaces.
+Don't edit files yet.
 ```
 
-### Changing the model
+Around the message box you'll find, from left to right:
 
-You can switch an open session to another model at any time with the model selector beside the message box. The session keeps the new model, including after you restart OpenWaggle. The choice belongs to that session only: other sessions keep their models, and new sessions still start with the project's default.
+- **Current checkout** or **New worktree**, which sets where the session works. You can change it until you send the first message. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
+- The branch the session runs on. With **New worktree**, it is the branch the new worktree starts from. See [Choose the run target](/docs/developer-workflow/git-integration#choose-the-run-target).
+- **+**, to attach files, reference a project file, use a skill, start a Waggle preset, or turn MCP servers off for this session. See [Attachments and voice input](/docs/using-openwaggle/attachments-voice).
+- The access mode, such as **Ask for approval**, which decides whether protected actions ask you first. See [Approvals and permissions](/docs/configuration/approvals-permissions).
+- The model picker, which lists the models you turned on.
+- The thinking level, which sets how much reasoning the model does. See [Thinking levels](/docs/configuration/thinking-levels).
+- The context meter, which shows how much of the model's context window the session uses. See [Context management](/docs/using-openwaggle/context-management).
+- The microphone, to dictate a message. See [Voice input](/docs/using-openwaggle/attachments-voice#dictate-a-message).
 
-If the agent is working when you switch, the current turn finishes on the model it started with. A note above the message box says which model your next message will use, and it disappears once your next message, or a message you queued, starts on the new model.
+Keep related work in one session and start another for an unrelated task. Sessions that all use **Current checkout** edit the same files, so a new session on its own doesn't keep their changes apart.
 
-Keep related work in the same session. Start another session for an unrelated task. Multiple sessions using **Current checkout** can edit the same files, so a new conversation alone does not isolate their changes.
+Sessions you start with the `pi` command in a project folder show up in that project too, and you can continue them here. See [sessions from the Pi CLI](/docs/using-openwaggle/pi-cli-sessions).
+
+### Change the model
+
+You can switch a session to another model at any time with the model picker. The session keeps the new model, also after you restart OpenWaggle. Only that session changes. Other sessions keep their models, and new sessions still start with the project's default.
+
+If the agent is working when you switch, the current turn finishes on the model it started with. A note above the message box says which model your next message will use. It disappears once your next message, or a message you queued, starts on the new model.
+
+## Name and share sessions
 
 ### Session titles
 
-A new session first shows your opening message as its title. A second or two later, OpenWaggle replaces it with a short generated title such as "Fix sidebar row overlap", so you can find the session again weeks later. Workers are titled the same way from the task they were given.
+A new session first shows your opening message as its title. A second or two later, OpenWaggle replaces it with a short generated title such as "Fix sidebar row overlap", so you can find the session again weeks later. Workers get their titles the same way, from the task they were given.
 
-The title stays put after that. If your first message was too vague to name, for example "fix this" or a bare screenshot, OpenWaggle titles the session once more after the agent's first reply. It never re-titles a session as the conversation moves on, and a title change never moves a session in the sidebar.
+After that the title stays. If your first message was too vague to name, such as "fix this" or a bare screenshot, OpenWaggle titles the session once more after the agent's first reply. It never retitles a session as the conversation goes on, and a new title never moves a session in the sidebar.
 
-To rename a session, double-click its title in the sidebar or in the header, press F2 on a focused row, or choose **Rename session** from the row menu. Enter or clicking away saves, and Escape cancels. A title you chose is never replaced by a generated one. **Regenerate title** in the same menu asks for a new title from the whole conversation and applies it right away.
+To rename a session, double-click its title in the sidebar or the header, press F2 on a focused row, or choose **Rename session** from the row menu. Press Enter or click away to save, or Escape to cancel. OpenWaggle never replaces a title you chose. **Regenerate title** in the same menu asks for a new title based on the whole conversation and applies it right away.
 
-Titles are generated by the Title model in **Settings > Connections**. By default it uses the cheapest available model from the same provider and model family as the session, for example Claude Haiku for a Claude Sonnet session on Amazon Bedrock, in the same region. Your message goes nowhere it wasn't already going. Choose **Off** to keep the opening message as the title.
+The **Title model** in **Settings > Connections** writes the titles. By default it is the cheapest available model from the same provider and model family as the session, in the same region. For example, it is Claude Haiku for a Claude Sonnet session on Amazon Bedrock. Your message goes nowhere it wasn't already going. Choose **Off** to keep the opening message as the title.
 
-If the Title model fails, the session's own model writes the title instead. When the provider refuses the Title model, for example because your account has no access to it or its sign-in expired, OpenWaggle tells you once and titles new sessions with their own model for the next 30 minutes without asking the refused one. **Regenerate title** still tries the Title model first.
+If the **Title model** fails, the session's own model writes the title. If the provider refuses the **Title model**, for example because your account can't use it or its sign-in expired, OpenWaggle tells you once. For the next 30 minutes it titles new sessions with their own model and doesn't try the refused one. **Regenerate title** still tries the **Title model** first.
 
 ### Session links
 
-Every session has a link, such as `openwaggle://sessions/4bc96a8e-3b0a-456f-8ac3-64b8be7dc940`, that you can send to another session so its agent can look at this one. To copy it, choose **Copy session link** from a session's row menu in the sidebar or the Hive panel, use **Copy session link** in the command palette, or press `Cmd+Option+L` on macOS or `Ctrl+Alt+L` on Windows and Linux for the session you have open. The shortcut works in the terminal too. A new session has no link until you send its first message.
+Every session has a link, such as `openwaggle://sessions/4bc96a8e-3b0a-456f-8ac3-64b8be7dc940`, that you can give to another session so its agent can look at this one. To copy it, do one of these:
 
-Some Linux desktops, such as Xfce, Cinnamon, and MATE, lock the screen on `Ctrl+Alt+L` before OpenWaggle sees it. On some keyboards, such as Polish on Windows, `Ctrl+Alt+L` types a letter; while you type in a field or the terminal, and anywhere in a page in the Browser preview, that letter goes there instead. Choose another key for **Copy session link** in **Settings > Shortcuts** if either gets in your way.
+- Choose **Copy session link** from the session's row menu in the sidebar or the Hive panel.
+- Choose **Copy session link** in the command palette.
+- Press `Cmd+Option+L` on macOS or `Ctrl+Alt+L` on Windows and Linux to copy the link of the session you have open. The shortcut works in the terminal too.
 
-Paste the link into another session's message, for example "Check what the session at openwaggle://sessions/… decided about the schema". The agent reads that session with its `hive` tool, which accepts the link as it is. The [Hive CLI](/docs/developer-workflow/hive-cli) accepts links anywhere it takes a session id. A Worker, or an agent limited to one project, can still be refused a session outside its Hive or project, the same as with a session id.
+A new session has no link until you send its first message.
 
-Clicking a session link in a conversation opens that session. With an installed release of OpenWaggle, a link opened anywhere else on your computer, for example from a chat app or a note, opens it too. On Linux, the [install script](/docs/getting-started/installation) registers OpenWaggle for these links; if you installed an earlier release, run it again. When a link opens:
+Some Linux desktops, such as Xfce, Cinnamon and MATE, lock the screen on `Ctrl+Alt+L` before OpenWaggle sees it. On some keyboard layouts, such as Polish on Windows, `Ctrl+Alt+L` types a letter, and while you type in a field, in the terminal or anywhere in a Browser preview page, the letter goes there instead. If either gets in your way, pick another key for **Copy session link** in **Settings > Shortcuts**.
+
+Paste the link into another session's message, for example "Check what the session at openwaggle://sessions/… decided about the schema". The agent reads that session with its `hive` tool, which takes the link as it is. The [Hive CLI](/docs/developer-workflow/hive-cli) accepts a link anywhere it takes a session id. A worker, or an agent limited to one project, can still be refused a session outside its Hive or project, just as with a session id.
+
+Clicking a session link in a conversation opens that session. With an installed release, a link opened anywhere else on your computer, such as in a chat app or a note, opens it too. On Linux, the [install script](/docs/getting-started/installation) registers OpenWaggle for these links. If you installed an earlier release, run the script again. When a link opens:
 
 - An archived session opens with its archived notice and stays archived until you restore it.
 - If OpenWaggle doesn't have the session, for example because it was deleted or the link came from a development build, it says the session wasn't found and stays on the page you were on.
-- Opening a link only shows the session. It never sends a message, starts the agent, or changes the session.
+- Opening a link only shows the session. It never sends a message, starts the agent or changes the session.
 
-Development builds keep their own sessions, so they never answer links opened outside the app; links clicked inside a development build still open its own sessions.
+Development builds keep their own sessions, so they never answer links opened outside the app. Links clicked inside a development build still open its own sessions.
 
-### Sessions from the Pi CLI
+## Read the sidebar
 
-If you also use the `pi` command, the sessions you start with it show up in OpenWaggle on their own. There is nothing to import. A `pi` session appears under a project when you started it in that project's folder or in any folder inside it, for example `packages/api`. It takes a few seconds after OpenWaggle opens, or after the session is created.
+The sidebar groups sessions by project. Each row shows a title, the session's state and a timestamp. Hover over a row to see its actions. The timestamp stays visible.
 
-It is the same session, not a copy. Open it to read the conversation, then send a message to carry on. Later, `pi --resume` in the terminal picks up the same history, including what you added in OpenWaggle. If you continue the session in the terminal while OpenWaggle is open, OpenWaggle reads the new messages the next time you open it or send a message. Avoid writing to the same session from both at the same moment, since neither one waits for the other.
+![The sidebar with state chips above the jotter project, and jotter sessions that are in error, working, waiting for input, done and interrupted](/screenshots/sidebar-states.png)
 
-When you send a message in a session that `pi` used last, OpenWaggle first asks where to continue it. **Continue in OpenWaggle** sends the message. **Keep running in pi** opens the session's terminal in the folder the session ran in, with `pi --session <file>` typed in for you to run, and keeps your message in the composer. Tick **Remember for this project** to skip the question in that project next time. The choice is yours only: it is saved in your OpenWaggle settings, not in the project, and you can change it per project in **Settings > General > Pi sessions**. Messages from agents and the `openwaggle` CLI are never held back by it.
-
-A few things to know:
-
-- The title is the name you gave it with `/name` in Pi. Without one, it is titled like a session started in OpenWaggle: from its first message, and then by the Title model when that message is less than a day old. Older sessions keep the first message as their title. A later `/name` changes it too, unless you renamed the session in OpenWaggle; then your title stays.
-- When you continue it, the agent works in the folder you started the `pi` session in, with the model and thinking level the session last used, the same way `pi --resume` would. If the session never changed its thinking level, it uses Pi's default thinking level: a `.pi/settings.json` in the folder you started the session in wins over your global Pi settings, as it does for `pi`. A model that offers fewer levels gets the nearest one it has.
-- If you keep Pi's sessions somewhere else with `PI_CODING_AGENT_SESSION_DIR` or the `sessionDir` setting, OpenWaggle looks there too, and stores its own new sessions there so `pi --resume` finds them.
-- Sessions from folders that aren't an OpenWaggle project stay hidden. Add the folder as a project and its `pi` sessions appear.
-- Deleting the session in OpenWaggle removes it from OpenWaggle only. The Pi session file stays, so `pi --resume` still has it, and OpenWaggle doesn't list it again. Sessions you started in OpenWaggle are deleted completely, as before.
-- If the Pi session file is deleted outside OpenWaggle, for example from `pi --resume`, the session leaves OpenWaggle's sidebar too, since its history was in that file, unless a fork or a Worker of it still depends on it; then it stays, to read only, and says so when you open it. Until then, sending a message to it fails with a message that says so; OpenWaggle never starts a new file under the same session. If the folder that holds the file is missing, for example because it was renamed or is on a drive that is not connected, or the file is a link to such a drive or can't be read, the session stays with its history, and says so when you open it. Until you reconnect the drive, put the folder back or make the file readable again, sending a message to it, forking, cloning or compacting it, or going to another branch fails with a message that says so. The same goes for sessions you started in OpenWaggle. A file put back later is found again.
-- If the Pi file of a session you started in OpenWaggle is deleted outside OpenWaggle, the session says so when you open it. Your next message starts a new transcript: the agent no longer has the earlier conversation, and the session shows only what comes after. Until you send it, the session can't be forked, cloned, compacted or switched to another branch. If OpenWaggle can't read a folder that may hold a copy of the file, it doesn't start a new transcript: the session says so and names the folder, and messages to it fail until you make that folder readable again.
-- Removing a project also keeps the Pi files of its `pi` sessions. If you add the folder again later, they come back. If the folder is inside another project, that project lists them once the removal is done, since they were started inside its folder.
-- Opening a session to read it never changes its file.
-- A session you forked with `/fork` in Pi shows up as its own session, next to the one it came from.
-
-## Reading the sidebar
-
-The sidebar groups sessions by project. Each row shows a title, its current state, and a timestamp. Hover a row to see its actions without hiding the timestamp.
-
-![The sidebar with its state chips and one jotter session in each state: Error, Working with Thinking, Input, a Done Hive with one Worker and two conversation branches, and an Interrupted session in its own worktree, 2 commits ahead and 1 behind](/screenshots/sidebar-states.png)
-
-### What a row tells you
+### What a row's state means
 
 | State | Meaning |
 |-------|---------|
-| Input | The agent needs a response from you. |
+| Input | The agent needs an answer from you. |
 | Working or Connecting | Work is in progress. The row may also name the activity, such as Testing. |
-| Interrupted | Work stopped before completion. Open the session to decide how to continue. |
+| Interrupted | Work stopped before it finished. Open the session to decide how to continue. |
 | Error | A request or action failed. Open the session for details. |
-| Waggle | A multi-agent Waggle review is running. |
+| Waggle | A Waggle review with two agents is running. |
 | Done | Work finished while you were away. |
 
-Idle sessions have no state label. Sessions needing attention also have a colored edge marker, but you don't need to distinguish colors to read the state.
+An idle session has no state label. Sessions that need you also have a colored marker on their edge, but the label alone tells you the state.
 
-### Provenance icons
+### What the icons mean
 
-Hover these icons for details about where the session works:
+Hover an icon for details about where the session works:
 
 | Icon | Meaning |
 |------|---------|
-| Crown | The session is a Hive's Queen. The count beside it is its direct Workers. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). |
-| Pickaxe | The session is a Hive Worker. A count beside it is the Workers it spawned itself. |
-| Branch | The Git branch name is in the tooltip. |
-| Split | The session uses its own worktree rather than the folder you opened. |
-| List tree | The conversation has multiple branches. The count appears beside it. |
+| Chess queen | The session is a Hive's Queen. The count beside it is its direct workers. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). |
+| Pickaxe | The session is a Hive worker. A count beside it is the workers it started itself. |
+| Branch | The tooltip names the Git branch. |
+| Split | The session works in its own worktree, not in the folder you opened. |
+| List tree | The conversation has more than one branch. The count is beside it. |
 | `↑n` `↓n` | Commits ahead of and behind the branch's upstream. |
 
-Conversation branches are alternate paths through the chat, not Git branches. Use the [Session tree](/docs/using-openwaggle/session-tree) to browse them.
+Conversation branches are other paths through the conversation, not Git branches. The [Session Tree](/docs/using-openwaggle/session-tree) shows them.
 
-### Narrowing the list
+### Filter the list
 
-Type in the sidebar filter to match session titles and project names. `Cmd+F` on macOS or `Ctrl+F` on Windows and Linux focuses it. `Escape` clears the filters while the field has focus.
+Type in the sidebar filter to match session titles and project names. `Cmd+F` on macOS or `Ctrl+F` on Windows and Linux moves to the filter, and `Escape` clears it while it has focus.
 
-State chips beneath the filter show counts. Select one to find matching sessions across all projects, including collapsed projects. Collapsed project headings also show counts for work in progress or needing attention.
+The state chips below the filter show how many sessions are in each state. Select one to find those sessions in every project, including collapsed ones. A collapsed project's heading also shows how many of its sessions are working or need you.
 
-Filters reset when you quit. Sorting and collapsed project sections are remembered.
+Filters reset when you quit. OpenWaggle remembers the sort order and which projects you collapsed.
 
-## Messages
+## Follow the agent's work
 
-Replies appear as the model generates them. The conversation can include formatted text, thinking blocks when the model provides them, tool calls, and errors.
+Replies appear as the model writes them. A conversation can include formatted text, the model's thinking when it shares it, tool calls and errors.
 
-A tool is an action the agent can take outside its reply, such as reading a file or running a test command. Read the tool activity as well as the final answer. An agent saying a test passed is less useful than the actual command and result.
+A tool is something the agent does outside its reply, such as reading a file or running a test. Read the tool rows as well as the final answer. The command the agent ran and its output tell you more than the agent saying the tests passed.
 
-Each tool row starts with an icon for the kind of tool: a terminal for shell commands, a file for reads, the pickaxe for Workers (the same one the sidebar uses, and the Hive panel for Workers without an Agent definition), the MCP logo for MCP tools, a pointer for the browser preview, and so on. A row whose label shimmers is still running. A failed call keeps its text, turns its icon red and ends with **×**; a finished call has no extra mark. An MCP tool reads as its server and tool name (**Datadog › search_datadog_logs**).
+Each tool row starts with an icon for the kind of tool: a terminal for shell commands, a file for reads, a pickaxe for workers (also the Hive panel's icon for a worker without an agent definition), the MCP logo for MCP tools, a pointer for the browser preview, and so on. A row whose label shimmers is still running. A failed call keeps its text, turns its icon red and ends with **×**. A finished call has no extra mark. An MCP tool shows its server and tool name, such as **Datadog › search_datadog_logs**.
 
-When the agent coordinates [Workers](/docs/using-openwaggle/hives-and-sessions), each row names the Worker it acted on by its current title and agent definition, for example **Spawned Worker (reviewer) · Review the diff** or **Messaged Worker · Check main process**. A spawn the agent made directly also shows the Worker's state as the Hive panel words it and an **Open** button. Waiting on Workers adds no row; the spawn rows and the Hive panel show what the agent is waiting for.
+When the agent coordinates [workers](/docs/using-openwaggle/hives-and-sessions), each row names the worker by its current title and agent definition, such as **Spawned Worker (reviewer) · Review the diff** or **Messaged Worker · Check main process**. A worker the agent started itself also shows the worker's state, worded as in the Hive panel, and an **Open** button. Waiting for workers adds no row. The spawn rows and the Hive panel show what the agent is waiting for.
 
-![A finished turn's tool rows: Ran pnpm test, a failed Read of src/upload/policy.ts ending in × with its ENOENT error, an expanded edit of src/upload/retry.ts showing its diff and copy buttons, Datadog › search_datadog_logs, and Spawned Worker · Add a regression test for 4xx uploads with Working and Open](/screenshots/tool-rows.png)
+![Tool rows from one turn, with a shell command, a failed read and its error, an edit with its diff, an MCP search and a spawned worker](/screenshots/tool-rows.png)
 
-Expand a tool row to inspect its arguments and output. Shell output can appear while the command is still running; a live excerpt is progress, not a success result. Failed commands keep their available output for inspection. Use **Copy command** or **Copy output** when those controls are available.
+Expand a tool row to see its arguments and output. Shell output can appear while the command is still running, and a live excerpt shows progress, not success. A failed command keeps the output it produced. Use **Copy command** or **Copy output** when they are there.
 
-Expanding a successful edit row shows that file's diff instead of the raw edit arguments. Select the file name to open it at the first change, or use **Copy diff**, **Copy path**, or **Copy args**. Any output an extension adds to the edit, such as diagnostics, appears under the diff, with **Copy output**. A failed edit still shows its arguments and the error. To review everything a turn changed, use the changed-files card or the [diff panel](/docs/developer-workflow/git-integration#diff-panel).
+Expanding a successful edit shows that file's diff instead of the raw edit arguments. Select the file name to open the file at the first change, or use **Copy diff**, **Copy path** or **Copy args**. Output an extension adds to the edit, such as diagnostics, appears under the diff with **Copy output**. A failed edit shows its arguments and the error. To review everything a turn changed, use the changed-files card or the [diff panel](/docs/developer-workflow/git-integration#open-the-diff-panel).
 
-A first message reports each setup step in the conversation, such as pulling the branch, creating a worktree, or connecting an MCP server it has to wait for. **Worktree created** confirms the checkout exists, not that project setup or the task has finished. A configured setup command must complete before the first agent turn. See [First-send worktree feedback](/docs/developer-workflow/git-integration#first-send-worktree-feedback).
+A session's first message reports each setup step in the conversation, such as pulling the branch, creating a worktree, or connecting an MCP server it has to wait for. **Worktree created** means the checkout exists, not that project setup or the task is done. A setup command you configured must finish before the agent's first turn. See [Watch the worktree being created](/docs/developer-workflow/projects-and-worktrees#watch-the-worktree-being-created) for what each step means.
 
-If an approval request appears, check the proposed action and its target. Choose **Allow once** to proceed or **Continue without** to skip it and give different instructions. **Ask for approval** does not ask before every file read or guarantee that files cannot be edited.
+If the agent asks for approval, check what it wants to do and to what. Choose **Allow once** to let it go ahead, or **Continue without** to skip it and say what to do instead. **Ask for approval** doesn't ask before every file read, and it doesn't stop the agent from editing files. See [Approvals and permissions](/docs/configuration/approvals-permissions).
 
-You can send an ordinary message while the agent is busy. It waits as a follow-up rather than starting a second task at the same time. For changes already made to files, use the [diff panel](/docs/developer-workflow/git-integration#diff-panel) to review them and send corrections.
+## Send a message while the agent works
 
-Queued follow-ups wait above the message box, in the order they will be sent. To reorder them, drag a message by its grip, the dots at its left edge: the whole message follows the pointer, its place in the list stays dimmed, and a line shows where it will land. Press `Esc` or drop it outside the list to leave the order as it was. You can also click the grip, or focus it and press `Enter`, and choose **Move up** or **Move down**.
+You can send a message while the agent is busy. It doesn't start a second task alongside the first. It waits as a follow-up and runs when the current work ends. To correct changes already made to files, review them in the [diff panel](/docs/developer-workflow/git-integration#open-the-diff-panel) and send comments from there.
 
-![Two queued follow-ups above the message box while the agent works, each with its grip, Steer, edit and delete buttons, and Pause above them](/screenshots/queued-follow-ups.png)
+Queued follow-ups wait above the message box, in the order they will go. Each one has these controls:
 
-## Native Pi tools
+- **Steer** sends the message into the work that is running now. The agent reads it at its next step. It doesn't stop a tool that is already running.
+- The pencil edits the message, and the bin deletes it.
+- **Pause** above the list holds the whole queue until you resume it.
 
-Pi is the agent engine used by OpenWaggle. Its usual starting file and shell tools are:
+![Two queued follow-ups above the message box while the agent works, each with a grip, Steer, edit and delete, and Pause above them](/screenshots/queued-follow-ups.png)
 
-| Tool | Purpose |
-|------|---------|
-| `read` | Read file contents. |
-| `write` | Create or replace a file. |
-| `edit` | Apply targeted file edits. |
-| `bash` | Run shell commands, including searches and tests. |
+To reorder the queue, drag a message by its grip, the dots at its left edge. The message follows the pointer, its old place stays dimmed, and a line shows where it will land. Press `Esc` or drop it outside the list to keep the old order. You can also click the grip, or focus it and press `Enter`, and choose **Move up** or **Move down**.
 
-Other tools, including `grep`, `find`, and `ls`, may be available depending on the active configuration. Tool activity appears in the conversation. Agent definitions can restrict the available tools with an allowlist, so not every session has the same set.
+[Hives and sessions](/docs/using-openwaggle/hives-and-sessions) explains how follow-ups and steering work between sessions.
 
-The agent can also discover and use saved [Project actions](/docs/configuration/project-actions), such as your test command or development server, under its existing permissions. These are managed runs with output and controls in **Session Summary > Actions**, separate from the interactive terminal. Saving an action does not grant extra permission to run it.
+## Tools the agent can use
 
-## Browser preview tools
+### Pi's file and shell tools
 
-The agent can inspect and interact with the same [Browser preview](/docs/developer-workflow/browser-preview) you use. For example, ask it to open your running app, check a page at a phone width, and report what it finds.
+Pi is the agent that runs inside OpenWaggle. Its usual starting tools are:
 
-Control this in **Settings > Browser > Let agents open and drive the preview browser**. Page-changing actions use the approval flow. Your keyboard or pointer input interrupts an agent action so you can take over.
+| Tool | What it does |
+|------|--------------|
+| `read` | Reads a file. |
+| `write` | Creates or replaces a file. |
+| `edit` | Makes targeted edits to a file. |
+| `bash` | Runs shell commands, including searches and tests. |
 
-Turning the setting off removes preview access from later turns and rejects further preview calls from a turn already running. Your own browser controls remain available. Agent access is also blocked if the setting cannot be read.
+Other tools, such as `grep`, `find` and `ls`, may be there too, depending on your setup. An agent definition can limit a session to a list of tools, so not every session has the same ones. For running several tool calls from one script, see [Codemode](/docs/using-openwaggle/codemode).
 
-## Slash command menu
+### Project actions
 
-Type `/` at the start of a word in the message box. Keep typing to filter, then use the arrow keys and `Enter` to choose an item.
+The agent can find and run your saved [Project actions](/docs/configuration/project-actions), such as your test command or dev server, within its usual permissions. Saving an action doesn't give the agent extra permission to run it. These runs, with their output and controls, appear in **Session Summary > Actions**, apart from the interactive terminal.
 
-![The slash command menu over a new session's message box: Compact session, Fork session and Clone session, then the skills Visualize, regression-test and release-notes, then the Waggle presets Code Review and Debate](/screenshots/slash-command-menu.png)
+### Browser preview tools
 
-The menu lists the built-in commands `/compact`, `/fork`, and `/clone` first, followed by skills, saved Waggle presets, and commands added by enabled extensions. A skill supplies instructions for a particular task. A Waggle preset sets up a multi-agent review.
+The agent can look at and use the same [Browser preview](/docs/developer-workflow/browser-preview) you use. For example, ask it to open your running app, check a page at phone width, and report what it finds. Actions that change the page go through approvals. If you type or click in the preview, the agent's action stops so you can take over.
 
-In a session, the menu also lists the commands its Pi extensions register, such as Pi's `/mcp`, with their descriptions. Choosing one inserts it; Pi runs it when you send the message, instead of sending the message to the model. A session is not titled from such a command: its title comes from the first real request.
+To turn this off, clear **Settings > Browser > Let agents open and drive the preview browser**. Later turns lose preview access, and OpenWaggle refuses the next preview calls of a turn already running. Your own browser controls keep working. If OpenWaggle can't read the setting, agents get no preview access.
 
-When a built-in command such as `/compact` is the whole message, press `Enter` to run it. `Tab` or a click always completes the command so you can add text after it, such as compaction instructions. `Enter` also completes it when the message contains other text.
+## Use the slash menu
 
-Selecting a skill or preset replaces only the slash token, keeping the rest of your draft. The selection appears as a chip before you send. A Waggle preset applies to that message, not every later message.
+Type `/` at the start of a word in the message box. Keep typing to filter, then use the arrow keys and `Enter` to choose.
 
-## Global command palette
+![The slash menu over a new session's message box, with the built-in commands, then skills such as Visualize, then Waggle presets](/screenshots/slash-command-menu.png)
 
-Press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux to find app actions. The palette includes new sessions, project selection, recent sessions, settings, view controls, file and content search, panels, and extension actions. Use the message box's `/` menu for skills and Waggle presets.
+The menu lists the built-in commands `/compact`, `/fork` and `/clone` first, then skills, saved Waggle presets, and commands from enabled extensions. A skill gives the agent instructions for one kind of task. A Waggle preset sets up a review by two agents.
 
-![The command palette with its search field and the Create, Project and Session sections: New session, New session in another project, Go to file, Search project contents, Open project, Compact session, Fork to new session and Clone current session](/screenshots/command-palette.png)
+In a session, the menu also lists the commands its Pi extensions add, such as Pi's `/mcp`, with their descriptions. Choosing one puts it in the message box. When you send the message, Pi runs the command instead of sending the text to the model. A session's title never comes from such a command, only from the first real request.
 
-The **Panels** section lists every panel the right panel can show: All panels, Changes, Project Actions, Scheduled, Browser, Files, Session Tree, Resources, Hive, and each extension side panel that can run, with its extension's name beside it. Each entry shows its shortcut when it has one. Choosing a panel shows it in the right panel and never closes the right panel, even when that panel is already showing. To give a panel a shortcut, see [Panel shortcuts](/docs/getting-started/keyboard-shortcuts#panel-shortcuts).
+When a built-in command such as `/compact` is the whole message, `Enter` runs it. `Tab` or a click always completes the command so you can type after it, such as instructions for compaction. `Enter` completes it too when the message has other text.
 
-The commands `/compact`, `/fork`, and `/clone` require the session to be idle. If work is running, wait for it to finish and submit the command again. OpenWaggle keeps your draft and attachments when it refuses one of these commands. Ordinary messages, skill prompts, and Pi extension commands can still wait as follow-ups.
+Choosing a skill or preset replaces only the slash word and keeps the rest of your draft. It shows as a chip until you send. A Waggle preset applies to that one message, not to every message after it.
 
-Press `Cmd+P` or `Ctrl+P` for project file search. Select a result to open the file on the right. Text files support autosave with detection of changes made outside the editor. Markdown and HTML have safe previews; images and PDFs display in place. Content-search results open at the matching line.
+`/compact`, `/fork` and `/clone` need the session to be idle. If the agent is working, wait for it to finish and send the command again. OpenWaggle keeps your draft and attachments when it refuses one of these commands. Ordinary messages, skills and Pi extension commands can still wait in the queue as follow-ups.
 
-For reducing a long conversation's context, see [Context management](/docs/using-openwaggle/context-management).
+## Use the command palette
 
-## Error handling
+Press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux to find any app action: new sessions, switching project, recent sessions, settings, view controls, file and content search, panels, and actions from extensions. Skills and Waggle presets are in the message box's `/` menu instead.
 
-When an action fails, the error panel shows the message and details. Use its copy action when reporting a problem. Authentication errors can link to Settings; retry and dismiss controls appear where applicable.
+![The command palette open, with its search field and commands for new sessions, projects and the open session](/screenshots/command-palette.png)
 
-Closing or restarting the desktop app does not interrupt an agent run. A separate background process, the Session Host, keeps runs going. Reopen the app to check progress. If a run is actually interrupted, inspect its last tool results and files before asking it to continue. Closing the window is not a way to stop work.
+The **Panels** section lists every panel the right panel can show: All panels, Changes, Project Actions, Scheduled, Browser, Files, Session Tree, Resources, Hive, and each extension side panel that can run, with its extension's name. Each entry shows its shortcut if it has one. Choosing a panel shows it in the right panel and never closes the right panel, even when that panel is already showing. To give a panel a shortcut, see [Panel shortcuts](/docs/getting-started/keyboard-shortcuts#panel-shortcuts).
 
-## Command environment
+Press `Cmd+P` or `Ctrl+P` to search for a project file, and select a result to open it on the right. Text files save as you type and notice changes made outside the editor. Markdown and HTML have safe previews, and images and PDFs show in place. Content search results open at the matching line.
 
-The [built-in terminal](/docs/developer-workflow/built-in-terminal) is for commands you run yourself. It starts your interactive shell in the session's **Working path** and loads your normal shell configuration. The agent's `bash` tool has its own shell-launch behavior; it is not the terminal panel.
+## When something fails
 
-To share terminal output, select it, right-click, and choose **Add selection to chat**. This adds a removable context chip with the terminal and working-path details. Check the chip and send your message when ready. Selecting output alone sends nothing, and OpenWaggle marks it as untrusted output rather than instructions.
+When an action fails, an error panel shows the message and details. Copy them when you report a problem. Sign-in errors can link to Settings, and retry and dismiss buttons appear where they help.
+
+Closing or restarting the app doesn't stop the agent. Runs belong to a background process, the Session Host, which keeps them going. Reopen the app to see how far they got. So closing the window is not a way to stop work. If a run really was interrupted, check its last tool results and your files before you ask the agent to continue. [How OpenWaggle works](/docs/getting-started/how-openwaggle-works#the-session-host) explains the Session Host.
+
+## Share terminal output with the agent
+
+The [built-in terminal](/docs/developer-workflow/built-in-terminal) is for commands you run yourself. It starts your usual shell, with your shell configuration, in the session's working directory. The agent's `bash` tool starts its own shells and doesn't use the terminal panel.
+
+To give the agent some terminal output, select it, right-click, and choose **Add selection to chat**. A chip with the terminal and working directory appears in the message box, and you can remove it. Check it and send your message when you're ready. Selecting output on its own sends nothing, and OpenWaggle marks the output as untrusted, so the agent treats it as data rather than instructions.

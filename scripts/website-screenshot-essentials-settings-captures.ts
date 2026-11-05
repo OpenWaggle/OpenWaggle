@@ -14,10 +14,8 @@ import {
   openSettingsSection,
   UI_TIMEOUT_MS,
   waitForUi,
+  withWindowSize,
 } from './website-screenshot-ui'
-
-/** Amazon Bedrock, Ant Ling, Anthropic (configured) and the provider after it. */
-const API_KEY_ROWS_SHOWN = 4
 
 /** One of the Connections provider groups, opened or closed. */
 async function setProviderGroup(page: Page, title: string, open: boolean) {
@@ -58,7 +56,14 @@ export async function captureSettingsConnections(context: CaptureContext) {
   await leaveSettings(page)
 }
 
-/** The first rows of API Key Providers, where the fixture's Anthropic key shows as configured. */
+const API_KEY_WINDOW = { width: 1200, height: 1000 } as const
+/** A made-up key, typed but never saved; the field shows it masked. */
+const FIXTURE_TYPED_KEY = 'sk-ant-fixture-0000000000000000'
+
+/**
+ * API Key Providers opened, with Anthropic's key editor open and a made-up key typed into its
+ * field, masked, and the field outlined. The key is never saved.
+ */
 export async function captureSettingsApiKeyProviders(context: CaptureContext) {
   const { page } = context
   await prepareEssentials(context)
@@ -67,16 +72,33 @@ export async function captureSettingsApiKeyProviders(context: CaptureContext) {
   const toggle = await setProviderGroup(page, 'API Key Providers', true)
   const anthropic = page.getByRole('button', { name: 'Edit Anthropic API key' })
   await anthropic.waitFor({ timeout: UI_TIMEOUT_MS })
-  await toggle.scrollIntoViewIfNeeded()
-  const header = await regionOf(toggle)
-  // Down to the row after Anthropic's, so a configured and an unconfigured key show together.
-  const rows = page.getByRole('button', { name: /^Edit .* API key$/ })
-  const lastRow = await regionOf(rows.nth(API_KEY_ROWS_SHOWN - 1))
-  await shootRegion(
-    context,
-    'settings-api-key-providers.png',
-    spanRegion({ top: header, bottom: lastRow, across: header, pad: CROP_MARGIN_PX }),
-  )
+  await anthropic.click()
+  const field = page.getByPlaceholder(/Anthropic key/)
+  await field.waitFor({ timeout: UI_TIMEOUT_MS })
+  await field.fill(FIXTURE_TYPED_KEY)
+  const save = page.getByRole('button', { name: 'Save', exact: true })
+  await save.waitFor({ timeout: UI_TIMEOUT_MS })
+  // A narrower window keeps the field and its buttons together, as on a laptop screen.
+  await withWindowSize(context, API_KEY_WINDOW, async () => {
+    await toggle.scrollIntoViewIfNeeded()
+    await waitForUi(page)
+    const header = await regionOf(toggle)
+    const fieldBox = await regionOf(field)
+    await shootRegion(
+      context,
+      'settings-api-key-providers.png',
+      spanRegion({
+        top: header,
+        bottom: unionRegion([fieldBox, await regionOf(save)]),
+        across: header,
+        pad: CROP_MARGIN_PX,
+      }),
+      { outline: fieldBox },
+    )
+  })
+  // Closing the editor drops the typed key.
+  await field.fill('')
+  await anthropic.click()
   await setProviderGroup(page, 'API Key Providers', false)
   await leaveSettings(page)
 }

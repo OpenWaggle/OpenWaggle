@@ -4,7 +4,6 @@ import { expect, type Page } from '@playwright/test'
 import {
   CROP_MARGIN_PX,
   centerOf,
-  numbered,
   regionOf,
   shootRegion,
   unionRegion,
@@ -164,33 +163,11 @@ async function terminalPanel(page: Page) {
   return panel
 }
 
-/** The terminal drawer with two tabs and a split tab, numbered for the list under the image. */
+/** The terminal drawer with two tabs, the open one split side by side. */
 export async function captureTerminalSplitPanes(context: CaptureContext) {
   const { page } = context
   await prepareTerminal(context)
-  const panel = await regionOf(await terminalPanel(page))
-  const clip = panel
-  const tabList = page.getByRole('tablist', { name: 'Terminal tabs' })
-  const tabs = unionRegion(
-    await Promise.all((await tabList.getByRole('tab').all()).map((tab) => regionOf(tab))),
-    { x: 0, y: 0 },
-  )
-  const controls = unionRegion(
-    await Promise.all(
-      ['New terminal', 'Split terminal side by side', 'Split terminal vertically'].map((name) =>
-        regionOf(page.getByRole('button', { name, exact: true })),
-      ),
-    ),
-    { x: 0, y: 0 },
-  )
-  const closePane = await regionOf(page.getByRole('button', { name: 'Close pane' }).nth(1))
-  await shootRegion(context, 'terminal-split-panes.png', clip, {
-    callouts: numbered([
-      { region: tabs, badge: 'right' },
-      { region: controls, badge: 'left' },
-      { region: closePane, badge: 'below' },
-    ]),
-  })
+  await shootRegion(context, 'terminal-split-panes.png', await regionOf(await terminalPanel(page)))
 }
 
 function testPaneRows(page: Page) {

@@ -3,109 +3,98 @@ title: "Session tree and branches"
 description: "Return to an earlier message, try another approach, or copy a conversation into a new session."
 order: 6
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-Use the Session tree when you want to return to an earlier point in a conversation and try a different approach. A conversation branch keeps the original path available while you continue along another.
+Use the Session Tree when you want to go back to an earlier point in a conversation and try something else. The path you leave stays saved as a branch, so you can return to it later.
 
-Conversation branches are not Git branches. Changing the selected conversation path does not undo file edits or switch your repository's Git branch. Use [Git controls](/docs/developer-workflow/git-integration) to manage files and commits.
+Conversation branches are not Git branches. Moving to another branch doesn't undo file edits or switch your repository's branch. Use the [Git controls](/docs/developer-workflow/git-integration) for files and commits.
 
-![The Session tree beside a Waggle conversation in which two agents review a fix, with its latest reply marked as the active node on the main branch](/screenshots/session-tree-panel.png)
+![The Session Tree beside a Waggle conversation, with its latest reply marked as the active point on the main branch](/screenshots/session-tree-panel.png)
 
-## Opening the Session tree
+## Open the Session Tree
 
-Click **Session tree** on the [panel rail](/docs/using-openwaggle/right-panel) or press `Cmd+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows and Linux. You can also press `Cmd+K` / `Ctrl+K` and choose **Session Tree** under **Panels**.
+Click **Session Tree** on the [panel rail](/docs/using-openwaggle/right-panel), or press `Cmd+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows and Linux. You can also press `Cmd+K` or `Ctrl+K` and choose **Session Tree** under **Panels**.
 
-The tree opens in the right panel, which shows one panel at a time, so opening it replaces Changes or whatever else was showing.
+The tree opens in the right panel, which shows one panel at a time, so it takes the place of Changes or whatever else was showing.
 
-To try a different approach:
+## Try a different approach
 
-1. Find the earlier message where you want to continue.
+1. Find the earlier message you want to continue from.
 2. Select its row. The conversation now shows the path up to that point.
-3. If prompted, decide whether to bring a summary of the later work with you.
+3. If OpenWaggle asks, decide whether to bring a summary of the later work with you. See [Bring a summary of the later work](#bring-a-summary-of-the-later-work).
 4. Check the draft in the message box, write or edit your next instruction, and send it.
 
-For example, return to the message before a proposed refactor and ask the agent to compare a smaller change instead. Check your working tree first: files changed by the earlier approach are still on disk.
+For example, go back to the message before a proposed refactor and ask the agent to compare a smaller change. Check your files first. The changes the earlier approach made are still on disk.
 
-## What the tree shows
+Selecting an earlier point only prepares a draft branch. It doesn't save a new branch yet. Selecting one of your own messages can also put its text in the message box, ready to retry or edit. OpenWaggle saves the new branch when you send, or earlier if you choose a branch summary action that creates it. Selecting the latest point of a saved branch takes you back to that branch and drops any draft.
 
-Each row is a point in the saved conversation history, such as a message or tool event. Dots and connecting lines show how those points relate.
+## Start from a message in the conversation
 
-- The active path is the conversation currently shown in chat.
-- Branch badges identify the latest point of a saved branch.
-- A draft marks an earlier point you selected but have not yet continued from.
-- Archived branches remain in the full tree even when hidden from normal sidebar navigation.
+You can also start from the conversation itself. Hover over a message to see its actions. A reply's actions sit at the end of its turn, under any changed files, and the latest reply always shows them. In the table below, a reply is the one that ends a turn.
 
-The left sidebar shows sessions and saved conversation branches, not every history row. A list-tree icon with a count indicates that a session has more than one branch.
+| On | Action | What it does |
+|----|--------|--------------|
+| Message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
+| Message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
+| Message | **Copy message** | Copies the message's text. |
+| Reply | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
+| Reply | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and an empty message box. |
+| Reply | **Copy response** | Copies the reply's text. |
 
-## Filters and search
+Tool calls and the agent's notes between them have no actions of their own. Select them in the Session Tree instead. While the session is working or compacting, the conversation shows only **Copy message** and **Copy response**.
 
-Use the filter menu to reduce the detail shown:
+## Copy a conversation into a new session
+
+To copy history into a separate session from the keyboard, type `/fork` or `/clone` in the message box, or open the command palette and choose:
+
+- **Fork to new session** to pick one of your earlier messages and start a new session with that message ready to edit and resend.
+- **Clone current session** to copy the path you are on into a new session with an empty message box.
+
+Both leave the original conversation as it was. The new session gets the original's name, marked `(fork)` when it starts before one of your messages and `(copy)` for a clone or a fork from a reply. You can rename it. A copy of a session still called New session stays New session and takes its name from its next message. Forks and clones copy the conversation, not your working files.
+
+## Read the tree
+
+Each row is a point in the saved conversation, such as a message or a tool event. Dots and lines show how the points connect.
+
+- The active path is the conversation the chat shows.
+- Branch badges mark the latest point of each saved branch.
+- A draft marks an earlier point you selected but haven't continued from yet.
+- Archived branches stay in the full tree even though the sidebar hides them.
+
+The sidebar shows sessions and their saved branches, not every point in their history. A list tree icon with a count means a session has more than one branch.
+
+## Filter and search the tree
+
+Use the filter menu to show less detail:
 
 | Filter | What it shows |
 |--------|---------------|
 | Default | Messages and tool results, without bookkeeping entries such as model changes. |
-| No tools | The default view without tool-result entries. |
+| No tools | The default view without tool results. |
 | User only | Your messages. |
 | Labeled | Label entries in the conversation history. |
-| All | Every history entry, including tool and structural detail. |
+| All | Every entry, including tool and structural detail. |
 
-OpenWaggle remembers the selected filter in your Pi settings. A project can override that default. Search checks the entries included by that filter, using message content, metadata, and branch identifiers. Matches beneath collapsed rows appear temporarily without changing which rows you had expanded. Choose **All** if a narrower filter hides the entry you need.
+OpenWaggle remembers the filter in your Pi settings as `treeFilterMode`, and a project's Pi settings can set a different default. Search looks through the entries the filter shows, matching message text, details and branch names. Matches inside collapsed rows appear for the search without changing which rows you had expanded. If a filter hides the entry you need, choose **All**.
 
-## Navigation behavior
+Use the arrow keys to move through the tree, `Enter` to select a row and `Escape` to close it. [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts) lists every key.
 
-Selecting the latest point of a saved branch returns you to that branch and clears any draft branch selection.
+## Bring a summary of the later work
 
-Selecting an earlier point prepares a draft branch. It does not immediately add a new saved branch. Selecting a user message can also put its text in the message box for you to retry or edit. The new branch is saved when you send, or earlier if you explicitly choose a branch-summary action that creates it.
-
-You can also start from the conversation itself. Hover a message to see its actions. A reply's actions sit at the end of its turn, under any changed files; the latest reply always shows them:
-
-| On | Action | What it does |
-|----|--------|--------------|
-| Your message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
-| Your message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
-| Your message | **Copy message** | Copies the message's text. |
-| The agent's reply that ends a turn | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
-| The agent's reply that ends a turn | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and a blank message box. |
-| The agent's reply that ends a turn | **Copy response** | Copies the reply's text. |
-
-Tool calls and the agent's notes between them have no actions of their own; select them in the Session tree instead. While the session is working or compacting, only **Copy message** and **Copy response** are shown.
-
-To copy history into a separate session from the keyboard, use `/fork` or `/clone` in the message box, or open the command palette and use:
-
-- **Fork to new session** to choose a previous user message and start a new session with that message ready to edit and resend.
-- **Clone current session** to copy the selected conversation path into a new session with a blank message box.
-
-All of these leave the original conversation intact. The new session is named after the original, marked `(fork)` when it starts before one of your messages and `(copy)` for a clone or a fork from a response; you can rename it. A copy of a session that is still called New session stays New session, and takes its name from its next message. They copy conversation history, not a backup of your working files.
-
-For saved links, the app can retain `branch`, `node`, and `panel=session-tree` in the route. An unsent draft branch is temporary and is not restored from a copied URL.
-
-## Branch summary prompt
-
-Returning to an earlier message leaves later messages outside your selected path. The summary prompt asks whether to bring some of that later context along:
+When you go back to an earlier message, the later messages are no longer on your path. OpenWaggle asks whether to bring some of that work along:
 
 - **No summary** continues without a summary of the later work.
 - **Summarize** asks the model to summarize that work.
-- **Custom** lets you write summary instructions in the message box and press Send.
-- **Cancel** returns to your previous selection.
+- **Custom** lets you write instructions for the summary in the message box, then press Send.
+- **Cancel** goes back to where you were.
 
-This changes the context the agent sees, not the files on disk. See [Context management](/docs/using-openwaggle/context-management#branch-summaries) for the difference between branch summaries and compaction.
+This changes what the agent knows, not the files on disk. [Context management](/docs/using-openwaggle/context-management#branch-summaries) explains how a branch summary differs from compaction. To skip the question, set Pi's `branchSummary.skipPrompt`.
 
-For advanced configuration, Pi's `branchSummary.skipPrompt` setting skips this prompt. The tree filter is stored as `treeFilterMode` in Pi settings; a project's Pi configuration can override it.
+A link to a session can keep the branch, the selected point and the open Session Tree (`branch`, `node` and `panel=session-tree` in the address). A draft branch you haven't sent is not saved, so a copied link doesn't bring it back.
 
-## Branch lifecycle
+## Rename, archive and restore branches
 
-You can rename saved branch rows inline in the sidebar. Archive a non-main branch to hide it from normal navigation, then restore it through Settings when needed. Archived branches remain visible in the full tree.
+Rename a saved branch inline in the sidebar. Archive a branch other than the main one to hide it from the sidebar, and restore it from Settings when you need it. Archived branches stay visible in the full tree. You can't delete a single conversation branch.
 
-Archiving the main conversation branch archives the entire session. Archiving does not ask for confirmation, because it can be undone from **Settings > Archived items**. If you archive the session you have open, OpenWaggle opens the next session in the same sidebar section, or the empty home screen when none is left. A session archived elsewhere while you have it open, for example by Hive cleanup, stays on screen with a notice and a **Restore** action. Deleting individual conversation branches is not available.
-
-## Keyboard navigation
-
-When focus is in the Session tree:
-
-| Action | Shortcut |
-|--------|----------|
-| Move focus | `ArrowUp` / `ArrowDown` |
-| Expand a row or move to its first child | `ArrowRight` |
-| Collapse a row or move to its parent | `ArrowLeft` |
-| Select the focused row | `Enter` |
-| Close the tree | `Escape` |
+Archiving the main branch archives the whole session. OpenWaggle doesn't ask first, because you can undo it from **Settings > Archived items**. If you archive the session you have open, OpenWaggle opens the next session in the same part of the sidebar, or the empty home screen when none is left. A session that gets archived somewhere else while you have it open, for example by Hive cleanup, stays on screen with a notice and a **Restore** button.

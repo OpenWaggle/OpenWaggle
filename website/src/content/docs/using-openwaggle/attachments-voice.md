@@ -3,21 +3,20 @@ title: "Attachments and voice input"
 description: "Share a file or screenshot with the agent, or dictate a message and review it before sending."
 order: 2
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-Attach a file when the agent needs something outside the project, such as a screenshot, sample data, or a document. Use a project-file reference when the file is already in your repository.
+Attach a file when the agent needs something from outside the project, such as a screenshot, sample data or a document. When the file is already in your repository, reference it instead, so the agent reads the current version. You can also dictate a message instead of typing it.
 
-## Attachments
+## Attach files
 
-### How to attach
+Click **+** beside the message box to open its menu:
 
-![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+![The composer's + menu open, with Attach files, Reference project file, Use a skill and Start Waggle](/screenshots/composer-plus-menu.png)
 
-_**+** is number 3 and the microphone for [voice input](#voice-input) is number 8._
-
-1. Click **+** beside the message box and choose **Attach files**, or drag files onto the message box.
-2. Check the filename chips above your draft. Click a chip's X to remove a file.
-3. Write what you want the agent to do with the files, then send the message.
+1. Choose **Attach files** and pick the files, or drag files onto the message box.
+2. Check the file chips above your draft. Click a chip's X to remove a file.
+3. Say what the agent should do with the files, then send the message.
 
 For example:
 
@@ -26,51 +25,52 @@ Compare this screenshot with the checkout page in our app.
 List the differences before making any changes.
 ```
 
-You can attach up to 5 files per message, up to 8 MiB each and 20 MiB in total. Attaching a file does not send it until you send the message. When you use a hosted model, the attachment content included in the request goes to that provider.
+You can attach up to 5 files to a message, up to 8 MiB each and 20 MiB in total. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
 
-The **+** menu also includes:
+The rest of the **+** menu:
 
-- **Reference project file** to pick a file from your project. You can also type `@` in the message box.
-- **Use a skill** to select task instructions. Typing `/` opens the combined command menu.
-- **Start Waggle** to choose a saved multi-agent review preset.
+- **Reference project file** picks a file from your project. Typing `@` in the message box does the same.
+- **Use a skill** picks a skill, a set of instructions for one kind of task. Typing `/` opens the same list, together with commands and Waggle presets.
+- **Start Waggle** picks a saved Waggle preset, so two agents work on the message in turns. See [Waggle mode](/docs/using-openwaggle/waggle-mode).
+- **Use MCP servers**, under **This Session**, appears once the session has started. Clear it to stop this session's MCP servers. See [MCP](/docs/configuration/mcp).
 
-### Supported formats
+## What the agent receives
 
-| File type | What the agent receives |
-|-----------|-------------------------|
-| Text and documents | Extracted text, including `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf`, and `.odt`. |
-| PDF | Extracted text with page structure, rather than the original PDF as a native model input. |
-| Image | The image when the model supports image input, plus extracted text from optical character recognition when available. |
+| File type | What the agent gets |
+|-----------|---------------------|
+| Text and documents | The extracted text, for files such as `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf` and `.odt`. |
+| PDF | The extracted text with its page structure, not the PDF itself. |
+| Image | The image, if the model accepts images, plus any text read from it by optical character recognition. |
 
-Attachments are saved with the conversation's metadata and extracted text. Image and PDF data is loaded when needed for a request.
+OpenWaggle saves attachments with the session, as their details and extracted text. It loads image and PDF data again when a request needs it.
 
-Images shared by you or the agent also appear in the conversation. Click one to zoom, pan, or move through that message's images. To browse images across the whole session, open one from [Session Summary and resources](/docs/using-openwaggle/session-summary). The viewer can download a copy or open an available local original.
+Not every model can look at images. OpenWaggle goes by what the selected model says it supports. A model without image input gets only the extracted text, which says nothing useful about layout, colors or diagrams. For those tasks, choose a model that accepts images.
 
-Supported local images embedded in an agent's Markdown reply can be saved as session Outputs too. This includes PNG, JPEG, GIF, and WebP images referenced with a `file:` URL from the session's working directory or supported temporary evidence folders. OpenWaggle validates and copies the image rather than relying on a temporary file to remain there. Arbitrary paths and unsupported or oversized images are not guaranteed to become saved resources.
+## View images in the conversation
 
-### Attachment support by model
+Images you or the agent share appear in the conversation. Click one to zoom, pan, or move through that message's images. To browse every image in the session, open one from [Session Summary and resources](/docs/using-openwaggle/session-summary). The viewer can download a copy, or open the original file when it is still on your computer.
 
-Not every model can inspect images. OpenWaggle uses the selected model's declared capabilities. If it does not support image input, only the extracted text summary is included. That is not a substitute for visual inspection of layout, colors, or diagrams. Choose an image-capable model for those tasks.
+When the agent's reply shows a local image, OpenWaggle can save its own copy with the session's outputs, so the image stays after the original is deleted. [Images in the agent's replies](/docs/using-openwaggle/session-summary#images-in-the-agents-replies) lists the image formats and the folders OpenWaggle copies from.
 
-## Voice input
+## Dictate a message
 
-You can dictate into the message box instead of typing. OpenWaggle transcribes speech locally using Whisper.
+Click the microphone beside the message box to speak instead of typing. OpenWaggle turns your speech into text on your computer.
 
-### How to use
+1. Click the microphone.
+2. Speak while the waveform and timer show that it is recording.
+3. Click the square stop button or press `Enter` to stop. OpenWaggle writes out what you said.
+4. Read the text, fix names and code terms, and send it as usual.
 
-1. Click the microphone button beside the message box.
-2. Speak while the waveform and timer show that recording is active.
-3. Click the square stop button or press `Enter` to stop and transcribe.
-4. Review the text, correct names or code terms, and send it normally.
+To skip the review, click the send button while recording. OpenWaggle stops, writes out the text and sends it in one go.
 
-If you want to skip reviewing the text, click the send button while recording. It stops recording, transcribes, and sends in one action.
+Voice input needs macOS 13.4 or later on a Mac.
 
-### Privacy
+### Where your voice goes
 
-Audio processing happens on your machine. OpenWaggle uses the local Whisper base model with automatic language detection and does not send the audio to an external service. First use needs an internet connection to download the model. It is then cached in your app data directory and unloaded after several idle minutes.
+OpenWaggle uses the Whisper base model on your computer, with automatic language detection, and never sends the audio to another service. The first time, it needs an internet connection to download the model. It then keeps the model in the `models/` folder of the [app data folder](/docs/reference/data-locations#what-is-in-the-app-data-folder) and unloads it from memory after 5 minutes without use.
 
-The resulting text is an ordinary message. When you send it to a hosted model, that provider receives the text.
+The text it writes is an ordinary message. When you send it to a hosted model, that provider gets the text.
 
-### Errors
+### When dictation fails
 
-If transcription fails or no speech is detected, an inline message appears above the input. Dismiss it with the close button or start a new recording to clear it.
+If transcription fails or OpenWaggle hears no speech, a message appears above the message box. Close it, or start a new recording to clear it.

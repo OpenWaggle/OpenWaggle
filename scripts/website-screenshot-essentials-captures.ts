@@ -1,8 +1,6 @@
 import type { Page } from '@playwright/test'
 import {
-  type Callout,
   CROP_MARGIN_PX,
-  type Region,
   regionOf,
   shootRegion,
   spanRegion,
@@ -34,56 +32,6 @@ import {
   UI_TIMEOUT_MS,
   waitForUi,
 } from './website-screenshot-ui'
-
-/** Room above a control row for the callout badges. */
-const CALLOUT_HEADROOM_PX = 34
-
-function composer(page: Page) {
-  return page.getByTestId('composer-toolbar')
-}
-
-/** The composer of a draft, with its context row above and room for badges. */
-async function composerRegion(page: Page): Promise<Region> {
-  const environment = await regionOf(
-    page.getByRole('button', { name: /^Session environment mode/ }),
-  )
-  const toolbar = await regionOf(composer(page))
-  const dock = await regionOf(
-    composer(page).locator('xpath=ancestor::*[contains(@class, "rounded")][1]'),
-  )
-  const box = unionRegion([environment, toolbar, dock], CROP_MARGIN_PX)
-  return { ...box, y: box.y - CALLOUT_HEADROOM_PX, height: box.height + CALLOUT_HEADROOM_PX }
-}
-
-/**
- * The composer of a new session, numbered: where it runs (environment and branch), attach,
- * access mode, model, thinking level, context, and voice.
- */
-export async function captureComposerControls(context: CaptureContext) {
-  const { page } = context
-  await prepareEssentials(context)
-  await openDraft(page)
-  const toolbar = composer(page)
-  // Numbered left to right, top row first; the docs explain each number.
-  const controls = [
-    page.getByRole('button', { name: /^Session environment mode/ }),
-    page.getByRole('button', { name: /^Run target/ }),
-    toolbar.getByRole('button', { name: 'Add to message' }),
-    toolbar.getByRole('button', { name: /^Session access mode/ }),
-    toolbar.getByRole('button', { name: /GPT-5\.4/ }),
-    toolbar.getByRole('button', { name: /^Thinking level/ }),
-    // The ring and its "0 / 272k" label.
-    toolbar
-      .getByRole('img', { name: 'Context usage meter' })
-      .locator('xpath=ancestor::div[@title][1]'),
-    toolbar.getByRole('button', { name: 'Start voice input' }),
-  ]
-  const callouts: Callout[] = []
-  for (const [index, control] of controls.entries()) {
-    callouts.push({ number: index + 1, region: await regionOf(control) })
-  }
-  await shootRegion(context, 'composer-controls.png', await composerRegion(page), { callouts })
-}
 
 function editorBox(page: Page) {
   return page.getByRole('textbox', { name: 'Message input' })

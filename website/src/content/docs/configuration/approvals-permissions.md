@@ -3,31 +3,36 @@ title: "Approvals and permissions"
 description: "Choose agent access, review protected actions, and revoke saved approvals."
 order: 2
 section: "Customize"
+kind: "guide"
 ---
 
-Start with **Ask for Approval** while you learn how the agent works. This asks you to review protected actions. It is not a read-only mode, an operating-system sandbox, or a prompt before every file edit.
+The access mode decides whether the agent asks you before it takes a protected action, such as running a project action, opening the browser preview or calling an MCP tool. **Ask for Approval** shows you each request first, and is the mode to start with while you learn how the agent works. **YOLO (Full Access)** lets those actions run without asking. Neither mode is a read-only mode or an operating-system sandbox, and **Ask for Approval** does not stop for every file edit.
 
 ## Choose an access mode
 
+OpenWaggle ships with **YOLO (Full Access)** as the default, so change it if you want approval requests.
+
 1. Open **Settings > Permissions**.
-2. Set **Default access mode** to **Ask for Approval**.
-3. Use the project picker if a repository needs a different setting.
-4. Under **Selected project**, choose its mode or **Use default** to remove a project override.
-5. Check the agent-access control beside the message box before sending work. A session may have its own choice rather than inherit the default.
+2. Set **Default access mode** to **Ask for Approval**. Every project and session that has not chosen its own mode uses it.
+3. To give one repository a different mode, pick it in the project picker. Then, under **Selected project**, choose its mode, or **Use default** to go back to the default.
 
-![Settings > Permissions for the OpenWaggle project: Default access mode set to YOLO (Full Access), Selected project set to Use default, and an empty Saved approvals list](/screenshots/settings-permissions.png)
+![Settings > Permissions for the OpenWaggle project, with Default access mode set to YOLO (Full Access), Selected project on Use default, and no saved approvals](/screenshots/settings-permissions.png)
 
-![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+The project picker only chooses whose permissions you are looking at. It does not move your conversation to that project. A project's mode is saved in its `.openwaggle/settings.json`.
 
-_The agent-access control is number 4, here set to **Ask for approval**._
+## Change the mode for one session
 
-OpenWaggle also offers **YOLO (Full Access)**. It automatically allows actions that use the app's authorization checks, without asking you each time. The shipped default is YOLO, so change it explicitly if you want approval prompts. Separate tool restrictions and ordinary questions can still apply.
+The agent access menu beside the message box shows the mode the session uses: **YOLO** or **Ask for approval**. Open it to switch this session between **YOLO (Full Access)** and **Ask for Approval**. In a new conversation, your choice applies once you send the first message. A session that has its own mode keeps it, even when you later change the project or app default, so check the menu before you send work.
 
-The project picker here only selects which project's permissions you are inspecting. It does not move your active conversation to that project.
+![The composer's agent access menu open, offering YOLO (Full Access) and Ask for Approval](/screenshots/composer-agent-access-menu.png)
 
-## Respond to an approval request
+In YOLO mode, actions that go through OpenWaggle's approval checks run without asking. Tool restrictions and the agent's own questions to you still apply.
 
-Read the action, requester, and target before approving. For a command, consider its effects rather than only its name. For an external tool, check which service or account it will reach.
+<a id="respond-to-an-approval-request"></a>
+
+## Answer an approval request
+
+An approval request appears above the message box. Read what the agent wants to do, who is asking and what it would touch before you approve. For a command, think about what it does, not only its name. For an outside tool, check which service or account it will reach.
 
 This is the path a protected action takes before it runs:
 
@@ -44,38 +49,36 @@ flowchart TD
   request -->|"Continue without"| skip["The agent continues without it"]
 ```
 
-![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in jotter](/screenshots/approval-request.png)
+You have three ways to answer:
 
-_The scope choices are under **Allow…**. Here, **Always allow** would cover opening the browser preview in the jotter project._
+- **Allow once** lets this one request through and saves nothing.
+- **Continue without** turns the request down, and the agent carries on without that action. If there is another way you want it done, say so in the conversation.
+- **Allow…**, when it appears, opens wider choices. **Allow for this session** allows matching requests for the rest of the session. **Always allow…** names the requester, the target and the project it covers, and saves the approval for later sessions too. In the request below, **Always allow** would cover opening the browser preview in the jotter project.
 
-- **Allow once** permits this request without saving a broader approval.
-- **Continue without** declines the request so the agent can continue without that action. Explain an alternative in the conversation if needed.
-- When scope choices are available, **Allow…** opens a menu of them. **Allow for this session** allows matching requests in that session. The **Always allow…** choice names the requester, target, and project it will cover.
+![An approval request to open the browser preview, with the Allow… menu open on Allow for this session and Always allow for the jotter project](/screenshots/approval-request.png)
 
-Use a saved approval only when you understand what later requests it covers. Approving a request does not prove its output is safe or that the requested change is correct.
+Save an approval only when you understand which later requests it will cover. Approving a request does not make its output safe or the change it makes correct.
 
-## Revoke saved approvals
+## Revoke a saved approval
 
-1. Open **Settings > Permissions** and select the project.
-2. Find the entry under **Saved approvals**.
-3. Click **Revoke** and check that it disappears without an error.
+1. Open **Settings > Permissions** and pick the project.
+2. Find the approval under **Saved approvals**.
+3. Click **Revoke**, and check that it disappears without an error.
 
-Revocation stops future use of that approval. It does not undo edits, retract data already sent, or recall completed commands. If approvals fail to load, do not assume the empty view means none exist; use **Retry loading approvals**.
+Revoking stops the approval from being used again. It does not undo edits, take back data already sent, or reverse commands that already ran. If saved approvals fail to load, the empty list does not mean there are none, because the old approvals may still be in effect. Click **Retry loading approvals**.
 
-## Project actions and automatic preparation
+## Project actions and worktree setup
 
-Saving a [Project Action](/docs/configuration/project-actions) does not grant the agent permission to run it. Agent requests to start, restart, or stop managed actions use the existing authorization checks. Listing definitions, reading output, and reopening an already-running action do not launch another process.
+Saving a [project action](/docs/configuration/project-actions) does not give the agent permission to run it. When the agent asks to start, restart or stop an action, the normal approval checks apply. Listing actions, reading their output and reopening one that is already running start no new process.
 
-Workspace setup and cleanup have a separate local review decision. Saving your own private preparation command enables that version on your machine. Finding a shared definition in `.openwaggle/actions.json` does not enable it, even in YOLO mode.
+Setup and cleanup for new worktrees have their own review on your computer. A setup command you save for yourself is turned on for you. A shared one found in `.openwaggle/actions.json` stays off, even in YOLO mode, until you check it. Click **Check it** to read the command and the folder it runs in, then choose **Turn on this version** or **Keep it off**. If the definition changes, you review it again, and closing the review does not approve it. The review covers the definition, not every script it calls, so look at repository changes too.
 
-Use **Check it** to inspect the command and working directory, then choose **Turn on this version** or **Keep it off**. Changed execution definitions require review again; closing the review does not approve them. Review covers the definition, not every script it calls, so inspect repository changes too.
-
-Failed setup pauses the first agent turn in a new worktree. **Continue anyway** bypasses that preparation requirement; it does not mean setup succeeded. Failed cleanup retains the worktree. **Delete anyway** skips cleanup and may leave resources such as temporary databases behind.
+When setup fails, the first agent turn in the new worktree waits. **Continue anyway** goes ahead without setup. It does not mean setup worked. When cleanup fails, OpenWaggle keeps the worktree. **Delete anyway** skips cleanup and can leave things behind, such as a temporary database.
 
 ## What these settings do not protect
 
-An instruction such as "don't edit files" is guidance to the model, not an enforced permission boundary. Review changes in the diff, work on a development branch or separate worktree, and keep backups appropriate to the task.
+An instruction such as "don't edit files" is advice to the model. Nothing enforces it. Review changes in the diff, work on a separate branch or worktree, and keep backups that fit the task.
 
-Your terminal is still an ordinary shell. Commands and tools can access data available to their process, including environment credentials. MCP servers run with your user's access too; in **Ask for approval** mode every MCP tool call asks first. Agent browser access has a separate switch in **Settings > Browser**.
+The terminal is an ordinary shell. Commands and tools can read anything their process can, including credentials in environment variables. MCP servers also run with your user's access. In **Ask for Approval** mode every MCP tool call asks first. Agent access to the browser has its own switch in **Settings > Browser**.
 
-See [Security and privacy](/docs/configuration/security-privacy) for data handling and [MCP](/docs/configuration/mcp) for external-tool access.
+See [Security and privacy](/docs/configuration/security-privacy) for how OpenWaggle handles your data, and [MCP connections](/docs/configuration/mcp) for outside tools.

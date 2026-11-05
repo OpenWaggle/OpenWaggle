@@ -3,41 +3,44 @@ title: "API key authentication"
 description: "Save, test, replace, or clear a provider API key in OpenWaggle."
 order: 10
 section: "Customize"
+kind: "guide"
 ---
 
-Create an API key in your provider's account before connecting it to OpenWaggle. Check that the account has access to the model you want and any required billing setup. Keep the key out of chat messages, screenshots, and committed project files.
+Use an API key when your provider gives you one for apps to call its models. Create the key in your provider's account first, and check that the account can use the model you want and has billing set up if the provider needs it. Keep the key out of chat messages, screenshots and files you commit.
 
-## Saving a key
+## Save a key
 
 1. Open **Settings > Connections** and expand **API Key Providers**.
 2. Click the pencil icon beside your provider.
-3. Paste the key into **Auth key**. Some providers offer a **Get API key** link to their key-management page.
-4. Click **Test** to check the entered key. This sends a small request to the provider and may use its quota.
+3. Paste the key into **Auth key**. Some providers show a **Get API key** link to their key page.
+4. Click **Test** to check the key. The test sends a small request to the provider and can use some of your quota.
 5. Click **Save**. Testing alone does not save the key.
-6. Enable a model under **Available Models**, then select it beside the message box.
+6. Turn on a model under **Available Models**, then pick it beside the message box.
 
-The provider row shows **API key configured** after a key is saved. Saving does not prove that every model on the account is usable.
+After you save, the provider row reads **API key configured**. That shows a key is stored, not that every model on the account works.
 
-![API Key Providers expanded: Amazon Bedrock, Ant Ling and Azure read Not configured, and Anthropic reads API key configured, each with its pencil icon](/screenshots/settings-api-key-providers.png)
+## Test a key
 
-To replace a saved key, open the pencil icon again, enter the new key, and save it. **Clear** removes the saved key. It does not revoke the key at the provider or remove credentials supplied through another method. Revoke a leaked key in the provider's account settings too.
+A test that works shows **Connection successful**. If it fails, read the error, then check that you picked the right provider, the key's permissions, and the account's billing and quota.
 
-## Testing keys
+The test sends one short prompt without tools and gives up after 15 seconds. It does not try every model or check tool calling. It uses the provider setup of the project you have open, so test in the project where you plan to use the model.
 
-A successful test shows **Connection successful**. If it fails, check the returned error, the provider you selected, the key's permissions, and the account's billing or quota.
+## Replace or clear a key
 
-A key test uses the selected project's provider configuration. Test in the same project where you intend to use the model. The test sends a short prompt without tools and has a 15-second timeout. It does not check every model or validate tool calling.
+To replace a key, click the pencil icon again, enter the new key and click **Save**.
 
-## Environment and custom providers
+**Clear** deletes the saved key from OpenWaggle. It does not revoke the key at the provider, and it does not remove credentials that come from somewhere else, such as an environment variable. If a key leaks, revoke it in your provider's account too.
 
-A row showing **Configured outside OpenWaggle** means credentials were found through environment variables, cloud credentials, or custom provider configuration. You do not need to paste another key just to change that status.
+## Keys from the environment or a config file
 
-A desktop app may not receive the same environment variables as a terminal. If an environment-based setup works in your shell but not in OpenWaggle, check how the app was launched and whether its environment contains the required variable.
+A row that reads **Configured outside OpenWaggle** means Pi found credentials in an environment variable, your cloud credentials or a custom provider's configuration. You do not need to paste a key to change that.
 
-OpenWaggle saves keys using Pi, the agent engine included with the app. Pi's default credential file is `~/.pi/agent/auth.json`, or `auth.json` inside `PI_CODING_AGENT_DIR` when that variable is set. Treat it as a secret file; it is separate from OpenWaggle's conversation database and MCP secret vault.
+An app you open from the dock or Start menu may not get the same environment variables as your terminal. If a key set in your shell works in a terminal but not in OpenWaggle, check how you started the app and whether its environment has the variable.
 
-Project-only provider extensions can participate in key tests without being available to the default runtime that saves keys. See [Custom providers](/docs/providers/custom-providers#project-scope) if testing succeeds but saving fails.
+OpenWaggle saves keys through Pi, the agent engine inside the app. Pi keeps them in `~/.pi/agent/auth.json`, or in `auth.json` inside the folder in [`PI_CODING_AGENT_DIR`](/docs/reference/environment-variables#pi) when you set that variable. Treat `auth.json` as a secret. It is separate from OpenWaggle's session database and from the encrypted store for MCP secrets. [Data and file locations](/docs/reference/data-locations#pi-agent-folder) lists the other files in Pi's folder.
 
-## API-key provider families
+A provider that a project's own extension adds can pass a key test but fail to save, because saving uses Pi's default setup without that project's extensions. See [Custom providers](/docs/providers/custom-providers#models-that-only-one-project-has).
 
-The provider list comes from Pi rather than a fixed list maintained by OpenWaggle. See [Pi providers](https://pi.dev/docs/latest/providers#api-keys) for current provider names, environment variables, credential precedence, auth-file storage, and advanced shell-command key resolution.
+## Which providers take a key
+
+The provider list comes from Pi, not from a list OpenWaggle keeps. See [Pi providers](https://pi.dev/docs/latest/providers#api-keys) for current provider names, their environment variables, which credential wins when there are several, how `auth.json` stores keys, and reading a key from a shell command.

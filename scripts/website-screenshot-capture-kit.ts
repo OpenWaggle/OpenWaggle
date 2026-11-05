@@ -2,18 +2,18 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import sharp from 'sharp'
-import { type Callout, drawCallouts, type Region } from './website-screenshot-callouts'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
+import { drawOutline, type Region } from './website-screenshot-outline'
 import { blurFocusedControl, type CaptureContext, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
 /**
- * The one crop, callout and image-writing kit every website capture uses. Regions are CSS pixels
+ * The one crop, outline and image-writing kit every website capture uses. Regions are CSS pixels
  * of the window, as Playwright's `boundingBox()` reports them; crops are taken at twice that
  * size, so small controls stay sharp on high-density screens, and every image is written as a
  * 256-colour palette PNG except the full-window originals, which stay lossless.
  */
 
-export { type Callout, centerOf, numbered, type Region } from './website-screenshot-callouts'
+export { centerOf, type Region } from './website-screenshot-outline'
 
 /** Space around a crop's subject. */
 export const CROP_MARGIN_PX = 16
@@ -147,7 +147,8 @@ export async function writeScreenshot(
 }
 
 interface ShotOptions extends WriteOptions {
-  readonly callouts?: readonly Callout[]
+  /** The one control the page is about, outlined; no image carries more than one. */
+  readonly outline?: Region
   /** Keep focus where it is, for an open menu that closes when its field loses focus. */
   readonly keepFocus?: boolean
   /** Hides overlay scrollbars, which a crop would otherwise keep at its edge as a stray line. */
@@ -155,7 +156,7 @@ interface ShotOptions extends WriteOptions {
 }
 
 /**
- * A region of the window at twice CSS size, with optional callouts. A region given as a function
+ * A region of the window at twice CSS size, with an optional outline. A region given as a function
  * is measured after the pointer and focus have settled, since leaving a control can scroll the
  * page under it.
  */
@@ -182,12 +183,7 @@ export async function shootRegion(
   const meta = await sharp(pixels).metadata()
   const image =
     meta.width === size.width ? pixels : await sharp(pixels).resize(size).png().toBuffer()
-  await writeScreenshot(
-    context,
-    file,
-    await drawCallouts(image, clip, options.callouts ?? []),
-    options,
-  )
+  await writeScreenshot(context, file, await drawOutline(image, clip, options.outline), options)
 }
 
 /** The whole window at CSS scale, like the overview images. */
@@ -200,12 +196,7 @@ export async function shootWindow(
   await settleForShot(page, options.keepFocus)
   const image = await page.screenshot({ animations: 'disabled', scale: 'css' })
   const clip = { x: 0, y: 0, ...(await windowSize(page)) }
-  await writeScreenshot(
-    context,
-    file,
-    await drawCallouts(image, clip, options.callouts ?? []),
-    options,
-  )
+  await writeScreenshot(context, file, await drawOutline(image, clip, options.outline), options)
 }
 
 /**
