@@ -73,7 +73,7 @@ function isGenerated(page: DocPage) {
 /** Body text without code, bold UI labels, link targets, HTML and images' addresses. */
 function prose(body: string) {
   return body
-    .replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gmu, '')
+    .replace(/^( *)(```|~~~)[^\n]*\n[\s\S]*?^\1\2[^\n]*$/gmu, '')
     .replace(/<!--[\s\S]*?-->/gu, '')
     .replace(/`[^`\n]*`/gu, '')
     .replace(/\*\*[^*\n]+\*\*/gu, 'Label')
@@ -157,7 +157,7 @@ describe('docs screenshots', () => {
 
   it('puts no caption under a screenshot', () => {
     const offenders = images()
-      .filter(({ after }) => /^\n\n_[^\n]+_\s*(?:\n|$)/u.test(after))
+      .filter(({ after }) => /^\n\n([_*])[^\n]+\1\s*(?:\n|$)/u.test(after))
       .map(({ slug, line }) => `${slug}:${line}`);
     expect(offenders).toEqual([]);
   });
@@ -175,8 +175,8 @@ describe('docs screenshots', () => {
 describe('docs commands', () => {
   it('writes shell blocks that paste as they are: no prompts, comments or continued lines', () => {
     const offenders = pages().flatMap((page) =>
-      [...page.body.matchAll(/^```(?:bash|sh|shell|zsh|console)\n([\s\S]*?)^```/gmu)].flatMap((match) =>
-        (match[1] ?? '')
+      [...page.body.matchAll(/^( *)```(?:bash|sh|shell|zsh|console)\n([\s\S]*?)^\1```/gmu)].flatMap((match) =>
+        (match[2] ?? '')
           .split('\n')
           .filter((line) => /^\s*(?:#|\$ |> )|\\$/u.test(line))
           .map((line) => `${page.slug}:${lineOf(page.body, match.index ?? 0)} ${line.trim().slice(0, 60)}`),
