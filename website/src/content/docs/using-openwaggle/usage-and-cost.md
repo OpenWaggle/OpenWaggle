@@ -23,10 +23,10 @@ Four cards at the top sum up the range you picked:
 
 | Card | What it shows |
 |------|---------------|
-| Estimated spend | The total cost, and whether it was recorded, estimated or both. |
-| Tokens | All tokens used, with the output tokens below. |
-| Cache hit rate | The share of input tokens read from the provider's prompt cache, with the cached input below. |
-| Sessions | How many sessions used tokens in the range. |
+| **Estimated spend** | The total cost, and whether it was recorded, estimated or both. |
+| **Tokens** | All tokens used, with the output tokens below. |
+| **Cache hit rate** | The share of input tokens read from the provider's prompt cache, with the cached input below. |
+| **Sessions** | How many sessions used tokens in the range. |
 
 A session counts in **Sessions** when it used any tokens, even if it has no cost, for example with a model that has no price. If nothing used tokens in the range, the page says **No spending in this window** instead of showing charts.
 

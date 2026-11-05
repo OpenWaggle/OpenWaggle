@@ -52,7 +52,7 @@ The Summary does not show agent access or context usage. Those stay beside the m
 Read **Environment** before you run Git commands yourself. It names the checkout the session uses, so you know which files the agent changes.
 
 - **Changes** shows the added and removed line counts. Click it to open the [diff panel](/docs/developer-workflow/git-integration#open-the-diff-panel).
-- The next row reads **Local** for a session in your current checkout or **Worktree** for a session with its own worktree. Click it to see the working directory. The message box doesn't let you change it after the first message. An agent or the CLI can still move a session with `handoff`.
+- The next row reads **Local** for a session in your current checkout or **Worktree** for a session with its own worktree. Click it to see the working directory. You can't change it here after the first message.
 - The branch row opens a branch picker. Type in **Search branches** to find a local or remote branch and check it out, choose **Create** followed by the name you typed to make a new branch, or choose **Copy branch name**. Checking out a branch changes the files of every session that shares this checkout.
 - **Commit or push** opens the commit and push panel, described next.
 - The **+** at the top of the section has **Toggle terminal**, **Open working folder** and **Copy working path**.
