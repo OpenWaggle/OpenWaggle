@@ -20,7 +20,7 @@ function visit(node: HastNode) {
         type: 'element',
         tagName: 'div',
         // Focusable so keyboard users can scroll a wide table (axe: scrollable-region-focusable).
-        properties: { className: [SCROLLABLE_TABLE_CLASS], tabIndex: 0 },
+        properties: { className: [SCROLLABLE_TABLE_CLASS], tabIndex: 0, role: 'region', ariaLabel: 'Table' },
         children: [child],
       };
     } else {
