@@ -49,6 +49,32 @@ describe('docs code copy buttons', () => {
     expect(status.textContent).toBe('');
   });
 
+  it('announces a second copy within two seconds again, by clearing the live region first', async () => {
+    vi.useFakeTimers();
+    enhanceDocsCodeCopy(document, { writeText: async () => undefined });
+    const { button, status } = firstBlock();
+    button.click();
+    await settle();
+    expect(status.textContent).toBe('Copied');
+    const announcements: string[] = [];
+    new MutationObserver(() => announcements.push(status.textContent ?? '')).observe(status, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    vi.advanceTimersByTime(1000);
+    button.click();
+    await settle();
+    expect(status.textContent).toBe('');
+    vi.advanceTimersByTime(100);
+    expect(status.textContent).toBe('Copied');
+    await settle();
+    expect(announcements).toEqual(['', 'Copied']);
+    vi.advanceTimersByTime(2000);
+    expect(button.textContent).toBe('Copy');
+    expect(status.textContent).toBe('');
+  });
+
   it('shows and announces Copy failed when the clipboard refuses the text', async () => {
     enhanceDocsCodeCopy(document, { writeText: async () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) });
     const { button, status } = firstBlock();

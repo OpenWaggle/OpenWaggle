@@ -7,6 +7,11 @@ const COPIED_LABEL = 'Copied';
 const COPY_FAILED_LABEL = 'Copy failed';
 const COPY_LABEL = 'Copy';
 const RESET_AFTER_MS = 2000;
+/**
+ * A live region announces a change, so a repeated copy first clears the status, then sets it again
+ * after this long, which screen readers hear as a new message.
+ */
+const REANNOUNCE_AFTER_MS = 100;
 
 /** The text a Copy button puts on the clipboard: the block's code without the trailing newline. */
 export function codeBlockText(pre: HTMLPreElement) {
@@ -17,7 +22,8 @@ export function codeBlockText(pre: HTMLPreElement) {
  * Adds a Copy button to each `pre` under `root` and returns how many it added. Adds none when the
  * Clipboard API is unavailable (an insecure origin, or an old browser). The button shows Copied or
  * Copy failed for two seconds, and a polite live region beside it says the same to screen readers,
- * because the button's accessible name stays "Copy code to clipboard".
+ * because the button's accessible name stays "Copy code to clipboard". A second copy while the
+ * status still shows is announced again.
  */
 export function enhanceDocsCodeCopy(
   root: Document | HTMLElement,
@@ -41,11 +47,21 @@ export function enhanceDocsCodeCopy(
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     let reset: ReturnType<typeof setTimeout> | undefined;
+    let announce: ReturnType<typeof setTimeout> | undefined;
     const show = (label: string) => {
       button.textContent = label;
-      status.textContent = label;
+      clearTimeout(announce);
+      if (status.textContent === '') {
+        status.textContent = label;
+      } else {
+        status.textContent = '';
+        announce = setTimeout(() => {
+          status.textContent = label;
+        }, REANNOUNCE_AFTER_MS);
+      }
       clearTimeout(reset);
       reset = setTimeout(() => {
+        clearTimeout(announce);
         button.textContent = COPY_LABEL;
         status.textContent = '';
       }, RESET_AFTER_MS);
