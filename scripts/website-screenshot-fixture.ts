@@ -2,7 +2,6 @@ import { seedSingleSession } from './support/session-fixtures'
 
 export const PROJECT_NAME = 'OpenWaggle'
 export const THREAD_TITLE = 'review this waggle fix before merge'
-export const THREAD_LIST_MATCHER = /review this waggle/i
 const THREAD_PROMPT =
   'I just fixed the waggle streaming regression. Please review the changes, challenge the risky parts, and tell me whether this branch is ready to merge.'
 const WAGGLE_MAX_TURNS_SAFETY = 5

@@ -18,6 +18,8 @@ Create an API key in your provider's account before connecting it to OpenWaggle.
 
 The provider row shows **API key configured** after a key is saved. Saving does not prove that every model on the account is usable.
 
+![API Key Providers expanded: Amazon Bedrock, Ant Ling and Azure read Not configured, and Anthropic reads API key configured, each with its pencil icon](/screenshots/settings-api-key-providers.png)
+
 To replace a saved key, open the pencil icon again, enter the new key, and save it. **Clear** removes the saved key. It does not revoke the key at the provider or remove credentials supplied through another method. Revoke a leaked key in the provider's account settings too.
 
 ## Testing keys

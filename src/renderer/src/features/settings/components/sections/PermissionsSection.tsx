@@ -1,12 +1,13 @@
 import { useResourceProject } from '@/features/settings'
 import { ProjectPicker } from '@/shared/ui/ProjectPicker'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { AgentAccessSection } from './AgentAccessSection'
 
 export function PermissionsSection() {
   const project = useResourceProject()
 
   return (
-    <div className="space-y-5">
+    <SettingsSectionContainer className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-text-primary">Permissions</h2>
@@ -28,6 +29,6 @@ export function PermissionsSection() {
         </p>
       ) : null}
       <AgentAccessSection key={project.projectPath} projectPath={project.projectPath} />
-    </div>
+    </SettingsSectionContainer>
   )
 }

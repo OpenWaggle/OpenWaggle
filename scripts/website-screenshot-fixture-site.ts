@@ -1,12 +1,12 @@
 import http from 'node:http'
-import type { AddressInfo } from 'node:net'
+import { LOOPBACK_HOST, listenOnLoopback } from './website-screenshot-loopback'
 
 /** A small, self-contained product dashboard for the Browser preview screenshot. */
-const FIELDNOTES_PAGE = `<!doctype html>
+const JOTTER_PAGE = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Fieldnotes · Overview</title>
+<title>Jotter · Overview</title>
 <style>
   :root { color-scheme: light; --ink: #1f2a24; --muted: #5d6b63; --line: #dfe5df; --brand: #2f5d46; }
   * { box-sizing: border-box; }
@@ -35,7 +35,7 @@ const FIELDNOTES_PAGE = `<!doctype html>
 </style>
 </head>
 <body>
-<header><div class="brand"><div class="logo">f</div>Fieldnotes</div><span>Product workspace</span></header>
+<header><div class="brand"><div class="logo">j</div>Jotter</div><span>Product workspace</span></header>
 <main>
   <p class="eyebrow">Your workspace, at a glance</p>
   <h1>A little progress, every day.</h1>
@@ -64,23 +64,45 @@ const FIELDNOTES_PAGE = `<!doctype html>
 `
 
 const HTTP_OK = 200
+/**
+ * The port the Browser preview images show, so a re-run does not rewrite them for a new port.
+ * Below the ephemeral range and away from common dev servers; when it is taken, any free port.
+ */
+const PREFERRED_PORT = 47_318
+const ANY_FREE_PORT = 0
 
 export interface FixtureSite {
   readonly url: string
   readonly close: () => Promise<void>
 }
 
+function isAddressInUse(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
+}
+
 /** Serves the dashboard on a loopback port for as long as the capture needs it. */
 export async function startFixtureSite(): Promise<FixtureSite> {
   const server = http.createServer((_request, response) => {
     response.writeHead(HTTP_OK, { 'content-type': 'text/html; charset=utf-8' })
-    response.end(FIELDNOTES_PAGE)
+    response.end(JOTTER_PAGE)
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address: AddressInfo | string | null = server.address()
-  if (address === null || typeof address === 'string') throw new Error('Fixture site has no port.')
+  let port: number
+  try {
+    port = await listenOnLoopback(server, PREFERRED_PORT)
+  } catch (error) {
+    if (!isAddressInUse(error)) throw error
+    console.warn(
+      `[website-shots] port ${String(PREFERRED_PORT)} is taken; the Browser preview images will show another port`,
+    )
+    port = await listenOnLoopback(server, ANY_FREE_PORT)
+  }
   return {
-    url: `http://127.0.0.1:${String(address.port)}/`,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    url: `http://${LOOPBACK_HOST}:${String(port)}/`,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve())
+        // The preview keeps its connection alive; the next capture needs the port back.
+        server.closeAllConnections()
+      }),
   }
 }

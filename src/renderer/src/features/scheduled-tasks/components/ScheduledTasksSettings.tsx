@@ -2,6 +2,7 @@ import type { ScheduledTask } from '@shared/types/scheduled-task'
 import { useQuery } from '@tanstack/react-query'
 import { CalendarClock, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { SettingsSectionContainer } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { scheduledTasksListQueryOptions } from '@/queries/scheduled-tasks'
 import { Button } from '@/shared/ui/Button'
@@ -110,7 +111,7 @@ export function ScheduledTasksSettings() {
   }))
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <SettingsSectionContainer layout="fill">
       <Header tasks={tasks} project={project} onProjectChange={setProject} />
       <BackgroundStartSetting />
       <div className="flex min-h-0 flex-1">
@@ -134,6 +135,6 @@ export function ScheduledTasksSettings() {
           )}
         </div>
       </div>
-    </div>
+    </SettingsSectionContainer>
   )
 }

@@ -30,6 +30,16 @@ Global packages live in OpenWaggle's app-data `extensions/` directory. They can 
 5. Choose **Trust**, then **Enable**, then **Reload**.
 6. Open the feature the extension adds, such as its settings section or side panel.
 
+![The GitHub Issues Overview package card in Settings > Extensions before review: Untrusted and Disabled, its path, version, content hash and SDK range, two capabilities and network access to api.github.com marked Needs consent, and the Trust, Enable, Remove and Disable for project buttons](/screenshots/extensions-review.png)
+
+_The repository's GitHub Issues Overview development fixture, just discovered in a project. Enable stays unavailable until you trust it, and Reload appears once it is enabled._
+
+An enabled package's settings sections appear at the top of **Settings > Extensions**, under **Extension settings**. Each one runs in its own frame.
+
+![Extension settings in Settings > Extensions: the GitHub Issues Settings section from the GitHub Issues Overview package, showing the extension's own form for repository owner, repository name and tracked labels](/screenshots/extensions-settings-section.png)
+
+To see where an extension's side panels, transcript cards and status widgets show up, see [Develop extensions](/docs/extending/openwaggle-extensions#contribution-surfaces-at-a-glance).
+
 Discovery alone does not run the extension. Missing files, an incompatible SDK range, a failed build, or unresolved diagnostics can prevent enablement. Fix the reported problem rather than repeatedly reloading.
 
 ## Update, disable, or remove

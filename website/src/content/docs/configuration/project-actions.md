@@ -13,6 +13,8 @@ Actions run in the selected session's workspace. For a worktree session, that me
 
 The panel lists every saved action under **Run in this session’s workspace**. Each row shows the action's icon and name, the command or script it runs, its keyboard shortcut if it has one, and the state of its latest run, such as **Running**, **Ready**, **Completed**, or **Failed**.
 
+![The Project Actions panel with four saved actions: Dev server Running with Stop, Restart and Show output, Run tests with no run yet, Lint Failed and Build Completed, then Add action and Manage actions](/screenshots/project-actions-panel.png)
+
 - **Run** starts the action in the selected session's workspace. A row is disabled, with the reason beside it, when its script no longer exists in this workspace.
 - While an action runs, **Stop** ends that run and **Restart** replaces it using the current definition. An action allowed to run several copies keeps **Run** and offers **Stop** for its latest run.
 - **Show output** opens the latest run's output, status, and controls in the panel.
@@ -23,13 +25,15 @@ The panel asks you to open a project when none is open, and to select a session 
 
 ## Follow output in the terminal
 
-**Open in terminal** in the Project Actions panel, or in a run's output view, opens a read-only tab in the bottom terminal drawer, labelled like **dev · action output** with a lock icon. It shows the run's retained and live output with the same rendering as your terminals, so colours, scrollback, search, links, and copying work as they do there. It attaches to the existing run; it does not start a shell or run the command again, and it does not accept typing.
+**Open in terminal** in the Project Actions panel, or in a run's output view, opens a read-only tab in the bottom terminal drawer, labelled with the action's name, such as **Dev server · action output**, with a lock icon. It shows the run's retained and live output with the same rendering as your terminals, so colours, scrollback, search, links, and copying work as they do there. It attaches to the existing run; it does not start a shell or run the command again, and it does not accept typing.
 
 - Each action has one such tab per session. Choosing **Open in terminal** again focuses it.
 - When the action restarts, from the panel, a shortcut, or an agent, the tab follows the new run. Earlier output stays above a **restarted** divider.
-- When a run ends, the tab keeps its final output and shows how it ended, such as `dev failed · exit 1`.
+- When a run ends, the tab keeps its final output and shows how it ended, such as `Dev server failed · exit 1`.
 - Closing the tab closes only the view. The action keeps running; use **Stop** in Project Actions to end it. Stop and Restart are not in the terminal tab.
 - Action output tabs come back with the terminal drawer after you restart OpenWaggle, and reconnect to the run's retained output.
+
+![The terminal drawer with a locked Dev server · action output tab, Read-only and running above the dev server's output, and a note that Stop and Restart are in Project Actions](/screenshots/action-output-terminal.png)
 
 ## Save and run a command
 
@@ -37,6 +41,8 @@ The panel asks you to open a project when none is open, and to select a session 
 2. Answer **What should it run?** Choose **A script from this project** and pick one, or choose **A command I type myself** and type it, such as `pnpm test`.
 3. Answer **What should it be called?** Picking a script suggests a readable name, such as **Run tests**. Each name must be different from the project's other actions, ignoring letter case.
 4. Click **Save action**. Saving does not run the command. When you saved from Project Actions in a session, the confirmation offers **Run now** for that session. Saving from Settings instead highlights the new action in the list.
+
+![The New action panel for jotter: What should it run? with A script from this project chosen and the project's dev, test, build and lint scripts listed, What should it be called?, Optional settings, and Cancel and Save action](/screenshots/project-action-add.png)
 
 Everything under **Optional settings** already has a sensible default, shown in plain words next to each question. Click **Change** only when the default is wrong. The line above **Save action** summarises what will happen; click it to read the full sentence.
 
@@ -83,6 +89,17 @@ Switching sessions or closing the output view does not stop a run. Managed runs 
 
 Actions that keep running stop when the last session releases their workspace, including when that final session is archived. Releasing one session does not stop an action another session still uses. They stop before workspace cleanup and removal.
 
+The answer to **Does it stop on its own?** decides what ends a run:
+
+```mermaid
+flowchart TD
+  start["Run the action"] --> kind{"Does it stop on its own?"}
+  kind -- "Yes, it finishes by itself" --> done["The command exits<br/>Stops when done"]
+  kind -- "No, it keeps running until I stop it" --> service["Keeps running"]
+  service --> stop["You choose Stop"]
+  service --> release["The last Session using the workspace<br/>releases it, for example when it is archived.<br/>The run stops before workspace cleanup."]
+```
+
 ## Open a dev-server preview
 
 Save your server command with **No, it keeps running until I stop it**. Then, under **Optional settings > Open it in the browser preview?**, choose **Yes, open the preview when the server is ready**. Picking a `dev` or `start` script turns this on for you.
@@ -102,6 +119,92 @@ Choose **Everyone working on this project** to save an action in `.openwaggle/ac
 Storage is a per-definition choice. Sharing a test action does not share your other actions, setup, or cleanup.
 
 When you edit a shared action, the question becomes **Who should get these changes?**. **Only me** keeps the shared version for everyone else and gives you a private version; Settings marks it **Locally overridden**. **Everyone on the project** updates the shared file. To move an action between private and shared without editing it, use **Storage and removal** in Settings.
+
+### What the shared file contains
+
+Settings writes `.openwaggle/actions.json` for you, so you rarely need to edit it. You will read it when a teammate's change to it shows up in a pull request. This file shares a test script that stops when done, a dev server that keeps running, and setup and cleanup for new worktrees:
+
+```json
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "test",
+      "name": "Run tests",
+      "icon": "test",
+      "invocation": {
+        "type": "task",
+        "task": {
+          "provider": "package-script",
+          "source": "package.json",
+          "task": "test",
+          "directory": "."
+        }
+      },
+      "kind": "task",
+      "allowConcurrent": false,
+      "autoOpenPreview": false
+    },
+    {
+      "id": "web-dev",
+      "name": "Web dev server",
+      "icon": "play",
+      "invocation": {
+        "type": "command",
+        "command": "pnpm dev --port 5173",
+        "directory": "apps/web"
+      },
+      "kind": "service",
+      "allowConcurrent": false,
+      "autoOpenPreview": true,
+      "previewUrl": "http://localhost:5173"
+    }
+  ],
+  "profiles": [],
+  "preparation": [
+    {
+      "id": "install",
+      "profileId": "default",
+      "phase": "setup",
+      "invocation": {
+        "type": "command",
+        "command": "pnpm install --frozen-lockfile",
+        "directory": "."
+      }
+    },
+    {
+      "id": "stop-containers",
+      "profileId": "default",
+      "phase": "cleanup",
+      "invocation": {
+        "type": "command",
+        "command": "docker compose down",
+        "directory": "."
+      }
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Always `1`. |
+| `actions[].id` | A stable identifier of letters, digits, `.`, `_`, and `-` that starts with a letter or digit. Settings generates one; every action needs a different one. |
+| `actions[].name` | The name in the Project Actions panel. |
+| `actions[].icon` | `play`, `test`, `lint`, `configure`, `build`, or `debug`. |
+| `actions[].invocation` | What runs. `"type": "command"` runs `command` in your shell, in `directory`. `"type": "task"` links to a project script described in `task`: `provider` is `package-script`, `hatch-script` (with `environment` for the Hatch environment), or `cargo-alias`; `source` is the file that defines it; `task` is its name; `directory` is where it runs. |
+| `directory`, `source` | Relative to the workspace root, with forward slashes. `.` is the root. `..` is not allowed. |
+| `actions[].kind` | `task` for **Stops when done**, `service` for **Keeps running**. |
+| `actions[].allowConcurrent` | `true` for **Start another copy**. A `service` must use `false`. |
+| `actions[].autoOpenPreview` | `true` opens the browser preview when the server is ready. |
+| `actions[].previewUrl` | Optional. The address to preview instead of the one found in the output. |
+| `actions[].shortcutRules` | Optional. Keyboard shortcuts, recorded in the panel or in **Settings > Shortcuts**. |
+| `profiles` | Extra setup profiles, each `{ "id", "name" }`. The `default` profile needs no entry. |
+| `preparation[]` | Setup and cleanup. `profileId` names the profile, `phase` is `setup` or `cleanup`, and `invocation` works as for actions. A profile has at most one of each. |
+
+All keys are required except `previewUrl`, `shortcutRules`, and a task's `environment`. OpenWaggle does not guess at a file with a missing or unknown key. **Settings > Project actions** shows the error, and the project's actions, including your private ones, are unavailable until you fix the file. Shared setup and cleanup in this file still wait for each person's review before they run, as described below.
+
+The file has a JSON Schema, [`project-actions-v1.schema.json`](https://openwaggle.ai/schemas/project-actions-v1.schema.json). Do not add a `"$schema"` key, which counts as an unknown key. To get completion and checks in your editor, associate the schema with the file instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
 
 ## Run setup for a new worktree
 

@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useProviderCatalogRetry, useProviders } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { AvailableModelsSection } from './connections/AvailableModelsSection'
 import { OAuthProviderRow } from './connections/OAuthProviderRow'
 import { ProviderRow } from './connections/ProviderRow'
@@ -144,7 +145,7 @@ export function ConnectionsSection() {
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   return (
-    <div className="space-y-6">
+    <SettingsSectionContainer className="space-y-6">
       <div className="space-y-1">
         <h2
           ref={headingRef}
@@ -210,6 +211,6 @@ export function ConnectionsSection() {
         API keys are stored locally on your machine and never sent anywhere except to the respective
         API providers.
       </p>
-    </div>
+    </SettingsSectionContainer>
   )
 }

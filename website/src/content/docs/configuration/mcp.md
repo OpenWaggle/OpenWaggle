@@ -59,7 +59,7 @@ OpenWaggle reads five files, in this order:
 | `<project>/.pi/mcp.json` | Pi's servers for the project |
 | `<project>/.openwaggle/mcp.json` | OpenWaggle's servers for the project |
 
-When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one.
+When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one. [MCP config precedence](/docs/configuration/per-project-config#mcp-config-precedence) draws this order as a diagram.
 
 Pi's global file moves with Pi's agent folder: if you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there. If a project is your home folder, or its `.openwaggle` folder links to `~/.openwaggle`, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`; OpenWaggle reads it once, as the global file, and a switch for that project only is not available, since it would change every project. If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
 
@@ -88,6 +88,22 @@ Every file uses the same format:
 - If a value cannot be filled in, for example a missing variable or secret, that server reports the error and the others still connect.
 - `enabled: false` keeps a server without connecting to it.
 - `timeout` is how long a request may take, in seconds (default 60).
+
+OpenWaggle's two files have a JSON Schema, [`mcp.schema.json`](https://openwaggle.ai/schemas/mcp.schema.json). Name it at the top of `~/.openwaggle/mcp.json` or `.openwaggle/mcp.json` to get completion and checks in your editor; OpenWaggle keeps the key when it changes the file:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/mcp.schema.json",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+Do not point Pi's files or `.mcp.json` at it. The schema accepts secret references and SSE and WebSocket servers, which only OpenWaggle's files can hold.
 
 An entry with only `enabled`, `exposure`, or `toolExposure` changes a server defined in an earlier file and keeps the rest of it. For example, this in `.openwaggle/mcp.json` turns a global server off in one project:
 
@@ -130,6 +146,8 @@ Select a server in **Settings > MCP** to see where it is defined, whether it is 
 - choose how its tools reach the agent (see below), for the whole server or tool by tool;
 - sign in or sign out;
 - remove it.
+
+![The page of a connected local server, release-notes: its description, the command it starts with, the file that defines it, the On switch with Turn off in this project, the Codemode and Hidden exposure choices, and its three tools, each set to Same as server (Codemode)](/screenshots/mcp-server-detail.png)
 
 A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`. Turning it back to what the other files give removes the switch from that entry, and the entry itself if nothing else is left in it, so later changes for every project apply to the project again.
 
@@ -189,6 +207,8 @@ OpenWaggle remembers each server's tools from the last time it connected. A sess
 
 Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. A server that needs a secret you have not saved says **Needs secret** until you add it. Turning a server off or on, or saving one of its secrets again, clears the result of a check made before. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
 
+![The Servers list in Settings > MCP with three servers from OpenWaggle's file for all projects: deploy-status marked Needs secret DEPLOY_STATUS_AUTHORIZATION, issue-tracker Failed, and release-notes Connected with 3 tools](/screenshots/mcp-servers.png)
+
 A session's servers stop after 5 minutes without a new message (1 minute for a Worker whose result is under review, accepted, or cancelled), when the session is archived or deleted, when no OpenWaggle window or command is connected to the background Host, and when the Host stops. When more than three sessions have servers running, the one used least recently stops first; a session with a message in progress keeps its servers. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
 
 ## Apps, sampling, and input requests
@@ -200,6 +220,8 @@ A session's servers stop after 5 minutes without a new message (1 minute for a W
 ## When something fails
 
 Open **Settings > MCP** and select the server. Its error and the last lines it printed usually say what is wrong: a missing program, a wrong URL, or a sign-in that expired. Fix the configuration, then choose **Check connection**.
+
+![The page of a local server that failed to start, issue-tracker: the error MCP connection closed, then the last lines it printed, ending in Error: ISSUE_TRACKER_URL is not set](/screenshots/mcp-server-error.png)
 
 Files that cannot be read and entries that are not valid are listed at the top of **Settings > MCP**; other servers keep working, except while an upgrade's conversion is unfinished (see [After upgrading from an older OpenWaggle](#after-upgrading-from-an-older-openwaggle)).
 

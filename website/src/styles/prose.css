@@ -118,6 +118,108 @@
     border-radius: 8px;
   }
 
+  /* Images open at full size (markdown-images.ts, DocsImageLightbox.astro). */
+  .prose-docs a.docs-image-link {
+    display: inline-block;
+    border-radius: 8px;
+    cursor: zoom-in;
+  }
+  .prose-docs a.docs-image-link img {
+    display: block;
+  }
+  .prose-docs a.docs-image-link:hover img {
+    outline: 1px solid var(--color-border-light);
+  }
+  .docs-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .docs-lightbox {
+    margin: auto;
+    max-width: 100vw;
+    max-height: 100vh;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text-primary);
+  }
+  .docs-lightbox::backdrop {
+    background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+  }
+  .docs-lightbox-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+  .docs-lightbox-image {
+    display: block;
+    max-width: min(1600px, calc(100vw - 2rem));
+    max-height: calc(100vh - 6rem);
+    border-radius: 8px;
+    cursor: zoom-out;
+  }
+  .docs-lightbox-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+  /* Mermaid diagrams rendered at build time (markdown-mermaid.ts). */
+  .prose-docs .mermaid-diagram {
+    background: var(--color-bg-secondary);
+    border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
+    border-radius: 12px;
+    margin: 1em 0;
+    overflow-x: auto;
+    padding: 0.5em 1em;
+  }
+  .prose-docs .mermaid-svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    /* The variables beautiful-mermaid derives from --bg and --fg in its own <style> block. */
+    --_text: var(--fg);
+    --_text-sec: var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted: var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint: color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line: var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow: var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill: var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke: var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill: var(--bg);
+    --_group-hdr: color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke: color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge: color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+  .prose-docs .mermaid-svg text {
+    font-family: var(--font-sans);
+    /* beautiful-mermaid sizes boxes from its own Inter metrics, which run a little narrower. */
+    letter-spacing: -0.015em;
+  }
+  .prose-docs .mermaid-svg .mono {
+    font-family: var(--font-mono);
+  }
+  .prose-docs .mermaid-source {
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+  }
+  .prose-docs .mermaid-source summary {
+    cursor: pointer;
+    width: fit-content;
+  }
+  .prose-docs .mermaid-source pre {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    margin: 0.5em 0;
+    white-space: pre;
+  }
+
   .prose-docs .ow-docs-component-catalog,
   .prose-docs .ow-docs-component-row {
     margin: 1rem 0 2rem;

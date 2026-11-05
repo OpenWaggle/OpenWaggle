@@ -15,9 +15,23 @@ Each session has its own terminal tabs. New terminals start in the session's **W
 2. Press `Cmd+J` on macOS or `Ctrl+J` on Windows and Linux, or click the terminal button in the header.
 3. Wait for the shell prompt, then run your command.
 
-To ask the agent about a result, select the output, right-click, and choose **Add selection to chat**. Add your question in the message box and send it. The agent does not receive selected output until you send.
+To ask the agent about a result, select the output, right-click, and choose **Add selection to chat**. The **Add to chat** button that appears beside a new selection does the same.
 
-Press the shortcut again to hide the panel. Hiding it does not stop commands or development servers. Close the pane or tab to stop its processes.
+![The right-hand pane of a split terminal, with two passing-test lines from node --test selected and the pane's context menu open: Add selection to chat, Copy and Paste](/screenshots/terminal-add-to-chat.png)
+
+The selection lands in the message box as a file chip named after the terminal pane and the lines you selected. Add your question and send it. The agent does not receive selected output until you send, and removing the chip drops it.
+
+![The message box with a Terminal context chip for the selected lines, followed by the question "Both release-notes tests pass. Is anything else missing before we merge?"](/screenshots/terminal-context-chip.png)
+
+Press `Cmd+J` on macOS or `Ctrl+J` on Windows and Linux again to hide the panel. Hiding it does not stop commands or development servers. Close the pane or tab to stop its processes.
+
+A session's terminal can hold several tabs, and each tab up to four panes, split side by side or one below another.
+
+![The terminal panel with two tabs, release checks and Terminal 2. The release checks tab is split into two panes: git status on the left, and node --test with two passing tests on the right. Numbered callouts mark the tabs, the new-tab and split buttons, and a pane's close button](/screenshots/terminal-split-panes.png)
+
+1. The session's terminal tabs. A tab with more than one pane shows the count after its name, as in **release checks (2)**. Double-click a tab or press `F2` to rename it.
+2. Open a new tab, split the active pane side by side, or split it below.
+3. Close that pane and stop its shell.
 
 These shortcuts apply while focus is inside a terminal:
 
@@ -265,6 +279,23 @@ The built-in terminal runs your interactive commands. The agent's `bash` tool ru
 ### App shutdown and recovery
 
 Interactive terminal shells belong to the desktop app. Agent runs and managed Project actions belong to a separate background process, the Session Host. Closing the desktop leaves those runs alive while their workspace remains in use. Interactive terminals and browser operations still need the desktop connected; the CLI does not create an invisible terminal as a fallback.
+
+This is what keeps running after you close the desktop app:
+
+```mermaid
+flowchart LR
+  subgraph desktop["Desktop app: stops when you quit"]
+    term["Interactive terminal shells"]
+    preview["Browser previews"]
+  end
+  subgraph host["Session Host: runs while it has work"]
+    runs["Agent Runs"]
+    actions["Managed Project actions"]
+  end
+  desktop <-->|"reconnects when you reopen the app"| host
+```
+
+With no desktop app or other client attached and no work left, the Session Host exits after an idle period, 5 minutes by default.
 
 Quit the app normally when possible so it can confirm that terminal processes and previews have closed. If a previous exit did not confirm cleanup, a later launch shows a banner that starts with **Desktop tools are paused**. It sits below the header, or at the bottom of the window in Settings. You can still view sessions, but terminals, browser previews, archiving or deleting sessions, and removing worktrees stay blocked. Restarting does not clear this uncertainty or automatically kill old processes.
 

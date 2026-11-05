@@ -16,6 +16,8 @@ OAuth is browser-based sign-in. You approve access on the provider's website wit
 5. Wait for the provider row to show **Connected**.
 6. Enable a model under **Available Models**, then select it beside the message box.
 
+![OAuth Providers expanded: nine sign-in providers, among them Anthropic, GitHub Copilot and OpenAI, each Disconnected with its switch off](/screenshots/settings-oauth-providers.png)
+
 If the browser login does not finish automatically and OpenWaggle shows **Paste OAuth code or callback URL**, paste the code or callback URL returned by the provider and click **Connect**. Treat that value as a secret, not something to include in a bug report or chat message.
 
 Some sign-ins ask in the provider's own words, such as **Paste the authorization code**, and secrets you type are hidden. When the flow has a sign-in link, **Copy sign-in link** copies it so you can open it in a browser on another computer, then paste back the code that browser shows.

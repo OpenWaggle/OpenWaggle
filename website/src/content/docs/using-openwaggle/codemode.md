@@ -34,6 +34,24 @@ A script runs in a sandbox with no file system, network, or timers of its own. I
 
 Calls a script makes are real. If a script fails halfway, the calls it already made are not undone.
 
+## What a script looks like
+
+Say you ask where the API client throws errors. Instead of three `read` calls that each put a whole file into the conversation, the agent can send one script:
+
+```js
+const paths = ['src/api/client.ts', 'src/api/retry.ts', 'src/api/errors.ts']
+const files = await Promise.all(paths.map((path) => tools.read({ path })))
+
+paths.forEach((path, index) => {
+  const throws = files[index]
+    .split('\n')
+    .flatMap((line, number) => (line.includes('throw ') ? [`  ${number + 1}: ${line.trim()}`] : []))
+  text(`${path}: ${throws.length} throw statements\n${throws.join('\n')}`)
+})
+```
+
+The three reads run at the same time. Each tool is a function on `tools` that takes the same arguments as a direct call, and `text()` adds a line to the output. The model gets back three short lists of line numbers, not the three files. The card shows the three `read` calls, and its details show this script and what it printed.
+
 ## Approvals still apply
 
 Every tool call a script makes goes through the same approval as a direct call. In **Ask for Approval**, a script that starts two project actions asks you twice, once per action, and a declined call fails inside the script without running. In **YOLO**, the calls run without asking, just as direct calls do. See [Approvals and permissions](/docs/configuration/approvals-permissions).
@@ -48,6 +66,8 @@ A codemode call appears in the conversation as **Ran a script** (or **Running a 
 - The error, when the script failed.
 
 Click the card to see the script itself and its full output, and to copy either. The card looks the same after you reopen the session.
+
+![An expanded Ran a script card with 4 tool calls: three reads and a grep, each with its arguments and duration, one read failed with a red × and its ENOENT error, then Copy script and Copy output, the JavaScript the agent wrote, and its output: Script completed, the wall time, and the missing file and open TODOs the script returned](/screenshots/codemode-script-card.png)
 
 ## Cost and usage
 

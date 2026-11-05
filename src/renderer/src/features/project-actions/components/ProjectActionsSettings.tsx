@@ -9,7 +9,7 @@ import { isActiveActionRun } from '@shared/types/action-runs'
 import { actionNameKey } from '@shared/utils/action-name'
 import { FolderOpen, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { useResourceProject } from '@/features/settings'
+import { SettingsSectionContainer, useResourceProject } from '@/features/settings'
 import { Button } from '@/shared/ui/Button'
 import { ProjectPicker } from '@/shared/ui/ProjectPicker'
 import { useActionAvailability } from '../hooks/useActionAvailability'
@@ -28,7 +28,7 @@ import { RunningActionsLink } from './RunningActionsLink'
 export function ProjectActionsSettings() {
   const project = useResourceProject()
   return (
-    <div className="w-full min-w-0 space-y-6">
+    <SettingsSectionContainer className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-text-primary">Project actions</h2>
@@ -63,7 +63,7 @@ export function ProjectActionsSettings() {
           </Button>
         </section>
       )}
-    </div>
+    </SettingsSectionContainer>
   )
 }
 

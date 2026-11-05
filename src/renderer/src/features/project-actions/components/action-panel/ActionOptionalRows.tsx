@@ -133,12 +133,12 @@ export function ActionOptionalRows(props: ActionOptionalRowsProps) {
         />
       </OptionalSettingRow>
       <OptionalSettingRow
-        question="Icon in the + Action menu"
+        question="Icon in Project Actions"
         answer={`${capitalized(definition.icon)}. Only changes how it looks.`}
         {...row('icon')}
       >
         <p className="text-sm leading-6 text-text-tertiary">
-          The icon is only a visual hint in the menu. It does not change how the action runs.
+          The icon is only a visual hint in the list. It does not change how the action runs.
         </p>
         <ProjectActionIconPicker selected={definition.icon} onSelect={(icon) => set({ icon })} />
       </OptionalSettingRow>

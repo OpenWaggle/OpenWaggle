@@ -8,6 +8,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { SegmentedRadioGroup } from '@/shared/ui/SegmentedRadioGroup'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { AgentToolsSettings } from './AgentToolsSettings'
 import { CliAvailabilityNotice } from './CliAvailabilityNotice'
 import { PiSessionContinuationSetting } from './PiSessionContinuationSetting'
@@ -163,7 +164,7 @@ export function GeneralSection() {
   const isChecking = status.type === 'checking'
 
   return (
-    <div className="space-y-6">
+    <SettingsSectionContainer className="space-y-6">
       <CliAvailabilityNotice />
       <BrowserLinkTargetSettings />
 
@@ -246,6 +247,6 @@ export function GeneralSection() {
           </div>
         </div>
       </div>
-    </div>
+    </SettingsSectionContainer>
   )
 }

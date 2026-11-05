@@ -14,6 +14,17 @@ A session is a conversation about work in a project. It keeps your messages, the
 3. Choose a model beside the message box. If a model appears under several providers, choose the provider you connected.
 4. Describe the result you want, the files or behavior involved, and anything the agent must leave alone.
 
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+1. **Current checkout** or **New worktree** sets where the session works. It is read-only after the first message.
+2. The run target is the branch the session runs on. In **New worktree** mode it is the base for the new worktree. See [Run target](/docs/developer-workflow/git-integration#run-target).
+3. **+** attaches files, references a project file, uses a skill, or starts a Waggle preset. See [Attachments and voice](/docs/using-openwaggle/attachments-voice).
+4. The access mode, here **Ask for approval**, decides whether protected actions ask you first. See [Approvals and permissions](/docs/configuration/approvals-permissions).
+5. The model selector lists the models you enabled.
+6. The thinking level sets how much reasoning effort the model spends. See [Thinking levels](/docs/configuration/thinking-levels).
+7. The context meter shows how much of the model's context window the session uses, beside the window's size. See [Context management](/docs/using-openwaggle/context-management).
+8. The microphone dictates a message. See [Voice input](/docs/using-openwaggle/attachments-voice#voice-input).
+
 For example:
 
 ```text
@@ -82,6 +93,8 @@ A few things to know:
 
 The sidebar groups sessions by project. Each row shows a title, its current state, and a timestamp. Hover a row to see its actions without hiding the timestamp.
 
+![The sidebar with its state chips and one jotter session in each state: Error, Working with Thinking, Input, a Done Hive with one Worker and two conversation branches, and an Interrupted session in its own worktree, 2 commits ahead and 1 behind](/screenshots/sidebar-states.png)
+
 ### What a row tells you
 
 | State | Meaning |
@@ -101,6 +114,8 @@ Hover these icons for details about where the session works:
 
 | Icon | Meaning |
 |------|---------|
+| Crown | The session is a Hive's Queen. The count beside it is its direct Workers. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). |
+| Pickaxe | The session is a Hive Worker. A count beside it is the Workers it spawned itself. |
 | Branch | The Git branch name is in the tooltip. |
 | Split | The session uses its own worktree rather than the folder you opened. |
 | List tree | The conversation has multiple branches. The count appears beside it. |
@@ -122,13 +137,15 @@ Replies appear as the model generates them. The conversation can include formatt
 
 A tool is an action the agent can take outside its reply, such as reading a file or running a test command. Read the tool activity as well as the final answer. An agent saying a test passed is less useful than the actual command and result.
 
-Each tool row starts with an icon for the kind of tool: a terminal for shell commands, a file for reads, the pickaxe for Workers (the same one the sidebar uses, and the Hive panel for Workers without an Agent definition), the MCP logo for MCP tools, a pointer for the browser preview, and so on. A row whose label shimmers is still running. A failed call keeps its text, turns its icon red and ends with **×**; a finished call has no extra mark. An MCP tool reads as its server and tool name (**Datadog › analyze_datadog_logs**).
+Each tool row starts with an icon for the kind of tool: a terminal for shell commands, a file for reads, the pickaxe for Workers (the same one the sidebar uses, and the Hive panel for Workers without an Agent definition), the MCP logo for MCP tools, a pointer for the browser preview, and so on. A row whose label shimmers is still running. A failed call keeps its text, turns its icon red and ends with **×**; a finished call has no extra mark. An MCP tool reads as its server and tool name (**Datadog › search_datadog_logs**).
 
 When the agent coordinates [Workers](/docs/using-openwaggle/hives-and-sessions), each row names the Worker it acted on by its current title and agent definition, for example **Spawned Worker (reviewer) · Review the diff** or **Messaged Worker · Check main process**. A spawn the agent made directly also shows the Worker's state as the Hive panel words it and an **Open** button. Waiting on Workers adds no row; the spawn rows and the Hive panel show what the agent is waiting for.
 
+![A finished turn's tool rows: Ran pnpm test, a failed Read of src/upload/policy.ts ending in × with its ENOENT error, an expanded edit of src/upload/retry.ts showing its diff and copy buttons, Datadog › search_datadog_logs, and Spawned Worker · Add a regression test for 4xx uploads with Working and Open](/screenshots/tool-rows.png)
+
 Expand a tool row to inspect its arguments and output. Shell output can appear while the command is still running; a live excerpt is progress, not a success result. Failed commands keep their available output for inspection. Use **Copy command** or **Copy output** when those controls are available.
 
-Expanding a successful edit row shows that file's diff instead of the raw edit arguments. Select the file name to open it at the first change, or use **Copy diff**, **Copy path**, **Copy args**, or **Copy output**. Any output an extension adds to the edit, such as diagnostics, appears under the diff. A failed edit still shows its arguments and the error. To review everything a turn changed, use the changed-files card or the [diff panel](/docs/developer-workflow/git-integration#diff-panel).
+Expanding a successful edit row shows that file's diff instead of the raw edit arguments. Select the file name to open it at the first change, or use **Copy diff**, **Copy path**, or **Copy args**. Any output an extension adds to the edit, such as diagnostics, appears under the diff, with **Copy output**. A failed edit still shows its arguments and the error. To review everything a turn changed, use the changed-files card or the [diff panel](/docs/developer-workflow/git-integration#diff-panel).
 
 A first message reports each setup step in the conversation, such as pulling the branch, creating a worktree, or connecting an MCP server it has to wait for. **Worktree created** confirms the checkout exists, not that project setup or the task has finished. A configured setup command must complete before the first agent turn. See [First-send worktree feedback](/docs/developer-workflow/git-integration#first-send-worktree-feedback).
 
@@ -137,6 +154,8 @@ If an approval request appears, check the proposed action and its target. Choose
 You can send an ordinary message while the agent is busy. It waits as a follow-up rather than starting a second task at the same time. For changes already made to files, use the [diff panel](/docs/developer-workflow/git-integration#diff-panel) to review them and send corrections.
 
 Queued follow-ups wait above the message box, in the order they will be sent. To reorder them, drag a message by its grip, the dots at its left edge: the whole message follows the pointer, its place in the list stays dimmed, and a line shows where it will land. Press `Esc` or drop it outside the list to leave the order as it was. You can also click the grip, or focus it and press `Enter`, and choose **Move up** or **Move down**.
+
+![Two queued follow-ups above the message box while the agent works, each with its grip, Steer, edit and delete buttons, and Pause above them](/screenshots/queued-follow-ups.png)
 
 ## Native Pi tools
 
@@ -165,6 +184,8 @@ Turning the setting off removes preview access from later turns and rejects furt
 
 Type `/` at the start of a word in the message box. Keep typing to filter, then use the arrow keys and `Enter` to choose an item.
 
+![The slash command menu over a new session's message box: Compact session, Fork session and Clone session, then the skills Visualize, regression-test and release-notes, then the Waggle presets Code Review and Debate](/screenshots/slash-command-menu.png)
+
 The menu lists the built-in commands `/compact`, `/fork`, and `/clone` first, followed by skills, saved Waggle presets, and commands added by enabled extensions. A skill supplies instructions for a particular task. A Waggle preset sets up a multi-agent review.
 
 In a session, the menu also lists the commands its Pi extensions register, such as Pi's `/mcp`, with their descriptions. Choosing one inserts it; Pi runs it when you send the message, instead of sending the message to the model. A session is not titled from such a command: its title comes from the first real request.
@@ -176,6 +197,8 @@ Selecting a skill or preset replaces only the slash token, keeping the rest of y
 ## Global command palette
 
 Press `Cmd+K` on macOS or `Ctrl+K` on Windows and Linux to find app actions. The palette includes new sessions, project selection, recent sessions, settings, view controls, file and content search, panels, and extension actions. Use the message box's `/` menu for skills and Waggle presets.
+
+![The command palette with its search field and the Create, Project and Session sections: New session, New session in another project, Go to file, Search project contents, Open project, Compact session, Fork to new session and Clone current session](/screenshots/command-palette.png)
 
 The **Panels** section lists every panel the right panel can show: All panels, Changes, Project Actions, Scheduled, Browser, Files, Session Tree, Resources, Hive, and each extension side panel that can run, with its extension's name beside it. Each entry shows its shortcut when it has one. Choosing a panel shows it in the right panel and never closes the right panel, even when that panel is already showing. To give a panel a shortcut, see [Panel shortcuts](/docs/getting-started/keyboard-shortcuts#panel-shortcuts).
 
