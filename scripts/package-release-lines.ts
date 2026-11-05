@@ -1,105 +1,34 @@
-import { execFile as execFileCallback } from 'node:child_process'
-import { promisify } from 'node:util'
 import {
-  compareSemver,
+  commitsTouching,
+  gitSucceeds,
+  git,
+  manifestChangeCommit,
+  objectField,
+  parseVersion,
+  publishedLinesAt,
+  readJsonAt,
+  releasedTagVersions,
+  stringField,
+} from './package-release-git'
+import { packageReleaseRules } from './package-release-rules'
+import {
   packageReleaseLineViolations,
   PULL_REQUEST_TITLE_HASH,
-  semverParts,
   type PackageReleaseLineState,
   type ReleaseCommit,
-  type VersioningRules,
 } from './package-release-version'
 import { touchesPath } from './publishable-package-diff'
 
-const execFile = promisify(execFileCallback)
-
 /*
- * Reads what `package-release-version.ts` needs from git at one revision: Release Please's config, each
- * package's newest `<component>-v<version>` tag, the commits since it that touch the package, and the
- * published and pending docs. Everything is read from the revision, not the working tree.
+ * Reads what `package-release-version.ts` needs from git at one revision: Release Please's config and
+ * manifest, each package's released version and the commits since that release that touch the
+ * package, and the published and pending docs. Everything is read from the revision, not the working tree.
  */
 
 const CONFIG_PATH = 'release-please-config.json'
 const MANIFEST_PATH = '.release-please-manifest.json'
 const PUBLISHED_DOCS_ROOT = 'website/src/content/docs/packages'
 const PENDING_DOCS_ROOT = 'website/src/content/package-docs-next'
-const GIT_MAX_BUFFER_BYTES = 10 * 1024 * 1024
-const COMMIT_FIELD_COUNT = 3
-const COMMIT_SUBJECT_FIELD_OFFSET = 1
-const COMMIT_BODY_FIELD_OFFSET = 2
-
-async function git(cwd: string, args: readonly string[]) {
-  const { stdout } = await execFile('git', args, { cwd, maxBuffer: GIT_MAX_BUFFER_BYTES })
-  return stdout
-}
-
-async function gitSucceeds(cwd: string, args: readonly string[]) {
-  try {
-    await git(cwd, args)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function readJsonAt(cwd: string, revision: string, filePath: string) {
-  try {
-    const parsed: unknown = JSON.parse(await git(cwd, ['show', `${revision}:${filePath}`]))
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function stringField(value: object, key: string) {
-  const field: unknown = Reflect.get(value, key)
-  return typeof field === 'string' ? field : undefined
-}
-
-function objectField(value: object, key: string) {
-  const field: unknown = Reflect.get(value, key)
-  return typeof field === 'object' && field !== null && !Array.isArray(field) ? field : undefined
-}
-
-async function latestReleasedVersion(cwd: string, component: string, to: string) {
-  const tags = (await git(cwd, ['tag', '--list', `${component}-v*`, '--merged', to]))
-    .split('\n')
-    .map((tag) => tag.trim().slice(`${component}-v`.length))
-    .flatMap((version) => {
-      const parts = semverParts(version)
-      return parts === undefined ? [] : [{ parts, version }]
-    })
-    .sort((left, right) => compareSemver(left.parts, right.parts))
-  return tags.at(-1)?.version
-}
-
-async function commitsTouching(cwd: string, range: string, packagePath: string) {
-  const fields = (
-    await git(cwd, ['log', '--format=%H%x00%s%x00%b%x00', range, '--', `${packagePath}/`])
-  ).split('\0')
-  const commits: ReleaseCommit[] = []
-  for (let index = 0; index + COMMIT_BODY_FIELD_OFFSET < fields.length; index += COMMIT_FIELD_COUNT) {
-    const hash = fields[index]?.trim() ?? ''
-    if (hash.length === 0) continue
-    commits.push({
-      hash,
-      subject: fields[index + COMMIT_SUBJECT_FIELD_OFFSET] ?? '',
-      body: fields[index + COMMIT_BODY_FIELD_OFFSET] ?? '',
-    })
-  }
-  return commits
-}
-
-async function publishedLinesAt(cwd: string, to: string, slug: string) {
-  try {
-    return (await git(cwd, ['ls-tree', '-d', '--name-only', `${to}:${PUBLISHED_DOCS_ROOT}/${slug}`]))
-      .split('\n')
-      .map((entry) => entry.trim())
-      .filter((entry) => /^\d+\.\d+$/u.test(entry))
-  } catch {
-    return []
-  }
-}
 
 export interface PackageReleaseLineCheckOptions {
   readonly cwd: string
@@ -131,30 +60,79 @@ async function pullRequestTitleCommit(options: PackageReleaseLineCheckOptions, p
     path: `${packagePath}/`,
     to: options.to,
   })
-  return touched ? [{ hash: PULL_REQUEST_TITLE_HASH, subject: prTitle, body: '' }] : []
+  return touched ? [{ hash: PULL_REQUEST_TITLE_HASH, message: prTitle }] : []
 }
 
-/** One package's state at `to`, or the history problem that keeps it from being read. */
-async function readPackageState(
+interface ReleasedState {
+  readonly releasedVersion: string | undefined
+  /** Where the package's unreleased history starts: its release tag or the release commit; none if never released. */
+  readonly since: string | undefined
+}
+
+/**
+ * The package's released version and where its unreleased commits start. Release Please treats the
+ * manifest as the released version and finds that version's tag. Tags are only created after npm
+ * publish, so between a release pull request merging and promotion finishing the manifest is ahead of
+ * the newest tag. Then the release commit that recorded the manifest version starts the range.
+ */
+async function releasedState(
   options: PackageReleaseLineCheckOptions,
   packagePath: string,
   component: string,
   manifestVersion: string | undefined,
-): Promise<PackageReleaseLineState | string> {
-  const slug = packagePath.replace(/^packages\//u, '')
-  const releasedVersion = await latestReleasedVersion(options.cwd, component, options.to)
-  if (releasedVersion === undefined && manifestVersion !== undefined) {
+): Promise<ReleasedState | string> {
+  const tags = await releasedTagVersions(options.cwd, component, options.to)
+  const newestTag = tags.at(-1)?.toString()
+  if (manifestVersion === undefined) {
+    return { releasedVersion: newestTag, since: newestTag === undefined ? undefined : `${component}-v${newestTag}` }
+  }
+  const manifest = parseVersion(manifestVersion)
+  if (manifest === undefined) return `${MANIFEST_PATH} records an invalid ${component} version ${JSON.stringify(manifestVersion)}.`
+  if (tags.some((tag) => tag.compare(manifest) === 0)) {
+    return { releasedVersion: manifestVersion, since: `${component}-v${manifestVersion}` }
+  }
+  if (newestTag === undefined) {
     return `no ${component}-v* tag is reachable from ${options.to}, though ${MANIFEST_PATH} records ${component} ${manifestVersion}. Run git fetch --tags.`
   }
-  const history = releasedVersion === undefined
-    ? []
-    : await commitsTouching(options.cwd, `${component}-v${releasedVersion}..${options.to}`, packagePath)
+  if ((tags.at(-1)?.compare(manifest) ?? 0) > 0) {
+    return `the newest ${component} tag ${component}-v${newestTag} is newer than ${MANIFEST_PATH}'s ${manifestVersion}.`
+  }
+  const releaseCommit = await manifestChangeCommit(options.cwd, options.to, MANIFEST_PATH, packagePath, manifestVersion)
+  if (releaseCommit === undefined) {
+    return `no commit reachable from ${options.to} recorded ${component} ${manifestVersion} in ${MANIFEST_PATH}.`
+  }
+  return { releasedVersion: manifestVersion, since: releaseCommit }
+}
+
+/** One package's state at `to`, or the history or config problem that keeps it from being read. */
+async function readPackageState(
+  options: PackageReleaseLineCheckOptions,
+  packagePath: string,
+  packageConfig: object,
+  config: object,
+  manifestVersion: string | undefined,
+): Promise<PackageReleaseLineState | { readonly problem: string; readonly kind: 'history' | 'config' }> {
+  const slug = packagePath.replace(/^packages\//u, '')
+  const component = stringField(packageConfig, 'component') ?? slug
+  const rules = packageReleaseRules(packageConfig, config)
+  if (typeof rules === 'string') {
+    return {
+      kind: 'config',
+      problem: `${CONFIG_PATH} gives ${packagePath} ${rules}, so its next version cannot be predicted. Teach scripts/package-release-rules.ts that setting first.`,
+    }
+  }
+  const released = await releasedState(options, packagePath, component, manifestVersion)
+  if (typeof released === 'string') return { kind: 'history', problem: released }
+  const range = released.since === undefined ? options.to : `${released.since}..${options.to}`
+  const history: ReleaseCommit[] = await commitsTouching(options.cwd, range, packagePath)
   return {
     component,
     slug,
-    releasedVersion,
-    commits: [...history, ...(await pullRequestTitleCommit(options, packagePath))],
-    publishedLines: await publishedLinesAt(options.cwd, options.to, slug),
+    releasedVersion: released.releasedVersion,
+    // Newest first, as Release Please reads them: the title stands for the squash commit on top.
+    commits: [...(await pullRequestTitleCommit(options, packagePath)), ...history],
+    rules,
+    publishedLines: await publishedLinesAt(options.cwd, options.to, `${PUBLISHED_DOCS_ROOT}/${slug}`),
     hasPendingDocs: await gitSucceeds(options.cwd, ['cat-file', '-e', `${options.to}:${PENDING_DOCS_ROOT}/${slug}/index.md`]),
   }
 }
@@ -168,36 +146,32 @@ export async function checkPackageReleaseLines(
   if (config === undefined || configuredPackages === undefined) {
     return { packages: [], skipped: [], violations: [] }
   }
-  const rules: VersioningRules = {
-    bumpMinorPreMajor: Reflect.get(config, 'bump-minor-pre-major') === true,
-    bumpPatchForMinorPreMajor: Reflect.get(config, 'bump-patch-for-minor-pre-major') === true,
-  }
   const manifest = await readJsonAt(options.cwd, options.to, MANIFEST_PATH)
   const shallow = (await git(options.cwd, ['rev-parse', '--is-shallow-repository'])).trim() === 'true'
   const historyProblems = shallow
     ? ['the clone is shallow, so package tags and history are incomplete. Run git fetch --unshallow --tags.']
     : []
+  const configProblems: string[] = []
 
   const packages: PackageReleaseLineState[] = []
   for (const packagePath of Object.keys(configuredPackages)) {
     const packageConfig = objectField(configuredPackages, packagePath)
     if (packageConfig === undefined) continue
-    const component = stringField(packageConfig, 'component') ?? packagePath.replace(/^packages\//u, '')
     const manifestVersion = manifest === undefined ? undefined : stringField(manifest, packagePath)
-    const state = await readPackageState(options, packagePath, component, manifestVersion)
-    if (typeof state === 'string') historyProblems.push(state)
+    const state = await readPackageState(options, packagePath, packageConfig, config, manifestVersion)
+    if ('problem' in state) (state.kind === 'config' ? configProblems : historyProblems).push(state.problem)
     else packages.push(state)
   }
 
-  const violations = packageReleaseLineViolations(packages, rules, stringField(config, 'initial-version'))
+  const violations = [
+    ...configProblems.map((problem) => `Cannot predict package documentation lines: ${problem}`),
+    ...(await packageReleaseLineViolations(packages)),
+  ]
   if (historyProblems.length === 0) return { packages, skipped: [], violations }
   if (options.missingHistory === 'skip') return { packages, skipped: historyProblems, violations }
   return {
     packages,
     skipped: [],
-    violations: [
-      ...historyProblems.map((problem) => `Cannot predict package documentation lines: ${problem}`),
-      ...violations,
-    ],
+    violations: [...historyProblems.map((problem) => `Cannot predict package documentation lines: ${problem}`), ...violations],
   }
 }
