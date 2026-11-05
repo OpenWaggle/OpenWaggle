@@ -197,4 +197,19 @@ describe('Session catalog targeted refresh', () => {
 
     expect(useSessionStore.getState().sessions).toEqual([summary('raced-target', 'Newest title')])
   })
+
+  it('settles a failed targeted refresh instead of floating its rejection', async () => {
+    // The Session Host refresh fires this action with `void`, so a rejection used to surface as
+    // an unhandled renderer rejection (Sentry issues OPENWAGGLE-6 and OPENWAGGLE-7).
+    apiMocks.listSessionsByIds
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+      .mockResolvedValueOnce([summary('recovered', 'Fresh event title')])
+
+    const failed = useSessionStore.getState().refreshCatalogSessions([SessionId('recovered')])
+    await expect(failed).resolves.toBeUndefined()
+
+    // The failed refresh released its targeted-operation guard, so a later one still hydrates.
+    await useSessionStore.getState().refreshCatalogSessions([SessionId('recovered')])
+    expect(useSessionStore.getState().sessions).toEqual([summary('recovered', 'Fresh event title')])
+  })
 })
