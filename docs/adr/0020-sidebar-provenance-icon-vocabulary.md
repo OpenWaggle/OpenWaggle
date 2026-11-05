@@ -62,3 +62,7 @@ Two concepts are the first kind, so their glyphs exist in the vocabulary and ren
 **Terminal.** Terminals are keyed by project path, not by session. `terminal:create` takes a `projectPath` and returns a `terminalId`, and nothing records which session opened it, so a per-session count cannot be derived. Callers pass zero until a terminal carries its owning session id.
 
 Both render paths are complete and tested through the pure builder, so each glyph appears the moment real data exists. Neither is documented as a user-facing capability while it cannot occur, which is the same rule that kept `Globe` out.
+
+## Amendment: the Hive panel's Agent definition glyph (#405)
+
+The sidebar vocabulary is unchanged: every Worker Session keeps `Pickaxe` there. The Hive panel, which is not a sidebar row and colours its role glyphs, shows `Bot` for a Worker created from an Agent definition; see the amendment to [ADR 0054](0054-transcript-rows-name-the-worker.md).

@@ -92,3 +92,52 @@ describe('Hive tool status guidance', () => {
     )
   })
 })
+
+// Agents read the old "do not assume named roles exist" as "skip them" and wrote each role into
+// the objective by hand next to a definition made for it.
+describe('Hive tool Agent-definition guidance', () => {
+  it('tells a Session that can start Sessions to pass agent when a definition fits', async () => {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
+    expect(text).toMatch(
+      /When an Agent definition fits a role, spawn, launch, or create with agent: "<name>" and give it only the task, not the role; available_agents lists/,
+    )
+    expect(text).toContain('find them (projectPath for another project).')
+    expect(text).not.toMatch(/do not assume named roles exist/)
+  })
+
+  it('names only spawn to a Worker that cannot launch or create', async () => {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-worker',
+      runId: 'run-current',
+      workingDirectory: '/project',
+      sessionCapabilities: ['sessions:discover', 'sessions:read', 'sessions:spawn'],
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
+    expect(text).toMatch(/When an Agent definition fits a role, spawn with agent: "<name>"/)
+    // A spawn-only Session is refused another project's catalog, so it is not offered one.
+    expect(text).not.toContain('projectPath for another project')
+  })
+
+  it('offers another project only to a Session that can also list its Sessions', async () => {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-root',
+      runId: 'run-current',
+      workingDirectory: '/project',
+      sessionCapabilities: ['sessions:create', 'sessions:start'],
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
+    expect(text).toMatch(/When an Agent definition fits a role, launch or create with agent/)
+    expect(text).not.toContain('projectPath for another project')
+  })
+})

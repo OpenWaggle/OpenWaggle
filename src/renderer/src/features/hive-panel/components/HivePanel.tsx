@@ -5,7 +5,7 @@ import {
   useInfiniteQuery,
 } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ChessQueen, X } from 'lucide-react'
+import { Bot, ChessQueen, X } from 'lucide-react'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import {
   type HiveTreePage,
@@ -15,6 +15,7 @@ import {
 } from '@/queries/session-hive-tree'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { type HiveAgentCount, hiveAgentCounts } from '../lib/hive-agent-presentation'
 import { buildHiveTreeModel, type HiveStatusOf } from '../lib/hive-tree-model'
 import { buildHiveTreeItems, type HiveTreeItem } from '../lib/hive-tree-structure'
 import { useHivePanelViewStore } from '../state/hive-panel-view-store'
@@ -63,7 +64,9 @@ export function HivePanel({ sessionId, onClose }: HivePanelProps) {
   return (
     <section className="flex h-full min-w-0 flex-col bg-diff-bg" aria-label="Hive">
       <HivePanelHeader memberCount={model.memberCount} partial={partial} onClose={onClose} />
-      {root !== null ? <HivePanelToolbar /> : null}
+      {root !== null ? (
+        <HivePanelToolbar agents={hiveAgentCounts(root, members)} partial={partial} />
+      ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {root !== null ? <HiveColumnHeader /> : null}
         <HiveTreeLoadState query={query} />
@@ -128,8 +131,9 @@ function HiveTreeBody({
   )
 }
 
+// shrink-0 and whitespace-nowrap: only the agent summary beside them gives up width, by truncating.
 const TOGGLE_CLASS =
-  'rounded-md border px-2 py-0.5 text-xs transition-colors hover:bg-bg-hover hover:text-text-primary'
+  'shrink-0 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs transition-colors hover:bg-bg-hover hover:text-text-primary'
 
 function toggleClass(pressed: boolean) {
   return cn(
@@ -138,8 +142,38 @@ function toggleClass(pressed: boolean) {
   )
 }
 
+/** "reviewer ×6 · planner ×2": which Agent definitions this Hive's Sessions run. */
+function HiveAgentSummary({
+  agents,
+  partial,
+}: {
+  readonly agents: readonly HiveAgentCount[]
+  readonly partial: boolean
+}) {
+  if (agents.length === 0) return null
+  const parts = agents.map((agent) => `${agent.name} ×${loadedCount(agent.count, partial)}`)
+  return (
+    <span
+      data-hive-agent-summary=""
+      className="mr-auto flex min-w-0 items-center gap-1.5 text-xs text-info-text"
+    >
+      <Bot aria-hidden="true" className="size-3.5 shrink-0" />
+      <span aria-hidden="true" className="truncate" title={parts.join(' · ')}>
+        {parts.join(' · ')}
+      </span>
+      <span className="sr-only">Agent definitions in this Hive: {parts.join(', ')}</span>
+    </span>
+  )
+}
+
 /** The view toggles: "By next actor" for the groups (issue 380), "Show archived" for the tree (#377). */
-function HivePanelToolbar() {
+function HivePanelToolbar({
+  agents,
+  partial,
+}: {
+  readonly agents: readonly HiveAgentCount[]
+  readonly partial: boolean
+}) {
   const view = useHivePanelViewStore((state) => state.view)
   const showArchived = useHivePanelViewStore((state) => state.showArchived)
   const setView = useHivePanelViewStore((state) => state.setView)
@@ -147,6 +181,7 @@ function HivePanelToolbar() {
   const grouped = view === 'by-next-actor'
   return (
     <div className="flex shrink-0 items-center justify-end gap-1.5 border-b border-border px-3 py-1.5">
+      <HiveAgentSummary agents={agents} partial={partial} />
       {grouped ? null : (
         <Button
           variant="unstyled"

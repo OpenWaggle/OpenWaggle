@@ -44,7 +44,7 @@ describe('hive agent-definitions-* as Hive commands (#351)', () => {
         home: '/home',
         stdout: (value) => void stdout.push(value),
         verifyCaller,
-        resolveProject: async (projectPath) => ({ projectPath, enabledByName: {} }),
+        resolveProject: async (projectPath) => ({ projectPath, known: true, enabledByName: {} }),
       }),
     ).resolves.toBe(0)
 

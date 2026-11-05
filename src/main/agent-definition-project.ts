@@ -12,6 +12,11 @@ import { SettingsService } from './services/settings-service'
 /** The project whose Agent definitions and toggles a discovery command reads. */
 export interface AgentDefinitionProject {
   readonly projectPath: string
+  /**
+   * The directory is a project the user opened in OpenWaggle, or a managed worktree of one,
+   * rather than a folder read as its own project.
+   */
+  readonly known: boolean
   readonly enabledByName: Readonly<Record<string, boolean>>
 }
 
@@ -65,19 +70,18 @@ export async function resolveAgentDefinitionProject(
   const resolved = sources ?? (await defaultSources())
   const settings = await resolved.readSettings()
   const candidates = await spellings(directory)
-  const projectPath =
-    (await projectOfWorkspacePath(
-      candidates,
-      {
-        userProjects: userProjectPaths(settings),
-        managedWorktreeProject: resolved.managedWorktreeProject,
-      },
-      { insideManagedWorktrees: true },
-    )) ??
-    candidates[0] ??
-    path.resolve(directory)
+  const knownProject = await projectOfWorkspacePath(
+    candidates,
+    {
+      userProjects: userProjectPaths(settings),
+      managedWorktreeProject: resolved.managedWorktreeProject,
+    },
+    { insideManagedWorktrees: true },
+  )
+  const projectPath = knownProject ?? candidates[0] ?? path.resolve(directory)
   return {
     projectPath,
+    known: knownProject !== null,
     enabledByName: await agentDefinitionTogglesForProject(
       settings.agentDefinitionTogglesByProject,
       projectPath,

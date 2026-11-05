@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { IDLE_ROW_COLOR_VAR } from '@shared/types/session-status'
-import { ChessQueen, Pickaxe } from 'lucide-react'
+import { Bot, ChessQueen, Pickaxe } from 'lucide-react'
 import { useState } from 'react'
 import { useSessionStore } from '@/features/sessions/state'
 import { SessionItemContextMenu } from '@/features/sidebar/components'
@@ -13,6 +13,11 @@ import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import { useHivePanelSessionActions } from '../hooks/useHivePanelSessionActions'
 import { useHiveSessionState } from '../hooks/useHiveSessionState'
+import {
+  agentAccessibleName,
+  agentIdentityTitle,
+  hiveAgentPresentation,
+} from '../lib/hive-agent-presentation'
 
 /**
  * The Hive rows are a three-column table (ADR 0051 review): Session, Workspace, State — with one
@@ -71,6 +76,7 @@ function hiveRolePresentation(session: { readonly lineage?: { readonly role?: st
 export function useHiveRowView(session: HiveSession, isRoot: boolean) {
   const sessionId = SessionId(String(session.id))
   const { statusColor, state } = useHiveSessionState(session)
+  const agent = hiveAgentPresentation(session)
   const isPinned = usePinnedSessionsStore((store) =>
     store.pins.some((pin) => String(pin.sessionId) === String(sessionId)),
   )
@@ -80,6 +86,7 @@ export function useHiveRowView(session: HiveSession, isRoot: boolean) {
     isPinned,
     statusColor: statusColor ?? IDLE_ROW_COLOR_VAR,
     state,
+    agent,
     role: isRoot ? { Icon: ChessQueen, label: 'Queen' } : hiveRolePresentation(session),
     // projectName takes the last segment of either separator, so Windows paths shorten too.
     workspace: session.worktreePath ? projectName(session.worktreePath) : 'Checkout',
@@ -91,7 +98,8 @@ export type HiveRowView = ReturnType<typeof useHiveRowView>
 /**
  * The row's accessible name. It carries every cell, because a name set on the row replaces its
  * content for assistive technology: without the state and Workspace here, they would be silent.
- * The parent comes right after the title, in the words every surface uses (#377).
+ * The parent comes right after the title, in the words every surface uses (#377), and the Agent
+ * definition identity after it.
  */
 export function hiveRowAccessibleName(
   view: HiveRowView,
@@ -101,6 +109,7 @@ export function hiveRowAccessibleName(
   const parts = [
     `Open ${view.role.label} Session: ${view.session.title}`,
     ...(parentTitle === null ? [] : [`spawned by ${parentTitle}`]),
+    ...(view.agent ? [agentAccessibleName(view.agent)] : []),
     ...(view.isPinned ? ['pinned'] : []),
     `state ${view.state.label}`,
     `workspace ${view.workspace}`,
@@ -109,16 +118,25 @@ export function hiveRowAccessibleName(
   return parts.join(', ')
 }
 
-/** The role glyph, coloured when the row needs you, and the live status dot. */
+/**
+ * The role glyph, coloured when the row needs you, and the live status dot. A Worker created from
+ * an Agent definition shows the agent glyph in the agent colour instead of the pickaxe.
+ */
 export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
-  const Icon = view.role.Icon
+  const agentWorker = view.agent !== null && view.role.label === 'Worker'
+  const Icon = agentWorker ? Bot : view.role.Icon
   return (
     <>
       <Icon
         aria-hidden="true"
+        data-agent-glyph={agentWorker ? 'true' : undefined}
         className={cn(
           'size-3.5 shrink-0',
-          view.state.needsYou ? 'text-warning' : 'text-text-tertiary',
+          view.state.needsYou
+            ? 'text-warning'
+            : agentWorker
+              ? 'text-info-text'
+              : 'text-text-tertiary',
         )}
       />
       <span
@@ -127,6 +145,30 @@ export function HiveRowGlyphs({ view }: { readonly view: HiveRowView }) {
         style={{ backgroundColor: view.statusColor }}
       />
     </>
+  )
+}
+
+/**
+ * "reviewer · High · GLM-5.3-Flash" under the title of a Session created from an Agent
+ * definition: which definition it runs, and what it runs with. Visual only: the row's
+ * accessible name carries the same three parts.
+ */
+export function HiveAgentIdentity({ view }: { readonly view: HiveRowView }) {
+  const agent = view.agent
+  if (agent === null) return null
+  const details = [agent.thinkingLine, agent.model].filter((part): part is string => part !== null)
+  return (
+    <span
+      aria-hidden="true"
+      data-hive-agent={agent.name}
+      className="block truncate text-xs text-text-tertiary"
+      title={agentIdentityTitle(agent)}
+    >
+      <span className="text-info-text">{agent.name}</span>
+      {details.map((part) => (
+        <span key={part}> · {part}</span>
+      ))}
+    </span>
   )
 }
 

@@ -9,3 +9,7 @@ Following the **Codex parity baseline**, a `wait` call gets no row: a spawn row 
 Two rows cannot name their Worker yet: Delegation reviews (accept, verify, request revision) carry only a Delegation id, so they read "Accepted a Worker's work", and a spawn made inside a script has no recorded result, so it keeps its requested name without live state or Open. A wait inside a script whose recorded arguments Pi dropped for size has no action left to read, so it shows as an unnamed Hive row.
 
 Considered and rejected: T3 Code's full sub-agent cards (model, progress line, elapsed time), Codex's per-agent activity rows ("Euler finished") and composer strip, and keeping a robot icon beside or instead of the pickaxe. The Hive panel and the Session Hub's Hive row already carry that information.
+
+## Amendment: the Hive panel marks Agent definition Workers (#405)
+
+The Hive panel shows a Worker created from an Agent definition with `Bot`, in the info colour, in place of the pickaxe, beside an identity line that names the definition, its thinking level and model (`reviewer · High · <model>`); its toolbar counts each definition with the same glyph. In a list where every row is a Worker, the glyph is what tells definition Workers apart at a glance, and the panel is the surface this ADR names as already carrying that information. Everywhere else, transcript rows included, every Worker keeps the pickaxe, so the robot icon rejected above stays out of the transcript.

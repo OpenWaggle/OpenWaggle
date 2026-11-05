@@ -29,6 +29,7 @@ describe('resolveAgentDefinitionProject (the Host projectOfWorkspace rule)', () 
   it('reads a project the user opened, with its toggles', async () => {
     await expect(resolver()(project)).resolves.toEqual({
       projectPath: project,
+      known: true,
       enabledByName: { reviewer: false },
     })
   })
@@ -41,6 +42,7 @@ describe('resolveAgentDefinitionProject (the Host projectOfWorkspace rule)', () 
     ]) {
       await expect(resolver()(directory)).resolves.toEqual({
         projectPath: project,
+        known: true,
         enabledByName: { reviewer: false },
       })
     }
@@ -50,6 +52,7 @@ describe('resolveAgentDefinitionProject (the Host projectOfWorkspace rule)', () 
     const subdirectory = path.join(project, 'src', 'deep')
     await expect(resolver()(subdirectory)).resolves.toEqual({
       projectPath: subdirectory,
+      known: false,
       enabledByName: {},
     })
   })
@@ -77,6 +80,7 @@ describe('resolveAgentDefinitionProject (the Host projectOfWorkspace rule)', () 
     const elsewhere = path.join(root, 'elsewhere')
     await expect(resolver()(elsewhere)).resolves.toEqual({
       projectPath: elsewhere,
+      known: false,
       enabledByName: {},
     })
   })

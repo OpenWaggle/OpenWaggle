@@ -4,6 +4,7 @@ import type { HiveRowParent, HiveTreeRow } from '../lib/hive-tree-model'
 import {
   HIVE_ROW_CLASS,
   HIVE_ROW_GRID_STYLE,
+  HiveAgentIdentity,
   HivePinnedBadge,
   HiveRowGlyphs,
   HiveRowMenu,
@@ -76,10 +77,14 @@ export function HiveTreeListItem({
           onClick={onOpen}
           onContextMenu={menu.openAtPointer}
         >
-          <span className="flex min-w-0 items-center gap-1.5">
-            <HiveRowGlyphs view={view} />
+          {/* Glyphs on the title's first line, as in the tree, when the title wraps or the agent line adds a second. */}
+          <span className="flex min-w-0 items-start gap-1.5">
+            <span className="flex h-5 shrink-0 items-center gap-1.5">
+              <HiveRowGlyphs view={view} />
+            </span>
             <span className="flex min-w-0 flex-1 flex-col">
               <HiveRowTitle view={view} />
+              <HiveAgentIdentity view={view} />
             </span>
             <HivePinnedBadge view={view} />
           </span>
