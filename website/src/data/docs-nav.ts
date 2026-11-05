@@ -104,6 +104,8 @@ export const developerDocsNav: NavSection[] = [
       { title: 'Hive CLI', slug: 'developer-workflow/hive-cli' },
       { title: 'Token benchmarks', slug: 'using-openwaggle/token-benchmarks' },
       { title: 'Build an extension', slug: 'extending/openwaggle-extensions' },
+      { title: 'Add to the Session Summary', slug: 'extending/extension-session-summary' },
+      { title: 'Extension manifest', slug: 'extending/extension-manifest' },
       { title: 'Pi extensions', slug: 'extending/pi-extensions' },
     ],
   },

@@ -43,7 +43,7 @@ An enabled package's settings sections appear at the top of **Settings > Extensi
 
 ![Extension settings in Settings > Extensions, showing the GitHub Issues Settings form with repository owner, repository name, and tracked labels](/screenshots/extensions-settings-section.png)
 
-To see where an extension's side panels, transcript cards, and status widgets appear, see [Build an extension](/docs/extending/openwaggle-extensions#contribution-surfaces-at-a-glance).
+To see where an extension's side panels, transcript cards, and status widgets appear, see [Build an extension](/docs/extending/openwaggle-extensions#choose-where-your-extension-appears).
 
 ## Update a package
 
