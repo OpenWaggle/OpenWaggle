@@ -231,9 +231,9 @@ describe('docs wording', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('uses no em dashes in guides and overviews', () => {
+  it('uses no em dashes outside UI labels and code', () => {
     const offenders = pages()
-      .filter((page) => page.kind !== 'reference')
+      .filter((page) => !isGenerated(page))
       .flatMap((page) => {
         const text = prose(page.body);
         return [...text.matchAll(/\u2014/gu)].map((match) => `${page.slug}:${lineOf(page, text, match.index)}`);
