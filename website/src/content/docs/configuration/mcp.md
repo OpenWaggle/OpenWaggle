@@ -6,47 +6,38 @@ section: "Customize"
 kind: "guide"
 ---
 
-Model Context Protocol, or MCP, connects the agent to external tools and services. An MCP server might search your issue tracker, read documentation, or drive a browser. You do not need MCP for ordinary file editing or terminal commands.
+Model Context Protocol, or MCP, connects the agent to tools and services outside OpenWaggle. An MCP server might search your issue tracker, read documentation, or drive a browser. Add one when the agent needs something its file and terminal tools cannot reach. You do not need MCP for ordinary editing or running commands.
 
-OpenWaggle runs MCP the way the Pi coding agent does. A server you set up for Pi works in OpenWaggle without changes, with the same names, settings, and sign-ins. That includes `${NAME}` values: OpenWaggle reads them from your login shell's environment, as a `pi` command started in a terminal would, even when the app was opened from the Dock or Start menu.
+OpenWaggle runs MCP the way the Pi coding agent does. A server you set up for Pi works in OpenWaggle without changes, with the same names, settings, and sign-ins. That includes `${NAME}` values: OpenWaggle reads them from your login shell's environment, as a `pi` command started in a terminal would, even when you opened the app from the Dock or the Start menu.
 
-Only add servers you trust. A server can run a program on your computer or send requests to an outside service, and its tools may change data there. Adding a project to OpenWaggle trusts the servers that project configures.
+Only add servers you trust. A server can run a program on your computer or send requests to an outside service, and its tools can change data there. When you add a project to OpenWaggle, you also trust the servers that project configures.
+
+Exact field lists, command options, and limits are on the [MCP reference](/docs/configuration/mcp-reference) page.
 
 ## Add a server
 
 1. Open **Settings > MCP** and choose **Add server**.
-2. Give it a name (letters, digits, `-`, and `_`). The name must not be in use in any of the five files below. Names that differ only in `-` and `_`, such as `my-docs` and `my_docs`, count as the same name, because their tools would share one name.
-3. For a local server, enter the command and its arguments, for example `npx` with `-y @modelcontextprotocol/server-filesystem .`. For a remote server, enter its URL.
-4. Choose where to save it. New servers go to OpenWaggle's file for that scope: `~/.openwaggle/mcp.json` for all projects, or `.openwaggle/mcp.json` in the project. You can pick a Pi file instead if you also use the `pi` command. A server for all projects goes to a global file, and a project's server to a project file. Sign-in through a model provider (`auth`) only works in a global file.
+2. Enter a **Name**. Use letters, digits, `-`, and `_`. The name must not be used by another server in any of the [five MCP files](#where-servers-are-configured). Names that differ only in `-` and `_`, such as `my-docs` and `my_docs`, count as the same name, because their tools would get the same name.
+3. Under **Connects with**, choose **A command (stdio)** for a local server and enter the **Command** and its arguments, for example `npx` with `-y @modelcontextprotocol/server-filesystem .`. For a remote server, choose **A URL (HTTP)** and enter its **URL**.
+4. Under **Use in**, choose **All projects** or **This project**, then choose the file under **Save to** and click **Add server**.
 
-The server connects the next time you send a message. **Recommended servers** installs Playwright MCP or Chrome DevTools MCP in one click.
+New servers go to OpenWaggle's own file by default: `~/.openwaggle/mcp.json` for all projects, or `.openwaggle/mcp.json` in the project. If you also use the `pi` command, you can save to one of Pi's files instead. A server for all projects always goes to a global file, and a project's server to a project file. Sign-in through a model provider (`auth`) only works in a global file.
 
-### From the MCP Registry
+The server connects the next time you send a message. To skip the form for two common servers, **Recommended servers** installs Playwright MCP or Chrome DevTools MCP in one click.
+
+## Install a server from the MCP Registry
 
 The [MCP Registry](https://registry.modelcontextprotocol.io) lists published servers. Under **MCP Registry** in **Settings > MCP**, search by name, pick **All projects** or **This project**, and choose **Install**. When a server can run more than one way, for example as a hosted server at a URL or from an npm package, pick one first.
 
-Installing adds an ordinary entry to OpenWaggle's file, so the server then works like any other. A few details:
+Installing adds an ordinary entry to OpenWaggle's file, so the server then works like any other. OpenWaggle pins the exact version the Registry lists. If the server needs an API key or a token, the new entry reads it from a [secret](#keep-a-token-in-a-secret), and OpenWaggle tells you which secrets to add. The server does not start until they exist. [Registry installs](/docs/configuration/mcp-reference#registry-installs) lists how packages, bundles, and optional secrets are handled.
 
-- Packages are pinned to the exact version the Registry lists. Docker images are pinned to the image Docker downloaded.
-- MCP bundles (`.mcpb`) are downloaded, checked against the checksum the Registry publishes, and unpacked under `~/.openwaggle/mcp/registry-cache`. A bundle that fails the check installs nothing.
-- If the server needs an API key or token, the entry refers to a secret by name (see [Secrets](#secrets)). The name starts with the server's name, such as `WEATHER_AUTHORIZATION`, so two servers never share a token. OpenWaggle tells you which ones to add, and which already exist; the server does not start until they exist.
-- A secret the Registry marks optional is left out, so the server starts without it. OpenWaggle lists it after installing. To use an optional environment variable or header, add it to the entry with a secret; for a Docker image, also add `-e NAME` to its `args` before the image, or the container never receives it. An optional secret command-line argument is listed apart: a command line cannot refer to a secret, so add it to `args` with its literal value. A required secret command-line argument the Registry gives no value for stops the install, for the same reason.
+## Import servers from another app
 
-To bring servers over from another app, choose **Import**. OpenWaggle reads Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows what it found, and adds the servers you pick to OpenWaggle's file. Servers you configured for Pi do not need importing; OpenWaggle reads Pi's files directly.
+Choose **Import** in **Settings > MCP**. OpenWaggle reads the MCP settings of Codex, Claude's desktop and command-line apps, Cursor, VS Code, OpenCode, Zed, and Windsurf, shows the servers it found, and adds the ones you pick to OpenWaggle's file. Choose where they go under **Import into**, and what happens to a name already in use under **If the name is in use**. You do not need to import servers you set up for Pi. OpenWaggle reads Pi's files directly.
 
-Imported values keep the meaning they had in the other app. Variables that app fills in, such as `${env:NAME}` in Cursor, VS Code, and Windsurf, `{env:NAME}` in OpenCode, or `${NAME}` in Claude's command-line app, become `${NAME}` in `env`, `headers`, and an OAuth client secret, the places Pi fills variables in. Elsewhere, in arguments, the command, the working directory, and the URL, a value is kept as written and the import warns that Pi does not expand it there. VS Code's own variables, such as `${workspaceFolder}` or `${userHome}`, are kept as written everywhere, with a warning to put the real value there. Any other `$` or leading `!` is kept as plain text, so an imported value never runs a command.
+The import never copies a password, token, or API key it recognizes. It replaces each one with a reference to a secret, named after the server and the field, such as `GITHUB_AUTHORIZATION`, or leaves it out with a warning. OpenWaggle then lists the secrets to add. Warnings name the field or flag, never the value. Variables the other app fills in, such as `${env:NAME}` in Cursor, become `${NAME}` where Pi fills variables in.
 
-OpenWaggle looks for passwords, tokens, and API keys written out in the other app. The value of each one it recognizes is not copied: it is replaced by a reference to a vault secret, which you add after importing, or left out, each with a warning, depending on where it was:
-
-- In `env` or `headers`, under a name such as `API_KEY`, `OPENAI_KEY`, `GITHUB_TOKEN`, `DB_PASSWORD`, or `Authorization`: the entry refers to a secret named after the imported server and the field, such as `GITHUB_AUTHORIZATION` (see [Secrets](#secrets)). For a header, the secret holds the header's whole value, such as `Bearer <token>`. If the import renames the server, for example to `github-2`, the secret is named after the new name, `GITHUB_2_AUTHORIZATION`. OpenWaggle tells you which secrets to add and which already exist.
-- In Docker's `-e NAME=value`, also written `--env NAME=value`, `--env=NAME=value`, or `-eNAME=value`: the argument becomes `-e NAME`, and `NAME` is read from a secret, the same way.
-- In mcp-remote's `--header "Authorization: Bearer …"`, with mcp-remote run through `npx` or installed as the command: the argument becomes `Authorization:Bearer ${AUTHORIZATION}`, which mcp-remote fills in from a secret that holds just the token. A header without the Bearer scheme becomes, for example, `X-Api-Key:${X_API_KEY}`, and the secret holds the whole value. A header that already reads a variable, such as `Authorization: Bearer ${AUTH_TOKEN}`, is kept as it is, and that variable's value in `env` is replaced by a reference to a vault secret instead.
-- In any other argument, such as `--api-key value`, `--token=value`, `--header "X-Api-Key: …"`, or `-H "Authorization: …"`: the flag and its value are left out, with a warning. Only a variable the other app fills in, such as `${env:NAME}` from Cursor, is kept. Codex, Claude's desktop app, and Zed fill in nothing there, so their values are left out too.
-- In a URL, as a user name and password or as a query parameter such as `?api_key=…`: that part of the URL is removed, with a warning. If the server needs it, add it as a header that refers to a secret.
-
-A name counts as a credential by its last word: `--api-key` and `DD_APP_KEY` do; `--max-tokens`, `--token-limit`, and `--credentials-file` do not, so their values are copied. The warnings name the field or flag but never the value.
-
-This is a heuristic, and it cannot recognize every way a credential can be written, such as a token under a name like `--auth` or inside a longer argument. Check the entries the import added in `~/.openwaggle/mcp.json` or `.openwaggle/mcp.json`, and move any credential still written out there into a secret.
+The import recognizes a credential by its name, and it cannot catch every way one can be written, for example a token under a flag called `--auth`. After importing, check the new entries in `~/.openwaggle/mcp.json` or `.openwaggle/mcp.json`, and move any credential still written out there into a secret. The exact rules are in [Imports](/docs/configuration/mcp-reference#imports).
 
 ## Where servers are configured
 
@@ -62,9 +53,13 @@ OpenWaggle reads five files, in this order:
 
 When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one. [MCP config precedence](/docs/configuration/per-project-config#mcp-config-precedence) draws this order as a diagram.
 
-Pi's global file moves with Pi's agent folder: if you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there. If a project is your home folder, or its `.openwaggle` folder links to `~/.openwaggle`, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`; OpenWaggle reads it once, as the global file, and a switch for that project only is not available, since it would change every project. If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
+A few cases change where these files are:
 
-Every file uses the same format:
+- Pi's global file moves with Pi's agent folder. If you set `PI_CODING_AGENT_DIR`, OpenWaggle reads `mcp.json` there.
+- If a project is your home folder, or its `.openwaggle` folder links to `~/.openwaggle`, its `.openwaggle/mcp.json` is the global `~/.openwaggle/mcp.json`. OpenWaggle reads it once, as the global file, and does not offer a switch for that project only, since it would change every project.
+- If a file is a symbolic link, for example into a dotfiles repository, OpenWaggle saves changes to the file the link points to and leaves the link in place.
+
+Every file uses the same format. This one defines a local server and a remote one:
 
 ```json
 {
@@ -82,31 +77,9 @@ Every file uses the same format:
 }
 ```
 
-- `command` is one program and `args` its arguments. It is not run through a shell.
-- `env` sets environment variables for a local server; `cwd` sets its working folder.
-- `url` connects to a remote server over HTTP. Older servers that only offer Server-Sent Events need `"type": "sse"`; WebSocket servers use a `ws://` or `wss://` URL. Both work only in OpenWaggle's files, `~/.openwaggle/mcp.json` and `<project>/.openwaggle/mcp.json`: Pi cannot read them, so OpenWaggle does not save them to Pi's files or to `.mcp.json`.
-- `${NAME}` or `$NAME` in `env`, `headers`, or an OAuth client secret uses an environment variable from your login shell, and a value starting with `!` runs a command, as in Pi. Write `$$` for a literal `$`. `url`, `command`, and `args` are used as written; Pi does not fill variables in there.
-- If a value cannot be filled in, for example a missing variable or secret, that server reports the error and the others still connect.
-- `enabled: false` keeps a server without connecting to it.
-- `timeout` is how long a request may take, in seconds (default 60).
+`command` is one program and `args` its arguments. OpenWaggle does not run it through a shell. `${NAME}` in `headers` or `env` reads a variable from your login shell, but `url`, `command`, and `args` are used exactly as written. If a value cannot be filled in, for example because a variable or secret is missing, that server reports the error and the others still connect. [Server entries](/docs/configuration/mcp-reference#server-entries) lists every field, including `timeout` (60 seconds by default), `enabled`, and the SSE and WebSocket transports.
 
-OpenWaggle's two files have a JSON Schema, [`mcp.schema.json`](https://openwaggle.ai/schemas/mcp.schema.json). Name it at the top of `~/.openwaggle/mcp.json` or `.openwaggle/mcp.json` to get completion and checks in your editor; OpenWaggle keeps the key when it changes the file:
-
-```json
-{
-  "$schema": "https://openwaggle.ai/schemas/mcp.schema.json",
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
-    }
-  }
-}
-```
-
-Do not point Pi's files or `.mcp.json` at it. The schema accepts secret references and SSE and WebSocket servers, which only OpenWaggle's files can hold.
-
-An entry with only `enabled`, `exposure`, or `toolExposure` changes a server defined in an earlier file and keeps the rest of it. For example, this in `.openwaggle/mcp.json` turns a global server off in one project:
+An entry with only `enabled`, `exposure`, or `toolExposure` changes a server defined in an earlier file and keeps the rest of it. For example, this in `.openwaggle/mcp.json` turns off a global server in one project:
 
 ```json
 {
@@ -116,9 +89,9 @@ An entry with only `enabled`, `exposure`, or `toolExposure` changes a server def
 }
 ```
 
-### Secrets
+## Keep a token in a secret
 
-In OpenWaggle's own files you can store a value in OpenWaggle's encrypted secret store instead of writing it in the file. Add the secret under **Settings > MCP > Secrets**, then refer to it by name:
+In OpenWaggle's own files, you can keep a value in OpenWaggle's encrypted secret store instead of writing it in the file. Add the secret under **Settings > MCP > Secrets**, then refer to it by name:
 
 ```json
 {
@@ -133,187 +106,169 @@ In OpenWaggle's own files you can store a value in OpenWaggle's encrypted secret
 
 A secret replaces the whole value, so `github-authorization` holds `Bearer <token>`, not just the token.
 
-Secret references only work in `~/.openwaggle/mcp.json` and `.openwaggle/mcp.json`, because Pi and other tools read the other files and do not understand them.
+Secret references only work in `~/.openwaggle/mcp.json` and `.openwaggle/mcp.json`. Pi and other tools read the other files and would not understand them.
 
-A server that refers to a secret you have not added yet, for example after an import that could not copy a password, is left out of sessions until you add it. **Settings > MCP** shows **Needs secret** and the secret's name on the server, and **Add in Secrets** on the server's page takes you to **Secrets** with the name filled in. A secret another OpenWaggle version saved, which this one cannot read, is listed but does not work: the server reports it when a session starts, and saving the secret again fixes it.
+Until you add a secret a server needs, OpenWaggle leaves that server out of your sessions. **Settings > MCP** shows **Needs secret** and the secret's name on the server, and **Add in Secrets** on the server's page opens **Secrets** with the name filled in. A secret that another OpenWaggle version saved, and this one cannot read, is listed but does not work. The server reports it when a session starts. Saving the secret again fixes it.
 
-On Linux, unlock your keyring before you first save a secret in a new OpenWaggle version. Secrets an older version saved that cannot be read while the keyring is locked are left behind when the new version saves its first secret.
+On Linux, unlock your keyring before you first save a secret in a new OpenWaggle version. If the keyring is locked, secrets an older version saved cannot be read, and they are left behind when the new version saves its first secret.
 
-## Change a server
+## Turn a server on or off
 
-Select a server in **Settings > MCP** to see where it is defined, whether it is connected, its tools, and any error, including the last lines a local server printed. From there you can:
+Select a server in **Settings > MCP** to see where it is defined, whether it is connected, its tools, and any error, including the last lines a local server printed. From there you can turn it on or off, choose how its tools reach the agent, sign in or out, or remove it.
 
-- turn it on or off everywhere, or only in this project with **Turn off in this project** or **Turn on in this project**;
-- choose how its tools reach the agent (see below), for the whole server or tool by tool;
-- sign in or sign out;
-- remove it.
+![The settings page of the connected release-notes server, with its On switch, the Codemode and Hidden exposure choices, and its three tools](/screenshots/mcp-server-detail.png)
 
-![The page of a connected local server, release-notes: its description, the command it starts with, the file that defines it, the On switch with Turn off in this project, the Codemode and Hidden exposure choices, and its three tools, each set to Same as server (Codemode)](/screenshots/mcp-server-detail.png)
+The main switch turns the server on or off everywhere. **Turn off in this project** or **Turn on in this project** changes it for the current project only.
 
-A change to an existing server is saved to the file that defines it. Turning a global server on or off for one project is saved in that project, never in a global file. If the project already changes that server in one of its files, for example with an entry in `.pi/mcp.json`, that entry is updated. Otherwise the change goes to `.openwaggle/mcp.json`. Turning it back to what the other files give removes the switch from that entry, and the entry itself if nothing else is left in it, so later changes for every project apply to the project again.
+OpenWaggle saves a change to the file that defines the server, with one exception. A change for one project is always saved in that project, never in a global file. If the project already changes that server in one of its files, for example `.pi/mcp.json`, OpenWaggle updates that entry. Otherwise it writes to `.openwaggle/mcp.json`. When you switch the server back to what the other files say, OpenWaggle removes the switch from that entry, and the entry too if nothing else is left in it. Later changes for every project then apply to this project again.
 
-To keep one Session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. Its MCP servers stop at once, even during a reply, and its later replies start none. Turning it back on applies from your next message. Every Session uses MCP servers until you do this, and the change touches no file.
+## Turn off MCP for one session
 
-Removing a server also removes the entries in OpenWaggle's files that only changed it, in every project OpenWaggle knows for a server of all projects. One left behind, for example in a project OpenWaggle no longer lists, is shown as ignored and changes nothing; choose **Remove override** next to it to delete it from OpenWaggle's file. Entries like that in Pi's files or in `.mcp.json` are left as they are and listed as errors, so you can remove them yourself.
+To keep one session away from every MCP server, open the composer's **+** menu and clear **Use MCP servers**. The session's MCP servers stop at once, even in the middle of a reply, and its later replies start none. Turning it back on applies from your next message. Sessions use MCP servers until you do this, and the switch changes no file.
 
-### After upgrading from an older OpenWaggle
+## Remove a server
 
-The first time a new version starts, OpenWaggle converts its older MCP files to the format above and keeps a copy of each file it changes, ending in `.pre-adr-0048.bak`. The copy of `~/.openwaggle/mcp.json` sits next to it. The copy of a project's `.openwaggle/mcp.json` goes to `~/.openwaggle/mcp/backups/`, in a folder named after the project, so it never ends up in your repository. When the conversion creates a project's `.openwaggle/mcp.json` to keep a server off there, and the project is a git repository, OpenWaggle adds that file to the repository's `.git/info/exclude`, so git does not list it as a new file. It never changes `.gitignore` or another file you commit, and leaves the file alone when git already ignores or tracks it. Servers stay on or off as they were:
+Choose **Remove** on the server's page. Removing a server also removes the entries in OpenWaggle's files that only changed it. For a server of all projects, that happens in every project OpenWaggle knows.
 
-- If MCP was off in OpenWaggle, every server is turned off.
-- Otherwise, servers that connected before stay on, and the others are turned off. A server in Pi's file that never ran in OpenWaggle is listed as **Off in OpenWaggle**: Pi's file still has it on, and you can turn it on in OpenWaggle. A server another file changes says where, such as **Overridden in ~/.openwaggle/mcp.json**.
-- This applies to every project OpenWaggle knew about when it upgraded. Projects added later, and people who never set up MCP in OpenWaggle, start with servers on as their files say.
-- A Session you had switched MCP off for stays off. Turn it back on from **Use MCP servers** in the composer's **+** menu.
-- A project that is your home folder, or whose `.openwaggle` folder links to `~/.openwaggle`, shares its OpenWaggle file with every project, so servers you had switched on or off for that project only are not carried over. Switch them again in that project if you need to.
+An entry like that left in a project OpenWaggle no longer lists is shown as ignored and changes nothing. Choose **Remove override** next to it to delete it from OpenWaggle's file. Entries like that in Pi's files or in `.mcp.json` stay as they are and are listed as errors, so you can remove them yourself.
 
-Copies OpenWaggle made of your Pi servers are removed when they still match Pi's entry, so the server is defined once; a setting you changed in OpenWaggle, such as direct tools, stays as an entry that changes Pi's server (OpenWaggle now runs direct tools through codemode, see [How tools reach the agent](#how-tools-reach-the-agent)). A copy you edited, or one that reads a secret from the encrypted store, is kept.
+## Choose how tools reach the agent
 
-If the conversion cannot finish for a file, MCP servers stay off until it does: for that project, or for every project when the file is `~/.openwaggle/mcp.json`. That way a server you had off does not start. Changes to those servers are refused until then, so the conversion cannot undo them, and the message says what to do:
-
-- **Try again shortly**: another OpenWaggle window or the command line was converting the same files. Make the change again in a moment; OpenWaggle retries on your next change, when Settings opens, or with your next message.
-- **Fix** followed by a file: the file cannot be read, for example its JSON is broken or it is a link to a folder that is not there (a dotfiles folder not mounted). Fix or restore that file, then open **Settings > MCP** again.
-
-This only applies after an upgrade. A new install has nothing to convert, so nothing waits. For a project added after the upgrade, only its own `.openwaggle/mcp.json` is left out until it can be read; its other servers keep working. While a project that had MCP settings before the upgrade is being converted by another OpenWaggle window or the command line, changes to servers of all projects are refused from every project too ("try again shortly"). A project whose file needs fixing does not hold those changes back: a project whose update is waiting keeps its old on/off choices once it is updated.
-
-## How tools reach the agent
-
-Each server's **exposure** decides how the agent can use its tools. Tool names look like `mcp__<server>__<tool>`. In **Settings > MCP** you choose one of two:
+Each server's **Exposure** decides how the agent can use its tools. Tool names look like `mcp__<server>__<tool>`. In **Settings > MCP** you choose one of two:
 
 | Exposure | What the agent sees |
 | --- | --- |
-| Codemode (default) | The agent finds and calls the tools from short scripts, so many tools cost little context. |
-| Hidden | The tools cannot be used. |
+| **Codemode** (default) | The agent finds the tools and calls them from short scripts, so many tools cost little context. |
+| **Hidden** | The tools cannot be used. |
 
-You can give single tools their own exposure, for example to hide a delete tool.
+You can give a single tool its own exposure, for example to hide a delete tool. Tools that open an app (see [MCP Apps](#apps-sampling-and-input-requests)) are offered to the agent directly, so it calls them itself and the app shows in the conversation. A hidden app tool stays hidden.
 
-Tools that open an app (see [Apps, sampling, and input requests](#apps-sampling-and-input-requests)) are offered to the agent directly, so it calls them itself and the app shows in the conversation. Hidden app tools stay hidden.
+Pi's files can also say `direct` or `deferred`. OpenWaggle runs `direct` as codemode and shows it as **Codemode**, because offering every tool's description on every message cost thousands of tokens per message, and agents rarely called those tools. You do not need to change anything, and OpenWaggle leaves the file alone, so the `pi` command still offers those tools directly. `deferred` works as before: the agent searches for those tools, then calls them directly. [Exposure values](/docs/configuration/mcp-reference#exposure-values) covers the sessions where `direct` stays direct.
 
-Pi's files can also say `direct` or `deferred`. OpenWaggle runs `direct` as codemode and shows it as **Codemode**: offering every tool's description to the agent on every message cost thousands of tokens per message, while agents rarely called them. You do not need to change anything, and OpenWaggle does not change the file, so the `pi` command still offers those tools directly. A session where codemode cannot run keeps `direct` as it is, so those tools stay callable there: Pi's `extensions` setting lists `-builtin:codemode`, or `autoEnableCodemode` is `false` and codemode is off. `deferred` keeps working: the agent searches for those tools, then calls them directly. Settings shows it while a file sets it.
+In **Ask for approval** mode, every MCP tool call asks for your approval, including calls made from a script. Choosing **Allow** is remembered for that server and tool.
 
-Every MCP tool call, including calls made from a script, asks for your approval in **Ask for approval** mode. **Allow** choices are remembered per server and tool.
+## Sign in to a server
 
-## Sign in
+Remote servers that use OAuth, such as Sentry or Figma, need no credentials in the file. When one needs you to sign in, its row in **Settings > MCP** says **Needs sign-in**. Choose **Sign in** and finish in your browser.
 
-Remote servers that use OAuth, such as Sentry or Figma, need no credentials in the file. When one needs sign-in, its row in **Settings > MCP** says so; choose **Sign in** and finish in your browser. Sign-ins are stored in OpenWaggle's encrypted store. A server you already signed in to with the `pi` command is signed in in OpenWaggle too. Signing out in OpenWaggle does not change Pi's sign-in file.
+OpenWaggle keeps sign-ins in its encrypted store. If you already signed in to a server with the `pi` command, you are signed in in OpenWaggle too. Signing out in OpenWaggle does not change Pi's sign-in file.
 
-A server that a Pi extension adds signs in the same way, when a Run first uses it: the sign-in page opens in your browser. Such servers are not in **Settings > MCP**, so they cannot be signed in from there.
+A server that a Pi extension adds is not in **Settings > MCP**, so you cannot sign in to it there. It signs in when a run first uses it, by opening the sign-in page in your browser.
 
-OAuth options such as a registered client id, a fixed callback port, or scopes go under `oauth`, as described in Pi's MCP documentation.
+OAuth options such as a registered client ID, a fixed callback port, or scopes go under `oauth`, as described in Pi's MCP documentation.
 
-## Connections
+## When servers start and stop
 
-A server connects in the background when a session sends a message, and only a server with app tools OpenWaggle already knows about can delay a message, by at most 1.5 seconds, so its app tools are offered from the first message. A session with no server turned on waits for MCP only while OpenWaggle converts a project's older MCP files: the first time it sees the project, or again after a conversion that failed. After OpenWaggle starts, the first message that uses MCP servers can also wait a few seconds while OpenWaggle reads your login shell's environment (so servers find the commands on your `PATH`) and, after an upgrade, moves your old sign-ins (only when a server with a URL is on). The connection stays open for that session's later messages, so a server keeps its state through a conversation. Each session has its own connections; a Worker or a fork starts its own.
+A server connects in the background when a session sends a message. Only a server with app tools that OpenWaggle already knows about can delay a message, by at most 1.5 seconds, so its app tools are there from the first message. Right after OpenWaggle starts, the first message that uses MCP servers can wait a few seconds while OpenWaggle reads your login shell's environment, so servers find the commands on your `PATH`. After an upgrade, it may also move your old sign-ins then, when a server with a URL is on. A session with no server turned on waits for MCP only while OpenWaggle converts a project's older MCP files: the first time it sees the project, or again after a conversion failed.
 
-OpenWaggle remembers each server's tools from the last time it connected. A session gets those tools as soon as it starts, and a local server's process starts only when the agent first uses one of them, so a session that never calls a server never starts it. If the server then offers different tools, the session's list is updated. A server started through `npx`, `pnpm dlx`, or `bunx` is started directly after its first launch, without the package runner staying alive beside it; **Check connection** always goes through the runner, which also picks up a new version of an `@latest` server.
+The connection stays open for the session's later messages, so a server keeps its state through a conversation. Each session has its own connections. A worker or a fork starts its own.
 
-Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session that is connected to it, otherwise the result of the last check, otherwise **Not checked yet**. A server that needs a secret you have not saved says **Needs secret** until you add it. Turning a server off or on, or saving one of its secrets again, clears the result of a check made before. Choose **Check connection** on a server to connect to it, list its tools, and disconnect; `openwaggle mcp list` checks every enabled server the same way.
+OpenWaggle remembers each server's tools from the last time it connected. A session gets those tools as soon as it starts, and a local server's process only starts when the agent first uses one of them. A session that never calls a server never starts it. If the server then offers different tools, the session's list is updated. A server started through `npx`, `pnpm dlx`, or `bunx` is started directly after its first launch, without the package runner staying alive beside it.
 
-![The Servers list in Settings > MCP with three servers from OpenWaggle's file for all projects: deploy-status marked Needs secret DEPLOY_STATUS_AUTHORIZATION, issue-tracker Failed, and release-notes Connected with 3 tools](/screenshots/mcp-servers.png)
+A session's servers stop:
 
-A session's servers stop after 5 minutes without a new message (1 minute for a Worker whose result is under review, accepted, or cancelled), when the session is archived or deleted, when no OpenWaggle window or command is connected to the background Host, and when the Host stops. When more than three sessions have servers running, the one used least recently stops first; a session with a message in progress keeps its servers. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
+- 5 minutes after the session's last message.
+- 1 minute after the last message, for a worker whose result is under review, accepted, or cancelled.
+- When the session is archived or deleted.
+- When no OpenWaggle window or command is connected to the background Session Host, and when the Session Host stops.
+
+When more than three sessions have servers running, the servers of the session used least recently stop first. A session with a message in progress keeps its servers. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
+
+## Check a server's connection
+
+Opening **Settings > MCP** starts no server. Each server shows what is already known: the state of a session connected to it, or else the result of the last check, or else **Not checked yet**. Turning a server off or on, or saving one of its secrets again, clears the result of an earlier check.
+
+![The Servers list in Settings > MCP with three servers, marked Needs secret, Failed, and Connected with 3 tools](/screenshots/mcp-servers.png)
+
+Choose **Check connection** on a server to connect to it, list its tools, and disconnect. A check always goes through the package runner, such as `npx`, so it also picks up a new version of an `@latest` server. `openwaggle mcp list` checks every enabled server the same way.
 
 ## Apps, sampling, and input requests
 
-- **MCP Apps** are small interactive pages a server attaches to a tool result. They appear under the tool call in the conversation and run isolated from OpenWaggle. An App can load code and data from the sites its server declares, and nothing else. It sizes itself to what it shows; if it doesn't start within 15 seconds, OpenWaggle says so and the tool call keeps its result as text.
-- **Sampling** lets a server ask your model to write something. OpenWaggle asks for your approval and never shares the conversation.
-- **Input requests** (elicitation) let a server ask you for information, in a form or on a web page the server names.
+A server can do more than answer tool calls:
+
+- **MCP Apps** are small interactive pages a server attaches to a tool result. They appear under the tool call in the conversation and run apart from OpenWaggle. An app can load code and data only from the sites its server declares. It sizes itself to what it shows. If it has not started after 15 seconds, OpenWaggle says so and the tool call keeps its result as text.
+- **Sampling** lets a server ask your model to write something. OpenWaggle asks for your approval first and never shares the conversation.
+- **Input requests**, also called elicitation, let a server ask you for information, in a form or on a web page the server names.
 
 ## When something fails
 
-Open **Settings > MCP** and select the server. Its error and the last lines it printed usually say what is wrong: a missing program, a wrong URL, or a sign-in that expired. Fix the configuration, then choose **Check connection**.
+Open **Settings > MCP** and select the server. Its error and the last lines it printed usually say what is wrong: a missing program, a wrong URL, or an expired sign-in. Fix the configuration, then choose **Check connection**.
 
-![The page of a local server that failed to start, issue-tracker: the error MCP connection closed, then the last lines it printed, ending in Error: ISSUE_TRACKER_URL is not set](/screenshots/mcp-server-error.png)
+![A failed local server's page, showing the error MCP connection closed and its last printed line, ISSUE_TRACKER_URL is not set](/screenshots/mcp-server-error.png)
 
-Files that cannot be read and entries that are not valid are listed at the top of **Settings > MCP**; other servers keep working, except while an upgrade's conversion is unfinished (see [After upgrading from an older OpenWaggle](#after-upgrading-from-an-older-openwaggle)).
+Files that cannot be read, and entries that are not valid, are listed at the top of **Settings > MCP**. The other servers keep working.
 
-`openwaggle mcp doctor` prints the same in a terminal: which of the five files exist, the errors found in them, and each server's state with the last lines it printed. It connects to every enabled server to check it. Add `--local` to include the current project's files, or `--json` for a machine-readable report.
-
-MCP versions from `2024-11-05` to `2025-11-25` are supported. Servers that only speak a newer or older version cannot connect yet.
-
-## Command line
-
-The macOS/Linux installer creates `openwaggle` in `~/.local/bin`. The Windows installer creates `openwaggle.cmd` beside the installed app and adds that directory to your `PATH`; open a new terminal after installing.
+To check everything from a terminal, run:
 
 ```bash
-openwaggle mcp list
-openwaggle mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem .
-openwaggle mcp add docs --url https://example.com/mcp
-openwaggle mcp add --local tools -- uvx tools-mcp
-openwaggle mcp disable docs
-openwaggle mcp disable --in-project docs
-openwaggle mcp login sentry
-openwaggle mcp import --from codex,cursor
-openwaggle mcp import --from codex,cursor --apply
-openwaggle mcp registry search weather
-openwaggle mcp registry add io.github.example/weather
-openwaggle mcp registry add --local io.github.example/weather --package npm --name forecast
 openwaggle mcp doctor --local
 ```
 
-`openwaggle mcp` commands report failures with the [error kinds and exit codes](/docs/developer-workflow/hive-cli#error-kinds-and-exit-codes) of every `openwaggle` command, and with `--json` answer in the same envelope, such as `{"schemaVersion":1,"type":"response","command":"mcp list","result":...}`.
+It prints which of the five files exist, the errors in them, and each server's state with the last lines it printed. It connects to every enabled server to check it. `--local` includes the current project's files. Add `--json` for a report a script can read.
 
-New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. `mcp enable` and `mcp disable` with `--in-project` switch a global server for the current project only, as **Turn off in this project** does in Settings. The project must already be open in OpenWaggle. `mcp import` lists what it found; add `--apply` to import it. `mcp registry add` connects to the server's hosted URL when it has one; `--package npm`, `pypi`, `nuget`, `oci`, or `mcpb` picks a package instead, and `--name` changes the name it gets.
+OpenWaggle supports MCP versions `2024-11-05` to `2025-11-25`. A server that only speaks a newer or older version cannot connect yet.
 
-`--exposure` on `mcp add` and `mcp registry add` takes `codemode` (the default), `deferred`, or `hidden`. `direct` is refused with a usage error (exit code 2) and nothing is added, since OpenWaggle runs it as codemode; a script that passed `--exposure direct` before 1.0 must pass `--exposure codemode` instead. `mcp list` shows the exposure OpenWaggle runs, so a server whose file says `direct` shows `codemode`; with `--json`, `configuredExposure` gives what the file says. The file is not changed.
+### After upgrading from an older OpenWaggle
+
+The first time a new version starts, OpenWaggle converts its older MCP files and keeps a backup of each file it changes. Servers stay on or off as they were. [Upgrading from an older version](/docs/configuration/mcp-reference#upgrading-from-an-older-version) lists where the backups go and how each server is carried over.
+
+If the conversion cannot finish for a file, MCP servers stay off until it does, for that project, or for every project when the file is `~/.openwaggle/mcp.json`. That way a server you had turned off does not start. Until then OpenWaggle refuses changes to those servers, and the message says what to do:
+
+- "Try again shortly" means another OpenWaggle window or the command line was converting the same files. Make the change again in a moment. OpenWaggle also retries on your next change, when Settings opens, and with your next message.
+- "Fix" followed by a file means the file cannot be read, for example because its JSON is broken, or it links to a folder that is not there, such as a dotfiles folder that is not mounted. Fix or restore the file, then open **Settings > MCP** again.
+
+A new install has nothing to convert, so nothing waits.
+
+## Manage servers from the command line
+
+The macOS and Linux installer puts `openwaggle` in `~/.local/bin`. The Windows installer puts `openwaggle.cmd` beside the installed app and adds that folder to your `PATH`. Open a new terminal after installing.
+
+To add a local server for all projects, run:
+
+```bash
+openwaggle mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem .
+```
+
+To add a remote server, give its URL:
+
+```bash
+openwaggle mcp add docs --url https://example.com/mcp
+```
+
+To see every server and check that it connects, run:
+
+```bash
+openwaggle mcp list
+```
+
+New servers go to `~/.openwaggle/mcp.json`, or to `.openwaggle/mcp.json` in the current project with `--local`. `openwaggle mcp disable --in-project docs` turns a global server off in the current project only, like **Turn off in this project** in Settings. The project must already be open in OpenWaggle. The [command line reference](/docs/configuration/mcp-reference#command-line) lists every command and option, including `import`, `registry`, `login`, and `--exposure`.
 
 ## OpenWaggle as an MCP server
 
-This advanced option lets another MCP client work with OpenWaggle sessions. It is separate from connecting external servers in Settings and does not start with the desktop app by default.
+You can also go the other way and let another MCP client, such as a different agent tool, work with your OpenWaggle sessions. This is separate from the servers in Settings, and it does not start with the desktop app.
 
-The server holds the authority of exactly one caller, chosen with one of two options:
+`openwaggle mcp serve` starts the server. It serves one tool, `openwaggle_hive`, with the same operations as the [`openwaggle hive`](/docs/developer-workflow/hive-cli) command. You decide who the client acts as and what it may reach:
 
-- `--profile <name>` serves as an [access profile](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) and authenticates with that profile's credential, read from the credential store (`--credential-store` when the profile was created) or from `--profile-credential-file <path>` or `OPENWAGGLE_PROFILE_CREDENTIAL_FILE`. Use this for another agentic tool.
-- `--owner` serves your own authority as the desktop user. OpenWaggle agents cannot use it; they use their native `hive` tool or a profile.
+- Give it an [access profile](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) with `--profile`, for another agent tool, or your own access as the desktop user with `--owner`. OpenWaggle agents cannot use `--owner`.
+- List the projects or sessions it may reach with `--workspace` or `--session`.
+- Grant only the operations it needs with `--grant`.
 
-Either way, choose the exact workspaces or sessions the client may access with `--workspace` or `--session`, then grant only the operations it needs with `--grant`. Both are required. You can serve over standard input/output or authenticated HTTP on the local machine:
+All three are required. An empty scope never means every session. To make a profile for a helper that only finds and reads sessions in one project, run this, with your project's path:
 
 ```bash
-openwaggle access profiles create ci-helper --capability sessions:discover \
-  --capability sessions:read --project /path/to/project --credential-store
-openwaggle mcp serve --stdio --profile ci-helper \
-  --grant sessions:discover --grant sessions:read --workspace /path/to/project
-printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin \
-  --owner --grant sessions:discover --session SESSION_ID
+openwaggle access profiles create ci-helper --capability sessions:discover --capability sessions:read --project /path/to/project --credential-store
 ```
 
-A profile server holds only what both the profile and its own options allow: the capabilities in both the profile and `--grant`, and the projects and sessions in both the profile's scope and `--workspace` or `--session`. `export-create` needs `--export-root`, and only its roots inside the profile's export roots count; `--attachment-root` keeps only its roots inside the profile's attachment roots, and without it the profile's attachment roots apply. It keeps the profile's authorization ceiling, so `--authorization-ceiling` is an `--owner` option. The server checks the profile when it starts, and the Session Host checks it again on every call, so a revoked, deleted, or unknown profile, or a wrong credential, reaches no session; a profile revoked while the server runs is refused from its next call. Queued work the server leaves, such as a Follow-up, is checked against the profile itself when it runs.
+Then point the other client at this command, which serves that profile over standard input and output:
 
-The `openwaggle_hive` tool lists only the operations the server's `--grant` values allow. A call that needs a grant the server lacks, such as `search` with `fullTranscript` and no `sessions:read`, fails with a message that names the missing `--grant`; a call the profile does not allow fails with `capability_denied` or `target_scope_denied`. Run `openwaggle mcp serve --help` for every option. `mcp serve` takes the profile only from `--profile`, never from `OPENWAGGLE_PROFILE`, and refuses a credential file (`--profile-credential-file` or `OPENWAGGLE_PROFILE_CREDENTIAL_FILE`) with `--owner`.
+```bash
+openwaggle mcp serve --stdio --profile ci-helper --grant sessions:discover --grant sessions:read --workspace /path/to/project
+```
 
-Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and Origin, and prints its loopback URL without printing the token. An empty scope never means every desktop session. `--session` and `--origin-session` take a session ID or a [session link](/docs/using-openwaggle/chat-and-tools#session-links) copied from the app. Use `--workspace /` only when you intentionally want to grant every project the caller can reach. A caller cannot inherit desktop approvals or unrestricted access to every session. An `--owner` server defaults to `--authorization-ceiling ask-for-approval`. After reviewing the caller and its scopes, an operator can explicitly use `--authorization-ceiling yolo`; that ceiling permits steering or promoting work into an active Run and allows requested YOLO Run overrides, but only alongside the operation's matching capability grants.
+To serve over HTTP on your own computer instead, pass a bearer token of at least 32 bytes on standard input. This serves your own access to one session, on a free port; replace `SESSION_ID` with the session's ID or a [session link](/docs/using-openwaggle/chat-and-tools#session-links):
 
-Before 1.0, `--profile` only labelled the server and every server held the desktop user's authority. Add `--owner` to keep that behaviour, or create an access profile and pass its name.
+```bash
+printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin --owner --grant sessions:discover --session SESSION_ID
+```
 
-The `openwaggle_hive` tool exposes the Session Control v2 vocabulary used by the CLI and GUI. Each operation is the [`openwaggle hive`](/docs/developer-workflow/hive-cli) subcommand of the same name, and the agent's `hive` tool action with `_` in place of `-`. Before 1.0 the tool was named `openwaggle_sessions`; that name is no longer served.
-
-- discovery and reading: `list`, `search`, `read`, `turns`, `items`, and `status`;
-- lifecycle and organization: `create`, `launch`, `spawn`, `fork`, `handoff`, `rename`, `archive`, and `unarchive`;
-- Run and queue control: `message`, `start`, `follow-up`, `steer`, `promote`, `replace`, `interrupt`, `interrupt-descendants`, `wait`, `queue-list`, `queue-withdraw`, `queue-reorder`, `queue-pause`, and `queue-resume`;
-- interactions and authorization: `requests-list`, `request-respond`, `approval-respond`, and `authorization-set`;
-- reports and Delegations: `report`, `delegation-submit`, `delegation-state`, `delegation-claim`, `delegation-conflict-acknowledge`, `delegation-dependency`, `delegation-propose-amendment`, `delegation-amend`, `delegation-request-revision`, `delegation-accept`, `delegation-reopen`, `delegation-cancel`, `delegation-verify`, `delegations-list`, `delegations-read`, and `delegations-conflicts`;
-- exports: `export`, `export-create`, `export-cancel`, `exports-list`, `exports-read`, and `exports-wait`.
-- Agent definitions: `agent-definitions-list` and `agent-definitions-search` (with `message` as the query). They return names and descriptions, never instructions, for a directory inside the caller's `--workspace` grants (the first grant by default), and need no further grant. A session's managed worktree, or a folder inside one, reads that session's project; any other folder, a subfolder of a project included, reads only itself. Definitions turned off for that project are left out, as they are for the agent.
-
-Session summaries and Delegations that carry a Delegation state (`list`, `search`, `read`, `delegations-list`, `delegations-read`) also carry `nextActor`: `user`, `parent`, `worker` or `none`, who acts next on that Worker, derived by the rule the Hive panel uses. The [Hive CLI](/docs/developer-workflow/hive-cli#queue-requests-and-coordination) guide lists what each value means.
-
-Scheduled tasks are not available over MCP: a server's grants last only as long as its process, and a Scheduled task needs a lasting creator. Use [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) or the agent's `hive` tool.
-
-Idempotency keys that start with `pi-session-discovery:` are reserved for the Sessions OpenWaggle creates for discovered Pi sessions; a lifecycle `create` that uses one is refused with `reserved_idempotency_key`.
-
-Use the lifecycle operation's `workspace` field to choose `current`, `local`, `existing`, `new-worktree`, `share-parent`, or `share-source` where that operation permits it. Worktree-backed lifecycle operations require the corresponding creation and organization grants. MCP does not expose the GUI-only pin order, a separate worktree planning/materialization protocol, or a `clone` operation.
-
-For `create`, `launch`, `fork`, `spawn`, and `handoff`, set `workspace: "new-worktree"` and `startFromOrigin: true` to resolve the new Worktree from the configured origin remote. `baseRef` and `startFromOrigin` are rejected for other Workspace modes. A `spawn` Delegation accepts `resourceReferences` for files or context the Worker should use; `exportResources` is a separate `export-create` field and never becomes Worker context. Supplying either resource field to another operation is rejected rather than ignored.
-
-`launch` and `spawn` accept `yolo: true` for a per-Run override and `thinking` for the new Session's starting thinking level. `message` and `start` accept `thinking` and either `yolo: true` or `runAuthorizationOverride` only when they start a Run on an idle Session. `thinking` becomes the Session's thinking level; the override applies to that one Run. A `message` that would be queued behind an active Run is refused with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`, and `follow-up` and `replace` do not accept either field. A YOLO override requires a server started with `--authorization-ceiling yolo`, or a profile whose ceiling is YOLO, and the caller must hold the operation's matching capability grants. `steer` and `promote` also require that YOLO ceiling because they inject work into an active Run. `promote` requires `sessionId`, `followUpId`, and `expectedRunId`, and fails rather than steering a different Run when that Run id is stale.
-
-`search` accepts `message`, optional `searchMode`, `fullTranscript`, and `includeArchived` (archived Sessions are left out by default). Discovery search defaults to hybrid mode; `fullTranscript: true` defaults to lexical mode and requires transcript-read authority. Explicit semantic or hybrid full-transcript searches use the bounded, authorized lazy transcript projection described in the [Hive CLI](/docs/developer-workflow/hive-cli) guide. Single-term and quoted transcript matches include node, Run when known, and durable-order attribution; unquoted multi-term matches may aggregate evidence across several items and therefore omit a misleading single-node attribution.
-
-The public tool input is strict: unknown fields, including unknown fields inside interaction responses, Delegation specifications, evidence, and claims, are rejected. This makes misspelled controls fail visibly instead of being silently ignored.
-
-The public envelope is bounded before any operation runs. Session and Delegation ids accept up to 512 characters, titles accept 1–512 characters and must contain a non-whitespace character, top-level messages and objectives accept up to 131,072, and individual list items accept up to 16,384. Repeated task fields, resource references, and evidence accept at most 256 entries; custom JSON responses accept at most 131,072 serialized characters. Discovery operations accept a maximum `limit` of 200, while transcript item reads accept up to 500. Transcript, Delegation history, export, and export-operation responses may return fewer records when the encoded-byte page budget is reached; continue from the returned cursor. A single record beyond that budget returns `record_too_large`.
-
-Foreground `export` continuation is snapshot-bound. When a page returns `nextCreatedOrder`, call `export` again with that value as `afterCreatedOrder` and copy the first page's complete `manifest` into `snapshotManifest`. Do not reconstruct or edit the manifest: the strict schema uses it to keep the Session, branch, queue-body scope, high-water mark, and captured state immutable. Transcript items appended after page one are excluded from that export. If an existing snapshot node is edited or removed between pages, continuation returns `resync_required` instead of mixing node versions; restart the export from page one. Durable `export-create` operations paginate internally and do not need this client loop.
-
-Successful calls return the canonical local result in both MCP forms: JSON text in `content` and the same object in `structuredContent`. The object contains `contract` (`session-query-v2`, `session-control-v2`, or `session-lifecycle-v2`) and `response`; inspect `response.outcome` for the operation-specific result, cursor, or idempotency metadata. Canonical query errors and rejected mutations are returned as MCP tool errors rather than successful payloads; the error text names the code, such as `session_not_found: …` or `Session command refused (target_scope_denied): …`, the same codes the [Hive CLI](/docs/developer-workflow/hive-cli#error-kinds-and-exit-codes) uses. A Session outside the server's `--workspace` and `--session` scope answers `target_scope_denied`, and one that does not exist `session_not_found`. OpenWaggle revalidates every grant and Session or Workspace scope on each call.
-
-`interrupt` targets the active Run using `sessionId` and `expectedRunId`. Inspect the returned outcome, then use `status` or `wait` to confirm the session is idle. The current `interrupt` input does not accept `timeoutMs`; `wait` is the operation for bounded waiting. `steer` adds input to an active Run without replacing it; use `replace` when you intend to interrupt and start different work.
+The server prints its local URL but never the token. An `--owner` server can ask for approval at most, unless you start it with `--authorization-ceiling yolo` after reviewing the client. Run `openwaggle mcp serve --help` for every option, and see [OpenWaggle as an MCP server](/docs/configuration/mcp-reference#openwaggle-as-an-mcp-server) in the reference for the operations, limits, and errors.
