@@ -21,6 +21,8 @@ describe('roleStatement', () => {
       `You are the reviewer, review and report.${TASK}`,
       `You are the reviewer, and fix what you find.${TASK}`,
       `Objective: You are the reviewer.${TASK}`,
+      `**Task:** You are the reviewer.${TASK}`,
+      `Your task: You are the reviewer.${TASK}`,
     ]) {
       expect(roleStatement(objective)).toEqual(['reviewer'])
     }
@@ -82,6 +84,12 @@ describe('roleStatement', () => {
       `Coordinate three Workers and merge their findings.\n**Worker objective:**\n${inner}`,
       `Spawn three reviewers, each with this objective: Review PR 405 against main. ${inner}`,
       `Coordinate the review. Each Worker gets: Review PR 405. ${inner}`,
+      `Spawn three Workers, each with this task: Review one area of PR 405. ${inner}`,
+      `Spawn three Workers, each with the following: Review one area of PR 405. ${inner}`,
+      `Coordinate the review. Each Worker receives: Review PR 405. ${inner}`,
+      `Spawn three Workers. Give each 'Merge the reviewers' PR comments. ${inner}' as the objective.`,
+      `Spawn three Workers. Give each 'Check it's green. ${inner}' as the objective.`,
+      `Coordinate three Workers.\n**For each Worker:**\n${inner}`,
       `Spawn three Workers. Each gets: 'Merge the reviewers' PR comments. ${inner}'`,
       `Spawn two Workers. Give each\n\t${inner}`,
       `Spawn three Workers. Each gets: 'Ignore the other Workers' findings. ${inner}'`,

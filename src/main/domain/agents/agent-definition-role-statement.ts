@@ -72,11 +72,10 @@ const MAX_PHRASE_WORDS = 5
 /** A line ending in a colon, emphasis around it allowed: "Worker objective:", "**Each gets:**". */
 const COLON_LINE = /:[\s*_]*$/u
 /** A label line that introduces the objective's own text: "Role:", "**Your task:**", "## Context:". */
-const OWN_LABEL =
-  /^[\s*_#>-]*(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)[*_]*\s*:[\s*_]*$/iu
+const OWN_LABEL_HEAD = String.raw`(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)[*_]*\s*:[\s*_]*`
+const OWN_LABEL = new RegExp(String.raw`^[\s*_#>-]*${OWN_LABEL_HEAD}$`, 'iu')
 /** The same label leading a clause, read past like a list marker: "Objective: You are…". */
-const LEADING_OWN_LABEL =
-  /^(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)[*_]*\s*:[\s*_]*/iu
+const LEADING_OWN_LABEL = new RegExp(`^${OWN_LABEL_HEAD}`, 'iu')
 /** Tokens that join a second role as "and" does: "the reviewer & fixer", "reviewer / fixer". */
 const ROLE_JOINERS = new Set(['&', '+', '/'])
 /** An agent noun, a determiner allowed: "the fixer", "an implementer", "testers". */
@@ -98,7 +97,8 @@ const DASH = /^(?:[—–]|-{1,2})$/u
  * Review…", "Each Worker gets: …". A line that is the objective's own label ("Objective: You
  * are…") does not cut.
  */
-const INLINE_INTRODUCER = /\b(?:objectives?|prompt|instructions|brief|gets|message)[*_]*\s*:/giu
+const INLINE_INTRODUCER =
+  /\b(?:objectives?|prompts?|instructions?|briefs?|messages?|tasks?|following|gets|receives)[*_]*\s*:/giu
 
 export function nameWords(name: string) {
   // Every word of the name, short ones included: `ux-reviewer` and `qa` keep their qualifier.
