@@ -114,7 +114,7 @@ describe('roleStatement', () => {
     }
   })
 
-  it('reads no compound role, joined by a sign or listed after a comma', () => {
+  it('reads no compound role, joined by a sign, a joining word or listed after a comma', () => {
     for (const objective of [
       `You are the reviewer & fixer for PR #405.${TASK}`,
       `You are the reviewer + fixer for PR #405.${TASK}`,
@@ -122,6 +122,9 @@ describe('roleStatement', () => {
       `You are the reviewer, and the fixer for PR #405.${TASK}`,
       `You are a reviewer, or an implementer, whichever the diff needs.${TASK}`,
       `You are the reviewer — and the fixer — for PR #405.${TASK}`,
+      `You are the reviewer as well as the fixer for PR #405.${TASK}`,
+      `Act as reviewer then fixer: review PR 405 and fix every finding.${TASK}`,
+      `You are the reviewer, but also the fixer for PR #405.${TASK}`,
     ]) {
       expect(roleStatement(objective)).toEqual([])
     }

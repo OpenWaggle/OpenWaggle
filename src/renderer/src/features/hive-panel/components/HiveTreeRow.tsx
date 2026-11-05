@@ -77,7 +77,7 @@ export function HiveTreeListItem({
           onClick={onOpen}
           onContextMenu={menu.openAtPointer}
         >
-          {/* Glyphs on the title's line, as in the tree, when the agent line adds a second. */}
+          {/* Glyphs on the title's first line, as in the tree, when the title wraps or the agent line adds a second. */}
           <span className="flex min-w-0 items-start gap-1.5">
             <span className="flex h-5 shrink-0 items-center gap-1.5">
               <HiveRowGlyphs view={view} />

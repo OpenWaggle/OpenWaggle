@@ -77,6 +77,8 @@ const PHRASE_BREAKS = new Set(
     ' ',
   ),
 )
+/** Breaks that may join a second role without a comma: "the reviewer as well as the fixer". */
+const JOINING_BREAKS = new Set(['as', 'then'])
 /** The longest noun phrase read after the opener, determiner excluded; a longer one is no role. */
 const MAX_PHRASE_WORDS = 5
 /** A line ending in a colon, emphasis around it allowed: "Worker objective:", "**Each gets:**". */
@@ -91,14 +93,14 @@ const ROLE_JOINERS = new Set(['&', '+', '/'])
 /** An agent noun, a determiner allowed: "the fixer", "an implementer", "testers". */
 const AGENT_NOUN = String.raw`(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?`
 /**
- * After a comma or a dash, further roles: one joined to the phrase ("the reviewer, and the
- * fixer", "the reviewer — then the fixer") or a list ("the planner, implementer and tester").
+ * After a comma, a dash, "as" or "then", further roles: one joined to the phrase ("the reviewer,
+ * and the fixer", "the reviewer — then the fixer", "the reviewer as well as the fixer") or a list ("the planner, implementer and tester").
  * A word there that does not end like an agent noun ("the reviewer, review and report", ", and
  * fix what you find") still reads; one that does (", and consider…", ", then deliver…") drops the
  * phrase, a miss accepted for a hint.
  */
 const ROLE_LIST = new RegExp(
-  String.raw`^(?:(?:and|or|then|plus|as\s+well\s+as|&)\s+${AGENT_NOUN}|${AGENT_NOUN}(?:,\s*${AGENT_NOUN})*,?\s+(?:and|or)\s+${AGENT_NOUN})\b`,
+  String.raw`^(?:(?:and|or|then|plus|as\s+well\s+as|(?:but\s+)?also|&)\s+${AGENT_NOUN}|${AGENT_NOUN}(?:,\s*${AGENT_NOUN})*,?\s+(?:and|or)\s+${AGENT_NOUN})\b`,
   'iu',
 )
 /**
@@ -159,6 +161,11 @@ function endedBefore(phrase: readonly string[], tokens: readonly string[], index
   return ROLE_LIST.test(tokens.slice(index + 1).join(' ')) ? [] : phrase
 }
 
+/** The phrase a break word ends, none when "as well as" or "then" joins a second role to it. */
+function phraseBefore(phrase: string[], tokens: readonly string[], index: number, core: string) {
+  return JOINING_BREAKS.has(core) ? endedBefore(phrase, tokens, index - 1) : phrase
+}
+
 /** What a word before the phrase's first word is: an adverb, a determiner, or "also". */
 function openingWord(core: string): 'adverb' | 'determiner' | 'second-role' | undefined {
   // "You are also the reviewer": a second role beside one stated elsewhere, so none.
@@ -182,7 +189,7 @@ function rolePhrase(rest: string) {
     if (stop) return stop === 'end' ? phrase : []
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
-    if (core === '' || PHRASE_BREAKS.has(core)) break
+    if (core === '' || PHRASE_BREAKS.has(core)) return phraseBefore(phrase, tokens, index, core)
     const lead = opening ? openingWord(core) : undefined
     if (lead === 'second-role') return []
     if (lead === 'adverb') continue
