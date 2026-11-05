@@ -20,8 +20,10 @@ const READ_LENGTH = 4096
  * Text quoted for someone else, marked before clauses are read: a fenced block (``` or ~~~), an
  * indented or blockquote line, an inline code span, a double-quoted span (an unclosed one to the
  * end), and a single-quoted one. A single quote counts only with no letter or digit outside it,
- * so an apostrophe ("reviewer's", "it's") neither opens nor closes one.
+ * so an apostrophe ("reviewer's", "it's") neither opens nor closes one, and opens none after
+ * closing marks either ("`useHiveTree`'s", "**HivePanel**'s").
  */
+const QUOTE_OPENER = String.raw`(?<![\p{L}\p{N}\u0060*_)\]"”’'])['‘]`
 // `(?![\s\S])` is the end of the input; `$` is a line end here, under the m flag.
 const QUOTE_FORMS = [
   '(```|~~~)[\\s\\S]*?(?:\\1|(?![\\s\\S]))',
@@ -30,7 +32,7 @@ const QUOTE_FORMS = [
   '"[^"]*(?:"|(?![\\s\\S]))',
   '“[^”]*(?:”|(?![\\s\\S]))',
   // One quoted word ('tests', 'docs') closes at its own quote.
-  "(?<![\\p{L}\\p{N}])['‘][^\\s'’]+['’](?![\\p{L}\\p{N}])",
+  `${QUOTE_OPENER}[^\\s'’]+['’](?![\\p{L}\\p{N}])`,
 ]
 /**
  * A single-quoted span. Inside it, an apostrophe before a letter ("it's") goes on, and so does
@@ -38,7 +40,7 @@ const QUOTE_FORMS = [
  */
 function singleQuoted(extra: string) {
   const body = `(?:[^'’]|['’](?=[\\p{L}\\p{N}])${extra})*`
-  return `(?<![\\p{L}\\p{N}])['‘](?=\\S)${body}['’](?![\\p{L}\\p{N}])`
+  return `${QUOTE_OPENER}(?=\\S)${body}['’](?![\\p{L}\\p{N}])`
 }
 /**
  * Two readings of a single quote after an s and before a word: a plural possessive inside the

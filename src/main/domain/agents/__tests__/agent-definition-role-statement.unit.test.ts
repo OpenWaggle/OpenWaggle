@@ -158,6 +158,13 @@ describe('roleStatement', () => {
     expect(
       roleStatement(`You're the reviewer with a fresh context; check the 'project' rules.`),
     ).toEqual(['reviewer'])
+    for (const owner of ['`useHiveTree`', '**HivePanel**']) {
+      expect(
+        roleStatement(
+          `Fix ${owner}'s stale closure. You are the implementer. Rerun the 'lint' job. Act as the reviewer of the final diff.`,
+        ),
+      ).toEqual(['implementer'])
+    }
   })
 
   it('drops a phrase that a quoted word or a possessive interrupts', () => {
