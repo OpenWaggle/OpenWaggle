@@ -51,7 +51,7 @@ Trust covers the exact contents you reviewed. When the package's files change, O
 
 ## Turn off or remove a package
 
-Choose **Disable** to stop everything the package adds without deleting it. For a global package, use **Disable for project** under **Project availability** to turn it off in one project only.
+Choose **Disable** to stop everything the package adds without deleting it. For a global package, choose **Disable for project** on its card to turn it off in the current project only. When the package is in several projects, **Project availability** lists each one with its own button.
 
 Choose **Remove** and confirm to uninstall the package. OpenWaggle takes its features out of the app first, then deletes the package. Removing a global package asks for a second confirmation, because it affects other projects. OpenWaggle keeps the data the extension stored, unless it offers a separate option to delete it.
 

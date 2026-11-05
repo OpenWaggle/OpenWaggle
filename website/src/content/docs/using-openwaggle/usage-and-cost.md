@@ -50,7 +50,7 @@ Use the two button groups above the cards:
 
 ## Find where the spending went
 
-**Daily spending** has one bar per day with spending. Lighter parts of a bar are estimated cost, and hovering a bar shows its date, cost and tokens. With more than 60 such days, the chart shows only the most recent 60, but the lists below still cover the whole range.
+**Daily spending** has one bar per day with spending. The dimmer part of a bar is estimated cost, and hovering a bar shows its date, cost and tokens. With more than 60 such days, the chart shows only the most recent 60, but the lists below still cover the whole range.
 
 **By model** and **By project** list the models and projects with the most tokens first, each with its tokens, cost and share. Each list shows 12 rows. Narrow the selection to see the rest. A session in a worktree counts toward the project the worktree belongs to. Sessions from a temporary folder are grouped as **Temporary directory**, and sessions without a folder as **Unknown location**. The **tools/summaries** row, listed under **pi**, holds usage that belongs to no single model, such as model calls from scripts and summaries.
 

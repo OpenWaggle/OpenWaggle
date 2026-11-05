@@ -111,17 +111,17 @@ An MCP server counts as a catalog server only when its name matches a catalog na
 
 | Limit | Value |
 | --- | --- |
-| `app.opened` events per day | 20 |
-| `update.installed` events per day | 5 |
-| Run events per day, `run.finished` and `run.compacted` together | 150 |
-| `install.active`, `install.new` and `install.onboarding` per day | 1 each |
-| Entries in `mcp_servers` or in `skills` | 32 |
-| Length of a provider, model, server or skill ID | 128 characters |
-| Characters of a provider, model, server or skill ID | Letters, digits, `.`, `_`, `:`, `/`, `@` and `-`, starting with a letter or digit |
-| Events in one request | 200 |
-| Size of one request | 256 KiB |
-| Oldest day the app sends or the endpoint accepts | 35 days |
-| Newest day the endpoint accepts | 1 day ahead of its own UTC day |
+| `app.opened` | 20 events per day |
+| `update.installed` | 5 events per day |
+| Run events | 150 per day, `run.finished` and `run.compacted` together |
+| Install events | 1 per day each of `install.active`, `install.new` and `install.onboarding` |
+| List entries | 32 in `mcp_servers`, and 32 in `skills` |
+| ID length | 128 characters, for a provider, model, server or skill ID |
+| ID characters | Letters, digits, `.`, `_`, `:`, `/`, `@` and `-`, starting with a letter or digit |
+| Request events | 200 in one request |
+| Request size | 256 KiB |
+| Oldest day | 35 days back, for what the app sends and what the endpoint accepts |
+| Newest day | 1 day ahead of the endpoint's own UTC day |
 
 The app drops events past a daily limit and never sends them later. Each request covers one UTC day. A list such as `mcp_servers` may not repeat a value.
 
@@ -205,9 +205,12 @@ The endpoint accepts only requests shaped like the app's own. It requires the ex
 
 | Request `Origin` | `/web` | `/errors` | `/events` and the job routes |
 | --- | --- | --- | --- |
-| None, as the app sends statistics | Accepted | Accepted | Accepted |
-| `null` | Accepted | Accepted, because Electron's network layer can send it | Refused |
-| An `http` or `https` address | Accepted | Refused | Refused |
+| None, as the app sends statistics | Refused | Accepted | Accepted |
+| `null` | Refused | Accepted, because Electron's network layer can send it | Refused |
+| `https://openwaggle.ai` | Accepted | Refused | Refused |
+| Any other `http` or `https` address | Refused | Refused | Refused |
+
+`/web` accepts only beacons from openwaggle.ai pages. During development it also accepts a loopback page when the endpoint runs on loopback.
 
 Web pages cannot send app requests anyway. The required content type makes the browser ask the endpoint first, in a CORS preflight, and the endpoint refuses it.
 

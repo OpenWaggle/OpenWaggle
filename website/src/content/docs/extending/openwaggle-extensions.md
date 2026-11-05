@@ -33,7 +33,7 @@ my-project/
           README.md
 ```
 
-The folder name must match the manifest's `id`. A global extension lives in the `extensions/` folder of OpenWaggle's [app data folder](/docs/reference/data-locations#app-data-folder) instead. A global extension can affect every project where it is enabled, so manage it through **Settings > Extensions** or through the approved package workflow described in [Let an agent write an extension](#let-an-agent-write-an-extension).
+The folder name must match the manifest's `id`. A global extension lives in the `extensions/` folder of OpenWaggle's [app data folder](/docs/reference/data-locations#what-is-in-the-app-data-folder) instead. A global extension can affect every project where it is enabled, so manage it through **Settings > Extensions** or through the approved package workflow described in [Let an agent write an extension](#let-an-agent-write-an-extension).
 
 Write the manifest first. This one adds a settings section, a side panel, and a Session Summary section, and asks for project storage:
 
@@ -151,7 +151,7 @@ OpenWaggle owns each container: where it goes, its frame, size, docking, what sh
 
 The [development fixture](#test-with-the-development-fixture) uses most of these surfaces. Once trusted, enabled, and reloaded, its **GitHub Issues Overview** side panel opens from its icon on the Panel rail, with **Extension side panel** in the header above the panel's title. The icon of its second side panel carries a dot until you open that panel or **All panels**. A **GitHub Issues Transcript Summary** card sits at the end of the transcript, and the **GitHub Issues Status** widget sits above the composer. Settings sections do not appear here. They are in **Settings > Extensions**, under **Extension settings** (see [Install extensions](/docs/extending/plugins#review-and-enable-a-package)).
 
-![A session with the GitHub Issues Overview extension, its side panel open on the right, a transcript summary card, and a status widget above the composer.](/screenshots/extensions-surfaces.png)
+![A session with the GitHub Issues Overview extension, its side panel open on the right, a transcript summary card, and a status widget above the composer](/screenshots/extensions-surfaces.png)
 
 ### Give a side panel an icon
 
@@ -511,7 +511,7 @@ This uses the visible debug app. Agents must not run it unless the maintainer ap
 
 ## Ship docs with your extension
 
-Put Markdown docs in your package's `docs/` folder and declare each one under `docs.topics` in the manifest, with an `id`, a `title`, and its `path`. OpenWaggle lists them under your extension's own namespace, such as `extension:openwaggle-github-issues-overview/configuration`, with the extension id and its trust and lifecycle state attached. Your docs can never replace OpenWaggle's or Pi's topics. They can be found whether or not the extension is trusted or enabled. Trust and state are extra details, not a filter.
+Put Markdown docs in your package's `docs/` folder and declare each one under `docs.topics` in the manifest, with an `id`, a `title`, and its `path`. OpenWaggle lists them under your extension's own namespace, such as `extension:openwaggle-github-issues-overview/configuration`, with the extension id and its trust and lifecycle state attached. Your docs can never replace OpenWaggle's or Pi's topics. The docs index and `openWaggle.docs.discover` list every extension's docs, whether or not the extension is trusted or enabled. The `openwaggle_docs` tool is stricter, as the list below says.
 
 Agents read these docs, and the rest of the installed docs, with the `openwaggle_docs` tool:
 

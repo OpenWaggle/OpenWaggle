@@ -11,7 +11,7 @@ Run two configurable Pi agents in alternating turns until they reach consensus o
 
 `@openwaggle/pi-waggle` adds a structured two-agent collaboration loop to Pi.
 
-## What Waggle Mode Does
+## What Waggle mode does
 
 Waggle mode gives the same task to two configurable agents and lets them alternate turns in one Pi session. Each agent sees the work already produced, can use Pi's normal tools, and contributes from a different role. The loop stops when the agents reach consensus, the configured turn safety limit is reached, the user stops it, or an error prevents another turn.
 
@@ -19,7 +19,7 @@ For example, one agent can implement a change while another reviews it, an attac
 
 The package includes `@openwaggle/waggle-core`, registers `/waggle` and `/standard`, renders each turn with Pi-native UI, and persists mode state as Pi custom entries.
 
-## Install In Pi
+## Install in Pi
 
 Install the extension for your user:
 
@@ -73,7 +73,7 @@ bun add @openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-ag
 
 Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
 
-## Pi Extension Entry
+## Pi extension entry
 
 The `./extension` subpath exposes the default Pi extension factory:
 
@@ -104,7 +104,7 @@ import { parsePiWaggleCommandArgs } from '@openwaggle/pi-waggle/commands'
 const intent = parsePiWaggleCommandArgs('code-review review this diff')
 ```
 
-## Runtime State And Messages
+## Runtime state and messages
 
 Pi Waggle persists branch mode state in a `pi-waggle.mode-state` custom entry. Turn and user-request content use custom messages. Both use identifiers under the `pi-waggle.*` namespace:
 
@@ -120,7 +120,7 @@ import {
 
 Use these helpers when projecting or rendering Pi Waggle state. Do not seed a parallel metadata tree outside Pi session data.
 
-## Custom Loop Integration
+## Custom loop integration
 
 Advanced Pi integrations can use the loop helpers directly when they need custom metadata, message creation, or completion handling:
 
@@ -147,7 +147,7 @@ The helper returns a controller. Register its `factory` as a Pi extension factor
 
 Most users should start with the default extension export, which handles inherited model selection. Use loop helpers when embedding Waggle into a custom Pi package.
 
-## Boundary Rules
+## Boundary rules
 
 `@openwaggle/pi-waggle` is Pi-specific. It may import Pi SDK packages and `@openwaggle/waggle-core`, but it should not be used as an OpenWaggle renderer dependency or browser-only extension UI package.
 
@@ -166,7 +166,7 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](https://openwaggle.a
 
 The peer declarations accept any version, but that is not a guarantee of compatibility with every Pi release. The [repository dependency catalog](https://github.com/OpenWaggle/OpenWaggle/blob/main/pnpm-workspace.yaml) records the versions used by the current source integration.
 
-## Reference And Support
+## Reference and support
 
 - [Complete API reference](https://openwaggle.ai/docs/packages/pi-waggle/0.1/api-reference/)
 - [npm package](https://www.npmjs.com/package/@openwaggle/pi-waggle)

@@ -19,7 +19,7 @@ Every page sets `kind` in its frontmatter.
 | `reference` | Exact facts to look up | One-line intro, then tables: name, type or values, default, what it does. No story. Section `Reference`, except pages in Developer docs and Package reference, which stay in their own sections. |
 | `overview` | How parts fit together | Plain explanation of the model, for example projects, sessions, runs, the Session Host and Pi. One diagram at most. |
 
-If a guide grows a table longer than about ten rows, or a list of every option, move it to a reference page and link to it. A fact lives in one place.
+If a guide grows a table longer than 12 rows, or a list of every option, move it to a reference page and link to it. A fact lives in one place.
 
 ## Sentences
 
@@ -29,7 +29,7 @@ If a guide grows a table longer than about ten rows, or a list of every option, 
 - Say what happens, with the real value: "MCP servers stop 5 minutes after the session's last run ends", not "servers are stopped after a period of inactivity".
 - Lowercase ordinary nouns: session, run, worker, follow-up, steering, delegation, workspace, project, branch. Capitalize names: OpenWaggle, Pi, Hive, Queen, Waggle, Session Host.
 - UI labels in **bold**, spelled and cased exactly as the app shows them. Check the string in `src/renderer`.
-- Do not use specification words in guides: durable, atomically, lineage, authoritative, binding, idempotent, "exact active Run". Say what they mean ("kept after the app restarts", "in one step", "the session it came from").
+- Do not use specification words in guides: durable, atomically, lineage, authoritative, workspace binding, idempotent, "exact active Run". Say what they mean ("kept after the app restarts", "in one step", "the session it came from").
 - No em dashes, no "Note that", no "It is important to", no "This allows you to".
 
 Before and after, from the Hives guide:
@@ -45,7 +45,7 @@ Before and after, from the Hives guide:
 - Crop to the feature the paragraph is about. Open the menu or show the state you are describing. Use at most one outline (the capture kit's highlight) on the control; never numbered badges.
 - No captions under images. Put what the reader needs in the paragraph before the image.
 - Alt text is one sentence, at most about 160 characters, saying what the image shows: "The composer's + menu open, with Add files and Add images." Do not inventory the screen.
-- Use only made-up data (the `jotter` fixture project, the loopback fixture models). Never real accounts, paths or usage.
+- Screenshots use made-up fixture data: the `jotter` project or the OpenWaggle fixture project, the loopback fixture models, invented repositories and issue numbers. Never real accounts, paths or usage.
 
 ## Commands
 

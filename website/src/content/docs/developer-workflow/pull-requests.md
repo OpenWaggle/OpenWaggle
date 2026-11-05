@@ -46,10 +46,12 @@ When OpenWaggle cannot read a request, the row and the inspector say what is mis
 
 | Problem | What OpenWaggle offers |
 | --- | --- |
-| CLI not installed | The install command for `gh` or `glab`. OpenWaggle checks again when the window gets focus back. |
-| Not signed in | **Sign in to** and the host name, which runs `gh auth login --hostname` with that host (or the `glab` equivalent) in a new terminal tab of the session. |
-| No account can see the repository | The accounts it tried, and **Sign in with another account** to add one to the CLI. |
-| Unknown host | A one-time question: is the host GitHub, GitLab, or **Neither**? Choose **Neither** for another forge and OpenWaggle stops asking. |
+| CLI missing | The install command for `gh` or `glab` |
+| Signed out | **Sign in to** and the host name |
+| No access | The accounts it tried, and **Sign in with another account** |
+| Unknown host | A one-time question: GitHub, GitLab, or **Neither** |
+
+OpenWaggle looks for a missing CLI again when the window gets focus back. **Sign in to** runs `gh auth login --hostname` with that host, or the `glab` equivalent, in a new terminal tab of the session. **Sign in with another account** adds an account to the CLI when none of the accounts it tried can see the repository. Choose **Neither** for a host that is neither GitHub nor GitLab, and OpenWaggle stops asking.
 
 The sign-in terminal tab clears `GH_TOKEN`, `GITHUB_TOKEN` and `GITLAB_TOKEN`, because the CLI refuses to sign in while they are set. The CLI handles single sign-on in your browser. OpenWaggle always uses the CLI's stored sign-in and ignores those token variables.
 

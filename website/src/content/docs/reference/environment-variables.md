@@ -11,14 +11,14 @@ This page lists every environment variable that OpenWaggle, the `openwaggle` com
 
 An app opened from the Dock, the Start menu or a desktop launcher does not see variables exported in your shell profile. At launch, the desktop app reads only these from your login shell:
 
-| Variables | Taken from the login shell |
-| --- | --- |
-| `PATH` | On every platform, merged with the app's own. On Windows it comes from PowerShell with and without your profile, plus common tool folders |
-| `SSH_AUTH_SOCK`, `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_RUNTIME_DIR` | macOS and Linux, when the app has none |
-| `HOMEBREW_PREFIX`, `HOMEBREW_CELLAR`, `HOMEBREW_REPOSITORY` | macOS and Linux, when the app has none |
-| `DBUS_SESSION_BUS_ADDRESS`, `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE` | macOS and Linux |
-| `LANG`, `LC_ALL`, `LC_CTYPE` | macOS, when the app has none of them. With none set anywhere, the app uses `LC_CTYPE=en_US.UTF-8` |
-| `FNM_DIR`, `FNM_MULTISHELL_PATH` | Windows, when the app has none |
+| Group | Variables | When the app takes them |
+| --- | --- | --- |
+| Path | `PATH` | On every platform, merged with the app's own. On Windows it comes from PowerShell with and without your profile, plus common tool folders |
+| Sockets and folders | `SSH_AUTH_SOCK`, `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_RUNTIME_DIR` | macOS and Linux, when the app has none |
+| Homebrew | `HOMEBREW_PREFIX`, `HOMEBREW_CELLAR`, `HOMEBREW_REPOSITORY` | macOS and Linux, when the app has none |
+| Desktop session | `DBUS_SESSION_BUS_ADDRESS`, `XDG_CURRENT_DESKTOP`, `XDG_SESSION_DESKTOP`, `XDG_SESSION_TYPE` | macOS and Linux |
+| Locale | `LANG`, `LC_ALL`, `LC_CTYPE` | macOS, when the app has none of them. With none set anywhere, the app uses `LC_CTYPE=en_US.UTF-8` |
+| fnm | `FNM_DIR`, `FNM_MULTISHELL_PATH` | Windows, when the app has none |
 
 Any other variable, such as `DO_NOT_TRACK` or a provider API key, reaches the desktop app only if it was in the app's own environment when it started. Values in MCP server files written as `${NAME}` are an exception. OpenWaggle reads them from your login shell. See [MCP](/docs/configuration/mcp).
 

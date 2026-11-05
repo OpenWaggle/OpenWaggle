@@ -70,7 +70,7 @@ These primitives use extension SDK class names and data attributes. They are not
 
 Explore every primitive, tone, variant, form state, and accessibility contract in the [visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.1/components/).
 
-## React Mount Example
+## React mount example
 
 ```tsx
 import '@openwaggle/extension-react/styles.css'
@@ -114,7 +114,7 @@ export const mount = module.mount
 
 Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persistence and OpenWaggle capability calls. The React package only supplies UI primitives.
 
-## When Not To Use It
+## When not to use it
 
 Do not use `@openwaggle/extension-react` if your extension uses plain DOM, Vue, Preact, Svelte, or another renderer. The federated-module contract is framework-neutral, so those extensions can use `@openwaggle/extension-sdk` types, theme helpers, and UI stylesheet helpers directly.
 
@@ -130,7 +130,7 @@ Do not import OpenWaggle renderer components to fill gaps. If a primitive is mis
 | Module format | ESM and CommonJS |
 | OpenWaggle package docs | 0.1 |
 
-## Reference And Support
+## Reference and support
 
 - [Visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.1/components/)
 - [Complete API reference](https://openwaggle.ai/docs/packages/extension-react/0.1/api-reference/)

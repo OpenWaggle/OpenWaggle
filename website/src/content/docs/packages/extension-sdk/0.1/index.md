@@ -14,7 +14,7 @@ Use it in extension modules that mount into OpenWaggle-owned containers. The pac
 
 The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe. Node.js is required for extension build tooling and package consumers.
 
-## Main Imports
+## Main imports
 
 ```ts
 import type {
@@ -43,7 +43,7 @@ Supported public subpaths include:
 | `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
 | `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
 
-## Federated Module Example
+## Federated module example
 
 A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context, and the extension owns the content appended to `context.root`.
 
@@ -86,7 +86,7 @@ const module: OpenWaggleFederatedModule = {
 export const mount = module.mount
 ```
 
-## Brokered Capability Calls
+## Brokered capability calls
 
 Extension code should call OpenWaggle through the broker SDK on the mount context instead of importing stores, IPC helpers, Electron APIs, or Pi SDK internals.
 
@@ -107,7 +107,7 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 
 Declare matching capabilities and methods in `openwaggle.extension.json`. A call to a capability the manifest does not declare fails.
 
-## Manifest Typing
+## Manifest typing
 
 Use the manifest type to keep package metadata aligned with the public extension contract.
 
@@ -146,7 +146,7 @@ export default {
 } satisfies OpenWaggleExtensionManifest
 ```
 
-## Boundary Rules
+## Boundary rules
 
 `@openwaggle/extension-sdk` is browser-safe. Extension modules that use it must still stay inside the public SDK surface:
 
@@ -157,7 +157,7 @@ export default {
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).
 
-## Reference And Support
+## Reference and support
 
 - [Complete API reference](./api-reference)
 - [npm package](https://www.npmjs.com/package/@openwaggle/extension-sdk)

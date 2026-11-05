@@ -50,7 +50,7 @@ Not every model can look at images. OpenWaggle goes by what the selected model s
 
 Images you or the agent share appear in the conversation. Click one to zoom, pan, or move through that message's images. To browse every image in the session, open one from [Session Summary and resources](/docs/using-openwaggle/session-summary). The viewer can download a copy, or open the original file when it is still on your computer.
 
-When the agent's reply shows a local image, OpenWaggle can save it with the session's outputs. This works for PNG, JPEG, GIF and WebP files referenced by a `file:` URL or an absolute path, in the session's working folder or a supported temporary evidence folder. OpenWaggle checks the image and keeps its own copy, so it doesn't depend on a temporary file staying where it was. OpenWaggle may not save images that are elsewhere, in other formats, or too large.
+When the agent's reply shows a local image, OpenWaggle can save its own copy with the session's outputs, so the image stays after the original is deleted. [Images in the agent's replies](/docs/using-openwaggle/session-summary#images-in-the-agents-replies) lists the image formats and the folders OpenWaggle copies from.
 
 ## Dictate a message
 

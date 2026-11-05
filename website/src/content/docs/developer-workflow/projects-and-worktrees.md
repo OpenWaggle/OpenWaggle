@@ -49,7 +49,7 @@ Until a base branch is picked, sending stops with:
 
 > Select a base branch before sending in worktree mode.
 
-When the base is a local branch, OpenWaggle first tries to fetch it from `origin`. It starts from `origin/<branch>` when your local branch is the same as it or behind it. A local branch that is ahead or has diverged keeps its own tip. If the fetch fails, OpenWaggle uses the branches it already has, so you do not need a network connection. OpenWaggle uses a remote branch you picked, such as `origin/main`, as it is.
+When the base is a local branch, OpenWaggle first tries to fetch it from `origin`. It starts from `origin/<branch>` when your local branch is the same as it or behind it. A local branch that is ahead or has diverged keeps its own tip, unless the session was started with `--start-from-origin` from the CLI or the agent's `hive` tool. If the fetch fails, OpenWaggle uses the branches it already has, so you do not need a network connection. OpenWaggle uses a remote branch you picked, such as `origin/main`, as it is.
 
 OpenWaggle creates each worktree in a folder outside your project, on a branch named `ow/session-<workspace ID>`. Its folder has the same workspace ID as its name. The workspace ID is not the session ID, and several sessions can share one workspace. Worktrees that already exist keep the names they were created with. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where the folders live, and **Session Summary > Environment** shows a session's real path and branch.
 

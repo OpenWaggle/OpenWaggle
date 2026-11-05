@@ -98,11 +98,11 @@ A server that another file changes also says where, such as **Overridden in** `~
 | Limit | Value |
 | --- | --- |
 | Request timeout | 60 seconds, unless the entry sets `timeout` |
-| Wait before a message, for a server with known app tools | At most 1.5 seconds |
+| Startup wait | At most 1.5 seconds before a message, for a server with known app tools |
 | MCP App start | 15 seconds, then the tool result stays text |
 | Idle stop | 5 minutes after the session's last run ends, if no new run starts. MCP App requests restart the timer. |
-| Idle stop, finished worker | 1 minute after its last run ends, for a worker under review, accepted, or cancelled |
-| Sessions with servers running at once | 3. The least recently used session's servers stop first. |
+| Worker idle stop | 1 minute after its last run ends, for a worker under review, accepted, or cancelled |
+| Warm sessions | At most 3 sessions with servers running. The least recently used session's servers stop first. |
 | MCP versions | `2024-11-05` to `2025-11-25` |
 
 ## Registry installs

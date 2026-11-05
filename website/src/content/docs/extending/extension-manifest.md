@@ -30,9 +30,21 @@ This page lists the fields of `openwaggle.extension.json`, what OpenWaggle check
 | `pi.resourceRoots` | paths | No | | Folders of Pi resources (skills, extensions, prompts, themes) the package adds, loaded ahead of `.pi` |
 | `trusted.main` | path | No | | Trusted local code that runs in the main process |
 | `trusted.renderer` | path | With `trusted-renderer` contributions | | Privileged renderer code, which every contribution with `runtime: "trusted-renderer"` needs |
-| `runtimeRequirements` | list | No | | Programs the package needs, each with an `id`, a `label`, exactly one of `binary` or `command`, and an optional matching `kind` |
+| `runtimeRequirements` | list | No | | Programs the package needs. See [Runtime requirements](#runtime-requirements) |
 
 Paths are relative to the package folder.
+
+## Runtime requirements
+
+Each entry in `runtimeRequirements` names one program the package needs. OpenWaggle checks for it and shows an error on the package card when it is missing. It never installs a missing program.
+
+| Field | Required | What it does |
+| --- | --- | --- |
+| `id` | Yes | Requirement id inside the package |
+| `label` | Yes | Name shown in the error, at most 120 characters |
+| `binary` | One of `binary` or `command` | A program name, such as `git`, looked up on `PATH`. A name, not a path |
+| `command` | One of `binary` or `command` | A file inside the package, relative to the package folder |
+| `kind` | No | `binary` or `command`, matching the field you set |
 
 ## Limits
 
@@ -40,7 +52,7 @@ Paths are relative to the package folder.
 | --- | --- |
 | Package `id` | 96 lowercase letters, digits, `.`, `_`, and `-`, starting with a letter or digit |
 | Contribution `id` | 128 characters. Lowercase letters, digits, `.`, `_`, `/`, and `-` |
-| `name`, `title`, `label`, `badge` | 120 characters |
+| `name`, `title`, `label`, `badge`, `category` | 120 characters |
 | `description`, row `value`, state `message` | 2,000 characters |
 | A relative path | 260 characters |
 | A network origin | 300 characters, `https` only, with no path, query, fragment or trailing slash |
@@ -56,7 +68,7 @@ Paths are relative to the package folder.
 | Scope | Folder |
 | --- | --- |
 | Project | `<project>/.openwaggle/extensions/<extension-id>/` |
-| Global | `extensions/<extension-id>/` in the [app data folder](/docs/reference/data-locations#app-data-folder) |
+| Global | `extensions/<extension-id>/` in the [app data folder](/docs/reference/data-locations#what-is-in-the-app-data-folder) |
 
 The package files can be committed with a project. Trust, enablement, permission grants, build approvals, project opt-outs, lifecycle records, and extension storage stay on the user's machine.
 
@@ -287,14 +299,14 @@ Each entry in `docs.topics` has:
 
 ## Docs lookup
 
-`openWaggle.docs.discover` and `openWaggle.docs.resolveTopic`, and the `openwaggle_docs` tool, return a topic's details by default, not its content. A first-party topic looks like this:
+`openWaggle.docs.discover` and `openWaggle.docs.resolveTopic` return a topic's details, not its content. The `openwaggle_docs` tool's `list` and `search` actions return the same details, and its `read` action returns the topic's Markdown. A first-party topic looks like this:
 
 ```typescript
 {
   topic: 'openwaggle:extending/openwaggle-extensions',
   source: 'openwaggle',
   group: 'OpenWaggle Docs',
-  title: 'Agent-loop contributions',
+  title: 'Build an extension',
   path: '/path/to/openwaggle/docs/extending/openwaggle-extensions.md',
   bundlePath: 'topics/openwaggle/extending/openwaggle-extensions.md',
   sourcePath: 'website/src/content/docs/extending/openwaggle-extensions.md',

@@ -23,7 +23,7 @@ In these tables, `<session>` is a session ID or a session link copied from the d
 | `status` | `hive status <session>` | Shows the current run, with its ID, and the queue. |
 | `turns` | `hive turns <session> [--limit <n>] [--cursor <cursor>]` | Pages through turns. |
 | `items` | `hive items <session> [--after <order>] [--limit <n>]` | Pages through transcript items. |
-| `wait` | `hive wait <session>... [--condition <condition>] --timeout-ms <ms>` | Waits until the sessions meet a condition, `idle` by default. |
+| `wait` | `hive wait <session>... [--condition <condition>] --timeout-ms <ms>` | Waits until one of the sessions meets a condition, `idle` by default. See [Wait and watch](#wait-and-watch). |
 | `watch` | `hive watch [<session>...] [--after-host <id> --after-sequence <n>]` | Streams the Session Host's events. |
 
 ### Start and message sessions
@@ -40,7 +40,17 @@ In these tables, `<session>` is a session ID or a session link copied from the d
 | `steer` | `hive steer <session> --expected-run <run-id> --text <message>` | Adds input to the current run. |
 | `replace` | `hive replace <session> --expected-run <run-id> --text <message>` | Stops the current run and starts a new one in its place. |
 | `interrupt` | `hive interrupt <session> --expected-run <run-id>` | Stops the current run. |
-| `report` | `hive report <session> --text <message> (--upstream \| --queen \| --target <session>)` | Passes a note to another session without starting a run. |
+| `interrupt-descendants` | `hive interrupt-descendants <session>` | Stops the runs of every worker below the session. |
+| `report` | `hive report <session> --text <message> (--upstream \| --queen \| --target <session> \| --worker <name>)` | Passes a note to another session without starting a run. `--worker` picks a worker by its ID, title or agent definition name. |
+
+### Manage sessions
+
+| Command | Syntax | What it does |
+| --- | --- | --- |
+| `rename` | `hive rename <session> <title>` | Changes a session's title. |
+| `archive`, `unarchive` | `hive archive <session>` | Archives a session, or brings it back. Nothing is deleted. |
+| `handoff` | `hive handoff <session> --workspace local\|existing\|new-worktree [--workspace-id <id>]` | Moves a session to another workspace. |
+| `authorization-set` | `hive authorization-set <session> inherit\|ask-for-approval\|yolo` | Changes a session's access mode. `inherit` goes back to the project's or app's mode. |
 
 ### Queue and requests
 
@@ -63,8 +73,19 @@ To allow an approval request, pass `--response-json '{"kind":"confirm","accepted
 | --- | --- | --- |
 | `delegations-list` | `hive delegations-list [--parent <session>] [--worker <session>] [--state <state>]...` | Lists delegations, newest first. |
 | `delegations-read` | `hive delegations-read <delegation-id> [--limit <n>] [--cursor <cursor>]` | Pages through one delegation's history. |
+| `delegations-conflicts` | `hive delegations-conflicts [--delegation <id>] [--kind live-overlap\|merge-overlap] [--status <status>]` | Lists overlaps between workers' claims. `--status` is `unacknowledged`, `acknowledged` or `resolved`. |
+| `delegation-submit` | `hive delegation-submit <worker> <delegation-id> <summary> [--evidence-json <json>]...` | A worker submits its result as a new revision. |
+| `delegation-state` | `hive delegation-state <worker> <delegation-id> working\|waiting\|needs_attention <reason>` | A worker sets its own state, with a reason. |
+| `delegation-claim` | `hive delegation-claim <worker> <delegation-id> <reason> [--claim-json <json>]...` | A worker records the files or areas it plans to change. Claims lock nothing. |
+| `delegation-propose-amendment` | `hive delegation-propose-amendment <worker> <delegation-id> <base-revision> <reason> --specification-json <json>` | A worker proposes a change to its task. |
+| `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> --specification-json <json> [--proposal <proposal-id>]` | Changes the task, or accepts a proposed change. |
 | `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. |
-| `delegation-accept` | `hive delegation-accept <parent> <delegation-id> <revision>` | Accepts one submitted revision. |
+| `delegation-accept` | `hive delegation-accept <parent> <delegation-id> <revision> [note]` | Accepts one submitted revision. |
+| `delegation-verify` | `hive delegation-verify <parent> <delegation-id> <revision> passed\|failed\|inconclusive <summary>` | Records a check of a submitted revision. |
+| `delegation-reopen` | `hive delegation-reopen <parent> <delegation-id> <reason>` | Reopens an accepted delegation. |
+| `delegation-cancel` | `hive delegation-cancel <parent> <delegation-id> <reason>` | Cancels an open delegation. |
+| `delegation-dependency` | `hive delegation-dependency <parent> <delegation-id> add\|remove <dependency-id> ready_for_review\|accepted <reason>` | Makes a delegation wait for another to reach a state, or stops it waiting. |
+| `delegation-conflict-acknowledge` | `hive delegation-conflict-acknowledge <parent> <delegation-id> <conflict-id> <reason>` | Marks a conflict between claims as seen. |
 | `agent-definitions-list` | `hive agent-definitions-list [--project <path>]` | Lists the project's enabled agent definitions. |
 | `agent-definitions-search` | `hive agent-definitions-search <query> [--project <path>]` | Searches them by name and description. |
 
@@ -72,8 +93,8 @@ To allow an approval request, pass `--response-json '{"kind":"confirm","accepted
 
 | Command | Syntax | What it does |
 | --- | --- | --- |
-| `export` | `hive export <session> --format markdown\|jsonl [--scope active-branch\|tree]` | Streams a transcript to stdout. |
-| `export-create` | `hive export-create <session> <destination> --format jsonl\|markdown\|bundle [--overwrite]` | Writes an export to a file or folder. |
+| `export` | `hive export <session> [--format markdown\|jsonl] [--scope active-branch\|tree]` | Streams a transcript to stdout, as Markdown unless you pass `--format jsonl`. |
+| `export-create` | `hive export-create <session> <destination> [--format jsonl\|markdown\|bundle] [--overwrite]` | Writes an export to a file or folder, as JSONL unless you pass another `--format`. |
 | `exports-list` | `hive exports-list <session>` | Lists file exports. |
 | `exports-read` | `hive exports-read <session> <operation-id>` | Reads one file export. |
 | `exports-wait` | `hive exports-wait <session> <operation-id> --timeout-ms <ms>` | Waits for a file export to finish. |
@@ -213,7 +234,19 @@ A follow-up queue holds at most 256 entries and 32 MiB of saved messages. Adding
 
 ## Wait and watch
 
-`hive wait` blocks until its `--condition` is met: `idle`, `queue-empty`, `state-revision-after`, `report-delivered` or `correlated-reply`. A wait is one check with a time limit, not a subscription. If it times out, it exits with 7, and the session may still be running. It answers from the Session Host's current state, so it never returns `resync_required`. When the Session Host drops its internal subscription under heavy event load, or `--after-host` and `--after-sequence` name a cursor it no longer has, it reloads that state and keeps waiting until the condition matches or `--timeout-ms` runs out. `exports-wait`, the `hive` tool's `wait` and `exports_wait`, and the MCP `wait` and `exports-wait` operations behave the same.
+`hive wait` blocks until one of its sessions meets the `--condition`:
+
+| Condition | Also needs | Met when |
+| --- | --- | --- |
+| `idle` (default) | | The session has no run in progress |
+| `queue-empty` | | The session has no queued follow-ups |
+| `state-revision-after` | `--after-state-revision <n>` | The session's state revision is higher than `<n>` |
+| `report-delivered` | `--report-id <id>` | That report has reached the session |
+| `correlated-reply` | `--correlation-id <id>` | A reply with that correlation ID has reached the session |
+
+A `report` returns the `reportId` and `correlationId` these conditions take. A reply is a report sent with `--reply-to <report-id>`, and `--request-reply` asks the target for one.
+
+A wait is one check with a time limit, not a subscription. If it times out, it exits with 7, and the session may still be running. It answers from the Session Host's current state, so it never returns `resync_required`. When the Session Host drops its internal subscription under heavy event load, or `--after-host` and `--after-sequence` name a cursor it no longer has, it reloads that state and keeps waiting until the condition matches or `--timeout-ms` runs out. `exports-wait`, the `hive` tool's `wait` and `exports_wait`, and the MCP `wait` and `exports-wait` operations behave the same.
 
 `hive watch` subscribes to the Session Host's ordered event stream. Passing session IDs filters events inside the Session Host, before they take space in the subscription buffer. A watch without a filter receives every event the caller may see. JSONL output wraps every line in a versioned envelope. Inspect `line.record`. Cursor checkpoints have `line.record.kind === "cursor"` and carry the starting point of the subscription, or the latest progress past a filtered event.
 
@@ -289,7 +322,7 @@ OpenWaggle stores the generated credential apart from the profile's policy. Prof
 
 When credential recovery or cleanup fails, the CLI prints an error on stderr instead of treating the refusal as fully handled. OpenWaggle keeps a reused pending credential if a later request fails or is refused, because that does not settle the earlier operation. To settle an unknown outcome, repeat the same command with the same operation key as the same caller. A changed command or caller is not the same retry. Older pending credential files that do not record their original destination cannot be retried automatically, even with the same key. Use the reported protected path to recover them by hand. If removing a protected file fails, the error names where the file still is rather than claiming the secret was removed.
 
-If the response to a profile creation or credential rotation is lost, the Session Host may already have made the change. OpenWaggle keeps the protected credential and reports the unknown outcome, the operation reference and the recovery path, without showing the secret. A later refused retry also keeps an earlier pending credential. Keep the error details and the protected file until the outcome is confirmed and the credential recovered. Do not delete the file just because a retry was refused. Repeat the same CLI command with the same operation key as the same caller to settle an unknown outcome. OpenWaggle reports a creation that succeeded, but whose local credential it could not install, separately as created, with its recovery path.
+If the response to a profile creation or credential rotation is lost, the Session Host may already have made the change. OpenWaggle keeps the protected credential and reports the unknown outcome, the operation reference and the recovery path, without showing the secret. A later refused retry also keeps an earlier pending credential. Keep the error details and the protected file until the outcome is confirmed and the credential recovered. Do not delete the file just because a retry was refused. OpenWaggle reports a creation that succeeded, but whose local credential it could not install, separately as created, with its recovery path.
 
 For an existing profile that is not revoked, a new `openwaggle access profiles rotate <name> --credential-store` rotates the credential. When there is exactly one matching pending store credential, the accepted rotation installs it. This is a new operation, not a replay. Old clients disconnect and must reconnect with the stored credential. The earlier protected file stays available for a retry of its original operation with the same operation key, or for recovery by hand. A later rotation does not reuse those installed bytes. It generates a fresh credential. A revoked profile, more than one eligible pending file, or corrupt credential data blocks recovery. Keep unresolved files and their reported locations instead of deleting them or retrying blindly.
 

@@ -145,7 +145,7 @@ You can give a single tool its own exposure, for example to hide a delete tool. 
 
 Pi's files can also say `direct` or `deferred`. OpenWaggle runs `direct` as codemode and shows it as **Codemode**, because offering every tool's description on every message cost thousands of tokens per message, and agents rarely called those tools. You do not need to change anything, and OpenWaggle leaves the file alone, so the `pi` command still offers those tools directly. `deferred` works as before. The agent searches for those tools, then calls them directly. [Exposure values](/docs/configuration/mcp-reference#exposure-values) covers the sessions where `direct` stays direct.
 
-In **Ask for approval** mode, every MCP tool call asks for your approval, including calls made from a script. OpenWaggle remembers **Allow** for that server and tool.
+In **Ask for Approval** mode, every MCP tool call asks for your approval, including calls made from a script. **Allow for this session** and **Always allow…** cover only that server's tool.
 
 ## Sign in to a server
 
@@ -170,7 +170,8 @@ A session's servers stop:
 - 5 minutes after the session's last run ends, if no new run starts. An open MCP App that still sends requests keeps them running.
 - 1 minute after its last run ends, for a worker whose result is under review, accepted, or cancelled.
 - When the session is archived or deleted.
-- When no OpenWaggle window or command is connected to the background Session Host, and when the Session Host stops.
+- When no OpenWaggle window or command is connected to the Session Host, for every session with no run in progress.
+- When the Session Host stops.
 
 When more than three sessions have servers running, the servers of the session used least recently stop first. A session with a message in progress keeps its servers. Stopping a local server also stops any program it was started through, such as `npx` or `uvx`.
 

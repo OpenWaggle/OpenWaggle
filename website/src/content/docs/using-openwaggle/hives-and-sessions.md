@@ -20,6 +20,8 @@ flowchart TD
   W3 -.->|sends its result| W2
 ```
 
+The session's header shows **Queen** or **Worker** under its title, followed by the agent definition's name when it has one.
+
 A worker is a full session. It has its own transcript, model and queue of messages, and it is saved like any other session. It keeps running when you switch to another session, and it can keep going after the Queen's own turn ends. Being the Queen gives a session no extra permissions over other sessions.
 
 If you want two agents to take turns in the same conversation instead, use [Waggle](/docs/using-openwaggle/waggle-mode).
@@ -121,7 +123,7 @@ When workers share a checkout, it is harder to tell who changed what. Workers ca
 
 **Settings > Agents > Hive controls** has three settings:
 
-- **Agent-created Workers** lets agents create workers in this app.
+- **Agent-created Workers** lets agents create workers in this app, and start new top-level sessions with `launch`.
 - **Workers per parent** is how many workers can run at once under one parent. The default is 4.
 - **Active agent runs** is how many runs can go at once across the whole app, in every Hive and every other session. The default is 16.
 
@@ -139,7 +141,7 @@ OpenWaggle also leaves a worker alone while it is open in the app, or while it h
 
 Archived workers stay listed under **Archived · n** in the Hive panel and in **Settings > Archived items**. To bring one back, choose **Unarchive session** from its menu in the Hive panel, or **Restore** in Settings.
 
-Sending new work to a worker that cleanup archived brings it back in the same step. That covers a message, follow-up, steering, a replaced run, and reopening or asking for a revision of its result, whether you do it or an agent does. OpenWaggle does not archive a worker you brought back again. One that an agent brought back stays visible until its result is accepted or cancelled again, and then cleanup can archive it once more. A worker that you or an agent archived on purpose stays archived when it gets new work, and the parent agent can bring it back with `unarchive`.
+Sending new work to a worker that cleanup archived brings it back in the same step. That covers a message, a started run, a follow-up, steering, a replaced run, and reopening or asking for a revision of its result, whether you do it or an agent does. OpenWaggle does not archive a worker you brought back again. One that an agent brought back stays visible until its result is accepted or cancelled again, and then cleanup can archive it once more. A worker that you or an agent archived on purpose stays archived when it gets new work, and the parent agent can bring it back with `unarchive`.
 
 ## Keep a worker contained
 
@@ -147,7 +149,7 @@ Session capabilities limit what an agent can do through its `hive` tool and the 
 
 For real containment, remove shell and process tools in the worker's [agent definition](/docs/extending/agent-definitions), or run the agent in a separate sandbox, user account or container. [Named CLI profiles](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) help with attribution and least privilege only when the caller cannot also read your credentials.
 
-Each worker gets its parent's access by default. A spawn or an agent definition can narrow approvals, tools, MCP servers and session capabilities, but never widen them. A worker gets **YOLO** access only when its parent is already allowed it.
+Each worker gets its parent's access by default. A spawn or an agent definition can narrow approvals, tools, MCP servers and session capabilities, but never widen them. A worker gets **YOLO** access only when its parent's access already allows **YOLO**.
 
 ## Work with sessions in other projects
 
@@ -202,7 +204,7 @@ openwaggle hive follow-up <session-id> --text "Summarize the remaining work. Do 
 
 ### Coordinate a worker from another tool
 
-An outside agent spawns a worker against the parent's current run. The run ID stops it from attaching a worker to a parent that has already moved on. Replace the IDs in each command with the ones you found.
+An outside agent spawns a worker under the parent's current run, named by its run ID. If that run has ended or another run has taken its place, the spawn fails, so a worker never lands under a parent that has moved on. Replace the IDs in each command with the ones you found.
 
 To find the parent session:
 

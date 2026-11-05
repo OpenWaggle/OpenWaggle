@@ -39,7 +39,7 @@ yarn add @openwaggle/waggle-core
 bun add @openwaggle/waggle-core
 ```
 
-## Main Imports
+## Main imports
 
 ```ts
 import {
@@ -65,7 +65,7 @@ Supported public subpaths include:
 | `@openwaggle/waggle-core/consensus` | Consensus result helpers. |
 | `@openwaggle/waggle-core/events` | Runtime-neutral event metadata helpers. |
 
-## Configure Two Agents
+## Configure two agents
 
 Waggle mode currently models exactly two collaborating agents.
 
@@ -98,7 +98,7 @@ const config = {
 
 Use provider-qualified model ids such as `openai/gpt-5.5` when the host runtime should switch models per agent. Use `WAGGLE_INHERIT_MODEL` when the host runtime should keep the current model.
 
-## Validate External Config
+## Validate external config
 
 ```ts
 import { parseWaggleConfig } from '@openwaggle/waggle-core'
@@ -112,7 +112,7 @@ if (!parsed.success) {
 const config = parsed.value
 ```
 
-## Decide Turns
+## Decide turns
 
 ```ts
 import { buildWaggleTurnPrompt, decideNextWaggleTurn, getWaggleTurn } from '@openwaggle/waggle-core'
@@ -136,7 +136,7 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 
 `decideNextWaggleTurn` stops when consensus is reached, a terminal error is reported, or `stop.maxTurnsSafety` would be exceeded.
 
-## Runtime Boundary
+## Runtime boundary
 
 `@openwaggle/waggle-core` is runtime-neutral. It should not import Pi, Electron, OpenWaggle renderer stores, app services, or Node-specific APIs. Use [`@openwaggle/pi-waggle`](https://openwaggle.ai/docs/packages/pi-waggle/) when you want Pi commands, Pi renderers, Pi mode state, or Pi session integration.
 
@@ -149,7 +149,7 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 | Module format | ESM and CommonJS |
 | Waggle documentation | 0.1 |
 
-## Reference And Support
+## Reference and support
 
 - [Complete API reference](https://openwaggle.ai/docs/packages/waggle-core/0.1/api-reference/)
 - [npm package](https://www.npmjs.com/package/@openwaggle/waggle-core)

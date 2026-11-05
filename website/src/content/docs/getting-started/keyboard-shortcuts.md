@@ -2,7 +2,7 @@
 title: "Keyboard shortcuts"
 description: "Default shortcuts for conversations, terminals, browser preview, and navigation."
 order: 9
-section: "Customize"
+section: "Reference"
 kind: "reference"
 ---
 
@@ -53,7 +53,7 @@ On keyboards where `Ctrl+Alt` (AltGr) with a key types a character, such as `Ctr
 
 ## Panel shortcuts
 
-Each view the right panel can show has a command. Its shortcut shows that panel, or closes the right panel when that panel is already showing, the same as clicking its icon on the panel rail. Panel shortcuts work everywhere except while you type in a terminal.
+Each view the right panel can show has a command. Its shortcut shows that panel, or closes the right panel when that panel is already showing, the same as clicking its icon on the panel rail. Panel shortcuts don't work while you type in a terminal, except **Toggle preview**, which works everywhere.
 
 | Panel | Command | Default |
 | --- | --- | --- |

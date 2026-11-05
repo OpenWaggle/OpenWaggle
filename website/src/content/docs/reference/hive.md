@@ -7,7 +7,7 @@ kind: "reference"
 
 This page lists the actions you or an agent can use on sessions in a Hive, with the limits and states behind them. For how to use a Hive, see [Hives and sessions](/docs/using-openwaggle/hives-and-sessions).
 
-The same actions exist in three places. An agent running in OpenWaggle calls them through its `hive` tool, for example `hive({ action: "follow_up" })`. A terminal or another agent uses the [Hive CLI](/docs/developer-workflow/hive-cli), where the name uses `-` instead of `_` (`openwaggle hive follow-up`). The `openwaggle_hive` MCP tool uses the CLI names. Scheduled tasks have their own [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks) command.
+The same actions exist in three places. An agent running in OpenWaggle calls them through its `hive` tool, for example `hive({ action: "follow_up" })`. A terminal or another agent uses the [Hive CLI](/docs/developer-workflow/hive-cli), where the name uses `-` instead of `_` (`openwaggle hive follow-up`). The `openwaggle_hive` MCP tool uses the CLI names. Scheduled tasks have their own [`openwaggle schedules`](/docs/using-openwaggle/scheduled-tasks-reference#commands) command.
 
 Each action needs a session capability, shown in the tables below. The `hive` tool only offers an agent the actions its session's capabilities allow. A call to any other action fails and names what is missing, for example `capability_denied: the hive action fork requires sessions:create and sessions:read`. `launch` and `spawn` also fail when **Agent-created Workers** is off for the project or model.
 
@@ -94,7 +94,7 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | `turns` | `sessions:read` | Pages through a session's turns. |
 | `items` | `sessions:read` | Pages through a session's transcript items. |
 | `requests_list` | `sessions:read` | Lists questions and approvals a run is waiting on. |
-| `wait` | `sessions:read` | Waits until sessions reach a condition, or until the timeout. |
+| `wait` | `sessions:read` | Waits until one of the sessions reaches a condition, or until the timeout. |
 | `watch` | per event | Streams the Session Host events the caller may see. CLI and MCP only. |
 | `agent_definitions_list` | none | Lists the project's enabled agent definitions. |
 | `agent_definitions_search` | none | Searches those definitions by name and description. |
@@ -194,7 +194,7 @@ Every session summary and delegation that carries a delegation state (`list`, `s
 
 A worker is stuck when its last run failed or was interrupted, or it asked its parent for help, and its parent has no active run and nothing queued to deliver.
 
-OpenWaggle works out `nextActor` each time you read, by the same rule the Hive panel uses, so it follows the parent's runs and queue as they change. It never changes the delegation state. OpenWaggle saves command outcomes to answer repeated requests, so they do not carry `nextActor`. Read the session or the delegation instead.
+OpenWaggle works out `nextActor` each time you read, by the same rule the Hive panel uses, so it follows the parent's runs and queue as they change. It never changes the delegation state. The result of an action that changes something, such as `spawn` or `delegation_accept`, has no `nextActor`. OpenWaggle saves that result to answer a repeated request, and a saved `nextActor` would go stale. Read the session or the delegation instead.
 
 ## Export transcripts
 
@@ -210,7 +210,7 @@ OpenWaggle works out `nextActor` each time you read, by the same rule the Hive p
 
 ## Scheduled tasks
 
-The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `schedules:read`. `schedule_create`, `schedule_update`, `schedule_delete`, `schedule_run_now` and `schedule_outcome` need `schedules:manage`. See [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks).
+The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `schedules:read`. `schedule_create`, `schedule_update`, `schedule_delete`, `schedule_run_now` and `schedule_outcome` need `schedules:manage`. The [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference) lists their commands, options and limits.
 
 ## Follow-up queue rules
 

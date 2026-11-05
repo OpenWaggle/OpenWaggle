@@ -133,7 +133,7 @@ The agent sees which task started its run, when it fired, and when the task last
 
 Each session a Launch schedule starts gets a new worktree by default, so unattended edits stay out of the checkout you work in. Choose **Local checkout** to run in the project folder instead. Workspace setup runs only if you turned it on for the project.
 
-Each session is titled with the task's name and the date, and its row in the sidebar has a calendar icon. Its Session Summary names the task that started it. Turn on **Archive finished runs** to archive a session once its one run has completed, with nothing queued or waiting for you, as long as nobody sent it another message and it isn't pinned.
+Each session is titled with the task's name and the date, and its row in the sidebar has a calendar icon. Its Session Summary names the task that started it. Turn on **Archive finished runs** to archive a session once its one run has completed, with nothing queued or waiting for you, as long as nobody sent it another message and it isn't pinned. It archives only while the task is turned on. Pausing the task leaves its finished sessions in the sidebar.
 
 ## Keep tasks running after a restart
 

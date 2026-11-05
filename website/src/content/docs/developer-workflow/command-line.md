@@ -91,7 +91,7 @@ With the prompt on stdin, here a diff to review:
 git diff | openwaggle run --stdin --title "Review this diff"
 ```
 
-The prompt is the words after `run`, or the value of `--text`, `--stdin`, or `--input-file`. Use one of these, not both. Words after `--` are part of the prompt, which helps when the prompt contains something that looks like an option.
+Give the prompt as words after `run` or with one of `--text`, `--stdin` or `--input-file`, not both. Words after `--` are part of the prompt, which helps when the prompt contains something that looks like an option.
 
 ### Options
 
@@ -108,7 +108,7 @@ The prompt is the words after `run`, or the value of `--text`, `--stdin`, or `--
 | `--model <provider/model>` | Model for the session |
 | `--thinking <level>` | Thinking level the new session starts with |
 | `--authorization ask-for-approval\|yolo` | Agent access for the session. `--yolo` is short for `--authorization yolo` |
-| `--interaction-timeout-ms <ms>` | Stops waiting for an unanswered question after `<ms>` milliseconds. The command then exits with status 7 |
+| `--interaction-timeout-ms <ms>` | Interrupts the run when a question stays unanswered for `<ms>` milliseconds. The command then exits with status 7 |
 | `--jsonl` | Prints the session's Session Host events as versioned records instead of text |
 | `--idempotency-key <key>` | Reusing a key attaches to the run that key first started, instead of starting another |
 | `--profile <name>` | Runs as a named access profile. Goes with `--credential-stdin` or `--profile-credential-file <path>` |
@@ -147,9 +147,9 @@ After a Ctrl-C the session stays saved. Continue it with `openwaggle hive follow
 | `4` | Authorization error |
 | `5` | Not found |
 | `6` | Conflict |
-| `7` | A question was not answered before `--interaction-timeout-ms` ran out |
+| `7` | A question was not answered before `--interaction-timeout-ms` ran out, so OpenWaggle stopped the run |
 | `8` | The Session Host is unavailable, or exited during the run |
-| `130` | The run was interrupted |
+| `130` | The run was interrupted, or a second Ctrl-C stopped the command waiting while the run may still be finishing |
 
 ## status
 

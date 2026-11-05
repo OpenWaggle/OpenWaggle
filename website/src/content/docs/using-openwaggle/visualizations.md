@@ -49,7 +49,7 @@ A visualization made for a wide layout, such as a full app mockup or several cha
 
 ![The same retry chart opened with Expand in a larger dialog, with its close button in the corner](/screenshots/visualization-expanded.png)
 
-To close it, click **Close expanded visualization**, press `Escape`, or click outside it. Visualizations at the normal width have no expand button.
+To close it, click × in the corner, press `Escape`, or click outside it. Visualizations at the normal width have no expand button.
 
 ### Scroll away and come back
 
@@ -67,13 +67,13 @@ A visualization can only ask to send a message right after you click or type in 
 
 Clicking a link in a visualization asks **Open external link?** and shows the address. If you agree, it opens in your browser. Only `http` and `https` links open, and only after you click.
 
-A visualization can offer a file to download, such as a CSV of its data. OpenWaggle asks where to save it. OpenWaggle limits downloads to 5 MB.
+A visualization can offer a file to download, such as a CSV of its data. OpenWaggle asks where to save it. OpenWaggle limits downloads to 5 MiB.
 
 To keep a visualization as a standalone web page, ask the agent to export it. It writes a separate HTML file with the skill's export script, which needs Python 3.
 
 ## Where visualizations are kept
 
-Each visualization is an HTML file. The agent saves it in the session's visualization folder, inside OpenWaggle's app data folder, for example `~/Library/Application Support/openwaggle/visualizations/<session id>/` on macOS. It can also save one inside the session's project folder or worktree. [Data and file locations](/docs/reference/data-locations#what-is-in-the-app-data-folder) shows the app data folder on each platform. OpenWaggle shows only files in those places, with a lowercase, hyphenated name ending in `.html`, such as `retry-delay.html`, and up to 5 MB.
+Each visualization is an HTML file. The agent saves it in the session's visualization folder, inside OpenWaggle's app data folder, for example `~/Library/Application Support/openwaggle/visualizations/<session id>/` on macOS. It can also save one inside the session's project folder or worktree. [Data and file locations](/docs/reference/data-locations#what-is-in-the-app-data-folder) shows the app data folder on each platform. OpenWaggle shows only files in those places, with a lowercase, hyphenated name ending in `.html`, such as `retry-delay.html`, and up to 5 MiB.
 
 When you delete a session, OpenWaggle deletes its visualization folder. A fork or clone of a session still shows the visualizations from the original.
 

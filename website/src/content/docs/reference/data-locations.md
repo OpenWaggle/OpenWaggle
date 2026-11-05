@@ -30,6 +30,7 @@ Set `OPENWAGGLE_USER_DATA_DIR` to use another folder. The desktop app, the Sessi
 | `session-host/` | Also the Session Host's socket, ownership files and access profile credentials |
 | `logs/` | Log files. See [Logs](#logs) |
 | `mcp/` | MCP secrets and sign-ins, encrypted, and the tool catalogs of your MCP servers. Each build keeps its own, because builds encrypt with different keys |
+| `extensions/<extension ID>/` | Global extension packages. See [Build an extension](/docs/extending/openwaggle-extensions) |
 | `visualizations/<session ID>/` | The HTML of each session's inline visualizations |
 | `session-resources/` | Copies of files and images listed in a session's **Sources & outputs** |
 | `browser-preview-artifacts/` | Screenshots, recordings and annotations from the browser preview |
@@ -75,7 +76,7 @@ Pi, the agent engine inside OpenWaggle, keeps its files in `~/.pi/agent/`, or in
 | `waggle-presets.json` | Your Waggle presets |
 | `sessions/` | Pi session files, one folder per working directory |
 
-Session files move to the folder named by `PI_CODING_AGENT_SESSION_DIR`, or by the `sessionDir` setting in Pi's `settings.json`. OpenWaggle stores its new sessions there too, so `pi --resume` finds them. See [Pi runtime](/docs/developer-workflow/pi-runtime).
+Session files move to the folder named by `PI_CODING_AGENT_SESSION_DIR`, or by the `sessionDir` setting in the project's `.pi/settings.json` or Pi's global `settings.json`. OpenWaggle stores its new sessions there too, so `pi --resume` finds them. See [Pi runtime](/docs/developer-workflow/pi-runtime).
 
 ## OpenWaggle home folder
 

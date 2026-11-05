@@ -105,7 +105,7 @@ Hover an icon for details about where the session works:
 
 | Icon | Meaning |
 |------|---------|
-| Crown | The session is a Hive's Queen. The count beside it is its direct workers. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). |
+| Chess queen | The session is a Hive's Queen. The count beside it is its direct workers. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). |
 | Pickaxe | The session is a Hive worker. A count beside it is the workers it started itself. |
 | Branch | The tooltip names the Git branch. |
 | Split | The session works in its own worktree, not in the folder you opened. |

@@ -92,7 +92,7 @@ The body must not be empty. It is the agent's instructions. The full frontmatter
 | `description` | Yes | A summary of up to 500 characters that people and agents read. |
 | `model` | No | A preferred `provider/model`. It cannot unlock a provider you have not set up. |
 | `reasoning` | No | `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. |
-| `tools` | No | The tools the agent may use. Leave it out to keep the normal set. `[]` allows none. |
+| `tools` | No | The tools the agent may use. Leave it out for the normal set, or use `[]` for none. |
 | `skills` | No | The skills the agent may use. Same rules as `tools`. |
 | `mcpServers` | No | The MCP servers the agent may use. Same rules as `tools`. |
 | `sessionCapabilities` | No | The session capability IDs the agent keeps, such as `sessions:read`. [Hive actions and states](/docs/reference/hive) lists the actions each one allows. |
