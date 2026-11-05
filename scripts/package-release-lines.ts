@@ -144,7 +144,13 @@ export async function checkPackageReleaseLines(
   const config = await readJsonAt(options.cwd, options.to, CONFIG_PATH)
   const configuredPackages = config === undefined ? undefined : objectField(config, 'packages')
   if (config === undefined || configuredPackages === undefined) {
-    return { packages: [], skipped: [], violations: [] }
+    // No config means no Release Please packages. A config that exists but cannot be read must not
+    // silently turn the check off.
+    const configExists = await gitSucceeds(options.cwd, ['cat-file', '-e', `${options.to}:${CONFIG_PATH}`])
+    const violations = configExists
+      ? [`Cannot predict package documentation lines: ${CONFIG_PATH} is not valid JSON with a packages object.`]
+      : []
+    return { packages: [], skipped: [], violations }
   }
   const manifest = await readJsonAt(options.cwd, options.to, MANIFEST_PATH)
   const shallow = (await git(options.cwd, ['rev-parse', '--is-shallow-repository'])).trim() === 'true'
@@ -156,7 +162,10 @@ export async function checkPackageReleaseLines(
   const packages: PackageReleaseLineState[] = []
   for (const packagePath of Object.keys(configuredPackages)) {
     const packageConfig = objectField(configuredPackages, packagePath)
-    if (packageConfig === undefined) continue
+    if (packageConfig === undefined) {
+      configProblems.push(`the ${CONFIG_PATH} entry for ${packagePath} is not an object.`)
+      continue
+    }
     const manifestVersion = manifest === undefined ? undefined : stringField(manifest, packagePath)
     const state = await readPackageState(options, packagePath, packageConfig, config, manifestVersion)
     if ('problem' in state) (state.kind === 'config' ? configProblems : historyProblems).push(state.problem)

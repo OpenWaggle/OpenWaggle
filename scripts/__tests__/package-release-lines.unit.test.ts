@@ -122,6 +122,28 @@ describe('package documentation lines from git history', () => {
     })
   })
 
+  it('fails closed when the Release Please config cannot be read', async () => {
+    const { cwd } = await createRepository()
+    await writeAndCommit(cwd, 'release-please-config.json', '{ not json', 'ci: break the config')
+    expect((await checkPackageReleaseLines({ cwd, to: 'HEAD', missingHistory: 'fail' })).violations).toEqual([
+      'Cannot predict package documentation lines: release-please-config.json is not valid JSON with a packages object.',
+    ])
+  })
+
+  it('fails closed when a package entry is not an object', async () => {
+    const { cwd } = await createReleasedRepository()
+    await writeAndCommit(
+      cwd,
+      'release-please-config.json',
+      JSON.stringify({ ...CONFIG, packages: { ...CONFIG.packages, 'packages/broken': 'yes' } }),
+      'ci: add a broken package entry',
+    )
+    const { violations } = await checkPackageReleaseLines({ cwd, to: 'HEAD', missingHistory: 'fail' })
+    expect(violations).toContain(
+      'Cannot predict package documentation lines: the release-please-config.json entry for packages/broken is not an object.',
+    )
+  })
+
   it('runs as part of the Conventional Commit policy', async () => {
     const { baseline, cwd } = await createReleasedRepository()
     await writeAndCommit(cwd, 'packages/waggle-core/src/index.ts', 'export const c = 1\n', 'feat(core): add a helper')
