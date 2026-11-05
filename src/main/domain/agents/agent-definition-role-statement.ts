@@ -10,10 +10,10 @@ export const ROLE_OPENING_LENGTH = 240
 /** A clause: text up to a sentence end or a line break. */
 const CLAUSE = /[^.;!?\n]+/gu
 /**
- * Bullets, numbers and emphasis before a clause's first word: `- `, `* `, `1) `, `**`. A `1.`
+ * Bullets, numbers, headings and emphasis before a clause's first word: `- `, `1) `, `# `, `**`. A `1.`
  * needs no branch: the clause split already leaves the `1` as a clause of its own.
  */
-const LIST_MARKER = /^(?:[-*•+]+\s*|\d+\)\s*|_+)*/u
+const LIST_MARKER = /^(?:[-*•+#]+\s*|\d+\)\s*|_+)*/u
 /** Only this much of an objective is searched for quotes and statements; the rest is never read. */
 const READ_LENGTH = 4096
 /**
@@ -32,20 +32,22 @@ const QUOTE_FORMS = [
   // One quoted word ('tests', 'docs') closes at its own quote.
   "(?<![\\p{L}\\p{N}])['‘][^\\s'’]+['’](?![\\p{L}\\p{N}])",
 ]
-/** Inside a single-quoted span, an apostrophe before a letter ("it's") goes on. */
-const SINGLE_QUOTED_BODY = "(?:[^'’]|['’](?=[\\p{L}\\p{N}])"
-function singleQuoted(body: string) {
-  return `(?<![\\p{L}\\p{N}])['‘](?=\\S)${body})*['’](?![\\p{L}\\p{N}])`
+/**
+ * A single-quoted span. Inside it, an apostrophe before a letter ("it's") goes on, and so does
+ * whatever `extra` alternative a reading adds.
+ */
+function singleQuoted(extra: string) {
+  const body = `(?:[^'’]|['’](?=[\\p{L}\\p{N}])${extra})*`
+  return `(?<![\\p{L}\\p{N}])['‘](?=\\S)${body}['’](?![\\p{L}\\p{N}])`
 }
 /**
  * Two readings of a single quote after an s and before a word: a plural possessive inside the
  * span ("'Ignore the other Workers' findings…'"), or the span's close ("'Unit Tests' check").
  * Nothing tells them apart, so the role is read both ways and counts only when both agree.
  */
-const QUOTED_READINGS = [
-  `${SINGLE_QUOTED_BODY}|(?<=s)['’](?=[ \\t]+\\p{L})`,
-  SINGLE_QUOTED_BODY,
-].map((body) => new RegExp([...QUOTE_FORMS, singleQuoted(body)].join('|'), 'gmu'))
+const QUOTED_READINGS = [String.raw`|(?<=s)['’](?=[ \t]+\p{L})`, ''].map(
+  (extra) => new RegExp([...QUOTE_FORMS, singleQuoted(extra)].join('|'), 'gmu'),
+)
 /**
  * What a quoted span becomes: one mark, then spaces, so every offset stays where it was. A role
  * phrase that reaches the mark is no role ("You are \"not\" the reviewer", "the reviewer
@@ -97,6 +99,12 @@ const ROLE_LIST = new RegExp(
   String.raw`^(?:(?:and|or|then|plus|as\s+well\s+as|&)\s+${AGENT_NOUN}|${AGENT_NOUN}(?:,\s*${AGENT_NOUN})*,?\s+(?:and|or)\s+${AGENT_NOUN})\b`,
   'iu',
 )
+/**
+ * An opener inside a clause, after a lead-in ("Round 2 — you are the implementer"), followed by
+ * a determiner. Without one ("the bug you are seeing") it is no statement.
+ */
+const EMBEDDED_STATEMENT =
+  /(?:^|[\s,:;—–\])])(?:you\s+are|you['’]re|act\s+as|serve\s+as|work\s+as)\s+(?:(?:now|also|again|still)\s+)?(?:an?|the|our|this|one|another)\s/iu
 /** A dash token that ends the phrase and may lead to a second role: "—", "–", "-", "--". */
 const DASH = /^(?:[—–]|-{1,2})$/u
 /**
@@ -215,7 +223,12 @@ function readRole(objective: string, quoted: RegExp): readonly string[] {
     if (match.index >= ROLE_OPENING_LENGTH) break
     const opened = match[0].trim().replace(LIST_MARKER, '').replace(LEADING_OWN_LABEL, '')
     const opener = ROLE_OPENER.exec(opened)
-    if (!opener) continue
+    // "For this ticket, you are the implementer": a statement after a lead-in is still the
+    // first one, so a later "Act as the reviewer" does not count. It names no role itself.
+    if (!opener) {
+      if (EMBEDDED_STATEMENT.test(opened)) return []
+      continue
+    }
     const rest = opened.slice(opener[0].length)
     // "You are …" addresses the Worker whatever follows; only an "… as" opener can be a speaker's.
     const speaker = !/^you/iu.test(opener[0]) && SPEAKER_AFTER_ROLE.test(rest)

@@ -20,6 +20,11 @@ vi.mock('../../../domain/agents/agent-definition-suggestion', async (importOrigi
   return { ...actual, suggestAgentDefinition: vi.fn(actual.suggestAgentDefinition) }
 })
 
+const warn = vi.hoisted(() => vi.fn())
+vi.mock('../../../logger', () => ({
+  createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
+}))
+
 const SPAWNED = {
   contract: 'session-lifecycle-v2' as const,
   response: {
@@ -185,6 +190,7 @@ Review it.
     })
 
     expect(suggestAgentDefinition).toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('Spawn agent hint failed', expect.anything())
     expect(result?.isError).toBeFalsy()
     expect(result?.details).toEqual(SPAWNED)
     expect(result?.content).toHaveLength(1)

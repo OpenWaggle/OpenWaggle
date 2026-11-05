@@ -15,6 +15,7 @@ describe('roleStatement', () => {
       `_You are the reviewer_ for this change.${TASK}`,
       `Branch feat/x against main\nYou are the reviewer.${TASK}`,
       `Role:\nYou are the reviewer.${TASK}`,
+      `# Role: You are the reviewer.${TASK}`,
       `## Your task:\nYou are the reviewer.${TASK}`,
       `**Role:**\nYou are the reviewer.${TASK}`,
       `**Role**:\nYou are the reviewer.${TASK}`,
@@ -51,6 +52,9 @@ describe('roleStatement', () => {
       `You are not the implementer. You are the reviewer.${TASK}`,
       `Act as the reviewer, I found three regressions. You are the reviewer.${TASK}`,
       `You are "the implementer". You are the reviewer.${TASK}`,
+      `For this ticket, you are the implementer. Act as the reviewer of your own diff.${TASK}`,
+      `Fix-up round 2: you are the implementer. Act as the reviewer of your own diff.${TASK}`,
+      `Ticket ABC-12: You are the implementer. You are also the reviewer of your own diff.${TASK}`,
     ]) {
       expect(roleStatement(objective)).toEqual([])
     }

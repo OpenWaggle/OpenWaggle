@@ -145,7 +145,10 @@ async function executeSessionsToolCall(
   // a spawn that succeeded into a tool error, so it can run beside the result.
   const [toolResult, hint] = await Promise.all([
     successfulToolResult(result),
-    spawnAgentHint(params, result, input).catch(() => undefined),
+    spawnAgentHint(params, result, input).catch((error: unknown) => {
+      logger.warn('Spawn agent hint failed', { error: describeError(error) })
+      return undefined
+    }),
   ])
   return hint
     ? { ...toolResult, content: [...toolResult.content, { type: 'text' as const, text: hint }] }
