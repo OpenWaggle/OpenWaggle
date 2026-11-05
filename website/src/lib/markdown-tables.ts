@@ -19,7 +19,8 @@ function visit(node: HastNode) {
       children[index] = {
         type: 'element',
         tagName: 'div',
-        properties: { className: [SCROLLABLE_TABLE_CLASS] },
+        // Focusable so keyboard users can scroll a wide table (axe: scrollable-region-focusable).
+        properties: { className: [SCROLLABLE_TABLE_CLASS], tabIndex: 0 },
         children: [child],
       };
     } else {

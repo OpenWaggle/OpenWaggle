@@ -9,9 +9,9 @@ async function render(markdown: string) {
 }
 
 describe('scrollable doc tables', () => {
-  it('wraps a table in a scroll box', async () => {
+  it('wraps a table in a scroll box that keyboard users can focus', async () => {
     const html = await render('| Action | Meaning |\n| --- | --- |\n| Interrupt | Stop the run. |');
-    expect(html).toMatch(/^<div class="docs-table-scroll">\s*<table>/u);
+    expect(html).toMatch(/^<div class="docs-table-scroll" tabindex="0">\s*<table>/u);
     expect(html.endsWith('</table></div>')).toBe(true);
   });
 
