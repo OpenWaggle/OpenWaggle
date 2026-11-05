@@ -8,6 +8,12 @@ const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 /** The repository's development fixture extension (`fixtures/extensions/`). */
 const FIXTURE_EXTENSION_ID = 'openwaggle-github-issues-overview'
 export const FIXTURE_EXTENSION_NAME = 'GitHub Issues Overview'
+/**
+ * A made-up repository the capture saves in the extension's settings, so the images never show a
+ * real repository or issue numbers of OpenWaggle's own (the fixture's default is OpenWaggle's
+ * repository, for live QA).
+ */
+export const FIXTURE_REPOSITORY = { owner: 'acme', repo: 'desktop-agent' } as const
 /** Every request the fixture makes; the capture answers them with `githubIssuesFixture`. */
 export const GITHUB_API_URL_PATTERN = 'https://api.github.com/**'
 
@@ -54,37 +60,37 @@ interface FixtureIssue {
 /** Six open issues: three `ready-for-agent`, one older than the fixture's 30-day stale limit. */
 const FIXTURE_ISSUES: readonly FixtureIssue[] = [
   {
-    number: 418,
+    number: 2184,
     title: 'Remember the last Settings section per window',
     labels: ['enhancement', 'ready-for-agent'],
     updatedDaysAgo: 1,
   },
   {
-    number: 415,
-    title: 'Show the Worker count in the Hive tab badge',
+    number: 2179,
+    title: 'Show the worker count in the Hive tab badge',
     labels: ['enhancement', 'ready-for-agent'],
     updatedDaysAgo: 2,
   },
   {
-    number: 411,
+    number: 2173,
     title: 'Terminal: keep scrollback when a split is closed',
     labels: ['bug'],
     updatedDaysAgo: 3,
   },
   {
-    number: 407,
+    number: 2166,
     title: 'Docs: add screenshots to the extension guide',
     labels: ['documentation', 'ready-for-agent'],
     updatedDaysAgo: 5,
   },
   {
-    number: 398,
+    number: 2158,
     title: 'Composer: paste images from the clipboard on Linux',
     labels: ['bug', 'needs-info'],
     updatedDaysAgo: 9,
   },
   {
-    number: 376,
+    number: 2131,
     title: 'Browser preview: export a HAR file from the network log',
     labels: ['enhancement'],
     updatedDaysAgo: 41,
@@ -97,7 +103,7 @@ export function githubIssuesFixture(now: number) {
   return FIXTURE_ISSUES.map((issue) => ({
     number: issue.number,
     title: issue.title,
-    html_url: `https://github.com/OpenWaggle/OpenWaggle/issues/${String(issue.number)}`,
+    html_url: `https://github.com/${FIXTURE_REPOSITORY.owner}/${FIXTURE_REPOSITORY.repo}/issues/${String(issue.number)}`,
     updated_at: new Date(today - issue.updatedDaysAgo * DAY_MS).toISOString(),
     labels: issue.labels.map((name) => ({ name })),
   }))

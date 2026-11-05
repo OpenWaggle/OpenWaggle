@@ -9,6 +9,7 @@ import {
 import {
   deleteFixtureExtension,
   FIXTURE_EXTENSION_NAME,
+  FIXTURE_REPOSITORY,
   GITHUB_API_URL_PATTERN,
   githubIssuesFixture,
   installFixtureExtension,
@@ -32,7 +33,7 @@ const PACKAGE_HEADING_LEVEL = 3
 const SAVE_BUTTON_GAP_PX = 6
 /** Text every issue-summary surface of the fixture shows once it has read `githubIssuesFixture`. */
 const SUMMARY_TEXT = '6 open, 3 ready-for-agent, 1 stale'
-const FIRST_ISSUE_TEXT = '#418 Remember the last Settings section per window'
+const FIRST_ISSUE_TEXT = '#2184 Remember the last Settings section per window'
 
 /** The sandboxed frame an extension contribution renders into, inside one host surface. */
 function extensionFrame(surface: Locator, contributionTitle: string) {
@@ -52,6 +53,15 @@ function settingsSave(page: Page) {
   return extensionFrame(settingsContributions(page), 'GitHub Issues Settings').getByRole('button', {
     name: 'Save configuration',
   })
+}
+
+/** Saves the made-up repository in the fixture's settings form, so no surface shows a real one. */
+async function useFixtureRepository(page: Page) {
+  const form = extensionFrame(settingsContributions(page), 'GitHub Issues Settings')
+  await form.getByLabel('Repository owner').fill(FIXTURE_REPOSITORY.owner)
+  await form.getByLabel('Repository name').fill(FIXTURE_REPOSITORY.repo)
+  await settingsSave(page).click()
+  await form.getByText(/^Configuration saved\./).waitFor({ timeout: UI_TIMEOUT_MS })
 }
 
 /** The package's card in Settings > Extensions. */
@@ -220,6 +230,7 @@ export async function captureExtensionSurfaces(context: CaptureContext) {
   const { page } = context
   await withFixtureExtension(page, async () => {
     await loadFixtureExtension(page)
+    await useFixtureRepository(page)
     await backToApp(page)
     const sidePanel = page.getByRole('complementary').filter({ hasText: 'Extension side panel' })
     const transcriptCard = page
