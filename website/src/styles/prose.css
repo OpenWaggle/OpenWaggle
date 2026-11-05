@@ -281,6 +281,11 @@
     justify-content: space-between;
   }
 
+  .prose-docs .ow-docs-component-heading > .ow-extension-badge {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
   .prose-docs .ow-extension-heading,
   .prose-docs .ow-extension-text,
   .prose-docs .ow-extension-muted {
