@@ -2,7 +2,8 @@ import { ZOOMABLE_IMAGE_CLASS } from './markdown-images';
 
 // Opens a docs image link (markdown-images.ts) in the page's modal dialog instead of leaving the
 // page. Without JavaScript, or with a modifier key held, the link opens the image file itself.
-// The native <dialog> keeps focus inside, closes on Escape, and returns focus to the link.
+// The native <dialog> keeps focus inside and closes on Escape. Closing returns focus to the link
+// explicitly: Safari does not focus a link on click, so the browser's own restore can miss it.
 
 export const LIGHTBOX_IDS = {
   dialog: 'docs-image-lightbox',
@@ -34,6 +35,7 @@ export function enhanceDocsImageLightbox(root: Document): (() => void) | null {
   }
 
   const listeners = new AbortController();
+  let opener: HTMLAnchorElement | null = null;
   root.addEventListener('click', (event) => {
     if (event.defaultPrevented || event.button !== PRIMARY_BUTTON) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -41,11 +43,17 @@ export function enhanceDocsImageLightbox(root: Document): (() => void) | null {
     const link = event.target.closest(`a.${ZOOMABLE_IMAGE_CLASS}`);
     if (!(link instanceof HTMLAnchorElement)) return;
     event.preventDefault();
+    opener = link;
     image.src = link.href;
     image.alt = link.querySelector('img')?.alt ?? '';
     original.href = link.href;
     dialog.showModal();
     close.focus();
+  }, { signal: listeners.signal });
+
+  dialog.addEventListener('close', () => {
+    opener?.focus();
+    opener = null;
   }, { signal: listeners.signal });
 
   // A click on the image or the backdrop closes the dialog; the buttons keep their own action.

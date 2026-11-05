@@ -9,6 +9,7 @@ function installDialogBehaviour() {
   };
   HTMLDialogElement.prototype.close = function close() {
     this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
   };
 }
 
@@ -90,6 +91,14 @@ describe('the docs image lightbox', () => {
     click(thumbnail);
     click(element(LIGHTBOX_IDS.image, HTMLImageElement));
     expect(dialog.open).toBe(false);
+  });
+
+  it('returns focus to the image link when the dialog closes', () => {
+    const link = thumbnail.closest('a');
+    click(thumbnail);
+    expect(document.activeElement).not.toBe(link);
+    dialog.close();
+    expect(document.activeElement).toBe(link);
   });
 
   it('leaves every link a plain link when the browser has no modal dialog', () => {
