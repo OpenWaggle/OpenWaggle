@@ -25,7 +25,7 @@ Don't edit files yet.
 
 Around the message box you'll find, from left to right:
 
-- **Current checkout** or **New worktree**, which sets where the session works until its first message. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
+- **Current checkout** or **New worktree**, which sets where the session works. You can change it until you send the first message. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
 - The branch the session runs on. With **New worktree**, it is the branch the new worktree starts from. See [Choose the run target](/docs/developer-workflow/git-integration#choose-the-run-target).
 - **+**, to attach files, reference a project file, use a skill, start a Waggle preset, or turn MCP servers off for this session. See [Attachments and voice input](/docs/using-openwaggle/attachments-voice).
 - The access mode, such as **Ask for approval**, which decides whether protected actions ask you first. See [Approvals and permissions](/docs/configuration/approvals-permissions).
