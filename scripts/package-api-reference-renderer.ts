@@ -170,8 +170,8 @@ const PACKAGE_MODULE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<strin
     './ui': 'Framework-neutral class names, attributes, and stylesheet generation.',
   },
   '@openwaggle/extension-react': {
-    '.': 'React primitives and props for host-aligned extension surfaces.',
-    './styles.css': 'Default host-aligned stylesheet for the React primitives.',
+    '.': 'React components and props for host-aligned extension surfaces.',
+    './styles.css': 'Default host-aligned stylesheet for the React components.',
   },
   '@openwaggle/waggle-core': {
     '.': 'Convenience entry point for the complete runtime-neutral Waggle policy API.',

@@ -1,12 +1,12 @@
 ---
 title: "Extension React component catalogue"
-description: "Visual reference for every @openwaggle/extension-react 0.1 primitive, variant, tone, and form state."
+description: "Visual reference for every @openwaggle/extension-react 0.1 component, variant, tone, and form state."
 order: 2
 section: "Packages"
 kind: "reference"
 ---
 
-This catalogue renders the same class names, attributes, and stylesheet shipped by `@openwaggle/extension-react`. The examples are interactive HTML equivalents of the React primitives so you can inspect focus, disabled, validation, and control states directly.
+This catalogue renders the same class names, attributes, and stylesheet shipped by `@openwaggle/extension-react`. The examples are interactive HTML equivalents of the React components so you can inspect focus, disabled, validation, and control states directly.
 
 ```tsx
 import '@openwaggle/extension-react/styles.css'

@@ -72,7 +72,7 @@ export const packageDocumentationDefinitions = [
   },
   {
     apiDescription:
-      'React primitives, component props, tones, variants, and host-aligned extension UI contracts.',
+      'React components, component props, tones, variants, and host-aligned extension UI contracts.',
     description:
       'React UI primitives for OpenWaggle extensions that follow the host extension theme contract.',
     installPackages:

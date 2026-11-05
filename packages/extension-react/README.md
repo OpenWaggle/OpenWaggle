@@ -9,7 +9,7 @@ React UI primitives for OpenWaggle extensions that follow the host extension the
 
 [Full documentation](https://openwaggle.ai/docs/packages/extension-react/0.1/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
-`@openwaggle/extension-react` provides small React primitives for OpenWaggle extension surfaces.
+`@openwaggle/extension-react` provides small React components for OpenWaggle extension surfaces.
 
 Use it when an extension contribution is implemented in React and should match the OpenWaggle extension theme contract. It is optional. Non-React extensions can use `@openwaggle/extension-sdk` UI helpers directly.
 
@@ -49,7 +49,7 @@ import '@openwaggle/extension-react/styles.css'
 
 ## Components
 
-The package exports primitives for common extension settings, forms, status, and surface layout:
+The package exports components for common extension settings, forms, status, and surface layout:
 
 ```tsx
 import {
@@ -66,9 +66,9 @@ import {
 } from '@openwaggle/extension-react'
 ```
 
-These primitives use extension SDK class names and data attributes. They are not OpenWaggle app renderer components and they do not import the app's Tailwind or renderer CSS.
+These components use extension SDK class names and data attributes. They are not OpenWaggle app renderer components and they do not import the app's Tailwind or renderer CSS.
 
-Explore every primitive, tone, variant, form state, and accessibility contract in the [visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.1/components/).
+Explore every component, tone, variant, form state, and accessibility contract in the [visual component catalogue](https://openwaggle.ai/docs/packages/extension-react/0.1/components/).
 
 ## React mount example
 
@@ -112,13 +112,13 @@ const module: OpenWaggleFederatedModule = {
 export const mount = module.mount
 ```
 
-Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persistence and OpenWaggle capability calls. The React package only supplies UI primitives.
+Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persistence and OpenWaggle capability calls. The React package only supplies UI components.
 
 ## When not to use it
 
 Do not use `@openwaggle/extension-react` if your extension uses plain DOM, Vue, Preact, Svelte, or another renderer. The federated-module contract is framework-neutral, so those extensions can use `@openwaggle/extension-sdk` types, theme helpers, and UI stylesheet helpers directly.
 
-Do not import OpenWaggle renderer components to fill gaps. If a primitive is missing, build a scoped extension-owned component on top of the extension UI style contract.
+Do not import OpenWaggle renderer components to fill gaps. If a component is missing, build a scoped extension-owned component on top of the extension UI style contract.
 
 ## Compatibility
 

@@ -1,11 +1,11 @@
 ---
 title: "Extension React Components"
-description: "Visual and behavioral catalogue for the OpenWaggle React extension primitives."
+description: "Visual and behavioral catalogue for the OpenWaggle React extension components."
 order: 2
 section: "Extension React"
 ---
 
-Import the package stylesheet and render the primitives beneath the host-provided `.ow-extension-root` element.
+Import the package stylesheet and render the components beneath the host-provided `.ow-extension-root` element.
 
 ```ts
 import '@openwaggle/extension-react/styles.css'
@@ -13,7 +13,7 @@ import '@openwaggle/extension-react/styles.css'
 
 ## Layout
 
-`Panel` provides the themed surface. `Stack` lays out children vertically and accepts an optional `gap`. Use ordinary extension-owned markup for layouts that do not need a package primitive.
+`Panel` provides the themed surface. `Stack` lays out children vertically and accepts an optional `gap`. Use ordinary extension-owned markup for layouts that do not need a package component.
 
 ```tsx
 <Panel>
@@ -70,7 +70,7 @@ Keep labels visible, preserve keyboard interaction, and use native disabled and 
 />
 ```
 
-The primitive begins with safe Plain Text, then applies the latest host result. It ignores an obsolete async result after source changes. The host owns theme selection, language aliases, scheduling, caching, input limits, and fallback diagnostics; the extension never receives highlighted HTML.
+The component begins with safe Plain Text, then applies the latest host result. It ignores an obsolete async result after source changes. The host owns theme selection, language aliases, scheduling, caching, input limits, and fallback diagnostics; the extension never receives highlighted HTML.
 
 ## Theme Contract
 
