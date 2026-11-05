@@ -132,7 +132,7 @@ export async function seedEssentialsSessions(userDataDir: string, project: Essen
       title: TOOL_ROWS_SESSION_TITLE,
       projectPath: project.projectPath,
       updatedAt: now - TOOL_ROWS_UPDATED_MS,
-      messages: toolRowsMessages(now),
+      messages: toolRowsMessages(now, project.projectPath),
     },
     [
       {
@@ -150,7 +150,11 @@ export async function seedEssentialsSessions(userDataDir: string, project: Essen
   try {
     database.exec('PRAGMA foreign_keys = ON')
     database.transaction(() => {
-      updateNodeParts(database, TOOL_ROWS_ASSISTANT_ID, toolRowsAssistantParts(workerSessionId))
+      updateNodeParts(
+        database,
+        TOOL_ROWS_ASSISTANT_ID,
+        toolRowsAssistantParts(workerSessionId, project.projectPath),
+      )
       addAlternateBranch(database, hive.queenSessionId, now)
     })()
   } finally {

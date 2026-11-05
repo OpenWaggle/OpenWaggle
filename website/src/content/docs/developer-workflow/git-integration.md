@@ -220,7 +220,7 @@ Click **Open commit dialog** in the header. Hover the icon to see its label.
 4. Choose **Amend last commit** only if you intend to replace the previous commit rather than create a new one.
 5. Use **Refresh** if files changed while the dialog was open. This also refreshes the header's diff stats.
 
-![The Commit changes dialog: 1/1 files selected with +8 / -1, a commit message typed in, Amend last commit unchecked, src/upload/retry.ts checked, and Cancel and Commit](/screenshots/commit-dialog.png)
+![The Commit changes dialog: 1/1 files selected with +7 / -0, a commit message typed in, Amend last commit unchecked, src/upload/retry.ts checked, and Cancel and Commit](/screenshots/commit-dialog.png)
 
 On success a toast confirms the commit and the diff stats refresh. In New-worktree mode the commit lands in the session's worktree, leaving the opened checkout untouched.
 

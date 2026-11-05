@@ -74,7 +74,8 @@ const SCRIPT_FILES: Readonly<Record<string, string>> = {
   ].join('\n'),
 }
 
-const RETRY_SOURCE = [
+/** The committed `src/upload/retry.ts`: it retries every response that is not ok, 4xx included. */
+export const RETRY_SOURCE = [
   "import { sleep } from '../util/sleep'",
   '',
   'export interface RetryOptions {',
@@ -91,7 +92,7 @@ const RETRY_SOURCE = [
   '  for (let attempt = 0; attempt < options.attempts; attempt += 1) {',
   '    try {',
   '      const response = await upload()',
-  '      if (response.status < 500) return response',
+  '      if (response.ok) return response',
   '      lastError = new Error(`Upload failed with ${response.status}`)',
   '    } catch (error) {',
   '      lastError = error',
@@ -103,9 +104,12 @@ const RETRY_SOURCE = [
   '',
 ].join('\n')
 
-/** The uncommitted change the Changes panel and its review comment show. */
+/**
+ * The uncommitted change the Changes panel and its review comment show: the base retries every
+ * failed response, and the change returns client errors at once, except 408 and 429.
+ */
 const RETRY_SOURCE_CHANGED = RETRY_SOURCE.replace(
-  '      if (response.status < 500) return response\n',
+  '      if (response.ok) return response\n',
   '      if (response.ok) return response\n      if (!isRetryable(response.status)) return response\n',
 ).replace(
   "import { sleep } from '../util/sleep'\n",

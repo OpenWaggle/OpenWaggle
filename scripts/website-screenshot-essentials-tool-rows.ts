@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 
 /** The seeded Queen's one finished turn: each kind of tool row the docs describe. */
@@ -13,7 +14,8 @@ const READ_DURATION_MS = 12
 const EDIT_DURATION_MS = 31
 const LOGS_DURATION_MS = 2_260
 const SPAWN_DURATION_MS = 420
-const RETRY_CHANGE_LINE = 17
+/** The new line 18 adds the 4xx early return after line 17's `response.ok` check. */
+const RETRY_CHANGE_LINE = 18
 
 const TEST_OUTPUT = [
   ' RUN  v3.2.4 jotter',
@@ -24,27 +26,40 @@ const TEST_OUTPUT = [
   '      Tests  6 passed (6)',
 ].join('\n')
 
+// Pi's edit output for adding the 4xx early return: `generateUnifiedPatch` and
+// `generateDiffString` from its edit-diff module, both with 4 lines of context.
+const RETRY_CONTEXT_BEFORE = [
+  '  for (let attempt = 0; attempt < options.attempts; attempt += 1) {',
+  '    try {',
+  '      const response = await upload()',
+  '      if (response.ok) return response',
+]
+const RETRY_ADDED_LINE = '      if (response.status < 500) return response'
+const RETRY_CONTEXT_AFTER = [
+  '      lastError = new Error(`Upload failed with ${response.status}`)',
+  '    } catch (error) {',
+  '      lastError = error',
+  '    }',
+]
+const RETRY_HUNK_START = RETRY_CHANGE_LINE - RETRY_CONTEXT_BEFORE.length
+const RETRY_HUNK_OLD_LINES = RETRY_CONTEXT_BEFORE.length + RETRY_CONTEXT_AFTER.length
+
 const RETRY_PATCH = [
-  '--- a/src/upload/retry.ts',
-  '+++ b/src/upload/retry.ts',
-  `@@ -${String(RETRY_CHANGE_LINE - 2)},5 +${String(RETRY_CHANGE_LINE - 2)},6 @@`,
-  '     try {',
-  '       const response = await upload()',
-  '-      if (response.status < 500) return response',
-  '+      if (response.ok) return response',
-  '+      if (response.status < 500) return response',
-  '       lastError = new Error(`Upload failed with ${response.status}`)',
-  '     } catch (error) {',
+  '--- src/upload/retry.ts',
+  '+++ src/upload/retry.ts',
+  `@@ -${String(RETRY_HUNK_START)},${String(RETRY_HUNK_OLD_LINES)} +${String(RETRY_HUNK_START)},${String(RETRY_HUNK_OLD_LINES + 1)} @@`,
+  ...RETRY_CONTEXT_BEFORE.map((line) => ` ${line}`),
+  `+${RETRY_ADDED_LINE}`,
+  ...RETRY_CONTEXT_AFTER.map((line) => ` ${line}`),
   '',
 ].join('\n')
 
 const RETRY_DISPLAY_DIFF = [
-  `  ${String(RETRY_CHANGE_LINE - 2)}     try {`,
-  `  ${String(RETRY_CHANGE_LINE - 1)}       const response = await upload()`,
-  `-${String(RETRY_CHANGE_LINE)}       if (response.status < 500) return response`,
-  `+${String(RETRY_CHANGE_LINE)}       if (response.ok) return response`,
-  `+${String(RETRY_CHANGE_LINE + 1)}       if (response.status < 500) return response`,
-  `  ${String(RETRY_CHANGE_LINE + 2)}       lastError = new Error(\`Upload failed with \${response.status}\`)`,
+  '    ...',
+  ...RETRY_CONTEXT_BEFORE.map((line, index) => ` ${String(RETRY_HUNK_START + index)} ${line}`),
+  `+${String(RETRY_CHANGE_LINE)} ${RETRY_ADDED_LINE}`,
+  ...RETRY_CONTEXT_AFTER.map((line, index) => ` ${String(RETRY_CHANGE_LINE + index)} ${line}`),
+  '    ...',
 ].join('\n')
 
 const LOG_SUMMARY = [
@@ -89,7 +104,7 @@ function toolParts(step: ToolStep) {
  * command, a failed read, an edit with its diff, an MCP tool, and a Worker spawn with **Open**
  * (its result names the Worker, which only exists once the Hive is seeded).
  */
-export function toolRowsAssistantParts(workerSessionId: string) {
+export function toolRowsAssistantParts(workerSessionId: string, projectPath: string) {
   const steps: readonly ToolStep[] = [
     {
       id: 'website-essentials-test',
@@ -102,7 +117,10 @@ export function toolRowsAssistantParts(workerSessionId: string) {
       id: 'website-essentials-read',
       name: 'read',
       args: { path: 'src/upload/policy.ts' },
-      result: textResult("ENOENT: no such file or directory, access 'src/upload/policy.ts'"),
+      // Pi reports the absolute path it resolved against the Session's working directory.
+      result: textResult(
+        `ENOENT: no such file or directory, access '${path.join(projectPath, 'src/upload/policy.ts')}'`,
+      ),
       isError: true,
       duration: READ_DURATION_MS,
     },
@@ -113,14 +131,13 @@ export function toolRowsAssistantParts(workerSessionId: string) {
         path: 'src/upload/retry.ts',
         edits: [
           {
-            oldText: '      if (response.status < 500) return response',
-            newText:
-              '      if (response.ok) return response\n      if (response.status < 500) return response',
+            oldText: '      if (response.ok) return response',
+            newText: `      if (response.ok) return response\n${RETRY_ADDED_LINE}`,
           },
         ],
       },
       result: {
-        ...textResult('Successfully replaced 1 block in src/upload/retry.ts.'),
+        ...textResult('Successfully replaced 1 block(s) in src/upload/retry.ts.'),
         details: {
           diff: RETRY_DISPLAY_DIFF,
           patch: RETRY_PATCH,
@@ -164,7 +181,7 @@ export function toolRowsAssistantParts(workerSessionId: string) {
   ]
 }
 
-export function toolRowsMessages(now: number) {
+export function toolRowsMessages(now: number, projectPath: string) {
   return [
     {
       id: 'website-essentials-tools-user',
@@ -182,7 +199,7 @@ export function toolRowsMessages(now: number) {
       role: 'assistant',
       model: 'gpt-5.4',
       createdAt: now - TOOL_ROWS_UPDATED_MS,
-      parts: toolRowsAssistantParts(''),
+      parts: toolRowsAssistantParts('', projectPath),
     },
   ]
 }
