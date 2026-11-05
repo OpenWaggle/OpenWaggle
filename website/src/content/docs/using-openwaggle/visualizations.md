@@ -15,7 +15,7 @@ Describe what you want to see. For example:
 Show me how the retry delay grows with each attempt for the current backoff settings, with a slider for the base delay.
 ```
 
-To make sure the agent uses the skill, type `/visualize` in the message box and choose **Visualize** from the menu, or choose **Visualize** under **Skills** in the command palette. It shows as a chip on your message. The agent may also draw one on its own when a picture explains the answer better.
+To make sure the agent uses the skill, type `/visualize` in the message box and choose **Visualize** from the menu. It shows as a chip on your message. The agent may also draw one on its own when a picture explains the answer better.
 
 The visualization appears in the reply, where the agent put it:
 
@@ -55,19 +55,19 @@ To close it, click **Close expanded visualization**, press `Escape`, or click ou
 
 To keep the app fast, OpenWaggle unloads a visualization when you scroll more than 400 pixels past it, and loads it again when you come back. If the visualization reports its state, it comes back the way you left it while the app stays open.
 
-Once you click into a visualization, OpenWaggle pins it: it stays loaded when you scroll away, so nothing you did in it resets. The 3 visualizations you used most recently stay pinned; an older one unpins when you use a fourth.
+Once you click into a visualization, OpenWaggle pins it. It stays loaded when you scroll away, so nothing you did in it resets. The 3 visualizations you used most recently stay pinned, and an older one unpins when you use a fourth.
 
 ## Let a visualization send a message
 
 Some visualizations have a button that asks the agent about what you selected, such as "Explain this spike". When you click it, OpenWaggle shows the message in a dialog before anything is sent. The dialog's title is the visualization's own wording, or **Send follow-up message?**. Choose to send it, and the message goes to the session as if you had typed it, with the visualization's state. If the agent is busy, it waits in the queue as a follow-up.
 
-A visualization can only ask to send a message right after you click or type in it, and only one at a time. A message longer than 50,000 characters is refused.
+A visualization can only ask to send a message right after you click or type in it, and only one at a time. OpenWaggle refuses a message longer than 50,000 characters.
 
 ## Open links and save files
 
 Clicking a link in a visualization asks **Open external link?** and shows the address. If you agree, it opens in your browser. Only `http` and `https` links open, and only after you click.
 
-A visualization can offer a file to download, such as a CSV of its data. OpenWaggle asks where to save it. Downloads are limited to 5 MB.
+A visualization can offer a file to download, such as a CSV of its data. OpenWaggle asks where to save it. OpenWaggle limits downloads to 5 MB.
 
 To keep a visualization as a standalone web page, ask the agent to export it. It writes a separate HTML file with the skill's export script, which needs Python 3.
 
@@ -83,7 +83,7 @@ The skill itself lives in Pi's agent folder, in `~/.pi/agent/openwaggle-built-in
 
 A visualization runs in a sandboxed frame, in a process of its own, apart from the app. It can't read your files, your sessions or the rest of the app, and it can't open other pages.
 
-It can't make network requests of its own, such as `fetch` or WebSocket calls. Its code may load scripts, styles, fonts, images and media only from these sites, and everything else is blocked:
+It can't make network requests of its own, such as `fetch` or WebSocket calls. Its code may load scripts, styles, fonts, images and media only from these sites, and OpenWaggle blocks everything else:
 
 - `cdnjs.cloudflare.com`
 - `cdn.jsdelivr.net`

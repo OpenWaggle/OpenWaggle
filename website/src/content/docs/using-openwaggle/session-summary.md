@@ -7,7 +7,7 @@ kind: "guide"
 aliases: "session hub, hub, session resources"
 ---
 
-The Session Summary is a panel that floats over the right side of a conversation. It shows where the session works, its Git branch and changes, its project actions and scheduled tasks, its Hive, and the files, links and images that went into the conversation or came out of it. Use it to find something from the session without scrolling back through every message, or to commit and open a pull request from the session's own checkout. In OpenWaggle's code and design documents it is called the Session Hub; the app calls it the Session Summary.
+The Session Summary is a panel that floats over the right side of a conversation. It shows where the session works, its Git branch and changes, its project actions and scheduled tasks, its Hive, and the files, links and images that went into the conversation or came out of it. Use it to find something from the session without scrolling back through every message, or to commit and open a pull request from the session's own checkout. In OpenWaggle's code and design documents it is called the Session Hub, and the app calls it the Session Summary.
 
 ![The Session Summary card of a Queen session, with Environment, two scheduled heartbeats, the Hive row, Outputs and Sources](/screenshots/session-summary.png)
 
@@ -17,7 +17,7 @@ Click **Open Session Summary** in the header, or run **Toggle Session Summary** 
 
 The Summary appears once a session has something to show. For an ordinary session that means you have sent its first message. A session in a [Hive](/docs/using-openwaggle/hives-and-sessions), a session with project action or workspace setup activity, and a session with a scheduled Heartbeat show it before that.
 
-It opens by itself when the window has room for it beside the message box, unless you hid it for that session. OpenWaggle remembers, for each session, whether you left the Summary open and which of its sections you expanded. In a narrow window it does not open by itself. Opening it there is temporary: press `Escape` or click outside it to dismiss it, and your choice for wide windows stays as it was. Resizing the window does not clear your message draft, its command chips, or interactive visualizations.
+It opens by itself when the window has room for it beside the message box, unless you hid it for that session. OpenWaggle remembers, for each session, whether you left the Summary open and which of its sections you expanded. In a narrow window it does not open by itself. Opening it there is temporary. Press `Escape` or click outside it to dismiss it, and your choice for wide windows stays as it was. Resizing the window does not clear your message draft, its command chips, or interactive visualizations.
 
 A few things take the Summary's place:
 
@@ -29,7 +29,7 @@ Before a session's first message, opening the diff or a file inspector hides the
 
 ## What each section shows
 
-Sections appear only when they have something to show, in this order. **Sources** is the exception: it is always there, so you can add a source to an empty session.
+Sections appear only when they have something to show, in this order. **Sources** is the exception. It is always there, so you can add a source to an empty session.
 
 | Section | What it shows |
 | --- | --- |
@@ -51,8 +51,8 @@ The Summary does not show agent access or context usage. Those stay beside the m
 
 Read **Environment** before you run Git commands yourself. It names the checkout the session uses, so you know which files the agent changes.
 
-- **Changes** shows the added and removed line counts. Click it to open the [diff panel](/docs/developer-workflow/git-integration).
-- The next row reads **Local** for a session in your current checkout or **Worktree** for a session with its own worktree. Click it to see the working path. The choice is fixed after the first message; start a new session to work elsewhere.
+- **Changes** shows the added and removed line counts. Click it to open the [diff panel](/docs/developer-workflow/git-integration#open-the-diff-panel).
+- The next row reads **Local** for a session in your current checkout or **Worktree** for a session with its own worktree. Click it to see the working directory. The message box doesn't let you change it after the first message. An agent or the CLI can still move a session with `handoff`.
 - The branch row opens a branch picker. Type in **Search branches** to find a local or remote branch and check it out, choose **Create** followed by the name you typed to make a new branch, or choose **Copy branch name**. Checking out a branch changes the files of every session that shares this checkout.
 - **Commit or push** opens the commit and push panel, described next.
 - The **+** at the top of the section has **Toggle terminal**, **Open working folder** and **Copy working path**.
@@ -92,7 +92,7 @@ A Heartbeat whose last wake check found no work shows **Nothing to do**. See [Sc
 
 ## Follow a Hive
 
-For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled), for example `3 direct Workers · 1 needs you · 2 waiting for Queen`. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** is shown in the attention colour.
+For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled), for example `3 direct Workers · 1 needs you · 2 waiting for Queen`. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
 
 A worker waiting for this session may have a result to review, a failed run, or a question. That is for this session's agent to handle, not you. In a Hive with more than 50 direct workers, a count followed by `+` covers only the workers loaded so far.
 
@@ -155,19 +155,19 @@ Click an image in a message to page through that message's images. Open an image
 
 In the viewer you can:
 
-- go to the previous or next image with the buttons or `ArrowLeft` and `ArrowRight`, wrapping around at the ends;
-- fit the image to the window, or zoom to 25, 50, 100, 150 or 200 percent with the zoom buttons, `Cmd` or `Ctrl` with the mouse wheel, or a trackpad pinch;
-- drag to pan;
-- copy the image, add it to your message draft, or download it, once it has loaded;
-- open or reveal the original file when it is still on disk;
-- see whether it is a source or an output, and on which branch;
-- press `Escape` to close.
+- Go to the previous or next image with the buttons or `ArrowLeft` and `ArrowRight`. It wraps around at the ends.
+- Fit the image to the window, or zoom to 25, 50, 100, 150 or 200 percent with the zoom buttons, `Cmd` or `Ctrl` with the mouse wheel, or a trackpad pinch.
+- Drag to pan.
+- Copy the image, add it to your message draft, or download it, once it has loaded.
+- Open or reveal the original file when it is still on disk.
+- See whether it is a source or an output, and on which branch.
+- Press `Escape` to close.
 
 Adding an image to the draft makes it an attachment, with the same size limits as the file picker. If the image cannot load or decode, choose **Retry image**. The viewer closes when you switch sessions, and an action still in progress cannot add the image to another session's draft.
 
 ### Images in the agent's replies
 
-When the agent's reply shows a local PNG, JPEG, GIF or WebP image through a `file:` link, OpenWaggle can copy it into the session's outputs. The file must be inside the session's working directory or a temporary evidence folder, such as `electron-qa-evidence` or `openwaggle-evidence` under the system temporary directory. OpenWaggle checks the file and keeps its own copy, so deleting the temporary original later does not remove the image. Images at other local paths are not copied. Older messages can still pick up their images while the originals exist; otherwise the item stays unavailable and you can retry it.
+When the agent's reply shows a local PNG, JPEG, GIF or WebP image through a `file:` link, OpenWaggle can copy it into the session's outputs. The file must be inside the session's working directory or a temporary evidence folder, such as `electron-qa-evidence` or `openwaggle-evidence` under the system temporary directory. OpenWaggle checks the file and keeps its own copy, so deleting the temporary original later does not remove the image. OpenWaggle does not copy images at other local paths. Older messages can still pick up their images while the originals exist. Otherwise the item stays unavailable and you can retry it.
 
 OpenWaggle does not download a remote image just because a message or a resource list mentions it. Opening it in the viewer downloads it over HTTPS, with checks on redirects, size, content type and local network addresses, and saves a copy for the session. If the download fails, the viewer shows an error. It does not open the address in your browser instead.
 
@@ -175,7 +175,7 @@ OpenWaggle does not download a remote image just because a message or a resource
 
 Every item belongs to one session, including items from that session's other branches. A Queen and its workers each have their own list. Archiving a session keeps its items. Deleting a session for good removes its list and the files OpenWaggle saved for it.
 
-OpenWaggle will not delete a Queen that still has direct workers, even completed or archived ones; delete the workers first. Stop an active worker before deleting it. When something blocks a deletion, OpenWaggle leaves the session as it is and tells you what to do.
+OpenWaggle will not delete a Queen that still has direct workers, even completed or archived ones. Delete the workers first. Stop an active worker before deleting it. When something blocks a deletion, OpenWaggle leaves the session as it is and tells you what to do.
 
 Removing a project checks the whole Hive first, then deletes from the workers up to their Queen. Active work, a missing worker, or a broken parent link stops the removal before anything is deleted. If the session list changed while the confirmation was open, check it and confirm again. If a deletion fails partway, OpenWaggle stops deleting and refreshes the sidebar, and the project stays in it.
 
@@ -183,9 +183,9 @@ Older sessions fill in their lists in batches in the background. You can use the
 
 ## If something is missing
 
-- No Summary at all: send the session's first message, or close the right sidebar and click **Open Session Summary**. Running a project action also needs a session that already exists.
-- No pull request row, or a disabled one: the remote must be on GitHub or GitLab, with `gh` or `glab` signed in to that host. **Settings > Connections > Source control** shows which provider OpenWaggle chose for the host and why. On a detached `HEAD`, create or check out a branch first. A new branch needs at least one commit, or local changes selected under **Commit and push local changes**, before you can open a request.
-- A pull request exists but is missing from **Outputs**: use **Retry adding PR to Outputs** in the creation panel when it offers it.
-- A changed file is missing from **Outputs**: check **Environment > Changes**. Only files the session recorded appear as outputs.
-- A link is missing from **Sources**: a URL in ordinary text is not recorded.
-- A section shows an error: use its **Retry**. For an image, use **Retry image** in the viewer.
+- If there is no Summary at all, send the session's first message, or close the right sidebar and click **Open Session Summary**. Running a project action also needs a session that already exists.
+- If there is no pull request row, or a disabled one, the remote must be on GitHub or GitLab, with `gh` or `glab` signed in to that host. **Settings > Connections > Source control** shows which provider OpenWaggle chose for the host and why. On a detached `HEAD`, create or check out a branch first. A new branch needs at least one commit, or local changes selected under **Commit and push local changes**, before you can open a request.
+- If a pull request exists but is missing from **Outputs**, use **Retry adding PR to Outputs** in the creation panel when it offers it.
+- If a changed file is missing from **Outputs**, check **Environment > Changes**. Only files the session recorded appear as outputs.
+- If a link is missing from **Sources**, it may have been a URL in ordinary text, which the session does not record.
+- If a section shows an error, use its **Retry**. For an image, use **Retry image** in the viewer.

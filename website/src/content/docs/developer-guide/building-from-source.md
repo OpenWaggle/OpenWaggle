@@ -44,7 +44,7 @@ A development build is a Dev build with its own app data folder, named after you
 pnpm dev:debug
 ```
 
-`pnpm dev:debug` runs the app in a hidden window for automated Electron QA, without getting in your way. It uses a temporary profile with its own home folder and Pi agent folder, a mock keychain, and the Chrome DevTools Protocol on port 9223. It starts none of the MCP servers in the project's MCP files, and it stops the app's Session Host when it stops. Follow `.agents/skills/electron-qa/SKILL.md` when you use it. Agents must not run the visible debug command, `pnpm dev:debug:headed`, unless the maintainer approves that exact run.
+`pnpm dev:debug` runs the app in a hidden window for automated Electron QA. The window never appears or takes focus. It uses a temporary profile with its own home folder and Pi agent folder, a mock keychain, and the Chrome DevTools Protocol on port 9223. It starts none of the MCP servers in the project's MCP files, and it stops the app's Session Host when it stops. Follow `.agents/skills/electron-qa/SKILL.md` when you use it. Agents must not run the visible debug command, `pnpm dev:debug:headed`, unless the maintainer approves that exact run.
 
 ## Build the app
 

@@ -25,7 +25,7 @@ A run is the agent working on one of your messages. In a run, the model replies,
 
 A session has at most one run at a time. If you send a message while the agent works, it waits in the queue as a follow-up and starts its own run when the current one ends. If the message should change what the agent is doing now, choose **Steer** instead. The agent reads it in the current run, at its next step, without stopping a tool that is already running. [Conversations and tools](/docs/using-openwaggle/chat-and-tools#send-a-message-while-the-agent-works) shows both.
 
-A session can also start other sessions to help it. A session that does this becomes a Hive's Queen, and the sessions it starts are its workers. Each worker is an ordinary session with its own conversation, and the Queen reviews what they hand back. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). [Waggle mode](/docs/using-openwaggle/waggle-mode) is different: two agents take turns in the same session.
+A session can also start other sessions to help it. A session that does this becomes a Hive's Queen, and the sessions it starts are its workers. Each worker is an ordinary session with its own conversation, and the Queen reviews what they hand back. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions). [Waggle mode](/docs/using-openwaggle/waggle-mode) is different. Two agents take turns in the same session.
 
 ## The Session Host
 
@@ -61,7 +61,7 @@ OpenWaggle reads your Pi setup in `~/.pi/agent`, so a model you set up for `pi` 
 
 By default a session works in the folder you opened, its current checkout. Several sessions can share that folder, and their edits land in the same files.
 
-To keep a session's changes apart, start it in a new worktree. OpenWaggle creates a Git worktree, a second checkout of the same repository on its own branch, under `~/.openwaggle/worktrees/`. The session's agent works there, and your folder stays as it was. You choose this before the session's first message, and you can't change it afterwards. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
+To keep a session's changes apart, start it in a new worktree. OpenWaggle creates a Git worktree, a second checkout of the same repository on its own branch, under `~/.openwaggle/worktrees/`. The session's agent works there, and your folder stays as it was. You choose this before the session's first message. The message box doesn't let you change it after the first message. An agent or the CLI can still move a session with `handoff`. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
 
 ## Where your data lives
 

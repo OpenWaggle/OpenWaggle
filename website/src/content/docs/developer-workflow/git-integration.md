@@ -6,7 +6,7 @@ section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-The agent edits files on disk as it works. The diff panel shows you what changed, so you can review the edits, send corrections, and commit or push when you are happy. Opening the diff does not approve or apply anything: the edits are already in your files.
+The agent edits files on disk as it works. The diff panel shows you what changed, so you can review the edits, send corrections, and commit or push when you are happy. Opening the diff does not approve or apply anything. The edits are already in your files.
 
 For a first review:
 
@@ -24,7 +24,7 @@ The header shows the session's uncommitted changes as a green `+N` for added lin
 
 The numbers refresh when you switch projects or sessions, when a commit finishes, shortly after the agent finishes a turn, when the window gets focus back, when another window changes the same checkout, and when you click **Refresh** in the commit dialog. The diff panel's own **Refresh diff** button reloads only the diff, not the header numbers.
 
-Each session in the sidebar has its own Git indicator. It shows commits ahead of and behind the upstream branch, such as `↑2` and `↓1`; hover the branch icon for the branch name. The sidebar does not count uncommitted files. Use the diff panel for those.
+Each session in the sidebar has its own Git indicator. It shows commits ahead of and behind the upstream branch, such as `↑2` and `↓1`. Hover over the branch icon for the branch name. The sidebar does not count uncommitted files. Use the diff panel for those.
 
 After the first message, **Changes** in the [Session Summary](/docs/using-openwaggle/session-summary) opens the same diff, next to the branch and the commit, push and pull request actions.
 
@@ -70,7 +70,7 @@ The **Branch** tab starts on **Automatic**, which finds the repository's default
 2. The remote itself, when `origin/HEAD` is missing locally.
 3. A `main` or `master` branch that exists locally, only when the remote names no default at all.
 
-It prefers the remote copy (`origin/main` over a local `main`), because that is what a pull request compares against. When the remote names a default branch, OpenWaggle uses that branch and nothing else, even if a local `main` exists. It ignores `init.defaultBranch`: that setting says how new repositories start, usually from your global Git config, and tells nothing about this repository.
+It prefers the remote copy (`origin/main` over a local `main`), because that is what a pull request compares against. When the remote names a default branch, OpenWaggle uses that branch and nothing else, even if a local `main` exists. It ignores `init.defaultBranch`. That setting says how new repositories start, usually from your global Git config, and tells nothing about this repository.
 
 Choose a branch from the menu to compare against it instead. If a branch you chose no longer exists, the menu shows it as `(unavailable)` rather than quietly switching back to **Automatic**. If no base branch exists at all, for example in a new repository with no remote and no `main` or `master`, the panel shows the working-tree diff and says so.
 
@@ -80,7 +80,7 @@ On the default branch itself, the branch and its base are the same commit, so **
 
 Pick a file in the changed-file tree. The tree groups files by folder and shows a status letter, such as `A` for added, `M` for modified or `D` for deleted, with the added and removed line counts. Drag its edge to resize it, or focus the edge and use `ArrowLeft` and `ArrowRight`.
 
-Switch between unified and side-by-side views, and turn on line wrapping for long lines. Added lines are green and removed lines are red, with Git's usual three lines of context around each change. Choose the syntax colours in **Settings > Appearance**.
+Switch between unified and side-by-side views, and turn on line wrapping for long lines. Added lines are green and removed lines are red, with Git's usual three lines of context around each change. Choose the syntax colors in **Settings > Appearance**.
 
 ## Send review comments to the agent
 
@@ -102,7 +102,7 @@ While a review is open, a bar shows how many comments are pending, such as `2 pe
 
 The main button at the bottom of the panel changes with the state of your checkout, its upstream branch and its remote. It can read **Commit**, **Commit & push**, **Commit, push & PR** (**MR** on GitLab), **Push**, **Push & create PR**, **Create PR**, **View PR**, **Pull**, **Publish repository**, or **Sync ref**.
 
-- An action that includes a commit asks for a commit message first. You write it; this panel does not generate one.
+- An action that includes a commit asks for a commit message first. You write it. This panel does not generate one.
 - An action that creates a feature branch proposes a branch name before pushing. Check it before you continue.
 - If the target is the repository's default branch, OpenWaggle asks you to confirm before it commits or pushes.
 - Each step reports its progress, such as committing, pushing and creating the request.
@@ -122,7 +122,7 @@ From the **Working tree** tab, the bottom bar also has:
 
 ## Commit with the commit dialog
 
-Click **Commit** in the header, labelled **Open commit dialog** when you hover it.
+Click **Commit** in the header, labeled **Open commit dialog** when you hover it.
 
 1. Review the changed files with their status and line counts.
 2. Tick the files to include. OpenWaggle stages only those.
@@ -138,7 +138,7 @@ Errors appear in the dialog, for example "No changes are available to commit." o
 
 ## Push a session branch
 
-A worktree session's branch, `ow/session-<ID>` named after the session that created the worktree, does not track its base branch. Its first push publishes it under its own name, `origin/ow/session-<ID>`, and sets that as its upstream. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where worktree folders live. This works when `push.default` is unset or set to `simple`, `current` or `upstream`.
+A worktree session's branch, `ow/session-<workspace ID>`, does not track its base branch. Its first push publishes it under its own name, `origin/ow/session-<workspace ID>`, and sets that as its upstream. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where worktree folders live. This works when `push.default` is unset or set to `simple`, `current` or `upstream`.
 
 Worktrees made by OpenWaggle 1.0.0-beta.25 and earlier track their base branch, such as `origin/main`. With `push.default` unset or `simple`, **Push** publishes them under their own name too and moves the upstream there, where a plain `git push` would fail. With `push.default=upstream`, the push goes to the tracked base branch, so OpenWaggle asks you to confirm first, as it does for any push to the default branch.
 
@@ -156,4 +156,4 @@ To rename or delete a branch, or set its upstream, use the [built-in terminal](/
 
 ## Run other Git commands
 
-Press `Cmd+J` or `Ctrl+J` to open the terminal. New terminals start in the session's working directory, so your commands act on the same checkout as the agent and the diff panel. Use it for Git operations the panel does not cover, or to run tests and builds yourself. A terminal you opened before a worktree existed stays in your original checkout; [Built-in terminal](/docs/developer-workflow/built-in-terminal) explains how to move it.
+Press `Cmd+J` or `Ctrl+J` to open the terminal. New terminals start in the session's working directory, so your commands act on the same checkout as the agent and the diff panel. Use it for Git operations the panel does not cover, or to run tests and builds yourself. A terminal you opened before a worktree existed stays in your original checkout. [Built-in terminal](/docs/developer-workflow/built-in-terminal) explains how to move it.

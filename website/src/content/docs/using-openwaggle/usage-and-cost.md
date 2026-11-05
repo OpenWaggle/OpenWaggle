@@ -52,19 +52,19 @@ Use the two button groups above the cards:
 
 **Daily spending** has one bar per day with spending. Lighter parts of a bar are estimated cost, and hovering a bar shows its date, cost and tokens. With more than 60 such days, the chart shows only the most recent 60, but the lists below still cover the whole range.
 
-**By model** and **By project** list the models and projects with the most tokens first, each with its tokens, cost and share. Each list shows 12 rows; narrow the selection to see the rest. A session in a worktree counts toward the project the worktree belongs to. Sessions from a temporary folder are grouped as **Temporary directory**, and sessions without a folder as **Unknown location**. The **tools/summaries** row, listed under **pi**, holds usage that belongs to no single model, such as model calls from scripts and summaries.
+**By model** and **By project** list the models and projects with the most tokens first, each with its tokens, cost and share. Each list shows 12 rows. Narrow the selection to see the rest. A session in a worktree counts toward the project the worktree belongs to. Sessions from a temporary folder are grouped as **Temporary directory**, and sessions without a folder as **Unknown location**. The **tools/summaries** row, listed under **pi**, holds usage that belongs to no single model, such as model calls from scripts and summaries.
 
 Click a day, a model or a project to narrow the session list to it. You can combine one of each, and clicking the same item again removes it. **Clear selection** removes them all.
 
 ## Find a session
 
-The **Sessions** list under the charts shows the sessions in your selection, most recently active first. With a selection, its heading reads **Sessions in selection** and a line above it sums up what you picked. Each row shows the session's title, when it started, whether it came from OpenWaggle or **pi CLI & other**, its project, and its tokens and cost. The list shows 20 sessions; narrow the selection to see the others.
+The **Sessions** list under the charts shows the sessions in your selection, most recently active first. With a selection, its heading reads **Sessions in selection** and a line above it sums up what you picked. Each row shows the session's title, when it started, whether it came from OpenWaggle or **pi CLI & other**, its project, and its tokens and cost. The list shows 20 sessions. Narrow the selection to see the others.
 
 ## Keep the numbers current
 
 The page scans your session files when it opens, and again every minute while it is visible. Click the refresh button at the top right to scan now. Beside it, the page shows how many files it scanned, how many it took from its cache because they hadn't changed, and how long the scan took. The footer says when the numbers were last updated.
 
-If the scan fails, the page says **Usage & Cost is unavailable**; choose **Try again** to scan again.
+If the scan fails, the page says **Usage & Cost is unavailable**. Choose **Try again** to scan again.
 
 ## What it reads
 

@@ -12,7 +12,7 @@ A project is a folder you open in OpenWaggle, and a session is a conversation ab
 
 The row above the message box has two controls. The left one picks the environment, **Current checkout** or **New worktree**. The right one picks the branch. They are separate, so changing the environment never changes the branch you chose.
 
-Both are editable until you send the first message, and read-only after that. To work somewhere else, start another session. New sessions start with the default from **Settings > Worktrees**, which is **Current checkout** unless you change it.
+Both are editable until you send the first message, and read-only after that. To work somewhere else, start another session. An agent or the CLI can still move a session with `handoff`. New sessions start with the default from **Settings > Worktrees**, which is **Current checkout** unless you change it.
 
 Your checkout and a worktree are two folders on two branches, backed by one repository:
 
@@ -49,9 +49,9 @@ Until a base branch is picked, sending stops with:
 
 > Select a base branch before sending in worktree mode.
 
-When the base is a local branch, OpenWaggle first tries to fetch it from `origin`. It starts from `origin/<branch>` when your local branch is the same as it or behind it. A local branch that is ahead or has diverged keeps its own tip. If the fetch fails, OpenWaggle uses the branches it already has, so you do not need a network connection. A remote branch you picked, such as `origin/main`, is used as it is.
+When the base is a local branch, OpenWaggle first tries to fetch it from `origin`. It starts from `origin/<branch>` when your local branch is the same as it or behind it. A local branch that is ahead or has diverged keeps its own tip. If the fetch fails, OpenWaggle uses the branches it already has, so you do not need a network connection. OpenWaggle uses a remote branch you picked, such as `origin/main`, as it is.
 
-OpenWaggle creates each worktree in a folder outside your project, on a branch named `ow/session-<ID>`, where the ID is that of the session that created it. The folder is named after the workspace ID, which in practice is the same value. Several sessions can share one workspace. Worktrees that already exist keep the names they were created with. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where the folders live, and **Session Summary > Environment** shows a session's real path and branch.
+OpenWaggle creates each worktree in a folder outside your project, on a branch named `ow/session-<workspace ID>`. Its folder has the same workspace ID as its name. The workspace ID is not the session ID, and several sessions can share one workspace. Worktrees that already exist keep the names they were created with. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where the folders live, and **Session Summary > Environment** shows a session's real path and branch.
 
 See [Push a session branch](/docs/developer-workflow/git-integration#push-a-session-branch) for where the branch goes when you push it.
 
@@ -92,7 +92,7 @@ If setup fails or is waiting for your review, open **Session Summary > Workspace
 
 After the first message, open the **Session Summary** and look at **Environment**. The diff panel, Git actions and new terminals all use that session's working directory.
 
-A terminal you opened before the worktree existed stays in your original checkout and is labelled **Original checkout**. Open a new terminal for the worktree, or choose **Restart in worktree** to stop that shell and start it again in the worktree.
+A terminal you opened before the worktree existed stays in your original checkout, labeled **Original checkout**. Open a new terminal for the worktree, or choose **Restart in worktree** to stop that shell and start it again in the worktree.
 
 ## Recover a missing worktree
 

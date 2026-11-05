@@ -19,19 +19,19 @@ Browser sign-in (OAuth) lets you connect a provider by logging in on its website
 
 ![OAuth Providers expanded, listing nine sign-in providers such as Anthropic, GitHub Copilot and OpenAI, each Disconnected with its switch off](/screenshots/settings-oauth-providers.png)
 
-While the login runs, the row shows what it is waiting for, such as **Waiting for browser...**. The switch still works: turn it off to cancel a login you did not finish. If an error appears, follow what it says and click **Try again**.
+While the login runs, the row shows what it is waiting for, such as **Waiting for browser...**. You can still use the switch. Turn it off to cancel a login you did not finish. If an error appears, follow what it says and click **Try again**.
 
 ## Finish a login by hand
 
-If the browser login does not come back to OpenWaggle on its own and you see **Paste OAuth code or callback URL**, paste the code or the callback URL the provider gave you and click **Connect**. Treat that value as a secret. Leave it out of bug reports and chat messages.
+If the browser login does not come back to OpenWaggle on its own, the row shows a field that asks, in the provider's own words, for the code or the callback URL. Paste it and click **Connect**. Treat that value as a secret. Leave it out of bug reports and chat messages.
 
-Some providers ask in their own words, such as **Paste the authorization code**. Anything secret you type stays hidden. When the login has a sign-in link, **Copy sign-in link** copies it, so you can open it in a browser on another computer and paste back the code that browser shows.
+Anything secret you type in that field stays hidden. When the login has a sign-in link, **Copy sign-in link** copies it, so you can open it in a browser on another computer and paste back the code that browser shows.
 
 ## Sign-in methods
 
 Pi, the agent engine inside OpenWaggle, supplies the providers and their sign-in methods, so new ones can appear without an OpenWaggle update. With the Pi version that ships now:
 
-- **OpenAI** offers **Sign in with ChatGPT**, which uses a ChatGPT subscription with the OpenAI provider. The older **OpenAI Codex** provider is marked as legacy.
+- **OpenAI** offers **Sign in with ChatGPT**, which uses a ChatGPT subscription with the OpenAI provider. Pi marks the older **OpenAI Codex** provider as legacy.
 - **Anthropic** offers browser sign-in, and a copy-code method for when the browser runs on another machine.
 - **Radius** has its own sign-in.
 

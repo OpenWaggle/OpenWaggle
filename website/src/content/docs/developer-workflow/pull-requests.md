@@ -22,11 +22,11 @@ If you leave the description empty, OpenWaggle writes a short summary, with the 
 
 **Open PR in browser** (**Open MR in browser**) is there when the remote supports it, as a way around the CLI. It opens the provider's new-request page with the branch, target, title and description filled in. It does not commit, push or create anything in OpenWaggle.
 
-If the provider creates the request but OpenWaggle cannot add it to the session's outputs, keep the panel open and choose **Retry adding PR to Outputs**. That records the request that already exists; it does not create a second one. If you close the panel instead, the request is still fine at the provider, but it may be missing from this session's outputs.
+If the provider creates the request but OpenWaggle cannot add it to the session's outputs, keep the panel open and choose **Retry adding PR to Outputs**. That records the request that already exists. It does not create a second one. If you close the panel instead, the request is still fine at the provider, but it may be missing from this session's outputs.
 
 ## Check and merge a request
 
-**View PR** opens the request inspector in the right sidebar. It shows the title, a link to the provider, the base and head branches, whether the request is open, draft or merged, the changed-file totals, and a link to the branch diff. When `gh` or `glab` reports them, it also shows checks, reviews, whether the request can merge, and comment counts. It does not refresh by itself; refresh it when you want the latest state. If the session created several requests, you can switch between them here.
+**View PR** opens the request inspector in the right sidebar. It shows the title, a link to the provider, the base and head branches, whether the request is open, draft or merged, the changed-file totals, and a link to the branch diff. When `gh` or `glab` reports them, it also shows checks, reviews, whether the request can merge, and comment counts. It does not refresh by itself, so refresh it when you want the latest state. If the session created several requests, you can switch between them here.
 
 **Open on GitHub** or **Open on GitLab** opens the request on the provider's site. When the provider says the request can merge, the inspector offers merge, squash or rebase. OpenWaggle asks you to confirm, checks the request and its head commit again, and then runs the merge through the CLI. A disabled merge says what blocks it, such as failing checks, missing reviews, conflicts, draft status or a provider rule.
 
@@ -36,7 +36,7 @@ The inspector names the account that read the request, for example **via @jdoe_a
 
 By default, **View PR** opens the inspector. The icon at the end of the row opens the request on the provider's site instead, and so does `Cmd`-click on macOS or `Ctrl`-click on Windows and Linux.
 
-To open requests on the provider's site by default, go to **Settings > Connections > Source control** and set **Open pull and merge requests in** to **Provider website**. The row then swaps the two: a click opens the site, and the icon or a modified click opens the inspector. The site opens wherever **Open web links in** sends web links.
+To open requests on the provider's site by default, go to **Settings > Connections > Source control** and set **Open pull and merge requests in** to **Provider website**. The row then swaps the two. A click opens the site, and the icon or a modified click opens the inspector. The site opens wherever **Open web links in** sends web links.
 
 A project can set its own default in its settings file, shown [below](#share-host-settings-with-a-project). Your choice in Settings wins over the project's. You can also ask the agent to change either one.
 
@@ -65,7 +65,7 @@ OpenWaggle works with github.com, gitlab.com, GitHub Enterprise Server and self-
 6. A host name that contains `github` or `gitlab`.
 7. The request refs the remote advertises (`refs/pull/*` or `refs/merge-requests/*`). OpenWaggle remembers the answer for the host.
 
-If none of these answers, the Session Summary asks you once. Bitbucket, Azure DevOps, Codeberg and gitea.com remotes, and Azure DevOps or Bitbucket Server repository paths, count as other forges and are never asked about, unless a check higher in the list says otherwise. A self-hosted Gitea or Forgejo server advertises the same refs as GitHub, so OpenWaggle may take it for GitHub; set it to **Neither** in Settings.
+If none of these answers, the Session Summary asks you once. Bitbucket, Azure DevOps, Codeberg and gitea.com remotes, and Azure DevOps or Bitbucket Server repository paths, count as other forges and are never asked about, unless a check higher in the list says otherwise. A self-hosted Gitea or Forgejo server advertises the same refs as GitHub, so OpenWaggle may take it for GitHub. Set it to **Neither** in Settings.
 
 OpenWaggle resolves SSH host aliases from `~/.ssh/config` to the real host first, and `glab`'s `ssh_host` setting maps an SSH host back to its GitLab instance. It never contacts the API of a server you have not confirmed just to identify it.
 
@@ -94,7 +94,7 @@ A project can declare its hosts, and where its requests open, in `.openwaggle/se
 }
 ```
 
-The first time a project declares hosts, the Session Summary asks you to approve them, and they change nothing until you do. Each host is approved on its own: a host you approved stays approved when the project adds another, and only a new or changed host asks again. Accounts are never stored in project files.
+The first time a project declares hosts, the Session Summary asks you to approve them, and they change nothing until you do. You approve each host on its own. A host you approved stays approved when the project adds another, and only a new or changed host asks again. OpenWaggle never stores accounts in project files.
 
 These settings belong to the project, not to one session. OpenWaggle stores them for the repository's main checkout, so they apply to every session of the project, new worktrees included. A host the agent declares from a worktree session applies to the whole project at once. A shared open setting written in a worktree takes effect once that change reaches the main checkout.
 

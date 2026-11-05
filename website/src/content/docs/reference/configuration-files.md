@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Every file OpenWaggle and Pi read configuration from, where it lives, what it holds, and its JSON Schema. `<project>` is the project's root folder. `~` is your home folder. For when to use a project file instead of Settings, see [Per-project configuration](/docs/configuration/per-project-config). For logs, the session database and other data OpenWaggle writes, see [Data and file locations](/docs/reference/data-locations).
+This page lists every file OpenWaggle and Pi read configuration from, where it lives, what it holds, and its JSON Schema. `<project>` is the project's root folder. `~` is your home folder. For when to use a project file instead of Settings, see [Per-project configuration](/docs/configuration/per-project-config). For logs, the session database and other data OpenWaggle writes, see [Data and file locations](/docs/reference/data-locations).
 
 ## OpenWaggle files
 
@@ -63,7 +63,7 @@ Top-level keys belong to OpenWaggle. Pi's own settings go in the `pi` object, wi
 | --- | --- | --- |
 | `$schema` | string | The file's JSON Schema. |
 | `sessionHost.multiAgentEnabled` | boolean | Lets agents create worker sessions in this project. Overrides **Agent-created Workers**. |
-| `sessionHost.parentConcurrencyLimit` | integer, 1 or more | The most worker runs one parent session can have at the same time. Overrides **Workers per parent**. |
+| `sessionHost.parentConcurrencyLimit` | integer, 1 or more | The most runs one parent session's direct workers can have at the same time. Overrides **Workers per parent**. |
 | `preferences.authorizationMode` | `yolo` or `ask-for-approval` | The project's access mode, written by **Settings > Permissions > Selected project**. |
 | `authorizationGrants` | array | Saved approvals, written when you choose **Always allow**. Revoke them in **Settings > Permissions**. |
 | `sourceControl.hosts` | object | The provider of each host, `github` or `gitlab`, by host name. |

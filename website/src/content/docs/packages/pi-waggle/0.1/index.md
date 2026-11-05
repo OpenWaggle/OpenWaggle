@@ -131,9 +131,9 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggl
 | Requirement | Supported line |
 |-------------|----------------|
 | Node.js | 22.19 and newer |
-| Pi coding agent | Host-provided peer; match your host's SDK version |
-| Pi TUI | Host-provided peer; match your host's TUI version |
-| TypeBox (`typebox`) | Host-provided peer; match the version your Pi host supplies |
+| Pi coding agent | Host-provided peer. Match your host's SDK version |
+| Pi TUI | Host-provided peer. Match your host's TUI version |
+| TypeBox (`typebox`) | Host-provided peer. Match the version your Pi host supplies |
 | Module format | ESM and CommonJS |
 | Pi Waggle documentation | 0.1 |
 

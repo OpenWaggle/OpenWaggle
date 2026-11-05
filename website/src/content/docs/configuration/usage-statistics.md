@@ -32,6 +32,8 @@ Usage statistics never contain:
 - install, session, thread or turn identifiers
 - error text
 
+The app asks no survey questions either, so OpenWaggle does not know how you heard about it.
+
 A provider, model, MCP server or skill that is not in the public catalogs becomes `custom`. [Usage statistics fields](/docs/reference/usage-statistics-fields) lists every event, field and value. The statistics endpoint rejects anything that is not on that page.
 
 ## Turn them off
@@ -42,7 +44,7 @@ To turn off both usage statistics and error reports, do any one of these:
 - Set `DO_NOT_TRACK=1`. Any value other than empty, `0`, `false`, `no` or `off` counts.
 - Set `PI_TELEMETRY=0`, Pi's own switch. Once `PI_TELEMETRY` is set, only `1`, `true` or `yes`, in upper or lower case, leaves them on. Any other value, even an empty one, turns them off.
 
-OpenWaggle also sends nothing while the `CI` variable is set, which CI services do, or when `OPENWAGGLE_AUTOMATION=1` marks an automated test launch. There is no command-line switch.
+OpenWaggle also sends nothing while `CI` is set to any value other than empty, `0`, `false`, `no` or `off`, in upper or lower case, as CI services set it. The same goes for an automated test launch, which `OPENWAGGLE_AUTOMATION=1` marks. There is no command-line switch.
 
 When the build or one of these variables turns statistics off, the Settings switch shows off, cannot be changed, and names the reason. It reads the desktop app's own environment. OpenWaggle keeps your saved choice for when the reason no longer holds.
 

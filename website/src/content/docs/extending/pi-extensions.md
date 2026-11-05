@@ -20,9 +20,9 @@ OpenWaggle gives Pi the project's resource folders for skills, extensions, promp
 .openwaggle > .pi > .agents
 ```
 
-An enabled OpenWaggle package can add the Pi resource folders it declares, ahead of `.pi`. OpenWaggle does not load everything in `.openwaggle/extensions` as Pi code. Only eligible packages, and the folders they declare, reach Pi. Pi then applies its own loading and conflict rules. OpenWaggle packages have their own manifest and trust steps; see [Install extensions](/docs/extending/plugins).
+An enabled OpenWaggle package can add the Pi resource folders it declares, ahead of `.pi`. OpenWaggle does not load everything in `.openwaggle/extensions` as Pi code. Only eligible packages, and the folders they declare, reach Pi. Pi then applies its own loading and conflict rules. OpenWaggle packages have their own manifest and trust steps. See [Install extensions](/docs/extending/plugins).
 
-Commands a Pi extension registers, and Pi's own `/mcp`, are listed under **Pi extensions** when you type `/` in the composer, in a session or in a new session for a project.
+When you type `/` in the composer, the **Pi extensions** group lists the commands a Pi extension registers, and Pi's own `/mcp`, in a session or in a new session for a project.
 
 ## Show your tool in the app
 

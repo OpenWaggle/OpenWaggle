@@ -124,4 +124,4 @@ The format has a JSON Schema, [`waggle-presets.schema.json`](https://openwaggle.
 
 A normal agent can call `waggle_invoke` to hand a task to a Waggle preset. The agent's own turn finishes first. Then the Waggle continues in the same session, with the preset and a handoff prompt that holds everything the agents need. A Waggle cannot start another Waggle.
 
-Waggle uses the same Pi runtime, tools, provider settings and session history as a normal session; a Pi extension takes care of the turns. OpenWaggle shows which agent wrote each reply and keeps its own coordination prompts out of the visible transcript. Branching and stopping work as in any session.
+Waggle uses the same Pi runtime, tools, provider settings and session history as a normal session. A Pi extension takes care of the turns. OpenWaggle shows which agent wrote each reply and keeps its own coordination prompts out of the visible transcript. Branching and stopping work as in any session.

@@ -25,7 +25,7 @@ Compare this screenshot with the checkout page in our app.
 List the differences before making any changes.
 ```
 
-You can attach up to 5 files to a message, each up to 8 MiB and 20 MiB in total. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
+You can attach up to 5 files to a message, up to 8 MiB each and 20 MiB in total. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
 
 The rest of the **+** menu:
 
@@ -50,7 +50,7 @@ Not every model can look at images. OpenWaggle goes by what the selected model s
 
 Images you or the agent share appear in the conversation. Click one to zoom, pan, or move through that message's images. To browse every image in the session, open one from [Session Summary and resources](/docs/using-openwaggle/session-summary). The viewer can download a copy, or open the original file when it is still on your computer.
 
-When the agent's reply shows a local image, OpenWaggle can save it with the session's outputs. This works for PNG, JPEG, GIF and WebP files referenced by a `file:` URL or an absolute path, in the session's working folder or a supported temporary evidence folder. OpenWaggle checks the image and keeps its own copy, so it doesn't depend on a temporary file staying where it was. Images elsewhere, or in other formats, or too large, may not be saved.
+When the agent's reply shows a local image, OpenWaggle can save it with the session's outputs. This works for PNG, JPEG, GIF and WebP files referenced by a `file:` URL or an absolute path, in the session's working folder or a supported temporary evidence folder. OpenWaggle checks the image and keeps its own copy, so it doesn't depend on a temporary file staying where it was. OpenWaggle may not save images that are elsewhere, in other formats, or too large.
 
 ## Dictate a message
 

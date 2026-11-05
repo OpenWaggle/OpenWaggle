@@ -18,11 +18,9 @@ describe('Hive CLI documentation contract', () => {
     expect(documentation).toContain("line.type === 'record' && line.record.kind === 'cursor'")
     expect(documentation).toContain('persistCheckpoint(line.record.cursor)')
     expect(documentation).toContain(
-      'structured rejected outcome returned by the Host; the response remains available on stdout',
+      'When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error.',
     )
-    expect(documentation).toContain(
-      'failure that aborts before a structured command result is available',
-    )
+    expect(documentation).toContain('A failure that stops the command before it has a result')
     expect(documentation).toContain('`type: "error"` envelope on stderr')
     expect(documentation).toContain(
       'Its `--format jsonl` output (also selected by the `--jsonl` stream shorthand) is a portable export artifact, not a command-stream envelope',

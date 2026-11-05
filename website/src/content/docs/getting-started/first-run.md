@@ -55,7 +55,7 @@ Read the relevant files, but don't edit files or run commands yet.
 
 Send the message. The reply appears in the conversation, with a row for each tool the agent used, such as each file it read. Check the files it mentions and correct anything it got wrong before you ask for changes. Telling the agent not to edit is an instruction to the model. It does not stop the agent from editing.
 
-If the agent asks for approval, read what it wants to do and to what. Choose **Allow once** to let it go ahead, or **Continue without** and tell it what to do instead. [Respond to an approval request](/docs/configuration/approvals-permissions#respond-to-an-approval-request) covers the other choices.
+If the agent asks for approval, read what it wants to do and to what. Choose **Allow once** to let it go ahead, or **Continue without** and tell it what to do instead. [Answer an approval request](/docs/configuration/approvals-permissions#answer-an-approval-request) covers the other choices.
 
 ## Make a small change
 
@@ -63,7 +63,8 @@ Pick a first task that is easy to check. Continue the conversation with somethin
 
 ```text
 Add a short section to the README explaining how to run the existing tests.
-Use the commands you found in this project. Only edit the README.
+Use the commands you found in this project.
+Only edit the README.
 Don't commit or push anything.
 ```
 
@@ -73,7 +74,7 @@ Name the file, say what result you want, and say what must stay as it is. For a 
 
 Press **Cmd+D** on macOS or **Ctrl+D** on Windows and Linux to open the diff panel, then select **Working tree** to see changes that are not committed yet.
 
-Read the diff itself, not only the agent's summary. Check that the right files changed and that the text or code is correct. The diff shows what is already on disk: the agent writes files as it works, and opening the diff is not a step that applies them. It can also include changes you or another session made in the same folder.
+Read the diff itself, not only the agent's summary. Check that the right files changed and that the text or code is correct. The diff shows what is already on disk. The agent writes files as it works, and opening the diff is not a step that applies them. It can also include changes you or another session made in the same folder.
 
 To ask for a fix, click a changed line, write what should change, and choose **Add comment**. The comment goes to the agent. You can also reply in the conversation:
 

@@ -55,7 +55,7 @@ A run is one turn of the agent working in a session, from your message to its fi
 
 `steer`, `replace`, `promote` and `interrupt` need the ID of the run they act on (`expectedRunId`, or `--expected-run` in the CLI). If that run has already ended, the call fails instead of reaching the wrong run. Steering does not cancel a tool that is already running.
 
-`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue; the result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run.
+`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run.
 
 When you stop or interrupt a run before the agent wrote anything, the transcript gets no empty reply. Whatever the agent had already written stays.
 
@@ -81,7 +81,7 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | `queue_pause` | `sessions:queue` | Stops sending queued follow-ups. It does not stop the current run. |
 | `queue_resume` | `sessions:queue` | Starts sending queued follow-ups again, one at a time. |
 
-`queue_reorder`, `queue_pause` and `queue_resume` need the queue revision you last read (`queueRevision`). If someone changed the queue since, the call fails instead of overwriting their change. A change reports the follow-ups still queued as `remainingFollowUpIds`; `queue_withdraw` also reports the ones it removed as `withdrawnFollowUpIds`.
+`queue_reorder`, `queue_pause` and `queue_resume` need the queue revision you last read (`queueRevision`). If someone changed the queue since, the call fails instead of overwriting their change. A change reports the follow-ups still queued as `remainingFollowUpIds`, and `queue_withdraw` also reports the ones it removed as `withdrawnFollowUpIds`.
 
 ## Find and read sessions
 
@@ -115,7 +115,7 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 
 Without options, `list` and `search` leave archived sessions out, and `delegations_list` returns delegations in every state, newest first. Every listed or read session reports its `depth` in its Hive, `0` for the top-level session.
 
-`agent_definitions_list` and `agent_definitions_search` read the caller's own project. With `projectPath` they read another project, which needs `launch` or `create`, and `list`. A worker cannot read another project (`capability_denied`). A top-level session that cannot reach that project gets `target_scope_denied`. A folder that does not exist, or is neither open in OpenWaggle nor has a session there, is refused.
+`agent_definitions_list` and `agent_definitions_search` read the caller's own project. With `projectPath` they read another project, which needs `sessions:create` and `sessions:discover`. A worker cannot read another project (`capability_denied`). A top-level session that cannot reach that project gets `target_scope_denied`. They refuse a folder that does not exist, or that is neither open in OpenWaggle nor has a session there.
 
 ## Review delegations
 
@@ -177,9 +177,24 @@ stateDiagram-v2
   open --> cancelled: Parent cancels, from any open state
 ```
 
-A worker whose run ends normally with a reply, without submitting, gets that reply captured as a submission, so its result is not lost. A worker that set `needs_attention` itself keeps that state when its run ends, even if it replied: the reply explains what it needs and is not a result. Once the parent answers, the next run that ends with a reply is captured as usual.
+A worker whose run ends normally with a reply, without submitting, gets that reply captured as a submission, so its result is not lost. A worker that set `needs_attention` itself keeps that state when its run ends, even if it replied. The reply explains what it needs and is not a result. Once the parent answers, OpenWaggle captures the next run that ends with a reply as usual.
 
-A `needs_attention` that OpenWaggle set for a failed run goes back to `working` (or `revision_requested`) when a new run starts on the worker. One the worker set itself goes back to `working` when its parent sends it anything. Every listed or read delegation also carries `nextActor`, who acts next; the [Hive CLI reference](/docs/developer-workflow/hive-cli#queue-requests-and-coordination) lists its values.
+A `needs_attention` that OpenWaggle set for a failed run goes back to `working` (or `revision_requested`) when a new run starts on the worker. One the worker set itself goes back to `working` when its parent's agent sends it anything. The history keeps both changes, by `session-host` and by the parent.
+
+### Who acts next
+
+Every session summary and delegation that carries a delegation state (`list`, `search`, `read`, `delegations_list` and `delegations_read`) also carries `nextActor`, who acts next on that worker.
+
+| `nextActor` | Who | When |
+| --- | --- | --- |
+| `user` | You | A run waits on an approval or a question, or the worker is stuck. |
+| `parent` | The parent agent | It has a `ready_for_review` result to review, a failed run to see, a request for help to answer, or a worker that set `waiting` to follow up. |
+| `worker` | The worker | It is `working`, or revising after `revision_requested`. |
+| `none` | Nobody | The delegation is `accepted` or `cancelled`. |
+
+A worker is stuck when its last run failed or was interrupted, or it asked its parent for help, and its parent has no active run and nothing queued to deliver.
+
+OpenWaggle works out `nextActor` each time you read, by the same rule the Hive panel uses, so it follows the parent's runs and queue as they change. It never changes the delegation state. OpenWaggle saves command outcomes to answer repeated requests, so they do not carry `nextActor`. Read the session or the delegation instead.
 
 ## Export transcripts
 
@@ -206,7 +221,7 @@ The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `sch
 | Error when full | `queue_capacity_reached` or `queue_byte_capacity_reached` |
 | Delivery | One follow-up at a time |
 
-The follow-up queue is kept after the app restarts, the window disconnects, or the Session Host recovers. It is separate from Pi's own internal steering queue.
+OpenWaggle keeps the follow-up queue when the app restarts, the window disconnects, or the Session Host recovers. It is separate from Pi's own internal steering queue.
 
 A failed, interrupted or timed-out run pauses the queue, but only for follow-ups queued before the run ended. A follow-up queued after that starts when the run settles. Pausing never stops a run.
 
@@ -221,18 +236,18 @@ A steered message the agent has not read yet is not lost when its run ends first
 | Promoted follow-up | Comes back with its ID, text, attachments and options. |
 | Direct steer | Comes back as a new follow-up from the same caller, with its text, attachments and visualization context. |
 | Already being read | Stays in the transcript. It does not come back. |
-| Waiting for compaction | The steer is refused, so the caller still has it. |
+| Waiting for compaction | The Session Host refuses the steer, so the caller still has it. |
 | After a Session Host crash | Nothing comes back. OpenWaggle cannot tell which messages were read. |
 
 A direct steer that comes back runs with the session's settings, like any steer. `queue_list` marks it as `returnedSteer`, with the steer's run and its idempotency key, so the caller can find it instead of sending it again.
 
-Returned steers can push the queue past 256. To keep that bounded, a direct steer is refused with `queue_capacity_reached` while the queue is full, and with `steering_capacity_reached` once the run holds 64 steers it could return. A stopped run pauses the queue as usual, so you can resume, steer or dismiss what came back.
+Returned steers can push the queue past 256. To keep that bounded, the Session Host refuses a direct steer with `queue_capacity_reached` while the queue is full, and with `steering_capacity_reached` once the run holds 64 steers it could return. A stopped run pauses the queue as usual, so you can resume, steer or dismiss what came back.
 
 When you promote a follow-up in the app, its preview moves into the conversation while the Session Host handles it, and shows that it is waiting during compaction. The preview stays until the message reaches the transcript, even if you switch sessions. If the promotion is refused, the follow-up stays in the queue.
 
 ## Thinking level and access per run
 
-A session's model and thinking level are session settings. A run uses them when it starts. They can change only while no run is starting, running or stopping; a session that is only waiting on its queue can change.
+A session's model and thinking level are session settings. A run uses them when it starts. They can change only while no run is starting, running or stopping. A session that is only waiting on its queue can change them.
 
 | Action | `thinking` | `authorization` |
 | --- | --- | --- |
@@ -248,11 +263,11 @@ A worker gets its parent's access by default. A spawn or an [agent definition](/
 
 ## Run limits
 
-Two settings in **Settings > Agents > Hive controls** cap how many runs go at once: **Workers per parent** and **Active agent runs**. [Hives and sessions](/docs/using-openwaggle/hives-and-sessions#limit-how-many-workers-run) gives their defaults. A new run at either limit fails with an error the caller can retry; it is not queued. The limits count active runs, not saved sessions, queues, searches, exports, waits or watchers.
+Two settings in **Settings > Agents > Hive controls** cap how many runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active agent runs** to 16 runs across the whole app. [Settings](/docs/reference/settings) lists both. A new run at either limit fails with an error the caller can retry. It is not queued. The limits count active runs, not saved sessions, queues, searches, exports, waits or watchers.
 
 ## Worker cleanup timing
 
-When a parent accepts or cancels a worker you never touched, OpenWaggle archives the worker once it is idle. A worker it keeps because you have it open, or because it has a terminal, a browser preview or a running project service, is checked again after 15 seconds, then 30 seconds, 1 minute, 2 minutes, and every 5 minutes after that.
+When a parent accepts or cancels a worker you never touched, OpenWaggle archives the worker once it is idle. A worker it keeps because you have it open, or because it has a terminal, a browser preview or a running project service, gets another check after 15 seconds, then 30 seconds, 1 minute, 2 minutes, and every 5 minutes after that.
 
 ## Errors
 

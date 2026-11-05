@@ -6,7 +6,7 @@ section: "Help"
 kind: "guide"
 ---
 
-Use this page when OpenWaggle stops doing what you expect: a model will not answer, a session sits waiting, a worktree has gone missing, or work seems to continue after you close the app. Start with the problem you can see, and read the error or the pending request before you retry. Restoring an old session database fixes none of these. It is covered at the end, for the rare case where an upgrade's database migration is the problem.
+Use this page when OpenWaggle stops doing what you expect: a model will not answer, a session sits waiting, a worktree has gone missing, or work seems to continue after you close the app. Start with the problem you can see, and read the error or the pending request before you retry. Restoring an old session database fixes none of these. The last section covers it, for the rare case where an upgrade's database migration is the problem.
 
 ## Fix an unavailable provider or model
 
@@ -58,7 +58,7 @@ OpenWaggle 1.0.0-beta.21 and earlier could also show this error after you restar
 Otherwise, fix it like this:
 
 1. If the original folder still exists somewhere else, put it back at that path in place of the folder there now, and send your message again.
-2. If it does not, commit or copy out any changes you want to keep from the folder at that path, then delete the folder. Don't just move it: a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.
+2. If it does not, commit or copy out any changes you want to keep from the folder at that path, then delete the folder. Don't just move it, because a moved copy of a worktree still uses the Git data that **Recreate worktree** reuses.
 3. Reopen the session and choose **Recreate worktree** or **Use current checkout**, as for a missing worktree.
 
 The error "This worktree cannot be checked against its saved preparation" has two causes. If the message says the folder could not be read, fix the permissions of that folder or the folders above it and send your message again. Don't delete it. Otherwise the preparation never recorded this folder, so follow steps 2 and 3. If the app stopped while it was creating the worktree, versions newer than 1.0.0-beta.24 record the folder on your next message or project action instead of showing this error. A worktree an earlier version left in that state still needs steps 2 and 3.
@@ -130,7 +130,7 @@ openwaggle recovery restore-pre-cutover --yes --json
 
 The command needs the database to itself. If it reports that another process holds it, stop the remaining OpenWaggle work or clients and try again. Don't delete lock or ownership files to force it.
 
-Before it replaces anything, OpenWaggle saves the current database under a name with the date and time. An empty `openwaggle.db` in the way is removed first. Then it migrates the recovery copy again. If restoring fails, it puts the current database back.
+Before it replaces anything, OpenWaggle saves the current database under a name with the date and time. It first removes an empty `openwaggle.db` that is in the way. Then it migrates the recovery copy again. If restoring fails, it puts the current database back.
 
 OpenWaggle never restores the recovery copy on its own, whether after a crash, a failed agent request or a validation error.
 

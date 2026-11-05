@@ -8,7 +8,7 @@ kind: "guide"
 
 A model's context window is how much it can take in with one request. Your messages, the agent's replies, file contents, tool results and instructions all use space in it. Models measure that space in tokens, which are pieces of words.
 
-You usually don't have to manage this. When a conversation gets long, OpenWaggle compacts its context so work can go on: it replaces older context with a shorter summary and keeps recent work as it was. Compaction doesn't delete anything from the saved conversation, and you can still scroll through all of it. Messages from before a compaction stay above its **Context compacted** marker, while the model works from the compacted context.
+You usually don't have to manage this. When a conversation gets long, OpenWaggle compacts its context so work can go on. It replaces older context with a shorter summary and keeps recent work as it was. Compaction doesn't delete anything from the saved conversation, and you can still scroll through all of it. Messages from before a compaction stay above its **Context compacted** marker, while the model works from the compacted context.
 
 ## Check the context meter
 
@@ -19,7 +19,7 @@ The context meter sits at the right of the message box, beside the model and thi
 - **Context** shows the tokens in use out of the window's size, and the percentage.
 - **Session** shows the session's total tokens and cost, then the cost and tokens of each model that answered.
 
-Costs include model calls from [codemode](/docs/using-openwaggle/codemode) scripts and prompt cache refreshes. Usage that belongs to no single model, such as model calls from scripts and summaries, is listed as **Tools and summaries**. Costs are what Pi's model catalog says the provider charges; your provider's bill has the final say. To see spending across all your sessions, open [Usage and cost](/docs/using-openwaggle/usage-and-cost).
+Costs include model calls from [codemode](/docs/using-openwaggle/codemode) scripts and prompt cache refreshes. Usage that belongs to no single model, such as model calls from scripts and summaries, is listed as **Tools and summaries**. Costs are what Pi's model catalog says the provider charges. Your provider's bill has the final say. To see spending across all your sessions, open [Usage and cost](/docs/using-openwaggle/usage-and-cost).
 
 With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that wrote the latest reply, because each real model has its own limit. While a turn is running, the meter stays on the model the turn started with, even if you pick another model.
 
@@ -39,7 +39,7 @@ To make sure some details survive, add instructions after the command:
 /compact preserve the schema decisions, migration constraints, and tests still to run
 ```
 
-This runs a command; the agent doesn't reply to it as a message. The conversation shows the compaction's progress. When it is done, a **Context compacted** marker stays where the compaction happened, and you can carry on with your next task.
+This runs a command. The agent doesn't reply to it as a message. The conversation shows the compaction's progress. When it is done, a **Context compacted** marker stays where the compaction happened, and you can carry on with your next task.
 
 ![A conversation with a Context compacted marker between the agent's earlier reply and the next request](/screenshots/context-compacted.png)
 
@@ -80,7 +80,7 @@ OpenWaggle picks one of two kinds of compaction for you:
 - **Native** compaction uses the provider's own compaction when the model connection supports it. Only a compatible connection can reuse its result.
 - **Portable** compaction asks the model for a summary in four parts and keeps the recent conversation in full. A tool call and its result always stay together.
 
-You can still work with messages above a marker. Going back to one, or editing and resending it, continues from that point with that branch's own context, which doesn't include the later compaction; OpenWaggle compacts it again if it doesn't fit. Forking or cloning copies the conversation up to that message into a new session. Search, exports and session reads include the whole conversation.
+You can still work with messages above a marker. Going back to one, or editing and resending it, continues from that point with that branch's own context, which doesn't include the later compaction. OpenWaggle compacts it again if it doesn't fit. Forking or cloning copies the conversation up to that message into a new session. Search, exports and session reads include the whole conversation.
 
 If you switch to a model that can't use a Native result, OpenWaggle rebuilds the context from the saved history with the new model. It doesn't call the previous provider. If the new model has a smaller window, the request leaves out the oldest complete exchanges, after keeping room for instructions, tools and the reply. Those exchanges stay in the saved history.
 
@@ -92,7 +92,7 @@ A branch summary is something else. When you go back to an earlier point in the 
 
 - **No summary** to continue from the earlier point without the later work.
 - **Summarize** to bring a summary of the later work.
-- **Custom** to write instructions for the summary in the message box, then send them. They shape the summary; the agent doesn't treat them as a task.
+- **Custom** to write instructions for the summary in the message box, then send them. They shape the summary, and the agent doesn't treat them as a task.
 - **Cancel** to go back to where you were.
 
 Pi's `branchSummary.skipPrompt` setting skips this question.

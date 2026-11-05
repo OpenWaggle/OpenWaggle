@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Exact values for project actions. To save, run, or share an action, or set up worktrees, start with the [Project actions](/docs/configuration/project-actions) guide.
+This page lists the exact values for project actions. To save, run, or share an action, or set up worktrees, start with the [Project actions](/docs/configuration/project-actions) guide.
 
 ## Optional settings
 
@@ -43,7 +43,7 @@ When you pick a script, OpenWaggle fills in a name, an icon, and whether it keep
 
 Another script gets its own name with `:`, `_`, and `-` turned into spaces and the first letter capitalized. A script in a package folder adds the folder's name, as in **Start dev server (website)**.
 
-A script is long-running, so it gets **Keeps running** and opens the preview, when its name starts with `dev`, `start`, `serve`, `watch`, or `preview`, alone or followed by `:`, or ends in `:dev`, `:watch`, or `:serve`.
+A script is long-running, so it gets **Keeps running** and opens the preview, when its name is `dev`, `start`, `serve`, `watch` or `preview`, or starts with one of them followed by a character other than a letter, digit or `_` (such as `dev:web` or `start-prod`), or ends in `:dev`, `:watch` or `:serve`.
 
 The icon comes from the first rule that matches the script name:
 
@@ -120,3 +120,14 @@ Folders and files are relative to the workspace root, with forward slashes, up t
 | `shortcut.mod`, `ctrl`, `shift`, `alt`, `meta` | Optional. `true` for each modifier the shortcut uses. |
 | `when` | Optional. A condition, using context names with `!`, `&&`, `\|\|`, and parentheses, up to 256 characters. |
 | `order` | Optional. Precedence among project action shortcuts. A later order wins. |
+
+## Recovery files
+
+Each time OpenWaggle saves `.openwaggle/actions.json`, it keeps recovery files from that save in `.openwaggle/action-recovery/`, which Git ignores.
+
+| File | Contents |
+| --- | --- |
+| `previous.json` | The file as it was before the save. An external editor may still have it open. |
+| `next.json` | The save OpenWaggle prepared. |
+
+If a save clashes with an edit made outside OpenWaggle, Settings keeps both drafts and shows the recovery folder under **Inspect pending drafts**. OpenWaggle does not delete these files, because an editor can finish writing after the save. Close other editors, finish any pending save, and compare the files with `.openwaggle/actions.json` before you delete old recovery folders yourself.

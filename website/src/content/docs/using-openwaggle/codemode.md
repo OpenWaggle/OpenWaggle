@@ -12,7 +12,7 @@ Codemode comes from Pi, the agent inside OpenWaggle, and works the same way as i
 
 ## Turn codemode on or off
 
-Codemode is on in every session by default, whether or not you use MCP servers. The agent decides when a script helps; most turns still use ordinary tool calls.
+Codemode is on in every session by default, whether or not you use MCP servers. The agent decides when a script helps, and most turns still use ordinary tool calls.
 
 To turn it off, open **Settings > General > Agent tools** and switch off **Codemode**. New runs stop offering it.
 

@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Every event, field and value OpenWaggle's anonymous usage statistics and error reports can contain, and the limits on them. The statistics endpoint rejects any event, field or value that is not on this page. [Usage statistics and error reports](/docs/configuration/usage-statistics) explains why OpenWaggle sends them and how to turn them off.
+This page lists every event, field and value that OpenWaggle's anonymous usage statistics and error reports can contain, and the limits on them. The statistics endpoint rejects any event, field or value that is not on this page. [Usage statistics and error reports](/docs/configuration/usage-statistics) explains why OpenWaggle sends them and how to turn them off.
 
 ## Fields on every event
 
@@ -17,7 +17,7 @@ Every event, field and value OpenWaggle's anonymous usage statistics and error r
 | `os` | `darwin` for macOS, `win32` for Windows, or `linux` |
 | `arch` | CPU architecture: `x64` or `arm64` |
 | `day` | UTC date, such as `2026-10-02`. Never a time of day |
-| `country` | Two-letter country code. The endpoint adds it from the request and then drops your IP address. The app never sends it |
+| `country` | Two-letter country code, or `XX` when Cloudflare cannot tell. The endpoint adds it from the request and then drops your IP address. The app never sends it |
 
 `version` and `previous_version` must be release versions, such as `1.2.3` or `1.2.3-beta.4`, at most 64 characters. The only suffixes are `-alpha.N`, `-beta.N` and `-rc.N`. The endpoint rejects any other shape.
 
@@ -26,7 +26,7 @@ Every event, field and value OpenWaggle's anonymous usage statistics and error r
 | Event | When the app sends it | Fields |
 | --- | --- | --- |
 | `install.new` | Once, with a new install's first report | None |
-| `install.active` | At most once per UTC day, only on a day with at least one run, and never while `CI` is set | See [`install.active` fields](#installactive-fields) |
+| `install.active` | At most once per UTC day, only on a day with at least one run | See [`install.active` fields](#installactive-fields) |
 | `install.onboarding` | Once, after a new install's first day ends | `provider_within_first_day`, `run_within_first_day`, `project_within_first_day` |
 | `app.opened` | Each time the app opens | None |
 | `update.installed` | The first time a higher version runs | `previous_version` |
@@ -68,8 +68,8 @@ The app sends `run.finished` when a run ends.
 | `waggle` | `true` if the run was part of a Waggle conversation |
 | `result` | `completed`, `failed` or `interrupted` |
 | `duration_s` | Run length in whole seconds, from 0 to 604,800 (one week) |
-| `input_tokens` | Input token total for the run |
-| `output_tokens` | Output token total for the run |
+| `input_tokens` | Input token total for the run, from 0 to 1,000,000,000,000 |
+| `output_tokens` | Output token total for the run, from 0 to 1,000,000,000,000 |
 
 A provider outside the catalog makes both `provider` and `model` `custom`.
 
@@ -117,23 +117,17 @@ An MCP server counts as a catalog server only when its name matches a catalog na
 | `install.active`, `install.new` and `install.onboarding` per day | 1 each |
 | Entries in `mcp_servers` or in `skills` | 32 |
 | Length of a provider, model, server or skill ID | 128 characters |
+| Characters of a provider, model, server or skill ID | Letters, digits, `.`, `_`, `:`, `/`, `@` and `-`, starting with a letter or digit |
 | Events in one request | 200 |
 | Size of one request | 256 KiB |
 | Oldest day the app sends or the endpoint accepts | 35 days |
+| Newest day the endpoint accepts | 1 day ahead of its own UTC day |
 
-The app drops events past a daily limit and never sends them later. Each request covers one UTC day.
+The app drops events past a daily limit and never sends them later. Each request covers one UTC day. A list such as `mcp_servers` may not repeat a value.
 
 ## Never sent
 
-Usage statistics never contain:
-
-- prompts, model output, code or diffs
-- file paths, or project, repository or branch names
-- names of custom providers, models, MCP servers, extensions or skills
-- install, session, thread or turn identifiers
-- error text
-
-The app asks no survey questions either, so OpenWaggle does not know how you heard about it.
+[What OpenWaggle collects and why](/docs/configuration/usage-statistics#what-openwaggle-collects-and-why) lists what usage statistics never contain.
 
 ## Error reports
 
@@ -163,14 +157,16 @@ Before a report leaves your machine, the app replaces:
 
 | Found in the report | Replaced with |
 | --- | --- |
-| Your home directory, in each form: `/Users/<name>`, `/home/<name>`, `/var/home/<name>`, `/root`, `/System/Volumes/Data/Users/<name>`, `C:\Users\<name>` (including names with spaces or apostrophes), `\\wsl.localhost\<distro>\home\<name>`, `\\wsl$\<distro>\home\<name>` and `/mnt/<drive>/Users/<name>` | `~` |
+| Your home directory, in each form listed below | `~` |
 | macOS per-user temporary folders under `/var/folders`, and your temporary directory, such as Windows `%TEMP%` | `<tmp>` |
-| OpenWaggle scratch folders | `<scratch>` |
+| OpenWaggle scratch and evidence folders | `<scratch>` |
 | UUIDs, such as session and run IDs | `<id>` |
 | Other hexadecimal runs of 16 or more characters | `<hex>` |
 | Stack frames from code outside the app, such as a Pi extension, a worktree or any other folder | `<external>` |
 
-An external frame keeps its file name only when the file is named `index`, as in `<external>/index.js`. Its function and module names are dropped, and debug information for that code is reduced the same way. Shared folders such as `/Users/Shared` and `C:\Users\Public` stay as they are.
+The app recognizes your home directory as `/Users/<name>`, `/home/<name>`, `/var/home/<name>`, `/root`, `/System/Volumes/Data/Users/<name>`, `C:\Users\<name>` with either separator, `\Users\<name>` without a drive, `\\wsl.localhost\<distro>\home\<name>`, `\\wsl$\<distro>\home\<name>`, `\\wsl.localhost\<distro>\root`, and `/mnt/<drive>/Users/<name>`. A Windows name ends only at a separator, a character Windows forbids in names, or the end of a line, so the app replaces names with spaces or apostrophes whole.
+
+An external frame keeps its file name only when the file is named `index`, as in `<external>/index.js`. The app drops its function and module names, and reduces debug information for that code the same way. Shared folders stay as they are: `/Users/Shared`, and `Public`, `Default`, `Default User` and `All Users` under `C:\Users`.
 
 The app also removes user details, request data, the server name, breadcrumbs, the list of loaded modules, local variables and source lines. The locale, time zone, memory figures, boot and start times, and device name never leave. The app sends no screenshots or session replays, and native crash dumps stay on your machine.
 
@@ -224,9 +220,9 @@ Once a day, OpenWaggle's GitHub workflow runs an authenticated job that adds up 
 | Step | What happens |
 | --- | --- |
 | Totals | Counts for each event, field and value. A number field such as `duration_s` becomes a sum and a count |
-| When a day is sent | Once at least 5 reports of that day can be added up, and in any case once the day is 7 full UTC days old |
+| Publish time | A day goes out once at least 5 reports of that day can be added up, and in any case once the day is 7 full UTC days old |
 | Threshold | A value, list item or number sum appears only when at least 5 distinct reports contributed to it |
-| Small values | Merged into `(other)`. If `(other)` would stand for fewer than 5 reports, the next smallest values fold in too. If nothing is left, the breakdown is dropped |
+| Small values | Merged into `(other)`. If `(other)` would stand for fewer than 5 reports, the next smallest values fold in too. If nothing is left, the job drops the breakdown |
 | Missing values | Reports without a value, such as installs that did not use a feature, count as their own group for the threshold |
 | Small sums | Left out |
 | Event totals | Always published, so a week-old day with fewer than 5 reports publishes only how many times each event happened |
@@ -248,7 +244,7 @@ The endpoint writes one log line for each request it handles, with only these fi
 | `status` | The HTTP status code |
 | `latency_ms` | How long the request took |
 
-It never logs your IP address, request headers, or the values you sent. Requests to `/events` are counted only inside the daily totals, as `endpoint.requests`. Requests to the other routes also send an `endpoint.request` event with the same fields to PostHog. A request to a path it does not serve is only logged. Cloudflare's stored request logs stay off for the endpoint, because they can include the client IP address. Exceptions inside the endpoint go to Sentry.
+It never logs your IP address, request headers, or the values you sent. The endpoint counts requests to `/events` only inside the daily totals, as `endpoint.requests`. Requests to the other routes also send an `endpoint.request` event with the same fields to PostHog. A request to a path it does not serve is only logged. Cloudflare's stored request logs stay off for the endpoint, because they can include the client IP address. Exceptions inside the endpoint go to Sentry.
 
 ## Website statistics
 
@@ -257,11 +253,11 @@ The openwaggle.ai website reports to the same endpoint, at `/api/v1/web`, and to
 | Item | Recorded as |
 | --- | --- |
 | Page views | The path and time, without query strings or fragments |
-| Referrer | The referring domain, never the full address |
+| Referrer | The referring page's origin and host name, such as `https://example.com`, never its path |
 | Channel | `search`, `social`, `referral` or `direct` |
 | Campaign | UTM tags in the link you followed |
 | Country | Two-letter country code |
-| Download clicks | The kind of link, such as a release download or the install script, never the link itself |
+| Download clicks | The kind of link, never the link itself: `github_releases`, `release_asset`, `install_script` or `installation_page` |
 
 To count visitors, and to connect a landing page with a download click later that day, the endpoint derives a visitor key from your IP address, your browser's User-Agent, and a random salt for the current UTC day. PostHog receives the key, never the address or User-Agent. The salt expires at the next UTC midnight, or up to a minute later when the endpoint creates it in the last minute of a day, because Cloudflare KV keeps a value for at least a minute. The endpoint never uses a salt after its day ends. App reports never use a visitor key.
 

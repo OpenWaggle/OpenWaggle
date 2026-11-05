@@ -8,7 +8,7 @@ kind: "guide"
 
 `@openwaggle/extension-react` provides small React primitives for OpenWaggle extension surfaces.
 
-Use it when an extension contribution is implemented in React and should match the OpenWaggle extension theme contract. It is optional; non-React extensions can use `@openwaggle/extension-sdk` UI helpers directly.
+Use it when an extension contribution is implemented in React and should match the OpenWaggle extension theme contract. It is optional. Non-React extensions can use `@openwaggle/extension-sdk` UI helpers directly.
 
 <package-install packages="@openwaggle/extension-react @openwaggle/extension-sdk react react-dom"></package-install>
 
@@ -115,7 +115,7 @@ Do not import OpenWaggle renderer components to fill gaps. If a primitive is mis
 
 **Components render without OpenWaggle styling.** Import `@openwaggle/extension-react/styles.css` once in the extension bundle.
 
-**React is installed twice.** Keep compatible React and React DOM versions in your extension project and deduplicate them in its build. The host does not supply React through the extension mount context; your bundler must produce a browser-loadable artifact.
+**React is installed twice.** Keep compatible React and React DOM versions in your extension project and deduplicate them in its build. The host does not supply React through the extension mount context. Your bundler must produce a browser-loadable artifact.
 
 **A non-React extension needs the same visual language.** Use the framework-neutral classes and stylesheet helpers from `@openwaggle/extension-sdk` instead.
 

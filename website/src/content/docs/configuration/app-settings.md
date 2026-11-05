@@ -6,13 +6,13 @@ section: "Customize"
 kind: "guide"
 ---
 
-Settings is where you connect models, decide how much the agent may do on its own, and adjust how OpenWaggle looks and behaves. Click the gear icon in the sidebar to open it. For a first setup you need two sections: **Connections** to connect a model, and **Permissions** to choose an access mode. Leave the rest alone until you need it. Every setting, with its values and default, is listed in the [Settings reference](/docs/reference/settings).
+Settings is where you connect models, decide how much the agent may do on its own, and adjust how OpenWaggle looks and behaves. Click the gear icon in the sidebar to open it. For a first setup you need two sections: **Connections** to connect a model, and **Permissions** to choose an access mode. Leave the rest alone until you need it. The [Settings reference](/docs/reference/settings) lists every setting, with its values and default.
 
 Most settings apply to the whole app. A few sections have a project picker so you can look at one project's settings. Picking a project there does not switch your conversation to it, so check which project is selected before you change something.
 
 ## Find the right section
 
-The sidebar of Settings lists 15 sections, from **General** at the top to **Connections** at the bottom. The sections below cover the changes people make most. The [Settings reference](/docs/reference/settings) goes through every section in the order the sidebar shows them.
+The [Settings reference](/docs/reference/settings) goes through every section in the order the sidebar shows them, with each setting's values and default. The sections below cover the changes people make most.
 
 ## Connect a model
 
@@ -30,7 +30,7 @@ Open **Permissions** and set **Default access mode**. **Ask for Approval** makes
 
 In **Agents**, **Agent-created Workers** lets an agent start other sessions to share a task. A worker is a separate conversation with its own messages and tool activity. Read [Hives](/docs/using-openwaggle/hives-and-sessions) before you turn on parallel work.
 
-Two limits keep parallel work in check. **Workers per parent** allows 4 worker runs at a time under one parent session, and **Active agent runs** allows 16 runs at a time across the whole app. A run is one stretch of agent work, not a saved conversation, so saved sessions and queued follow-ups do not count. When a new run would pass a limit, OpenWaggle refuses it with an error you can retry instead of queuing it. You can raise the limits, but more runs at once can slow your computer and use up your provider quota faster.
+**Agents** has two limits. **Workers per parent** allows 4 runs at a time by the parent's direct workers, and **Active agent runs** allows 16 runs at a time across the whole app. A run is one stretch of agent work, not a saved conversation, so saved sessions and queued follow-ups do not count. When a new run would pass a limit, OpenWaggle refuses it with an error you can retry instead of queuing it. You can raise the limits, but more runs at once can slow your computer and use up your provider quota faster.
 
 A project's `.openwaggle/settings.json` can set its own values for **Agent-created Workers** and **Workers per parent**, and the file wins. If an older version saved per-project values in the app, **Saved project overrides** shows them and **Clear saved value** removes them. Clearing does not change a project file. See [Per-project configuration](/docs/configuration/per-project-config).
 
@@ -51,7 +51,7 @@ Until you change these two here, they follow `defaultTools` and `cacheWarming` i
 
 ## Continue sessions from the pi CLI
 
-**General > Pi sessions** lists your projects. For each one, choose what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. The choice is stored in your OpenWaggle settings, not in the project, so everyone on the project chooses for themselves.
+**General > Pi sessions** lists your projects. For each one, choose what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. OpenWaggle stores the choice in your own settings, not in the project, so everyone on the project chooses for themselves.
 
 ## Update OpenWaggle
 
@@ -91,7 +91,7 @@ In **Browser**, **Let agents open and drive the preview browser** decides whethe
 
 **Project actions** saves commands such as tests and builds, or a dev server that keeps running, and sets up what runs when OpenWaggle creates a worktree. You start actions from **Project Actions** on the right panel rail. See [Project actions](/docs/configuration/project-actions).
 
-**Shortcuts** covers both app keyboard bindings and Project Action bindings. **Add binding** lets you pick either kind of command. Check the overlap warning before you take a shortcut that something else already uses. See [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts).
+**Shortcuts** covers both app keyboard shortcuts and project action shortcuts. **Add binding** lets you pick either kind of command. Check the overlap warning before you take a shortcut that something else already uses. See [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts).
 
 ## Clean up worktrees
 
@@ -101,13 +101,13 @@ In **Browser**, **Let agents open and drive the preview browser** decides whethe
 
 ![Settings > Worktrees with the storage summary, the Automatic cleanup setting, and two worktrees In use, each with its session, branch, size and Archive & remove](/screenshots/settings-worktrees.png)
 
-The storage card adds up the space each worktree would free. Sizes are measured in the background and show **Measuring…** until they arrive. They are estimates: files shared with another folder, such as a pnpm package store, are left out, because removing the worktree would not free them. **Free about X** removes every worktree in **Safe to remove** after one confirmation that lists them.
+The storage card adds up the space each worktree would free. OpenWaggle measures sizes in the background, and each shows **Measuring…** until it arrives. They are estimates. Files shared with another folder, such as a pnpm package store, do not count, because removing the worktree would not free them. **Free about X** removes every worktree in **Safe to remove** after one confirmation that lists them.
 
-Worktrees are sorted into three groups:
+OpenWaggle sorts worktrees into three groups:
 
-- **Safe to remove**: every change is committed and pushed to a remote, and no open session uses it. **Remove** asks once more in the row, then removes it.
-- **Needs a decision**: it has uncommitted changes or commits that are on no remote, it was made outside OpenWaggle, it is locked, its cleanup failed, or Git could not report its state. **Discard & remove** or **Remove** opens a confirmation that says what you would lose.
-- **In use**: an open session, a run, a terminal or a Project Action uses it. This group starts collapsed. **Archive & remove** archives every session in the worktree and then removes it, and the confirmation names each session. It never throws away uncommitted changes. A worktree that has some offers **Archive Sessions** instead, which archives the sessions and keeps the worktree. While it still has changes it is listed under **Needs a decision**, where **Discard & remove** is a separate step. **Archive & remove** is not available while a run, terminal or action uses the worktree, and the row says which.
+- **Safe to remove** holds worktrees whose every change is committed and pushed to a remote, and that no open session uses. **Remove** asks once more in the row, then removes it.
+- **Needs a decision** holds worktrees with uncommitted changes or commits that are on no remote, worktrees made outside OpenWaggle, and worktrees that are locked, whose cleanup failed, or whose state Git could not report. **Discard & remove** or **Remove** opens a confirmation that says what you would lose.
+- **In use** holds worktrees that an open session, a run, a terminal or a project action uses. This group starts collapsed. **Archive & remove** archives every session in the worktree and then removes it, and the confirmation names each session. It never throws away uncommitted changes. A worktree that has some offers **Archive Sessions** instead, which archives the sessions and keeps the worktree. While it still has changes it is listed under **Needs a decision**, where **Discard & remove** is a separate step. **Archive & remove** is not available while a run, terminal or action uses the worktree, and the row says which.
 
 Worktrees that OpenWaggle manages appear for every project. Worktrees made outside OpenWaggle appear only for the project you opened, under **Needs a decision** unless something uses them, because removing one also deletes ignored files such as `.env` that OpenWaggle cannot bring back. A worktree in OpenWaggle's worktree folder that this OpenWaggle profile has no record of, for example one a development build made, reads **Not recorded by this OpenWaggle profile** and also needs a decision. A managed worktree that no session uses reads **No Session uses this worktree**, and you can only remove it by hand. Use the project picker and search to narrow a long list.
 
@@ -121,7 +121,7 @@ The card shows when the rule last checked, and the last time it removed somethin
 
 ### When removal fails
 
-OpenWaggle checks each removal again just before it runs, so a worktree that came into use after the list loaded is kept. If cleanup fails, the worktree stays in the list with its output and **Retry cleanup**. **Delete anyway** skips cleanup, which can leave outside resources behind, such as a temporary database. **Force remove** also removes worktrees with changes or a lock and can throw away uncommitted work. Save anything you need before you use it.
+OpenWaggle checks each removal again just before it runs, so it keeps a worktree that came into use after the list loaded. If cleanup fails, the worktree stays in the list with its output and **Retry cleanup**. **Delete anyway** skips cleanup, which can leave outside resources behind, such as a temporary database. **Force remove** also removes worktrees with changes or a lock and can throw away uncommitted work. Save anything you need before you use it.
 
 ## Find and restore archived sessions
 
@@ -129,12 +129,12 @@ OpenWaggle checks each removal again just before it runs, so a worktree that cam
 
 - **Search** looks in a session's title, its project, the session a branch belongs to, and the conversation itself. Every word you type has to appear somewhere, and you can leave off the end of a word, so `refac` finds "refactor". A match inside the conversation shows the passage it came from.
 - **Project**, **Archived date** (last 24 hours, 7 days, 30 days, or older) and **Type** (sessions or branches) narrow the list. Each option shows how many items you would see if you chose it.
-- While you search, the best matches come first. Otherwise items are grouped by when you archived them: Today, Yesterday, Earlier this week and so on. **Sort** switches to newest or oldest first.
+- While you search, the best matches come first. Otherwise the list groups items by when you archived them: Today, Yesterday, Earlier this week and so on. **Sort** switches to newest or oldest first.
 - **Restore** puts an item back in the sidebar, and the confirmation offers **Undo**, which archives it again with its original date. You can select several items, Shift-click to select a range, or select every match, up to 1,000 in the order the list shows, and restore them together. Changing the search or a filter clears the selection.
 - **Open** shows an archived session without restoring it. It keeps its archived notice and **Restore** button, and stays out of the sidebar until you restore it. Opening a branch opens the session it belongs to.
-- **Delete** deletes archived sessions for good after you confirm, once for the whole selection. You cannot undo it. A selected session that was restored somewhere else in the meantime, for example in another window, is kept. Branches can only be restored, never deleted.
+- **Delete** deletes archived sessions for good after you confirm, once for the whole selection. You cannot undo it. OpenWaggle keeps a selected session that someone restored somewhere else in the meantime, for example in another window. You can restore archived branches here, but not delete them.
 
-Archived branches are hidden from the sidebar but still marked in the full Session Tree.
+The sidebar hides archived branches, and the full Session Tree still marks them.
 
 ## Set up MCP servers
 

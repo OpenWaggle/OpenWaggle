@@ -54,7 +54,7 @@ The file uses Pi's format, so Pi's docs describe it: [Choose a model](https://gi
 
 ## Models that only one project has
 
-`models.json` applies to every project. A provider that a project's own extension adds is different: its models show up only while that project is open. If a model seems to have vanished, check which project you have open first.
+`models.json` applies to every project. A provider that a project's own extension adds is different. Its models show up only while that project is open. If a model seems to have vanished, check which project you have open first.
 
 Listing models, testing API keys and running the agent all load the project's provider extensions. Saving an API key and browser sign-in do not. They use Pi's default setup, without project extensions. So if a project-only provider cannot save a key or sign in from **Connections**, give it credentials the way its own docs describe, through an environment variable or its configuration. A provider can appear in the model list even when its custom login is not available here.
 

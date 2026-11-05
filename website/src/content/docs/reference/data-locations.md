@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Where OpenWaggle and Pi keep their files on macOS, Windows and Linux. For the format of each configuration file, such as `settings.json`, `mcp.json`, `auth.json` or `models.json`, see [Configuration files](/docs/reference/configuration-files). In the paths below, `~` is your home folder, `%USERPROFILE%` on Windows.
+This page lists where OpenWaggle and Pi keep their files on macOS, Windows and Linux. For the format of each configuration file, such as `settings.json`, `mcp.json`, `auth.json` or `models.json`, see [Configuration files](/docs/reference/configuration-files). In the paths below, `~` is your home folder, `%USERPROFILE%` on Windows.
 
 ## App data folder
 
@@ -39,11 +39,12 @@ Set `OPENWAGGLE_USER_DATA_DIR` to use another folder. The desktop app, the Sessi
 | `preparation/` | Worktree setup and other preparation state, for each workspace |
 | `worktree-removal/` | A record of the last 20 automatic worktree removals |
 | `models/` | The speech model for voice input, downloaded on first use |
+| `syntax-resources/` | Syntax themes and grammars you imported in **Settings > Appearance** |
 | `usage-statistics/` | Usage statistics recorded today and not yet sent. See [When statistics are sent](/docs/configuration/usage-statistics#when-statistics-are-sent) |
 | `session-data/` | The window's browser profile: local storage, cookies and cache |
 | `shell-environment.json` | The environment read from your login shell at the last launch, so the next launch starts faster |
 
-The sidebar's sort order, which projects are collapsed, and the **Pinned** section's sort are kept in the window's local storage under `session-data/`, so they are remembered between launches. Pinned sessions and their dragged order are in the session database. Text filters and state chips are not remembered, so an old filter never keeps sessions hidden.
+The sidebar's sort order, which projects are collapsed, and the **Pinned** section's sort live in the window's local storage under `session-data/`, so OpenWaggle remembers them between launches. Pinned sessions and their dragged order are in the session database. OpenWaggle does not remember text filters and state chips, so an old filter never keeps sessions hidden.
 
 Older versions kept `openwaggle.db` and `session-host.sqlite` at the top of the folder. Current versions write neither.
 
@@ -90,7 +91,7 @@ Session files move to the folder named by `PI_CODING_AGENT_SESSION_DIR`, or by t
 
 ## Managed worktrees
 
-OpenWaggle creates each managed worktree outside your project, at `~/.openwaggle/worktrees/<project folder name>/<workspace ID>`. A new worktree's branch is `ow/session-<session ID>`, named after the session that created it. Sessions that share a workspace use the same checkout. Worktrees made by older versions keep the names they were created with, so check **Session Summary > Environment** for a session's real path and branch. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
+OpenWaggle creates each managed worktree outside your project, at `~/.openwaggle/worktrees/<project folder name>/<workspace ID>`. A new worktree's branch is `ow/session-<workspace ID>`, the same ID as its folder. It can differ from the session ID. Sessions that share a workspace use the same checkout. Worktrees made by older versions keep the names they were created with, so check **Session Summary > Environment** for a session's real path and branch. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
 
 ## Temporary files
 

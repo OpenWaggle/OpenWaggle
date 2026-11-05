@@ -32,7 +32,7 @@ Agents and CLI callers can set a session's level when they create, launch or spa
 
 ## Level names
 
-These are every possible level. No model offers all of them.
+These are every possible level. Most models offer only some of them.
 
 | In the app | In configuration |
 | --- | --- |

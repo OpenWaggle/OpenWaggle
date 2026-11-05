@@ -53,4 +53,4 @@ OpenWaggle takes its provider and model list from Pi, so the providers on offer 
 - [Pi custom models](https://pi.dev/docs/latest/models)
 - [Pi custom providers](https://pi.dev/docs/latest/custom-provider)
 
-Every setting on the **Connections** page is listed in the [Settings reference](/docs/reference/settings#connections).
+The [Settings reference](/docs/reference/settings#connections) lists every setting on the **Connections** page.

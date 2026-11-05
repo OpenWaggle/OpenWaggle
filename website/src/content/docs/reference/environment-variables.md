@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Every environment variable that OpenWaggle, the `openwaggle` command and the install script read, and the variables OpenWaggle sets for the commands it starts. A variable reaches only the process started with it and the processes that one starts.
+This page lists every environment variable that OpenWaggle, the `openwaggle` command and the install script read, and the variables OpenWaggle sets for the commands it starts. A variable reaches only the process started with it and the processes that one starts.
 
 ## Where the desktop app gets its environment
 
@@ -20,7 +20,7 @@ An app opened from the Dock, the Start menu or a desktop launcher does not see v
 | `LANG`, `LC_ALL`, `LC_CTYPE` | macOS, when the app has none of them. With none set anywhere, the app uses `LC_CTYPE=en_US.UTF-8` |
 | `FNM_DIR`, `FNM_MULTISHELL_PATH` | Windows, when the app has none |
 
-Any other variable, such as `DO_NOT_TRACK` or a provider API key, reaches the desktop app only if it was in the app's own environment when it started. Values in MCP server files written as `${NAME}` are an exception: OpenWaggle reads them from your login shell. See [MCP](/docs/configuration/mcp).
+Any other variable, such as `DO_NOT_TRACK` or a provider API key, reaches the desktop app only if it was in the app's own environment when it started. Values in MCP server files written as `${NAME}` are an exception. OpenWaggle reads them from your login shell. See [MCP](/docs/configuration/mcp).
 
 The Session Host that the desktop app starts keeps the app's environment. A Session Host that an `openwaggle` command starts keeps that command's environment. A Session Host that is already running keeps its own.
 
@@ -32,7 +32,7 @@ Any one of these turns off usage statistics and error reports for the process. [
 | --- | --- | --- |
 | `DO_NOT_TRACK` | Set to anything other than empty, `0`, `false`, `no` or `off`, in any case | Not set |
 | `PI_TELEMETRY` | Set to anything other than `1`, `true` or `yes` (`true` and `yes` in any case), even an empty value. Also removes Pi's provider labels | Not set |
-| `CI` | Set to anything other than empty, `0`, `false`, `no` or `off`. CI services set it | Not set |
+| `CI` | Set to anything other than empty, `0`, `false`, `no` or `off`, in any case. CI services set it | Not set |
 | `OPENWAGGLE_AUTOMATION` | Set to `1`, which marks an automated test launch. It also stops the app and its Session Host from opening dialogs or browser windows | Not set |
 
 ## App and CLI

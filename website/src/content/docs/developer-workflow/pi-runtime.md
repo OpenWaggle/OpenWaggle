@@ -46,7 +46,7 @@ Pi executes the tools enabled for the run. OpenWaggle shows their events in the 
 
 Each OpenWaggle session is an ordinary Pi session file, kept where the `pi` command keeps its own. By default that is `sessions/` in Pi's [agent folder](/docs/reference/data-locations#pi-agent-folder), `~/.pi/agent/sessions/`, with one folder per working directory. `PI_CODING_AGENT_SESSION_DIR`, or the `sessionDir` setting in the project's `.pi/settings.json` or in the global Pi settings, moves them. [Environment variables](/docs/reference/environment-variables#pi) lists the Pi variables OpenWaggle reads.
 
-The SQLite projection is a read model built from the session file. The file is the record; the projection is a copy shaped for the UI.
+The SQLite projection is a read model built from the session file. The file is the record, and the projection is a copy shaped for the UI.
 
 ## Sessions started outside OpenWaggle
 
@@ -67,7 +67,7 @@ The [Pi CLI sessions guide](/docs/using-openwaggle/pi-cli-sessions) explains wha
 
 - Viewing a listed session never changes its file. The projection, the context meter, and other reads load the file's entries into memory and load no extensions.
 - A run continues the file through Pi, the way `pi --resume` would. A file in an older Pi format moves to Pi's current format the first time you continue it. The run works in the folder the session ran in, when that folder is inside the project, with the model and thinking level `pi --resume` would pick.
-- The composer asks before it continues a session whose latest prompt has no `openwaggle-user-input` record before it, which is the record OpenWaggle writes for its own prompts. A remembered answer is saved per project in your own settings, as `piSessionContinuationByProject`.
+- The composer asks before it continues a session whose latest prompt has no `openwaggle-user-input` record before it, which is the record OpenWaggle writes for its own prompts. OpenWaggle saves a remembered answer per project in your own settings, as `piSessionContinuationByProject`.
 - A session listed before it had a first message takes its title once it has one.
 - A fork made with the `pi` command copies the entry ids of the session it came from, and OpenWaggle stores the nodes of every session under one key. So the projection stores a listed session's entries under ids prefixed with its session id, and translates them back whenever it hands an entry to Pi.
 - Deleting a listed session marks its file as dismissed, so discovery does not list it again. Removing the project dismisses nothing, so its sessions come back if you add the folder again.
@@ -95,14 +95,14 @@ OpenWaggle adds its own tools:
 | `source_control` | Explains how OpenWaggle reaches GitHub or GitLab for the project | On demand |
 | `openwaggle_docs` | Lists, searches, and reads the docs installed with the app: these OpenWaggle docs, the Pi docs, and the docs of OpenWaggle extensions enabled for the project | On demand |
 
-An on-demand tool is not declared to the model until Pi's `tool_search` loads it. Codemode scripts can call it at any time, and one short rule in the system prompt tells the agent it exists. So these tools cost almost no context until the agent uses them. MCP tools reach the agent through codemode in the same way; see [MCP](/docs/configuration/mcp#choose-how-tools-reach-the-agent).
+An on-demand tool is not declared to the model until Pi's `tool_search` loads it. Codemode scripts can call it at any time, and one short rule in the system prompt tells the agent it exists. So these tools cost almost no context until the agent uses them. MCP tools reach the agent through codemode in the same way. See [MCP](/docs/configuration/mcp#choose-how-tools-reach-the-agent).
 
 A few more details:
 
 - `openwaggle_docs` also replaces Pi's list of its own documentation paths, so the agent answers questions about OpenWaggle without guessing file paths.
-- The `hive` tool declares the actions agents use most. `hive({ action: "help" })` lists every action with its parameters and the full Hive rules. A result longer than 32 KB is cut to one page, and the whole result is saved to the session's scratch directory.
+- The `hive` tool declares the actions agents use most. `hive({ action: "help" })` lists every action with its parameters and the full Hive rules. OpenWaggle cuts a result longer than 32 KB to one page and saves the whole result to the session's scratch directory.
 - The shell tools get the session's prepared environment and the real project and worktree paths. [Environment variables](/docs/reference/environment-variables#set-for-agent-shell-commands) lists what OpenWaggle sets for them.
-- An [Agent definition](/docs/extending/agent-definitions) can narrow the tools with an allowlist. An allowlist that names an on-demand tool, such as `project_actions`, declares it from the first request. So the tools can differ from one session to the next.
+- An [agent definition](/docs/extending/agent-definitions) can narrow the tools with an allowlist. An allowlist that names an on-demand tool, such as `project_actions`, declares it from the first request. So the tools can differ from one session to the next.
 
 New runtime tools should use Pi's extension APIs, behind OpenWaggle's adapter boundaries.
 

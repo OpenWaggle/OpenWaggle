@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Every setting in the Settings window, section by section, in the order the sidebar lists them. To open Settings, click the gear icon in the sidebar. For what each section is for and the changes people make most, see [Settings](/docs/configuration/app-settings).
+This page lists every setting in the Settings window, section by section, in the order the sidebar lists them. To open Settings, click the gear icon in the sidebar. For what each section is for and the changes people make most, see [Settings](/docs/configuration/app-settings).
 
 Settings apply to the whole app unless the table says otherwise. A section with a project picker shows one project at a time. Picking a project there does not switch your conversation to it.
 
@@ -51,15 +51,15 @@ The usage statistics switch is off and locked in a Dev build, during an automate
 
 The zoom steps are 25, 33, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400 and 500 %.
 
-**Profiles** lists the built-in **Default** and **Incognito** profiles and the ones you add. Default and your own profiles keep logins and site data. Incognito is cleared when OpenWaggle quits. You can add up to 24 profiles, each with a name of up to 48 characters. **Import from** copies cookies from a browser installed on your computer into a profile. See [Browser preview](/docs/developer-workflow/browser-preview).
+**Profiles** lists the built-in **Default** and **Incognito** profiles and the ones you add. Default and your own profiles keep logins and site data. OpenWaggle clears Incognito when it quits. You can add up to 24 profiles, each with a name of up to 48 characters. **Import from** copies cookies from a browser installed on your computer into a profile. See [Browser preview](/docs/developer-workflow/browser-preview).
 
 ## Project actions
 
-This section has a project picker. It lists the project's saved actions and the **Workspace preparation** setup and cleanup for worktrees OpenWaggle creates. A new action is saved for **Just me** unless you choose **Everyone working on this project**, which saves it in `.openwaggle/actions.json`. See [Project actions](/docs/configuration/project-actions).
+This section has a project picker. It lists the project's saved actions and the **Workspace preparation** setup and cleanup for worktrees OpenWaggle creates. OpenWaggle saves a new action for **Just me** unless you choose **Everyone working on this project**, which saves it in `.openwaggle/actions.json`. See [Project actions](/docs/configuration/project-actions).
 
 ## Shortcuts
 
-Lists every keyboard command and Project Action binding, with search, **Add binding** and **Reset defaults**. The **Panels** group holds a shortcut for each right panel view. For the default keys and how bindings combine, see [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts).
+Lists every keyboard command and project action shortcut, with search, **Add binding** and **Reset defaults**. The **Panels** group holds a shortcut for each right panel view. For the default keys and how bindings combine, see [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts).
 
 ## Appearance
 
@@ -84,7 +84,7 @@ Lists every keyboard command and Project Action binding, with search, **Add bind
 | **Wrap long lines** | On, off | Off | Wraps long diff lines instead of scrolling sideways. |
 | **Reduce motion** | On, off | Off, following the operating system | On always keeps animation to a minimum. |
 
-**Import** in **Color and syntax** adds VS Code JSON or JSONC themes, TextMate themes and grammars, VS Code extensions, and OpenWaggle theme packages. **Reset** in **Typography** puts every font and size back to its default. A custom font stack can be up to 240 characters. **Diff layout** and **Wrap long lines** also change from the diff panel's own controls. Appearance choices apply in every project and are not read from project files.
+**Import** in **Color and syntax** adds VS Code JSON or JSONC themes, TextMate themes and grammars, VS Code extensions, and OpenWaggle theme packages. **Reset** in **Typography** puts every font and size back to its default. A custom font stack can be up to 240 characters. **Diff layout** and **Wrap long lines** also change from the diff panel's own controls. Appearance choices apply in every project. OpenWaggle does not read them from project files.
 
 ## Waggle Mode
 
@@ -110,7 +110,7 @@ Has a project picker. Lists the skills found in the project's `.openwaggle/skill
 | Setting | Values | Default | What it does |
 | --- | --- | --- | --- |
 | **Agent-created Workers** | On, off | On | Lets agents start worker sessions to share a task. |
-| **Workers per parent** | 1 or more | 4 | The most worker runs active at once under one parent session. |
+| **Workers per parent** | 1 or more | 4 | The most runs active at once by one parent session's direct workers. |
 | **Active agent runs** | 1 or more | 16 | The most runs active at once across the app, in every session and Hive. |
 
 OpenWaggle refuses a new run that would pass either limit, with an error you can retry. It does not queue the run. Saved sessions, queued follow-ups, searches, waits and exports do not count toward the limits. A project's `.openwaggle/settings.json` can set its own **Agent-created Workers** and **Workers per parent**, and the file wins.
@@ -143,7 +143,7 @@ Lists your MCP servers with controls to add, turn off, sign in to and inspect th
 | --- | --- | --- | --- |
 | **New Sessions run in** | **Current checkout**, **A new worktree** | **Current checkout** | Where a new session works. You can change it before the session's first message. |
 | **Remove worktrees of archived Sessions automatically** | On, off | Off | Removes a worktree once every session in it has been archived long enough. |
-| **After archiving for** | 7, 14, 30, 60 or 90 days | 30 days | How long every session in a worktree must stay archived before it is removed. |
+| **After archiving for** | 7, 14, 30, 60 or 90 days | 30 days | How long every session in a worktree must stay archived before OpenWaggle removes it. |
 
 The rest of the section lists the worktrees of every project in three groups, **Safe to remove**, **Needs a decision** and **In use**, with the space each would free. See [Settings](/docs/configuration/app-settings#clean-up-worktrees).
 
@@ -162,12 +162,12 @@ Lists archived sessions and branches, with **Search**, filters for **Project**, 
 | **Available Models** | A checkbox per model | None | Which models appear in the model selector. |
 | **Title model** | **Automatic**, **Off**, or any enabled model | **Automatic** | Which model writes session titles. |
 
-A key test sends one short prompt and gives up after 15 seconds. See [API key authentication](/docs/providers/api-key-auth) and [Browser sign-in](/docs/providers/oauth-auth). For source control hosts and accounts, see [Session Summary](/docs/developer-workflow/pull-requests#how-openwaggle-recognizes-a-host).
+A key test sends one short prompt and gives up after 15 seconds. See [API keys](/docs/providers/api-key-auth) and [Subscription sign-in](/docs/providers/oauth-auth). For source control hosts and accounts, see [Pull and merge requests](/docs/developer-workflow/pull-requests#how-openwaggle-recognizes-a-host).
 
 | **Title model** choice | What happens |
 | --- | --- |
 | **Automatic** | The cheapest available model from each session's own provider and model family writes its title, with the same sign-in and region. |
-| A model | That model writes every title. Each session's opening message and each worker's task go to that model's provider, and so does up to about 8,000 characters of the conversation when a title is refined or regenerated. If the model fails, the session's own model is tried. |
-| **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
+| A model | That model writes every title. Each session's opening message and each worker's task go to that model's provider, and so does up to about 8,000 characters of the conversation when a title is refined or regenerated. If the model fails, OpenWaggle tries the session's own model. |
+| **Off** | OpenWaggle generates no titles. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
 
 Titles use the models of each session's project, so a provider or virtual model that a project's Pi extension adds can write titles for that project's sessions.

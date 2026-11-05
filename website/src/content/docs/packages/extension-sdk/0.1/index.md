@@ -12,7 +12,7 @@ Use it in extension modules that mount into OpenWaggle-owned containers. The pac
 
 <package-install packages="@openwaggle/extension-sdk"></package-install>
 
-The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe; Node.js is required for extension build tooling and package consumers.
+The package supports Node.js 22.19 and newer. Its runtime exports are browser-safe. Node.js is required for extension build tooling and package consumers.
 
 ## Main Imports
 
@@ -45,7 +45,7 @@ Supported public subpaths include:
 
 ## Federated Module Example
 
-A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context; the extension owns the content appended to `context.root`.
+A visual contribution exports `mount(context)`. OpenWaggle owns the container and passes the mount context, and the extension owns the content appended to `context.root`.
 
 ```ts
 import type { OpenWaggleFederatedModule } from '@openwaggle/extension-sdk'
@@ -105,7 +105,7 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 }
 ```
 
-Declare matching capabilities and methods in `openwaggle.extension.json`; undeclared capability calls fail closed.
+Declare matching capabilities and methods in `openwaggle.extension.json`. A call to a capability the manifest does not declare fails.
 
 ## Manifest Typing
 

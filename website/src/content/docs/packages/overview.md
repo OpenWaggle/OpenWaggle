@@ -12,7 +12,7 @@ OpenWaggle publishes npm packages for people who build extensions and for people
 
 | Package | Use it for |
 | --- | --- |
-| [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) | Extension types, SDK helpers, theme helpers, UI class and style helpers, and the mount context types for federated modules. Safe to use in the browser |
+| [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) | Extension types, SDK helpers, theme helpers, UI class and style helpers, and the mount context types for federated modules, all safe to use in the browser |
 | [`@openwaggle/extension-react`](/docs/packages/extension-react) | Optional React components for extension surfaces that should look like the app's own controls and layout |
 | [`@openwaggle/waggle-core`](/docs/packages/waggle-core) | Waggle configuration, presets, prompts, state, consensus, and turn rules, with no runtime attached |
 | [`@openwaggle/pi-waggle`](/docs/packages/pi-waggle) | A Pi extension that adds Waggle mode, built on `@openwaggle/waggle-core` |

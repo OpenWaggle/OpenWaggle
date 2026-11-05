@@ -6,11 +6,11 @@ section: "Customize"
 kind: "guide"
 ---
 
-Most changes belong in Settings: connecting a model, choosing an access mode, changing fonts. Use a project file when a setting should apply to one repository only, such as a lower worker limit for a large monorepo, or a skill that only this project needs. OpenWaggle reads project settings from `.openwaggle/settings.json` in the project's root folder. Every file it reads, with its location and JSON Schema, is listed in [Configuration files](/docs/reference/configuration-files).
+Most changes belong in Settings: connecting a model, choosing an access mode, changing fonts. Use a project file when a setting should apply to one repository only, such as a lower worker limit for a large monorepo, or a skill that only this project needs. OpenWaggle reads project settings from `.openwaggle/settings.json` in the project's root folder. [Configuration files](/docs/reference/configuration-files) lists every file it reads, with its location and JSON Schema.
 
 ## Create a project settings file
 
-Create `.openwaggle/settings.json` in the project root and add only the values you need. Top-level keys belong to OpenWaggle. Pi's settings go in a nested `pi` object, with Pi's own names. This file turns on workers for the project, allows 8 worker runs at a time under one parent, and adjusts how Pi compacts:
+Create `.openwaggle/settings.json` in the project root and add only the values you need. Top-level keys belong to OpenWaggle. Pi's settings go in a nested `pi` object, with Pi's own names. This file turns on workers for the project, allows 8 runs at a time by one parent's direct workers, and adjusts how Pi compacts:
 
 ```json
 {
@@ -33,7 +33,7 @@ Create `.openwaggle/settings.json` in the project root and add only the values y
 }
 ```
 
-`multiAgentEnabled` lets agents start worker sessions in this project. `parentConcurrencyLimit` is a whole number of 1 or more that caps how many worker runs one parent session can have going at once. It does not limit how many conversations you keep. See [Hives](/docs/using-openwaggle/hives-and-sessions).
+`multiAgentEnabled` lets agents start worker sessions in this project. `parentConcurrencyLimit` is a whole number of 1 or more that caps how many runs one parent session's direct workers can have going at once. It does not limit how many conversations you keep. See [Hives](/docs/using-openwaggle/hives-and-sessions).
 
 A value in the file wins over a value an older version saved in the app, and that wins over the app-wide default. **Settings > Agents** changes the defaults. Its **Saved project overrides** list can clear values the app saved, but it never edits your project file.
 
@@ -41,9 +41,9 @@ OpenWaggle also writes to this file. When you pick a mode under **Settings > Per
 
 Pi may also read `.pi/settings.json`. Keep that file untracked too. Put OpenWaggle settings in `.openwaggle/settings.json`, and never put Pi settings at its top level.
 
-## Choose what stays app-wide
+## Settings a project file cannot change
 
-Some settings cannot be changed per project, and a project file does not override them:
+These settings apply to the whole app, and a project file does not override them:
 
 - The thinking level. Each session keeps its own, and new sessions start from Pi's global default. OpenWaggle ignores a `thinkingLevel` left in `.openwaggle/settings.json`, and a `defaultThinkingLevel` in the `pi` object or in `.pi/settings.json`. Choose the level beside the message box. See [Thinking levels](/docs/configuration/thinking-levels).
 - The automatic compaction percentage. Set it in **Settings > General > Context compaction**. A project `pi.compaction.thresholdPercent` does not override it.
@@ -102,13 +102,13 @@ You do not need to create every folder. Keep personal settings untracked. Shared
 
 ## Share project actions with your team
 
-Project actions and worktree setup are managed in **Settings > Project actions**, which has its own project picker. A new action is saved only for you and only for the selected project. Saving it does not create a file in the repository or make it appear in other projects.
+You manage project actions and worktree setup in **Settings > Project actions**, which has its own project picker. OpenWaggle saves a new action only for you and only for the selected project. Saving it does not create a file in the repository or make it appear in other projects.
 
 Choose **Everyone working on this project** for an action, or project storage for setup or cleanup, to save it in `.openwaggle/actions.json`. That file is separate from `.openwaggle/settings.json` and is meant to be committed. It holds the definitions only: no approvals, no prepared environment values, no run history. Keep secrets out of commands, and do not ignore the whole `.openwaggle/` folder if you want to share files from it.
 
 Each action, setup and cleanup has its own storage choice. A private version can change a shared definition without touching the repository copy, and **Restore shared version** removes your private version.
 
-OpenWaggle does not run shared setup or cleanup just because it finds it. You review it and turn it on for your own computer first. A worktree keeps the version of its setup profile it started with until you choose to take an update. See [Project actions](/docs/configuration/project-actions), and [What the shared file contains](/docs/configuration/project-actions#what-the-shared-file-contains) for an example `actions.json`. The old `actions` key in `settings.json` is read only to move old actions to their new home.
+OpenWaggle does not run shared setup or cleanup just because it finds it. You review it and turn it on for your own computer first. A worktree keeps the version of its setup profile it started with until you choose to take an update. See [Project actions](/docs/configuration/project-actions), and [What the shared file contains](/docs/configuration/project-actions#what-the-shared-file-contains) for an example `actions.json`. OpenWaggle reads the old `actions` key in `settings.json` only to move old actions to their new home.
 
 <a id="json-schemas-for-editors"></a>
 

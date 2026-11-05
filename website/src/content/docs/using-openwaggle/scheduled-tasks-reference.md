@@ -5,7 +5,7 @@ section: "Reference"
 kind: "reference"
 ---
 
-Exact values for [scheduled tasks](/docs/using-openwaggle/scheduled-tasks): limits, the `openwaggle schedules` command, and the JSON that `export` prints and `import` reads.
+This page lists the exact values for [scheduled tasks](/docs/using-openwaggle/scheduled-tasks): limits, the `openwaggle schedules` command, and the JSON that `export` prints and `import` reads.
 
 ## Limits
 
@@ -74,7 +74,7 @@ All of these follow `openwaggle schedules`, for example `openwaggle schedules li
 | `--prompt <text>`, `--prompt-file <path>` | The prompt. You can also give it as the remaining words. |
 | `--time-zone <zone>` | An IANA time zone. The default is your computer's. |
 | `--ends <iso\|ms\|none>`, `--max-runs <n\|none>` | Stop after a date or a number of runs. `none` clears either. |
-| `--stop-when <text\|none>`, `--indefinite`, `--finite` | A Heartbeat's stop condition, or that it never ends; `--finite` undoes `--indefinite` on update. A new Heartbeat needs one of these, `--ends` or `--max-runs`. |
+| `--stop-when <text\|none>`, `--indefinite`, `--finite` | A Heartbeat's stop condition, or that it never ends. `--finite` undoes `--indefinite` on update. A new Heartbeat needs one of these, `--ends` or `--max-runs`. |
 | `--wake-if <command\|none>` | A Heartbeat's wake check. `none` removes it. |
 | `--wake-on-failure wake\|skip` | What a failed or timed-out wake check does. The default is `wake`. |
 | `--idle-pause-after <1-20>` | Idle runs in a row after which a Heartbeat pauses itself. The default is 3. |

@@ -6,7 +6,7 @@ section: "Developer docs"
 kind: "guide"
 ---
 
-An extension can add its own section to the floating [Session Summary](/docs/using-openwaggle/session-summary) of the session you have open, and it can publish links and images to that session's sources and outputs. Use a Session Summary section for short facts about the session, such as a check's state, a count, or a link to the extension's side panel. This guide assumes you have a working extension; start with [Develop extensions](/docs/extending/openwaggle-extensions) if you do not. Every field and limit is in the [manifest reference](/docs/extending/extension-manifest#session-summary-sections).
+An extension can add its own section to the floating [Session Summary](/docs/using-openwaggle/session-summary) of the session you have open, and it can publish links and images to that session's sources and outputs. Use a Session Summary section for short facts about the session, such as a check's state, a count, or a link to the extension's side panel. This guide assumes you have a working extension. If you do not, start with [Build an extension](/docs/extending/openwaggle-extensions). Every field and limit is in the [manifest reference](/docs/extending/extension-manifest#session-summary-sections).
 
 ## Add a section
 

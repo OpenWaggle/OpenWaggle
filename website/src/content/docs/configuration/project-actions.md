@@ -67,16 +67,18 @@ By default, an action has one run at a time in each workspace. Choosing an actio
 
 After a run ends, choosing the action starts a new one. Switching sessions or closing the output view does not stop a run. Runs keep going after you quit the desktop app, as long as the background Session Host is still running, and reopening the app reconnects to them without starting another copy. If the process was lost, for example after your computer restarted, OpenWaggle keeps whatever output it has and offers **Restart**. It never starts the action again on its own.
 
+**Restart** checks the current command before it stops the old run. A run's kept output has a size limit, and OpenWaggle marks output it trimmed. **Settings > Project actions** links a running action back to its session.
+
 ## Follow output in the terminal
 
-**Open in terminal**, in the Project Actions panel or in a run's output view, opens a read-only tab in the terminal drawer at the bottom of the window. The tab is named after the action, such as **Dev server · action output**, and has a lock icon. It shows the run's saved and live output the same way your terminals do, so colours, scrollback, search, links, and copying all work. It connects to the run that is already going. It does not start a shell, does not run the command again, and does not accept typing.
+**Open in terminal**, in the Project Actions panel or in a run's output view, opens a read-only tab in the terminal drawer at the bottom of the window. The tab is named after the action, such as **Dev server · action output**, and has a lock icon. It shows the run's saved and live output the same way your terminals do, so colors, scrollback, search, links, and copying all work. It connects to the run that is already going. It does not start a shell, does not run the command again, and does not accept typing.
 
 ![A read-only Dev server · action output tab in the terminal drawer, showing the dev server's output and a note that Stop and Restart are in Project Actions](/screenshots/action-output-terminal.png)
 
 - Each action has one such tab per session. Choosing **Open in terminal** again brings it to the front.
 - When the action restarts, from the panel, a shortcut, or an agent, the tab follows the new run. Earlier output stays above a **restarted** divider.
 - When a run ends, the tab keeps its final output and shows how it ended, such as `Dev server failed · exit 1`.
-- Closing the tab only closes the view. The action keeps running. Stop and Restart are not in the tab; use **Stop** in Project Actions.
+- Closing the tab only closes the view. The action keeps running. Stop and Restart are not in the tab. Use **Stop** in Project Actions.
 - After you restart OpenWaggle, action output tabs come back with the terminal drawer and reconnect to the run's saved output.
 
 ## Choose whether it stops on its own
@@ -187,6 +189,8 @@ Settings writes `.openwaggle/actions.json` for you, so you rarely edit it by han
 }
 ```
 
+When a save clashes with an edit made outside OpenWaggle, Settings keeps both drafts and shows them under **Inspect pending drafts**. [Recovery files](/docs/configuration/project-actions-reference#recovery-files) explains the copies OpenWaggle keeps and when you can delete them.
+
 If the file is missing a key or has one OpenWaggle does not know, OpenWaggle does not guess. **Settings > Project actions** shows the error, and none of the project's actions work, your own included, until you fix the file. Each field is described in [The actions.json file](/docs/configuration/project-actions-reference#the-actionsjson-file). The file has a JSON Schema, but do not add a `"$schema"` key, which counts as an unknown key. To get completion in your editor, link the schema to the file as shown in [JSON Schemas for editors](/docs/configuration/per-project-config#json-schemas-for-editors).
 
 ## Set up new worktrees
@@ -197,7 +201,7 @@ Setup is a command that prepares a new worktree before the agent starts, for exa
 2. Answer **What should it run?** with a project script or a command that finishes, such as the project's install command.
 3. Check **Who should have this setup?** and the folder under **Optional settings**, then click **Save setup**.
 
-Saving a setup turns it on for you, whether you keep it to yourself or share it, because you have just seen exactly what will run. The one exception is a teammate's change waiting for your review: if you save it without changing its command or folder, it stays off until you check it, and the message after saving says so.
+Saving a setup turns it on for you, whether you keep it to yourself or share it, because you have just seen exactly what will run. The one exception is a teammate's change waiting for your review. If you save it without changing its command or folder, it stays off until you check it, and the message after saving says so.
 
 A shared setup needs each teammate's review before it runs on their computer, and a later change by someone else needs your review. Settings shows **Check it before it runs** for those. **Check it** opens the panel with what changed since the version you last turned on, in plain words. Choose **Turn on this version** or **Keep it off**. Closing the panel leaves the setup off. When a new worktree, or a worktree removal, is waiting on that review, the panel opens by itself.
 
@@ -205,7 +209,7 @@ When you create a managed worktree, setup must finish before the agent's first t
 
 Opening an existing checkout, or sending a message in it, does not run setup. To run it there, go to the **Workspace preparation** section of Session Summary, pick a profile if there is more than one, and choose **Run setup**.
 
-When setup succeeds, OpenWaggle keeps the environment changes it exported, for that workspace only. Later agent commands and action runs get them. Processes already running do not. A failed setup passes on no environment changes. Keep development servers as actions that keep running, not as setup commands that never finish.
+When setup succeeds, OpenWaggle keeps the environment changes it exported, for that workspace only. Later agent commands and action runs get them, and variables the setup removed stay removed for later actions, cleanup and the agent's commands. Processes already running do not. A failed setup passes on no environment changes. Keep development servers as actions that keep running, not as setup commands that never finish.
 
 ### Use more than one setup profile
 
@@ -217,7 +221,7 @@ The copy holds the commands and script references, not the scripts themselves. C
 
 ### Clean up worktrees
 
-Set an optional cleanup command under **Clean up worktrees** in the same section. Cleanup runs before OpenWaggle removes a managed worktree, after the last session lets go of it, while its files are still there. Setup and cleanup each have their own **Just me** or **Everyone working on this project** choice.
+Set an optional cleanup command under **Clean up worktrees** in the same section. Cleanup runs before OpenWaggle removes a managed worktree, after the last session lets go of it, while its files are still there. Setup and cleanup each have their own **Just me** or **Everyone working on this project** choice. When a private setup or cleanup and a shared one are in the same profile and step, the private one runs. **Restore shared version** removes the private one. Storing the private one in the project replaces the shared step with it.
 
 If cleanup fails, OpenWaggle keeps the worktree. In **Settings > Worktrees**, look at **Cleanup output** and choose **Retry cleanup**. **Delete anyway** skips cleanup and can leave behind resources that setup created outside the worktree. It is not the same as **Force remove**, which can also throw away uncommitted changes or remove a locked worktree.
 
@@ -235,9 +239,9 @@ In **Settings > Project actions**, click **Edit** beside an action and finish wi
 
 **Remove this action**, at the bottom of the panel, tells you what removing means before anything is removed. For an action you overrode locally, the button is **Restore shared version** instead. Removing an action does not undo commands it already ran. To end a run that is going, use its **Stop**.
 
-Two actions can have the same name, for example when a teammate shares one with the same name as yours. Both keep working. The Project Actions panel tells them apart with a grey hint, and Settings offers **Rename**.
+Two actions can have the same name, for example when a teammate shares one with the same name as yours. Both keep working. The Project Actions panel tells them apart with a gray hint, and Settings offers **Rename**.
 
-Actions saved by older OpenWaggle versions become ordinary actions kept on this computer. An older worktree setup choice becomes the setup of the default profile, and the original action stays available. OpenWaggle no longer saves actions under the `actions` key of `.openwaggle/settings.json`.
+Actions saved by older OpenWaggle versions become ordinary actions kept on this computer, with their name, command, shortcut and preview choice. An older worktree setup choice becomes the setup of the default profile, which waits for your review before it runs, and the original action stays available. The conversion keeps a local recovery copy and runs nothing. OpenWaggle no longer saves actions under the `actions` key of `.openwaggle/settings.json`.
 
 ## Fix a failing action with the agent
 

@@ -25,24 +25,24 @@ The tree opens in the right panel, which shows one panel at a time, so it takes 
 3. If OpenWaggle asks, decide whether to bring a summary of the later work with you. See [Bring a summary of the later work](#bring-a-summary-of-the-later-work).
 4. Check the draft in the message box, write or edit your next instruction, and send it.
 
-For example, go back to the message before a proposed refactor and ask the agent to compare a smaller change. Check your files first: the changes the earlier approach made are still on disk.
+For example, go back to the message before a proposed refactor and ask the agent to compare a smaller change. Check your files first. The changes the earlier approach made are still on disk.
 
-Selecting an earlier point only prepares a draft branch; it doesn't save a new branch yet. Selecting one of your own messages can also put its text in the message box, ready to retry or edit. OpenWaggle saves the new branch when you send, or earlier if you choose a branch summary action that creates it. Selecting the latest point of a saved branch takes you back to that branch and drops any draft.
+Selecting an earlier point only prepares a draft branch. It doesn't save a new branch yet. Selecting one of your own messages can also put its text in the message box, ready to retry or edit. OpenWaggle saves the new branch when you send, or earlier if you choose a branch summary action that creates it. Selecting the latest point of a saved branch takes you back to that branch and drops any draft.
 
 ## Start from a message in the conversation
 
-You can also start from the conversation itself. Hover a message to see its actions. A reply's actions sit at the end of its turn, under any changed files, and the latest reply always shows them.
+You can also start from the conversation itself. Hover over a message to see its actions. A reply's actions sit at the end of its turn, under any changed files, and the latest reply always shows them. In the table below, a reply is the one that ends a turn.
 
 | On | Action | What it does |
 |----|--------|--------------|
-| Your message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
-| Your message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
-| Your message | **Copy message** | Copies the message's text. |
-| The reply that ends a turn | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
-| The reply that ends a turn | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and an empty message box. |
-| The reply that ends a turn | **Copy response** | Copies the reply's text. |
+| Message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
+| Message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
+| Message | **Copy message** | Copies the message's text. |
+| Reply | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
+| Reply | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and an empty message box. |
+| Reply | **Copy response** | Copies the reply's text. |
 
-Tool calls and the agent's notes between them have no actions of their own; select them in the Session Tree instead. While the session is working or compacting, only **Copy message** and **Copy response** are shown.
+Tool calls and the agent's notes between them have no actions of their own. Select them in the Session Tree instead. While the session is working or compacting, the conversation shows only **Copy message** and **Copy response**.
 
 ## Copy a conversation into a new session
 

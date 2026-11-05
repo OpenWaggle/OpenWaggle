@@ -6,31 +6,31 @@ section: "Developer docs"
 kind: "reference"
 ---
 
-The fields of `openwaggle.extension.json`, what OpenWaggle checks before an extension runs, and the SDK capabilities it may call. To build your first extension, see [Develop extensions](/docs/extending/openwaggle-extensions). The generated [`@openwaggle/extension-sdk` API reference](/docs/packages/extension-sdk) lists every exported type.
+This page lists the fields of `openwaggle.extension.json`, what OpenWaggle checks before an extension runs, and the SDK capabilities an extension may call. To build your first extension, see [Build an extension](/docs/extending/openwaggle-extensions). The generated [`@openwaggle/extension-sdk` API reference](/docs/packages/extension-sdk) lists every exported type.
 
 ## Manifest fields
 
-| Field | Type | Required | What it does |
-| --- | --- | --- | --- |
-| `manifestVersion` | `1` | Yes | Manifest format version |
-| `id` | string | Yes | Package id. Lowercase letters, digits, `.`, `_`, and `-`, starting with a letter or digit. Must match the package folder name |
-| `name` | string | Yes | Display name |
-| `version` | semver string | Yes | Package version. Raise it with each update |
-| `description` | string | No | Short description |
-| `sdk.openwaggle` | semver range | Yes | OpenWaggle SDK versions the package works with, such as `">=0.1.0 <0.2.0"` |
-| `sourceFiles` | paths | Yes | Every source file in the package |
-| `builtArtifacts` | paths | Yes | Every built file OpenWaggle loads. Local build outputs must be listed here too |
-| `install.source` | `prebuilt` or `local-build` | No | Whether the package ships built files or builds on the user's machine |
-| `build.command` | string | With `local-build` | Command that builds the package, run in the package folder |
-| `build.outputs` | paths | No | Files the build writes |
-| `docs.topics` | list | No | Docs the package ships. See [Docs topics](#docs-topics) |
-| `network.origins` | list of origins | No | External origins the package may reach, such as `https://api.github.com` |
-| `capabilities` | list | No | SDK capabilities, methods, and scopes. See [Capabilities](#capabilities) |
-| `contributions` | object | No | Contributions by family. See [Contribution families](#contribution-families) |
-| `pi.resourceRoots` | paths | No | Folders of Pi resources (skills, extensions, prompts, themes) the package adds, loaded ahead of `.pi` |
-| `trusted.main` | path | No | Trusted local code that runs in the main process |
-| `trusted.renderer` | path | With `trusted-renderer` contributions | Privileged renderer code. A contribution with `runtime: "trusted-renderer"` needs it |
-| `runtimeRequirements` | list | No | Programs the package needs. Each has an `id`, a `label`, and exactly one of `binary` or `command`, with an optional matching `kind` |
+| Field | Type | Required | Default | What it does |
+| --- | --- | --- | --- | --- |
+| `manifestVersion` | `1` | Yes | | Manifest format version |
+| `id` | string | Yes | | Package id, the same as the package folder's name. See [Limits](#limits) |
+| `name` | string | Yes | | Display name |
+| `version` | semver string | Yes | | Package version, raised with each update |
+| `description` | string | No | | Short description |
+| `sdk.openwaggle` | semver range | Yes | | OpenWaggle SDK versions the package works with, such as `">=0.1.0 <0.2.0"` |
+| `sourceFiles` | paths | Yes | | Every source file in the package |
+| `builtArtifacts` | paths | Yes | | Every built file OpenWaggle loads, local build outputs included |
+| `install.source` | `prebuilt` or `local-build` | No | `prebuilt` | Whether the package ships built files or builds on the user's machine |
+| `build.command` | string | With `local-build` | | Command that builds the package, run in the package folder |
+| `build.outputs` | paths | No | `builtArtifacts` | Files the build writes |
+| `docs.topics` | list | No | | Docs the package ships. See [Docs topics](#docs-topics) |
+| `network.origins` | list of origins | No | | External origins the package may reach, each an exact HTTPS origin with no path, such as `https://api.github.com` |
+| `capabilities` | list | No | | SDK capabilities, methods, and scopes. See [Capabilities](#capabilities) |
+| `contributions` | object | No | | Contributions by family. See [Contribution families](#contribution-families) |
+| `pi.resourceRoots` | paths | No | | Folders of Pi resources (skills, extensions, prompts, themes) the package adds, loaded ahead of `.pi` |
+| `trusted.main` | path | No | | Trusted local code that runs in the main process |
+| `trusted.renderer` | path | With `trusted-renderer` contributions | | Privileged renderer code, which every contribution with `runtime: "trusted-renderer"` needs |
+| `runtimeRequirements` | list | No | | Programs the package needs, each with an `id`, a `label`, exactly one of `binary` or `command`, and an optional matching `kind` |
 
 Paths are relative to the package folder.
 
@@ -38,12 +38,12 @@ Paths are relative to the package folder.
 
 | Value | Limit |
 | --- | --- |
-| Package `id` | 96 characters |
+| Package `id` | 96 lowercase letters, digits, `.`, `_`, and `-`, starting with a letter or digit |
 | Contribution `id` | 128 characters. Lowercase letters, digits, `.`, `_`, `/`, and `-` |
 | `name`, `title`, `label`, `badge` | 120 characters |
 | `description`, row `value`, state `message` | 2,000 characters |
 | A relative path | 260 characters |
-| A network origin | 300 characters |
+| A network origin | 300 characters, `https` only, with no path, query, fragment or trailing slash |
 | A runtime requirement `binary` | 120 characters |
 | `build.command` | 500 characters |
 | Build time | 10 minutes |
@@ -64,7 +64,7 @@ The package files can be committed with a project. Trust, enablement, permission
 
 | Family | Where it appears | Has an entry module |
 | --- | --- | --- |
-| `settingsSections` | **Settings** > **Extensions**, under **Extension settings** | Yes |
+| `settingsSections` | **Settings > Extensions**, under **Extension settings** | Yes |
 | `sidePanels` | The right sidebar, opened from the Panel rail or **All panels** | Yes |
 | `dialogs` | A modal OpenWaggle draws | Yes |
 | `routes` | A route container inside OpenWaggle | Yes |
@@ -105,7 +105,9 @@ A package that registers contributions at run time must declare the `openwaggle.
 | Form | Example | Rules |
 | --- | --- | --- |
 | Lucide name | `"ticket"`, `"git-pull-request"` | A kebab-case [Lucide](https://lucide.dev/icons/) name, checked against the Lucide version OpenWaggle ships |
-| SVG file | `{ "svg": "assets/panel-icon.svg" }` | A path relative to the package folder, ending in `.svg`, at most 260 characters. No leading `/` or `\`, no drive letter, no empty, `.`, or `..` segments, no leading or trailing whitespace, no NUL bytes |
+| SVG file | `{ "svg": "assets/panel-icon.svg" }` | A path relative to the package folder, ending in `.svg`, at most 260 characters |
+
+An SVG path may not start with `/` or `\`, name a drive, have an empty, `.` or `..` segment, have leading or trailing whitespace, or hold a NUL byte.
 
 OpenWaggle reads an SVG icon once for each installed version of the package content and keeps only its shapes, painted in the rail's colors:
 
@@ -113,7 +115,7 @@ OpenWaggle reads an SVG icon once for each installed version of the package cont
 - It drops `<style>` elements, `style` and `class` attributes, event handlers, external `href` references, embedded images, and attribute values that name any resource other than a `url(#id)` inside the file.
 - The file counts toward the package's content hash.
 - A side panel registered at run time may use a Lucide name, or an SVG file that a side panel in the manifest already declares. Any other SVG file fails, as does an `icon` that does not match the schema.
-- A missing or unusable icon shows a letter tile with the first letter of the title, and a `panel-icon-invalid` warning under the contribution registry diagnostics in **Settings** > **Extensions**.
+- A missing or unusable icon shows a letter tile with the first letter of the title, and a `panel-icon-invalid` warning under the contribution registry diagnostics in **Settings > Extensions**.
 
 ## Session Summary sections
 
@@ -121,14 +123,18 @@ OpenWaggle reads an SVG icon once for each installed version of the package cont
 | --- | --- | --- | --- |
 | `id` | string | | Section id |
 | `title` | string | | Section title |
-| `placement` | `context`, `coordination`, `details` | `details` | `context` comes after Environment, Actions, workspace setup, and pull or merge request details, before Hive. `coordination` comes after Hive. `details` comes after Sources |
+| `placement` | `context`, `coordination`, `details` | `details` | Where the section goes. See below |
 | `target` | `projectPaths`, `sessionIds` | | Limits the section to these projects or sessions |
 | `disclosure.defaultExpanded` | boolean | | Whether the section starts expanded |
 | `disclosure.collapsible` | boolean | | Whether it can collapse |
 | `disclosure.autoCollapseAfterMs` | 1,000 to 300,000 | | Collapses the section after this many milliseconds |
-| `state.status` | `ready`, `loading`, `live`, `failure` | | An empty `ready` section is hidden. The others stay visible without rows |
-| `state.message` | string | | Optional for `loading` and `live`. Required for `failure` |
+| `state.status` | `ready`, `loading`, `live`, `failure` | | The section's state. See below |
+| `state.message` | string | | A message, required for `failure` and optional for `loading` and `live` |
 | `rows` | list | | The rows, below |
+
+`placement` decides where the section goes. `context` comes after Environment, Actions, workspace setup, and pull or merge request details, before Hive. `coordination` comes after Hive. `details` comes after Sources.
+
+OpenWaggle hides an empty `ready` section. A `loading`, `live` or `failure` section stays visible without rows.
 
 | Row field | Values | What it does |
 | --- | --- | --- |
@@ -263,7 +269,7 @@ Trust records the package's content hash. Editing the manifest, source files, bu
 How OpenWaggle enforces them in version 1:
 
 - Frame-mounted visual contributions run in a sandboxed iframe, with a CSP that limits network `connect-src` to `network.origins`.
-- Trusted main-process code gets only the public SDK. While the module activates and cleans up, OpenWaggle guards direct `fetch`, `node:http`, `node:https`, `electron.net`, raw `node:net`, raw `node:tls`, UDP sockets, direct DNS lookups, `node:http2`, child processes, cluster forks, and worker threads. Only the exact HTTPS origins in `network.origins` are allowed. The guard does not follow redirects, and a target it cannot resolve fails. It rejects custom fetch agents and dispatchers, custom Node HTTP agents, connection factories, and DNS lookup functions, Unix socket paths, raw sockets, and ways out of the process or isolate.
+- Trusted main-process code gets only the public SDK. While the module activates and cleans up, OpenWaggle guards direct `fetch`, `node:http`, `node:https`, `electron.net`, raw `node:net`, raw `node:tls`, UDP sockets, direct DNS lookups, `node:http2`, child processes, cluster forks, and worker threads. It allows only the exact HTTPS origins in `network.origins`. The guard does not follow redirects, and a target it cannot resolve fails. It rejects custom fetch agents and dispatchers, custom Node HTTP agents, connection factories, and DNS lookup functions, Unix socket paths, raw sockets, and ways out of the process or isolate.
 - Trusted renderer code mounts in a frame. Importing it straight into the app's renderer is not supported, so it uses the SDK and mount context like any other contribution.
 
 ## Docs topics
@@ -312,7 +318,7 @@ First-party topics are a fixed, typed set, so generated indexes and SDK calls ca
 }
 ```
 
-Extension topics are listed whatever their trust or lifecycle state. The `openwaggle_docs` tool includes only the docs of extensions the session's runs load, and reads a file only while it is still inside the package and matches the hash recorded at discovery.
+The docs index lists extension topics whatever their trust or lifecycle state. The `openwaggle_docs` tool includes only the docs of extensions the session's runs load, and reads a file only while it is still inside the package and matches the hash recorded at discovery.
 
 ## What needs an OpenWaggle update
 

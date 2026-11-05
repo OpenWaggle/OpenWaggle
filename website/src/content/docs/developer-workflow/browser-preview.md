@@ -77,7 +77,7 @@ In **Settings > Browser** you can choose the default profile, create and rename 
 
 Windows does not offer Chrome, Edge, Brave, Vivaldi, Opera or Arc, because their current app-bound encryption keeps OpenWaggle from reading the cookies.
 
-Choose a browser to open the importer. Before copying anything, it checks whether you need to quit that browser, whether macOS needs Full Disk Access for OpenWaggle, and whether your system's credential store needs your approval. For Full Disk Access, the importer can open the right page in System Settings and check again; if macOS still has not noticed the permission, quit and reopen OpenWaggle. Then pick the source profile, and an existing OpenWaggle profile or **New profile**. Check the result before you open the site. The import copies cookies once. It does not keep them in sync, and it never changes the source browser's profile.
+Choose a browser to open the importer. Before copying anything, it checks whether you need to quit that browser, whether macOS needs Full Disk Access for OpenWaggle, and whether your system's credential store needs your approval. For Full Disk Access, the importer can open the right page in System Settings and check again. If macOS still has not noticed the permission, quit and reopen OpenWaggle. Then pick the source profile, and an existing OpenWaggle profile or **New profile**. Check the result before you open the site. The import copies cookies once. It does not keep them in sync, and it never changes the source browser's profile.
 
 ## Send visual feedback to the agent
 
@@ -100,10 +100,10 @@ While you annotate:
 
 - Press `V` to select elements. `Shift`-click adds to the selection, up to 20 elements.
 - Press `R` to drag a region, `D` to draw freehand, or `E` to erase a mark.
-- Expand the comment editor to try typography, colour, spacing, border, size, radius and opacity changes on the selected elements. The screenshot shows these changes, and OpenWaggle undoes them on the page as soon as you attach or cancel.
+- Expand the comment editor to try typography, color, spacing, border, size, radius and opacity changes on the selected elements. The screenshot shows these changes, and OpenWaggle undoes them on the page as soon as you attach or cancel.
 - Press `Enter` to attach, or `Escape` to cancel.
 
-OpenWaggle crops the screenshot around your selection and marks, and adds it to your draft as a **Browser preview** chip. For the agent, it also includes selectors, accessible names, short HTML excerpts, computed styles, positions, your drawings and style changes, and page details, each with a size limit. When the page exposes development information, it adds the React component, its source location and its owner stack. Production builds and isolated pages often do not, and then those fields stay empty rather than guessed. Annotating does not contact a model; nothing is sent until you send the message.
+OpenWaggle crops the screenshot around your selection and marks, and adds it to your draft as a **Browser preview** chip. For the agent, it also includes selectors, accessible names, short HTML excerpts, computed styles, positions, your drawings and style changes, and page details, each with a size limit. When the page exposes development information, it adds the React component, its source location and its owner stack. Production builds and isolated pages often do not, and then those fields stay empty rather than guessed. Annotating does not contact a model, and nothing is sent until you send the message.
 
 ## Record the preview
 
@@ -115,7 +115,7 @@ Choose **Start preview recording**, go through the interaction, then choose **St
 
 The agent can open or reuse the session's current tab, go to an address or a localhost port, resize the page and change its appearance, and read a screenshot plus some of the page, console and network details. It can click, type, press keys, scroll, run JavaScript on the page, wait for something to happen, and start or stop a recording. Actions that control the page go through OpenWaggle's approval settings. You and the agent share one queue of actions, and any real keyboard or mouse input from you interrupts the agent at once, so you can take over without racing it.
 
-When the agent targets an element, it waits for the element to appear and be ready. After the page navigates or reloads, an old target no longer works, so the agent never clicks the same spot on a different page. The agent is told to work out what went wrong in this preview, rather than quietly opening a separate automation browser after the first failure.
+When the agent targets an element, it waits for the element to appear and be ready. After the page navigates or reloads, an old target no longer works, so the agent never clicks the same spot on a different page. OpenWaggle tells the agent to work out what went wrong in this preview, rather than quietly opening a separate automation browser after the first failure.
 
 ## What pages can and cannot do
 

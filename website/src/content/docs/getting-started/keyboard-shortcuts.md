@@ -6,7 +6,7 @@ section: "Customize"
 kind: "reference"
 ---
 
-The default keyboard shortcuts. To see or change them, open **Settings > Shortcuts**.
+This page lists the default keyboard shortcuts. To see or change them, open **Settings > Shortcuts**.
 
 ![Settings > Shortcuts with the search field, Add binding, Reset defaults, and the Panels group listing each panel and its binding](/screenshots/settings-shortcuts.png)
 
@@ -70,7 +70,7 @@ Each view the right panel can show has a command. Its shortcut shows that panel,
 
 Assign them under **Settings > Shortcuts > Panels**. That group lists the built-in panels, **Toggle right panel**, and each installed extension's side panels under the extension's name. Record a key combination, then click **Save**. The reset button returns a built-in panel to its default, and the clear button unassigns it.
 
-Extensions cannot choose shortcuts for their panels. Only you can. A panel shortcut must be unique: OpenWaggle refuses one that a built-in command, a reserved key or another panel already uses, and names what uses it.
+Extensions cannot choose shortcuts for their panels. Only you can. A panel shortcut must be unique. OpenWaggle refuses one that a built-in command, a reserved key or another panel already uses, and names what uses it.
 
 An extension panel's shortcut does nothing while the panel cannot be shown, for example while its extension is disabled, untrusted or waiting for an update, and the key goes to whatever has focus. The shortcut is kept when you uninstall the extension. It is listed under **Extensions not installed**, where you can remove it, and it works again if you reinstall the extension.
 
@@ -98,7 +98,7 @@ These keys cannot be changed. If you give another command `Cmd/Ctrl+F` or `Cmd/C
 
 ## Session Tree keys
 
-Open the Session Tree from **Session tree** on the panel rail, with `Cmd/Ctrl+Shift+Y`, or from **Session Tree** in the command palette's **Panels** section. These keys work while focus is in the tree:
+Open the Session Tree from **Session Tree** on the panel rail, with `Cmd/Ctrl+Shift+Y`, or from **Session Tree** in the command palette's **Panels** section. These keys work while focus is in the tree:
 
 | Action | Key |
 | --- | --- |
@@ -110,12 +110,12 @@ Open the Session Tree from **Session tree** on the panel rail, with `Cmd/Ctrl+Sh
 
 ## How bindings combine
 
-**Settings > Shortcuts** lists built-in commands and Project Action bindings together, with a search field. A command can have several bindings, in order. You record a key combination, then use the condition builder or its expression field to say where it applies. Conflicts are highlighted, but you can save one on purpose. You can edit and reset default bindings, and remove custom ones.
+**Settings > Shortcuts** lists built-in commands and project action shortcuts together, with a search field. A command can have several bindings, in order. You record a key combination, then use the condition builder or its expression field to say where it applies. Settings highlights conflicts, but you can save one on purpose. You can edit and reset default bindings, and remove custom ones.
 
 | Rule | What it means |
 | --- | --- |
-| Project Action bindings first | A matching Project Action binding wins over a built-in command, however recently you edited the built-in. |
-| Last match wins | Within each ordered list of bindings, the last one that matches is used. |
+| Project actions first | A matching project action shortcut wins over a built-in command, however recently you edited the built-in. |
+| Last match wins | Within each ordered list of bindings, the last one that matches applies. |
 | Same key, different places | Bindings can share a key when their conditions do not overlap. |
 
 Conditions use these names, combined with `!`, `&&`, `||` and parentheses:
@@ -128,6 +128,6 @@ Conditions use these names, combined with `!`, `&&`, `||` and parentheses:
 | `previewOpen` | The browser preview is open. |
 | `modelPickerOpen` | The model selector is open. |
 
-An unknown condition name is kept, so a binding made for a newer version still loads, and it counts as false.
+OpenWaggle keeps an unknown condition name, so a binding made for a newer version still loads, and the condition counts as false.
 
-Project Action bindings can also be edited with the action itself in **Settings > Project actions**. A binding can apply everywhere or only under a condition. See [Project actions](/docs/configuration/project-actions#add-a-keyboard-shortcut).
+You can also edit a project action's shortcuts with the action itself in **Settings > Project actions**. A binding can apply everywhere or only under a condition. See [Project actions](/docs/configuration/project-actions#add-a-keyboard-shortcut).

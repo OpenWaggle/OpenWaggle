@@ -81,4 +81,4 @@ An instruction such as "don't edit files" is advice to the model. Nothing enforc
 
 The terminal is an ordinary shell. Commands and tools can read anything their process can, including credentials in environment variables. MCP servers also run with your user's access. In **Ask for Approval** mode every MCP tool call asks first. Agent access to the browser has its own switch in **Settings > Browser**.
 
-See [Security and privacy](/docs/configuration/security-privacy) for how your data is handled, and [MCP connections](/docs/configuration/mcp) for outside tools.
+See [Security and privacy](/docs/configuration/security-privacy) for how OpenWaggle handles your data, and [MCP connections](/docs/configuration/mcp) for outside tools.

@@ -3,7 +3,7 @@ title: "Token benchmarks"
 description: "First-call input size of OpenWaggle and four other coding agents, how it was measured, and the limits of the comparison."
 order: 6
 section: "Using OpenWaggle"
-kind: "reference"
+kind: "overview"
 ---
 
 import { barWidthPercent, benchmarkMaxTokens, benchmarkRun, openwaggleBuild } from '@/data/benchmarks';
@@ -42,14 +42,14 @@ OpenWaggle's first call is smaller than opencode's, Codex's and Claude Code's, a
 
 ## What the numbers include
 
-- Every agent ran in an empty project. Real repositories can add instructions, skills, extensions and MCP tools. With six MCP servers, 45 skills and `AGENTS.md` files in the home and the project, OpenWaggle's first request measured 8,721 o200k tokens. MCP tools are not declared on the first turn; the skills listing is most of the increase.
+- Every agent ran in an empty project. Real repositories can add instructions, skills, extensions and MCP tools. With six MCP servers, 45 skills and `AGENTS.md` files in the home and the project, OpenWaggle's first request measured 8,721 o200k tokens. MCP tools are not declared on the first turn, and the skills listing is most of the increase.
 - The counts are provider-reported prompt tokens of the first call, including the probe message. The proxy log also holds an o200k count of each first request's system prompt and tool declarations.
 - OpenWaggle made two more model calls in the same run: one generates the session title and one refines it after the answer (515 and 724 prompt tokens). They are not counted. opencode also made one background title call, which is not counted either.
 - Codex used an explicit `model_reasoning_effort` setting for its OpenRouter Responses request.
 
 ## How we measured
 
-`scripts/benchmark-docker/run.sh` runs Pi, opencode, Codex and Claude Code at pinned versions in separate Docker containers, each with a fresh home and an empty project. With `BENCH_OPENWAGGLE_APP` set, it also runs a packaged OpenWaggle app on the host in hidden automation, with a throwaway profile, its first-party extensions and default settings. All five send their traffic through one local logging proxy that holds the OpenRouter key and records each request and its usage. On macOS the proxy listens on loopback, which containers reach through `host.docker.internal`; on Linux it listens on the Docker bridge gateway. Any container on the machine can reach either address, so the proxy only forwards requests that carry a token made for that run, and only to the benchmark's model endpoints and model.
+`scripts/benchmark-docker/run.sh` runs Pi, opencode, Codex and Claude Code at pinned versions in separate Docker containers, each with a fresh home and an empty project. With `BENCH_OPENWAGGLE_APP` set, it also runs a packaged OpenWaggle app on the host in hidden automation, with a throwaway profile, its first-party extensions and default settings. All five send their traffic through one local logging proxy that holds the OpenRouter key and records each request and its usage. On macOS the proxy listens on loopback, which containers reach through `host.docker.internal`. On Linux it listens on the Docker bridge gateway. Any container on the machine can reach either address, so the proxy only forwards requests that carry a token made for that run, and only to the benchmark's model endpoints and model.
 
 The raw output of this run is in [`scripts/benchmark-docker/results/`](https://github.com/OpenWaggle/OpenWaggle/tree/main/scripts/benchmark-docker/results): `results.json`, `request-tokens.json` and the proxy logs.
 
@@ -69,7 +69,7 @@ From a development checkout on macOS, with Docker running, build the packaged ap
 pnpm build && pnpm exec electron-builder --dir
 ```
 
-Then run the benchmark. Replace `sk-or-...` with your OpenRouter API key. The path is for Apple silicon; on an Intel Mac the app is in `dist/mac/`.
+Then run the benchmark. Replace `sk-or-...` with your OpenRouter API key. The path is for Apple silicon. On an Intel Mac the app is in `dist/mac/`.
 
 ```sh
 BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=sk-or-... scripts/benchmark-docker/run.sh
@@ -81,7 +81,7 @@ To measure OpenWaggle's first request without a provider, `pnpm perf:first-turn-
 
 ## Versions measured
 
-- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle) built from commit <a href={`https://github.com/OpenWaggle/OpenWaggle/commit/${openwaggleBuild.commit}`}><code>{openwaggleBuild.commit}</code></a> on the v1 performance branch (package version {openwaggleBuild.appVersion}). Later changes can move its numbers; `pnpm perf:first-turn-prefix` measures the first request of the current source.
+- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle) built from commit <a href={`https://github.com/OpenWaggle/OpenWaggle/commit/${openwaggleBuild.commit}`}><code>{openwaggleBuild.commit}</code></a> on the v1 performance branch (package version {openwaggleBuild.appVersion}). Later changes can move its numbers. `pnpm perf:first-turn-prefix` measures the first request of the current source.
 - [Pi CLI](https://github.com/badlogic/pi-mono) 1.4.0
 - [opencode](https://github.com/sst/opencode) 1.19.4
 - [Codex CLI](https://github.com/openai/codex) 0.164.0

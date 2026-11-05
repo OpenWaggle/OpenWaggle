@@ -46,11 +46,11 @@ OpenWaggle keeps its settings and sessions in its app data folder. The session d
 
 Provider credentials are not in the session database. They come from Pi's `auth.json`, from environment variables, or from custom provider configuration. `auth.json` is in Pi's agent folder, `~/.pi/agent` unless `PI_CODING_AGENT_DIR` moves it. It is plain JSON, not encrypted like OpenWaggle's MCP secrets, so protect it as you would any secret file. Every Pi client that uses the same folder shares the credentials in it.
 
-MCP servers, secrets and sign-ins are stored apart from both. Secrets and sign-ins are encrypted. OpenWaggle reads Pi's own `mcp-auth.json` but never changes it. See [Where servers are configured](/docs/configuration/mcp#where-servers-are-configured). For the recovery copy of an older session database, see [Recover an older session database](/docs/configuration/session-recovery#recover-an-older-session-database).
+OpenWaggle stores MCP servers, secrets and sign-ins apart from both, and it encrypts the secrets and sign-ins. OpenWaggle reads Pi's own `mcp-auth.json` but never changes it. See [Where servers are configured](/docs/configuration/mcp#where-servers-are-configured). For the recovery copy of an older session database, see [Recover an older session database](/docs/configuration/session-recovery#recover-an-older-session-database).
 
 ## Usage statistics and update checks
 
-Released builds send anonymous usage statistics and error reports to OpenWaggle from the first launch. They never include your prompts, code, file paths or project names, or any identifier for you or your install. Turn both off in **Settings > General**, or with `DO_NOT_TRACK=1`. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists what is sent, where it goes, and your rights under the GDPR.
+Released builds send anonymous usage statistics and error reports to OpenWaggle from the first launch. They never include your prompts, code, file paths or project names, or any identifier for you or your install. Turn both off in **Settings > General**, or with `DO_NOT_TRACK=1`. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists what OpenWaggle sends, where it goes, and your rights under the GDPR.
 
 Released builds also ask GitHub for updates a few seconds after launch and every 4 hours, so GitHub receives your IP address. The statistics switch does not stop these checks. See [Update checks](/docs/configuration/usage-statistics#update-checks).
 
@@ -80,7 +80,7 @@ A file inside the session's working folder can open inside OpenWaggle. A file ou
 
 ## Browser previews
 
-When **Settings > General > Open web links in** is set to **OpenWaggle**, web links open in a browser preview that belongs to the session. The page runs in a sandbox with Node integration turned off. It is refused every permission request except copying to the clipboard, which Chromium sanitizes. Downloads, device access, certificate exceptions, user names and passwords in URLs, popups you have not allowed, and navigation to anything other than HTTP or HTTPS are all blocked. You can always open the current page in your system browser instead.
+When **Settings > General > Open web links in** is set to **OpenWaggle**, web links open in a browser preview that belongs to the session. The page runs in a sandbox with Node integration turned off. The preview refuses every permission request except clipboard writes, which Chromium sanitizes. It blocks downloads, device access, certificate exceptions, user names and passwords in URLs, popups you have not allowed, and navigation to anything other than HTTP or HTTPS. You can always open the current page in your system browser instead.
 
 A hidden preview can stay open so that background agent work can continue. Closing it, deleting its session, closing the app window or quitting the app ends it. Reloading OpenWaggle's own window keeps its previews, but navigating that window away from the app closes them. If a preview page crashes, OpenWaggle reloads it at most three times in 30 seconds. Navigating, replacing the page or closing the tab stops those reloads.
 
@@ -100,9 +100,9 @@ When it is on, browser actions still ask for approval where your permissions req
 
 ### Annotations
 
-Browser annotations run apart from the page's own JavaScript. OpenWaggle limits the size of the selected elements, regions, drawings, text and page details before it accepts an annotation. Style previews are undone after the screenshot is taken or you cancel.
+Browser annotations run apart from the page's own JavaScript. OpenWaggle limits the size of the selected elements, regions, drawings, text and page details before it accepts an annotation. OpenWaggle undoes style previews once it has taken the screenshot or you cancel.
 
-Selectors, HTML, computed styles and other details taken from the page are marked as untrusted in the attachment. An annotation goes to the model only when you send the draft. It includes React source locations only when the page exposes reliable development information.
+The attachment marks selectors, HTML, computed styles and other details from the page as untrusted. An annotation goes to the model only when you send the draft. It includes React source locations only when the page exposes reliable development information.
 
 ## How the desktop app is isolated
 

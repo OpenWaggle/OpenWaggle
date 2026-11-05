@@ -45,8 +45,6 @@ Pi, the agent runtime inside OpenWaggle, reads the frontmatter. It acts on these
 | `description` | Yes | When the agent should use the skill, up to 1024 characters. |
 | `disable-model-invocation` | No | `true` leaves the skill out of the agent's list. |
 
-A few details on these fields:
-
 - A `name` or `description` that breaks the limits gets a warning from Pi, and the skill still loads.
 - Without a `name`, Pi uses the folder name, but **Settings > Skills** reports the skill as an error.
 - Without a `description`, Pi skips the skill.

@@ -12,11 +12,11 @@ The right panel shows one panel at a time beside the conversation: Changes, Proj
 
 Click the panel button at the right end of the header, or press `Cmd+Option+B` on macOS or `Ctrl+Alt+B` on Windows and Linux. The panel opens on whatever it showed last in this session. In a session where you haven't opened it yet, it opens on the panel you used most recently anywhere.
 
-Each session remembers its own panel. If one session has Changes open and another has the panel closed, switching between them brings each back as you left it. Each session also remembers whether its panel is maximized: use the maximize button in a panel's header, or the **Maximize right panel** command. The panel's width and the rail's layout are the same in every session. Settings pages hide the panel, and it comes back as you left it when you return to a session.
+Each session remembers its own panel. If one session has Changes open and another has the panel closed, switching between them brings each back as you left it. Each session also remembers whether its panel is maximized. Use the maximize button in a panel's header, or the **Maximize right panel** command. The panel's width and the rail's layout are the same in every session. Settings pages hide the panel, and it comes back as you left it when you return to a session.
 
 ## Use the rail
 
-Click an icon to show that panel. Click the icon of the panel that is already showing to close the panel. Hover an icon to see its name and shortcut. An icon that can't work yet, such as Session Tree before the first message, stays in place, dimmed, and its tooltip says why.
+Click an icon to show that panel. Click the icon of the panel that is already showing to close the panel. Hover over an icon to see its name and shortcut. An icon that can't work yet, such as Session Tree before the first message, stays in place, dimmed, and its tooltip says why.
 
 The first icon, **All panels**, lists every panel you can open here, with its shortcut. Use it to learn the shortcuts and to reach panels you took off the rail. When the window is too short for every icon, the All panels icon shows how many didn't fit, and the list marks those panels **No room on rail**.
 
@@ -44,9 +44,9 @@ By default the rail stays on the window's right edge when the panel is closed, s
 
 A panel from an extension joins the end of the rail, with a dot and a **New** marker the first time you see it. Its tooltip and the All panels list name the extension, so you can tell it from the built-in panels.
 
-A panel whose extension can't run yet is listed in All panels, dimmed, with what it needs, such as **Needs trust** or **Needs update**. Choosing it tells you where to fix that in **Settings > Extensions**. Panels you turned off, or that don't apply to the current project, are hidden and keep their place on the rail for when they come back.
+All panels lists a panel whose extension can't run yet, dimmed, with what it needs, such as **Needs trust** or **Needs update**. Choosing it tells you where to fix that in **Settings > Extensions**. Panels you turned off, or that don't apply to the current project, are hidden and keep their place on the rail for when they come back.
 
-Every panel, including extension panels, can have a keyboard shortcut. Set them in **Settings > Shortcuts**. Extensions can't set shortcuts for you.
+Every panel, including extension panels, can have a keyboard shortcut. Set them in **Settings > Shortcuts**, as [Panel shortcuts](/docs/getting-started/keyboard-shortcuts#panel-shortcuts) describes. Extensions can't set shortcuts for you.
 
 ## Use the panel in a narrow window
 

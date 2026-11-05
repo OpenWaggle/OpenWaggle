@@ -10,7 +10,7 @@ An OpenWaggle extension is a local package that adds desktop UI, commands, or ag
 
 This guide walks you through a first extension and the jobs that come after it. The exact manifest fields, limits, capabilities, and SDK calls are in the [extension manifest reference](/docs/extending/extension-manifest). To add rows to the floating Session Summary, or to publish sources and outputs, see [Add to the Session Summary](/docs/extending/extension-session-summary).
 
-An extension works inside the contract the installed OpenWaggle offers. Declaring a capability OpenWaggle does not have does not add it; that takes an OpenWaggle update. See [Know when you need an OpenWaggle update](#know-when-you-need-an-openwaggle-update).
+An extension works inside the contract the installed OpenWaggle offers. Declaring a capability OpenWaggle does not have does not add it. That takes an OpenWaggle update. See [Know when you need an OpenWaggle update](#know-when-you-need-an-openwaggle-update).
 
 ## Create a basic extension
 
@@ -33,7 +33,7 @@ my-project/
           README.md
 ```
 
-The folder name must match the manifest's `id`. A global extension lives in the `extensions/` folder of OpenWaggle's [app data folder](/docs/reference/data-locations#app-data-folder) instead. A global extension can affect every project where it is enabled, so manage it through **Settings** > **Extensions** or through the approved package workflow described in [Let an agent write an extension](#let-an-agent-write-an-extension).
+The folder name must match the manifest's `id`. A global extension lives in the `extensions/` folder of OpenWaggle's [app data folder](/docs/reference/data-locations#app-data-folder) instead. A global extension can affect every project where it is enabled, so manage it through **Settings > Extensions** or through the approved package workflow described in [Let an agent write an extension](#let-an-agent-write-an-extension).
 
 Write the manifest first. This one adds a settings section, a side panel, and a Session Summary section, and asks for project storage:
 
@@ -120,7 +120,7 @@ export async function mount(context) {
 
 ## Load it in OpenWaggle
 
-1. Open **Settings** > **Extensions** and click **Refresh**, so OpenWaggle finds the new package.
+1. Open **Settings > Extensions** and click **Refresh**, so OpenWaggle finds the new package.
 2. Check what the package card shows: the package path, SDK range, content hash, install source, build command, capabilities, network origins, trusted local code, runtime requirements, docs topics, Pi resource folders, and any diagnostics.
 3. If the package has a local build, approve and run it with **Approve and build**. See [Add a build step](#add-a-build-step).
 4. Click **Trust**. Trust records the package as it is now: its version, SDK range, the permissions you granted, and its content hash.
@@ -141,7 +141,7 @@ Pick a surface for the job the extension does, not for the framework you render 
 - `routes` are larger views inside an OpenWaggle route container. They do not replace the app's navigation.
 - `commands` and `slashCommands` start actions from the slash command menu or the composer. In the composer they are compact launchers or selectors, never controls inside the text box.
 - `transcriptRenderers` draw Pi session records in the transcript. They must be able to draw a record again from the mount context and the Pi session data after a remount or a restart.
-- `toolRenderers` draw Pi tool calls and their results. They change how a Pi tool looks in the app; they do not add a second tool system.
+- `toolRenderers` draw Pi tool calls and their results. They change how a Pi tool looks in the app. They do not add a second tool system.
 - `customMessageRenderers` draw Pi custom messages, matched by Pi's custom message type.
 - `interactionRenderers` collect your answer when a Pi tool asks something, such as `confirm`, `select`, `input`, `editor`, `notify`, or a custom interaction, and send the typed answer back through the SDK.
 - `statusWidgets` are small status displays for live progress, connection state, or the extension's own indicators.
@@ -149,7 +149,7 @@ Pick a surface for the job the extension does, not for the framework you render 
 
 OpenWaggle owns each container: where it goes, its frame, size, docking, what shows when the extension fails, and what it remembers. Your extension owns what it draws inside. Extensions add to OpenWaggle's screens. They cannot replace the main layout or the global navigation, and they cannot install themes for the whole app.
 
-The [development fixture](#test-with-the-development-fixture) uses most of these surfaces. Once trusted, enabled, and reloaded, its **GitHub Issues Overview** side panel opens from its icon on the Panel rail, with **Extension side panel** in the header above the panel's title. The icon of its second side panel carries a dot until you open that panel or **All panels**. A **GitHub Issues Transcript Summary** card sits at the end of the transcript, and the **GitHub Issues Status** widget sits above the composer. Settings sections do not appear here: they are in **Settings** > **Extensions**, under **Extension settings** (see [Install extensions](/docs/extending/plugins#review-and-enable-a-package)).
+The [development fixture](#test-with-the-development-fixture) uses most of these surfaces. Once trusted, enabled, and reloaded, its **GitHub Issues Overview** side panel opens from its icon on the Panel rail, with **Extension side panel** in the header above the panel's title. The icon of its second side panel carries a dot until you open that panel or **All panels**. A **GitHub Issues Transcript Summary** card sits at the end of the transcript, and the **GitHub Issues Status** widget sits above the composer. Settings sections do not appear here. They are in **Settings > Extensions**, under **Extension settings** (see [Install extensions](/docs/extending/plugins#review-and-enable-a-package)).
 
 ![A session with the GitHub Issues Overview extension, its side panel open on the right, a transcript summary card, and a status widget above the composer.](/screenshots/extensions-surfaces.png)
 
@@ -172,9 +172,9 @@ A side panel can set `icon`, which OpenWaggle shows on the Panel rail and in **A
 }
 ```
 
-OpenWaggle uses only the shape of the icon and paints it in the rail's own colors, so colors and gradients in the file are ignored. Draw one shape in a single color on a transparent background, with a `viewBox`; 24 × 24 matches Lucide. Keep the file under 32 KiB. The SVG file is package content, so editing it changes the package's content hash.
+OpenWaggle uses only the shape of the icon and paints it in the rail's own colors, so it ignores colors and gradients in the file. Draw one shape in a single color on a transparent background, with a `viewBox`. 24 × 24 matches Lucide. Keep the file under 32 KiB. The SVG file is package content, so editing it changes the package's content hash.
 
-If the icon is missing, names an unknown Lucide icon, or points to a file OpenWaggle cannot use, the panel shows a tile with the first letter of its title. **Settings** > **Extensions** then lists a `panel-icon-invalid` warning under the contribution registry diagnostics. The [manifest reference](/docs/extending/extension-manifest#side-panel-icons) has the path rules and what OpenWaggle strips from an SVG.
+If the icon is missing, names an unknown Lucide icon, or points to a file OpenWaggle cannot use, the panel shows a tile with the first letter of its title. **Settings > Extensions** then lists a `panel-icon-invalid` warning under the contribution registry diagnostics. The [manifest reference](/docs/extending/extension-manifest#side-panel-icons) has the path rules and what OpenWaggle strips from an SVG.
 
 ## Write the mount function
 
@@ -190,7 +190,7 @@ Visual contributions use the `federated-module` runtime. Your entry module expor
 
 Style your content with `context.theme` instead of importing OpenWaggle's CSS or hard-coding app colors. OpenWaggle owns the token values and changes them for your settings, high-contrast modes, and future themes. Keep your styles scoped to your own content.
 
-The mount context is also the safety boundary. Your module asks for actions through `context.sdk`. It must not import OpenWaggle's stores, renderer code, Electron IPC helpers, or Pi SDK internals. A `trusted-renderer` contribution is no exception: OpenWaggle mounts it in the same sandboxed extension frame, and it gets the same SDK and context.
+The mount context is also the safety boundary. Your module asks for actions through `context.sdk`. It must not import OpenWaggle's stores, renderer code, Electron IPC helpers, or Pi SDK internals. A `trusted-renderer` contribution is no exception. OpenWaggle mounts it in the same sandboxed extension frame, and it gets the same SDK and context.
 
 ### Use the optional helper modules
 
@@ -237,7 +237,7 @@ export async function mount(context) {
 }
 ```
 
-Install a compatible SDK version and bundle the helper code into your extension. The first-party fixtures in this repository use the internal `@shared/extension-ui` alias instead; an extension you distribute must not depend on that alias. Whether your extension runs still depends only on the mount context and the SDK capabilities.
+Install a compatible SDK version and bundle the helper code into your extension. The first-party fixtures in this repository use the internal `@shared/extension-ui` alias instead. An extension you distribute must not depend on that alias. Whether your extension runs still depends only on the mount context and the SDK capabilities.
 
 For install commands, entry points, and more import examples, see [Packages](/docs/packages/overview), in particular [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) and [`@openwaggle/extension-react`](/docs/packages/extension-react).
 
@@ -300,7 +300,7 @@ A local build runs only when the user asks for it:
 - The user approves the build with **Approve and build** before OpenWaggle runs it. Approving the build is separate from trusting the extension.
 - The command runs in the extension's package folder, for up to 10 minutes.
 - OpenWaggle keeps the build status and the last 4,000 characters of the build log.
-- Build outputs must also be listed in `builtArtifacts`.
+- List build outputs in `builtArtifacts` too.
 - A failed build keeps the extension from being trusted or enabled for use.
 - Changing source files changes the build plan's hash, so the build needs approval again.
 
@@ -383,13 +383,13 @@ Extensions never import OpenWaggle's writable stores, renderer internals, Pi SDK
 
 - Read OpenWaggle state with `openWaggle.state.get(scope)`.
 - Change it with action calls such as `openWaggle.actions.selectProject(scope, projectPath)`.
-- Read and change settings with `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`. The model preferences report Pi's global default thinking level as `thinkingLevel`, but an update cannot set it: the thinking level belongs to each session, and only the user changes it.
+- Read and change settings with `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`. The model preferences report Pi's global default thinking level as `thinkingLevel`, but an update cannot set it. The thinking level belongs to each session, and only the user changes it.
 - List and publish the open session's sources and outputs with `openWaggle.resources`. See [Add to the Session Summary](/docs/extending/extension-session-summary#publish-sources-and-outputs).
 
 For your own data, use storage:
 
-- Package state, in `storage.packageState.global` and `storage.packageState.project`, is kept between restarts and shared by every contribution of the package. Use it when settings, side panels, renderers, and status widgets of one extension need to agree.
-- Package configuration, in `storage.packageConfig.global` and `storage.packageConfig.project`, is kept the same way.
+- Package state, in `storage.packageState.global` and `storage.packageState.project`, survives restarts and every contribution of the package shares it. Use it when settings, side panels, renderers, and status widgets of one extension need to agree.
+- Package configuration, in `storage.packageConfig.global` and `storage.packageConfig.project`, works the same way.
 - Instance state belongs to one mounted contribution. Use it for passing UI details, such as the focused tab, expanded rows, or a half-filled form.
 
 The Pi session data stays the record of what the agent did. A transcript renderer must be able to draw an old entry again from the mount context and the Pi session data alone, after a remount, a route change, or an app restart. Never make that depend on instance state.
@@ -408,7 +408,7 @@ A side panel registered this way can use a Lucide icon, or an SVG file that a si
 
 To update an extension, replace the package with the new version and raise its `version`. OpenWaggle sees that the content hash changed and treats it as an update. Approve it with **Approve update**, then enable and reload the extension again if the update turned it off. An update never swaps in silently. Editing the manifest, source files, built files, or the build plan all change the hash.
 
-To stop an extension without deleting it, click **Disable** in **Settings** > **Extensions**. OpenWaggle removes all its contributions, closes its sandboxed frames and runtime subscriptions as their surfaces unmount, blocks its module access, and marks it as not reloaded. For a global extension, use the project availability controls to turn it off in one project only.
+To stop an extension without deleting it, click **Disable** in **Settings > Extensions**. OpenWaggle removes all its contributions, closes its sandboxed frames and runtime subscriptions as their surfaces unmount, blocks its module access, and marks it as not reloaded. For a global extension, use the project availability controls to turn it off in one project only.
 
 To delete an extension, click **Remove** and confirm. OpenWaggle removes its contributions, ends its runtime and module access, deletes its trust and enablement records, and deletes the package folder:
 
@@ -439,13 +439,13 @@ An approved removal shuts the extension down before OpenWaggle returns the new e
 
 An extension is local software that you choose to trust. Finding a package never trusts it. Before you trust it, OpenWaggle reads the manifest, checks the declared files and SDK range, calculates the content hash, checks runtime requirements, and shows diagnostics. After you trust it, it still runs only while it is enabled, up to date, built, reloaded, not turned off for the project, and eligible for each surface.
 
-The review shows what the extension may do: run visual modules, run trusted code in the main process, reach network origins, run a build script, need external programs, call SDK capabilities, and publish session resources. Network access is limited to the origins in `network.origins`, such as `https://api.github.com`. The [manifest reference](/docs/extending/extension-manifest#permissions) describes each permission and how OpenWaggle enforces it.
+The review shows what the extension may do: run visual modules, run trusted code in the main process, reach network origins, run a build script, need external programs, call SDK capabilities, and publish session resources. The extension can reach only the origins in `network.origins`, such as `https://api.github.com`. The [manifest reference](/docs/extending/extension-manifest#permissions) describes each permission and how OpenWaggle enforces it.
 
 ## Recover from a broken extension
 
 A broken extension never stops OpenWaggle from starting.
 
-- An invalid manifest, a missing file, an incompatible SDK range, a missing runtime requirement, a failed build, or a stale trust record becomes a diagnostic in **Settings** > **Extensions**, and keeps the package or contribution out of the registry.
+- An invalid manifest, a missing file, an incompatible SDK range, a missing runtime requirement, a failed build, or a stale trust record becomes a diagnostic in **Settings > Extensions**, and keeps the package or contribution out of the registry.
 - When one contribution fails to register, other extensions' contributions still load.
 - When a contribution fails to mount, the failure stays in its own container where possible.
 - Standard Pi questions keep OpenWaggle's fallback UI, so a tool does not hang when a custom renderer is missing. A `custom` question with no renderer shows an unsupported-question fallback with a reject button.
@@ -501,7 +501,7 @@ This uses the visible debug app. Agents must not run it unless the maintainer ap
    curl -s http://127.0.0.1:9222/json/version
    ```
 
-4. Open **Settings** > **Extensions** and click **Refresh**.
+4. Open **Settings > Extensions** and click **Refresh**.
 5. Trust **GitHub Issues Overview**, enable it, then click **Reload**.
 6. Check that **GitHub Issues Settings** appears under **Extension settings**, and that the frame titled `Extension module: GitHub Issues Settings` shows the fixture's form.
 7. Save the configuration from inside the frame, to prove that storage through the SDK works.
@@ -511,7 +511,7 @@ This uses the visible debug app. Agents must not run it unless the maintainer ap
 
 ## Ship docs with your extension
 
-Put Markdown docs in your package's `docs/` folder and declare each one under `docs.topics` in the manifest, with an `id`, a `title`, and its `path`. OpenWaggle lists them under your extension's own namespace, such as `extension:openwaggle-github-issues-overview/configuration`, with the extension id and its trust and lifecycle state attached. Your docs can never replace OpenWaggle's or Pi's topics. They can be found whether or not the extension is trusted or enabled; trust and state are extra details, not a filter.
+Put Markdown docs in your package's `docs/` folder and declare each one under `docs.topics` in the manifest, with an `id`, a `title`, and its `path`. OpenWaggle lists them under your extension's own namespace, such as `extension:openwaggle-github-issues-overview/configuration`, with the extension id and its trust and lifecycle state attached. Your docs can never replace OpenWaggle's or Pi's topics. They can be found whether or not the extension is trusted or enabled. Trust and state are extra details, not a filter.
 
 Agents read these docs, and the rest of the installed docs, with the `openwaggle_docs` tool:
 

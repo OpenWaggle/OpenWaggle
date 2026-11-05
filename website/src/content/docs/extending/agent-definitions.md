@@ -23,7 +23,7 @@ A role has nothing to do with a session's place in a Hive. The Queen and its wor
 
 ## How agents find your definitions
 
-A session that can create other sessions sees a list of the project's enabled, valid definitions in its instructions, in a section called `available_agents`. The list has each definition's name and description, up to 24 definitions, with each description cut at 280 characters. The agent is told to pass the definition's name when one fits a worker's job, instead of describing the role in the task. It finds definitions past the first 24 with the `hive` tool's `agent_definitions_list` and `agent_definitions_search`.
+A session that can create other sessions sees a list of the project's enabled, valid definitions in its instructions, in a section called `available_agents`. The list has each definition's name and description, up to 24 definitions, with each description cut at 280 characters. The instructions tell the agent to pass the definition's name when one fits a worker's job, instead of describing the role in the task. It finds definitions past the first 24 with the `hive` tool's `agent_definitions_list` and `agent_definitions_search`.
 
 The instructions themselves are not added to every run. A session gets a definition's instructions only when it is created with that definition.
 
@@ -83,7 +83,7 @@ Review the requested change. Report concrete findings with file and line referen
 
 Add `model: provider/model` for a preferred model. Use a model from your project's model catalog, and a reasoning level that model supports.
 
-The body must not be empty; it is the agent's instructions. The full frontmatter schema is published at [`/schemas/agent-definition-v1.schema.json`](https://openwaggle.ai/schemas/agent-definition-v1.schema.json). `$schema` is optional and only helps your editor; it changes nothing.
+The body must not be empty. It is the agent's instructions. The full frontmatter schema is published at [`/schemas/agent-definition-v1.schema.json`](https://openwaggle.ai/schemas/agent-definition-v1.schema.json). `$schema` is optional and only helps your editor. It changes nothing.
 
 | Field | Required | Meaning |
 |---|---|---|
@@ -92,10 +92,10 @@ The body must not be empty; it is the agent's instructions. The full frontmatter
 | `description` | Yes | A summary of up to 500 characters that people and agents read. |
 | `model` | No | A preferred `provider/model`. It cannot unlock a provider you have not set up. |
 | `reasoning` | No | `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. |
-| `tools` | No | The tools the agent may use. Leave it out to keep the normal set; `[]` allows none. |
+| `tools` | No | The tools the agent may use. Leave it out to keep the normal set. `[]` allows none. |
 | `skills` | No | The skills the agent may use. Same rules as `tools`. |
 | `mcpServers` | No | The MCP servers the agent may use. Same rules as `tools`. |
-| `sessionCapabilities` | No | The `hive` tool actions the agent keeps. |
+| `sessionCapabilities` | No | The session capability IDs the agent keeps, such as `sessions:read`. [Hive actions and states](/docs/reference/hive) lists the actions each one allows. |
 | `authorizationMode` | No | `ask-for-approval` or `yolo`, within the caller's own limit. |
 | `workspace` | No | The default workspace: `share-parent`, `local` or `new-worktree`. |
 
@@ -125,13 +125,13 @@ The switch on a row turns that name off for new sessions and workers in the proj
 
 Options given when the session is created win over the definition's defaults. Anything neither sets comes from the session that created it, or from your app and project defaults.
 
-The `tools`, `skills`, `mcpServers` and `sessionCapabilities` lists can only choose from what the caller already has. An empty list means none; leaving the field out keeps what the caller has. A definition cannot give an agent a capability, credential, **YOLO** access, file access or network access that the caller does not already have.
+The `tools`, `skills`, `mcpServers` and `sessionCapabilities` lists can only choose from what the caller already has. An empty list means none. Leaving the field out keeps what the caller has. A definition cannot give an agent a capability, credential, **YOLO** access, file access or network access that the caller does not already have.
 
 OpenWaggle reads the definition and keeps a copy of it when the session is created. Editing the file later affects new sessions, not a run already using the copy. A worker cannot edit its own copy to give itself more access, although normal file permissions may let it write definitions that later sessions use.
 
 ## Check and import definitions from the command line
 
-The `openwaggle agents` command checks, explains and imports definition files. `openwaggle agents help` lists every subcommand, including `create`, `update`, `duplicate`, `delete` and `refresh`. In these examples, replace `/path/to/project` with your project's folder.
+The `openwaggle agents` command checks, explains and imports definition files. `openwaggle agents help` lists every subcommand, including `create`, `update`, `duplicate`, `delete` and `refresh`. In these examples, replace `/path/to/project` with your project's folder `./security-reviewer.md` with the path of your definition file, and `security-reviewer` with its name.
 
 To list the enabled definitions of a project:
 
@@ -177,11 +177,11 @@ openwaggle agents import ~/.codex/agents/reviewer.toml --from codex --scope proj
 
 A dry run shows the converted definition, any problems, the source fields it could not map, and where it would write. The conversion never guesses. You resolve unclear names and capabilities yourself, and it never grants access the source did not have. Import checks the result before writing and will not replace a definition with the same name unless you pass `--replace`.
 
-Import records where the file came from and what it looked like. `openwaggle agents refresh <name>` uses that record to notice changes in the source and in your copy, so it never overwrites your local edits without telling you. When the same name exists in more than one scope, pass `--scope` to choose which one to refresh; without it, the CLI refreshes the one that wins.
+Import records where the file came from and what it looked like. `openwaggle agents refresh <name>` uses that record to notice changes in the source and in your copy, so it never overwrites your local edits without telling you. When the same name exists in more than one scope, pass `--scope` to choose which one to refresh. Without it, the CLI refreshes the one that wins.
 
 ### JSON output and exit codes
 
-Pass `--json` when another program reads the output. A command that succeeds prints the [Hive CLI envelope](/docs/developer-workflow/hive-cli#error-kinds-and-exit-codes), `{"schemaVersion":1,"type":"response","command":"agents validate","result":...}`, on stdout and exits with code 0.
+Pass `--json` when another program reads the output. A command that succeeds prints the [Hive CLI envelope](/docs/developer-workflow/hive-cli#json-output), `{"schemaVersion":1,"type":"response","command":"agents validate","result":...}`, on stdout and exits with code 0.
 
 `validate` and `explain` also print that envelope when they run but find the definition invalid. `validate` then reports `{"schemaVersion":1,"type":"response","command":"agents validate","result":{"valid":false,"diagnostics":[...]}}`, `explain` includes the failed `semanticValidation` in its result, and both exit with code 1.
 

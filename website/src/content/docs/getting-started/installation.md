@@ -8,7 +8,7 @@ kind: "guide"
 
 Install OpenWaggle from a download on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases), or with a one-line script on macOS and Linux. Each release lists its platforms, and GitHub marks prereleases. You don't need Node.js or a copy of the source code to run the app.
 
-Released builds send anonymous usage statistics and error reports from the first launch. They never include prompts, code, file paths, or anything that identifies you or your install. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists every field and shows how to turn them off.
+Released builds send anonymous usage statistics and error reports from the first launch. They never include prompts, code, file paths, or anything that identifies you or your install. [Usage statistics fields](/docs/reference/usage-statistics-fields) lists every field, and [Usage statistics and error reports](/docs/configuration/usage-statistics) shows how to turn them off.
 
 ## System requirements
 
@@ -62,14 +62,14 @@ If the release has a `SHA256SUMS` file with an entry for the download, the scrip
 
 Where it installs depends on the platform:
 
-- On macOS, it copies `OpenWaggle.app` to `/Applications` and removes its quarantine attribute.
+- On macOS, it copies `OpenWaggle.app` to `/Applications`, removes its quarantine attribute, and puts the `openwaggle` command in `~/.local/bin`.
 - On Linux, it puts the AppImage in `~/.local/lib/openwaggle`, the `openwaggle` command in `~/.local/bin`, and a `.desktop` entry for your desktop's app menu.
 
 When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH, in CI, or on Linux without a display.
 
 ### Update an existing install
 
-Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. An installed version too old to answer that question gets a plain stop instead: the script waits up to 20 seconds for its work, then installs anyway.
+Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. An installed version too old to answer that question gets a plain stop instead. The script waits up to 20 seconds for its work, then installs anyway.
 
 On macOS, if the copy being replaced is open, the script quits it and opens the new version. A copy opened from somewhere else stays open. All installed copies share one Session Host, so if another copy is open when the script updates an existing install, the script stops and asks you to quit that copy first.
 
@@ -129,7 +129,7 @@ See [Command line](/docs/developer-workflow/command-line) and [Hive CLI](/docs/d
 
 ## Change the update channel
 
-The app and the `openwaggle` command share one saved update channel: `stable`, `beta` or `alpha`. Release candidates are not a channel of their own; Beta and Alpha get them.
+The app and the `openwaggle` command share one saved update channel: `stable`, `beta` or `alpha`. Release candidates are not a channel of their own. Beta and Alpha get them.
 
 In the app, open **Settings > General > About & Updates**. The app asks you to confirm a switch to Alpha, and checks the new channel right away.
 

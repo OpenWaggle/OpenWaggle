@@ -26,10 +26,10 @@ After the virtual model has answered, the model picker shows where the latest re
 
 Different real models have different context windows. The context meter always measures against the window of the real model that produced the latest response, never the virtual model's. Before the first response, it uses the limits the router declared, if any.
 
-Hover the context meter to see the session's total tokens and cost, split by the real models that answered. Costs are counted against the models the router used, not the virtual model. See [Context management](/docs/using-openwaggle/context-management).
+Hover the context meter to see the session's total tokens and cost, split by the real models that answered. OpenWaggle counts costs against the models the router used, not the virtual model. See [Context management](/docs/using-openwaggle/context-management).
 
 ## Before you rely on one
 
 - Switching real models between turns loses the provider's prompt cache, which can make the next request slower and more expensive. Good routers keep follow-up requests on the model that started the turn.
-- If the extension that provides the virtual model is removed, a session that used it falls back to the real model that answered last. The run says so in the transcript ("Could not restore model … Using …"), and the model picker shows the model that answered. A Waggle agent's pinned model never falls back: its run stops and names the missing model.
+- If the extension that provides the virtual model is removed, a session that used it falls back to the real model that answered last. The run says so in the transcript ("Could not restore model … Using …"), and the model picker shows the model that answered. A Waggle agent's pinned model never falls back. Its run stops and names the missing model.
 - Waggle agents can pin a virtual model like any other model.
