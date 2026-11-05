@@ -28,6 +28,8 @@ import {
 const SETTINGS_WINDOW = { width: 1280, height: 800 } as const
 const NARROW_SETTINGS_WINDOW = { width: 1100, height: 700 } as const
 const ALL_PANELS_WINDOW = { width: 1600, height: 720 } as const
+/** Tall enough for the expanded codemode card, its output and the reply under it. */
+const CODEMODE_WINDOW = { width: 1600, height: 1240 } as const
 /** The widest the compaction crop gets: the transcript column, not the empty space beside it. */
 const COMPACTION_CROP_MAX_WIDTH_PX = 720
 /** Where the Skills and Agents crops end, below their selected item's preview. */
@@ -82,18 +84,20 @@ export async function captureCodemodeCard(context: CaptureContext) {
   await openFeatureSession(context, CODEMODE_THREAD_TITLE)
   await closeRightPanel(page)
   await setSessionSummary(page, false)
-  const expandTurn = page.getByRole('button', { name: 'Expand turn details' }).first()
-  await expandTurn.click({ timeout: UI_TIMEOUT_MS })
-  const card = page.getByRole('button', { name: /^Ran a script/ }).first()
-  await card.click({ timeout: UI_TIMEOUT_MS })
-  await page
-    .getByRole('region', { name: 'Script output' })
-    .or(page.getByLabel('Script output'))
-    .first()
-    .waitFor({ timeout: UI_TIMEOUT_MS })
-  const cardRoot = card.locator('xpath=..')
-  await shootRegion(context, 'codemode-script-card.png', around(await regionOf(cardRoot)), {
-    hideScrollbars: true,
+  await withWindowSize(context, CODEMODE_WINDOW, async () => {
+    const expandTurn = page.getByRole('button', { name: 'Expand turn details' }).first()
+    await expandTurn.click({ timeout: UI_TIMEOUT_MS })
+    const card = page.getByRole('button', { name: /^Ran a script/ }).first()
+    await card.click({ timeout: UI_TIMEOUT_MS })
+    await page
+      .getByRole('region', { name: 'Script output' })
+      .or(page.getByLabel('Script output'))
+      .first()
+      .waitFor({ timeout: UI_TIMEOUT_MS })
+    const cardRoot = card.locator('xpath=..')
+    await shootRegion(context, 'codemode-script-card.png', around(await regionOf(cardRoot)), {
+      hideScrollbars: true,
+    })
   })
 }
 
