@@ -2,6 +2,9 @@ import { listAgentDefinitions, searchAgentDefinitions } from './agent-definition
 
 const DEFAULT_AGENT_DEFINITION_RESULTS = 50
 
+/** A discovery limit that keeps every definition, for callers that filter before they cut. */
+export const ALL_AGENT_DEFINITIONS = Number.POSITIVE_INFINITY
+
 /**
  * Agent-definition discovery as the hive tool's `agent_definitions_list` and
  * `agent_definitions_search` and the `openwaggle_hive` MCP operations of the same name answer it:

@@ -1,3 +1,4 @@
+import { THINKING_LEVEL_LABELS } from '@shared/constants/thinking-level-labels'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Check, ChevronDown, Ellipsis } from 'lucide-react'
 import { useId } from 'react'
@@ -11,7 +12,6 @@ import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
 import { useUIStore } from '@/shell/ui-store'
-import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
 import { useComposerModel } from '../hooks/useComposerModel'
 import {
   useCloseThinkingMenuWhenLocked,

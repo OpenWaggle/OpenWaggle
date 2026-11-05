@@ -8,11 +8,17 @@ import type {
 import type { SessionCapability } from '@shared/types/session-capability'
 import { isRecord } from '@shared/utils/validation'
 import type { TSchema } from 'typebox'
-import { discoverAgentDefinitions } from '../../agents/agent-definition-discovery'
+import type { AgentDefinitionProjectResolver } from '../../agent-definition-project'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { executeSessionToolCommand } from '../../session-host/session-tool-gateway'
 import { describeError } from '../../utils/describe-error'
+import {
+  agentDefinitionProjectForTool,
+  isAgentDefinitionAction,
+  queryAgentDefinitionsForTool,
+  spawnAgentHint,
+} from './sessions-tool-agent-definition-actions'
 import { authorizeAttachments, authorizeExport } from './sessions-tool-authorization'
 import {
   assertSessionsToolActionPermitted,
@@ -27,7 +33,6 @@ import {
 } from './sessions-tool-guidelines'
 import { hiveHelp } from './sessions-tool-help'
 import { HIVE_HELP_ACTION } from './sessions-tool-hot-schema'
-import type { SessionsToolParameters } from './sessions-tool-parameters'
 import { buildSessionsToolPayload } from './sessions-tool-payload'
 import { hiveResultText } from './sessions-tool-result'
 import { executeScheduleToolAction } from './sessions-tool-schedule-approval'
@@ -47,34 +52,12 @@ interface SessionsToolExtensionInput {
   readonly modelMultiAgentEnabled?: boolean
   /** The Session scratch directory, where a result too large for the model is saved whole. */
   readonly scratchDirectory?: string
+  /** Maps an agent-definition projectPath to its project and toggles; replaced in tests. */
+  readonly resolveAgentDefinitionProject?: AgentDefinitionProjectResolver
 }
 
+export { queryAgentDefinitionsForTool } from './sessions-tool-agent-definition-actions'
 export { buildSessionsToolPayload } from './sessions-tool-payload'
-
-export function queryAgentDefinitionsForTool(
-  input: Extract<
-    SessionsToolParameters,
-    { action: 'agent_definitions_list' | 'agent_definitions_search' }
-  >,
-  projectPath: string,
-  enabledByName: Readonly<Record<string, boolean>> = {},
-) {
-  return discoverAgentDefinitions({
-    projectPath,
-    ...(input.action === 'agent_definitions_search' ? { query: input.query } : {}),
-    ...(input.limit === undefined ? {} : { limit: input.limit }),
-    enabledByName,
-  })
-}
-
-function isAgentDefinitionAction(
-  params: SessionsToolParameters,
-): params is Extract<
-  SessionsToolParameters,
-  { action: 'agent_definitions_list' | 'agent_definitions_search' }
-> {
-  return params.action === 'agent_definitions_list' || params.action === 'agent_definitions_search'
-}
 
 function sendSessionsToolCommand(
   input: SessionsToolExtensionInput,
@@ -109,6 +92,7 @@ function helpResult(rawParams: unknown, grant: SessionsToolActionGrant) {
 async function executeSessionsToolCall(
   rawParams: unknown,
   input: SessionsToolExtensionInput,
+  grant: SessionsToolActionGrant,
   ctx: ExtensionContext,
   toolCallId: string,
   signal?: AbortSignal,
@@ -134,12 +118,11 @@ async function executeSessionsToolCall(
     details: result,
   })
   if (isAgentDefinitionAction(params)) {
+    const project = await agentDefinitionProjectForTool(params, input, grant, (payload) =>
+      sendSessionsToolCommand(input, payload, signal),
+    )
     return successfulToolResult(
-      await queryAgentDefinitionsForTool(
-        params,
-        input.projectPath ?? input.workingDirectory,
-        input.agentDefinitionToggles,
-      ),
+      await queryAgentDefinitionsForTool(params, project.projectPath, project.enabledByName),
     )
   }
   if (isSessionsToolScheduleAction(params)) {
@@ -157,7 +140,19 @@ async function executeSessionsToolCall(
   const initialPayload = buildSessionsToolPayload(params, input)
   await authorizeAttachments(initialPayload, ctx, signal)
   const payload = await authorizeExport(initialPayload, input, ctx, signal)
-  return successfulToolResult(await sendSessionsToolCommand(input, payload, signal))
+  const result = await sendSessionsToolCommand(input, payload, signal)
+  // The hint reads nothing for a failed spawn, and a hint that fails is no hint: it never turns
+  // a spawn that succeeded into a tool error, so it can run beside the result.
+  const [toolResult, hint] = await Promise.all([
+    successfulToolResult(result),
+    spawnAgentHint(params, result, input).catch((error: unknown) => {
+      logger.warn('Spawn agent hint failed', { error: describeError(error) })
+      return undefined
+    }),
+  ])
+  return hint
+    ? { ...toolResult, content: [...toolResult.content, { type: 'text' as const, text: hint }] }
+    : toolResult
 }
 
 function failedToolResult(error: unknown) {
@@ -201,7 +196,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
       async execute(toolCallId, params, signal, _onUpdate, ctx) {
         try {
           if (isMatching({ action: HIVE_HELP_ACTION }, params)) return helpResult(params, grant)
-          return await executeSessionsToolCall(params, input, ctx, toolCallId, signal)
+          return await executeSessionsToolCall(params, input, grant, ctx, toolCallId, signal)
         } catch (error) {
           return failedToolResult(error)
         }

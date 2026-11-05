@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button'
 import type { HiveTreeItem, HiveTreeRollUp } from '../lib/hive-tree-structure'
 import {
   HIVE_ROW_GRID_STYLE,
+  HiveAgentIdentity,
   HivePinnedBadge,
   HiveRowGlyphs,
   HiveRowMenu,
@@ -143,6 +144,7 @@ export function HiveTreeItemRow({
             ) : (
               <HiveRowTitle view={view} />
             )}
+            <HiveAgentIdentity view={view} />
             <HiveTreeItemMeta item={item} meta={meta} />
           </span>
           <HiveTreeDepthBadge badge={item.depthBadge} />

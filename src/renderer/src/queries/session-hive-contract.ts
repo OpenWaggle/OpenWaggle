@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { HiveAttentionCause, HivePendingRequest } from '@shared/types/hive-next-actor'
 import type { SessionSummary } from '@shared/types/session'
+import type { ThinkingLevel } from '@shared/types/settings'
 
 /**
  * The Delegation states on the wire. The Hive shows who acts next instead (ADR 0059): see
@@ -18,6 +19,9 @@ export interface HiveLineage {
   readonly directWorkerCount: number
   readonly activeDirectWorkerCount: number
   readonly agentDefinitionName?: string | null
+  /** Set with agentDefinitionName: the Worker's model and thinking level setting (Hive panel identity line). */
+  readonly agentModelId?: string | null
+  readonly agentThinkingLevel?: ThinkingLevel | null
   readonly delegationState?: HiveDelegationState | null
   /** Why the Delegation is `needs_attention` (ADR 0059). */
   readonly attentionCause?: HiveAttentionCause | null

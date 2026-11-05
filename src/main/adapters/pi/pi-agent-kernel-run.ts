@@ -1,3 +1,4 @@
+import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import * as Effect from 'effect/Effect'
 import { withRetainedScratchDirectory } from '../../application/session-scratch-retention'
 import { createLogger } from '../../logger'
@@ -15,6 +16,7 @@ import { runPiSession } from './agent-kernel/classic-run'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import { refreshFirstRunBranch } from './agent-kernel/session-branch-freshness'
 import { runPiWaggle } from './agent-kernel/waggle-run'
+import { createAvailableAgentsPromptExtension } from './available-agents-prompt'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { resolveLegacyMcpServerAllowlist } from './mcp/legacy-mcp-server-allowlist'
 import { getOpenWaggleMcpConfigurationService } from './mcp/openwaggle-mcp-configuration'
@@ -110,13 +112,18 @@ function hasWaggleRunOptions(
 export function createRunSessionsExtension(
   input: Pick<
     AgentKernelRunInput,
-    'runId' | 'agentDefinitionToggles' | 'sessionCapabilities' | 'modelMultiAgentEnabled'
+    | 'runId'
+    | 'agentDefinitionToggles'
+    | 'sessionCapabilities'
+    | 'modelMultiAgentEnabled'
+    | 'toolAllowlist'
+    | 'mcpServerAllowlist'
   > & { readonly session: Pick<AgentKernelRunInput['session'], 'id'> },
   workingDirectory: string,
   projectPath: string,
   scratchDirectory: string | undefined,
-) {
-  return createSessionsToolExtension({
+): ExtensionFactory {
+  const hive = createSessionsToolExtension({
     sessionId: input.session.id,
     ...(scratchDirectory ? { scratchDirectory } : {}),
     runId: input.runId,
@@ -130,6 +137,25 @@ export function createRunSessionsExtension(
       ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
       : {}),
   })
+  // The project's Agent definitions, listed for a Session that can start one (available_agents).
+  const availableAgents = createAvailableAgentsPromptExtension({
+    projectPath,
+    ...(input.agentDefinitionToggles
+      ? { agentDefinitionToggles: input.agentDefinitionToggles }
+      : {}),
+    ...(input.sessionCapabilities ? { sessionCapabilities: input.sessionCapabilities } : {}),
+    ...(input.modelMultiAgentEnabled !== undefined
+      ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
+      : {}),
+    ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+    ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
+  })
+  return availableAgents
+    ? (pi) => {
+        hive(pi)
+        availableAgents(pi)
+      }
+    : hive
 }
 
 /** The Run's trusted first-party tools: browser preview, project actions, source control, docs. */

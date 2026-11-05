@@ -1,6 +1,7 @@
 import { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { DelegationState } from '@shared/types/session-collaboration'
+import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { decodeAttentionCause } from '../../adapters/sqlite-hive-next-actor-facts'
 
 export interface SessionLineageRow {
@@ -24,18 +25,32 @@ export interface SessionLineageRow {
   readonly derivation_position: 'before' | 'at' | null
 }
 
-function profileAgentDefinitionName(profileJson: string | null) {
-  if (!profileJson) return undefined
+/** What a Session's execution profile says about the Agent definition it was created from. */
+interface ProfileAgentFacts {
+  readonly agentDefinitionName?: string
+  readonly modelId?: string
+  readonly thinkingLevel?: ThinkingLevel
+}
+
+function isThinkingLevel(value: unknown): value is ThinkingLevel {
+  return THINKING_LEVELS.some((level) => level === value)
+}
+
+function profileAgentFacts(profileJson: string | null): ProfileAgentFacts {
+  if (!profileJson) return {}
   try {
     const parsed: unknown = JSON.parse(profileJson)
-    return typeof parsed === 'object' &&
-      parsed !== null &&
-      'agentDefinitionName' in parsed &&
-      typeof parsed.agentDefinitionName === 'string'
-      ? parsed.agentDefinitionName
-      : undefined
+    if (typeof parsed !== 'object' || parsed === null) return {}
+    const name: unknown = Reflect.get(parsed, 'agentDefinitionName')
+    const modelId: unknown = Reflect.get(parsed, 'modelId')
+    const thinkingLevel: unknown = Reflect.get(parsed, 'thinkingLevel')
+    return {
+      ...(typeof name === 'string' ? { agentDefinitionName: name } : {}),
+      ...(typeof modelId === 'string' && modelId ? { modelId } : {}),
+      ...(isThinkingLevel(thinkingLevel) ? { thinkingLevel } : {}),
+    }
   } catch {
-    return undefined
+    return {}
   }
 }
 
@@ -48,10 +63,20 @@ function nextActorFacts(row: SessionLineageRow) {
   }
 }
 
-function agentDefinitionName(row: SessionLineageRow) {
-  return (
-    profileAgentDefinitionName(row.profile_json) ?? row.legacy_agent_definition_name ?? undefined
-  )
+/**
+ * The Agent definition a Session runs, with the model and thinking level its execution profile
+ * holds now, which the model picker and a Run's thinking level may have changed since creation
+ * (the Hive panel's identity line); a Session not created from a definition has none of them.
+ */
+function agentDefinitionLineage(row: SessionLineageRow) {
+  const profile = profileAgentFacts(row.profile_json)
+  const name = profile.agentDefinitionName ?? row.legacy_agent_definition_name ?? undefined
+  if (!name) return {}
+  return {
+    agentDefinitionName: name,
+    ...(profile.modelId ? { agentModelId: profile.modelId } : {}),
+    ...(profile.thinkingLevel ? { agentThinkingLevel: profile.thinkingLevel } : {}),
+  }
 }
 
 export function attachSessionLineage(
@@ -62,7 +87,6 @@ export function attachSessionLineage(
   return sessions.map((session) => {
     const row = bySessionId.get(String(session.id))
     if (!row) return session
-    const definitionName = agentDefinitionName(row)
     const role: 'worker' | 'queen' | 'independent' = row.parent_session_id
       ? 'worker'
       : row.direct_worker_count > 0
@@ -89,7 +113,7 @@ export function attachSessionLineage(
           : {}),
         directWorkerCount: row.direct_worker_count,
         activeDirectWorkerCount: row.active_direct_worker_count,
-        ...(definitionName ? { agentDefinitionName: definitionName } : {}),
+        ...agentDefinitionLineage(row),
         ...(row.delegation_id ? { delegationId: row.delegation_id } : {}),
         ...(row.delegation_state ? { delegationState: row.delegation_state } : {}),
         ...nextActorFacts(row),

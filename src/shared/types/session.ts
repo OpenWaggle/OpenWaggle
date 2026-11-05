@@ -1,6 +1,7 @@
 import type { SessionTitleSource } from '../session-title-source'
 import type { Message } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
+import type { AgentDefinitionLineageFacts } from './agent-definition'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
@@ -23,14 +24,15 @@ export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
 /** The lineage a Session summary carries; the next-actor facts come from the Host (ADR 0059). */
-export interface SessionLineageSummary extends HiveNextActorLineageFacts {
+export interface SessionLineageSummary
+  extends HiveNextActorLineageFacts,
+    AgentDefinitionLineageFacts {
   readonly role: 'queen' | 'worker' | 'independent'
   readonly parentSessionId?: SessionId
   readonly parentTitle?: string
   readonly hiveRootSessionId?: SessionId
   readonly directWorkerCount: number
   readonly activeDirectWorkerCount: number
-  readonly agentDefinitionName?: string
   readonly delegationId?: string
   readonly delegationState?: DelegationState
   /** Navigation-only ancestry from the retired MCP task runner, never Host authority. */
