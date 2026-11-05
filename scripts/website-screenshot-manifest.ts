@@ -67,6 +67,9 @@ export const WEBSITE_SCREENSHOTS = [
   // A new jotter session, seeded after every other jotter capture so no earlier sidebar changes.
   'visualization-inline.png',
   'visualization-expanded.png',
+  // Two more new jotter sessions, seeded after the first visualization's captures.
+  'visualization-prototype.png',
+  'visualization-choice.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]
