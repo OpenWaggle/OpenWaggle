@@ -130,7 +130,8 @@ async function seedCompactionSession(userDataDir: string, projectPath: string) {
             '## Next',
             '- Tests for a corrupt legacy file and a Windows path with spaces.',
           ].join('\n'),
-          firstKeptEntryId: 'website-compaction-user-2',
+          // Pi keeps the recent context from an entry before the compaction.
+          firstKeptEntryId: 'website-compaction-assistant-1',
           tokensBefore: COMPACTION_TOKENS_BEFORE,
           fromHook: false,
           reason: 'manual',
