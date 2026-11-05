@@ -1,7 +1,8 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { calculateCost, createModels, type Usage as PiUsage } from '@earendil-works/pi-ai'
+import { calculateCost, type Usage as PiUsage } from '@earendil-works/pi-ai'
+import { builtinModels } from '@earendil-works/pi-ai/providers/all'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type {
   UsageCostRecordTokens,
@@ -223,9 +224,11 @@ async function listSessionFiles(sessionsRoot: string) {
  * cost. Returns `null` for models the catalog does not know (Cost tier 3).
  */
 export function createPiCatalogCostEstimator(): UsageCostEstimator {
-  let models: ReturnType<typeof createModels> | null = null
+  // `createModels()` alone registers no providers, so every lookup missed and no record was ever
+  // estimated; `builtinModels()` is the same collection with Pi's built-in catalog registered.
+  let models: ReturnType<typeof builtinModels> | null = null
   return (provider, modelId, tokens) => {
-    models ??= createModels()
+    models ??= builtinModels()
     const model = models.getModel(provider, modelId)
     if (!model) return null
     const usage: PiUsage = {
