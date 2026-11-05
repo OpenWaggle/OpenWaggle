@@ -188,23 +188,23 @@ To list the project's sessions:
 openwaggle hive list
 ```
 
-To read a session's summary and state:
+To read a session's summary and state, replace `SESSION_ID` with the session's ID from the list:
 
 ```sh
-openwaggle hive read <session-id>
+openwaggle hive read SESSION_ID
 ```
 
 To give it a new task:
 
 ```sh
-openwaggle hive follow-up <session-id> --text "Summarize the remaining work. Do not edit files."
+openwaggle hive follow-up SESSION_ID --text "Summarize the remaining work. Do not edit files."
 ```
 
 `list` and `read` only read. `follow-up` sends work. It starts when the session is idle, or waits behind the current run. Look at the session before you send it anything, because a message can make the agent use tools.
 
 ### Coordinate a worker from another tool
 
-An outside agent spawns a worker under the parent's current run, named by its run ID. If that run has ended or another run has taken its place, the spawn fails, so a worker never lands under a parent that has moved on. Replace the IDs in each command with the ones you found.
+An outside agent spawns a worker under the parent's current run, named by its run ID. If that run has ended or another run has taken its place, the spawn fails, so a worker never lands under a parent that has moved on.
 
 To find the parent session:
 
@@ -212,28 +212,28 @@ To find the parent session:
 openwaggle hive search "release checks" --all
 ```
 
-To read its current run ID:
+To read its current run ID, replace `PARENT_ID` with the parent session's ID from the search:
 
 ```sh
-openwaggle hive status <parent-id>
+openwaggle hive status PARENT_ID
 ```
 
-To spawn a worker in its own worktree, use the command below. Pass `--workspace share-parent` instead when the worker should use the parent's checkout.
+To spawn a worker in its own worktree, replace `PARENT_ID` again, and `RUN_ID` with the run ID from `status`. Pass `--workspace share-parent` instead when the worker should use the parent's checkout.
 
 ```sh
-openwaggle hive spawn <parent-id> --expected-run <run-id> --text "Review the release checks and submit findings" --workspace new-worktree
+openwaggle hive spawn PARENT_ID --expected-run RUN_ID --text "Review the release checks and submit findings" --workspace new-worktree
 ```
 
-To wait up to a minute for it to go idle:
+Read the worker and delegation IDs from the spawn response. To wait up to a minute for the worker to go idle, replace `WORKER_ID` with its ID:
 
 ```sh
-openwaggle hive wait <worker-id> --condition idle --timeout-ms 60000
+openwaggle hive wait WORKER_ID --condition idle --timeout-ms 60000
 ```
 
-Read the worker and delegation IDs from the spawn response. If the wait times out, it exits with 7 and the worker may still be running, so wait again. Before you accept a result, read what the worker did with `openwaggle hive read <worker-id> --full --jsonl` and review its submission. To accept one submitted revision:
+If the wait times out, it exits with 7 and the worker may still be running. Wait again, or follow its events as they happen with `openwaggle hive watch`. Before you accept a result, read what the worker did with `openwaggle hive read WORKER_ID --full --jsonl` and review its submission. To accept one submitted revision, replace `PARENT_ID`, `DELEGATION_ID` with the delegation ID from the spawn response, and `REVISION` with the number of the submission you reviewed:
 
 ```sh
-openwaggle hive delegation-accept <parent-id> <delegation-id> <submission-revision>
+openwaggle hive delegation-accept PARENT_ID DELEGATION_ID REVISION
 ```
 
 The [Hive CLI](/docs/developer-workflow/hive-cli) reference has the exact syntax of every command, the JSON output and the exit codes.

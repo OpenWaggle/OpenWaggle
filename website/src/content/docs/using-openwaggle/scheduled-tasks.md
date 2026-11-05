@@ -153,10 +153,10 @@ A Heartbeat tells you only about failures and tasks that need attention, so a qu
 openwaggle schedules list
 ```
 
-To watch CI every 30 minutes in a session until it is green, replace `<session>` with the session's ID or link:
+To watch CI every 30 minutes in a session until it is green, replace `SESSION_ID` with the session's ID or link:
 
 ```bash
-openwaggle schedules create heartbeat <session> --name "Watch CI" --every 30m --stop-when "CI is green" --wake-if "gh pr checks 42 | grep -i fail || true" "Fix the failing checks."
+openwaggle schedules create heartbeat SESSION_ID --name "Watch CI" --every 30m --stop-when "CI is green" --wake-if "gh pr checks 42 | grep -i fail || true" "Fix the failing checks."
 ```
 
 To start a triage session in the current project every weekday at 09:00, with the prompt in `triage.md`:

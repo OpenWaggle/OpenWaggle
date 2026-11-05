@@ -39,7 +39,16 @@ interface DocPage {
   readonly slug: string;
   readonly kind: string;
   readonly body: string;
+  /** The file's line number of the body's first line, so offenders name the line in the source. */
+  readonly bodyLine: number;
   readonly allowed: ReadonlySet<string>;
+}
+
+/** Splits a page file into its frontmatter and body, and finds the line the body starts on. */
+function splitPage(text: string) {
+  const end = text.indexOf('\n---\n', 4);
+  const head = text.slice(0, end + 5);
+  return { frontmatter: text.slice(4, end), body: text.slice(end + 5), bodyLine: head.split('\n').length };
 }
 
 function pages(): DocPage[] {
@@ -47,9 +56,7 @@ function pages(): DocPage[] {
     .filter((file) => /\.mdx?$/u.test(file))
     .map((file) => {
       const text = readFileSync(join(DOCS_ROOT, file), 'utf8').replaceAll('\r\n', '\n');
-      const end = text.indexOf('\n---\n', 4);
-      const frontmatter = text.slice(4, end);
-      const body = text.slice(end + 5);
+      const { frontmatter, body, bodyLine } = splitPage(text);
       const allowed = new Set(
         [...body.matchAll(/<!-- docs-style allow: ([^>]*?) -->/gu)].flatMap(([, words = '']) =>
           words.split(',').map((word) => word.trim().toLowerCase()),
@@ -59,6 +66,7 @@ function pages(): DocPage[] {
         slug: file.replaceAll('\\', '/').replace(/\.mdx?$/u, ''),
         kind: /^kind: "?(\w+)"?$/mu.exec(frontmatter)?.[1] ?? '',
         body,
+        bodyLine,
         allowed,
       };
     })
@@ -70,20 +78,41 @@ function isGenerated(page: DocPage) {
   return page.slug.startsWith('packages/') && page.slug.endsWith('/api-reference');
 }
 
-/** Body text without code, bold UI labels, link targets, HTML and images' addresses. */
+/** Only the line breaks of `text`, so removing a block keeps every later line where it was. */
+function keepLineBreaks(text: string) {
+  return text.replace(/[^\n]/gu, '');
+}
+
+/**
+ * Body text without code, bold UI labels, link targets, HTML and images' addresses. Removed blocks
+ * keep their line breaks, so an index into the result is on the same line as in the body.
+ */
 function prose(body: string) {
   return body
-    .replace(/^( *)(```|~~~)[^\n]*\n[\s\S]*?^\1\2[^\n]*$/gmu, '')
-    .replace(/<!--[\s\S]*?-->/gu, '')
+    .replace(/^( *)(```|~~~)[^\n]*\n[\s\S]*?^\1\2[^\n]*$/gmu, keepLineBreaks)
+    .replace(/<!--[\s\S]*?-->/gu, keepLineBreaks)
     .replace(/`[^`\n]*`/gu, '')
     .replace(/\*\*[^*\n]+\*\*/gu, 'Label')
     .replace(/\]\([^)\s]*\)/gu, ']')
     .replace(/<[^>\n]+>/gu, '');
 }
 
-function lineOf(body: string, index: number) {
-  return body.slice(0, index).split('\n').length;
+/** The source file's line number of `index` in the page body, or in its `prose()`. */
+function lineOf(page: Pick<DocPage, 'bodyLine'>, text: string, index: number) {
+  return page.bodyLine + text.slice(0, index).split('\n').length - 1;
 }
+
+describe('docs style helpers', () => {
+  const file = ['---', 'title: "A page"', 'kind: "guide"', '---', 'Intro.', '', '```sh', 'openwaggle', '```', '', 'A Run here.'].join('\n');
+
+  it('names the line in the source file, after the frontmatter and any code block', () => {
+    const page = splitPage(file);
+    const text = prose(page.body);
+    expect(page.bodyLine).toBe(5);
+    expect(lineOf(page, text, text.indexOf('Run'))).toBe(11);
+    expect(lineOf(page, page.body, page.body.indexOf('openwaggle'))).toBe(8);
+  });
+});
 
 describe('docs page kinds', () => {
   const referenceSection = new Set(docsNav.find((section) => section.title === 'Reference')?.items.map((item) => item.slug));
@@ -138,7 +167,7 @@ describe('docs screenshots', () => {
         alt: match[1] ?? '',
         image: match[2] ?? '',
         after: page.body.slice((match.index ?? 0) + match[0].length),
-        line: lineOf(page.body, match.index ?? 0),
+        line: lineOf(page, page.body, match.index ?? 0),
       })),
     );
 
@@ -173,14 +202,17 @@ describe('docs screenshots', () => {
 });
 
 describe('docs commands', () => {
-  it('writes shell blocks that paste as they are: no prompts, comments or continued lines', () => {
+  // `<session-id>` breaks when pasted, because the shell reads `<` as a redirect. Write SESSION_ID.
+  it('writes shell blocks that paste as they are: no prompts, comments, continued lines or <placeholders>', () => {
     const offenders = pages().flatMap((page) =>
-      [...page.body.matchAll(/^( *)```(?:bash|sh|shell|zsh|console)\n([\s\S]*?)^\1```/gmu)].flatMap((match) =>
-        (match[2] ?? '')
+      [...page.body.matchAll(/^( *)```(?:bash|sh|shell|zsh|console)\n([\s\S]*?)^\1```/gmu)].flatMap((match) => {
+        const firstLine = lineOf(page, page.body, match.index ?? 0) + 1;
+        return (match[2] ?? '')
           .split('\n')
-          .filter((line) => /^\s*(?:#|\$ |> )|\\$/u.test(line))
-          .map((line) => `${page.slug}:${lineOf(page.body, match.index ?? 0)} ${line.trim().slice(0, 60)}`),
-      ),
+          .map((line, offset) => ({ line, number: firstLine + offset }))
+          .filter(({ line }) => /^\s*(?:#|\$ |> )|\\$|<[A-Za-z][\w.-]*>/u.test(line))
+          .map(({ line, number }) => `${page.slug}:${number} ${line.trim().slice(0, 60)}`);
+      }),
     );
     expect(offenders).toEqual([]);
   });
@@ -215,7 +247,7 @@ describe('docs wording', () => {
             // A sentence, list item, table cell, heading or label starts here.
             if (index === 0 || /(?:^|\n)\s*(?:[-*>]|\d+\.|#+|\|)?\s*$/u.test(text.slice(Math.max(0, index - 12), index))) continue;
             if (/[.!?:"(]\s$|\|\s?$/u.test(before)) continue;
-            found.add(`${page.slug}:${lineOf(text, index)} ${noun}`);
+            found.add(`${page.slug}:${lineOf(page, text, index)} ${noun}`);
           }
         }
         return [...found];

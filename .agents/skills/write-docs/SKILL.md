@@ -53,7 +53,8 @@ Every code block gets a **Copy** button, so a reader pastes the whole block. Wri
 
 - One command per block, or commands meant to run together in that order. Alternatives ("run one of these") go in separate blocks with a sentence before each.
 - No `$` or `>` prompts, no output, no `#` comments. Put the explanation in the sentence before the block.
-- Keep each command on one line. A placeholder the reader must change gets named in the sentence before the block ("replace `1.0.0` with…").
+- Keep each command on one line.
+- Write a placeholder the reader must change in uppercase, such as `SESSION_ID` or `RUN_ID`, and name it in the sentence before the block ("replace `SESSION_ID` with the session's ID"). Never use angle brackets such as `<session-id>` in a shell block, because the shell reads `<` as a redirect when the reader pastes it. `docs-style.unit.test.ts` rejects them. Angle brackets stay fine in syntax tables and prose.
 
 ## Tables
 
