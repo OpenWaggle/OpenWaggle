@@ -44,12 +44,15 @@ Agents connected over MCP (`openwaggle mcp serve`) cannot manage scheduled tasks
 
 ## Choose a schedule
 
+In the task editor, pick how often the task repeats:
+
 | Schedule | Example |
 | --- | --- |
-| Every so many minutes or hours | Every 30 minutes |
-| Every day at a time | Every day at 09:00 |
-| Chosen weekdays at a time | Monday to Friday at 09:00 |
-| Recurrence rule | `FREQ=MONTHLY;BYDAY=1MO;BYHOUR=10;BYMINUTE=0`, the first Monday of each month at 10:00 |
+| **Every…** | Every 30 minutes |
+| **Every day** | Every day at 09:00 |
+| **Weekdays** | Monday to Friday at 09:00 |
+| **On chosen days** | Monday and Thursday at 09:00 |
+| **Custom rule** | `FREQ=MONTHLY;BYDAY=1MO;BYHOUR=10;BYMINUTE=0`, the first Monday of each month at 10:00 |
 
 Times are clock times in the task's time zone, which is your computer's zone when you create the task. A 09:00 task stays at 09:00 in that zone when you travel. Intervals count elapsed time. When the clocks go forward, a time inside the skipped hour fires once, just after the gap. When they go back, a repeated time fires only the first time.
 

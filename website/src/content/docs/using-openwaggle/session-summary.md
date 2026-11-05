@@ -37,7 +37,7 @@ Sections appear only when they have something to show, in this order. **Sources*
 | **Actions** | Running and recent [project actions](/docs/configuration/project-actions), such as a development server. |
 | **Scheduled** | The Heartbeats that run in this session, or the Launch schedule that started it. |
 | **Workspace preparation** | Setup progress and output for the session's workspace, with retry and review controls. |
-| Pull requests or Merge requests | Other requests this session created. The title starts with **Other** when the current branch's request is already in **Environment**. |
+| **Pull requests** or **Merge requests** | Other requests this session created. The title starts with **Other** when the current branch's request is already in **Environment**. |
 | Extension sections | Sections that [OpenWaggle extensions](/docs/extending/openwaggle-extensions) add, before and after **Hive** and at the end. |
 | **Hive** | The session's place in its Hive, and how many of its direct workers need you. |
 | **Outputs** | Files, images, sites, commits and requests the session recorded as its results. |
@@ -92,7 +92,7 @@ A Heartbeat whose last wake check found no work shows **Nothing to do**. See [Sc
 
 ## Follow a Hive
 
-For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled). In a Queen titled Prepare the 1.0 release, it can read `5 direct Workers · 1 needs you`, then `1 waiting for Prepare the 1.0 release` and `1 working · 2 closed`, as in the image above. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
+For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled). In a Queen titled Prepare the 1.0 release, it can read `5 direct Workers · 1 needs you`, then `1 waiting for Prepare the 1.0 release` and `1 working · 2 closed`, as in the image at the top of this page. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
 
 A worker waiting for this session may have a result to review, a failed run, or a question. That is for this session's agent to handle, not you. In a Hive with more than 50 direct workers, a count followed by `+` covers only the workers loaded so far.
 

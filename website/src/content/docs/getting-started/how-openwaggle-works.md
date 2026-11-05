@@ -61,7 +61,7 @@ OpenWaggle reads your Pi setup in `~/.pi/agent`, so a model you set up for `pi` 
 
 By default a session works in the folder you opened, its current checkout. Several sessions can share that folder, and their edits land in the same files.
 
-To keep a session's changes apart, start it in a new worktree. OpenWaggle creates a Git worktree, a second checkout of the same repository on its own branch, under `~/.openwaggle/worktrees/`. The session's agent works there, and your folder stays as it was. You choose this before the session's first message. The message box doesn't let you change it after the first message. An agent or the CLI can still move a session with `handoff`. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
+To keep a session's changes apart, start it in a new worktree. OpenWaggle creates a Git worktree, a second checkout of the same repository on its own branch, under `~/.openwaggle/worktrees/`. The session's agent works there, and your folder stays as it was. You choose this before the session's first message. After that, the message box can't change it, but an agent or the CLI can still move the session with `handoff`. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
 
 ## Where your data lives
 

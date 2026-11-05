@@ -47,7 +47,7 @@ When you do send a message, OpenWaggle includes the current state of the visuali
 
 A visualization made for a wide layout, such as a full app mockup or several charts side by side, has an **Expand visualization** button at its top right. In the conversation it is up to 1,024 pixels wide, and the button opens it over the whole window:
 
-![The same retry chart opened with Expand in a larger dialog, with its close button in the corner](/screenshots/visualization-expanded.png)
+![The same retry chart opened over the window with Expand visualization, with its close button in the corner](/screenshots/visualization-expanded.png)
 
 To close it, click × in the corner, press `Escape`, or click outside it. Visualizations at the normal width have no expand button.
 
