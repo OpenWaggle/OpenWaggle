@@ -6,150 +6,45 @@ section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-The agent's file edits happen on disk. Use the diff panel to review what changed before you commit or push. Opening the diff does not approve or apply edits; they have already been made.
+The agent edits files on disk as it works. The diff panel shows you what changed, so you can review the edits, send corrections, and commit or push when you are happy. Opening the diff does not approve or apply anything: the edits are already in your files.
 
 For a first review:
 
 1. Open the session and press `Cmd+D` on macOS or `Ctrl+D` on Windows and Linux.
 2. Check the working-directory label, then select **Working tree** for uncommitted changes.
-3. Choose a file and read its diff. Changes from you or another session in the same checkout also appear here.
+3. Choose a file and read its diff. Changes made by you or by another session in the same checkout appear here too.
 4. Click a changed line, write a correction, and choose **Add comment** to send it to the agent.
-5. Review the updated files and test results. Commit only when you are satisfied.
+5. Review the updated files and test results. Commit when you are satisfied.
 
-Use [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees) to choose where a new session works. The sections below cover the full Git controls and recovery behavior.
+Every Git view follows the checkout the session works in. For a session with its own worktree, that is the worktree, not the folder you opened. [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees) explains how to choose.
 
-## Live diff stats
+## See how much changed
 
-The header bar shows real-time git statistics for the active session's working tree:
+The header shows the session's uncommitted changes as a green `+N` for added lines and a red `-N` for deleted lines. Click the numbers to open or close the diff panel.
 
-- Green `+N` counts added lines.
-- Red `-N` counts deleted lines.
+The numbers refresh when you switch projects or sessions, when a commit finishes, shortly after the agent finishes a turn, when the window gets focus back, when another window changes the same checkout, and when you click **Refresh** in the commit dialog. The diff panel's own **Refresh diff** button reloads only the diff, not the header numbers.
 
-Stats refresh automatically when:
+Each session in the sidebar has its own Git indicator. It shows commits ahead of and behind the upstream branch, such as `↑2` and `↓1`; hover the branch icon for the branch name. The sidebar does not count uncommitted files. Use the diff panel for those.
 
-- You switch projects or sessions.
-- A commit completes.
-- The agent finishes a turn, after a short debounce.
-- The window regains focus.
-- Another window changes the same working tree.
-- You click **Refresh** in the commit dialog.
+After the first message, **Changes** in the [Session Summary](/docs/using-openwaggle/session-summary) opens the same diff, next to the branch and the commit, push and pull request actions.
 
-Click the diff stats to toggle the diff panel.
+## Open the diff panel
 
-After the first message, you can also open **Changes** from [Session Summary](/docs/using-openwaggle/session-summary). Its Environment section shows the working directory, branch, and commit, push, and review-request actions.
+Press `Cmd+D` or `Ctrl+D`, click the change numbers in the header, or choose **Changes** on the [panel rail](/docs/using-openwaggle/right-panel). The diff opens in the right panel, in place of any other panel that was showing there, such as the [Session Tree](/docs/using-openwaggle/session-tree) or the browser. Drag its edge to resize it between 360 and 900 pixels. All right panels share that width, and OpenWaggle remembers it between launches.
 
-> The diff panel's own **Refresh diff** button re-fetches the diff only; it does not recompute the header's `+N` / `-N`.
+![A session with the diff panel open on the right, showing a README.md change in the working tree, the changed-file tree, and Commit, Revert all and Stage all](/screenshots/feature-git-workflow.png)
 
-## Session-aware Git state
+The panel header names the checkout it shows, next to **Changes**. `Worktree · <name>` means the session has its own worktree. **Opened checkout** means it uses the folder you opened. Branch and worktree lists cover the whole repository, because a linked worktree shares its branches with the main checkout. Status, diffs and the buttons that change files follow the session's checkout.
 
-Git state is keyed to the **working tree the active session actually runs in**, not just the folder you opened:
+## Choose what to compare
 
-- **Current checkout** edits files directly in the folder you opened.
-- **New worktree** uses a separate checkout. The diff panel, selected Git ref, and Git actions all use that worktree.
+The tabs at the top of the panel pick what you are reviewing:
 
-The diff panel header names the tree it is showing, beside **Changes**:
+- **Working tree** shows uncommitted changes in the session's checkout, from `git diff HEAD`. A new file that Git does not track yet appears once you stage it.
+- **Branch** shows what this branch changed since it split from a base branch. Use it to review everything a pull request would contain.
+- **Turns** shows the changes from one agent turn, when OpenWaggle saved a snapshot for that turn. The menu lists each turn with its `+` and `−` counts.
 
-- **`Worktree · <name>`** means the session has its own worktree.
-- **Opened checkout** means it uses the folder you opened.
-
-Each session in the sidebar carries its own git indicator, so two sessions on two different worktrees report their own state independently.
-
-The row shows commits ahead of and behind upstream, such as `↑2` and `↓1`. Hover the branch icon for its name. Use the diff panel to see uncommitted files; the sidebar does not count them.
-
-Branch and worktree **lists** are repository-level (a linked worktree shares refs with the primary checkout), while status, diffs, and working-tree actions follow the session's working tree.
-
-### Choosing where a session runs
-
-The context row at the top of the composer has separate controls for the environment and Git ref. The environment selector offers **Current checkout** and **New worktree**. The branch control stays separate, so choosing an environment never hides or changes the meaning of the selected ref.
-
-You can edit both composer controls before the first message. They become read-only after the session starts. The environment selector overrides the global default in **Settings > Worktrees**. The shipped default is **Current checkout**.
-
-The branch picker in **Session Summary > Environment** remains available for an existing session. Checking out a branch there changes the files used by every session sharing that checkout.
-
-Before a Current-checkout session's first agent run, OpenWaggle attempts `git pull --ff-only` from the checked-out branch's upstream. A failed pull does not block the task. Later turns do not pull automatically. Review unrelated work before the first send because a successful pull updates the checkout.
-
-For a new worktree based on a local branch, OpenWaggle first tries to fetch that branch from `origin`. It starts from `origin/<branch>` when the local branch is equal to or behind that tip. By default, ahead or diverged local branches retain their own tip. Fetch failure falls back to the available refs. Already remote-qualified refs are used as selected.
-
-In **New worktree** mode the first send needs a base branch. Until one resolves, sending is refused with:
-
-> Select a base branch before sending in worktree mode.
-
-Managed worktrees are created outside your project, at `~/.openwaggle/worktrees/<project folder name>/<workspaceId>`, on a branch named `ow/session-<workspaceId>`. The workspace identifier can differ from the session ID, and several sessions can share one workspace. Existing worktrees retain their recorded names; **Recreate worktree** reattaches to the recorded branch rather than starting a new one, so commits made in the old tree are not stranded. Check **Session Summary > Environment** for the actual path and branch. You can list and remove worktrees in **Settings > Worktrees**.
-
-A new session branch does not track its base branch. Its first push publishes it under its own name, `origin/ow/session-<workspaceId>`, and sets that as its upstream, with `push.default` unset or set to `simple`, `current`, or `upstream`. Worktrees created by OpenWaggle 1.0.0-beta.25 and earlier track their base branch, such as `origin/main`. With `push.default` unset or `simple`, **Push** publishes those under their own name too and moves the upstream there, instead of failing as `git push` does. With `push.default=upstream`, the push goes to the tracked base branch, so OpenWaggle asks for confirmation first, as for any push to the default branch. If OpenWaggle cannot work out where a push would go, such as with `push.default=matching`, the Git status and **Commit** still work, and **Push** explains why it cannot run.
-
-### First-send worktree feedback
-
-When the first message creates a worktree, OpenWaggle lists each step in the conversation as it starts, before the agent runs:
-
-1. **Preparing the session worktree** resolves the requested base ref and target path.
-2. **Pulling latest `<branch>` from origin** fetches a local base branch, when there is one to fetch.
-3. **Creating worktree `<branch>` from `<base>`** runs the Git worktree operation.
-4. **Running project setup** appears only when a Setup action will run.
-5. **Starting task** sends your submitted message to the agent.
-
-A finished step shows a check mark and the running one a spinner. While setup runs, the transcript shows a **Creating a worktree** card with **More details**, **Work locally**, and **Cancel**. **Work locally** stops the in-flight setup, changes that session to Current checkout, and retries the same submitted turn once. **Cancel** removes the optimistic turn and restores its text, attachments, skill reference, and Waggle preset to the composer.
-
-A first message in **Current checkout** gets a **Starting session** card for the same kind of wait: **Pulling latest changes** runs when the checked-out branch tracks an upstream. That card has no **Work locally** action and disappears once the agent starts. Until a step or the agent reports, the conversation shows **Starting session...**.
-
-If checkout creation fails, the card keeps the submitted turn visible and adds **Retry**. The details disclose the Git operation and error instead of replacing it with a generic spinner. Once the agent starts, the large card becomes a small expandable **Worktree created** row. That row remains in the transcript after reload as a record of where the session began. Local sessions and cancelled worktree launches do not get that row.
-
-![A first message sent in New worktree mode, with the Worktree created row expanded above the agent's reply: Preparing the session worktree, Fetching origin/main, Creating and then Created the ow/session branch from origin/main, and Starting the task in the new worktree](/screenshots/worktree-first-send.png)
-
-_Expand **Worktree created** to see what each step did, such as the ref it fetched and the branch it created._
-
-A configured preparation profile adds **Workspace setup** after checkout creation. Setup must succeed before the first agent turn. A failed or review-blocked setup has its own output and controls in **Session Summary > Workspace preparation**, including **Retry setup**, **Check the setup**, and **Continue anyway** where applicable. Development servers belong in on-demand Project actions, not setup. See [Workspace preparation](/docs/developer-workflow/built-in-terminal#workspace-preparation).
-
-### Recovering a missing worktree
-
-If a session's worktree has been deleted outside OpenWaggle, OpenWaggle blocks sending rather than silently choosing another folder. A fresh checkout would not contain the session's uncommitted work:
-
-> This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.
-
-The same row then offers two explicit choices:
-
-- **Recreate worktree** reattaches the session's branch in a new worktree, preserving its commits. It cannot recover uncommitted files deleted with the old worktree. The preparation profile snapshot is retained, but old setup completion and exported environment are cleared for the replacement checkout.
-- **Use current checkout** switches the session to the opened checkout.
-
-## Run target
-
-The right-hand side of the composer context row shows the run target. In Current-checkout mode this is the checked-out branch. In New-worktree mode it is the chosen base ref before creation, then the worktree branch.
-
-Before the first message, click the ref to open the picker:
-
-- Type in **Search branches** to filter local and remote branches.
-- Select a branch to check it out in Current-checkout mode. In New-worktree mode, this chooses the base for the new worktree without checking anything out yet.
-
-After the session starts, that composer control is read-only. Use the branch row in **Session Summary > Environment** to check out an existing branch, create one from an unmatched search, or choose **Copy branch name**.
-
-To rename or delete a Git branch or set its upstream, use the [built-in terminal](#built-in-terminal) or ask the agent to run the specific Git command. These actions are not in the composer picker.
-
-## Diff panel
-
-Toggle the diff panel with `Cmd+D` / `Ctrl+D`, by clicking the diff stats in the header, or with **Changes** on the [panel rail](/docs/using-openwaggle/right-panel). It appears in the right panel. Drag its edge to resize between 360 and 900 px; every right panel shares that width, and it is remembered between launches.
-
-The right panel shows one panel at a time, so opening the diff replaces the [Session Tree](/docs/using-openwaggle/session-tree), Browser or any other panel that was showing.
-
-![A session with the diff panel open on the right: Changes for the Opened checkout, the Working tree tab, README.md with two added lines, the changed-file tree, and Commit, Revert all and Stage all along the bottom](/screenshots/feature-git-workflow.png)
-
-### Diff scope
-
-Tabs at the top choose what you are reviewing:
-
-- **Working tree** shows uncommitted changes in the session's working tree, from `git diff HEAD`. An untracked file does not appear until you stage it.
-- **Branch** shows changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch and then names it, so the label reads `Automatic · origin/main` once the diff has loaded. Resolution asks the remote, in this order:
-  1. `origin/HEAD`, the remote-tracking symref a clone sets up;
-  2. the remote directly, when that symref is missing locally;
-  3. a conventional `main` or `master` that exists locally, used only when the remote named nothing at all.
-
-  It prefers the remote-tracking copy (`origin/main` over a local `main`) so the comparison reflects what you would open a change request against. When the remote does name a branch, only that branch is used: OpenWaggle will not quietly compare against a conventional `main` that merely happens to exist. `init.defaultBranch` is deliberately not consulted: it describes how *new* repositories are initialised, and it is usually read from your global git config, so it says nothing about this repository.
-
-  Pick a specific ref from the dropdown to override it; a stored ref that no longer exists is shown as `(unavailable)` rather than silently reverting to Automatic. If no base resolves, such as in a fresh repository without a remote or conventional default branch, the panel falls back to the working-tree diff and says so.
-
-  If you are already sitting on the default branch, `HEAD` and the base are the same commit, so the Branch tab shows no changes; use **Working tree** to review uncommitted work there.
-- **Turns** shows changes captured during individual agent turns, when those checkpoints are available. The dropdown lists each turn with its `+`/`−` counts.
-
-Each tab compares a different pair of states:
+Each tab compares two different states:
 
 ```mermaid
 flowchart LR
@@ -159,7 +54,7 @@ flowchart LR
   end
   subgraph br["Branch"]
     direction LR
-    mb["Merge base with the base ref"] -->|"commits on this branch"| h2["HEAD"]
+    mb["Merge base with the base branch"] -->|"commits on this branch"| h2["HEAD"]
   end
   subgraph tu["Turns"]
     direction LR
@@ -167,84 +62,98 @@ flowchart LR
   end
 ```
 
-### Reading diffs
+### Pick the base branch
 
-Use the changed-file tree on the right to select a file. It groups files by directory and shows status letters such as `A`, `M`, and `D`, plus added and removed line counts. Drag its edge to resize, or focus the resize handle and use `ArrowLeft` / `ArrowRight`.
+The **Branch** tab starts on **Automatic**, which finds the repository's default branch and names it once the diff loads, as in `Automatic · origin/main`. OpenWaggle asks the remote, in this order:
 
-Switch between unified and side-by-side views, and turn on line wrapping for long lines. Choose the syntax theme in **Settings > Appearance**. Added lines are green and removed lines are red, with Git's usual three lines of surrounding context.
+1. `origin/HEAD`, which a clone sets up.
+2. The remote itself, when `origin/HEAD` is missing locally.
+3. A `main` or `master` branch that exists locally, only when the remote names no default at all.
 
-### Review comments
+It prefers the remote copy (`origin/main` over a local `main`), because that is what a pull request compares against. When the remote names a default branch, OpenWaggle uses that branch and nothing else, even if a local `main` exists. It ignores `init.defaultBranch`: that setting says how new repositories start, usually from your global Git config, and tells nothing about this repository.
 
-Click a line or select a range of lines to open a comment box:
+Choose a branch from the menu to compare against it instead. If a branch you chose no longer exists, the menu shows it as `(unavailable)` rather than quietly switching back to **Automatic**. If no base branch exists at all, for example in a new repository with no remote and no `main` or `master`, the panel shows the working-tree diff and says so.
 
-- **Add comment** sends that comment to the agent immediately.
-- **Start a review** saves the comment in a batch without sending. After the first comment, the action becomes **Add to review**.
+On the default branch itself, the branch and its base are the same commit, so **Branch** shows nothing. Use **Working tree** there.
 
-While a review is open, a bar shows `N pending comments` with:
+## Read a diff
 
-- **Submit review** opens a confirmation with optional **Overall instructions**. Choose **Send to agent · N pending comments** to send the batch.
+Pick a file in the changed-file tree. The tree groups files by folder and shows a status letter, such as `A` for added, `M` for modified or `D` for deleted, with the added and removed line counts. Drag its edge to resize it, or focus the edge and use `ArrowLeft` and `ArrowRight`.
+
+Switch between unified and side-by-side views, and turn on line wrapping for long lines. Added lines are green and removed lines are red, with Git's usual three lines of context around each change. Choose the syntax colours in **Settings > Appearance**.
+
+## Send review comments to the agent
+
+Click a line, or select a range of lines, to open a comment box:
+
+- **Add comment** sends the comment to the agent at once.
+- **Start a review** saves the comment without sending it. After the first one, the button reads **Add to review**.
+
+While a review is open, a bar shows how many comments are pending, such as `2 pending comments`:
+
+- **Submit review** opens a confirmation where you can add **Overall instructions**. The send button, such as **Send to agent · 2 pending comments**, sends the whole batch.
 - **Discard review** drops the pending comments.
 
-`Cmd/Ctrl+Enter` submits a comment or the review; `Escape` cancels.
+`Cmd+Enter` or `Ctrl+Enter` sends a comment or the review. `Escape` cancels.
 
-![The diff panel maximized during a review: a Pending comment on lines 3 to 7 of src/upload/retry.ts, a comment box open on line 24 with Cancel, Add comment and Add to review, and the bar reading 1 pending comment with Discard review and Submit review](/screenshots/diff-review-comment.png)
+![The diff panel during a review, with one pending comment, a comment box open on line 24, and the bar offering Discard review and Submit review](/screenshots/diff-review-comment.png)
 
-### Staged Git actions
+## Commit and push from the diff panel
 
-The bottom bar's primary button adapts to the state of your working tree, upstream, and remote. Depending on that state it reads **Commit**, **Commit & push**, **Commit, push & PR** (**MR** on GitLab), **Push**, **Push & create PR**, **Create PR**, **View PR**, **Pull**, **Publish repository**, or **Sync ref**.
+The main button at the bottom of the panel changes with the state of your checkout, its upstream branch and its remote. It can read **Commit**, **Commit & push**, **Commit, push & PR** (**MR** on GitLab), **Push**, **Push & create PR**, **Create PR**, **View PR**, **Pull**, **Publish repository**, or **Sync ref**.
 
-- Actions that include a commit open a commit-message dialog first. Enter the message yourself; this flow does not generate it.
-- Actions that create a feature branch prepare a branch name before pushing. Check the proposed target rather than assuming a push will create the branch you want.
-- If the target is the repository's **default branch**, a confirmation dialog appears before anything is committed or pushed.
-- Progress is reported for each step, such as committing, pushing, and creating the review request.
+- An action that includes a commit asks for a commit message first. You write it; this panel does not generate one.
+- An action that creates a feature branch proposes a branch name before pushing. Check it before you continue.
+- If the target is the repository's default branch, OpenWaggle asks you to confirm before it commits or pushes.
+- Each step reports its progress, such as committing, pushing and creating the request.
 
-In Session Summary, **Commit or push** is separate from **Create PR** or **Create MR**. Committing there does not also create a review request. Request creation uses `gh` for GitHub or `glab` for GitLab and checks authentication for the remote's exact host before changing branches, committing, or pushing. If the CLI is unavailable or unauthenticated, the form disables creation inside OpenWaggle and offers a browser fallback where supported. See [Creating a pull or merge request](/docs/using-openwaggle/session-summary#creating-a-pull-or-merge-request).
+The **Commit or push** action in the Session Summary is separate from its **Create PR** action, so committing there never opens a request. See [Pull and merge requests](/docs/developer-workflow/pull-requests) for creating and merging requests.
 
-### Stage all / Revert all
+### Stage or revert everything
 
-Also in the bottom bar, from the working-tree view:
+From the **Working tree** tab, the bottom bar also has:
 
-- **Stage all** stages every modified, added, deleted, and untracked path across the repository.
-- **Revert all** restores tracked and staged changes to `HEAD` and deletes untracked files. This is destructive and asks for confirmation first:
+- **Stage all**, which stages every modified, added, deleted and untracked path in the repository.
+- **Revert all**, which puts tracked and staged files back to `HEAD` and deletes untracked files. It cannot be undone, so OpenWaggle asks first:
 
   > This resets all tracked and staged changes to HEAD and permanently deletes untracked files and folders. Ignored files and nested Git repositories are kept. If either would obstruct restoring HEAD, nothing is changed. This cannot be undone.
 
-  Ignored files and nested Git repositories (including submodules) are preserved. If restoring `HEAD` would require destroying such retained content, the revert refuses and changes nothing.
+  Ignored files and nested Git repositories, including submodules, survive a revert. If putting back `HEAD` would mean destroying one of them, the revert stops and changes nothing.
 
-## Commit dialog
+## Commit with the commit dialog
 
-Click **Open commit dialog** in the header. Hover the icon to see its label.
+Click **Commit** in the header, labelled **Open commit dialog** when you hover it.
 
-1. Review the changed-files list and its status and line counts.
-2. Check the files to include. Only selected files are staged.
-3. Enter your commit message.
-4. Choose **Amend last commit** only if you intend to replace the previous commit rather than create a new one.
-5. Use **Refresh** if files changed while the dialog was open. This also refreshes the header's diff stats.
+1. Review the changed files with their status and line counts.
+2. Tick the files to include. OpenWaggle stages only those.
+3. Type your commit message.
+4. Tick **Amend last commit** only if you want to replace the previous commit instead of adding a new one.
+5. Click **Refresh** if files changed while the dialog was open. This also refreshes the header's change numbers.
 
-![The Commit changes dialog: 1/1 files selected with +7 / -0, a commit message typed in, Amend last commit unchecked, src/upload/retry.ts checked, and Cancel and Commit](/screenshots/commit-dialog.png)
+![The Commit changes dialog with one file selected, a commit message typed in, Amend last commit unticked, and Cancel and Commit](/screenshots/commit-dialog.png)
 
-On success a toast confirms the commit and the diff stats refresh. In New-worktree mode the commit lands in the session's worktree, leaving the opened checkout untouched.
+When the commit succeeds, a message confirms it and the change numbers refresh. For a session with its own worktree, the commit goes into the worktree and leaves the folder you opened alone.
 
-Error states are shown inline, for example "No changes are available to commit." or "A merge is in progress. Resolve it before committing."
+Errors appear in the dialog, for example "No changes are available to commit." or "A merge is in progress. Resolve it before committing."
 
-## Built-in terminal
+## Push a session branch
 
-Toggle the terminal with `Cmd+J` / `Ctrl+J` or the terminal button in the header.
+A worktree session's branch, `ow/session-<ID>` named after the session that created the worktree, does not track its base branch. Its first push publishes it under its own name, `origin/ow/session-<ID>`, and sets that as its upstream. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where worktree folders live. This works when `push.default` is unset or set to `simple`, `current` or `upstream`.
 
-New terminals start in the active session's Working path: the Session worktree in New-worktree mode
-or the opened checkout in Current-checkout mode. Commands therefore act on the same working tree as
-the agent and the diff panel by default.
+Worktrees made by OpenWaggle 1.0.0-beta.25 and earlier track their base branch, such as `origin/main`. With `push.default` unset or `simple`, **Push** publishes them under their own name too and moves the upstream there, where a plain `git push` would fail. With `push.default=upstream`, the push goes to the tracked base branch, so OpenWaggle asks you to confirm first, as it does for any push to the default branch.
 
-A terminal opened in a draft exists before its Session worktree does. On first send OpenWaggle keeps
-that shell alive and moves its ownership, layout, and scrollback into the new session. If the send
-creates a worktree, the inherited pane remains visibly labelled **Original checkout**; new terminals
-use the worktree. Choose **Restart in worktree** to stop the inherited process and relaunch that pane
-in the session's Working path.
+If OpenWaggle cannot tell where a push would go, for example with `push.default=matching`, Git status and **Commit** still work, and **Push** explains why it cannot run.
 
-Hiding the panel does not stop its shells. Closing a pane or tab does, and active or uncertain
-processes receive an impact confirmation first. See
-[Built-in Terminal](/docs/developer-workflow/built-in-terminal) for tabs, splits, contextual
-shortcuts, persistence, shell startup, links, and selection-to-chat.
+## Choose the run target
 
-Use the terminal for Git operations not covered by the built-in UI (such as branch rename, delete,
-or upstream configuration), or for running tests, builds, and other commands directly.
+The right end of the row above the message box shows the run target, the branch the session runs on. For a session in your current checkout it is the checked-out branch. For a new worktree it is the base branch you picked, and then the worktree's own branch once it exists.
+
+Before the first message, click the branch to open the picker. Type in **Search branches** to filter local and remote branches. Selecting a branch checks it out in your current checkout, or, for a new worktree, picks the worktree's base without checking anything out.
+
+After the session starts, that control is read-only. Use the branch row in **Session Summary > Environment** to check out another branch, create one from a name you type, or choose **Copy branch name**.
+
+To rename or delete a branch, or set its upstream, use the [built-in terminal](/docs/developer-workflow/built-in-terminal) or ask the agent to run the Git command. The branch picker does not do these.
+
+## Run other Git commands
+
+Press `Cmd+J` or `Ctrl+J` to open the terminal. New terminals start in the session's working directory, so your commands act on the same checkout as the agent and the diff panel. Use it for Git operations the panel does not cover, or to run tests and builds yourself. A terminal you opened before a worktree existed stays in your original checkout; [Built-in terminal](/docs/developer-workflow/built-in-terminal) explains how to move it.
