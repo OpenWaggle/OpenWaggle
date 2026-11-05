@@ -6,9 +6,11 @@ section: "Customize"
 kind: "guide"
 ---
 
-Create an `AGENTS.md` file in your project root to give the agent instructions you would otherwise repeat in each conversation. Include the commands it should use, files it should leave alone, and checks it should run before reporting a task complete.
+An `AGENTS.md` file holds the instructions you would otherwise repeat at the start of every conversation: which commands to run, which files to leave alone, and what to check before calling a task done. Put it in your project root. Pi, the agent runtime inside OpenWaggle, adds it to the agent's context in every session for that project.
 
-## Example
+## Write an AGENTS.md
+
+Start with a short file. This one covers the three things agents most often get wrong:
 
 ```markdown
 # Project instructions
@@ -29,29 +31,31 @@ Create an `AGENTS.md` file in your project root to give the agent instructions y
 - Do not commit or push unless asked.
 ```
 
-Replace these paths and commands with ones that exist in your repository. Commit the file if you want the team to share the instructions.
+Replace the paths and commands with ones that exist in your repository. Commit the file if you want your team to share the instructions.
 
-## How it works
+To check that OpenWaggle found the file, open **Settings > Skills** and choose the project. The panel shows whether the root `AGENTS.md` is there.
 
-Pi, the agent runtime used by OpenWaggle, discovers context files for the active project. OpenWaggle shows root `AGENTS.md` status in **Settings > Skills** and can resolve root and directory-scoped instructions for display.
+## Decide what to include
 
-You can add an `AGENTS.md` in a subdirectory for rules specific to that area. Keep the root file short and point to those files when the agent needs more detail. Do not assume every nested instruction file is loaded into every conversation.
+Write down what the agent cannot work out from the code:
 
-These files are instructions, not access controls. A rule such as "do not edit generated files" does not prevent a tool from writing there. Use the app's [permissions](/docs/configuration/security-privacy) to review protected actions.
+- The package manager and the exact test commands.
+- Repository conventions and architecture rules.
+- Generated files and areas that need special care.
+- What you expect for review, commits, and reporting failures.
 
-## What to include
+Keep the file current. An outdated test command misleads the agent on every task.
 
-Prefer details the agent cannot infer reliably from the code:
+## Add instructions for one folder
 
-- The package manager and exact test commands.
-- Repository conventions or architectural constraints.
-- Generated files and areas that require special care.
-- Expectations for review, commits, and reporting failures.
+You can put another `AGENTS.md` in a subdirectory for rules that only apply there. Keep the root file short and point to those files when the agent needs the detail. Pi loads a context file for the directory it runs in and the directories above it, so do not expect every nested file to be in every conversation.
 
-Keep instructions current. An outdated test command can mislead the agent on every task.
+## Know what instructions cannot do
 
-## AGENTS.md vs skills
+Instructions are text the agent reads. They are not access controls. A rule such as "do not edit generated files" does not stop a tool from writing there. To review actions before they happen, use [approvals and permissions](/docs/configuration/approvals-permissions).
 
-`AGENTS.md` supplies baseline project instructions. A [skill](/docs/extending/skills-system) supplies a workflow for a particular task, such as a code review.
+## Choose between AGENTS.md, skills, and agent definitions
 
-[Agent definitions](/docs/extending/agent-definitions) serve a different purpose. They give a new session an optional role and defaults, rather than setting conventions for the whole project.
+`AGENTS.md` sets the rules for the whole project. A [skill](/docs/extending/skills-system) is a workflow for one kind of task, such as a code review, that the agent loads when it needs it.
+
+[Agent definitions](/docs/extending/agent-definitions) give a new session a role and defaults. They do not set conventions for the project.

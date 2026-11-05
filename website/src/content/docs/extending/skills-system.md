@@ -6,23 +6,19 @@ section: "Customize"
 kind: "guide"
 ---
 
-A skill is a set of instructions for a particular task, such as reviewing a change or writing a migration. It lives in a `SKILL.md` file. Skills do not install new tools or grant permissions.
+A skill is a set of written instructions for one kind of task, such as reviewing a change or writing a migration. It lives in a `SKILL.md` file. The agent sees each skill's name and description, and loads the full instructions when a task calls for them, or when you pick the skill yourself. Skills do not install tools or grant permissions.
 
-Use [project instructions](/docs/extending/agents-md) for rules that apply throughout the project. Use a skill for a workflow you want the agent to load when needed.
+Use [project instructions](/docs/extending/agents-md) for rules that apply across the whole project. Use a skill for a workflow the agent only needs some of the time.
 
-## Recommended runtime folder
+## Create a skill
 
-Create a directory in your project for the skill:
+Make a folder for the skill in your project, named after it, with a `SKILL.md` inside:
 
 ```text
 .openwaggle/skills/review-change/SKILL.md
 ```
 
-You can commit this file with the project so other developers can use the same workflow.
-
-## SKILL.md format
-
-Start with a name, a description of when to use it, and concrete instructions:
+Start the file with a name and a description of when to use it, then write the instructions:
 
 ```markdown
 ---
@@ -37,37 +33,47 @@ Report concrete defects with file and line references.
 Do not edit files unless asked. State which checks you ran and which you did not.
 ```
 
-Keep the description specific. It helps the agent decide when the skill applies.
+Make the description specific. The agent reads it to decide whether the skill fits the task. Commit the folder with the project if you want other developers to use the same workflow.
 
 ### Frontmatter fields
 
-Pi, the agent runtime used by OpenWaggle, reads the frontmatter. These are the fields it acts on:
+Pi, the agent runtime inside OpenWaggle, reads the frontmatter. It acts on these fields:
 
 | Field | Required | What it does |
 | --- | --- | --- |
-| `name` | Yes, for **Settings > Skills** | The skill's name and its `/skill:name` command. Use lowercase letters, digits, and single hyphens, up to 64 characters. Pi warns about a name that breaks these rules but still loads the skill. Without a `name`, Pi uses the folder name, but **Settings > Skills** reports the skill as an error. |
-| `description` | Yes | When the agent should use the skill, up to 1024 characters. Pi warns about a longer one but still loads the skill. Pi skips a skill without a description. In the agent's list of skills, OpenWaggle shortens it to about 160 characters and keeps a "Use when…" sentence whole when it can. |
-| `disable-model-invocation` | No | `true` leaves the skill out of the agent's list, so the agent never loads it by itself. Type `/skill:name` to use it. |
+| `name` | Yes, for **Settings > Skills** | The skill's name and its `/skill:name` command. Use lowercase letters, digits, and single hyphens, up to 64 characters. |
+| `description` | Yes | When the agent should use the skill, up to 1024 characters. |
+| `disable-model-invocation` | No | `true` leaves the skill out of the agent's list. |
+
+A few details on these fields:
+
+- A `name` or `description` that breaks the limits gets a warning from Pi, and the skill still loads.
+- Without a `name`, Pi uses the folder name, but **Settings > Skills** reports the skill as an error.
+- Without a `description`, Pi skips the skill.
+- In the agent's list of skills, OpenWaggle shortens each description to about 160 characters, and keeps a "Use when…" sentence whole when it can.
+- With `disable-model-invocation: true`, the agent never loads the skill by itself. Type `/skill:name` to use it.
 
 The Agent Skills format also defines `license`, `compatibility`, `metadata`, and `allowed-tools`. Pi accepts a file that has them and ignores them, so `allowed-tools` does not approve any tool in advance.
 
-## Skills panel
+## Use a skill in a message
 
-Open **Settings > Skills** and choose the project in the header. Select a skill to preview its instructions, then enable or disable it for that project. The panel also shows the root `AGENTS.md` status.
+Type `/` in the message box and pick the skill from the menu. Add the task you want it to do, then send. Your message keeps the skill reference, so you can see later which skill you used.
 
-![Settings > Skills for the OpenWaggle project: AGENTS.md marked Found, two enabled skills, review-change and write-migration, and the selected review-change skill's instructions in the preview](/screenshots/settings-skills.png)
+Pi also registers every loaded skill as a `/skill:name` command.
 
-The project picker can browse recent projects, projects with sessions, or another folder. Browsing does not change the project selected beside the message box.
+## Turn skills on or off for a project
 
-## Slash references
+Open **Settings > Skills** and choose the project in the header. Select a skill to preview its instructions, then turn it on or off for that project. The panel also shows whether the project has a root `AGENTS.md`.
 
-Type `/` in the message box and select a skill from the menu. Add the task you want it to perform, then send the message. The skill reference remains visible in your message.
+![Settings > Skills with AGENTS.md marked Found, two skills switched on, and the review-change skill's instructions in the preview](/screenshots/settings-skills.png)
 
-Pi, the agent runtime used by OpenWaggle, also registers loaded skills as `/skill:name` commands according to its resource-loading behavior.
+The project picker lists recent projects and projects with sessions, and can browse to another folder. Choosing a project here does not change the project selected beside the message box.
 
-## Runtime source of truth
+Turning a skill off removes it from the skills Pi gives the agent in that project. Other projects are not affected.
 
-OpenWaggle loads project resources in this order. For skills with the same name, the first location wins:
+## Where skills come from
+
+OpenWaggle looks for project skills in these folders, in this order. When two skills have the same name, the first folder wins:
 
 ```text
 .openwaggle/skills/
@@ -75,8 +81,11 @@ OpenWaggle loads project resources in this order. For skills with the same name,
 .agents/skills/
 ```
 
-[Resource precedence](/docs/configuration/per-project-config#resource-precedence) draws this lookup as a diagram. Enabled OpenWaggle extension packages can add skill resource roots between `.openwaggle/skills/` and `.pi/skills/`. Pi also discovers user/global skills. The Settings catalog scans `.openwaggle/skills/` and root `.agents/skills/`, so it is not a complete inventory of every skill Pi can load.
+[Resource precedence](/docs/configuration/per-project-config#resource-precedence) draws this order as a diagram. A few more sources add to it:
 
-Catalog toggles filter loaded skills before Pi builds the agent's context. For the two catalog roots, the toggle key is the normalized skill directory name. For other Pi-loaded skills, including global/user, `.pi/skills/`, and ancestor `.agents/skills/` resources, it is the normalized skill name. An explicit disabled toggle therefore also excludes a matching skill from those sources in that project without changing other projects. Pi still controls discovery outside the catalog.
+- Enabled OpenWaggle extension packages can add skill folders between `.openwaggle/skills/` and `.pi/skills/`.
+- Pi also loads your user skills, the ones for every project, and `.agents/skills/` folders above the project.
 
-For resource configuration beyond the Settings catalog, see Pi's [customization reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#customization).
+**Settings > Skills** only scans `.openwaggle/skills/` and the project's root `.agents/skills/`, so it does not list every skill Pi can load. Its switches still reach the others. For skills in those two folders, a switch matches the skill's folder name. For every other skill Pi loads, it matches the skill's name. So turning off `review-change` in a project also turns off a user skill or a `.pi/skills/` skill named `review-change` there.
+
+To configure skill folders beyond what Settings shows, see Pi's [customization reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#customization).

@@ -1,188 +1,156 @@
 ---
 title: "Hives and sessions"
-description: "Split a task across independent worker sessions, choose their workspaces, and review the results."
+description: "Split a task across worker sessions, follow them in the Hive panel, and review what they send back."
 order: 1
 section: "Multiple agents"
 kind: "guide"
 ---
 
-Use a Hive when a task has parts that can be assigned to independent agents. For example, one agent can investigate a bug while another reviews the related tests. This is optional; a normal conversation is enough for many tasks.
+A Hive lets one agent hand parts of a task to other agents and collect their results. Each of those agents works in its own session, called a worker, so one can trace a bug while another reviews the tests. Use a Hive when a task splits into parts that do not depend on each other. For most tasks a normal conversation is enough.
 
-A Hive is a family of sessions. The session that starts it is the **Queen**; its descendants are **Workers**. These names describe lineage, not blanket authority. A Worker can create more Workers when permitted, and the Queen does not automatically gain permission to control every session.
-
-Each Worker reports to the Session that spawned it, so a Hive is a tree:
+The session you start the Hive from is the **Queen**. The sessions it creates are its workers, and a worker can create workers of its own. Each worker reports to the session that created it, so a Hive is a tree:
 
 ```mermaid
+%% alt: A Queen session spawns workers, a worker can spawn its own, and each sends its result to the session that spawned it
 flowchart TD
-  Q["Queen Session"] -->|spawns| W1["Worker"]
+  Q["Queen session"] -->|spawns| W1["Worker"]
   Q -->|spawns| W2["Worker"]
   W2 -->|spawns| W3["Worker"]
-  W1 -.->|submits its result| Q
-  W3 -.->|submits its result| W2
+  W1 -.->|sends its result| Q
+  W3 -.->|sends its result| W2
 ```
 
-Each Worker is a saved, independent session with its own transcript, active run, message queue, model settings, and workspace. It can continue after the Queen's current run ends. Workers live in the **Hive** panel, a built-in Right panel surface, rather than the left sidebar. The header shows the Hive role and optional [agent definition](/docs/extending/agent-definitions).
+A worker is a full session. It has its own transcript, model and queue of messages, and it is saved like any other session. It keeps running when you switch to another session, and it can keep going after the Queen's own turn ends. Being the Queen gives a session no extra permissions over other sessions.
 
-For two agents taking sequential turns in the *same* conversation, use [Waggle Mode](/docs/using-openwaggle/waggle-mode) instead.
+If you want two agents to take turns in the same conversation instead, use [Waggle](/docs/using-openwaggle/waggle-mode).
 
-![A Queen Session with the Hive panel open on the right: a tree of its Workers, one under the Worker that spawned it, each with its workspace and a State that says who acts next](/screenshots/hive-sessions.png)
+## Start a Hive
 
-_The Queen stays in the left sidebar; the Hive panel on the right lists the whole Hive from the Queen down, each Worker under the Session that spawned it._
-
-## Try a Hive
-
-Start in a normal Session and ask the agent to split a concrete job:
+Ask the agent in a normal session to split a concrete job. Say what each worker should do, what it must not do, and which files it needs:
 
 ```text
-Create two Workers to investigate this repository's login flow.
+Create two workers to investigate this repository's login flow.
 Have one trace the implementation and one review the tests for missing cases.
-Do not edit files or commit anything. Give each Worker the relevant paths.
+Do not edit files or commit anything. Give each worker the relevant paths.
 Review their findings here and identify which claims are supported by code or tests.
 ```
 
-The current Session becomes the Queen. OpenWaggle creates each Worker as a durable Session, lists it in the Hive panel, and keeps its Run active when you navigate elsewhere. Workers report results to their parent agent. The Queen reviews those reports and returns one combined answer in the original Session.
+Your session becomes the Queen. The agent creates the workers and gives each one its task. A worker starts with only what the agent tells it and cannot see the Queen's conversation, so a good request names the files and the goal.
 
-You can keep working in the Queen Session while Workers run. The Hive row in Session Summary counts the direct Workers by who acts next: those that need you, those waiting for this Session, those working, and those closed. It is a navigation and status view, not a separate approval queue. If a Worker needs a correction, tell the Queen what to change. The parent agent can request a revision of that Worker's submission. You can also open any Worker Session and talk to it directly.
+The workers send their results back to the Queen's agent. It reviews them and gives you one answer in your original session. You can keep talking to the Queen while the workers run.
 
-Open the **Hive** panel from the chess queen icon on the Panel rail (or select the **Hive** row in the Session Summary). It is available for any Session in a Hive and lists every Session of that Hive from its Queen down, at any depth, as a table of **Session**, **Workspace** and **State**. By default it is a tree: each Worker sits under the Session that spawned it, and a parent shows how many Workers it has. Collapse a parent with its arrow; while collapsed it still shows how many of its Workers need you and, muted, how many wait for an agent, and the panel remembers it. Archived Workers are hidden and counted on their parent until you turn on **Show archived**. With the keyboard, the arrow keys move through the tree and open or close a parent, and Enter opens a Session. Click a row to open that Session; the panel stays open so you can move across the Hive. While a Worker is open, its Queen's sidebar row keeps a secondary highlight.
+Each worker makes its own calls to your model provider, and each call is billed or counts against your plan. Telling a worker "do not edit" is an instruction, not a lock. Check the session's [approval settings](/docs/configuration/approvals-permissions) before you hand out work that matters.
 
-A Worker created from an [Agent definition](/docs/extending/agent-definitions) shows an agent icon instead of the pickaxe, and a line under its title names the definition with the thinking level set for the Worker and the model it runs with, for example `reviewer · High · GLM-5.3-Flash` (`No thinking` when thinking is off). Hover the line for the full model name; a screen reader reads all three with the row. The toolbar counts the Hive's Sessions per definition, such as `reviewer ×6`, so you can see at a glance whether the Queen uses them.
+## Watch workers in the Hive panel
+
+The **Hive** panel lists every session in the Hive, from the Queen down. Open it from the chess queen icon on the panel rail, or select the **Hive** row in the [Session Summary](/docs/using-openwaggle/session-summary). It works from any session in a Hive, and the header counts the workers in it.
+
+![The Hive panel beside a Queen session, listing its workers as a tree with each one's workspace and state](/screenshots/hive-sessions.png)
+
+The panel is a table with three columns. **Session** is the title, **Workspace** is the checkout or worktree the session runs in, and **State** says where its work stands. Each worker sits under the session that created it, and a parent shows how many workers it has.
+
+- Click a row to open that session. The panel stays open, so you can move around the Hive. While a worker is open, its Queen's row in the sidebar keeps a second highlight.
+- Collapse a parent with its arrow. A collapsed parent still shows how many of its workers need you and, in a muted color, how many wait for an agent. The panel remembers what you collapsed.
+- Archived workers are hidden and counted on their parent. Turn on **Show archived** to see them.
+- With the keyboard, the arrow keys move through the tree and open or close a parent, and Enter opens a session.
+
+The sidebar lists only top-level sessions, not workers. To keep a worker there, choose **Pin session** from its row's ⋯ menu or right-click menu, which are the same menus as in the sidebar. A pinned worker shows its project and **Spawned by** its parent. **Unpin session** sends it back to the panel. The sidebar's status filters and search still find workers, listed flat with their parent named.
 
 ### Who acts next
 
-Each row's **State** says who acts next and why. **By next actor** groups the same Sessions that way, each deeper row naming its parent as **Spawned by** with a link to it:
+Each row's **State** says who acts next and why. Turn on **By next actor** to group the whole Hive that way. Each deeper row then names its parent as **Spawned by**, with a link to it.
 
-![The Hive panel's By next actor view: a Needs you group with a stuck Worker, Waiting for groups for the Queen and for a Worker with a Worker of its own, then Working and Closed, with archived Workers folded at the end](/screenshots/hive-next-actor.png)
-
-_**By next actor** groups the Hive into Needs you, Waiting for ‹parent› (one group per parent), Working and Closed._
+![The Hive panel grouped by next actor, with one stuck worker under Needs you and the rest under Waiting for, Working and Closed](/screenshots/hive-next-actor.png)
 
 | Group | Who acts next | What a row says |
 | --- | --- | --- |
-| **Needs you** | you | Waiting for your approval · Waiting for your answer · Stuck — no agent will pick it up |
-| **Waiting for ‹parent›**, for example **Waiting for Queen** | the agent that spawned the Worker | Ready for review · Run failed, ‹parent› notified · Asked ‹parent› for help · Finished its turn |
-| **Working** | the Worker | Working · Revising · Connecting |
-| **Closed** | nobody | Accepted · Cancelled |
-| **Archived · n** | — | collapsed until you open it |
+| **Needs you** | You | **Waiting for your approval**, **Waiting for your answer**, or **Stuck** |
+| **Waiting for ‹parent›** | The agent that created the worker | **Ready for review**, **Run failed, ‹parent› notified**, **Asked ‹parent› for help**, or **Finished its turn** |
+| **Working** | The worker | **Working**, **Revising**, or **Connecting** |
+| **Closed** | Nobody | **Accepted** or **Cancelled** |
+| **Archived · n** | Nobody | Collapsed until you open it |
 
-**Needs you** holds only what you must unblock: a Worker, or the Queen herself, waiting for your approval or your answer, and a Worker that is stuck. A Worker is stuck when its last Run failed or was interrupted, or it asked its parent for help, and its parent has no Run going and nothing queued, so no agent will pick it up. While the parent is running, the same Worker waits for it instead. When its parent asks a Worker to revise, the Worker is working on it.
+**Waiting for ‹parent›** names the parent, for example **Waiting for Queen**, with one group for each parent.
 
-These labels clear when the situation ends. "Run failed" clears as soon as a new Run starts on the Worker, whoever starts it. "Asked ‹parent› for help" clears when the parent sends the Worker anything (a message, a Follow-up or steering), or when the Worker says it is working again. The failure stays in the Worker's transcript and its Delegation history, and the parent agent still gets every update.
+**Needs you** holds only what you must unblock: a worker, or the Queen herself, waiting for your approval or your answer, and a worker that is stuck. A worker is stuck when its last run failed or was interrupted, or it asked its parent for help, and its parent is not running and has nothing queued. No agent will pick it up, so the row says so. While the parent is running, the same worker waits for the parent instead.
 
-Only **Needs you** reaches you outside the panel: the rail icon's dot, the Queen's sidebar line ("1 needs you"), and the Session Summary's count. The Queen's sidebar line also shows a muted "2 waiting for ‹Queen›" for her Workers that wait for her, with no dot.
+The **Hive** row in the Session Summary counts the open session's direct workers by the same groups.
 
-Each row has the same ⋯ and right-click menu as a sidebar row. **Pin session** brings a Worker into the sidebar's Pinned section, where its second line names its project and **Spawned by** its parent (the Queen, for a direct Worker); **Unpin** returns it to the panel only. Status filters and search in the sidebar still find Workers, listing them flat with their parent named. A Queen row in the sidebar reports hidden Workers that need you. The Summary is available even before a newly spawned Worker has sent its first message.
+The labels clear when the situation ends. **Run failed, ‹parent› notified** clears as soon as a new run starts on the worker, whoever starts it. **Asked ‹parent› for help** clears when the parent sends the worker anything, or when the worker says it is working again. The failure stays in the worker's transcript and its delegation history, and the parent agent still hears about every change.
 
-The Queen's summary is a starting point for review, not a substitute for the Worker transcripts, changed files, or test results. Instructions such as "do not edit" are not access controls. Check each session's approval settings before assigning work, and remember that concurrent Workers can make separate billable provider calls.
+Only **Needs you** reaches you outside the panel. It shows as a dot on the panel rail icon, a line under the Queen in the sidebar such as "1 needs you", and a count in the Session Summary. The Queen's sidebar line also shows a muted "2 waiting for ‹Queen›" for workers waiting on her, with no dot.
 
-## Workspace placement
+## Give workers a role
 
-Workers share the parent's exact workspace by default. They can read and change the same files you and other sessions are using. For independent edits, ask for a **new worktree** and give each Worker a clear scope. A separate worktree isolates the checkout; it does not grant new filesystem or Git permissions.
+An [agent definition](/docs/extending/agent-definitions) is a saved role, such as a code reviewer, with its own instructions and defaults. A session that can create workers sees the names and descriptions of the project's enabled definitions, and its agent picks one when it fits a worker's job. You can also ask for one by name: "Use the code-reviewer definition for this worker". A worker without a definition is an ordinary agent.
 
-You can also choose a specific local checkout. Launches and forks have explicit workspace choices too. OpenWaggle does not silently substitute another checkout when a worktree is missing.
+In the Hive panel, a worker created from a definition shows an agent icon instead of the pickaxe. A line under its title names the definition, the thinking level set for the worker, and the model it runs with, for example `reviewer · High · GLM-5.3-Flash`. It says `No thinking` when thinking is off. Hover the line for the full model name; a screen reader reads all three with the row. The panel's toolbar counts the sessions per definition, such as `reviewer ×6`, so you can see whether the Queen uses them.
 
-A new worktree can run configured workspace preparation before the agent starts. Setup must finish successfully, or receive an explicit continue decision, before execution proceeds. If setup has failed or its previous result is uncertain, inspect **Workspace preparation** in Session Summary rather than repeatedly sending the task. See [Project actions](/docs/configuration/project-actions) for preparation and managed-run controls.
+## Talk to a worker
 
-Sharing a workspace makes it harder to attribute changes. OpenWaggle records advisory scope claims and conflicts, but those claims do not lock files. Review overlapping edits yourself.
+Click a worker in the Hive panel to open it, then type in its composer as in any session. Answer its questions and approval requests there; they are the rows under **Needs you**.
 
-## Session and message actions
+If the worker is busy, your message waits above the message box as a follow-up, and starts as the next run when the current one finishes. To put it into the run that is going now instead, choose **Steer** on the queued message. Steering does not stop the run. Use it only for guidance that belongs in that run. [Chat and tools](/docs/using-openwaggle/chat-and-tools#send-a-message-while-the-agent-works) covers the queue.
 
-A **run** is one active execution of the agent in a session. Use a **Follow-up** for work that should start after it finishes; use **Steer** for guidance that belongs in the current run. Steer does not cancel a tool already running.
+Switching between sessions never stops a run. A worker's Session Summary works as soon as it is created, even before it sends its first message.
 
-These names have precise meanings in the GUI, CLI, MCP adapter, and native `hive` tool:
+To pass a finding along without starting new work, ask a worker to report it to its parent. A report reaches the other session as a note and never starts or steers a run.
 
-| Action | Meaning |
-|---|---|
-| **Create** | Create an idle independent root Session. It has no initial Run. |
-| **Launch** | Atomically create an independent root Session and start its first Run. |
-| **Spawn** | Atomically create and start a Worker beneath a parent, including its lineage and Delegation Contract. An optional title names it; without one it is titled from its objective. |
-| **Fork** | Create a new Session from a stable point in an existing transcript. |
-| **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. An idle Session whose queue is paused still starts the message; the paused Follow-ups stay queued. |
-| **Start** | Start a new Run on an idle Session. It never queues behind an active Run. |
-| **Follow-up** | Submit a durable, separate next Run. It remains queued while the current Run finishes; if that Run has just settled, it starts immediately as the next Run. A Follow-up sent to an idle Session whose queue is paused waits in the queue; the result says so with `queueState` and, when known, `pauseReason`. |
-| **Steer** | Append guidance to one exact active Run without interrupting it. It requires that Run's identity. |
-| **Replace** | Interrupt one exact active Run and start the supplied message as a new Run. |
-| **Promote** | Remove one queued Follow-up and deliver it as Steering to the exact active Run. |
-| **Withdraw** | Remove a pending Follow-up before delivery. The result lists the Follow-ups it removed as `withdrawnFollowUpIds` and those still queued as `remainingFollowUpIds`. |
-| **Reorder** | Change pending Follow-up order against an expected queue revision. |
-| **Pause / Resume** | Stop or restart automatic delivery of queued Follow-ups. Pausing does not interrupt a Run. A failed, interrupted, or timed-out Run pauses the queue only for Follow-ups accepted before the Run ended; one accepted after that starts at settlement. `queue list` reports why a paused queue paused. |
-| **Interrupt** | Stop one exact active Run without starting another. |
-| **Wait** | Perform one bounded observation until a Session condition is reached or the timeout expires. It uses Host events internally but does not create a persistent subscription or consume an agent Run slot. |
-| **Watch** | Stream authorized Session Host events, with a cursor for reconnect and resynchronization. |
-| **Report** | Deliver explicit context upstream, to the Queen, or to a named Worker without starting or steering a Run. |
-| **Handoff** | Move a Session to another authorized Workspace binding. |
-| **Export** | Stream or create a Markdown, JSONL, or bundle artifact from an authorized transcript scope. |
+If a worker's result needs fixing, you can also tell the Queen what to change, and its agent asks the worker for a new revision. The [Hive reference](/docs/reference/hive#send-messages-and-control-runs) lists every message action and the queue rules.
 
-Stopping or interrupting a Run before the agent wrote anything leaves no empty reply in the transcript; whatever it had already written stays.
+## Review and accept results
 
-Pi's internal steering queue is an adapter detail. The durable **Follow-up queue** above is the product queue: it survives renderer disconnects and host recovery, can remain pending after the active Run, and is delivered one entry at a time when resumed.
+When a worker finishes, it submits its result to the agent that created it. That parent agent reviews the result and either asks for a revision or accepts it. OpenWaggle shows where each review stands, but you do not have to approve every result yourself.
 
-When you promote a Follow-up, its preview moves into the conversation while the Host processes it. During compaction it shows that it is waiting. Acceptance can precede delivery while a tool is still running, so the preview remains until the actual user message arrives. Switching Sessions does not discard it. If the Host refuses the promotion, the Follow-up remains in its queue.
+A worker that ends its run with a reply but forgets to submit still has that reply kept as its result. A worker that asked for help keeps waiting for an answer, even if its last reply was text.
 
-A steered message the agent has not read yet is not lost when its Run ends first. If you stop, interrupt, or replace the Run, or it ends without reading the message, the message returns to the front of the Follow-up queue, in the order it was steered. A promoted Follow-up keeps its identity, text, attachments, and options. A message steered directly, for example by an agent or the Hive CLI, becomes a new Follow-up from the same caller, with its text, attachments, and visualization context; like any steer it has no Waggle, thinking level, or authorization override of its own, so it runs with the Session's settings. The queue list marks it as a returned steer with the steer's Run and idempotency key, so the caller can find it instead of sending it again. Because returned steers can push the queue past its usual capacity, a direct steer is refused while the queue is full, and one Run holds a bounded number of them. A stopped Run pauses the queue as usual, so you can resume, steer, or dismiss it. A message the agent had already started reading stays in the transcript and is not returned. After a Host crash, OpenWaggle cannot tell which steered messages were read, so it returns none of them.
+The Queen's summary is where your review starts, not where it ends. Before you rely on it, read the worker transcripts, the changed files and the test results. The [Hive reference](/docs/reference/hive#delegation-states) lists every delegation state and how a result moves between them.
 
-## Authorization and capacity
+## Choose a workspace for workers
 
-A child inherits the parent's execution profile by default. Any specialization can keep or reduce approval, tool, MCP, and native Session capabilities; it cannot widen them through the Sessions API. `YOLO (Full access)` is available only when the caller and resolved authorization ceiling already permit it.
+By default a worker works in the same checkout as its parent. It reads and changes the same files you and other sessions are using. That is fine for reading and reviewing, and risky for edits.
 
-A Session's model and thinking level are Session settings. A Run uses them when it starts, and they can change only while no Run is starting, running, or stopping. A Session that is only waiting on its queue can change. An agent or CLI caller can set a thinking level when it creates, launches, or spawns a Session, or with a `message` or `start` that starts a Run on an idle Session. It can pass a Run authorization override on `launch`, `spawn`, or such a `message` or `start`; `create` starts no Run, so it takes none. The override applies only to that Run and stays within the caller's ceiling. Neither is accepted while a Run is active, so a queued Follow-up, steer, or replacement never carries its own thinking level or access; a Follow-up runs with the Session's settings when its turn comes.
+For edits that should not collide, ask for each worker to get a **new worktree**, and give each one a clear scope. A separate worktree keeps the checkouts apart. It gives the worker no new file or Git permissions. You can also name a specific local checkout. If a worktree is missing, OpenWaggle never swaps in another checkout.
 
-If the access a Follow-up was queued under is revoked or no longer covers the Session, the Follow-up waits in the queue marked as needing attention. In the app, **Send as me** sends it under your own access instead. The queue keeps who originally queued it, and the message can no longer be edited. You can also dismiss it.
+A new worktree can run your project's setup commands before the agent starts. The setup must succeed, or you must choose to continue, before the worker runs. If setup failed or its result is unclear, check **Workspace preparation** in the Session Summary instead of sending the task again. [Project actions](/docs/configuration/project-actions) explains how to configure setup.
 
-Session capabilities constrain the native `hive` tool and authenticated Session Host requests. They are not an operating-system sandbox. A Worker that still has an unrestricted shell, process access, and the same desktop-user credentials can act with that user's authority outside the native tool, including calling the CLI directly. For strong containment, remove shell/process tools from the Agent definition or run the agent in a separate OS sandbox, account, or container. Named CLI profiles are useful for attribution and least privilege only when the caller cannot also access the owner's credentials.
+When workers share a checkout, it is harder to tell who changed what. Workers can record which files they plan to change, and OpenWaggle reports overlaps, but nothing locks a file. Review overlapping edits yourself.
 
-**Settings > Agents > Hive controls** contains **Agent-created Workers**, **Workers per parent**, default `4`, and **Active agent runs**, default `16`. These control agent-created sessions, concurrent direct Workers under one parent, and the app-wide active run limit. Both limits are configurable without a fixed product maximum; high values may strain the machine or provider. A new Run at capacity receives a retryable rejection, not a queued slot. These limits count active Runs, not saved Sessions, queues, searches, exports, waits, or watchers.
+## Limit how many workers run
 
-## Delegation lifecycle
+**Settings > Agents > Hive controls** has three settings:
 
-Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost. A Worker that marks its Delegation `needs_attention` itself, asking its parent for help, keeps that state when that Run ends, even if it replied with text: that reply explains what it needs and is not submitted as a result. Once the parent answers, a later Run that completes with a reply is captured for review as usual.
+- **Agent-created Workers** lets agents create workers in this app.
+- **Workers per parent** is how many workers can run at once under one parent. The default is 4.
+- **Active agent runs** is how many runs can go at once across the whole app, in every Hive and every other session. The default is 16.
 
-These are the Delegation states and the main moves between them. Every state except `accepted` and `cancelled` is open. In an open state the Worker can set `working`, `waiting`, or `needs_attention` itself, and the parent can cancel the Delegation. "Run fails" covers a Worker Run that fails, is interrupted, or ends without a reply. An accepted Delegation can only be reopened.
+Neither limit has a fixed maximum, but high values can strain your machine or your provider. A run that would go past a limit fails with an error the agent can retry later. It does not wait in a queue. Saved sessions do not count toward either limit. Project configuration files can override both settings, as [App settings](/docs/configuration/app-settings) describes.
 
-```mermaid
-%% alt: The Delegation states and the main moves between them
-stateDiagram-v2
-  [*] --> working: Parent spawns the Worker
-  state "Open" as open {
-    working --> waiting: Worker waits
-    waiting --> working: Worker resumes
-    working --> needs_attention: Worker asks for help, or its Run fails
-    waiting --> needs_attention: Run fails
-    needs_attention --> working: Parent answers, or a new Run starts
-    revision_requested --> needs_attention: Run fails
-    needs_attention --> revision_requested: New Run after a failed revision
-    working --> ready_for_review: Worker submits, or its Run ends with a reply
-    needs_attention --> ready_for_review: Worker submits
-    ready_for_review --> revision_requested: Parent asks for a revision, or amends the contract
-    revision_requested --> ready_for_review: Worker submits a new revision
-  }
-  ready_for_review --> accepted: Parent accepts
-  accepted --> revision_requested: Parent reopens
-  open --> cancelled: Parent cancels, from any open state
-```
+## Stop workers and clean up
 
-Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
+To stop a worker, open it and stop its run, or ask the Queen to stop it. If you stop a run before the agent wrote anything, the transcript gets no empty reply. Whatever it had written stays.
 
-### Automatic cleanup of finished Workers
+You do not need to archive finished workers yourself. When the parent agent accepts or cancels a worker's result, OpenWaggle archives that worker for the parent, as long as you never interacted with it. A worker that is still busy is archived once it is idle: no run going, nothing queued, and no question or approval waiting. Nothing is deleted.
 
-When the parent agent accepts or cancels a Worker's delegation, OpenWaggle archives that Worker on the parent's behalf if you never interacted with it. A Worker that is still busy is archived once it becomes idle: no active run, no queued Follow-ups, and no pending question or approval request. Interacting includes sending it a message or Follow-up, steering or replacing its run, answering one of its questions or approval requests, reviewing its delegation yourself (accepting, cancelling, reopening, or asking for a revision), branching its conversation, and renaming, archiving, or restoring it, whether from the app or the CLI. Any Worker you have interacted with stays out of cleanup; interacting does not add it to the sidebar, only pinning does. A pinned Worker is not archived while it is pinned. Archiving is recorded as the parent agent's action, and nothing is deleted.
+Interacting with a worker keeps it out of this cleanup. That means sending it a message, follow-up or steering, replacing its run, answering one of its questions or approvals, reviewing its result yourself, branching its conversation, or renaming, archiving or restoring it, from the app or the CLI. Reading its transcript does not count. A pinned worker is never archived while it is pinned.
 
-Reading a Worker's transcript is not interaction, but OpenWaggle leaves a Worker alone while it is open in the app, and while it has a terminal, a browser preview, or a running project service that archiving would stop. A Worker you leave while it runs stops counting as open once its run ends. OpenWaggle checks a Worker it kept this way again on its own, 15 seconds later and then at growing intervals up to every 5 minutes, so closing the Worker is enough; you do not need to start another run. Whatever its workspace, a shared checkout or its own worktree, a finished Worker is archived the same way.
+OpenWaggle also leaves a worker alone while it is open in the app, or while it has a terminal, a browser preview or a running project service that archiving would stop. A worker you leave while it runs stops counting as open once its run ends. OpenWaggle checks again on its own whether it can archive a worker it kept, first after 15 seconds and then less often, up to every 5 minutes. So closing the worker is enough. You do not need to start another run. The [Hive reference](/docs/reference/hive#worker-cleanup-timing) has the exact times. Cleanup works the same whether the worker shares a checkout or has its own worktree.
 
-Archived Workers stay listed under **Archived · n** in the Hive panel and in **Settings > Archived items**. Choose **Unarchive session** from an archived row's menu in the Hive panel, or **Restore** in Settings, to bring it back and continue the conversation. Work sent to a Worker that cleanup archived restores it in the same step, so it is back among the Hive panel's live rows and out of its **Archived** list while it runs. That covers a message, Follow-up, `start`, steer, or replace, and reopening or asking for a revision of its delegation, whether you do it or an agent does. The restore is recorded as whoever sent the work. OpenWaggle does not archive a Worker you restored again. A Worker an agent restored stays visible until its delegation is accepted or cancelled again; after that, cleanup can archive it once more. A Worker that you or an agent archived explicitly stays archived when it gets new work, and the parent agent can restore it with `unarchive`.
+Archived workers stay listed under **Archived · n** in the Hive panel and in **Settings > Archived items**. To bring one back, choose **Unarchive session** from its menu in the Hive panel, or **Restore** in Settings.
 
-## How hosted agents coordinate
+Sending new work to a worker that cleanup archived brings it back in the same step. That covers a message, follow-up, steering, a replaced run, and reopening or asking for a revision of its result, whether you do it or an agent does. OpenWaggle does not archive a worker you brought back again. One that an agent brought back stays visible until its result is accepted or cancelled again, and then cleanup can archive it once more. A worker that you or an agent archived on purpose stays archived when it gets new work, and the parent agent can bring it back with `unarchive`.
 
-An agent running inside OpenWaggle uses its native `hive` tool. It can spawn a Worker with a specific objective, an optional Agent definition (`agent`), and an explicit Workspace choice. Without a definition, the Worker is a normal agent. A Session that can spawn, launch, or create Sessions sees the project's enabled Agent definitions, names and descriptions only, in an `available_agents` section of its system prompt, and is told to pass `agent` when one fits a Worker's role instead of describing the role in the objective. When a spawn without `agent` has an objective that restates a definition's role, the result adds a `suggestedAgent` hint naming it, so the next Worker in that role uses the definition; the hint never changes the spawn. `agent_definitions_list` and `agent_definitions_search` find definitions by name and description; with a `projectPath` they read another project in OpenWaggle. That needs `launch` or `create`, `list`, and the same reach as launching there. A Worker cannot read another project (`capability_denied`), a root Session whose scope does not reach that project gets `target_scope_denied`, and a folder that does not exist, or is neither open in OpenWaggle nor has a Session there, is refused. A spawned Worker starts with its own context: the parent must include the task and any necessary references rather than assuming the Worker can see the parent's transcript.
+## Keep a worker contained
 
-By default `list`, `search`, and `delegations_list` look at the caller's current project: its main checkout and every worktree of it, so a Queen finds a Worker that runs in a new worktree. `catalogScope: "project"` with a `projectPath` looks at another project, and `catalogScope: "all"` at every Session the caller can reach. A Worker's discovery stays inside its grant, which never reaches past its own Hive; asking for another project is refused with `target_scope_denied`. `list` leaves archived Sessions out, as `search` does; `archived: true` lists only archived ones, `search` with `includeArchived: true` searches them too (each result carries `archived`), and `parentSessionId` lists only that Session's direct Workers. `fullTranscript: true` also searches transcript text, not only discovery fields such as the title and objective. `delegations_list` shows Delegations in every state, newest first, unless `states` narrows it. Each listed or read Session reports its `depth` in its Hive, `0` for a root.
+Session capabilities limit what an agent can do through its `hive` tool and the Session Host. They are not an operating system sandbox. A worker that can still run any shell command, as your user, can act with your full authority outside that tool, including by calling the `openwaggle` CLI directly.
 
-The native tool offers each agent only the actions its Session's grant allows, and its instructions name only those. A call to any other action fails with the capability it needs, for example `capability_denied: the hive action fork requires sessions:create and sessions:read`.
+For real containment, remove shell and process tools in the worker's [agent definition](/docs/extending/agent-definitions), or run the agent in a separate sandbox, user account or container. [Named CLI profiles](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) help with attribution and least privilege only when the caller cannot also read your credentials.
 
-After spawning, the parent can use `wait` for a bounded observation, read the Worker's Session or Delegation history, and review its submitted revision. The native tool's `wait` is not a permanent subscription; external CLI/MCP clients can use `watch` for a continuing event stream. The parent may ask for revision or accept the submission. An agent can use `report` to pass context to its parent, the Queen, or another Worker without starting a Run in the recipient. A user can ask a Worker to report a finding upstream; no separate reporting UI is required.
+Each worker gets its parent's access by default. A spawn or an agent definition can narrow approvals, tools, MCP servers and session capabilities, but never widen them. A worker gets **YOLO** access only when its parent is already allowed it.
 
-### Sessions in other repositories
+## Work with sessions in other projects
 
-An agent is not limited to its own repository. A Session you started from the app can list, search, and read Sessions in any project that has a Session or Workspace in OpenWaggle, report to them, send them Follow-ups, steer, interrupt, or archive them, and launch or create a new Session in another of those projects, without sharing a Hive. A project you only opened, without sending a message, does not count yet; start a Session there first. This applies to turns you started, or that another such agent started; a turn started by a restricted CLI profile, or by a Worker's Follow-up, stays in the Session's own project, and a restricted profile cannot steer a turn that reaches other projects. For example:
+An agent is not limited to its own repository. A session you started from the app can find and read sessions in any project that has a session in OpenWaggle, report to them, send them follow-ups, steer, stop or archive them, and start a new session there, without sharing a Hive. A project you only opened, without sending a message, does not count yet; start a session there first.
 
 ```text
 Find the open OpenWaggle session about the release checklist and report this failing
@@ -190,27 +158,29 @@ check to it. If there isn't one, launch a session in ~/Projects/OpenWaggle on a 
 worktree with this report as its objective.
 ```
 
-To start work elsewhere, the agent passes that repository's path with `workspace` set to `local` or `new-worktree`. Leaving `workspace` out, or passing `current`, uses the other project's main checkout. The native Session capabilities and the Authorization ceiling apply in every project, exactly as they do in the agent's own. Workers keep their narrower grants, and a Session started from a [named CLI profile](/docs/developer-workflow/hive-cli#restricted-external-agent-profiles) stays inside its own project unless the profile covers every project. When the Host refuses a request, the tool reports why, such as the missing capability.
+To start work in another repository, the agent passes its path and chooses a local checkout or a new worktree. Without a choice, it uses that project's main checkout. The same capabilities and access limits apply there as in the agent's own project.
 
-### Scratch files
+Workers stay inside their own Hive. A turn started by a worker's follow-up, or by a restricted CLI profile, stays in the session's own project, and a restricted profile cannot steer a turn that reaches other projects. A session started from a named CLI profile stays in its own project unless the profile covers every project. When OpenWaggle refuses a request, the tool says why, such as a missing capability.
 
-Each Session has a private scratch directory for temporary files. OpenWaggle sets `TMPDIR`, `TMP`, and `TEMP` to it for the agent's shell tools and names it in the agent's instructions, so two agents writing `push.log` at the same time cannot overwrite or read each other's file. On macOS and Linux only your user account can open it. OpenWaggle deletes it when you archive or delete the Session, or when the running turn ends if you archive it mid-turn; keep anything you need in the workspace instead. Screenshots and other files an agent wants to show you or another Session go to a separate evidence directory, `$OPENWAGGLE_EVIDENCE_DIR`, which is kept after archiving, so a Queen can still show a finished Worker's screenshots. OpenWaggle removes a Session's evidence once nothing has been added to it for a week.
+## Where agents keep temporary files
 
-Keep a later instruction as a **Follow-up** when it should start after the current Run. Use **Steer** only when it belongs in that exact active Run. Navigating between Sessions does not interrupt either Run. See the [Hive CLI](/docs/developer-workflow/hive-cli) for the corresponding external-agent commands.
+Each session has a private scratch folder. OpenWaggle points `TMPDIR`, `TMP` and `TEMP` at it for the agent's shell tools and names it in the agent's instructions, so two agents writing `push.log` at the same time never overwrite or read each other's file. On macOS and Linux only your user account can open it.
 
-## External control and live UI updates
+OpenWaggle deletes the scratch folder when you archive or delete the session, or when the running turn ends if you archive it mid-turn. Keep anything you need in the workspace instead.
 
-The Session Host is the local process that owns session execution and saved state. The desktop app, CLI, MCP server, and native agent tool all use it. A CLI-created Worker therefore appears in the GUI's Hive panel, and queue, Run, request, delegation, and lineage changes update open windows through the Host event stream. If an event cursor is too old or the Host restarts, clients reload a canonical snapshot before continuing.
+Screenshots and other files an agent wants to show you or another session go to a separate evidence folder, `$OPENWAGGLE_EVIDENCE_DIR`. It survives archiving, so a Queen can still show a finished worker's screenshots. OpenWaggle removes a session's evidence once nothing has been added to it for a week. [Data and file locations](/docs/reference/data-locations#temporary-files) gives the path of both folders on each platform.
 
-An agent already running in OpenWaggle uses the native `hive` tool directly rather than spawning the CLI. External coding agents use the [Hive CLI](/docs/developer-workflow/hive-cli) or the versioned `openwaggle_hive` MCP tool.
+## Control a Hive from outside the app
 
-### Older Hive history
+The Session Host is the background process that runs sessions and saves them. The desktop app, the CLI, the MCP server and the agents' `hive` tool all talk to it. So a worker created from the CLI appears in the Hive panel, and changes to queues, runs, requests and results show up in every open window. If a window falls too far behind, or the Session Host restarts, the window reloads the current state before it carries on.
 
-Sessions created by the older MCP task feature keep their parent and Worker links after the one-time Session Host upgrade. These historical relationships support navigation, not new control permissions or delegation grants. New Workers use the current delegation model.
+An agent running in OpenWaggle uses its `hive` tool. Other coding agents use the [Hive CLI](/docs/developer-workflow/hive-cli) or the `openwaggle_hive` MCP tool.
 
-## Related guides
+Sessions created by the older MCP task feature keep their parent and worker links after the one-time Session Host upgrade. Those links are for finding your way around. They give no permission to control the sessions, and new workers use the current way of handing out tasks.
 
-- [Hive CLI](/docs/developer-workflow/hive-cli) covers discovery, messaging, waiting, watching, transcript reads, and exports for external agents.
-- [Agent Definitions](/docs/extending/agent-definitions) explains optional Markdown roles and capability restrictions for Workers.
-- [App Settings](/docs/configuration/app-settings) covers Hive controls, Worker limits, active Run capacity, and permissions.
-- [Session Recovery](/docs/configuration/session-recovery) explains the one-time alpha migration and recovery behavior.
+## Related pages
+
+- [Hive actions and states](/docs/reference/hive) lists every action, the queue rules, delegation states and limits.
+- [Hive CLI](/docs/developer-workflow/hive-cli) covers finding, messaging, waiting on, watching and exporting sessions from a terminal.
+- [Agent definitions](/docs/extending/agent-definitions) explains reusable roles and how they restrict a worker.
+- [Recovering sessions](/docs/configuration/session-recovery) explains the one-time upgrade and what happens after a crash.

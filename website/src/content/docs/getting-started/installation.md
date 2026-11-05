@@ -6,152 +6,9 @@ section: "Getting started"
 kind: "guide"
 ---
 
-Download an installer from [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases). Choose the version and platform you intend to use; prereleases are marked on GitHub. You do not need Node.js or a source checkout to run the installed app.
+Install OpenWaggle from a download on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases), or with a one-line script on macOS and Linux. Each release lists its platforms, and GitHub marks prereleases. You don't need Node.js or a copy of the source code to run the app.
 
-Released builds send anonymous usage statistics and error reports, from the first launch. Statistics never include prompts, code, file paths, or any identifier for you or your install. See [Usage statistics and error reports](/docs/configuration/usage-statistics) for every field and how to turn them off.
-
-## Supported platforms
-
-- macOS 13.4 (Ventura) or later, on Apple silicon or Intel
-- Windows 10 or later, on x64
-- Linux on x64 with glibc 2.35 or later
-
-See [System requirements](#system-requirements) for details.
-
-## Pre-built installers
-
-| Platform | Format | Install |
-|----------|--------|---------|
-| macOS | `.dmg` | Choose Apple silicon or Intel, open the disk image, and copy OpenWaggle to Applications. |
-| Windows | `.exe` | Run the installer and follow its prompts. |
-| Linux | `.AppImage` | Make the downloaded file executable, then open it. |
-
-After opening the app, follow [Get started](/docs/getting-started/first-run) to connect a model and open a project.
-
-### Signing and first launch
-
-macOS builds are signed with an Apple Developer ID and notarized by Apple, so macOS does not block them as coming from an unidentified developer. The first time you open one, macOS may still ask you to confirm opening an app downloaded from the internet. Builds before `1.0.0-beta.1` were unsigned. If you still run one of those, download the current version from GitHub Releases and replace the app in Applications once; an in-app update from an unsigned build may not install.
-
-Windows installers are not signed yet, so SmartScreen may warn the first time you run one. If it does, check that you downloaded the installer from the official release page, then choose **More info** and **Run anyway**. The Linux AppImage is not signed.
-
-## Quick install (macOS / Linux)
-
-If you prefer a terminal, this command downloads and runs the repository's install script. Read [the script](https://github.com/OpenWaggle/OpenWaggle/blob/main/scripts/install.sh) first if you want to inspect what it changes.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
-```
-
-The script installs the app and verifies its SHA-256 checksum when the release includes a
-`SHA256SUMS` asset with an entry for the downloaded file. A mismatch stops installation; a missing
-checksum asset or entry does not. It selects the **Stable** channel by default. Until the first
-Stable release is published, it selects **Beta** instead, which also receives release candidates
-and, later, Stable releases.
-
-- On macOS, it copies `OpenWaggle.app` to `/Applications` and removes its quarantine attribute.
-- On Linux, it installs the AppImage under `~/.local/lib/openwaggle`, installs the `openwaggle`
-  command in `~/.local/bin`, and creates a `.desktop` entry.
-
-When it finishes, the script opens OpenWaggle. On macOS, if the OpenWaggle it replaces is already
-open, the script quits it first and opens the new version. An OpenWaggle opened from another
-location stays open. All installed copies share one Session Host, so if another copy is open when
-the script updates an existing install, the script stops and asks you to quit that copy first.
-
-When it updates an existing install, the script first stops OpenWaggle's background Session Host,
-as **Restart to update** does. If agent work is still running, it asks whether to wait for it, stop
-it, or cancel. Cancelling, or pressing Ctrl-C while it waits, leaves the installed version as it was
-and reopens the app if the script quit it. An installed version that predates this cannot ask, so
-the script waits up to 20 seconds for that work, then installs anyway. On Linux an open OpenWaggle
-keeps running with its Session Host: quit it, run `openwaggle host stop --update`, then open it to
-use the new version.
-
-The script does not open the app over SSH, in CI, or on Linux without a display. To
-install without opening it, set `OPENWAGGLE_NO_LAUNCH=1` or pass `--no-launch`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash -s -- --no-launch
-```
-
-To opt into a prerelease channel, use the same installer. Beta also receives release candidates and Stable releases:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=beta bash
-```
-
-Alpha also receives Beta, release candidate and Stable releases:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=alpha bash
-```
-
-The installer saves the selected policy channel, not merely the channel label on the artifact it
-downloads. For example, an Alpha install remains on Alpha even when the newest eligible artifact
-happens to be a Beta or Stable build.
-
-For a one-time exact-version install, set `OPENWAGGLE_RELEASE_TAG` instead. This does not change
-your saved channel. Tags look like `v1.0.0`, `v1.0.0-rc.1`, or `v1.0.0-beta.25`; replace the
-example below with a tag listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases).
-Installing a version older than the one you have is a downgrade, which OpenWaggle does not
-support: an older version may not open data a newer one has already migrated.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
-```
-
-## Command-line access
-
-After installing the app, launching it installs or refreshes the managed `openwaggle` command on
-macOS or Linux; make sure `~/.local/bin` is on your shell's `PATH`. An unrelated command at that
-path is never replaced. Windows installers register the command automatically. Run
-`openwaggle --help` to list the commands. The CLI lets terminals and external coding agents run
-agents headlessly and control the same live Sessions shown in the app; see
-[Command line](/docs/developer-workflow/command-line) and [Hive CLI](/docs/developer-workflow/hive-cli).
-
-## Choose an update channel
-
-The app and CLI share one saved update channel. Change it from **Settings → General → About &
-Updates**, or from a terminal. To check what is available without changing anything:
-
-```bash
-openwaggle update --check
-```
-
-To switch channel, run one of these with `alpha`, `beta` or `stable`:
-
-```bash
-openwaggle update --channel beta
-```
-
-To install an exact version, replace `1.0.0` with a version listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases):
-
-```bash
-openwaggle update --version 1.0.0
-```
-
-`--check` reports availability without downloading, and it never changes a setting:
-`--channel beta --check` checks Beta without saving it. Without `--check`, `openwaggle update`
-downloads and installs the newest eligible release without opening the app. If OpenWaggle is
-already open, the command leaves the update to the app instead: open **Settings → General → About
-& Updates**, choose **Check now**, then **Restart to update**, so running agent work is not
-interrupted without asking. An exact `--version` install asks you to quit OpenWaggle first. Before
-it installs, the command stops OpenWaggle's background Session Host as **Restart to update** does:
-if agent work is still running, it asks whether to wait for it, stop it, or cancel. Without a
-terminal to ask on, as on Windows, it waits for that work. Choosing `--channel` without `--check` is
-persistent; choosing `--version` is a one-time install and can target an exact Stable or prerelease
-version. `--version` refuses a version older than the installed one and exits with status 2,
-because downgrades are unsupported; the same version reinstalls it. Until the first Stable release
-is published, the Stable channel has nothing to install, so the app and `openwaggle update` report
-it as up to date rather than as a failed check. A release whose update files are still uploading
-is skipped until a later check. Release
-candidates (RC) are not a separate channel; Beta and Alpha receive them automatically. On a first
-launch with no saved preference, an Alpha or Beta build starts on its matching channel and a
-release candidate starts on Beta; Stable remains the default otherwise. The app confirms each switch into Alpha
-and checks a newly selected channel immediately. OpenWaggle never downgrades automatically when
-channels change, and **Restart to update** re-reads the shared channel before installing an
-already-downloaded release.
-
-Released builds also check for updates a few seconds after launch and every 4 hours. These checks
-contact GitHub. See [Update checks](/docs/configuration/usage-statistics#update-checks).
+Released builds send anonymous usage statistics and error reports from the first launch. They never include prompts, code, file paths, or anything that identifies you or your install. [Usage statistics and error reports](/docs/configuration/usage-statistics) lists every field and shows how to turn them off.
 
 ## System requirements
 
@@ -161,15 +18,151 @@ contact GitHub. See [Update checks](/docs/configuration/usage-statistics#update-
 | Windows | Windows 10 | x64 |
 | Linux | glibc 2.35, for example Ubuntu 22.04, Debian 12 or Fedora 36 | x64. The AppImage is x64 only. |
 
-On macOS 12 through 13.3, OpenWaggle still opens and keeps receiving updates, but those versions are not supported. Semantic Session search and voice input need macOS 13.4 and fail on older versions. Update macOS to use them.
+To check your glibc version on Linux, run:
 
-On Linux, check your glibc version with `ldd --version`.
+```bash
+ldd --version
+```
 
-You also need:
+OpenWaggle still opens and keeps updating on macOS 12 through 13.3, but those versions are not supported. Semantic session search and voice input need macOS 13.4 and fail on older versions.
 
-- Access to an AI provider through an API key, sign-in, or another supported configuration. See [Providers and models](/docs/providers/overview).
-- An internet connection when using hosted models.
+You also need access to an AI provider, through an API key, a sign-in or another supported setup (see [Providers and models](/docs/providers/overview)), and an internet connection when you use hosted models.
 
-## Building from source
+## Install from a download
 
-To run a development checkout rather than an installer, see [Building from source](/docs/developer-guide/building-from-source).
+Download the file for your platform from [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases) and install it:
+
+| Platform | File | How to install |
+|----------|------|----------------|
+| macOS | `.dmg` | Choose Apple silicon or Intel, open the disk image, and drag OpenWaggle to Applications. |
+| Windows | `.exe` | Run the installer and follow its prompts. |
+| Linux | `.AppImage` | Make the file executable, then open it. |
+
+Then follow [Get started](/docs/getting-started/first-run) to connect a model and open a project.
+
+### Open the app for the first time
+
+macOS builds are signed with an Apple Developer ID and notarized by Apple, so macOS doesn't block them as coming from an unidentified developer. The first time you open one, macOS may still ask you to confirm that you want to open an app from the internet.
+
+Builds before `1.0.0-beta.1` were unsigned, and an in-app update from one of them may not install. If you still run one, download the current version from GitHub Releases once and replace the app in Applications.
+
+Windows installers are not signed yet, so SmartScreen may warn you the first time you run one. Check that you downloaded it from the official release page, then choose **More info** and **Run anyway**. The Linux AppImage is not signed either.
+
+## Install from the terminal
+
+On macOS and Linux, this command downloads the repository's [install script](https://github.com/OpenWaggle/OpenWaggle/blob/main/scripts/install.sh) and runs it. Read the script first if you want to see what it changes.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+```
+
+The script installs the newest release on the **Stable** channel and saves Stable as your update channel. Until the first Stable release is out, it uses **Beta** instead, which also gets release candidates and, later, Stable releases. It doesn't keep the channel of the copy you already have. To stay on a prerelease channel, choose it again each time, as in [Install a prerelease channel](#install-a-prerelease-channel).
+
+If the release has a `SHA256SUMS` file with an entry for the download, the script checks the download's SHA-256 checksum and stops if it doesn't match. A release without that file or entry installs without the check.
+
+Where it installs depends on the platform:
+
+- On macOS, it copies `OpenWaggle.app` to `/Applications` and removes its quarantine attribute.
+- On Linux, it puts the AppImage in `~/.local/lib/openwaggle`, the `openwaggle` command in `~/.local/bin`, and a `.desktop` entry for your desktop's app menu.
+
+When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH, in CI, or on Linux without a display.
+
+### Update an existing install
+
+Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. An installed version too old to answer that question gets a plain stop instead: the script waits up to 20 seconds for its work, then installs anyway.
+
+On macOS, if the copy being replaced is open, the script quits it and opens the new version. A copy opened from somewhere else stays open. All installed copies share one Session Host, so if another copy is open when the script updates an existing install, the script stops and asks you to quit that copy first.
+
+On Linux, an open OpenWaggle keeps running with its Session Host. To use the new version, quit the app, run this command, then open the app again:
+
+```bash
+openwaggle host stop --update
+```
+
+### Install without opening the app
+
+Pass `--no-launch`, or set `OPENWAGGLE_NO_LAUNCH=1`, to install without opening OpenWaggle:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash -s -- --no-launch
+```
+
+[Environment variables](/docs/reference/environment-variables#install-script) lists every variable the script reads.
+
+### Install a prerelease channel
+
+To use the Beta channel, which also gets release candidates and Stable releases, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=beta bash
+```
+
+To use the Alpha channel, which also gets Beta, release candidate and Stable releases, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=alpha bash
+```
+
+The script saves the channel you chose, not the label of the file it downloaded. An Alpha install stays on Alpha even when the newest release it can get happens to be a Beta or Stable build.
+
+### Install one exact version
+
+Set `OPENWAGGLE_RELEASE_TAG` to install one version without changing your saved channel. Tags look like `v1.0.0`, `v1.0.0-rc.1` or `v1.0.0-beta.25`. Replace `v1.0.0` below with a tag listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
+```
+
+Don't install a version older than the one you have. OpenWaggle doesn't support downgrades, because an older version may not be able to open data a newer one has already updated.
+
+## Use the openwaggle command
+
+On macOS and Linux, opening the app installs the `openwaggle` command in `~/.local/bin`, or refreshes it after an update. Make sure `~/.local/bin` is on your shell's `PATH`. OpenWaggle never replaces a different program that is already at that path. On Windows, the installer adds the command for you.
+
+The command lets terminals and other coding agents run agents without the window and control the same sessions you see in the app. To list its commands, run:
+
+```bash
+openwaggle --help
+```
+
+See [Command line](/docs/developer-workflow/command-line) and [Hive CLI](/docs/developer-workflow/hive-cli).
+
+## Change the update channel
+
+The app and the `openwaggle` command share one saved update channel: `stable`, `beta` or `alpha`. Release candidates are not a channel of their own; Beta and Alpha get them.
+
+In the app, open **Settings > General > About & Updates**. The app asks you to confirm a switch to Alpha, and checks the new channel right away.
+
+From a terminal, check what is available without downloading anything or changing a setting:
+
+```bash
+openwaggle update --check
+```
+
+To switch channel and install its newest release, run this with `alpha`, `beta` or `stable`. Add `--check` to look at a channel without saving it.
+
+```bash
+openwaggle update --channel beta
+```
+
+To install one exact Stable or prerelease version, replace `1.0.0` with a version listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases). It doesn't change your saved channel.
+
+```bash
+openwaggle update --version 1.0.0
+```
+
+Without `--check`, `openwaggle update` downloads and installs the newest release you can get, without opening the app:
+
+- If OpenWaggle is open, the command leaves the update to the app. Open **Settings > General > About & Updates**, choose **Check now**, then **Restart to update**, so the app can ask before stopping an agent's work.
+- `--version` asks you to quit OpenWaggle first. It refuses a version older than the one installed and exits with status 2. The version you already have reinstalls.
+- Before it installs, the command stops the Session Host the way **Restart to update** does. If an agent is still working, it asks whether to wait for it, stop it, or cancel. Without a terminal to ask in, as on Windows, it waits for the work to finish.
+
+Until the first Stable release is out, the Stable channel has nothing to install, so the app and `openwaggle update` report it as up to date rather than as a failed check. A release whose update files are still uploading is skipped until a later check.
+
+The first time OpenWaggle starts without a saved channel, an Alpha or Beta build starts on its own channel and a release candidate starts on Beta. Every other build starts on Stable. Changing channel never installs an older version. **Restart to update** reads the saved channel again before it installs a release it already downloaded.
+
+Released builds check for updates a few seconds after they open and then every 4 hours. These checks contact GitHub. See [Update checks](/docs/configuration/usage-statistics#update-checks).
+
+## Build from source
+
+To run a development checkout instead of an installer, see [Building from source](/docs/developer-guide/building-from-source).

@@ -6,43 +6,45 @@ section: "Customize"
 kind: "guide"
 ---
 
-OAuth is browser-based sign-in. You approve access on the provider's website without giving OpenWaggle your account password. Use it when your provider appears under **OAuth Providers** in Settings.
+Browser sign-in (OAuth) lets you connect a provider by logging in on its website. You approve access there, and OpenWaggle never sees your account password. Use it when your provider is listed under **OAuth Providers** in Settings, for example to use a chat subscription instead of an API key.
 
-## Connecting
+## Connect a provider
 
 1. Open **Settings > Connections** and expand **OAuth Providers**.
 2. Turn on the switch beside your provider.
-3. Choose a sign-in method if OpenWaggle asks, then complete the provider's browser flow.
-4. If OpenWaggle displays a device code, enter that code on the indicated provider page.
-5. Wait for the provider row to show **Connected**.
-6. Enable a model under **Available Models**, then select it beside the message box.
+3. If OpenWaggle asks, choose a sign-in method. Then finish the login in your browser.
+4. If OpenWaggle shows a device code, enter it on the provider page it names.
+5. Wait for the row to read **Connected**.
+6. Turn on a model under **Available Models**, then pick it beside the message box.
 
-![OAuth Providers expanded: nine sign-in providers, among them Anthropic, GitHub Copilot and OpenAI, each Disconnected with its switch off](/screenshots/settings-oauth-providers.png)
+![OAuth Providers expanded, listing nine sign-in providers such as Anthropic, GitHub Copilot and OpenAI, each Disconnected with its switch off](/screenshots/settings-oauth-providers.png)
 
-If the browser login does not finish automatically and OpenWaggle shows **Paste OAuth code or callback URL**, paste the code or callback URL returned by the provider and click **Connect**. Treat that value as a secret, not something to include in a bug report or chat message.
+While the login runs, the row shows what it is waiting for, such as **Waiting for browser...**. The switch still works: turn it off to cancel a login you did not finish. If an error appears, follow what it says and click **Try again**.
 
-Some sign-ins ask in the provider's own words, such as **Paste the authorization code**, and secrets you type are hidden. When the flow has a sign-in link, **Copy sign-in link** copies it so you can open it in a browser on another computer, then paste back the code that browser shows.
+## Finish a login by hand
+
+If the browser login does not come back to OpenWaggle on its own and you see **Paste OAuth code or callback URL**, paste the code or the callback URL the provider gave you and click **Connect**. Treat that value as a secret. Leave it out of bug reports and chat messages.
+
+Some providers ask in their own words, such as **Paste the authorization code**. Anything secret you type stays hidden. When the login has a sign-in link, **Copy sign-in link** copies it, so you can open it in a browser on another computer and paste back the code that browser shows.
 
 ## Sign-in methods
 
-The providers and methods come from Pi, so new ones appear without an OpenWaggle update. With the Pi version bundled now:
+Pi, the agent engine inside OpenWaggle, supplies the providers and their sign-in methods, so new ones can appear without an OpenWaggle update. With the Pi version that ships now:
 
-- **OpenAI** offers **Sign in with ChatGPT**, which uses a ChatGPT subscription with the OpenAI provider. The older **OpenAI Codex** provider is labelled legacy.
-- **Anthropic** offers browser sign-in and a copy-code method for when the browser runs on another machine.
+- **OpenAI** offers **Sign in with ChatGPT**, which uses a ChatGPT subscription with the OpenAI provider. The older **OpenAI Codex** provider is marked as legacy.
+- **Anthropic** offers browser sign-in, and a copy-code method for when the browser runs on another machine.
 - **Radius** has its own sign-in.
 
-Pi renamed the Azure provider from `azure-openai-responses` to `azure`. Each time OpenWaggle starts, it moves your saved Azure model choices and the model of each OpenWaggle session to the new name, and copies your Azure credential to it, keeping the old credential entry for older Pi versions. Pi's own session files still name the old provider in their history; OpenWaggle doesn't rewrite them. Model settings you added to Pi's `models.json` under the old name have to be renamed by hand.
+Pi renamed the Azure provider from `azure-openai-responses` to `azure`. Each time OpenWaggle starts, it moves your saved Azure model choices and each OpenWaggle session's model to the new name. It also copies your Azure credential to the new name and keeps the old entry for older Pi versions. Pi's own session files still name the old provider in their history, and OpenWaggle does not rewrite them. If you added Azure model settings to Pi's `models.json` under the old name, rename them yourself.
 
-The provider switch stays usable during login. Turn it off to cancel an unfinished attempt. If an error appears, follow its instructions and use **Try again**.
+## Disconnect a provider
 
-## Disconnecting
+Turn off the provider's switch. OpenWaggle logs out of that provider and refreshes which of its models are available.
 
-Turn off the provider switch. OpenWaggle logs out of that provider and refreshes its model availability.
+Disconnecting deletes the provider's saved credential from Pi's credential file. Other Pi apps that use the same agent folder lose it too. It does not cancel your subscription or remove credentials that come from environment variables. Manage billing and revoke account access in the provider's own account settings.
 
-Disconnecting removes the provider's stored credential from Pi's credential storage, shared with other Pi clients using the same agent directory. It does not cancel a provider subscription or remove environment-based credentials. Use the provider's account settings to manage billing or revoke account access there.
+## What Connected means
 
-## Availability
+**Connected** means the login worked. It does not mean your account can use every model listed. Your provider decides which plans qualify, which models you get, your rate limits and what you pay.
 
-**Connected** means sign-in succeeded, not that the account can use every listed model. Your provider controls subscription eligibility, model access, rate limits, and charges.
-
-OpenWaggle gets supported OAuth providers from Pi, the agent engine included with the app. Its sign-in service uses Pi's default runtime. A provider registered only by a project extension can appear in the model catalog without its OAuth flow being available in Connections. See [Pi providers > Subscriptions](https://pi.dev/docs/latest/providers#subscriptions) for the current provider set and provider-specific requirements. Pi's `/login` instructions describe its terminal interface; in OpenWaggle, use **Settings > Connections** instead.
+Sign-in uses Pi's default setup, without any project's extensions. A provider that only a project extension adds can show up in the model list while its sign-in is missing from **Connections**. See [Pi providers > Subscriptions](https://pi.dev/docs/latest/providers#subscriptions) for the current providers and what each needs. Pi's docs tell you to run `/login` in its terminal interface. In OpenWaggle, use **Settings > Connections** instead.

@@ -6,163 +6,123 @@ section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-Browser preview opens a web page inside OpenWaggle. Use it to check the app you are building and show the agent what needs changing. You and the agent use the same page, so you can inspect its actions or take over.
+The browser preview opens a web page inside OpenWaggle. Use it to check the app you are building and to show the agent what needs changing. You and the agent see the same page, so you can watch what it does and take over at any point.
 
 Each session has its own browser tabs. Switching sessions hides the previous session's pages without closing them.
 
 ## Open a preview
 
-1. Start your project's development server with a saved [Project action](/docs/configuration/project-actions) or in the [built-in terminal](/docs/developer-workflow/built-in-terminal), using the command your project documents.
+1. Start your project's development server with a [project action](/docs/configuration/project-actions) or in the [built-in terminal](/docs/developer-workflow/built-in-terminal).
 2. Press `Cmd+Shift+J` on macOS or `Ctrl+Shift+J` on Windows and Linux.
-3. Enter the server's URL, such as `http://localhost:3000`, or choose a detected local server from the launcher.
-4. Use the page normally. Back, forward, reload, and the address field work like browser controls.
+3. Enter the server's address, such as `http://localhost:3000`, or choose a server the launcher found in your terminals.
+4. Use the page as you would in a browser. Back, forward, reload and the address field work as usual.
 
-![A session with the browser preview on the right, showing a local dashboard page under Human control, its address field, and the conversation about it on the left](/screenshots/feature-browser-preview.png)
+![A session with the browser preview on the right showing a local dashboard page, and the conversation about it on the left](/screenshots/feature-browser-preview.png)
 
-You can also choose **Browser preview** in the right panel. A development-server action can detect its URL from output and open a preview when ready if **Open preview when ready** is enabled. Starting an action does not mean the server is ready yet.
+You can also choose **Browser** on the right panel rail. A development-server action can find its address in its output and open the preview once the server responds, if you set the action to open the preview when it is ready. Starting the action does not mean the server is ready yet.
 
-To open links and terminal port chips here, set **Settings > General > Links > Open web links in** to **OpenWaggle**.
+To open links and terminal port chips here instead of in your system browser, set **Settings > General > Links > Open web links in** to **OpenWaggle**.
 
-Public addresses entered without a scheme use HTTPS; localhost uses HTTP. Only HTTP and HTTPS are supported, and URLs with embedded credentials are rejected.
+An address without a scheme uses HTTPS, except `localhost`, which uses HTTP. The preview opens only HTTP and HTTPS addresses, and refuses addresses with a user name or password in them.
 
-To send feedback, choose **Annotate preview for message**, select an element or draw a region, and press `Enter`. Review the new chip in your message draft, add your instructions, and send. See [Screenshots, recordings, and message context](#screenshots-recordings-and-message-context) for annotation controls.
+## Work with tabs
 
-### Tabs and navigation
+If the session has no browser tab, the shortcut opens a launcher. Choose a server found in your terminals, type an address, or pick a recent one. You can pick a browser profile before the page opens.
 
-If the session has no browser tab, the shortcut opens a launcher. Choose a detected terminal server, enter an address, or select a recent URL. You can choose a browser profile before opening the page. **New browser tab** is separate
-from **New terminal** and always creates an independent tab, so two explicit tabs may use the same
-URL and profile. Opening the same URL/profile pair from a link reuses its existing preview instead.
+**New browser tab** always opens a separate tab, even for an address and profile another tab already uses. Opening a link reuses the tab that already shows that address with that profile.
 
-Each session remembers its tabs and which one is selected. Back, forward,
-reload/stop, the address field, and **Open in system browser** are always visible. Use the options
-menu for hard reload, detached DevTools, picture-in-picture, zoom, appearance emulation, and
-clearing cookies or cache.
+The toolbar always shows back, forward, reload or stop, the address field, and **Open in system browser**. The options menu has **Hard reload**, **Open DevTools** in a separate window, picture-in-picture, zoom, light and dark appearance, and clearing cookies or the cache.
 
-A session keeps at most eight browser tabs. If a background agent needs a ninth, it replaces the
-oldest tab that is neither active in the panel nor visible in the floating mini-player. If the replacement page cannot open, OpenWaggle restores the old tab's URL, profile, mute state, viewport, zoom, and appearance. The old page's browsing history and unsaved in-page state cannot be recovered after it closes.
+Each session remembers its tabs and which one is selected, and keeps at most eight. When a background agent needs a ninth, OpenWaggle replaces the oldest tab that is neither showing in the panel nor in the floating mini-player. If the new page cannot open, OpenWaggle restores the old tab's address, profile, mute state, viewport, zoom and appearance. The old page's history and anything unsaved on it are gone once it closes.
 
-Tabs show the page favicon and audio activity. Select the audio icon, or use the tab's context menu,
-to mute or unmute it. The mute choice stays with the tab when OpenWaggle restores the workspace.
+Tabs show the page's icon and whether it is playing sound. Click the sound icon, or use the tab's menu, to mute or unmute it. A muted tab stays muted when OpenWaggle restores your workspace.
 
-## Preview defaults
+If a page fails to close, its tab stays so you can try again. When you close several tabs, only those that closed go away. Switching sessions while a tab closes does not open a sidebar in the other session.
 
-Open **Settings > Browser** to choose the viewport, page zoom, light/dark/system appearance,
-30 or 60 FPS recording rate, and whether an agent-opened preview appears in a floating mini-player.
-Viewport, zoom, and appearance are applied before each new page paints; changing these defaults does
-not rewrite an existing tab's controls. An explicit agent-tool visibility choice overrides the
-automatic floating-preview preference.
+Tabs you open in a new session before its first message move into the session when you send that message. If they cannot move safely, they stay with the project's draft and an error explains why. Use the project's **New session** to get back to them.
 
-A fresh settings store may use OpenWaggle's defaults. If the database cannot be read or a saved
-current setting is invalid, OpenWaggle stops before opening the workspace. Preview creation and
-restoration, recording, Web link routing, and settings writes stay blocked. **Retry** reads the same
-store again; OpenWaggle does not publish replacement profiles or viewports, or send a link to the
-system browser as a silent fallback.
+## Set preview defaults
 
-## Responsive and device testing
+Open **Settings > Browser** to choose the default viewport, page zoom, appearance (light, dark or system), recording rate (30 or 60 frames per second), and whether a preview the agent opens appears in a floating mini-player. OpenWaggle applies the viewport, zoom and appearance before a new page first draws. Changing a default does not change tabs that are already open. When the agent asks for a tab to be visible or hidden, that wins over the mini-player setting.
 
-Choose **Open device toolbar** in the options menu for a responsive viewport or a named phone,
-tablet, foldable, or display preset. Width and height can be edited directly, the aspect ratio can be locked, and fixed
-viewports can be rotated. Closing the toolbar returns the tab to fill-panel sizing. Page zoom and
-viewport emulation are independent, so changing one does not silently rewrite the other.
+If OpenWaggle cannot read its settings, or a saved setting is invalid, it stops before opening the workspace. Opening and restoring previews, recording, sending links to the preview, and saving settings stay blocked until you choose **Retry**, which reads the settings again. OpenWaggle does not fall back to default profiles or viewports, or send links to your system browser instead.
 
-![Browser preview with the device toolbar open: the iPhone SE (375 × 667) preset, width and height fields, aspect-ratio lock, rotate and close buttons, and a dashboard page drawn at phone size with resize rails at its sides and bottom](/screenshots/browser-preview-device-toolbar.png)
+## Test different screen sizes
 
-_A local dashboard at iPhone SE size. Its third stat card runs off the right edge, which is easy to miss at panel width._
+Choose **Open device toolbar** in the options menu for a responsive viewport or a named phone, tablet, foldable or display size. You can type a width and height, lock the aspect ratio, and rotate a fixed size. Closing the toolbar makes the page fill the panel again. Page zoom and viewport size are separate, so changing one leaves the other alone.
 
-In fixed mode, drag the left, right, or bottom resize rail or either bottom corner. You can focus a
-rail and use its arrow keys to resize by 10 CSS pixels; hold `Shift` for 50-pixel steps. The preview fits the selected size inside the panel. Cancelling a drag restores the previous size.
+At a phone size like iPhone SE, a layout problem that is easy to miss at panel width shows up at once, such as a card running off the right edge.
 
-The floating mini-player stays inside OpenWaggle. **Open picture-in-picture** in the options menu opens a separate window. OpenWaggle limits these windows and closes a stalled picture-in-picture view rather than blocking the main preview controls.
+![The device toolbar set to iPhone SE at 375 by 667, with width and height fields, lock, rotate and close buttons, and the page drawn at phone size](/screenshots/browser-preview-device-toolbar.png)
 
-## Profiles and existing logins
+With a fixed size, drag the left, right or bottom edge of the page, or either bottom corner. You can also focus an edge and use the arrow keys to resize by 10 CSS pixels, or 50 with `Shift`. The preview scales the page to fit the panel. Cancelling a drag puts the previous size back.
 
-A browser profile keeps a set of cookies and site data. Use different profiles to test separate accounts without signing out each time.
+The floating mini-player stays inside the OpenWaggle window. **Open picture-in-picture** in the options menu opens a separate window instead. OpenWaggle limits how many of these windows open, and closes one that stops responding rather than letting it block the main preview.
 
-- **Default** and named profiles keep cookies and site data between app launches.
-- **Incognito** keeps data only in memory. It is cleared when OpenWaggle quits, not when you close its tabs.
-- Changing a tab's profile reloads the same URL using that profile's data. Unsaved page state is lost.
+## Use profiles and existing logins
 
-Open **Settings > Browser** to choose the default, create or rename named profiles, clear their
-data, or delete them. The same page can discover supported installed browsers and copy compatible
-cookies into a persistent OpenWaggle profile. macOS and Linux support the listed Chromium sources;
-macOS also supports Safari. Windows offers Firefox and Helium, but does not advertise Chrome, Edge,
-Brave, Vivaldi, Opera, or Arc because current Chromium app-bound encryption cannot be decrypted by
-OpenWaggle. The source profile is never modified. The UI tells you when the browser must be quit or
-an OS credential is needed. Incognito is never an import target.
+A browser profile keeps its own cookies and site data. Use separate profiles to test different accounts without signing out each time.
 
-Choose an installed browser to open the guided importer. It checks whether the browser must be
-quit, whether macOS Full Disk Access is required, and whether the system credential store needs
-approval before it copies anything. For Full Disk Access, the importer can open the correct System
-Settings page and check access again; if macOS has not recognized the permission yet, quit and reopen
-OpenWaggle. Then choose the exact source profile and either an existing persistent OpenWaggle
-profile or **New profile**. Review the import result before opening the site. Import is a one-time copy,
-not an ongoing sync.
+- **Default** and named profiles keep cookies and site data between launches.
+- **Incognito** keeps data only in memory. OpenWaggle clears it when you quit, not when you close its tabs.
+- Changing a tab's profile reloads the same address with that profile's data. Anything unsaved on the page is lost.
 
-## Screenshots, recordings, and message context
+In **Settings > Browser** you can choose the default profile, create and rename profiles, clear their data, and delete them. The same page finds browsers installed on your computer and can copy their cookies into a lasting OpenWaggle profile, never into **Incognito**.
 
-Choose **Capture screenshot** to save a PNG of the preview. For feedback attached to a message, choose **Annotate preview for message** instead:
+| System | Browsers you can import from |
+| --- | --- |
+| macOS | The listed Chromium browsers, and Safari |
+| Linux | The listed Chromium browsers |
+| Windows | Firefox and Helium |
 
-1. Select an element, or draw a region around the part you want to discuss.
-2. Add a comment or temporary style changes to show what you mean.
-3. Press `Enter` to attach it to your draft, or `Escape` to cancel.
-4. Review the chip in your draft, write your request, and send it.
+Windows does not offer Chrome, Edge, Brave, Vivaldi, Opera or Arc, because their current app-bound encryption keeps OpenWaggle from reading the cookies.
 
-![Annotation tools over the phone-sized dashboard: a Select, Region, Draw and Erase toolbar with 1 target, the row of stat cards outlined and labelled section.stats, and a comment editor below it with the comment typed and an Attach button](/screenshots/browser-preview-annotation.png)
+Choose a browser to open the importer. Before copying anything, it checks whether you need to quit that browser, whether macOS needs Full Disk Access for OpenWaggle, and whether your system's credential store needs your approval. For Full Disk Access, the importer can open the right page in System Settings and check again; if macOS still has not noticed the permission, quit and reopen OpenWaggle. Then pick the source profile, and an existing OpenWaggle profile or **New profile**. Check the result before you open the site. The import copies cookies once. It does not keep them in sync, and it never changes the source browser's profile.
 
-_Clicking the gap between two cards selected the row that holds them._
+## Send visual feedback to the agent
 
-![The message composer with the attached annotation: a chip showing the comment, the page title and the selected section, and 1 element, with the request typed below it](/screenshots/browser-preview-annotation-chip.png)
+Choose **Capture screenshot** to save a PNG of the preview. To attach feedback to a message, choose **Annotate preview for message** instead:
 
-_The chip shows your comment, or the selected element's text or selector when you left none. Remove it with its close button._
+1. Select an element, or draw a region around the part you want to talk about. Clicking the gap between two elements selects the element that holds them both.
+2. Add a comment, or try temporary style changes to show what you mean.
+3. Press `Enter` to attach the annotation to your draft, or `Escape` to cancel.
+4. Check the chip in your draft, write your request, and send it.
+
+![Annotation tools over a phone-sized page, with a row of cards selected, its selector shown, and a comment box with an Attach button](/screenshots/browser-preview-annotation.png)
+
+The chip shows your comment, or the selected element's text or selector if you wrote none, with the page title and the number of elements. Remove it with its close button.
+
+![The message box with an annotation chip showing the comment, the page title and 1 element, and the request typed below it](/screenshots/browser-preview-annotation-chip.png)
 
 For example, ask: "On this phone-sized page, stack the stat cards in one column so none of them is cut off."
 
-Annotation shortcuts:
+While you annotate:
 
-- Press `V` to select elements. Shift-click adds to the selection, up to 20 elements.
+- Press `V` to select elements. `Shift`-click adds to the selection, up to 20 elements.
 - Press `R` to drag a region, `D` to draw freehand, or `E` to erase a mark.
-- Expand the comment editor to preview typography, color, spacing, border, size, radius, and opacity
-  changes on selected elements. These temporary page changes appear in the captured evidence and
-  are restored immediately after attach or cancel.
-- Press `Enter` to attach the annotation or `Escape` to cancel it.
+- Expand the comment editor to try typography, colour, spacing, border, size, radius and opacity changes on the selected elements. The screenshot shows these changes, and OpenWaggle undoes them on the page as soon as you attach or cancel.
+- Press `Enter` to attach, or `Escape` to cancel.
 
-OpenWaggle crops the screenshot around the selected elements and marks, then adds a removable
-Browser preview chip to the message draft. The attachment includes size-limited selectors, accessible names,
-HTML previews, computed styles, geometry, drawings, requested style changes, and page details for
-the agent. React component, source location, and owner-stack attribution are included when the page
-exposes discoverable development metadata. Production-minified or isolated pages often do not; in
-that case those fields stay empty instead of being guessed. Review or remove the chip before
-sending. Annotating alone does not contact a model.
+OpenWaggle crops the screenshot around your selection and marks, and adds it to your draft as a **Browser preview** chip. For the agent, it also includes selectors, accessible names, short HTML excerpts, computed styles, positions, your drawings and style changes, and page details, each with a size limit. When the page exposes development information, it adds the React component, its source location and its owner stack. Production builds and isolated pages often do not, and then those fields stay empty rather than guessed. Annotating does not contact a model; nothing is sent until you send the message.
 
-Recordings are capped at two minutes and 64 MiB. They use 30 frames per second by default, with a
-60 FPS option in Browser settings. Choose **Start preview recording**, reproduce the interaction, then choose **Stop preview recording**. OpenWaggle reports completion after saving the file. Closing the preview, cancelling, reaching the limit, or a recorder failure stops capture.
+## Record the preview
 
-## Collaborative agent access
+Choose **Start preview recording**, go through the interaction, then choose **Stop preview recording**. OpenWaggle tells you when the file is saved. A recording lasts at most two minutes and 64 MiB, at 30 frames per second unless you chose 60 in **Settings > Browser**. Closing the preview, cancelling, reaching a limit, or a recorder error stops it.
 
-**Settings > Browser > Let agents open and drive the preview browser** controls the entire agent
-capability. It is enabled by default. Turning it off removes both the `preview_*` tools and their
-browser instructions from new agent turns and rejects the next preview call from a turn that is
-already running; your own Browser preview remains available. A settings read failure also disables
-agent access.
+## Let the agent use the preview
 
-The agent can open or reuse the session's current tab, navigate to a URL or localhost port, resize
-and change appearance, inspect a screenshot and limited page, console, and network details, click, type,
-press keys, scroll, evaluate page JavaScript, wait for conditions, and start or stop a recording.
-Page-control calls use OpenWaggle's scoped approval flow. Agent and user controls share one action
-queue, and real keyboard or pointer input interrupts the agent immediately, so you can take over
-without racing it.
+**Settings > Browser > Let agents open and drive the preview browser** turns the agent's access on or off. It is on by default. Turning it off removes the `preview_*` tools and their instructions from new agent turns, and makes a turn that is already running fail its next preview call. Your own preview keeps working. If OpenWaggle cannot read the setting, it turns agent access off.
 
-Locator actions wait for targets to appear and become actionable. Navigation or a page reload
-invalidates an old locator rather than clicking the same coordinates in a new document. An agent
-is instructed to diagnose this collaborative preview instead of silently opening an unrelated
-automation browser after the first failure.
+The agent can open or reuse the session's current tab, go to an address or a localhost port, resize the page and change its appearance, and read a screenshot plus some of the page, console and network details. It can click, type, press keys, scroll, run JavaScript on the page, wait for something to happen, and start or stop a recording. Actions that control the page go through OpenWaggle's approval settings. You and the agent share one queue of actions, and any real keyboard or mouse input from you interrupts the agent at once, so you can take over without racing it.
 
-## Security boundary
+When the agent targets an element, it waits for the element to appear and be ready. After the page navigates or reloads, an old target no longer works, so the agent never clicks the same spot on a different page. The agent is told to work out what went wrong in this preview, rather than quietly opening a separate automation browser after the first failure.
 
-Preview pages run in a sandbox and cannot use Node.js APIs. Device access, downloads, certificate exceptions, popups, non-HTTP(S) navigation, and page-initiated clipboard writes are denied or restricted. OpenWaggle checks that each page belongs to the session controlling it. See [Security and privacy](/docs/configuration/security-privacy) for details.
+## What pages can and cannot do
 
-### Recovery and capture limits
+Preview pages run in a sandbox without Node.js access. OpenWaggle denies or limits device access, downloads, certificate exceptions, pop-ups, navigation to anything other than HTTP and HTTPS, and clipboard writes started by the page. It checks that each page belongs to the session that controls it. See [Security and privacy](/docs/configuration/security-privacy).
 
-Reloading the OpenWaggle interface keeps preview pages alive. If a page process crashes, OpenWaggle tries to reload its latest URL up to three times, with increasing delays. Navigating the containing app window away from OpenWaggle closes its preview pages.
+## If a page crashes or a capture fails
 
-If a screenshot fails, check the error and let the page finish loading before retrying. Capture timeouts release the controls, but OpenWaggle will not start another capture on that page while an earlier capture is still unresolved.
+Reloading the OpenWaggle window keeps preview pages open. If a page's process crashes, OpenWaggle reloads its last address up to three times, waiting longer each time. If the OpenWaggle window itself navigates away, its preview pages close.
+
+If a screenshot fails, read the error and let the page finish loading before you try again. When a capture times out, the controls work again, but OpenWaggle does not start another capture on that page until the earlier one finishes.

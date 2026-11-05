@@ -1,43 +1,46 @@
 ---
 title: "Waggle Mode"
-description: "Let two agents take sequential turns on a task in the same conversation."
+description: "Let two agents take turns on a task in the same conversation."
 order: 2
 section: "Multiple agents"
 kind: "guide"
 ---
 
-Waggle Mode is optional. It lets two configured agents take turns on one task in the same conversation. For example, one can propose a change and the other can review it.
+Waggle Mode lets two agents take turns on one task in the same conversation. One can propose a change while the other checks it, or the two can argue opposite sides of a design. Use it when a second opinion on each step is worth paying for. You choose the two agents, their models and their roles in a saved preset.
 
-The agents work **sequentially**, not in parallel. They share the conversation and working directory. If you want separate sessions, each with its own transcript and optionally its own worktree, use a [Hive](/docs/using-openwaggle/hives-and-sessions) instead.
-
-A Waggle takes turns inside one Session, while a Hive runs separate Sessions side by side:
+The agents work one after the other, never at the same time. They share the conversation and the working directory. If you want agents to work side by side, each in its own session and optionally its own worktree, use a [Hive](/docs/using-openwaggle/hives-and-sessions) instead.
 
 ```mermaid
+%% alt: A Waggle takes turns inside one session, while a Hive runs separate sessions side by side
 flowchart LR
-  subgraph waggle["Waggle: one Session"]
+  subgraph waggle["Waggle: one session"]
     direction LR
     A1["Agent A turn"] --> B1["Agent B turn"] --> A2["Agent A turn"]
   end
-  subgraph hive["Hive: separate Sessions"]
+  subgraph hive["Hive: separate sessions"]
     direction TB
-    Q["Queen Session"] --> W1["Worker Session<br/>own transcript; shared checkout or own worktree"]
-    Q --> W2["Worker Session<br/>own transcript; shared checkout or own worktree"]
+    Q["Queen session"] --> W1["Worker session<br/>own transcript; shared checkout or own worktree"]
+    Q --> W2["Worker session<br/>own transcript; shared checkout or own worktree"]
   end
 ```
 
-## Setting up presets
+## Set up a preset
+
+OpenWaggle comes with three presets, **Code Review**, **Debate** and **Red Team**. You can edit them or add your own.
 
 1. Open **Settings > Waggle Mode**.
-2. Choose a model, role, and display color for Agent A and Agent B. Use models you have connected and enabled.
-3. Set **Max turns**, from 4 to 20 in the Settings slider, and choose **Consensus** or **Manual** under **Stop when**. The turn limit is a safety cap in either mode.
-4. Save the preset.
-5. In a conversation, type `/` and select the saved Waggle preset. It appears as a chip beside your prompt and applies to that send only.
+2. Pick a preset, or choose **New Custom Preset**.
+3. For **Agent A** and **Agent B**, set a **Label**, a **Model**, a **Role description** and a **Color**. Use models you have connected and turned on.
+4. Under **Collaboration**, choose **Consensus** or **Manual** for **Stop when**, and set **Max turns** between 4 and 20. The turn limit applies in both modes, so a Waggle never runs forever.
+5. Choose **Save Changes**.
 
-![Settings > Waggle Mode with the built-in Code Review preset selected and marked Edited: Agent A, the Architect, on Claude Opus 4.6 in blue, Agent B, the Reviewer, on Claude Sonnet 4.6 in amber, each with a role description, and Collaboration set to stop on Consensus within 8 turns](/screenshots/settings-waggle-mode.png)
+When you change a preset, it shows **Edited** until you save. **New Custom Preset** saves the form as a new preset instead of changing the one you started from.
 
-*Changing a preset marks it **Edited** until you choose **Save Changes**. **New Custom Preset** saves the form as a new preset instead.*
+![Settings > Waggle Mode with the Code Review preset marked Edited, its two agents, and Collaboration set to stop on Consensus within 8 turns](/screenshots/settings-waggle-mode.png)
 
-Try a bounded task:
+## Start a Waggle
+
+In a conversation, type `/` and select your Waggle preset. It appears as a chip beside your prompt and applies to that message only. Then write the task. A bounded task works best:
 
 ```text
 Review the error handling in src/api/client.ts.
@@ -46,11 +49,29 @@ Agent B: check those proposals against the callers and tests.
 Do not edit files. Finish with agreed findings and any unresolved disagreements.
 ```
 
-Review the agents' findings yourself. Agreement between two agents is not proof that a change is correct, and each turn uses the selected provider's allowance or billing.
+Agent A answers first, using tools when it needs them. Agent B then reads the conversation, including Agent A's reply, and answers in turn. They keep alternating until they reach consensus, you stop them, or they hit the turn limit.
 
-## The presets file
+Each turn starts with its number, the agent's label and its model, in that agent's color. While the Waggle runs, a bar above the message box names both agents and shows the current turn, such as `Turn 3/8`. It disappears when the Waggle finishes, stops or fails.
 
-Settings saves your presets as JSON. With a project open, they go to `.pi/waggle-presets.json` in the project, so you can commit them for your team. Without one, they go to `~/.pi/agent/waggle-presets.json`. The list in Settings and the `/` menu combines the built-in presets, the user file, and the project file. A preset with the same `id` as a built-in or user preset replaces it, and the project file wins.
+![A Waggle conversation in its third turn, with Architect and Reviewer turns in their colors and the Waggle bar above the message box](/screenshots/waggle-conversation.png)
+
+Read the result yourself. Two agents agreeing does not prove a change is correct, and every turn uses your provider's allowance or billing.
+
+## Stop a Waggle
+
+Choose the **×** at the end of the Waggle bar (**Stop & dismiss Waggle**) to stop it without waiting for the turn limit. Stopping works like stopping any run.
+
+Closing the app window does not stop a Waggle by itself, because the local Session Host runs it. If the process running the turn is interrupted, read the restored conversation before you ask the agents to continue.
+
+## Check files both agents changed
+
+When both agents edit the same file, the Waggle bar can show a warning that names the file and the two agents. Review those changes in the [diff panel](/docs/developer-workflow/git-integration). The edits are already on disk. The warning does not approve or undo them.
+
+## Share presets with your team
+
+Settings saves your presets as JSON. With a project open, they go to `.pi/waggle-presets.json` in the project, so you can commit them for your team. Without a project, they go to `~/.pi/agent/waggle-presets.json`.
+
+The list in Settings and in the `/` menu combines the built-in presets, your user file and the project file. A preset with the same `id` as a built-in or user preset replaces it, and the project file wins.
 
 ```json
 {
@@ -89,34 +110,18 @@ Settings saves your presets as JSON. With a project open, they go to `.pi/waggle
 }
 ```
 
-- `config.agents` holds Agent A and Agent B, in turn order. `model` is `$inherit` for the session's model, or a `provider/model` id. `color` is `blue`, `amber`, `emerald`, or `violet`.
+- `config.agents` holds Agent A and Agent B, in turn order. `model` is `$inherit` for the session's model, or a `provider/model` id. `color` is `blue`, `amber`, `emerald` or `violet`.
 - `stop.primary` is `consensus` for **Consensus** or `user-stop` for **Manual**. `stop.maxTurnsSafety` is the turn limit, from 1 to 100 in the file.
 - `mode` is always `sequential`.
-- `isBuiltIn`, `createdAt`, and `updatedAt` are required. Use `false` for `isBuiltIn`. `createdAt` and `updatedAt` are times in milliseconds since 1970, and Settings sets `updatedAt` each time it saves the preset.
-- `hiddenBuiltInPresetIds` hides built-in presets by id: `code-review`, `debate`, or `red-team`.
+- `isBuiltIn`, `createdAt` and `updatedAt` are required. Use `false` for `isBuiltIn`. `createdAt` and `updatedAt` are times in milliseconds since 1970, and Settings sets `updatedAt` each time it saves the preset.
+- `hiddenBuiltInPresetIds` hides built-in presets by id: `code-review`, `debate` or `red-team`.
 
-Settings skips a preset that does not match this format, without an error. It also removes that preset from the file the next time it saves or deletes a preset in that file, because it writes back only the presets it could read. A JSON syntax error hides every preset in the file, and saving a preset to that file fails until you fix it. After editing the file by hand, check the list in **Settings > Waggle Mode**. The format has a JSON Schema, [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json). Settings rewrites the file without a `"$schema"` key, so associate the schema in your editor instead, as shown in [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors).
+Settings skips a preset that does not match this format, without an error. It also removes that preset from the file the next time it saves or deletes a preset in that file, because it writes back only the presets it could read. A JSON syntax error hides every preset in the file, and saving a preset to that file fails until you fix it. After you edit the file by hand, check the list in **Settings > Waggle Mode**.
 
-## How it works
+The format has a JSON Schema, [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json). Settings rewrites the file without a `"$schema"` key, so associate the schema in your editor instead, as [Per-project configuration](/docs/configuration/per-project-config#json-schemas-for-editors) shows.
 
-1. Agent A receives the task and responds, using available tools when needed.
-2. Agent B receives the conversation context, including Agent A's output, and responds.
-3. They alternate until the configured stopping condition or turn limit is reached.
+## Hand a task to Waggle from an agent
 
-The execution bar above the message box appears while the collaboration is starting or running. It disappears when the collaboration finishes, stops, or fails. You can stop it rather than waiting for the turn limit.
+A normal agent can call `waggle_invoke` to hand a task to a Waggle preset. The agent's own turn finishes first. Then the Waggle continues in the same session, with the preset and a handoff prompt that holds everything the agents need. A Waggle cannot start another Waggle.
 
-![A Waggle conversation started with the Code Review preset: Turn 1 by the Architect in blue, Turn 2 by the Reviewer in amber, and Turn 3 by the Architect still running, with the execution bar above the message box naming both agents and their models and showing Turn 3/8](/screenshots/waggle-conversation.png)
-
-*Each turn starts with its number, agent and model, in that agent's color. The **×** at the end of the execution bar stops the collaboration.*
-
-## Conflict tracking
-
-When both agents modify the same files, the active Waggle status bar can show a warning naming the file and the two agents. Use the [diff panel](/docs/developer-workflow/git-integration) to review the resulting changes. Edits have already happened on disk; overlap tracking does not approve or undo them.
-
-## Runtime behavior
-
-Waggle uses the same Pi runtime, tools, provider metadata, and session history as a standard session. A Pi extension drives the alternating turns. OpenWaggle shows which agent produced each output and keeps internal coordination prompts out of the visible transcript.
-
-A standard agent can also call `waggle_invoke` to hand a task to a Waggle preset. The standard turn finishes first, then Waggle continues in the same session with the preset and a self-contained handoff prompt. Waggle cannot invoke another Waggle run.
-
-Waggle uses the normal session branch and interruption behavior. Closing the GUI does not by itself stop work owned by the local Session Host. If the process executing a run is interrupted, inspect the restored conversation before asking the agent to continue.
+Waggle uses the same Pi runtime, tools, provider settings and session history as a normal session; a Pi extension takes care of the turns. OpenWaggle shows which agent wrote each reply and keeps its own coordination prompts out of the visible transcript. Branching and stopping work as in any session.
