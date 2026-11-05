@@ -54,6 +54,9 @@ describe('roleStatement', () => {
       `You are "the implementer". You are the reviewer.${TASK}`,
       `For this ticket, you are the implementer. Act as the reviewer of your own diff.${TASK}`,
       `For this ticket, you are now the implementer. Act as the reviewer of your own diff.${TASK}`,
+      `Implement ABC-12 on a fresh branch with tests. Act as the reviewer of your own diff.${TASK}`,
+      `Role: implementer for ticket ABC-12. Implement it with tests. Act as the reviewer.${TASK}`,
+      `Your role is the implementer for ABC-12. Act as the reviewer.${TASK}`,
       `Fix-up round 2: you are the implementer. Act as the reviewer of your own diff.${TASK}`,
       `Ticket ABC-12: You are the implementer. You are also the reviewer of your own diff.${TASK}`,
     ]) {

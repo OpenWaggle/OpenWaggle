@@ -93,8 +93,9 @@ const AGENT_NOUN = String.raw`(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?`
 /**
  * After a comma or a dash, further roles: one joined to the phrase ("the reviewer, and the
  * fixer", "the reviewer — then the fixer") or a list ("the planner, implementer and tester").
- * A verb there ("the reviewer, review and report", ", and fix what you find") is no agent noun,
- * so the phrase still reads.
+ * A word there that does not end like an agent noun ("the reviewer, review and report", ", and
+ * fix what you find") still reads; one that does (", and consider…", ", then deliver…") drops the
+ * phrase, a miss accepted for a hint.
  */
 const ROLE_LIST = new RegExp(
   String.raw`^(?:(?:and|or|then|plus|as\s+well\s+as|&)\s+${AGENT_NOUN}|${AGENT_NOUN}(?:,\s*${AGENT_NOUN})*,?\s+(?:and|or)\s+${AGENT_NOUN})\b`,
@@ -108,6 +109,8 @@ const EMBEDDED_STATEMENT = new RegExp(
   String.raw`(?:^|[\s,:;—–\])])(?:${OPENERS})\s+(?:(?:${[...LEADING_ADVERBS].join('|')})\s+)?(?:${[...DETERMINERS].join('|')})\s`,
   'iu',
 )
+/** A clause that gives the role by a label rather than an opener: "Role: implementer", "Your role is". */
+const ROLE_LABEL = /^[\s*_#>-]*(?:your\s+)?role(?:[*_]*\s*:[\s*_]*[^\s*_]|\s+is\b)/iu
 /** A dash token that ends the phrase and may lead to a second role: "—", "–", "-", "--". */
 const DASH = /^(?:[—–]|-{1,2})$/u
 /**
@@ -133,10 +136,14 @@ function isPluralPossessive(word: string) {
 
 /**
  * What a token does to the phrase before it is read as a word: `drop` the whole phrase (a quoted
- * word, a possessive, a joined second role), `end` it (a contraction: "who's", "it's"), or nothing.
+ * word, a possessive, a joined second role, a role over "your own" work), `end` it (a
+ * contraction: "who's", "it's"), or end it unless further roles follow (`list`, a dash).
  */
-function tokenStop(raw: string): 'drop' | 'end' | undefined {
+function tokenStop(raw: string, next: string | undefined): 'drop' | 'end' | 'list' | undefined {
   if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw) || ROLE_JOINERS.has(raw)) return 'drop'
+  if (DASH.test(raw)) return 'list'
+  // "the reviewer of your own diff": a role over the Worker's own work is a self-check, not its role.
+  if (/^of$/iu.test(raw) && /^your$/iu.test(next ?? '')) return 'drop'
   // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
   const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
   if (!contraction) return undefined
@@ -158,11 +165,11 @@ function rolePhrase(rest: string) {
   let opening = true
   const tokens = rest.split(/\s+/u)
   for (const [index, raw] of tokens.entries()) {
-    const stop = tokenStop(raw)
+    const stop = tokenStop(raw, tokens[index + 1])
+    if (stop === 'list') return endedBefore(phrase, tokens, index)
     if (stop) return stop === 'end' ? phrase : []
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
-    if (DASH.test(raw)) return endedBefore(phrase, tokens, index)
     if (core === '' || PHRASE_BREAKS.has(core)) break
     if (opening && LEADING_ADVERBS.has(core)) continue
     const opens = opening
@@ -229,7 +236,9 @@ function readRole(objective: string, quoted: RegExp): readonly string[] {
     // "For this ticket, you are the implementer": a statement after a lead-in is still the
     // first one, so a later "Act as the reviewer" does not count. It names no role itself.
     if (!opener) {
-      if (EMBEDDED_STATEMENT.test(opened)) return []
+      // A role given without an opener ("Role: implementer", "Your role is…") is still the
+      // first statement, so a later one does not count; it names no role itself.
+      if (EMBEDDED_STATEMENT.test(opened) || ROLE_LABEL.test(match[0].trim())) return []
       continue
     }
     const rest = opened.slice(opener[0].length)

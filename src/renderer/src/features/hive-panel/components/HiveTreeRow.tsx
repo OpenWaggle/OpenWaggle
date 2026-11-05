@@ -77,8 +77,11 @@ export function HiveTreeListItem({
           onClick={onOpen}
           onContextMenu={menu.openAtPointer}
         >
-          <span className="flex min-w-0 items-center gap-1.5">
-            <HiveRowGlyphs view={view} />
+          {/* Glyphs on the title's line, as in the tree, when the agent line adds a second. */}
+          <span className="flex min-w-0 items-start gap-1.5">
+            <span className="flex h-5 shrink-0 items-center gap-1.5">
+              <HiveRowGlyphs view={view} />
+            </span>
             <span className="flex min-w-0 flex-1 flex-col">
               <HiveRowTitle view={view} />
               <HiveAgentIdentity view={view} />
