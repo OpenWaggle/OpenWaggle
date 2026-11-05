@@ -15,7 +15,7 @@ import { validateCiWorkflow } from './package-release-validator-ci'
 
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '62e28333660e30965d51e4a18ec1f9ae602e00d2cc9b74322bfe7f8ef2653811'
+  '9240d591bcaa6e56a550ee84817d7cc817b9a08df0c240eb1fd672aaff3d0b27'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -41,6 +41,7 @@ function validatePackageReleaseWorkflow(
   const releasePlease = workflowJobBlock(workflowText, 'release-please')
   const releasePlan = workflowJobBlock(workflowText, 'release-plan')
   const publish = workflowJobBlock(workflowText, 'publish')
+  const markTagged = workflowJobBlock(workflowText, 'mark-release-tagged')
   for (const packagePath of EXPECTED_PACKAGE_PATHS) {
     addViolation(!workflowText.includes(`${packagePath}/**`), `${WORKFLOW_PATH} must trigger for ${packagePath}/**.`, violations)
   }
@@ -94,6 +95,13 @@ function validatePackageReleaseWorkflow(
     ['EXPECTED_ARTIFACT_SOURCE_SHA: ${{ steps.artifact.outputs.source_sha }}', `${WORKFLOW_PATH} must bind artifact provenance to its PR head SHA.`],
     ['RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}', `${WORKFLOW_PATH} recovery promotion must bind to the explicit merged release SHA.`],
     [`${DIRECT_NODE} scripts/package-release-promote.ts`, `${WORKFLOW_PATH} must promote only through the typed artifact promoter.`],
+  ], violations)
+  requireText(markTagged, [
+    ['- publish', `${WORKFLOW_PATH} must mark the merged release PR tagged only after promotion creates every tag.`],
+    ["needs.publish.result == 'success'", `${WORKFLOW_PATH} must mark the merged release PR tagged only after promotion creates every tag.`],
+    ['pull-requests: write', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
+    ['labels[]=autorelease: tagged', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
+    ['labels/autorelease%3A%20pending', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
   ], violations)
   const forbiddenWorkflowText = executableWorkflowText(workflowText)
   for (const forbidden of ['npm stage', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'gh pr merge', 'enablePullRequestAutoMerge']) {
