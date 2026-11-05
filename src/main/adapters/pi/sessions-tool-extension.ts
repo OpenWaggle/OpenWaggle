@@ -141,10 +141,11 @@ async function executeSessionsToolCall(
   await authorizeAttachments(initialPayload, ctx, signal)
   const payload = await authorizeExport(initialPayload, input, ctx, signal)
   const result = await sendSessionsToolCommand(input, payload, signal)
-  // The hint never rejects and reads nothing for a failed spawn, so it can run beside the result.
+  // The hint reads nothing for a failed spawn, and a hint that fails is no hint: it never turns
+  // a spawn that succeeded into a tool error, so it can run beside the result.
   const [toolResult, hint] = await Promise.all([
     successfulToolResult(result),
-    spawnAgentHint(params, result, input),
+    spawnAgentHint(params, result, input).catch(() => undefined),
   ])
   return hint
     ? { ...toolResult, content: [...toolResult.content, { type: 'text' as const, text: hint }] }

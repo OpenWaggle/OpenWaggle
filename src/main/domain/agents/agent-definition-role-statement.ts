@@ -23,22 +23,29 @@ const READ_LENGTH = 4096
  * so an apostrophe ("reviewer's", "it's") neither opens nor closes one.
  */
 // `(?![\s\S])` is the end of the input; `$` is a line end here, under the m flag.
-const QUOTED = new RegExp(
-  [
-    '(```|~~~)[\\s\\S]*?(?:\\1|(?![\\s\\S]))',
-    '^(?:[ \\t]*>| {4}|\\t).*$',
-    '`[^`\\n]*`',
-    '"[^"]*(?:"|(?![\\s\\S]))',
-    '“[^”]*(?:”|(?![\\s\\S]))',
-    // One quoted word ('tests', 'docs') closes at its own quote, before the longer form below
-    // could read that quote as a possessive and run on to an unrelated later quote.
-    "(?<![\\p{L}\\p{N}])['‘][^\\s'’]+['’](?![\\p{L}\\p{N}])",
-    // Inside, an apostrophe before a letter ("it's") or a plural possessive ("Workers' findings")
-    // goes on; greedy, the span still falls back to that s' when no later quote closes it.
-    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}])|(?<=s)['’](?=[ \\t]+\\p{L}))*['’](?![\\p{L}\\p{N}])",
-  ].join('|'),
-  'gmu',
-)
+const QUOTE_FORMS = [
+  '(```|~~~)[\\s\\S]*?(?:\\1|(?![\\s\\S]))',
+  '^(?:[ \\t]*>| {4}|\\t).*$',
+  '`[^`\\n]*`',
+  '"[^"]*(?:"|(?![\\s\\S]))',
+  '“[^”]*(?:”|(?![\\s\\S]))',
+  // One quoted word ('tests', 'docs') closes at its own quote.
+  "(?<![\\p{L}\\p{N}])['‘][^\\s'’]+['’](?![\\p{L}\\p{N}])",
+]
+/** Inside a single-quoted span, an apostrophe before a letter ("it's") goes on. */
+const SINGLE_QUOTED_BODY = "(?:[^'’]|['’](?=[\\p{L}\\p{N}])"
+function singleQuoted(body: string) {
+  return `(?<![\\p{L}\\p{N}])['‘](?=\\S)${body})*['’](?![\\p{L}\\p{N}])`
+}
+/**
+ * Two readings of a single quote after an s and before a word: a plural possessive inside the
+ * span ("'Ignore the other Workers' findings…'"), or the span's close ("'Unit Tests' check").
+ * Nothing tells them apart, so the role is read both ways and counts only when both agree.
+ */
+const QUOTED_READINGS = [
+  `${SINGLE_QUOTED_BODY}|(?<=s)['’](?=[ \\t]+\\p{L})`,
+  SINGLE_QUOTED_BODY,
+].map((body) => new RegExp([...QUOTE_FORMS, singleQuoted(body)].join('|'), 'gmu'))
 /**
  * What a quoted span becomes: one mark, then spaces, so every offset stays where it was. A role
  * phrase that reaches the mark is no role ("You are \"not\" the reviewer", "the reviewer
@@ -194,11 +201,16 @@ function beforeIntroducingLine(text: string) {
  * opener led elsewhere) means the objective states no role.
  */
 export function roleStatement(objective: string): readonly string[] {
+  const [possessive, closing] = QUOTED_READINGS.map((quoted) => readRole(objective, quoted))
+  return possessive?.join(' ') === closing?.join(' ') ? (possessive ?? []) : []
+}
+
+function readRole(objective: string, quoted: RegExp): readonly string[] {
   // Someone else's objective quoted here ("Give each Worker this objective: \"You are a
   // reviewer…\"") is never this one's role.
   const marked = objective
     .slice(0, READ_LENGTH)
-    .replace(QUOTED, (quoted) => QUOTE_MARK.padEnd(quoted.length))
+    .replace(quoted, (span) => QUOTE_MARK.padEnd(span.length))
   for (const match of beforeIntroducingLine(marked).matchAll(CLAUSE)) {
     if (match.index >= ROLE_OPENING_LENGTH) break
     const opened = match[0].trim().replace(LIST_MARKER, '').replace(LEADING_OWN_LABEL, '')

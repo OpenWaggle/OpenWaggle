@@ -5,12 +5,19 @@ import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-age
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { discoverAgentDefinitions } from '../../../agents/agent-definition-discovery'
+import { suggestAgentDefinition } from '../../../domain/agents/agent-definition-suggestion'
 import { installSessionToolGateway } from '../../../session-host/session-tool-gateway'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
 
 vi.mock('../../../agents/agent-definition-discovery', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../agents/agent-definition-discovery')>()
   return { ...actual, discoverAgentDefinitions: vi.fn(actual.discoverAgentDefinitions) }
+})
+
+vi.mock('../../../domain/agents/agent-definition-suggestion', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../domain/agents/agent-definition-suggestion')>()
+  return { ...actual, suggestAgentDefinition: vi.fn(actual.suggestAgentDefinition) }
 })
 
 const SPAWNED = {
@@ -162,6 +169,22 @@ Review it.
     })
 
     expect(discoverAgentDefinitions).toHaveBeenCalled()
+    expect(result?.isError).toBeFalsy()
+    expect(result?.details).toEqual(SPAWNED)
+    expect(result?.content).toHaveLength(1)
+  })
+
+  it('keeps the spawn result whole when the matcher throws', async () => {
+    vi.mocked(suggestAgentDefinition).mockImplementationOnce(() => {
+      throw new Error('matcher bug')
+    })
+
+    const { result } = await spawn({
+      title: 'Independent code review',
+      objective: REVIEW_OBJECTIVE,
+    })
+
+    expect(suggestAgentDefinition).toHaveBeenCalled()
     expect(result?.isError).toBeFalsy()
     expect(result?.details).toEqual(SPAWNED)
     expect(result?.content).toHaveLength(1)

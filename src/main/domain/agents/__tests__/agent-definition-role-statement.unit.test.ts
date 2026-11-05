@@ -90,6 +90,7 @@ describe('roleStatement', () => {
       `Spawn three Workers. Give each 'Merge the reviewers' PR comments. ${inner}' as the objective.`,
       `Spawn three Workers. Give each 'Check it's green. ${inner}' as the objective.`,
       `Coordinate three Workers.\n**For each Worker:**\n${inner}`,
+      `Coordinate one Worker per failing 'unit tests' job, each with this objective:\nCheck the 'lint' output. ${inner}`,
       `Spawn three Workers. Each gets: 'Merge the reviewers' PR comments. ${inner}'`,
       `Spawn two Workers. Give each\n\t${inner}`,
       `Spawn three Workers. Each gets: 'Ignore the other Workers' findings. ${inner}'`,
@@ -109,6 +110,14 @@ describe('roleStatement', () => {
     ]) {
       expect(roleStatement(objective)).toEqual([])
     }
+  })
+
+  it('reads no role where a quote after an s could close a span or continue it', () => {
+    expect(
+      roleStatement(
+        `Fix the failing 'Unit Tests' check on branch feat/x. You are the implementer. Rerun 'pnpm verify' locally. Act as the reviewer.`,
+      ),
+    ).toEqual([])
   })
 
   it('closes a quoted word ending in s at its own quote', () => {
