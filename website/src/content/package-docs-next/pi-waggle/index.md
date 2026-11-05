@@ -85,7 +85,7 @@ const intent = parsePiWaggleCommandArgs('code-review review this diff')
 
 ## Let the agent start a Waggle
 
-The default extension registers a `waggle_invoke` tool for the standard Pi agent. The agent calls it with a preset, given as its id or exact name, and a self-contained prompt. The built-in presets are `code-review`, `debate` and `red-team`.
+The default extension registers a `waggle_invoke` tool for the standard Pi agent. The agent calls it with a preset, given as its id or name (case does not matter), and a self-contained prompt. The built-in presets are `code-review`, `debate` and `red-team`.
 
 The tool checks the preset and returns a `waggle-handoff` request in its result details, then ends the agent's turn. A host that reads that request, such as OpenWaggle, starts the Waggle from it. Pi on its own does not act on the request, so in plain Pi the agent's turn ends without starting a Waggle. Use `/waggle` there instead. The tool refuses to run inside a Waggle that is already running.
 
@@ -152,13 +152,13 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggl
 |-------------|----------------|
 | Node.js | 22.19 and newer |
 | Pi AI | Host-provided peer. Match your host's SDK version |
-| Pi coding agent | Host-provided peer. Match your host's SDK version |
+| Pi coding agent | Host-provided peer, 1.1.0 or newer. Match your host's SDK version |
 | Pi TUI | Host-provided peer. Match your host's TUI version |
 | TypeBox (`typebox`) | Host-provided peer. Match the version your Pi host supplies |
 | Module format | ESM and CommonJS |
 | Pi Waggle documentation | 0.2 |
 
-The peer declarations accept any version, but that is not a guarantee of compatibility with every Pi release. The [repository dependency catalog](https://github.com/OpenWaggle/OpenWaggle/blob/main/pnpm-workspace.yaml) records the versions used by the current source integration.
+The peer declarations accept any version, but that is not a guarantee of compatibility with every Pi release. Version 0.2 needs Pi 1.1.0 or newer, as the troubleshooting section explains. The [repository dependency catalog](https://github.com/OpenWaggle/OpenWaggle/blob/main/pnpm-workspace.yaml) records the versions used by the current source integration.
 
 ## Reference and support
 
@@ -181,8 +181,8 @@ The peer declarations accept any version, but that is not a guarantee of compati
 
 Most code written for 0.1 works without changes. These are the differences you may notice:
 
-- **Peer dependencies.** 0.1 required `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` `^0.80.6`. 0.2 accepts any version of `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`, and expects your Pi host to supply them.
-- **Turn timing.** A turn now ends when Pi settles its run, after any retries, instead of at the first `agent_end`. Loops built with `createPiWaggleExtension` get this automatically.
+- **Peer dependencies.** 0.1 required `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` `^0.80.6`. 0.2 accepts any version of `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`, and expects your Pi host to supply them. Use Pi 1.1.0 or newer.
+- **Turn timing.** A turn now ends when Pi settles its run, after any retries, instead of at the first `agent_end`. Loops built with `createPiWaggleExtension` get this automatically. If the user aborts a turn, the loop ends and `done` resolves without calling `onTurnComplete`. In 0.1 the aborted turn's messages went to `onTurnComplete`. When the loop schedules the next turn itself and `canStartNextTurn` returns false, `done` now resolves. In 0.1 it never settled. If you wire `registerPiWaggleLoop` or `createPiWaggleLoopHandler` to `agent_end` yourself, wrap your handler with `onPiWaggleSettledAgentEnd`, or it still runs once per attempt.
 - **Errors.** In the default extension, an error that no later turn can recover from now stops the Waggle at once. Before, every error counted as recoverable, and the Waggle stopped after two failed turns in a row.
 - **Typing during a Waggle.** Your message, or a slash command, ends the Waggle and goes to Pi as normal input. In 0.1 the extension sent the message to Pi as steering itself, and a slash command left the Waggle running.
 - **New API.** `waggle_invoke`, `onPiWaggleSettledAgentEnd`, the controller's `fail`, and `isRecoverableError` with `terminalErrorRecoverable` are new. Nothing was removed.

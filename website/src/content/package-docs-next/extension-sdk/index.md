@@ -110,7 +110,7 @@ Declare matching capabilities and methods in `openwaggle.extension.json`. A call
 
 ## Host syntax highlighting
 
-Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active Syntax theme, canonical language aliases, worker scheduling, size limits, caching, and safe Plain Text fallback.
+Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active syntax theme, canonical language aliases, worker scheduling, size limits, caching, and a safe plain-text fallback.
 
 ```ts
 const result = await context.sdk.surface.syntax.highlight({
@@ -232,7 +232,7 @@ export async function publishPreview(context: OpenWaggleExtensionMountContext) {
 
 `publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`. Publishing the same key, kind, role, and normalized locator again from one contribution changes nothing. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
 
-`list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same Resource Browser or image gallery as first-party resources.
+`list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same resource browser or image gallery as first-party resources.
 
 ## Theme contract
 
@@ -240,12 +240,12 @@ export async function publishPreview(context: OpenWaggleExtensionMountContext) {
 
 The contract covers:
 
-- **Colour**: 23 semantic roles under `color`, including `dangerText` and `infoText` for small text plus `review`, `plan`, `progress`, and `neutral`.
-- **Typography**: `sansFamily`, `monoFamily`, and `typeScale` entries `xs`, `sm`, `base`, `lg`, `xl`, and `twoXl`. Each type-scale entry has `fontSize` and `lineHeight`.
-- **Spacing**: the Tailwind spacing unit at `spacing.unit`. Use it through `calc(var(--ow-spacing) * N)`.
-- **Radius**: `xs`, `sm`, `md`, `lg`, `xl`, `twoXl`, `threeXl`, and `fourXl`.
-- **Shadow**: `twoXs`, `xs`, `sm`, `md`, `lg`, `xl`, and `twoXl`.
-- **Focus**: `ring` and `shadow`, with `transparent` and `none` fallbacks.
+- **Colour.** 23 semantic roles under `color`, including `dangerText` and `infoText` for small text plus `review`, `plan`, `progress`, and `neutral`.
+- **Typography.** `sansFamily`, `monoFamily`, and `typeScale` entries `xs`, `sm`, `base`, `lg`, `xl`, and `twoXl`. Each type-scale entry has `fontSize` and `lineHeight`.
+- **Spacing.** The Tailwind spacing unit at `spacing.unit`. Use it through `calc(var(--ow-spacing) * N)`.
+- **Radius.** `xs`, `sm`, `md`, `lg`, `xl`, `twoXl`, `threeXl`, and `fourXl`.
+- **Shadow.** `twoXs`, `xs`, `sm`, `md`, `lg`, `xl`, and `twoXl`.
+- **Focus.** `ring` and `shadow`, with `transparent` and `none` fallbacks.
 
 The type, spacing, radius, and shadow fallbacks match Tailwind 4.3.3. The contract has no `controlSize` or `elevation` group. Express control dimensions as spacing multiples and use the standard shadow scale.
 
@@ -283,8 +283,18 @@ For the full extension package lifecycle and manifest model, see [OpenWaggle Ext
 
 **A capability call fails with an undeclared error.** Confirm the capability, method, and scope are declared in `openwaggle.extension.json`. The broker rejects privileges that are not declared.
 
-**An import from `src` or `dist` fails.** Import only the documented root and subpath exports. Build directories and source paths are intentionally private.
+**An import from `src` or `dist` fails.** Import only the documented root and subpath exports. Build directories and source paths are private.
 
 **Styles do not match the host.** Use `context.theme`, `createOpenWaggleExtensionUiStylesheet`, and the exported UI class names instead of copying OpenWaggle renderer CSS.
 
-The `0.2` documentation line uses the ADR 0024 contract. Migrate bespoke type roles to `xs` through `twoXl`, replace named spacing values with `spacing.unit` multiples, replace `radius.panel` with a standard radius, replace `elevation` with `shadow`, and remove `controlSize`.
+## Migrating from 0.1
+
+Version 0.2 replaces the 0.1 theme tokens with the Tailwind-standard contract described under the theme contract. Code that only reads `context.theme` colours keeps working. Code that reads the removed tokens or builds theme objects itself needs these changes:
+
+- **Spacing.** `spacing.xs` through `spacing.xl` are gone. Use multiples of `spacing.unit`, for example `calc(var(--ow-spacing) * 3)` instead of `--ow-space-md`.
+- **Radius.** `radius.panel` and `--ow-radius-panel` are gone. Use one of the standard radii from `xs` to `fourXl`.
+- **Shadow.** `elevation.card` and `elevation.overlay` are now `shadow.*`, and `--ow-elevation-*` is now `--ow-shadow-*`. The export `EXTENSION_THEME_ELEVATION_KEYS` is now `EXTENSION_THEME_SHADOW_KEYS`.
+- **Theme objects you build yourself.** An `OpenWaggleExtensionThemeTokens` object must now include the colour roles `dangerText`, `infoText`, `review`, `plan`, `progress`, and `neutral`, and `typography.typeScale`.
+- **Colour scheme.** `OpenWaggleExtensionColorScheme` can now be `light`, `high-contrast-dark`, or `high-contrast-light` as well as `dark`. Handle every value.
+
+New in 0.2: the `/syntax` subpath and `context.sdk.surface.syntax`, the `openwaggle.resources` capability, an `icon` for `sidePanels`, and `sessionSummarySections`.

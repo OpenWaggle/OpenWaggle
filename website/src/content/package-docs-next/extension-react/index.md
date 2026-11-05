@@ -57,11 +57,15 @@ Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persist
 
 Version 0.2 replaces the bespoke 0.1 spacing, radius, elevation, and fallback values with the Tailwind-standard extension theme contract from `@openwaggle/extension-sdk` 0.2.
 
-- Mount all components beneath `.ow-extension-root`.
-- Replace `--ow-space-*` overrides with multiples of `--ow-spacing`.
-- Replace `--ow-radius-panel`, `--ow-radius-sm`, and `--ow-radius-md` overrides with the standard radius variables.
-- Replace `--ow-elevation-card` with `--ow-shadow-sm` and use the projected text-size and line-height pairs.
-- Do not rely on stylesheet fallback colours. The host or standalone harness provides the complete theme projection.
+- **Root.** Mount all components beneath `.ow-extension-root`. The 0.2 stylesheet styles components only inside an element with that class.
+- **Spacing.** Replace `--ow-space-*` overrides with multiples of `--ow-spacing`.
+- **Radius.** Panels now use `--ow-radius-3xl` instead of `--ow-radius-panel`. Badges use `--ow-radius-md`, and buttons, inputs and alerts use `--ow-radius-lg`. An override of `--ow-radius-panel` or `--ow-radius-sm` no longer changes any component.
+- **Shadow and type.** Replace `--ow-elevation-card` with `--ow-shadow-sm`. Text sizes come from the projected text-size and line-height pairs.
+- **Text colours.** Danger and info text now read `--ow-color-danger-text` and `--ow-color-info-text`. An override of `--ow-color-danger` or `--ow-color-info` no longer changes text colour.
+- **Fallbacks.** Do not rely on stylesheet fallback colours. The host or standalone harness provides the complete theme projection.
+- **SDK.** The package now depends on `@openwaggle/extension-sdk` 0.2 (`^0.2.0`). Upgrade both together.
+
+New in 0.2: the `SyntaxBlock` and `SourceView` components for host-highlighted source.
 
 ## Components
 
