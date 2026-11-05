@@ -15,6 +15,7 @@ The same pages are also what agents read. `pnpm docs:generate` bundles them into
 - **Every docs page has a `kind` in its frontmatter: `guide`, `reference` or `overview`.** The content schema rejects a page without one.
   - A **guide** teaches one task. Its title names the task or feature, its first paragraph says in plain words what the feature is and when to use it, and its headings are things you do. It keeps the values a reader needs to do the task (a default, a limit, what happens on failure) and links to reference pages for the rest.
   - A **reference** page lists exact facts in tables: settings, file formats, commands, exit codes, environment variables, shortcuts, states. It has no narrative, and it lives in the **Reference** section of the sidebar.
+  - Pages in the **Developer docs** and **Package reference** sections may be reference pages outside the **Reference** sidebar section, such as the Hive CLI, Command line and Extension manifest pages. The docs-style test already exempts them.
   - An **overview** explains how the parts fit together (for example **How OpenWaggle works**), so guides do not each explain it again.
 - **A fact lives in one place.** When a guide needs a full list, the list lives on a reference page and the guide links to it.
 - **Existing page URLs and topic IDs stay.** A page that moves gets a redirect in `website/astro.config.ts` and `website/public/_redirects`, so old links and the topic IDs agents remember keep working.

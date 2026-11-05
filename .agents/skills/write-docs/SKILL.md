@@ -16,7 +16,7 @@ Every page sets `kind` in its frontmatter.
 | Kind | What it is for | Shape |
 | --- | --- | --- |
 | `guide` | One task or feature | Opening paragraph that says what it is and when to use it. Task headings ("Start a Hive", "Stop a run"). Steps, short paragraphs, the values needed for the task. Links to reference pages. |
-| `reference` | Exact facts to look up | One-line intro, then tables: name, type or values, default, what it does. No story. Section `Reference`. |
+| `reference` | Exact facts to look up | One-line intro, then tables: name, type or values, default, what it does. No story. Section `Reference`, except pages in Developer docs and Package reference, which stay in their own sections. |
 | `overview` | How parts fit together | Plain explanation of the model, for example projects, sessions, runs, the Session Host and Pi. One diagram at most. |
 
 If a guide grows a table longer than about ten rows, or a list of every option, move it to a reference page and link to it. A fact lives in one place.
@@ -25,7 +25,8 @@ If a guide grows a table longer than about ten rows, or a list of every option, 
 
 - Write to "you". Present tense. Active voice: "OpenWaggle stops the run", not "the run is stopped".
 - One idea per sentence. If you have to reread it, split it.
-- Say what happens, with the real value: "MCP servers stop 5 minutes after the session's last message", not "servers are stopped after a period of inactivity".
+- Do not join two sentences with a colon or a semicolon. Use a period. A colon is fine before a list or an example.
+- Say what happens, with the real value: "MCP servers stop 5 minutes after the session's last run ends", not "servers are stopped after a period of inactivity".
 - Lowercase ordinary nouns: session, run, worker, follow-up, steering, delegation, workspace, project, branch. Capitalize names: OpenWaggle, Pi, Hive, Queen, Waggle, Session Host.
 - UI labels in **bold**, spelled and cased exactly as the app shows them. Check the string in `src/renderer`.
 - Do not use specification words in guides: durable, atomically, lineage, authoritative, binding, idempotent, "exact active Run". Say what they mean ("kept after the app restarts", "in one step", "the session it came from").
