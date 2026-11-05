@@ -22,6 +22,7 @@ export const docsNav: NavSection[] = [
     title: 'Using OpenWaggle',
     items: [
       { title: 'Conversations and tools', slug: 'using-openwaggle/chat-and-tools' },
+      { title: 'Sessions from the Pi CLI', slug: 'using-openwaggle/pi-cli-sessions' },
       { title: 'Files, images, and voice', slug: 'using-openwaggle/attachments-voice' },
       { title: 'Codemode', slug: 'using-openwaggle/codemode' },
       { title: 'Visualizations', slug: 'using-openwaggle/visualizations' },
