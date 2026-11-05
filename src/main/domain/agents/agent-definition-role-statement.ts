@@ -35,7 +35,7 @@ const QUOTED = new RegExp(
     "(?<![\\p{L}\\p{N}])['‘][^\\s'’]+['’](?![\\p{L}\\p{N}])",
     // Inside, an apostrophe before a letter ("it's") or a plural possessive ("Workers' findings")
     // goes on; greedy, the span still falls back to that s' when no later quote closes it.
-    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}])|(?<=s)['’](?=[ \\t]+\\p{Ll}))*['’](?![\\p{L}\\p{N}])",
+    "(?<![\\p{L}\\p{N}])['‘](?=\\S)(?:[^'’]|['’](?=[\\p{L}\\p{N}])|(?<=s)['’](?=[ \\t]+\\p{L}))*['’](?![\\p{L}\\p{N}])",
   ].join('|'),
   'gmu',
 )
@@ -74,15 +74,31 @@ const COLON_LINE = /:[\s*_]*$/u
 /** A label line that introduces the objective's own text: "Role:", "**Your task:**", "## Context:". */
 const OWN_LABEL =
   /^[\s*_#>-]*(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)[*_]*\s*:[\s*_]*$/iu
+/** The same label leading a clause, read past like a list marker: "Objective: You are…". */
+const LEADING_OWN_LABEL =
+  /^(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)[*_]*\s*:[\s*_]*/iu
 /** Tokens that join a second role as "and" does: "the reviewer & fixer", "reviewer / fixer". */
 const ROLE_JOINERS = new Set(['&', '+', '/'])
+/** An agent noun, a determiner allowed: "the fixer", "an implementer", "testers". */
+const AGENT_NOUN = String.raw`(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?`
 /**
- * After a comma, a list of further roles ("the planner, implementer and tester"): agent nouns
- * joined by commas and a last "and" or "or". A verb after the comma ("the reviewer, review and
- * report") is not one, so the phrase still reads.
+ * After a comma or a dash, further roles: one joined to the phrase ("the reviewer, and the
+ * fixer", "the reviewer — then the fixer") or a list ("the planner, implementer and tester").
+ * A verb there ("the reviewer, review and report", ", and fix what you find") is no agent noun,
+ * so the phrase still reads.
  */
-const ROLE_LIST =
-  /^(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?(?:,\s*(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?)*,?\s+(?:and|or)\s+(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?\b/iu
+const ROLE_LIST = new RegExp(
+  String.raw`^(?:(?:and|or|then|plus|as\s+well\s+as|&)\s+${AGENT_NOUN}|${AGENT_NOUN}(?:,\s*${AGENT_NOUN})*,?\s+(?:and|or)\s+${AGENT_NOUN})\b`,
+  'iu',
+)
+/** A dash token that ends the phrase and may lead to a second role: "—", "–", "-", "--". */
+const DASH = /^(?:[—–]|-{1,2})$/u
+/**
+ * An inline colon after a word that introduces someone else's text: "each with this objective:
+ * Review…", "Each Worker gets: …". A line that is the objective's own label ("Objective: You
+ * are…") does not cut.
+ */
+const INLINE_INTRODUCER = /\b(?:objectives?|prompt|instructions|brief|gets|message)[*_]*\s*:/giu
 
 export function nameWords(name: string) {
   // Every word of the name, short ones included: `ux-reviewer` and `qa` keep their qualifier.
@@ -109,6 +125,11 @@ function tokenStop(raw: string): 'drop' | 'end' | undefined {
   return CONTRACTION_BASES.has(contraction[1] ?? '') ? 'end' : 'drop'
 }
 
+/** The phrase, ended at `tokens[index]`, unless further roles follow it (`ROLE_LIST`). */
+function endedBefore(phrase: readonly string[], tokens: readonly string[], index: number) {
+  return ROLE_LIST.test(tokens.slice(index + 1).join(' ')) ? [] : phrase
+}
+
 /**
  * "independent code reviewer" from "an independent code reviewer with a fresh context": the
  * noun phrase right after the opener, a determiner that opens it left out. A possessive means
@@ -123,6 +144,7 @@ function rolePhrase(rest: string) {
     if (stop) return stop === 'end' ? phrase : []
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
+    if (DASH.test(raw)) return endedBefore(phrase, tokens, index)
     if (core === '' || PHRASE_BREAKS.has(core)) break
     if (opening && LEADING_ADVERBS.has(core)) continue
     const opens = opening
@@ -131,8 +153,7 @@ function rolePhrase(rest: string) {
     phrase.push(...nameWords(core))
     if (phrase.length > MAX_PHRASE_WORDS) return []
     if (core === word) continue
-    const listed = word.endsWith(',') && ROLE_LIST.test(tokens.slice(index + 1).join(' '))
-    return listed ? [] : phrase
+    return word.endsWith(',') ? endedBefore(phrase, tokens, index) : phrase
   }
   return phrase
 }
@@ -148,13 +169,18 @@ const SPEAKER_AFTER_ROLE =
   /^(?:[^,:—–…\s]|\s(?!-{1,2}\s))*(?:[,:—–…]|\s-{1,2}(?=\s))\s*(?:(?:[Ii]|[Ww]e|[Mm]y|[Oo]ur|[Ii]t|[Tt]hey|[Hh]e|[Ss]he|[Tt]he|[Aa]n?|[Tt]his|[Tt]hat)\b|\p{Lu})/u
 
 /**
- * The text up to the end of a line that ends in a colon and introduces what follows ("…each
- * with this objective:", "Worker objective:"), after which the text is someone else's, quoted or
- * not. Only a label of the objective's own (`OWN_LABEL`) does not cut.
+ * The text up to a colon that introduces what follows: one ending a line ("…each with this
+ * objective:", "Worker objective:") or an inline one after an introducing word
+ * (`INLINE_INTRODUCER`). After it the text is someone else's, quoted or not. Only a label of the
+ * objective's own (`OWN_LABEL`) does not cut.
  */
 function beforeIntroducingLine(text: string) {
   let start = 0
   for (const line of text.split('\n')) {
+    for (const inline of line.matchAll(INLINE_INTRODUCER)) {
+      const end = inline.index + inline[0].length
+      if (!OWN_LABEL.test(line.slice(0, end))) return text.slice(0, start + end)
+    }
     start += line.length + 1
     if (COLON_LINE.test(line) && !OWN_LABEL.test(line)) return text.slice(0, start)
   }
@@ -175,7 +201,7 @@ export function roleStatement(objective: string): readonly string[] {
     .replace(QUOTED, (quoted) => QUOTE_MARK.padEnd(quoted.length))
   for (const match of beforeIntroducingLine(marked).matchAll(CLAUSE)) {
     if (match.index >= ROLE_OPENING_LENGTH) break
-    const opened = match[0].trim().replace(LIST_MARKER, '')
+    const opened = match[0].trim().replace(LIST_MARKER, '').replace(LEADING_OWN_LABEL, '')
     const opener = ROLE_OPENER.exec(opened)
     if (!opener) continue
     const rest = opened.slice(opener[0].length)
