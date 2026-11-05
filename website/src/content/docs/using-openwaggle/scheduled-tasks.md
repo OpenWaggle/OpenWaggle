@@ -1,234 +1,174 @@
 ---
 title: "Scheduled tasks"
-description: "Send a prompt on a schedule, into an existing Session or as a new Session each time."
+description: "Send a prompt on a schedule, into a session you already have or as a new session each time."
 order: 8
 section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-A Scheduled task delivers a prompt for you on a schedule. There are two kinds:
+A scheduled task sends a prompt for you on a schedule. Use one to keep an eye on something, such as a pull request's checks, or to run a recurring job, such as a morning triage. There are two kinds:
 
 | Kind | Each time it fires |
 | --- | --- |
-| Heartbeat | Sends the prompt into one Session you already have. Use it to keep watching something, such as a pull request's checks. |
-| Launch schedule | Starts a new Session in a project, with its own model and workspace. Use it for recurring jobs such as a morning triage. |
+| Heartbeat | It sends the prompt into one session you already have. |
+| Launch schedule | It starts a new session in a project, with its own model and workspace. |
 
-The Session Host runs Scheduled tasks. It keeps running while any task is enabled, even with every window closed, and it runs nothing while the machine is asleep or the Host is not running.
+The Session Host runs scheduled tasks. While any task is turned on, the Host keeps running, even with every window closed. Nothing runs while your computer sleeps or the Host is not running. Exact limits, the command-line options and the export format are in the [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference).
 
-## Where to find tasks
+## Find your tasks
 
 | Place | What it shows |
 | --- | --- |
-| **Scheduled** in the Right panel | The tasks of the project you are in. Heartbeats into the open Session come first. |
-| **Settings > Scheduled tasks** | Every task in every project, with **Background start**. |
-| **Scheduled** in the Session Summary | The Heartbeats that run in this Session, or the Launch schedule that started it. Hover a row to see the next run. Right-click it for **Run now**, **Pause**, **Edit** and **Delete**. |
+| **Scheduled** on the right panel rail | The tasks of the project you are in, with Heartbeats into the open session first. |
+| **Settings > Scheduled tasks** | Every task in every project, and **Background start**. |
+| **Scheduled** in the [Session Summary](/docs/using-openwaggle/session-summary) | The Heartbeats that run in this session, or the Launch schedule that started it. Hover a row for its next run; right-click it for **Run now**, **Pause**, **Edit** and **Delete**. |
 
-![The Scheduled panel beside a Session: two Heartbeats into this Session, one of them paused, and a weekday Launch schedule for the project, each with its schedule and next run](/screenshots/scheduled-tasks.png)
+![The Scheduled panel beside a session, listing two Heartbeats, one of them paused, and a weekday Launch schedule, each with its schedule and next run](/screenshots/scheduled-tasks.png)
 
-Opening a task shows its settings and run history in the place you opened it. Editing it, or choosing **New task**, replaces the detail with the editor in that same place.
+Opening a task shows its settings and run history where you opened it. **Edit**, or **New task**, replaces that view with the editor in the same place.
 
 ## Create a task
 
-Choose **New task** in the Scheduled panel or in Settings, or **+** in the Session Summary's Scheduled section to add a Heartbeat for that Session. Then fill in:
+Choose **New task** in the Scheduled panel or in Settings. To add a Heartbeat for one session, choose **+** in the Scheduled section of its Session Summary. Then fill in the editor:
 
-1. **Prompt**: what the agent should do each time. The task takes its name from the start of the prompt until you give it one.
+1. **Prompt**: what the agent should do each time. The task is named after the start of the prompt until you give it a name.
 2. **Runs**: **Into a Session** for a Heartbeat, or **New Session each time** for a Launch schedule.
-3. **When**: the schedule and its time zone. The editor shows the next three times it would fire. For **Every…** schedules it also shows the shortest allowed interval: 5 minutes for a Heartbeat, 15 for a Launch schedule.
-4. **Stop when…** (Heartbeat): the outcome after which it should stop, such as "PR #42 is merged and main is green". A Heartbeat needs a way to finish: a Stop condition, an end date, a run limit, or **Runs indefinitely**.
-5. **Before each run** (Heartbeat, optional): a **Wake check** and the number of idle runs after which it pauses itself. See [Keep Heartbeats cheap](#keep-heartbeats-cheap).
-6. The collapsed line under it sets an end date, a maximum number of runs and notifications.
+3. **When**: the schedule and its time zone. The editor shows the next three times the task would fire. For an **Every…** schedule it also shows the shortest interval allowed: 5 minutes for a Heartbeat, 15 for a Launch schedule.
+4. **Stop when…**, for a Heartbeat: the outcome after which it should stop, such as "PR #42 is merged and main is green".
+5. **Before each run**, for a Heartbeat, optional: a **Wake check**, and how many idle runs in a row pause it. See [Keep Heartbeats cheap](#keep-heartbeats-cheap).
+6. The collapsed line below sets an end date, a maximum number of runs, and notifications.
 
-A Heartbeat can also use its own **Model** and **Thinking level** for its Runs, such as a cheaper model for a routine check. The Session keeps its own model for everything else.
+A Heartbeat must have a way to finish: a stop condition, an end date, a run limit, or **Runs indefinitely**. It can also use its own **Model** and **Thinking level** for its runs, such as a cheaper model for a routine check. The session keeps its own model for everything else.
 
-You can also ask an agent: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own Session through its `hive` tool, with a Stop condition such as "CI is green". It creates a task only when you ask for recurring work. Work it can finish in the current turn, it finishes there instead. Agents connected over MCP (`openwaggle mcp serve`) cannot manage Scheduled tasks: their access ends when the MCP server stops, so a later run would have no access left to check.
+You can also ask the agent, for example: "check this PR's CI every 30 minutes and tell me when it is green". The agent creates a Heartbeat for its own session with its `hive` tool, with a stop condition such as "CI is green". It creates a task only when you ask for recurring work; work it can finish in the current turn, it finishes there.
 
-## Schedules
+Agents connected over MCP (`openwaggle mcp serve`) cannot manage scheduled tasks. Their access ends when the MCP server stops, so a later run would have no access left to check against.
+
+## Choose a schedule
 
 | Schedule | Example |
 | --- | --- |
-| Every N minutes or hours | Every 30 minutes |
-| Daily at a time | Every day at 09:00 |
+| Every so many minutes or hours | Every 30 minutes |
+| Every day at a time | Every day at 09:00 |
 | Chosen weekdays at a time | Monday to Friday at 09:00 |
-| Recurrence rule | `FREQ=MONTHLY;BYDAY=1MO;BYHOUR=10;BYMINUTE=0` (the first Monday of each month at 10:00) |
+| Recurrence rule | `FREQ=MONTHLY;BYDAY=1MO;BYHOUR=10;BYMINUTE=0`, the first Monday of each month at 10:00 |
 
-A Heartbeat fires at most every 5 minutes and a Launch schedule at most every 15. Times are wall-clock times in the time zone stored with the task, which is your machine's zone when you create it. A 09:00 task stays at 09:00 in that zone when you travel. Intervals count elapsed time. When clocks go forward, a time inside the skipped hour fires once, just after the gap. When clocks go back, a repeated time fires the first time only.
+Times are clock times in the task's time zone, which is your computer's zone when you create the task. A 09:00 task stays at 09:00 in that zone when you travel. Intervals count elapsed time. When the clocks go forward, a time inside the skipped hour fires once, just after the gap. When they go back, a repeated time fires only the first time.
 
-Recurrence rules follow RFC 5545 without `DTSTART`, `UNTIL`, or `COUNT`. Use the task's end date or maximum number of runs to stop it instead.
+Recurrence rules follow RFC 5545, without `DTSTART`, `UNTIL` or `COUNT`. To stop a rule, give the task an end date or a maximum number of runs.
 
-Tasks that run hourly or less often fire within 5 minutes of their time, so many tasks set for 09:00 do not all reach your provider in the same second. A daily 10:00 task can fire at 09:58:59. Wherever OpenWaggle shows the next run of such a task, it says so: **± up to 5 min** in the app, `(±5 min)` in the command line, and `nextRunJitter` in the agent's `hive` tool. The run history shows the planned time beside the actual one.
+A task that runs hourly or less often fires within 5 minutes either side of its time, so many tasks set for 09:00 do not all reach your provider in the same second. A daily 10:00 task can fire at 09:58:59. Wherever OpenWaggle shows the next run of such a task, it says so: **± up to 5 min** in the app, `(±5 min)` on the command line, and `nextRunJitter` in the agent's `hive` tool. The run history shows the planned time next to the actual one.
 
-A task's next run, last run and run history show times to the second with the offset from UTC, such as `2026-10-26 09:58:59 +01:00`. The offset tells apart the two runs of an hour that repeats when clocks go back.
+Next run, last run and run history show times to the second, with the offset from UTC, such as `2026-10-26 09:58:59 +01:00`. The offset tells apart the two runs of an hour that repeats when the clocks go back.
 
 ## Keep Heartbeats cheap
 
-Every Heartbeat run is a full agent turn in its Session, and a long Session makes each turn expensive. Three things keep a Heartbeat from spending tokens when there is nothing to do.
+Every Heartbeat run is a full agent turn in its session, and in a long session each turn costs more. Three things stop a Heartbeat from spending tokens when there is nothing to do.
 
-**A way to finish.** Creating a Heartbeat needs a Stop condition, an end date, a run limit, or **Runs indefinitely**, in the app, the command line and the agent's `hive` tool. The Run reads its Stop condition; once it is met, the agent pauses the Heartbeat and says why. A Heartbeat created before this rule is marked as running indefinitely, and its detail says it has no end.
+### Give it a way to finish
 
-**A Wake check.** A Heartbeat may run a shell command before each firing, such as `gh pr checks 42 | grep -i fail || true`, which prints the failing checks and prints nothing when none fail. Keep the `|| true`. `grep` exits 1 when it finds no match, and a non-zero exit starts the Run. The Session Host runs the command in the Session's workspace, as a [project action](/docs/configuration/project-actions) would: your shell, your access, no chat context, the OpenWaggle app variables removed, at most 30 seconds, and up to 16 KiB of output.
+Every new Heartbeat needs a stop condition, an end date, a run limit, or **Runs indefinitely**, whether you create it in the app, on the command line, or through the agent's `hive` tool. Each run reads the stop condition. Once the condition is met, the agent pauses the Heartbeat and says why. A Heartbeat created before this rule existed counts as running indefinitely, and its details say it has no end.
 
-| The Wake check | What happens |
+### Add a wake check
+
+A wake check is a shell command that runs before each firing. For example, `gh pr checks 42 | grep -i fail || true` prints the failing checks, and prints nothing when none fail. Keep the `|| true`: `grep` exits with 1 when it finds nothing, and any exit code other than 0 starts the run.
+
+The Session Host runs the command in the session's workspace, the way a [project action](/docs/configuration/project-actions) runs: in your shell, with your access, without the conversation, and without OpenWaggle's own app variables. It can run for at most 30 seconds, and OpenWaggle keeps up to 16 KiB of its output.
+
+| The wake check | What happens |
 | --- | --- |
-| exits 0 and prints nothing on standard output | The firing is recorded as **Skipped: Nothing to do**. No Run starts and no model is called. |
-| prints something, or exits non-zero | The Run starts, and the agent sees what the check printed. |
-| cannot start, times out, is killed, or the shell cannot run its command (exit 126 or 127) | The firing is recorded with **The wake check failed** and what it printed on standard error. By default the Run starts anyway; set **If the check fails** to **Skip the firing** to skip it instead. A failure never counts as nothing to do. |
+| Exits 0 and prints nothing on standard output | The firing is recorded as skipped, with **Nothing to do**. No run starts and no model is called. |
+| Prints something, or exits with another code | The run starts, and the agent sees what the check printed. |
+| Cannot start, times out, is killed, or exits 126 or 127 because the shell cannot run it | The firing is recorded with **The wake check failed** and what the check printed on standard error. The run starts anyway, unless you set **If the check fails** to **Skip the firing**. A failed check never counts as nothing to do. |
 
-Output on standard error alone, with exit 0, is not work to do. A skipped firing does not use up the task's maximum number of runs.
+Output only on standard error, with exit code 0, does not count as work to do. A skipped firing does not use up the task's maximum number of runs.
 
-If the Heartbeat's Session uses **Ask for Approval**, a Wake check that someone else set, such as an agent or an access profile, waits for you to approve that exact command. Until then the task shows **Waiting for you to approve its wake check**, with the command and **Approve**; an agent's `hive` tool also asks you in its Session when it sets one. A changed command asks again. A command you set yourself, in the app or with `openwaggle schedules`, is approved by setting it.
+If the Heartbeat's session uses **Ask for Approval**, a wake check that someone else set, such as an agent or an access profile, waits for you to approve that exact command. Until you do, the task shows **Waiting for you to approve its wake check**, with the command and **Approve**. When the agent sets one through its `hive` tool, it also asks you in its session. Changing the command asks again. A command you set yourself, in the app or with `openwaggle schedules`, counts as approved.
 
-**Auto-pause.** Each Heartbeat Run ends with an outcome: **acted**, **idle** or **done**. The agent reports it with `schedule_outcome`; a Run that reports none counts as acted when it used any tool other than a read-only query (reading files or searching, Hive queries, docs), and as idle otherwise. A shell command always counts as acting. **done** pauses the Heartbeat at once. Idle runs in a row, 3 by default (1 to 20, **Pause after idle runs**), pause it too, and a firing the Wake check skipped counts as idle. Either way the task records why, such as `auto-paused: 3 idle runs`, and OpenWaggle tells you once, with **Resume**.
+### Let it pause itself
 
-The Heartbeat's Run knows where it stands: how many times it has run, its idle runs in a row, its Stop condition, end date, run limit and runs left, and the Wake check's output.
+Each Heartbeat run ends as **acted**, **idle** or **done**. The agent reports this with `schedule_outcome`. If it reports nothing, the run counts as acted when it used any tool other than a read-only one (reading or searching files, Hive queries, the docs), and as idle otherwise. A shell command always counts as acting.
 
-When a check does not need the Session's own context, a Launch schedule, which starts a fresh Session each time, is often cheaper than a Heartbeat.
+**done** pauses the Heartbeat at once. So do 3 idle runs in a row by default; change the number, from 1 to 20, with **Pause after idle runs**. A firing the wake check skipped counts as idle. Either way, the task records why, such as `auto-paused: 3 idle runs`, and OpenWaggle tells you once, with **Resume**.
 
-## Run history
+Each Heartbeat run knows where it stands: how many times it has run, how many idle runs in a row it has had, its stop condition, end date, run limit and runs left, and the wake check's output.
 
-Each run says what fired it:
+When a check does not need the session's own history, a Launch schedule, which starts a fresh session each time, is often cheaper than a Heartbeat.
 
-| Trigger | Meaning |
-| --- | --- |
-| Scheduled | The task's schedule came due. |
-| Catch-up | The task came due while the Host was not running or the machine slept. One catch-up covers every missed time, and the history says how many it covered. |
-| Run now | Someone chose **Run now** (or `openwaggle schedules run`, or `schedule_run_now`). It fires at once, not at a time the schedule names. |
+## Read the run history
 
-The task's **Last run** line, `openwaggle schedules list` and `show`, and the agent's `schedule_list` and `schedule_read` name the trigger of the last run too, so a manual run is never mistaken for a misfire.
+Each run says what fired it: **Scheduled** when the schedule came due, **Catch-up** when it came due while the Host was not running or the computer slept, or **Run now** when someone chose **Run now**. One catch-up covers every missed time, and the history says how many. A manual run fires at once, not at a scheduled time, and the task's **Last run** line names the trigger too, so you never mistake it for a misfire.
 
-A gated Heartbeat's row and detail lead with its last check, such as **Last check 07:04 · nothing to do · next 07:34**, and the Session Summary row says **Nothing to do**. Each Heartbeat run in the history shows its outcome and whether the agent reported it or OpenWaggle inferred it.
+A Heartbeat with a wake check leads with its last check, such as **Last check 07:04 · nothing to do · next 07:34**, and its Session Summary row says **Nothing to do**. Each Heartbeat run in the history shows its outcome, and whether the agent reported it or OpenWaggle worked it out.
 
 ## When a task cannot fire
 
 | Situation | What happens |
 | --- | --- |
-| The machine slept or the Host was not running | The task runs once when the Host is back, marked as a catch-up, never once per missed time. |
-| A Heartbeat's Session is busy (a Run is active, messages are queued, or a question waits for you) | The Heartbeat waits and checks again every minute. It never steers or jumps the queue. If it is still waiting at its next time, the earlier firing is recorded as skipped. |
-| The `pi` command line wrote to the Heartbeat's Session last | The Heartbeat waits as if the Session were busy. Continue the Session in OpenWaggle to resume it. |
-| A Launch schedule's previous Session is still running | That firing is skipped. A task has at most one run in progress. |
-| The Host is running as many Runs as it may | That firing is skipped and recorded. |
-| The Heartbeat's Session was archived | The Heartbeat pauses and asks for attention. Deleting the Session deletes the Heartbeat. |
-| The access profile that created the task was revoked or can no longer schedule work | The task stops and asks for attention. Deleting the Session of an agent that created a task does not stop it. |
+| The computer slept or the Host was not running | The task runs once when the Host is back, marked as a catch-up, not once per missed time. |
+| The Heartbeat's session is busy: a run is active, messages are queued, or a question waits for you | The Heartbeat waits and checks again every minute. It never steers or jumps the queue. If it is still waiting at its next time, the earlier firing is recorded as skipped. |
+| The `pi` command line wrote to the Heartbeat's session last | The Heartbeat waits as if the session were busy. Continue the session in OpenWaggle to let it run. |
+| A Launch schedule's previous session is still running | That firing is skipped. A task has at most one run in progress. |
+| The Host is already running as many runs as it allows | That firing is skipped and recorded. |
+| The Heartbeat's session was archived | The Heartbeat pauses and asks for your attention. Deleting the session deletes the Heartbeat. |
+| The access profile that created the task was revoked, or can no longer schedule work | The task stops and asks for your attention. |
+| A Launch schedule's model is gone, or its agent definition no longer works | The task stops and asks for your attention. It never falls back to another model. |
 
-## What a run is allowed to do
+## What a task is allowed to do
 
-A Scheduled task never does more than whoever created it could do by hand. Each run checks the creator's authority again, so revoking a CLI access profile stops that profile's tasks.
+A scheduled task can never do more than the person or agent who created it could do by hand. Each run checks that access again, so revoking a command-line access profile stops that profile's tasks.
 
-A task an agent created for you runs as you, within what that agent could do when it created it. It does not depend on the agent's Session: you can archive or delete that Session and the task keeps running. If the agent could do less than you (for example, its Session asks for approval), **Created by** says the task runs with limited access, and it keeps those limits until you change its prompt, what it runs, its stop condition or its Wake check. From then on it runs with your full access. Pausing, resuming or rescheduling it keeps the limits.
+A task an agent created for you runs as you, within what that agent could do when it created the task. It does not depend on the agent's session, so you can archive or delete that session and the task keeps running. If the agent could do less than you, for example because its session asks for approval, **Created by** says the task runs with limited access. It keeps those limits until you change its prompt, what it runs, its stop condition or its wake check; from then on it runs with your full access. Pausing, resuming or rescheduling it keeps the limits.
 
-An agent can't use a task to get around its limits. A Launch schedule an agent creates must use a project that already has a Session or Workspace in OpenWaggle. An agent that has to ask for approval can't schedule a Heartbeat into a YOLO Session, and an agent limited to one project can't schedule one into a Session that reaches every project. When an agent changes the prompt of one of your tasks, the task keeps only what both you and that agent may do. If a Heartbeat stops because its Session now has more access than the task (for example, you switched that Session to YOLO), change its prompt or Session yourself to run it with your access. The same goes for a CLI client profile and the tasks it owns.
+An agent cannot use a task to get around its own limits:
 
-A run uses the Authorization mode of its target: the Session's for a Heartbeat, the project's for a Launch schedule. With **YOLO (Full Access)** it works within its workspace unattended. With **Ask for Approval**, a request waits for you like any other, and the Session shows that it needs attention. There is no unattended mode that skips approvals.
+- A Launch schedule an agent creates must use a project that already has a session or workspace in OpenWaggle.
+- An agent that must ask for approval cannot schedule a Heartbeat into a YOLO session.
+- An agent limited to one project cannot schedule a Heartbeat into a session that reaches every project.
+- When an agent changes the prompt of one of your tasks, the task keeps only what both you and that agent may do.
 
-The agent sees which task started its Run, when it fired, and when the task last ran. The transcript never presents the prompt as something you typed.
+If a Heartbeat stops because its session now has more access than the task, for example because you switched the session to YOLO, change its prompt or session yourself to run it with your access. The same goes for tasks owned by a command-line access profile.
 
-## Launch schedules
+A run uses the agent access setting of its target: the session's for a Heartbeat, the project's for a Launch schedule. With **YOLO (Full Access)** it works in its workspace without asking. With **Ask for Approval**, a request waits for you like any other, and the session shows that it needs your attention. There is no unattended mode that skips approvals.
 
-A Launch schedule starts each Session in a new worktree by default, so unattended edits stay out of the checkout you work in. Choose **Local checkout** to run in the project folder instead. Workspace setup runs only if you enabled it for the project.
+The agent sees which task started its run, when it fired, and when the task last ran. The conversation never shows the prompt as something you typed.
 
-Each Session is titled with the task name and the date, and its sidebar row shows a calendar icon. Its Session Summary names the task that started it. Turn on **Archive finished runs** to archive a Session once its Run completed, nothing in it needs attention, and you never sent it anything yourself.
+## Run a Launch schedule
 
-If the task's model is no longer available, or its Agent definition no longer works, the task stops and asks for attention. It never falls back to another model.
+Each session a Launch schedule starts gets a new worktree by default, so unattended edits stay out of the checkout you work in. Choose **Local checkout** to run in the project folder instead. Workspace setup runs only if you turned it on for the project.
 
-## Background start
+Each session is titled with the task's name and the date, and its row in the sidebar has a calendar icon. Its Session Summary names the task that started it. Turn on **Archive finished runs** to archive a session once its run has finished, nothing in it needs attention, and you never opened or sent it anything yourself.
 
-To keep tasks firing after a restart or logout, turn on **Background start** in **Settings > Scheduled tasks**. OpenWaggle then starts only the Session Host, with no window, when you log in. OpenWaggle offers this after you create your first task. It works in installed builds on macOS (a LaunchAgent), Windows (a login item), and Linux (an autostart entry).
+## Keep tasks running after a restart
 
-`openwaggle status` lists the enabled tasks and when each fires next, so you can always see why a Host is running.
+To keep tasks firing after you restart or log out, turn on **Background start** in **Settings > Scheduled tasks**. OpenWaggle then starts only the Session Host, with no window, when you log in. It offers this after you create your first task. Background start works in installed builds on macOS (as a LaunchAgent), Windows (as a login item) and Linux (as an autostart entry).
 
-## Notifications
+`openwaggle status` lists the tasks that are turned on and when each fires next, so you can always see why a Host is running.
 
-A Heartbeat tells you about failures and tasks that need attention only, so a quiet monitor stays quiet. A Launch schedule tells you about every run. Change this per task. **Open** on a notification opens the task in the Scheduled panel when you are in its project, and in Settings otherwise. The Scheduled rail icon and the Settings tab show a dot while a task needs attention.
+## Choose notifications
 
-## From the command line
+A Heartbeat tells you only about failures and tasks that need attention, so a quiet monitor stays quiet. A Launch schedule tells you about every run. You can change this for each task. **Open** on a notification opens the task in the Scheduled panel when you are in its project, and in Settings otherwise. The Scheduled rail icon and the Settings tab show a dot while a task needs attention.
 
-```sh
+## Manage tasks from the command line
+
+`openwaggle schedules` does everything the app does. To list your tasks:
+
+```bash
 openwaggle schedules list
-openwaggle schedules create heartbeat <session> --name "Watch CI" --every 30m --stop-when "CI is green" \
-  --wake-if "gh pr checks 42 | grep -i fail || true" "Fix the failing checks."
-openwaggle schedules approve-wake-check <task-id>
+```
+
+To watch CI every 30 minutes in a session until it is green, replace `<session>` with the session's ID or link:
+
+```bash
+openwaggle schedules create heartbeat <session> --name "Watch CI" --every 30m --stop-when "CI is green" --wake-if "gh pr checks 42 | grep -i fail || true" "Fix the failing checks."
+```
+
+To start a triage session in the current project every weekday at 09:00, with the prompt in `triage.md`:
+
+```bash
 openwaggle schedules create launch . --name "Morning triage" --daily 09:00 --weekdays weekdays --prompt-file triage.md
-openwaggle schedules show <task-id>
-openwaggle schedules runs <task-id> --limit 20
-openwaggle schedules pause <task-id>
-openwaggle schedules resume <task-id>
-openwaggle schedules run <task-id>
-openwaggle schedules update <task-id> --every 1h
-openwaggle schedules delete <task-id>
-openwaggle schedules export > tasks.json
-openwaggle schedules import tasks.json
 ```
 
-| Option | Meaning |
-| --- | --- |
-| `--every <30, 30m, 2h>` | Interval in minutes or hours |
-| `--daily <HH:MM> [--weekdays 1,2,3 \| weekdays]` | Wall-clock time, optionally on ISO weekdays (1 is Monday) |
-| `--rrule <rule>` | Recurrence rule |
-| `--prompt <text>`, `--prompt-file <path>` | The prompt; or give it as the remaining words |
-| `--time-zone <zone>` | IANA time zone; the machine's by default |
-| `--ends <date>`, `--max-runs <n>` | Stop after a date or number of runs; `none` clears either |
-| `--stop-when <text>`, `--indefinite` | A Heartbeat's Stop condition (`none` clears it), or that it never ends (`--finite` undoes it). Creating a Heartbeat needs one of these, `--ends` or `--max-runs` |
-| `--wake-if <command>`, `--wake-on-failure wake \| skip` | A Heartbeat's Wake check (`none` removes it), and what a failed check does |
-| `--idle-pause-after <1-20>` | Idle runs in a row after which a Heartbeat pauses itself (default 3) |
-| `--notify every-run \| failures-only` | Notification policy |
-| `--paused` | Create the task turned off |
-| `--model`, `--thinking` | The task's own model and thinking level, for its Runs only |
-| `--workspace new-worktree \| local`, `--agent`, `--archive-finished` | Launch schedule options |
+`openwaggle schedules approve-wake-check <task-id>` approves the command a Heartbeat's wake check runs now, and prints it. An access profile cannot approve one. `openwaggle schedules run <task-id>` runs a task now, like **Run now**.
 
-`approve-wake-check` approves the command the task's Wake check runs now and prints it. An access profile cannot approve one.
-
-Add `--json` for versioned machine output. `export` prints tasks as JSON that `import` creates again under your identity. Tasks are stored only by the Session Host. No file creates one, and a project cannot share one.
-
-`openwaggle schedules export` writes a JSON array with one object per task; `--project <path>` limits it to one project, and `--session <session>` to the Heartbeats of one Session. This export holds a Heartbeat and a Launch schedule:
-
-```json
-[
-  {
-    "name": "Watch CI",
-    "prompt": "Fix the failing checks.",
-    "enabled": true,
-    "schedule": { "kind": "interval", "everyMinutes": 30 },
-    "timeZone": "Europe/Madrid",
-    "endsAt": null,
-    "maxRuns": null,
-    "target": {
-      "kind": "heartbeat",
-      "sessionId": "3f6c1b9e-2d4a-4c8e-9b71-5a0e6d2f8c13"
-    },
-    "notificationPolicy": "failures-only",
-    "heartbeat": {
-      "stopWhen": "CI is green",
-      "indefinite": false,
-      "idlePauseAfter": 3,
-      "wakeCheck": {
-        "command": "gh pr checks 42 | grep -i fail || true",
-        "onFailure": "wake"
-      }
-    }
-  },
-  {
-    "name": "Morning triage",
-    "prompt": "Triage the issues opened since yesterday.",
-    "enabled": true,
-    "schedule": { "kind": "daily", "at": "09:00", "weekdays": [1, 2, 3, 4, 5] },
-    "timeZone": "Europe/Madrid",
-    "endsAt": null,
-    "maxRuns": null,
-    "target": {
-      "kind": "launch",
-      "projectPath": "/Users/you/code/shop",
-      "workspace": "new-worktree",
-      "archiveFinishedSessions": true
-    },
-    "notificationPolicy": "every-run"
-  }
-]
-```
-
-- `schedule` is `{ "kind": "interval", "everyMinutes" }`, `{ "kind": "daily", "at", "weekdays" }` with ISO weekdays (1 is Monday), or `{ "kind": "rrule", "rule" }`.
-- `endsAt` is a time in milliseconds since 1970, or `null`. `maxRuns` is a number of runs, or `null`.
-- `target` names the Session a Heartbeat wakes, or the project, workspace, and Agent definition (`agentDefinitionName`) a Launch schedule starts. A task with its own model or thinking level also has `modelId` or `thinkingLevel` there.
-- `heartbeat` appears only on a Heartbeat.
-
-The export leaves out task ids, run history, and status. A Heartbeat's `sessionId` names a Session on the computer that exported it. Importing that Heartbeat where no Session has that id is refused with `That Session was not found.`
-
-An access profile needs the `schedules:read` capability to list tasks and `schedules:manage` to change them. See [Hive CLI](/docs/developer-workflow/hive-cli) for `--profile`.
+`openwaggle schedules export` prints tasks as JSON, and `openwaggle schedules import` creates them again under your identity. Tasks live only in the Session Host. No file creates one, and a project cannot share one. An access profile needs the `schedules:read` capability to list tasks and `schedules:manage` to change them; see [Hive CLI](/docs/developer-workflow/hive-cli) for `--profile`. Every command and option, and the export format, are in the [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference).

@@ -1,307 +1,160 @@
 ---
 title: "Built-in terminal"
-description: "Run commands yourself, manage terminal tabs, and share command output with the agent."
+description: "Run commands yourself, manage terminal tabs and split panes, and share command output with the agent."
 order: 5
 section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-Use the built-in terminal to run commands yourself, such as starting a development server or checking the agent's work with your project's tests. It is separate from the commands the agent runs through its tools.
+The built-in terminal runs your own shell inside OpenWaggle. Use it for commands you want to run yourself, such as starting a development server, running your project's tests to check the agent's work, or a Git command the diff panel does not offer. It is separate from the commands the agent runs through its tools.
 
-Each session has its own terminal tabs. New terminals start in the session's **Working path**, meaning its current checkout or its separate worktree. Check the path before running commands that change files.
+Each session has its own terminal tabs. A new terminal starts in the session's **Working path**: the folder you opened, or the session's worktree. Check which one before you run a command that changes files.
 
-## Opening the terminal
+## Open the terminal
 
 1. Open the session you want to work in.
 2. Press `Cmd+J` on macOS or `Ctrl+J` on Windows and Linux, or click the terminal button in the header.
 3. Wait for the shell prompt, then run your command.
 
-To ask the agent about a result, select the output, right-click, and choose **Add selection to chat**. The **Add to chat** button that appears beside a new selection does the same.
+Press `Cmd+J` or `Ctrl+J` again, or use the panel's close button, to hide the panel. Hiding it does not stop commands or development servers. Closing a pane or tab does.
 
-![The right-hand pane of a split terminal, with two passing-test lines from node --test selected and the pane's context menu open: Add selection to chat, Copy and Paste](/screenshots/terminal-add-to-chat.png)
+## Ask the agent about output
 
-The selection lands in the message box as a file chip named after the terminal pane and the lines you selected. Add your question and send it. The agent does not receive selected output until you send, and removing the chip drops it.
+Select the output you want to ask about, right-click, and choose **Add selection to chat**. The **Add to chat** button that appears beside a new selection does the same.
 
-![The message box with a Terminal context chip for the selected lines, followed by the question "Both release-notes tests pass. Is anything else missing before we merge?"](/screenshots/terminal-context-chip.png)
+![The right pane of a split terminal with two passing-test lines selected and its menu open with Add selection to chat, Copy and Paste](/screenshots/terminal-add-to-chat.png)
 
-Press `Cmd+J` on macOS or `Ctrl+J` on Windows and Linux again to hide the panel. Hiding it does not stop commands or development servers. Close the pane or tab to stop its processes.
+The selection appears in the message box as a chip named after the terminal pane and the lines you selected. Add your question and send it.
 
-A session's terminal can hold several tabs, and each tab up to four panes, split side by side or one below another.
+![The message box with a Terminal chip for the selected lines, followed by a question about whether anything is missing before the merge](/screenshots/terminal-context-chip.png)
 
-![The terminal panel with two tabs, release checks and Terminal 2. The release checks tab is split into two panes: git status on the left, and node --test with two passing tests on the right. Numbered callouts mark the tabs, the new-tab and split buttons, and a pane's close button](/screenshots/terminal-split-panes.png)
+The chip carries the output, the terminal's name, its **Working path**, and which checkout it came from. The agent receives nothing until you send, and removing the chip drops it. OpenWaggle marks terminal output as untrusted context, so the agent reads it as information, not as instructions.
 
-1. The session's terminal tabs. A tab with more than one pane shows the count after its name, as in **release checks (2)**. Double-click a tab or press `F2` to rename it.
-2. Open a new tab, split the active pane side by side, or split it below.
-3. Close that pane and stop its shell.
+## Use tabs and split panes
 
-These shortcuts apply while focus is inside a terminal:
+A session's terminal can have several tabs, and each tab up to four panes, side by side or one below another.
 
-| Action | macOS | Windows/Linux |
-|--------|-------|---------------|
+![The terminal panel with two tabs, release checks (2) and Terminal 2, and the first tab split into two panes showing git status and node --test](/screenshots/terminal-split-panes.png)
+
+The buttons at the right of the panel header open a new tab, split the active pane side by side, split it below, clear the pane, search it, move the tab to the side panel, and hide the panel. Each pane has its own close button.
+
+- A tab with more than one pane shows the count after its name, as in **release checks (2)**. Double-click a tab, or focus it and press `F2`, to rename it.
+- A new pane starts in the session's current **Working path**.
+- While a command runs, the tab shows its name, such as `vim` or `pnpm dev`.
+- A process that listens on a port adds a `:port` chip to its pane. Click the chip to open its localhost address wherever **Open web links in** sends web links.
+- **Open active terminal in side panel** moves the tab to the right side of the window. The bottom panel can stay open with your other tabs. **Return terminals to bottom** moves them back. Moving a tab keeps its shell running, with the same **Working path**, output and scrollback.
+
+These shortcuts work while a terminal has focus:
+
+| Action | macOS | Windows and Linux |
+| --- | --- | --- |
 | New terminal tab | `Cmd+N` | `Ctrl+N` |
 | Split side by side | `Cmd+D` | `Ctrl+D` |
 | Split below | `Cmd+Shift+D` | `Ctrl+Shift+D` |
-| Close active pane | `Cmd+W` | `Ctrl+W` |
+| Close the active pane | `Cmd+W` | `Ctrl+W` |
 
-The same chords can have application meanings outside the terminal. For example, `Cmd/Ctrl+N`
-creates a session and `Cmd/Ctrl+D` toggles the diff panel when terminal focus is elsewhere. You can
-change the bindings in **Settings > Shortcuts**.
+Outside the terminal the same keys do other things: `Cmd+N` or `Ctrl+N` starts a new session, and `Cmd+D` or `Ctrl+D` opens the diff panel. Change any of them in **Settings > Shortcuts**.
 
-## Session and worktree binding
+## Know which folder a terminal uses
 
-- A terminal opened in an existing session starts in that session's Working path. It therefore runs
-  against the same checkout and branch state as the agent.
-- A terminal opened before the draft's first send starts in the opened project. The first send moves
-  the terminal group into the new session without restarting its shells or losing its tabs,
-  split-pane layout, or scrollback.
-- If that send creates a session worktree, inherited draft terminals stay in the original checkout
-  and are labelled **Original checkout**. New terminals start in the session worktree. Use
-  **Restart in worktree** when you deliberately want to stop an inherited shell and relaunch it
-  there.
-- Switching sessions switches the entire terminal group. Tabs and panes from different sessions
-  never share one panel.
+- A terminal you open in an existing session starts in that session's **Working path**, so it sees the same checkout and branch as the agent.
+- A terminal you open in a new session before its first message starts in the project folder. When you send the first message, the terminal moves into the new session with its shells, tabs, split panes and scrollback as they were. OpenWaggle holds new tabs and tab moves until the move finishes. If the session's browser tabs cannot move, terminals that already moved stay in the new session.
+- If that first message creates a worktree, those earlier terminals stay in your original checkout and show **Original checkout**. New terminals start in the worktree. Choose **Restart in worktree** to stop an earlier shell and start it again in the worktree.
+- Switching sessions switches the whole set of terminals. Two sessions never share one terminal panel.
 
-Opening a terminal never creates a worktree. Worktree creation still happens on the first send, as
-described in [Git integration](/docs/developer-workflow/git-integration). For help choosing, see [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
+Opening a terminal never creates a worktree; the first message does. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
 
-## Project actions
+## Search, clear and follow links
 
-Project actions save the commands you run often: development servers, tests, lint, and builds.
-Open **Project Actions** from the right panel rail, then choose **Add action** to select a discovered project task or write a custom command.
-Discovery reads package scripts, workspace packages, Hatch environment scripts, and Cargo aliases
-from `.cargo/config.toml` or `.cargo/config`.
-Saving a selected task keeps a reference to it. Each launch resolves the current task in that session's workspace, including its package directory.
-A removed task stays visible as unavailable until you edit the action.
+The search button in the panel header searches the focused pane, with match-case and previous and next buttons. The clear button, **Clear terminal**, empties the focused pane's scrollback, on screen and on disk, without restarting its shell.
 
-Actions are private to this project on your machine by default. Saving one creates no repository file.
-Under **Who should have this action?**, choose **Everyone working on this project** to write the definition to `.openwaggle/actions.json`. This does not commit the file.
-A personal override replaces the complete shared definition; **Restore shared version** removes it.
-Settings shows where each definition comes from and offers explicit storage and removal controls.
-Worktrees of the same project share private definitions, while unrelated projects remain separate.
+OpenWaggle recognizes web addresses and file locations in the output, including links that wrap onto the next line and locations such as `src/app.ts:42:7`. `Cmd`-click on macOS, or `Ctrl`-click on Windows and Linux, to open one:
 
-If a shared save conflicts with an external edit, Settings retains both pending drafts and shows
-the recovery directory under **Inspect pending drafts**. Each shared save keeps recovery files in
-`.openwaggle/action-recovery/`, which ignores its own contents in Git. `previous.json` preserves the
-file an external editor may still have open; `next.json` contains the prepared save. These files are
-not deleted automatically, because an editor can finish writing after the save. Close external
-editors, resolve any pending save, and compare those files with `.openwaggle/actions.json` before
-manually removing old recovery directories.
+- A web address opens in your system browser. Set **Settings > General > Links > Open web links in** to **OpenWaggle** to open it in the [browser preview](/docs/developer-workflow/browser-preview) instead.
+- A file inside the session's **Working path** opens in OpenWaggle's file preview at that line.
+- A file outside it opens in your external editor at that line and column. OpenWaggle uses the editor you last picked in the file preview's editor menu, or else the first supported editor it finds. If it finds none, it shows an error rather than handing the file to whatever app your system would pick.
 
-Select an existing session in the project before running an action. You can save definitions from an empty draft, but running one requires a session.
+Right-click a selection for **Add selection to chat**, **Copy** and **Paste**.
 
-The Project Actions panel lists each action with **Run**, **Stop**, and **Show output**. Running and
-recent actions also appear under **Actions** in [Session Summary](/docs/using-openwaggle/session-summary).
-Select a run to open its output and controls in the right panel. You can stop or restart it, copy output or its command, and open
-its preview. **Fix with agent** adds a repair request to your message draft for review. It does
-not send the request or edit the saved action automatically.
+## Close or restart a terminal
 
-Actions have their own managed output view. They do not type commands into your interactive
-terminal or replace a command already running there. **Open in terminal** adds a read-only
-**action output** tab to the bottom drawer that follows the run, and its restarts, without starting
-a shell; closing that tab never stops the action. Settings manages saved definitions and
-preparation profiles; its running-process link takes you back to the session.
+Closing a pane or tab stops its processes and deletes its history. A pane whose shell has exited, or is idle, closes at once. If OpenWaggle sees a running or background process, a listening port, or cannot tell whether the terminal is idle, it asks once before stopping the panes, and names the processes and ports it knows about. If stopping fails, the pane stays open.
 
-The Session Host owns action processes. Switching sessions or closing and reopening the GUI does
-not launch a second process. By default, starting the same action again opens its active run.
-An action that stops when it finishes can explicitly allow several runs at once; one that keeps
-running cannot. Restart validates the current command before stopping the old execution. When the
-last active session releases a workspace, OpenWaggle stops the actions that keep running there. Retained output is bounded, and trimmed output is marked.
-If the owning Host itself is lost, the run becomes interrupted and requires an explicit restart.
+**Restart** stops the shell and its processes, clears the terminal's history, and starts a new shell in the same **Working path**. **Restart in worktree** does the same for an earlier terminal and moves it into the session's worktree. Both ask first in the same way.
 
-Actions receive `OPENWAGGLE_PROJECT_ROOT` and `OPENWAGGLE_WORKTREE_PATH`, plus the private environment
-exported by successful setup in that workspace. Variables unset by successful setup stay absent
-from later actions, cleanup, and agent commands. Preview detection recognizes local URLs printed
-by the run, or you can configure a URL. An opted-in preview opens once the endpoint responds.
+## What survives a reload or restart
 
-Configure action shortcuts in **Settings > Shortcuts**. Conditional bindings can limit a shortcut
-to contexts such as terminal or preview focus. Check conflict warnings if two actions share a binding.
+- Hiding the panel or switching sessions keeps shells, development servers and other processes running.
+- Reloading the app window reconnects to the same shells and shows their recent output once, without repeating it.
+- Quitting OpenWaggle stops interactive terminals. On the next launch, each terminal shows its earlier output under **Previous terminal session**, cleaned up and capped, with a new shell below it.
+- Each terminal keeps at most 5,000 lines and 10 MiB of scrollback, in memory and on disk.
+- If a shell exits, its pane says so and offers **Restart**. If its **Working path** no longer exists, the pane shows an error instead of starting the shell somewhere else.
+- Deleting a session stops its terminals and deletes their scrollback. Archiving a session stops its hidden terminal processes but keeps their layout and scrollback; unarchiving starts new shells below the kept output. Removing a worktree stops the terminals running in it.
 
-For the full configuration workflow, see [Project actions](/docs/configuration/project-actions).
+OpenWaggle restores each session's tabs, pane layout, tab names, active tab, panel height, and whether the panel was open.
 
-### Workspace preparation
+Programs such as Pi's TUI ask the terminal for its colours, cursor position or identity. Replayed output is never answered as if it were live: OpenWaggle removes those questions from restored output and drops any reply during the replay. So reopening a terminal never types a reply such as `4;0;rgb:0d0d/0f0f/1212` into your shell. What you type during the replay, and replies to questions a running program asks afterwards, still reach the shell. On a full restart, OpenWaggle also resets old input modes and full-screen program state before showing the earlier output.
 
-**Settings > Project actions > Workspace preparation** manages separate setup and cleanup commands.
-A project starts with a Default profile and can add named profiles. When several exist, choose one
-in the composer before creating a worktree. Each workspace retains a snapshot of that profile.
-Later edits show **A newer profile version is available**; adopting it is explicit and clears the
-previous prepared environment.
+## Type before the shell is ready
 
-If a private setup or cleanup and a shared definition occupy the same profile and phase, the private
-definition wins. Restore shared version removes it. Explicitly storing the private version in the
-project replaces that shared phase with the version you selected.
+Anything you type before a supported shell shows its first prompt waits in a queue, in order, and is sent once when the prompt appears. OpenWaggle knows when zsh, Bash, fish, PowerShell and `cmd` are ready; it does not guess from startup output. Moving the terminal, reloading the window, or restarting the shell keeps the queued text.
 
-Setup must finish successfully before the first agent turn in a new managed worktree. Failure keeps
-its output and offers **Retry setup** or **Continue anyway** in Session Summary. Existing checkouts
-run setup only when you choose **Run setup**. Successful shell exports stay private to that workspace
-and are inherited by subsequent actions and agent shell commands.
-**Stop setup** stops a stuck attempt and then offers Retry or Continue anyway. Recreating a missing
-worktree keeps its profile snapshot but clears old completion and environment values, so setup runs
-again for the replacement checkout.
+With a shell OpenWaggle does not know, the pane shows **Input waiting for shell readiness** and a **Send now** button, so you decide when to send it.
 
-Shared setup and cleanup require local review and enablement, except that saving one turns it on for
-you. Execution changes made by others require another review. The review panel lists what changed and
-offers **Turn on this version** or **Keep it off**. A previously reviewed workspace snapshot does not
-silently adopt upstream edits.
+## Your shell and its environment
 
-Cleanup runs before actual worktree removal, after its last binding is released and action processes
-have stopped. Failure retains the checkout. In **Settings > Worktrees**, choose **Retry cleanup** or
-explicitly confirm **Delete anyway**. That override can leave external resources behind.
+Each new terminal takes a fresh copy of the app's environment and starts your shell as an interactive login shell, when the shell supports that. It loads your usual startup files once. It keeps the variables your tools rely on, such as those for authentication agents, proxies, locale and your desktop session. It keeps your `PATH` order and adds common tool folders at the end, for apps started from the desktop rather than a terminal.
 
-Existing saved actions are converted to private native definitions with their identities, commands,
-shortcuts, and preview preferences preserved. Legacy setup becomes a separate preparation definition
-requiring review. Conversion retains a local recovery copy and runs nothing.
+On macOS and Linux, OpenWaggle uses `SHELL`, then your account's login shell, then other shells installed on the system. On Windows it tries PowerShell 7, Windows PowerShell, your configured command processor, and `cmd`. It tells programs that the terminal supports 256 colours and true colour.
 
-## Tabs and split panes
+It removes only OpenWaggle's own control variables and known Electron and Node.js code-injection variables; [Environment variables](/docs/reference/environment-variables#set-for-project-actions-and-terminals) lists what OpenWaggle sets and removes. The terminal runs commands with your full access, like any terminal you open yourself: commands can read your other environment variables and credentials. See [Security and privacy](/docs/configuration/security-privacy).
 
-- **New terminal** adds a tab. Double-click its name, or focus it and press `F2`, to rename it.
-- A tab can contain up to four panes, arranged side by side or stacked. The split actions add a new
-  terminal in the session's current Working path.
-- **Open active terminal in side panel** moves that tab into the right side of the workspace. The
-  bottom drawer can remain open with other tabs; **Return terminals to bottom** moves the side-panel
-  group back. Moving a tab keeps its shell running and preserves its Working path, output, and scrollback.
-- Process-aware tab labels show the foreground command, such as `vim` or `pnpm dev`, while work is
-  running.
-- A listening process can add a `:port` chip to its pane. Select the chip to route its localhost URL
-  through your Web link destination.
+OpenWaggle sets the terminal's font, colours and shortcuts from its own settings. It does not import profiles from Terminal.app, iTerm, Warp, Kitty or other terminal apps.
 
-## Search, links, and chat context
+Terminal programs can turn on the Kitty keyboard protocol. OpenWaggle uses traditional key encoding until a program asks for it, then sends separate press, repeat and release events for richer shortcuts. When OpenWaggle uses a key for its own shortcut or for the clipboard, it also keeps the release, so the program never receives a release without its press.
 
-The search button in the panel header searches the focused pane. It includes match-case and
-previous/next controls. **Clear terminal** clears the focused pane's displayed and persisted
-scrollback without restarting its shell.
+## Resize and style the panel
 
-OpenWaggle recognizes safe HTTP(S) URLs and file references, including wrapped links and file
-locations such as `src/app.ts:42:7`. Use `Cmd`-click on macOS or `Ctrl`-click on Windows/Linux:
+Drag the panel's top edge to resize it, or double-click the edge to go back to the default height. With the edge focused, use `ArrowUp` and `ArrowDown`; hold `Shift` for larger steps, or press `Home` or `End` for the smallest or largest height.
 
-- URLs open in the system browser by default. Set **Settings > General > Links > Open web links in**
-  to **OpenWaggle** to use the right-side Browser preview instead.
-- Files inside the session's Working path open in OpenWaggle's file preview at the referenced line.
-- Files outside that path open in your preferred installed external editor and keep their referenced
-  line and column. OpenWaggle remembers the editor selected from the file-preview editor picker; if
-  no preference exists, it chooses the first supported editor it finds. It reports an error instead
-  of silently handing the file to an unrelated operating-system default application.
+The terminal's font and size come from **Settings > Appearance**, which has a separate terminal font or can follow the code font. The cursor stops blinking when your system asks for reduced motion.
 
-Right-click a terminal selection for **Add selection to chat**, **Copy**, and **Paste**. **Add
-selection to chat** adds a removable context chip to the composer with the output, terminal label,
-Working path, and which checkout it came from. It remains a draft until you send the message, and
-OpenWaggle marks the attached terminal output as untrusted context rather than instructions.
+## Terminal commands and the agent's commands
 
-You can inspect a web app, test screen sizes, or send annotated screenshots to the agent without leaving OpenWaggle. See [Browser preview](/docs/developer-workflow/browser-preview) for the workflow. Public hosts default to HTTPS when entered without a scheme; localhost
-uses HTTP. Only HTTP(S) addresses without embedded credentials are accepted.
+The built-in terminal runs your commands. The agent's `bash` tool runs commands through Pi, the agent engine, with its own shell environment. A shell setting that works in your terminal may not apply to the agent's commands.
 
-## Shell and environment fidelity
+## Project actions and the terminal
 
-Each spawn takes a fresh snapshot of the app's environment and starts the user's shell as an
-interactive login shell when that shell supports those modes. OpenWaggle loads the user's normal
-startup files once and preserves exported variables used by local tools, authentication agents,
-proxies, locales, and graphical sessions. It preserves the user's `PATH` order and adds common tool
-locations as fallbacks for GUI-launched apps.
+[Project actions](/docs/configuration/project-actions) save commands you run often, such as a development server or your tests, and run them for you with their own output view. They do not type into your terminal or replace a command running there. **Open in terminal** on an action adds a read-only **action output** tab to the bottom panel that follows the run and its restarts, without starting a shell. Closing that tab never stops the action.
 
-On macOS and Linux, shell resolution begins with `SHELL` and the operating-system account shell,
-then falls back to installed platform shells. On Windows it tries PowerShell 7, Windows PowerShell,
-the configured command processor, and `cmd`. OpenWaggle sets compatible terminal capability markers,
-including 256-colour and true-colour support.
+The Session Host runs actions, so switching sessions or reopening the app does not start a second copy. **Restart** checks the current command before it stops the old run. An action's kept output has a size limit, and trimmed output is marked. **Settings > Project actions** links a running action back to its session. The variables an action receives, such as `OPENWAGGLE_PROJECT_ROOT` and `OPENWAGGLE_WORKTREE_PATH`, are listed under [Environment variables](/docs/reference/environment-variables#set-for-project-actions-and-terminals).
 
-Only OpenWaggle control variables and known Electron/Node code-injection variables are removed.
-This terminal is user command authority, not a restricted subprocess: commands can read the other
-environment variables and credentials available to your account. See
-[Security & Privacy](/docs/configuration/security-privacy).
+### Shared action files and setup
 
-OpenWaggle owns the terminal's font, colours, and shortcuts through its Appearance and shortcut
-settings. It does not import the visual profiles of Terminal.app, iTerm, Warp, Kitty, or other
-terminal emulators.
+When you save an action for everyone, OpenWaggle writes `.openwaggle/actions.json`, and keeps recovery files from each save in `.openwaggle/action-recovery/`, which Git ignores. `previous.json` is the file as it was, which an external editor may still have open, and `next.json` is the save OpenWaggle prepared. If a save clashes with an edit made outside OpenWaggle, Settings keeps both drafts and shows the recovery folder under **Inspect pending drafts**. OpenWaggle does not delete these files, because an editor can finish writing after the save. Close other editors, finish any pending save, and compare the files with `.openwaggle/actions.json` before you delete old recovery folders yourself.
 
-Modern terminal apps can opt into the Kitty keyboard protocol. OpenWaggle stays on traditional
-terminal key encoding until an app requests that mode, then preserves distinct press, repeat, and
-release events for richer TUI shortcuts. OpenWaggle-owned shortcuts and clipboard gestures consume
-their matching release too, so the app never receives a release for a press that OpenWaggle used.
+When a private setup or cleanup and a shared one are in the same profile and step, the private one runs. **Restore shared version** removes the private one. Storing the private one in the project replaces the shared step with it.
 
-### Input during shell startup
+Variables that a successful setup removes stay removed for later actions, cleanup and the agent's commands.
 
-Text entered before a supported shell reaches its first prompt is queued, kept in order, and sent
-exactly once when the prompt is ready. OpenWaggle uses prompt integrations for zsh, Bash, fish,
-PowerShell, and `cmd`; startup output alone is never treated as readiness. Moving the terminal, reloading the app interface, or restarting the shell does not silently discard the queued input.
+When OpenWaggle converts actions saved by an older version, it keeps each action's name, command, shortcut and preview choice as a private definition. An old setup action becomes a separate setup that waits for your review. The conversion keeps a local recovery copy and runs nothing.
 
-For an unknown shell, OpenWaggle does not guess. The pane shows **Input waiting for shell
-readiness** and a **Send now** action so you decide when queued input is safe to release.
+## Recover after the app closes
 
-## Survival and restoration
+Interactive terminals belong to the desktop app. Agent runs and project actions belong to the Session Host, which keeps working after you close the window; see [Work continues after closing the app](/docs/configuration/session-recovery#work-continues-after-closing-the-app). Terminals and browser previews need the desktop app, and the command line does not open a hidden terminal in its place.
 
-- Hiding the panel or switching sessions keeps shells, development servers, and other processes running.
-- Reloading the app interface reconnects to the same running shell and restores recent output without duplicating it.
-- Restored output is never answered as if it were live. Programs such as Pi's TUI ask the terminal
-  for its colours, cursor position, or identity; OpenWaggle removes those queries from restored
-  output and drops any reply the terminal would produce while it replays, so reopening a terminal
-  never types a reply such as `4;0;rgb:0d0d/0f0f/1212` into the shell. What you type while the
-  output is being restored, and replies to queries a running program sends afterwards, still reach
-  the shell.
-- A full app restart does not preserve interactive terminal processes. OpenWaggle restores sanitized,
-  capped output as **Previous terminal session**, then starts a fresh shell below it. Historical
-  terminal queries, input modes, and full-screen TUI state are neutralized before replay.
-- Scrollback is capped per terminal at 5,000 lines and 10 MiB in both memory and local storage.
-- If a shell exits, its pane reports the exit and offers **Restart**. If the recorded Working path no
-  longer exists, OpenWaggle reports that error instead of silently starting somewhere else.
-- Deleting a session stops its terminals and deletes their scrollback. Archiving stops hidden
-  terminal processes but retains layout and scrollback; unarchiving starts clean shells below the
-  retained output. Removing a session worktree stops terminals that run inside it.
+Quit the app normally when you can, so it can confirm that its terminals and previews have closed. If an earlier exit did not confirm this, the next launch shows a banner that starts with **Desktop tools are paused**. It sits below the header, or at the bottom of the window in Settings. You can still read sessions, but terminals, browser previews, archiving or deleting sessions, and removing worktrees stay blocked. Restarting the app does not clear the banner, and OpenWaggle does not kill old processes for you.
 
-Tabs, pane layout, names, the active tab, panel height, and whether the panel is open are restored
-per session.
+1. Check that nothing you started from the old window's terminals is still running, such as a development server, a file watcher or a background job.
+2. Check that no Git command was cut off halfway.
+3. Choose **Recover desktop tools** on the banner.
 
-## Closing and restarting
+OpenWaggle then treats the old window as closed and connects the current one. Terminals, previews and archiving work again. Reopen any terminal that failed to start while tools were paused. If something from the old window is still running, OpenWaggle cannot stop it, and archiving or deleting its worktree can remove files it is using. The banner stays until you recover, because that is the only way to clear it.
 
-`Cmd/Ctrl+J` and the panel's close button hide the panel; they do not stop shells. Closing a pane or
-tab permanently stops its process tree and deletes that terminal's history.
+If recovery fails, the banner says why. If it says the previous window has not timed out yet, its connection to the Session Host has not expired; try again after a few seconds. If recovery keeps failing, quit OpenWaggle, run this command, and reopen the app:
 
-A dead shell or a shell known to be idle closes immediately. If OpenWaggle detects an active or
-background process, a listening port, or cannot confidently determine that the terminal is idle,
-it asks once before stopping the affected panes. The confirmation names known processes and ports.
-The pane stays visible if shutdown fails.
-
-**Restart** stops the current process tree, clears the terminal's history, and launches a fresh
-shell in the same Working path. **Restart in worktree** does the same while moving an inherited
-draft terminal from the original checkout into its session's worktree. Both use the same
-process-aware confirmation.
-
-## Panel size and appearance
-
-Drag the panel's top edge to resize it, or double-click the edge to restore the default height. With
-the resize handle focused, use `ArrowUp` / `ArrowDown`; hold `Shift` for larger steps, or use `Home`
-/ `End` for the minimum / maximum height.
-
-Terminal typography follows **Settings > Appearance**, including the dedicated Terminal font and
-size or the option to follow the Code font. Cursor animation follows the operating system's reduced
-motion preference.
-
-## Terminal versus Pi bash
-
-The built-in terminal runs your interactive commands. The agent's `bash` tool runs commands through Pi, the agent engine, and uses its own shell environment. Do not assume a shell customization in the terminal also applies to the agent's commands.
-
-### App shutdown and recovery
-
-Interactive terminal shells belong to the desktop app. Agent runs and managed Project actions belong to a separate background process, the Session Host. Closing the desktop leaves those runs alive while their workspace remains in use. Interactive terminals and browser operations still need the desktop connected; the CLI does not create an invisible terminal as a fallback.
-
-This is what keeps running after you close the desktop app:
-
-```mermaid
-flowchart LR
-  subgraph desktop["Desktop app: stops when you quit"]
-    term["Interactive terminal shells"]
-    preview["Browser previews"]
-  end
-  subgraph host["Session Host: runs while it has work"]
-    runs["Agent Runs"]
-    actions["Managed Project actions"]
-  end
-  desktop <-->|"reconnects when you reopen the app"| host
+```bash
+openwaggle host stop --wait
 ```
 
-With no desktop app or other client attached and no work left, the Session Host exits after an idle period, 5 minutes by default.
-
-Quit the app normally when possible so it can confirm that terminal processes and previews have closed. If a previous exit did not confirm cleanup, a later launch shows a banner that starts with **Desktop tools are paused**. It sits below the header, or at the bottom of the window in Settings. You can still view sessions, but terminals, browser previews, archiving or deleting sessions, and removing worktrees stay blocked. Restarting does not clear this uncertainty or automatically kill old processes.
-
-Check that nothing you started from the previous window's terminals is still running, such as a dev server, a file watcher, or a background job, and that no Git operation was interrupted. Then choose **Recover desktop tools** on the banner. OpenWaggle treats the previous window as closed and attaches the current one. You can then open terminals and previews and archive sessions again; reopen a terminal that failed to start while tools were paused. If something from the old window is still running when you recover, OpenWaggle cannot stop it, and archiving or deleting its worktree can remove files out from under it. The banner stays until you recover, because it is the only way to do so.
-
-If recovery fails, the banner shows why. If the reason says the previous window has not timed out yet, its connection to the Session Host has not expired; try again after a few seconds. If recovery keeps failing, quit OpenWaggle, run `openwaggle host stop --wait`, and reopen it.
-
-If saved settings cannot be read or are invalid, OpenWaggle stops before opening the workspace rather than replacing your terminal preferences and shortcuts with defaults. Choose **Retry** to read the same settings store again.
+If OpenWaggle cannot read your saved settings, or they are invalid, it stops before opening the workspace rather than replacing your terminal preferences and shortcuts with defaults. Choose **Retry** to read them again.

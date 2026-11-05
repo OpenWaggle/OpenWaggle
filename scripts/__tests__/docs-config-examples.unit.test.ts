@@ -192,7 +192,7 @@ const PAGES: Readonly<Record<string, readonly ExampleKind[]>> = {
   'configuration/mcp-reference.md': [mcpFile],
   'using-openwaggle/waggle-mode.md': [wagglePresetsFile],
   'providers/custom-providers.md': [piModelsFile],
-  'using-openwaggle/scheduled-tasks.md': [scheduledTasksExport],
+  'using-openwaggle/scheduled-tasks-reference.md': [scheduledTasksExport],
 }
 
 async function jsonExamples(page: string) {
