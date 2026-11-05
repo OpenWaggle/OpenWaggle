@@ -128,9 +128,9 @@ export function createCustomWaggle(config: WaggleConfig) {
 }
 ```
 
-The helper returns a controller. Register its `factory` as a Pi extension factory and await `done` for loop completion. Call `fail` with an error to end the loop with that error, for example when your host cannot start a turn.
+The helper returns a controller. Register its `factory` as a Pi extension factory and await `done` for loop completion. Call `fail` with an error to end the loop with that error, for example when your host cannot start a turn. The default turn-model resolver requires an explicit provider-qualified model. To handle `$inherit`, provide your own `resolveTurnModel` callback.
 
-A turn ends when Pi settles its run, not at each `agent_end`. Pi sends `agent_end` for a failed attempt it is about to retry, so the loop collects the run's messages until `agent_settled` and leaves out the attempts Pi retried. A run the user aborts ends the loop without judging that turn. `onPiWaggleSettledAgentEnd` from `@openwaggle/pi-waggle/loop` gives your own handlers the same behavior. The default turn-model resolver requires an explicit provider-qualified model. To handle `$inherit`, provide your own `resolveTurnModel` callback.
+A turn ends when Pi settles its run, not at each `agent_end`. Pi sends `agent_end` for a failed attempt it is about to retry, so the loop collects the run's messages until `agent_settled` and leaves out the attempts Pi retried. A run the user aborts ends the loop without judging that turn. `onPiWaggleSettledAgentEnd` from `@openwaggle/pi-waggle/loop` gives your own handlers the same behavior.
 
 Most users should start with the default extension export, which handles inherited model selection. Use loop helpers when embedding Waggle into a custom Pi package.
 
@@ -183,7 +183,7 @@ Most code written for 0.1 works without changes. These are the differences you m
 
 - **Peer dependencies.** 0.1 required `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` `^0.80.6`. 0.2 accepts any version of `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`, and expects your Pi host to supply them.
 - **Turn timing.** A turn now ends when Pi settles its run, after any retries, instead of at the first `agent_end`. Loops built with `createPiWaggleExtension` get this automatically.
-- **Errors.** An error that no later turn can recover from now stops the Waggle at once. Before, every error counted as recoverable, and the Waggle stopped after two failed turns in a row.
+- **Errors.** In the default extension, an error that no later turn can recover from now stops the Waggle at once. Before, every error counted as recoverable, and the Waggle stopped after two failed turns in a row.
 - **Typing during a Waggle.** Your message, or a slash command, ends the Waggle and goes to Pi as normal input. In 0.1 the extension sent the message to Pi as steering itself, and a slash command left the Waggle running.
 - **New API.** `waggle_invoke`, `onPiWaggleSettledAgentEnd`, the controller's `fail`, and `isRecoverableError` with `terminalErrorRecoverable` are new. Nothing was removed.
 - **Editors.** The model picker fits short terminals, and editors that open with a value put the cursor after it.
