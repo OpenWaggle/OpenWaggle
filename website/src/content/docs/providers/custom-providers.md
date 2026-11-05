@@ -6,25 +6,23 @@ section: "Customize"
 kind: "guide"
 ---
 
-Use a custom provider when the endpoint or model you need is not already available in **Settings > Connections**. You will need its API address, model identifier, supported API format, and any required credentials.
+Add a custom provider when the endpoint or model you need is not listed in **Settings > Connections**: a local model server, a private endpoint or a company gateway. You need the server's address, the model's name on that server, the API format it speaks and any credentials it wants. This is an advanced setup. If your provider is already listed, use [API key authentication](/docs/providers/api-key-auth) or [browser sign-in](/docs/providers/oauth-auth) instead.
 
-This is an advanced setup. If your provider is already listed, use [API key authentication](/docs/providers/api-key-auth) or [browser sign-in](/docs/providers/oauth-auth) instead.
+## Add a model and try it
 
-## Configure and try a model
+OpenWaggle reads custom models and providers through Pi, the agent engine inside the app.
 
-OpenWaggle reads custom models and providers through Pi, the agent engine included with the app.
+1. Write a `models.json` for your endpoint, following [Pi's custom models guide](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md). Pi reads it from `~/.pi/agent/models.json`, or from the folder in [`PI_CODING_AGENT_DIR`](/docs/reference/environment-variables#pi) when you set that variable. See [Pi's agent folder](/docs/reference/data-locations#pi-agent-folder).
+2. If the endpoint needs login or request handling that the file cannot describe, write a Pi extension that calls `pi.registerProvider()`. [Pi's custom provider guide](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md) shows how.
+3. Open the project where the file or extension applies.
+4. Open **Settings > Connections**, add credentials if the provider needs them, and turn on the model under **Available Models**.
+5. Pick the model beside the message box and send a small request before you give it a big task.
 
-1. Follow [Pi's custom models guide](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md) for a `models.json` configuration supported by your endpoint. Its default location is `~/.pi/agent/models.json`. If you set `PI_CODING_AGENT_DIR`, use that directory instead.
-2. If the endpoint needs custom authentication or request handling that configuration cannot express, follow [Pi's custom provider guide](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md). This uses an extension and `pi.registerProvider()`.
-3. Open the project where the configuration or extension applies.
-4. Open **Settings > Connections**, configure credentials if needed, and enable the custom model under **Available Models**.
-5. Select it beside the message box and try a small request before using it on a larger task.
-
-Keep credentials in supported credential storage or environment variables, not checked-in examples. Only load provider extensions you trust, because they execute code.
+Keep credentials in Pi's credential file or in environment variables, never in examples you commit. Load only provider extensions you trust, because an extension runs code on your computer.
 
 ## Example: a local OpenAI-compatible server
 
-LM Studio, Ollama, vLLM, and SGLang can all answer OpenAI-style chat requests. This `~/.pi/agent/models.json` adds a model served by LM Studio on its default port:
+LM Studio, Ollama, vLLM and SGLang all answer OpenAI-style chat requests. This `~/.pi/agent/models.json` adds a model served by LM Studio on its default port:
 
 ```json
 {
@@ -52,26 +50,26 @@ LM Studio, Ollama, vLLM, and SGLang can all answer OpenAI-style chat requests. T
 - The server ignores `apiKey`, but Pi offers only models whose provider has a key. For a server that checks it, write `"$NAME"` to read an environment variable instead of the key itself.
 - `contextWindow` is optional. Pi assumes 128000 tokens when you leave it out, so set it when the server's limit is smaller.
 
-The file is Pi's format, so Pi's documentation is the reference: [Choose a model](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md) covers compatible endpoints and [Models configuration](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models-configuration.md) lists every field. The `$schema` line points your editor at Pi's published schema.
+The file uses Pi's format, so Pi's docs describe it: [Choose a model](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md) covers compatible endpoints, and [Models configuration](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models-configuration.md) lists every field. The `$schema` line lets your editor check the file against Pi's schema.
 
-## Project scope
+## Models that only one project has
 
-The default `models.json` is user-wide, not a project-local file. Providers registered by project extensions can appear only while that project is selected. Check the project before assuming a missing model was removed.
+`models.json` applies to every project. A provider that a project's own extension adds is different: its models show up only while that project is open. If a model seems to have vanished, check which project you have open first.
 
-Model listing, API key tests, and agent requests load the project's provider extensions. Saving API keys and running OAuth sign-in use Pi's default model runtime rather than that project-extension runtime. If a project-only provider cannot save credentials or sign in from Connections, use its documented environment or configuration-based credentials; appearing in the catalog does not guarantee its custom login flow is available here.
+Listing models, testing API keys and running the agent all load the project's provider extensions. Saving an API key and browser sign-in do not. They use Pi's default setup, without project extensions. So if a project-only provider cannot save a key or sign in from **Connections**, give it credentials the way its own docs describe, through an environment variable or its configuration. A provider can appear in the model list even when its custom login is not available here.
 
-## Model identity
+## Name your provider
 
-Custom and built-in models use the same identifier format:
+Custom and built-in models use the same name format:
 
 ```text
 provider/modelId
 ```
 
-Give your custom provider a distinct identity and choose that entry in the model selector. A model reached directly through its vendor and the same model reached through a gateway are separate choices with separate credentials and usage limits.
+Give your custom provider its own name and pick that entry in the model selector. A model you reach directly from its vendor and the same model reached through a gateway are two separate choices, each with its own credentials and usage limits.
 
 ## If requests fail
 
-Check the exact endpoint, API format, model identifier, and account permissions. A server accepting ordinary chat requests is not enough for coding-agent work: it must also accept the tool definitions and return tool calls in the format Pi expects. OpenWaggle reports incompatible requests rather than silently removing tools or switching models.
+Check the address, the API format, the model name and the account's permissions. A server that handles plain chat is not enough for coding work. It must also accept tool definitions and send back tool calls in the format Pi expects. When a server rejects them, OpenWaggle shows the error. It does not quietly drop the tools or switch to another model.
 
-A local endpoint can keep model inference on your machine, but that does not make the whole workflow offline. Tools, MCP servers, extensions, and browser pages can still contact external services. See [Security and privacy](/docs/configuration/security-privacy).
+A local server keeps the model's work on your computer, but the rest of a session can still go online. Tools, MCP servers, extensions and browser pages can all contact outside services. See [Security and privacy](/docs/configuration/security-privacy).
