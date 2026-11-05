@@ -8,6 +8,7 @@ import { useArchivedItemActions } from '../../hooks/useArchivedItemActions'
 import { type ArchivedItemsList, useArchivedItemsList } from '../../hooks/useArchivedItemsList'
 import { useArchivedItemsSelection } from '../../hooks/useArchivedItemsSelection'
 import { hasArchivedFacetFilter, isSearching } from '../../lib/archived-items-view'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { ArchivedEmptyState } from './ArchivedEmptyState'
 import { ArchivedErrorAlert } from './ArchivedErrorAlert'
 import { ArchivedResults } from './archived/ArchivedResults'
@@ -91,7 +92,7 @@ export function ArchivedSection() {
     !list.isPending && !list.error && list.total === 0 && !filtered && !list.isPlaceholderData
 
   return (
-    <div className="space-y-4">
+    <SettingsSectionContainer className="space-y-4">
       <div>
         <h2 className="text-base font-medium text-text-primary">Archived sessions and branches</h2>
         <p className="mt-1 text-xs text-text-tertiary">
@@ -99,6 +100,6 @@ export function ArchivedSection() {
         </p>
       </div>
       {archiveIsEmpty ? <ArchivedEmptyState /> : <ArchivedBrowser list={list} />}
-    </div>
+    </SettingsSectionContainer>
   )
 }

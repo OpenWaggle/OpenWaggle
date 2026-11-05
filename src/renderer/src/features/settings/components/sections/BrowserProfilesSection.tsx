@@ -1,4 +1,5 @@
 import { useBrowserProfilesSettings } from '@/features/settings/hooks/useBrowserProfilesSettings'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { BrowserCookieImportCard } from './BrowserCookieImportCard'
 import { BrowserPreviewDefaultsSection } from './BrowserPreviewDefaultsSection'
 import { BrowserProfileCreateForm } from './BrowserProfileCreateForm'
@@ -12,7 +13,7 @@ export function BrowserProfilesSection() {
   const controller = useBrowserProfilesSettings()
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <SettingsSectionContainer className="space-y-6">
       <header>
         <h2 className="text-lg font-semibold text-text-primary">Browser</h2>
         <p className="mt-1 text-sm text-text-tertiary">
@@ -69,6 +70,6 @@ export function BrowserProfilesSection() {
         </p>
       ) : null}
       <BrowserCookieImportCard profiles={controller.profiles} />
-    </div>
+    </SettingsSectionContainer>
   )
 }

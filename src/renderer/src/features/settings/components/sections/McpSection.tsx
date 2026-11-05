@@ -1,13 +1,14 @@
 import { Network } from 'lucide-react'
 import { useResourceProject } from '@/features/settings/hooks/useResourceProject'
 import { ProjectPicker } from '@/shared/ui/ProjectPicker'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { McpServersPanel } from './mcp/McpServersPanel'
 
 /** Settings > MCP: a view over Pi's MCP files and servers, read and changed through the Host. */
 export function McpSection() {
   const project = useResourceProject()
   return (
-    <div className="space-y-5">
+    <SettingsSectionContainer className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -35,6 +36,6 @@ export function McpSection() {
         </p>
       ) : null}
       <McpServersPanel key={project.projectPath} projectPath={project.projectPath} />
-    </div>
+    </SettingsSectionContainer>
   )
 }
