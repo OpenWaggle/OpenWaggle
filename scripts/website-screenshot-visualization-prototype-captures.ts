@@ -10,11 +10,12 @@ import { ensureVisualizationConversation } from './website-screenshot-visualizat
 
 /**
  * A prototype the user clicks through, then talks about. The agent mocked up jotter's new export
- * dialog as two screens. The visualization reports which screen is open and what is filled in
- * with `setVisualizationState`, so the user's next message, typed in the composer, could say
- * "this screen", and the agent's answer names the screen, the file name and the format. The capture clicks Next, so the image shows the
- * screen the message is about. Styled as jotter, not with the visualization's own utilities, as
- * the skill asks of mockups.
+ * dialog as two screens. The visualization reports the open screen, the format and the two
+ * Destination fields with `setVisualizationState`, so the user's next message, typed in the
+ * composer, could say "this screen", and the agent's answer uses the screen, the file name and
+ * the format. The capture picks PDF and clicks Next, so the image shows the state the message is
+ * about. Styled as jotter, not with the visualization's own utilities, as the skill asks of
+ * mockups.
  */
 
 const PROTOTYPE_SESSION_TITLE = 'Prototype the export dialog'
@@ -22,14 +23,14 @@ const PROTOTYPE_FILE = 'jotter-export-dialog.html'
 const PROTOTYPE_TITLE = 'jotter export dialog'
 const PROMPT = 'Mock up the new two-step export dialog for jotter so I can click through it.'
 const REPLY_BEFORE = 'Here is the export dialog. Next and Back move between its two screens:'
-const REPLY_AFTER =
-  'It remembers the screen and the values you pick, so you can tell me what to change.'
+const REPLY_AFTER = 'Tell me what to change on either screen.'
 const NEXT_MESSAGE = 'What happens on this screen if the folder does not exist yet?'
 const ANSWER =
   'On Destination, the screen you have open, Export creates the folder first and then writes release-notes.pdf, since you picked PDF.'
 /** The marker the capture waits for inside the frame. */
 const FRAME_READY_TEXT = 'Export notes'
 const DESTINATION_HEADING = 'Destination'
+const PICKED_FORMAT = 'PDF'
 
 const FRAGMENT = `<div id="jotter-export-dialog">
 <style>
@@ -83,10 +84,14 @@ const FRAGMENT = `<div id="jotter-export-dialog">
   const root = document.getElementById('jotter-export-dialog');
   const screens = ['format', 'destination'];
   const restored = window.openai?.visualizationState ?? {};
+  const text = (value, fallback) => (typeof value === 'string' && value.length <= 200 ? value : fallback);
   const state = {
     screen: screens.includes(restored.screen) ? restored.screen : 'format',
-    format: ['markdown', 'pdf', 'html'].includes(restored.format) ? restored.format : 'pdf',
+    format: ['markdown', 'pdf', 'html'].includes(restored.format) ? restored.format : 'markdown',
+    fileName: text(restored.fileName, 'release-notes'),
+    folder: text(restored.folder, '~/Documents/jotter'),
   };
+  const report = () => window.openai?.setVisualizationState?.({ ...state });
   const step = root.querySelector('.step');
   const back = root.querySelector('[data-action="back"]');
   const next = root.querySelector('[data-action="next"]');
@@ -97,8 +102,12 @@ const FRAGMENT = `<div id="jotter-export-dialog">
     step.textContent = 'Step ' + (index + 1) + ' of ' + screens.length;
     back.disabled = index === 0;
     next.textContent = index === screens.length - 1 ? 'Export' : 'Next';
-    window.openai?.setVisualizationState?.({ screen: state.screen, format: state.format });
+    for (const name of ['fileName', 'folder']) root.querySelector('input[name="' + name + '"]').value = state[name];
+    report();
   }
+  root.addEventListener('input', (event) => {
+    if (event.target.name === 'fileName' || event.target.name === 'folder') { state[event.target.name] = event.target.value; report(); }
+  });
   root.addEventListener('change', (event) => {
     if (event.target.name === 'format') { state.format = event.target.value; render(); }
   });
@@ -132,6 +141,7 @@ export async function captureVisualizationPrototype(context: CaptureContext) {
   const surface = page.locator(`section[data-visualization-path$="${PROTOTYPE_FILE}"]`)
   const frame = surface.frameLocator('iframe')
   await frame.getByText(FRAME_READY_TEXT).waitFor({ timeout: UI_TIMEOUT_MS })
+  await frame.getByRole('radio', { name: PICKED_FORMAT }).check()
   await frame.getByRole('button', { name: 'Next' }).click()
   await frame
     .getByRole('heading', { name: DESTINATION_HEADING })

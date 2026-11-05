@@ -25,7 +25,7 @@ const CHOICE_TITLE = 'jotter export formats'
 const PROMPT =
   'Show the export formats people asked for in jotter issues as tiles I can pick, with a button to plan the ones I choose.'
 const REPLY_BEFORE = 'Requests per format, from open jotter issues. Pick the ones for 1.0:'
-const REPLY_AFTER = 'Plan these formats sends me your choice.'
+const REPLY_AFTER = 'Markdown and PDF have the most requests.'
 const PICKED = ['Markdown', 'PDF', 'HTML'] as const
 const FOLLOW_UP = 'Plan the export work for Markdown, PDF and HTML.'
 const ANSWER =
@@ -35,14 +35,12 @@ const FRAME_READY_TEXT = 'Plan these formats'
 
 /**
  * Selectable tiles and one primary action, with the skill's own utilities (`.viz-grid`,
- * `.btn.viz-tile`, `.btn-primary`). The selection survives a reload through
+ * `.btn.viz-tile`, `.btn-primary`, `.text-muted`, `.text-small`). The selection survives a reload through
  * `window.openai.visualizationState`.
  */
 const FRAGMENT = `<div id="jotter-export-formats">
 <style>
 #jotter-export-formats { padding: 16px; }
-#jotter-export-formats .viz-tile { text-align: left; }
-#jotter-export-formats .count { display: block; color: var(--muted-foreground); font-size: var(--font-size-sm); }
 </style>
 <div class="viz-grid" role="group" aria-label="Export formats"></div>
 <div class="viz-row" style="margin-top: 16px">
@@ -78,7 +76,7 @@ const FRAGMENT = `<div id="jotter-export-formats">
     tile.type = 'button';
     tile.className = 'btn viz-tile';
     tile.dataset.id = id;
-    tile.innerHTML = '<strong>' + name + '</strong><span class="count">' + requests + ' requests</span>';
+    tile.innerHTML = '<strong>' + name + '</strong> <span class="text-muted text-small">' + requests + ' requests</span>';
     tile.addEventListener('click', () => {
       if (selected.has(id)) selected.delete(id); else selected.add(id);
       render();

@@ -5,7 +5,7 @@ section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-The agent can draw an interactive visualization right in its reply: a chart of your data, a diagram that moves, a small simulation you can adjust, or a mockup of a screen. Use one when you would understand something faster by seeing or trying it than by reading about it. A visualization also remembers what you do in it, and the agent sees your choices, so you can use one to try a prototype or to pick from a set of options together. Visualizations come from a skill built into OpenWaggle, Visualize, so there is nothing to install.
+The agent can draw an interactive visualization right in its reply: a chart of your data, a diagram that moves, a small simulation you can adjust, or a mockup of a screen. Use one when you would understand something faster by seeing or trying it than by reading about it. You can also click through a prototype or pick from a set of options, and the agent sees what you chose. Visualizations come from a skill built into OpenWaggle, Visualize, so there is nothing to install.
 
 ## Ask for a visualization
 
@@ -38,40 +38,11 @@ The agent doesn't draw a visualization for everything:
 
 A visualization follows the app's light or dark appearance and its reduced motion setting. It grows to the height of its content.
 
-## Work through it with the agent
-
-A visualization keeps track of what you do in it: the screen you are on, the options you picked, the values on its sliders. When you send your next message, OpenWaggle sends that state with it, so the agent knows what you are looking at. A visualization can also have a button that sends a message for you. That makes it useful for more than looking:
-
-- **Try a prototype.** Ask for a clickable mockup of a screen or a flow. Click through it, then ask about or change "this screen".
-- **Pick from a set.** Ask for the options as tiles or a checklist, with a button. Pick the ones you want and click the button. The agent gets exactly what you picked.
-- **Tune values.** Move sliders until the result looks right, then ask the agent to use those values in your code.
-- **Compare options.** Ask for the alternatives side by side, choose one, and say "go with this one".
-
-To try a prototype, ask for one in your message:
-
-```text
-Mock up the new two-step export dialog for jotter so I can click through it.
-```
-
-Click through to the screen you want to talk about, then type your question in the message box. The agent's answer uses the screen and the values you had open:
-
-![A jotter export dialog prototype on its Destination screen, a question about this screen, and the agent's answer naming the screen and format](/screenshots/visualization-prototype.png)
-
-To pick from a set, ask for the options and the button:
-
-```text
-Show the export formats people asked for in jotter issues as tiles I can pick, with a button to plan the ones I choose.
-```
-
-Pick the formats and click the button. OpenWaggle asks you to confirm the message first, then sends it, and the agent plans the formats you picked:
-
-![Export format tiles with Markdown, PDF and HTML picked, the message the button sent, and the agent's plan for those formats](/screenshots/visualization-choice.png)
-
 ## Use a visualization
 
 Work with the controls inside it as you would on a web page: move a slider, pick a tab, hover a point for its value. Your choices stay inside the visualization. Nothing is sent to the agent until you send a message.
 
-When you do send a message, OpenWaggle includes the current state of the visualization you used last, so you can ask "why does it jump at 8?" and the agent knows what you were looking at. Only that one visualization's state goes with the message, and it is at most 16 KiB. The agent gets it with that one message only, and treats it as information from the page, not as instructions from you.
+When you do send a message, OpenWaggle includes the state of the one visualization that reported a change most recently, usually the one you just used, so you can ask "why does it jump at 8?" and the agent knows what you were looking at. A visualization that has just loaded, such as a new one in the agent's reply, reports its state too. The state is at most 16 KiB. The agent gets it with that one message only, and treats it as information from the page, not as instructions from you.
 
 ### Open it large
 
@@ -92,6 +63,35 @@ Once you click into a visualization, OpenWaggle pins it. It stays loaded when yo
 Some visualizations have a button that asks the agent about what you selected, such as "Explain this spike". When you click it, OpenWaggle shows the message in a dialog before anything is sent. The dialog's title is the visualization's own wording, or **Send follow-up message?**. Choose to send it, and the message goes to the session as if you had typed it, with the visualization's state. If the agent is busy, it waits in the queue as a follow-up.
 
 A visualization can only ask to send a message right after you click or type in it, and only one at a time. OpenWaggle refuses a message longer than 50,000 characters.
+
+## Work through a choice with the agent
+
+Because a visualization's state goes with your next message, and its buttons can send one for you, you can use it to work something out with the agent:
+
+- **Try a prototype.** Ask for a clickable mockup of a screen or a flow. Click through it, then ask about or change "this screen".
+- **Pick from a set.** Ask for the options as tiles or a checklist, with a button. Pick the ones you want and click the button. The message names what you picked.
+- **Tune values.** Move sliders until the result looks right, then ask the agent to use those values in your code.
+- **Compare options.** Ask for the alternatives side by side, choose one, and say "go with this one".
+
+To try a prototype, ask for one in your message:
+
+```text
+Mock up the new two-step export dialog for jotter so I can click through it.
+```
+
+Click through to the screen you want to talk about, then type your question in the message box. The agent's answer uses the screen you had open and what you filled in:
+
+![A jotter export dialog prototype on its Destination screen, a question about this screen, and the agent's answer naming the screen and format](/screenshots/visualization-prototype.png)
+
+To pick from a set, ask for the options and the button:
+
+```text
+Show the export formats people asked for in jotter issues as tiles I can pick, with a button to plan the ones I choose.
+```
+
+Pick the formats and click the button. Confirm the message, and the agent plans the formats you picked:
+
+![Export format tiles with Markdown, PDF and HTML picked, the message the button sent, and the agent's plan for those formats](/screenshots/visualization-choice.png)
 
 ## Open links and save files
 
