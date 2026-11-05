@@ -54,10 +54,8 @@ test('release notes mention the pending review', () => {
 const CHAT_QUESTION = 'Both release-notes tests pass. Is anything else missing before we merge?'
 
 async function writeShellFixture(context: CaptureContext) {
-  const home = await context.app.evaluate(() => process.env.HOME ?? '')
-  if (home.length === 0) throw new Error('The app has no HOME for the terminal fixture.')
   for (const [file, contents] of Object.entries(SHELL_STARTUP_FILES)) {
-    await fs.writeFile(path.join(home, file), contents, 'utf8')
+    await fs.writeFile(path.join(context.homeDir, file), contents, 'utf8')
   }
   const settings = await context.page.evaluate(() => window.api.getSettings())
   const projectPath = settings.projectPath

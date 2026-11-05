@@ -22,6 +22,10 @@ export interface CaptureContext {
   readonly page: Page
   readonly outputDir: string
   readonly evidenceDir: string
+  /** The scratch profile's HOME, which the launcher forces on the app; fixtures write only here. */
+  readonly homeDir: string
+  /** The scratch profile's Electron user data directory, which holds the Host database. */
+  readonly userDataDir: string
   /** The scripted model every real Run talks to. */
   readonly model: FixtureModelServer
   /**

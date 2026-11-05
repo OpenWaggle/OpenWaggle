@@ -186,6 +186,8 @@ async function main() {
         page: launched.page,
         outputDir: stagingDir,
         evidenceDir,
+        homeDir: profile.homeDir,
+        userDataDir: profile.userDataDir,
         model,
         seedFeatureSessionsOnce: launched.seedFeatureSessionsOnce,
       },

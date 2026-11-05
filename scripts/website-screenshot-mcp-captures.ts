@@ -28,16 +28,10 @@ function serverRow(page: Page, name: string) {
   return serverList(page).getByRole('button', { name: new RegExp(`^Open ${name}\\b`) })
 }
 
-async function homeDirectory(context: CaptureContext) {
-  const home = await context.app.evaluate(() => process.env.HOME ?? '')
-  if (home.length === 0) throw new Error('The app has no HOME for the MCP fixture.')
-  return home
-}
-
 /** Settings > MCP with the fixture servers listed; Refresh rereads the files written meanwhile. */
 async function openMcpSettings(context: CaptureContext) {
   const { page } = context
-  await writeMcpFixture(await homeDirectory(context))
+  await writeMcpFixture(context.homeDir)
   const back = page.getByRole('button', { name: 'Back to app' })
   if ((await back.count()) === 0)
     await page.getByRole('button', { name: 'Settings' }).first().click()

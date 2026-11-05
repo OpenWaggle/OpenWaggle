@@ -46,21 +46,13 @@ interface EssentialsState {
 
 const prepared = new WeakMap<Page, Promise<EssentialsState>>()
 
-async function mainProcessPaths(context: CaptureContext) {
-  return context.app.evaluate(({ app }) => ({
-    userDataDir: app.getPath('userData'),
-    homeDir: process.env.HOME ?? '',
-  }))
-}
-
 /**
  * The essentials fixture, built once per run by whichever essentials capture comes first, after
  * the other captures: a second project with its own Sessions, so the first project's images do
  * not change, and settings that make the composer show Ask for approval and the fixture model.
  */
 async function prepare(context: CaptureContext): Promise<EssentialsState> {
-  const { userDataDir, homeDir } = await mainProcessPaths(context)
-  if (!homeDir) throw new Error('The app has no HOME to put the essentials worktree in.')
+  const { userDataDir, homeDir } = context
   const project = await createEssentialsProject({
     scratchRoot: path.dirname(userDataDir),
     homeDir,
