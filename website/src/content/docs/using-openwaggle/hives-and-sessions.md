@@ -90,7 +90,7 @@ In the Hive panel, a worker created from a definition shows an agent icon instea
 
 Click a worker in the Hive panel to open it, then type in its composer as in any session. Answer its questions and approval requests there; they are the rows under **Needs you**.
 
-If the worker is busy, your message waits above the message box as a follow-up, and starts as the next run when the current one finishes. To put it into the run that is going now instead, choose **Steer** on the queued message. Steering does not stop the run. Use it only for guidance that belongs in that run. [Chat and tools](/docs/using-openwaggle/chat-and-tools#messages) covers the queue.
+If the worker is busy, your message waits above the message box as a follow-up, and starts as the next run when the current one finishes. To put it into the run that is going now instead, choose **Steer** on the queued message. Steering does not stop the run. Use it only for guidance that belongs in that run. [Chat and tools](/docs/using-openwaggle/chat-and-tools#send-a-message-while-the-agent-works) covers the queue.
 
 Switching between sessions never stops a run. A worker's Session Summary works as soon as it is created, even before it sends its first message.
 

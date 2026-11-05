@@ -86,7 +86,7 @@ Expand **Worktree created** to see what each step did, such as the branch it fet
 
 A project can have setup commands, such as installing dependencies, that run in each new worktree after Git creates it. The conversation shows this step as **Running project setup**. Setup must succeed before the agent's first turn.
 
-If setup fails or is waiting for your review, open **Session Summary > Workspace preparation**. Read the output, then choose **Retry setup**, **Check the setup**, or **Continue anyway**. A session in your existing checkout runs setup only when you choose **Run setup** there. Keep development servers as project actions, not setup commands. The Project actions guide explains [how to configure setup](/docs/configuration/project-actions#run-setup-for-a-new-worktree).
+If setup fails or is waiting for your review, open **Session Summary > Workspace preparation**. Read the output, then choose **Retry setup**, **Check the setup**, or **Continue anyway**. A session in your existing checkout runs setup only when you choose **Run setup** there. Keep development servers as project actions, not setup commands. The Project actions guide explains [how to configure setup](/docs/configuration/project-actions#set-up-new-worktrees).
 
 ## Check where work is happening
 

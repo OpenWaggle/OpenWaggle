@@ -47,7 +47,7 @@ If the worktree of an existing session was deleted, OpenWaggle stops new message
 
 If OpenWaggle could not create the worktree for a new session, open **More details** on the **Worktree setup failed** card. Fix the Git problem it reports and choose **Retry**. **Cancel** puts your message back in the draft. **Work locally** sends it again in the current checkout instead.
 
-These choices change where the session works. Restoring the session database never brings back deleted files. See [Recovering a missing worktree](/docs/developer-workflow/git-integration#recovering-a-missing-worktree).
+These choices change where the session works. Restoring the session database never brings back deleted files. See [Recovering a missing worktree](/docs/developer-workflow/projects-and-worktrees#recover-a-missing-worktree).
 
 ## Fix a worktree that no longer matches its preparation
 
@@ -92,7 +92,7 @@ Quitting the desktop window does not stop the Session Host. The database recover
 
 ## Archive a session when desktop tools are paused
 
-If archiving a session fails with "An attached OpenWaggle desktop is required", and a banner says **Desktop tools are paused**, the last OpenWaggle window closed without confirming that its terminals and previews had stopped. Check that nothing you started from its terminals is still running, then choose **Recover desktop tools** on the banner. See [App shutdown and recovery](/docs/developer-workflow/built-in-terminal#app-shutdown-and-recovery).
+If archiving a session fails with "An attached OpenWaggle desktop is required", and a banner says **Desktop tools are paused**, the last OpenWaggle window closed without confirming that its terminals and previews had stopped. Check that nothing you started from its terminals is still running, then choose **Recover desktop tools** on the banner. See [App shutdown and recovery](/docs/developer-workflow/built-in-terminal#recover-after-the-app-closes).
 
 ## Collect details before asking for help
 

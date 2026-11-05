@@ -141,7 +141,7 @@ When OpenWaggle converts actions saved by an older version, it keeps each action
 
 ## Recover after the app closes
 
-Interactive terminals belong to the desktop app. Agent runs and project actions belong to the Session Host, which keeps working after you close the window; see [Work continues after closing the app](/docs/configuration/session-recovery#work-continues-after-closing-the-app). Terminals and browser previews need the desktop app, and the command line does not open a hidden terminal in its place.
+Interactive terminals belong to the desktop app. Agent runs and project actions belong to the Session Host, which keeps working after you close the window; see [Work continues after closing the app](/docs/configuration/session-recovery#check-on-work-after-closing-the-app). Terminals and browser previews need the desktop app, and the command line does not open a hidden terminal in its place.
 
 Quit the app normally when you can, so it can confirm that its terminals and previews have closed. If an earlier exit did not confirm this, the next launch shows a banner that starts with **Desktop tools are paused**. It sits below the header, or at the bottom of the window in Settings. You can still read sessions, but terminals, browser previews, archiving or deleting sessions, and removing worktrees stay blocked. Restarting the app does not clear the banner, and OpenWaggle does not kill old processes for you.
 

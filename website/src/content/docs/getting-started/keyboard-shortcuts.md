@@ -130,4 +130,4 @@ Conditions use these names, combined with `!`, `&&`, `||` and parentheses:
 
 An unknown condition name is kept, so a binding made for a newer version still loads, and it counts as false.
 
-Project Action bindings can also be edited with the action itself in **Settings > Project actions**. A binding can apply everywhere or only under a condition. See [Project actions](/docs/configuration/project-actions#add-a-shortcut).
+Project Action bindings can also be edited with the action itself in **Settings > Project actions**. A binding can apply everywhere or only under a condition. See [Project actions](/docs/configuration/project-actions#add-a-keyboard-shortcut).
