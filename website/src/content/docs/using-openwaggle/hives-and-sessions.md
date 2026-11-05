@@ -73,7 +73,7 @@ Each row's **State** says who acts next and why. Turn on **By next actor** to gr
 | **Closed** | Nobody | **Accepted** or **Cancelled** |
 | **Archived · n** | Nobody | Collapsed until you open it |
 
-**Waiting for ‹parent›** names the parent, for example **Waiting for Queen**, with one group for each parent.
+**Waiting for ‹parent›** names the parent by its title, for example **Waiting for Prepare the 1.0 release**, with one group for each parent.
 
 **Needs you** holds only what you must unblock: a worker, or the Queen session itself, waiting for your approval or your answer, and a worker that is stuck. A worker is stuck when its last run failed or was interrupted, or it asked its parent for help, and its parent is not running and has nothing queued. No agent will pick it up, so its row says **Stuck — no agent will pick it up**. While the parent is running, the same worker waits for the parent instead.
 
@@ -81,7 +81,7 @@ The **Hive** row in the Session Summary counts the open session's direct workers
 
 The labels clear when the situation ends. **Run failed, ‹parent› notified** clears as soon as a new run starts on the worker, whoever starts it. **Asked ‹parent› for help** clears when the parent sends the worker anything, or when the worker says it is working again. The failure stays in the worker's transcript and its delegation history, and the parent agent still hears about every change.
 
-Only **Needs you** reaches you outside the panel. It shows as a dot on the panel rail icon, a line under the Queen in the sidebar such as "1 needs you", and a count in the Session Summary. The Queen's sidebar line also shows a muted "2 waiting for ‹Queen›" for workers waiting on her, with no dot.
+Only **Needs you** reaches you outside the panel. It shows as a dot on the panel rail icon, a line under the Queen in the sidebar such as "1 needs you", and a count in the Session Summary. The Queen's sidebar line also shows a muted count of the workers waiting on it, with its title and no dot, such as "2 waiting for Prepare the 1.0 release".
 
 ## Give workers a role
 
@@ -133,7 +133,7 @@ Neither limit has a fixed maximum, but high values can strain your machine or yo
 
 To stop a worker, open it and stop its run, or ask the Queen to stop it. If you stop a run before the agent wrote anything, the transcript gets no empty reply. Whatever it had written stays.
 
-You do not need to archive finished workers yourself. When the parent agent accepts or cancels a worker's result, OpenWaggle archives that worker for the parent, as long as you never interacted with it. OpenWaggle archives a worker that is still busy once it is idle, with no run going, nothing queued, and no question or approval waiting. Nothing is deleted.
+You do not need to archive finished workers yourself. When the parent agent accepts or cancels a worker's result, OpenWaggle archives that worker for the parent, as long as you never interacted with it. OpenWaggle archives a worker that is still busy once it is idle, with no run going, nothing queued, and no question or approval waiting. The archive is recorded as the parent agent's action, and nothing is deleted.
 
 Interacting with a worker keeps it out of this cleanup. That means sending it a message, follow-up or steering, replacing its run, answering one of its questions or approvals, reviewing its result yourself, branching its conversation, or renaming, archiving or restoring it, from the app or the CLI. Reading its transcript does not count. A pinned worker is never archived while it is pinned.
 
@@ -153,7 +153,7 @@ Each worker gets its parent's access by default. A spawn or an agent definition 
 
 ## Work with sessions in other projects
 
-An agent is not limited to its own repository. A session you started from the app can find and read sessions in any project that has a session in OpenWaggle, report to them, send them follow-ups, steer, stop or archive them, and start a new session there, without sharing a Hive. A project you only opened, without sending a message, does not count yet. Start a session there first.
+An agent is not limited to its own repository. A session you started from the app can find and read sessions in any project that has a session or a workspace in OpenWaggle, report to them, send them follow-ups, steer, stop or archive them, and start a new session there, without sharing a Hive. A project you only opened, without sending a message, does not count yet. Start a session there first.
 
 ```text
 Find the open OpenWaggle session about the release checklist and report this failing check to it.

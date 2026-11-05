@@ -18,7 +18,7 @@ The `openwaggle` command opens the desktop app, and runs every other OpenWaggle 
 | Session link | `openwaggle openwaggle://sessions/<session-id>` | Opens the desktop app on that session, like clicking its [session link](/docs/using-openwaggle/chat-and-tools#session-links) |
 | Help | `openwaggle --help` | Lists every command |
 | Version | `openwaggle --version` | Prints the installed version |
-| Command help | `openwaggle help <command>` | Prints the usage of one command. `openwaggle <command> --help` does the same |
+| Command help | `openwaggle help <command>` | Prints the usage of one command. `openwaggle --help <command>` and `openwaggle <command> --help` do the same |
 
 `openwaggle <path>` accepts any existing folder. It selects that project and starts a new draft session in it, as choosing the project in the sidebar does. A file opens the folder that contains it. If the app is already open, the open app takes the project and comes to the front, so you never get a second copy. On macOS it opens a new window when none is open.
 
@@ -62,7 +62,8 @@ Usage:
 | Unknown command | `openwaggle hvie list` | Exit 2, with a suggestion |
 | Unknown short option | `-x` | Exit 2 |
 | Mistyped help or version | `--hlep`, `--HELP`, `--h`, `--verison`, `--v` | Exit 2 |
-| Value after help or version | `--help hive` | Exit 2 |
+| Value after version | `--version hive` | Exit 2 |
+| Extra or unknown help topic | `--help hive list`, `help hvie` | Exit 2 |
 | Missing path | `openwaggle ./missing` | Exit 2 |
 | Unknown long option, then a word | `openwaggle --json hive list` | Exit 2 in the installed app |
 | Command as a switch | `--status` | Exit 2, naming the command it meant |

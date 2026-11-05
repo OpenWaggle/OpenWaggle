@@ -26,7 +26,7 @@ The level belongs to the session, like its model. Every run in the session uses 
 
 The level you choose also becomes the default for new sessions, in every project. Pi, the agent engine inside OpenWaggle, keeps that default in its global settings. In a new conversation that has no session yet, your choice becomes the default and the session starts with it. Until you choose a level, the default is **Medium**.
 
-No project file can set the level. OpenWaggle ignores a `defaultThinkingLevel` in `.pi/settings.json` or in the `pi` object of `.openwaggle/settings.json`, and it no longer reads the old `thinkingLevel` project preference.
+No project file sets the level of a session you start in OpenWaggle. OpenWaggle ignores a `defaultThinkingLevel` in `.pi/settings.json` or in the `pi` object of `.openwaggle/settings.json`, and it no longer reads the old `preferences.thinkingLevel` project setting. A session started with the `pi` command is different. When you continue one whose conversation never set a level, OpenWaggle uses the `defaultThinkingLevel` in the `.pi/settings.json` of the folder it ran in, then Pi's global one, as `pi --resume` does. See [Pi CLI sessions](/docs/using-openwaggle/pi-cli-sessions).
 
 Agents and CLI callers can set a session's level when they create, launch or spawn it, or with a message that starts a run on an idle session. Their choice applies to that session only and never changes your default. Extensions can read the default but cannot change it.
 

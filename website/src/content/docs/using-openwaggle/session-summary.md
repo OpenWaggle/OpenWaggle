@@ -92,7 +92,7 @@ A Heartbeat whose last wake check found no work shows **Nothing to do**. See [Sc
 
 ## Follow a Hive
 
-For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled), for example `3 direct Workers · 1 needs you · 2 waiting for Queen`. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
+For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled). In a Queen titled Prepare the 1.0 release, it can read `3 direct Workers · 1 needs you · 2 waiting for Prepare the 1.0 release`. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
 
 A worker waiting for this session may have a result to review, a failed run, or a question. That is for this session's agent to handle, not you. In a Hive with more than 50 direct workers, a count followed by `+` covers only the workers loaded so far.
 

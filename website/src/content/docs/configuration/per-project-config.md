@@ -45,7 +45,7 @@ Pi may also read `.pi/settings.json`. Keep that file untracked too. Put OpenWagg
 
 These settings apply to the whole app, and a project file does not override them:
 
-- The thinking level. Each session keeps its own, and new sessions start from Pi's global default. OpenWaggle ignores a `thinkingLevel` left in `.openwaggle/settings.json`, and a `defaultThinkingLevel` in the `pi` object or in `.pi/settings.json`. Choose the level beside the message box. See [Thinking levels](/docs/configuration/thinking-levels).
+- The thinking level. Each session keeps its own, and new sessions start from Pi's global default. OpenWaggle ignores a `preferences.thinkingLevel` left in `.openwaggle/settings.json`, and a `defaultThinkingLevel` in the `pi` object or in `.pi/settings.json`. Only a session started with the `pi` command reads `.pi/settings.json` for its level, when you continue it and its conversation never set one. Choose the level beside the message box. See [Thinking levels](/docs/configuration/thinking-levels).
 - The automatic compaction percentage. Set it in **Settings > General > Context compaction**. A project `pi.compaction.thresholdPercent` does not override it.
 - Appearance, and the default for **New Sessions run in**.
 - How long the background Session Host keeps running when idle. It is an internal setting, not a project option.

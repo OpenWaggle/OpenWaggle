@@ -144,7 +144,7 @@ OpenWaggle reads an SVG icon once for each installed version of the package cont
 | `state.message` | string | | A message, required for `failure` and optional for `loading` and `live` |
 | `rows` | list | | The rows, below |
 
-`placement` decides where the section goes. `context` comes after Environment, Actions, workspace setup, and pull or merge request details, before Hive. `coordination` comes after Hive. `details` comes after Sources.
+`placement` decides where the section goes. `context` comes after Environment, Actions, Scheduled, workspace setup, and pull or merge request details, before Hive. `coordination` comes after Hive, before Outputs and Sources. `details` comes last, after Sources.
 
 OpenWaggle hides an empty `ready` section. A `loading`, `live` or `failure` section stays visible without rows.
 

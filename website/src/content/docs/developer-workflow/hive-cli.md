@@ -165,14 +165,23 @@ Every `openwaggle` command (`hive`, `access`, `agents`, `recovery`, `schedules`,
 
 | Kind | Exit code | Meaning |
 | --- | --- | --- |
-| `usage` | 2 | The command cannot run as typed, such as an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one. Nothing reached the Session Host. |
-| `authentication` | 3 | A credential is missing, unreadable or refused, such as an unknown or revoked access profile, or one whose credential was rotated. Also while the Session Host slows down repeated failed attempts. Retry later. |
-| `authorization` | 4 | The caller may not do this, because of a missing capability, a session outside its scope (`target_scope_denied`), or an OpenWaggle agent using the CLI without a named profile. |
-| `not_found` | 5 | The session, delegation or other target does not exist (`session_not_found`, `delegation_not_found`). |
-| `conflict` | 6 | The current state refuses it, such as a stale run or queue revision, an existing credential destination without `--replace`, a destination that changed after a repeatable operation, or another refusal whose code this table does not name. |
-| `timeout` | 7 | A wait ended before its condition was met. `hive wait` and `hive exports-wait` still print their response on stdout. |
+| `usage` | 2 | The command cannot run as typed. Nothing reached the Session Host. |
+| `authentication` | 3 | A credential is missing, unreadable or refused. |
+| `authorization` | 4 | The caller may not do this. |
+| `not_found` | 5 | The session, delegation or other target does not exist. |
+| `conflict` | 6 | The current state refuses it. |
+| `timeout` | 7 | A time limit ran out. |
 | `host_unavailable` | 8 | The Session Host cannot be reached, started or spoken to. |
 | `internal` | 1 | Anything else, an unexpected failure. |
+
+What each kind covers:
+
+- `usage` covers an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one.
+- `authentication` covers an unknown or revoked access profile, and one whose credential was rotated. It also comes back while the Session Host slows down repeated failed attempts, so retry later.
+- `authorization` covers a missing capability, a session outside the caller's scope (`target_scope_denied`), and an OpenWaggle agent that uses the CLI without a named profile.
+- `not_found` comes with `session_not_found` or `delegation_not_found`.
+- `conflict` covers a stale run or queue revision, an existing credential destination without `--replace`, a destination that changed after a repeatable operation, and any other refusal whose code this list does not name.
+- `timeout` covers a `hive wait` or `hive exports-wait` that ended before its condition was met. Both still print their response on stdout. For `run`, it means a question went unanswered past `--interaction-timeout-ms`, so OpenWaggle stopped the run. `host stop` returns it when, with `--wait`, the Session Host's work outlasted `--timeout-ms`, or when, with `--update`, the Session Host had not exited after 20 seconds. It also covers an update download or a Session Host request that took too long.
 
 An ID that does not exist gets the same answer from every action. A query's `outcome.error.code`, or a command's rejected outcome `code`, is `session_not_found` or `delegation_not_found`, and the CLI exits with 5. That holds for `read`, `status`, `follow-up`, `steer`, `wait`, `report` targets, `delegations-read`, `delegation-accept`, and the `--parent` and `--worker` filters of `delegations-list` and `delegations-conflicts`.
 
@@ -202,7 +211,7 @@ Full-transcript search covers visible user and assistant text, attachment names,
 
 ## Messages and runs
 
-Give message input with exactly one of `--text`, `--stdin`, `--input-file` or `--request-json`. Attach files with `--attach`, repeated for each file. `create`, `launch`, `fork` and `spawn` accept `--title`. `create`, `launch` and `spawn` accept `--agent`, `--model` and `--thinking`. `--thinking` sets the new session's starting thinking level. `launch` and `spawn` also accept `--yolo` when your access limit allows it. Workspace choices depend on the command, and `hive help` lists them. `spawn` takes `share-parent` for the parent's checkout (the default), `local`, or `new-worktree` for a checkout of its own.
+Give message input with exactly one of `--text`, `--stdin`, `--input-file` or `--request-json`. Attach files with `--attach`, repeated for each file. `create`, `launch`, `fork` and `spawn` accept `--title`. `create`, `launch` and `spawn` accept `--agent`, `--model` and `--thinking`. `--thinking` sets the new session's starting thinking level. `launch` and `spawn` also accept `--yolo` when your access limit allows it. Workspace choices depend on the command, and `hive help` lists them. `spawn` takes `share-parent` for the parent's checkout (the default, unless the agent definition sets `workspace`), `local`, or `new-worktree` for a checkout of its own.
 
 The thinking level is a session setting, like its model. `message` and `start` accept `--thinking` only when the session is idle and the command starts a run. The level then stays the session's thinking level for that run and later ones, but it never changes the desktop default for new sessions. In the same way, `message` and `start` accept `--authorization` or `--yolo` only when they start a run on an idle session. That override applies to the one run, stays within your access limit, and is never saved as the session's mode. While a run is active, the Session Host refuses a `message` that would be queued with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`. `follow-up`, `steer` and `replace` never accept these options, so a queued follow-up always runs with the session's settings when it starts.
 
@@ -336,16 +345,16 @@ The current local session protocol revision is **30**, and the Session Host acce
 
 | Revision | What it added |
 | --- | --- |
-| 30 | **Settings > Worktrees** across every project: the worktree list, measuring the space a worktree frees, **Archive & remove**, and the record of automatic worktree removal. |
-| 29 | Limits on what the desktop app reads of a session. The session tree carries no message content, and the app reads a window of the transcript and only the messages added since its last read. |
-| 28 | Cheap, finite heartbeats. A scheduled task carries its `heartbeat` settings (stop condition, wake check and its approval, idle auto-pause), a run its `wakeCheck` result and run `outcome`, and a heartbeat its own model, with the `approve-wake-check` and `report-outcome` operations. Creating a heartbeat with no way to finish fails with `stop_condition_required` (see [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks#keep-heartbeats-cheap)). |
-| 27 | The Hive defaults. A queue change reports `remainingFollowUpIds` (formerly `followUpIds`), a withdraw also reports `withdrawnFollowUpIds`, a queued follow-up reports its queue state, the catalog's default scope is the whole current project, `list` takes `parentSessionId`, `spawn` takes a title, and session summaries carry `depth`. |
+| 30 | **Settings > Worktrees** across every project |
+| 29 | Limits on what the desktop app reads of a session |
+| 28 | Cheap heartbeats that finish |
+| 27 | The Hive defaults |
 | 26 | Scheduled tasks. |
-| 25 | **Settings > Archived items**: one searchable, filtered list of archived sessions and branches, selecting every match, and restoring many items (or undoing that) at once. |
-| 24 | MCP management: the **Settings > MCP** and `openwaggle mcp` channels (configuration, enabling and exposure, adding, removing and installing servers, MCP Registry search and install, inspecting a server, signing in and out, importing from other tools), the MCP App catalog, a session's MCP switch, the slash menu's Pi extension commands (`agent:list-extension-commands`), and pausing Pi session discovery while a project is removed. |
-| 23 | Session source control in the Session Host: the change request inspector, merge checks and confirmed merges, session working-path checks, and recording Git output. |
+| 25 | **Settings > Archived items** |
+| 24 | MCP management |
+| 23 | Session source control in the Session Host |
 | 22 | Changed the active run snapshots the Session Host sends. |
-| 21 | Editing queued messages from the desktop app, and the thinking level as a session setting. Follow-ups no longer carry a thinking level or access override, and `queue update-authorization` is removed. The app can send a queued message as the desktop user when the access that queued it was revoked or changed. The CLI does not offer that. |
+| 21 | Editing queued messages, and the thinking level as a session setting |
 | 20 | Regenerating a session title with the title model. |
 | 19 | The `openwaggle host stop` command. |
 | 18 | Labeled launch steps in worktree launch events and run snapshots. |
@@ -360,5 +369,21 @@ The current local session protocol revision is **30**, and the Session Host acce
 | 9 | Workspace authorization and preparing visualization sources. |
 | 8 | Steering receipts. |
 | 7 | MCP authorization. |
+
+Revision 30 added the worktree list in **Settings > Worktrees**, measuring the space a worktree frees, **Archive & remove**, and the record of automatic worktree removal.
+
+In revision 29, the session tree carries no message content, and the app reads a window of the transcript and only the messages added since its last read.
+
+In revision 28, a scheduled task carries its `heartbeat` settings (stop condition, wake check and its approval, idle auto-pause), a run its `wakeCheck` result and run `outcome`, and a heartbeat its own model. It added the `approve-wake-check` and `report-outcome` operations. Creating a heartbeat with no way to finish fails with `stop_condition_required`. See [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks#keep-heartbeats-cheap).
+
+In revision 27, a queue change reports `remainingFollowUpIds` (formerly `followUpIds`), a withdraw also reports `withdrawnFollowUpIds`, and a queued follow-up reports its queue state. The catalog's default scope became the whole current project, `list` takes `parentSessionId`, `spawn` takes a title, and session summaries carry `depth`.
+
+Revision 25 added one searchable, filtered list of archived sessions and branches in **Settings > Archived items**, selecting every match, and restoring many items (or undoing that) at once.
+
+Revision 24 added the **Settings > MCP** and `openwaggle mcp` channels: configuration, enabling and exposure, adding, removing and installing servers, MCP Registry search and install, inspecting a server, signing in and out, and importing from other tools. It also added the MCP App catalog, a session's MCP switch, the slash menu's Pi extension commands (`agent:list-extension-commands`), and pausing Pi session discovery while a project is removed.
+
+Revision 23 moved the change request inspector, merge checks and confirmed merges, session working-path checks, and recording Git output into the Session Host.
+
+In revision 21, follow-ups no longer carry a thinking level or access override, and `queue update-authorization` is removed. The desktop app can edit queued messages, and can send one as the desktop user when the access that queued it was revoked or changed. The CLI does not offer that.
 
 Desktop registration and the approval controls from revision 10 are available only to the local desktop app, not to outside agent profiles. These are the revisions where each operation first appeared. They do not mean the current Session Host accepts old protocol revisions. An older Session Host serves a newer client only after it hands over to the new version. The client signs in first, and the older Session Host hands over once its active runs end. The desktop app never falls back to its own database, saves approvals locally, or grants access when the Session Host is unavailable.

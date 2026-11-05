@@ -28,14 +28,16 @@ A spawn without `agent` whose task restates the role of one of the project's def
 
 | Value | Used by | Where the session runs |
 | --- | --- | --- |
-| `share-parent` | `spawn` | The parent's checkout. The default for a worker. |
-| `current` | `create`, `launch` | The project's main checkout. The default. |
+| `share-parent` | `spawn` | The parent's checkout. The default for a worker, unless its agent definition sets `workspace`. |
+| `current` | `create`, `launch` | The checkout the caller works in. The default. |
 | `share-source` | `fork` | The checkout of the session it forks. |
-| `local` | all, and `handoff` | A local checkout. |
+| `local` | all, and `handoff` | The project's main checkout, the folder you opened. |
 | `new-worktree` | all, and `handoff` | A new Git worktree. `baseRef` names the branch or commit it starts from. |
 | `existing` | `create`, `launch`, `fork`, `handoff` | A workspace OpenWaggle already knows, named by `workspaceId`. |
 
-To start a session in another project, `create` and `launch` take its `projectPath`. Leaving `workspace` out there means `current`, that project's main checkout.
+For an agent, `current` is its own workspace, which can be a worktree. For the CLI, it is the checkout that contains the folder you run the command from. A caller outside the project, or in a folder OpenWaggle does not manage, gets the project's main checkout. A caller inside a worktree that is not ready, such as one still being set up or one whose setup failed, gets an error that suggests `local`.
+
+To start a session in another project, `create` and `launch` take its `projectPath`. Leaving `workspace` out there means `current`, which from outside that project is its main checkout.
 
 ## Send messages and control runs
 

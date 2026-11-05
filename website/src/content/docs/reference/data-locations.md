@@ -27,7 +27,7 @@ Set `OPENWAGGLE_USER_DATA_DIR` to use another folder. The desktop app, the Sessi
 | --- | --- |
 | `session-host/session-host.sqlite` | The session database: sessions, transcripts, the session tree, app settings, pinned sessions and their order, Hives, delegations, scheduled tasks, and each project's private project actions and overrides |
 | `session-host/pre-cutover-openwaggle.sqlite` | The recovery copy kept when an upgrade migrated an older `openwaggle.db`. See [Recover an older session database](/docs/configuration/session-recovery#recover-an-older-session-database) |
-| `session-host/` | Also the Session Host's socket, ownership files and access profile credentials |
+| `session-host/` | Also the Session Host's ownership files and access profile credentials, and its socket. See [The Session Host's socket](#the-session-hosts-socket) |
 | `logs/` | Log files. See [Logs](#logs) |
 | `mcp/` | MCP secrets and sign-ins, encrypted, and the tool catalogs of your MCP servers. Each build keeps its own, because builds encrypt with different keys |
 | `extensions/<extension ID>/` | Global extension packages. See [Build an extension](/docs/extending/openwaggle-extensions) |
@@ -106,6 +106,18 @@ Each session gets a private scratch folder for temporary files, and an evidence 
 `<temp>` is your temporary folder. On macOS and Linux it is `/tmp` when a path under your own temporary folder would be too long for a Unix socket, which is usual on macOS. On Windows it is `%TEMP%`, and the folder is named `ow-scratch` without a user ID. `<profile>` is a short code for the app data folder, so two profiles never share these folders. `<session>` is a short code for the session.
 
 OpenWaggle points `TMPDIR`, `TMP` and `TEMP` at the scratch folder for the agent's shell tools, and `OPENWAGGLE_EVIDENCE_DIR` at the evidence folder. It deletes the scratch folder when you archive or delete the session. It keeps the evidence folder after archiving, and removes it once nothing has been added to it for a week. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions).
+
+## The Session Host's socket
+
+The desktop app and the `openwaggle` command reach the Session Host through a local socket.
+
+| Case | Location |
+| --- | --- |
+| macOS, Linux | `session-host/host.sock` in the app data folder |
+| Long path | `owsh-<hash>/host.sock` in your temporary folder, or in `/tmp` when that path is also too long |
+| Windows | A named pipe, `\\.\pipe\openwaggle-<code>-session-host` |
+
+On macOS and Linux, the socket moves out of the app data folder when its path there would be longer than 100 bytes, which keeps it under the Unix socket path limit (104 bytes on macOS). `<hash>` comes from the app data folder's path, so each profile gets its own socket. On Windows, `<code>` is a random code that OpenWaggle keeps in `session-host/endpoint.capability`, readable only by your user account.
 
 ## Startup cache
 

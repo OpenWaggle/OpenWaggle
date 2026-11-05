@@ -41,7 +41,7 @@ Pi is the agent engine inside OpenWaggle, and it reads its own files too. Paths 
 | `<project>/.pi/skills/`, `extensions/`, `prompts/`, `themes/` | Pi skills, extensions, prompts and themes. | You | None |
 | `<project>/.agents/skills/`, `extensions/`, `prompts/`, `themes/` | Skills, extensions, prompts and themes shared with other agent tools. | You | None |
 
-The thinking level is never read from a project file. OpenWaggle ignores `defaultThinkingLevel` in `<project>/.pi/settings.json` and in the `pi` object of `.openwaggle/settings.json`. See [Thinking levels](/docs/configuration/thinking-levels).
+New OpenWaggle sessions never take their thinking level from a project file. They ignore `defaultThinkingLevel` in `<project>/.pi/settings.json` and in the `pi` object of `.openwaggle/settings.json`. The exception is a session started with the `pi` command whose conversation never set a level. Continuing it in OpenWaggle uses the `defaultThinkingLevel` in the `.pi/settings.json` of the folder it ran in, then the global one, as `pi --resume` does. See [Thinking levels](/docs/configuration/thinking-levels).
 
 ## The `$schema` key
 
@@ -90,7 +90,7 @@ OpenWaggle ignores these, and sets them elsewhere instead:
 | --- | --- |
 | `pi.compaction.thresholdPercent` | **Settings > General > Context compaction**, for every project. |
 | `pi.defaultThinkingLevel` | The thinking-level menu beside the message box. |
-| `thinkingLevel` | The thinking-level menu beside the message box. |
+| `preferences.thinkingLevel` | The thinking-level menu beside the message box. |
 
 Appearance, the default for **New Sessions run in**, and how long the background Session Host stays running when idle are app-wide and cannot be set in a project file.
 

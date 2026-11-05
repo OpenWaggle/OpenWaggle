@@ -69,7 +69,7 @@ Tool names look like `mcp__<server>__<tool>`, with `-` in the server name replac
 | `codemode` | **Codemode** | The default. The agent finds the tools and calls them from codemode scripts. Tools that open an MCP App go to the agent directly. |
 | `hidden` | **Hidden** | The agent cannot use the tools. |
 | `direct` | **Codemode** | Runs as `codemode`. OpenWaggle leaves the file alone, so the `pi` command still offers these tools directly. |
-| `deferred` | While a file sets it | The agent searches for the tools, then calls them directly. |
+| `deferred` | **Deferred**, only while a file sets it | The agent searches for the tools, then calls them directly. |
 | `codemode-deferred` | **Codemode** | An older name for `codemode`. |
 
 `direct` stays direct in a session where codemode cannot run: when Pi's `extensions` setting lists `-builtin:codemode`, or when `autoEnableCodemode` is `false` and codemode is off.
@@ -102,7 +102,7 @@ A server that another file changes also says where, such as **Overridden in** `~
 | MCP App start | 15 seconds, then the tool result stays text |
 | Idle stop | 5 minutes after the session's last run ends, if no new run starts. MCP App requests restart the timer. |
 | Worker idle stop | 1 minute after its last run ends, for a worker under review, accepted, or cancelled |
-| Warm sessions | At most 3 sessions with servers running. The least recently used session's servers stop first. |
+| Warm sessions | When more than 3 sessions have servers running, the least recently used session with no run in progress stops its servers first. |
 | MCP versions | `2024-11-05` to `2025-11-25` |
 
 ## Registry installs
