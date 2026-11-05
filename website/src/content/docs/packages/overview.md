@@ -3,6 +3,7 @@ title: "Packages"
 description: "OpenWaggle publishable packages for extension authors, Waggle policy, and Pi Waggle integration."
 order: 1
 section: "Packages"
+kind: "overview"
 ---
 
 OpenWaggle maintains publishable npm packages for extension authors and Waggle runtime integrations.

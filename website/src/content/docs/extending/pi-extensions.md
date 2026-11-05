@@ -3,6 +3,7 @@ title: "Pi extensions"
 description: "Use Pi extension APIs for agent tools and hooks, and understand OpenWaggle's desktop integration boundaries."
 order: 8
 section: "Developer docs"
+kind: "guide"
 ---
 
 Use a Pi extension when you need to add an agent tool, register a provider, or respond to agent-session events. Pi is the coding-agent runtime inside OpenWaggle. A Pi extension changes runtime behavior; it does not automatically add desktop UI.

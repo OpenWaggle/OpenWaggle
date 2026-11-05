@@ -3,6 +3,7 @@ title: "Per-project configuration"
 description: "Configure project resources, shared actions, and advanced options without changing every project."
 order: 13
 section: "Customize"
+kind: "guide"
 ---
 
 Use Settings for ordinary changes such as connecting a model, choosing an access mode, or changing fonts. Use a project configuration file when you need settings that apply only to one repository.

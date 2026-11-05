@@ -3,6 +3,7 @@ title: "Right panel and panel rail"
 description: "Open Changes, Project Actions, Scheduled, Browser, Files, the Session tree, Resources, the Hive panel and extension panels from one rail, and arrange it the way you work."
 order: 3
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 The right panel shows one panel at a time beside the conversation: Changes, Project Actions, Scheduled (the project's [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks)), Browser, Files, the Session tree, Resources, the Hive panel, or a panel added by an extension. The **panel rail** on its right edge is how you move between them.

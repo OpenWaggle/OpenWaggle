@@ -3,6 +3,7 @@ title: "Get started"
 description: "Connect a model, open a project, ask about your code, and review your first change in OpenWaggle."
 order: 1
 section: "Getting started"
+kind: "guide"
 ---
 
 OpenWaggle is a desktop app for working on code with an AI agent. You describe a task in a conversation. The agent can read project files, edit code, and run commands using tools.

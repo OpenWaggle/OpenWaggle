@@ -3,6 +3,7 @@ title: "Git integration"
 description: "Review the agent's file changes, send corrections, and commit or push from the session's working directory."
 order: 3
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 The agent's file edits happen on disk. Use the diff panel to review what changed before you commit or push. Opening the diff does not approve or apply edits; they have already been made.

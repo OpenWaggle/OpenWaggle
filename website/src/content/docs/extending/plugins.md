@@ -3,6 +3,7 @@ title: "Install extensions"
 description: "Install a local extension, review its permissions, and enable or remove it in Settings."
 order: 6
 section: "Customize"
+kind: "guide"
 ---
 
 Extensions add features such as settings pages, side panels, commands, and agent tools. They run code, unlike [skills](/docs/extending/skills-system), which provide instructions. Only install extensions from a source you trust.

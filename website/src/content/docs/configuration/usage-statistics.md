@@ -3,6 +3,7 @@ title: "Usage statistics and error reports"
 description: "Every field in OpenWaggle's anonymous usage statistics and error reports, where they go, and how to turn them off."
 order: 3
 section: "Help"
+kind: "guide"
 ---
 
 Released builds of OpenWaggle send anonymous usage statistics and error reports. Both are on from the first time you open the app, and OpenWaggle does not ask first. Counting only the installs that opt in would leave the numbers too incomplete to plan with, so OpenWaggle builds the reports to say nothing about who you are. This page is the notice, and the switch in Settings and `openwaggle --help` both link here.

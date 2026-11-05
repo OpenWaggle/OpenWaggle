@@ -3,6 +3,7 @@ title: "App settings"
 description: "Find settings for models, permissions, appearance, browser previews, and project tools."
 order: 8
 section: "Customize"
+kind: "guide"
 ---
 
 Click the gear icon in the sidebar to open Settings. For a first setup, connect a model in **Connections**, choose an access mode in **Permissions**, and leave the other settings alone until you need them.

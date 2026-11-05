@@ -3,6 +3,7 @@ title: "@openwaggle/waggle-core"
 description: "Runtime-neutral Waggle policy, prompts, state, presets, consensus, and turn orchestration primitives."
 order: 4
 section: "Packages"
+kind: "guide"
 ---
 
 `@openwaggle/waggle-core` contains the reusable Waggle policy layer.

@@ -3,6 +3,7 @@ title: "@openwaggle/extension-sdk"
 description: "Browser-safe OpenWaggle extension SDK types, broker helpers, theme helpers, and federated-module context helpers."
 order: 2
 section: "Packages"
+kind: "guide"
 ---
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.

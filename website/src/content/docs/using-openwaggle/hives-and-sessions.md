@@ -3,6 +3,7 @@ title: "Hives and sessions"
 description: "Split a task across independent worker sessions, choose their workspaces, and review the results."
 order: 1
 section: "Multiple agents"
+kind: "guide"
 ---
 
 Use a Hive when a task has parts that can be assigned to independent agents. For example, one agent can investigate a bug while another reviews the related tests. This is optional; a normal conversation is enough for many tasks.

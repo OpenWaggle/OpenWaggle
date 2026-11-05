@@ -3,6 +3,7 @@ title: "Project actions"
 description: "Save project commands, manage their runs, and prepare new worktrees."
 order: 7
 section: "Customize"
+kind: "guide"
 ---
 
 Project actions are commands you save for a project, such as tests, builds, or a development server. Run them from **Project Actions** in the right panel: choose its icon on the panel rail along the right edge of the window. The icon shows a dot while one of the session's actions is running. Running and recent runs also appear under **Actions** in [Session Summary](/docs/using-openwaggle/session-summary).

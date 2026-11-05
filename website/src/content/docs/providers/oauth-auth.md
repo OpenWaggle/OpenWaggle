@@ -3,6 +3,7 @@ title: "Browser sign-in"
 description: "Connect a provider through OAuth, finish a browser login, or disconnect an account."
 order: 11
 section: "Customize"
+kind: "guide"
 ---
 
 OAuth is browser-based sign-in. You approve access on the provider's website without giving OpenWaggle your account password. Use it when your provider appears under **OAuth Providers** in Settings.

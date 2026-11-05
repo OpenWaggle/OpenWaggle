@@ -3,6 +3,7 @@ title: "Command line"
 description: "Open the app, run an agent headlessly, check the Session Host, and find every openwaggle command."
 order: 5
 section: "Developer docs"
+kind: "reference"
 ---
 
 The `openwaggle` command opens the desktop app and runs everything else without it. The installed app includes the command; see [Installation](/docs/getting-started/installation) for putting it on your `PATH`. From a source checkout, use `pnpm cli:dev -- <command>`.

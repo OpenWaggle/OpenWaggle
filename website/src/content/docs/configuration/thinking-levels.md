@@ -3,6 +3,7 @@ title: "Thinking levels"
 description: "Choose how much reasoning effort a supported model uses for a task."
 order: 14
 section: "Customize"
+kind: "guide"
 ---
 
 A thinking level asks a model how much reasoning effort to spend before answering. Higher levels can help with difficult debugging or planning, but may take longer and use more of your provider's quota. They do not guarantee a correct answer.

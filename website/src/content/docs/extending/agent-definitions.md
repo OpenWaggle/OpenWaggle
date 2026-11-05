@@ -3,6 +3,7 @@ title: "Agent definitions"
 description: "Create a reusable role for new sessions, with instructions and optional model or tool defaults."
 order: 3
 section: "Multiple agents"
+kind: "guide"
 ---
 
 An agent definition gives a new session a reusable role, such as a code reviewer. It is an optional Markdown file with instructions and defaults. You do not need one to use OpenWaggle or create [Workers in a Hive](/docs/using-openwaggle/hives-and-sessions).

@@ -3,6 +3,7 @@ title: "Custom providers"
 description: "Use a private endpoint, local model server, or gateway with OpenWaggle."
 order: 12
 section: "Customize"
+kind: "guide"
 ---
 
 Use a custom provider when the endpoint or model you need is not already available in **Settings > Connections**. You will need its API address, model identifier, supported API format, and any required credentials.

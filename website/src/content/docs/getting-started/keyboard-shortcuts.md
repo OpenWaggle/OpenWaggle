@@ -3,6 +3,7 @@ title: "Keyboard shortcuts"
 description: "Default shortcuts for conversations, terminals, browser preview, and navigation."
 order: 9
 section: "Customize"
+kind: "reference"
 ---
 
 These are the default bindings. Open **Settings > Shortcuts** to see or change configurable bindings. Sidebar filtering and pinned-session number keys are reserved rather than configurable. Some shortcuts depend on where focus is: for example, `Cmd/Ctrl+D` splits a terminal when you are typing in it, but toggles Changes elsewhere.

@@ -3,6 +3,7 @@ title: "Hive CLI"
 description: "Coordinate, discover, control, watch, and export OpenWaggle Sessions from a terminal or another agent."
 order: 5
 section: "Developer docs"
+kind: "reference"
 ---
 
 Use `openwaggle hive` to find conversations, start work, send follow-ups, review Workers' Delegations, or export a transcript from a terminal. The commands operate on the same sessions you see in the desktop app.

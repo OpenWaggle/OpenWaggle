@@ -3,6 +3,7 @@ title: "Context management"
 description: "Understand the context meter and keep a long conversation usable with compaction."
 order: 9
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 A model's context window is the amount of information it can use in one request. Your messages, the agent's replies, file contents, tool results, and instructions all take space. Models measure that space in tokens, which are pieces of text rather than whole words.

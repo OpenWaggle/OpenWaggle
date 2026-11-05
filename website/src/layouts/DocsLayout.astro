@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button.astro';
 import PackageInstallTabs from '@/components/docs/PackageInstallTabs.astro';
 import PackageVersionSelect from '@/components/docs/PackageVersionSelect.astro';
 import DocsImageLightbox from '@/components/docs/DocsImageLightbox.astro';
+import DocsCodeCopy from '@/components/docs/DocsCodeCopy.astro';
 import { packageDocumentationPage } from '@/data/package-docs';
 import { DEFAULT_DESCRIPTION, docsArticleJsonLd, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
 
@@ -73,4 +74,5 @@ const jsonLd = [organizationJsonLd(), websiteJsonLd(), ...docsArticleJsonLd({
 
   <PackageInstallTabs />
   <DocsImageLightbox />
+  <DocsCodeCopy />
 </BaseLayout>

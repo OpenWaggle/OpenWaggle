@@ -3,6 +3,7 @@ title: "Model Context Protocol"
 description: "Connect external tools and services to the agent with MCP servers, using the same configuration as Pi."
 order: 5
 section: "Customize"
+kind: "guide"
 ---
 
 Model Context Protocol, or MCP, connects the agent to external tools and services. An MCP server might search your issue tracker, read documentation, or drive a browser. You do not need MCP for ordinary file editing or terminal commands.

@@ -3,6 +3,7 @@ title: "Approvals and permissions"
 description: "Choose agent access, review protected actions, and revoke saved approvals."
 order: 2
 section: "Customize"
+kind: "guide"
 ---
 
 Start with **Ask for Approval** while you learn how the agent works. This asks you to review protected actions. It is not a read-only mode, an operating-system sandbox, or a prompt before every file edit.

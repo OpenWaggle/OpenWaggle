@@ -3,6 +3,7 @@ title: "Building from source"
 description: "How to clone, build, and run OpenWaggle from source."
 order: 1
 section: "Developer docs"
+kind: "guide"
 ---
 
 Use a source checkout to investigate a bug or work on a local build. If you only want to use the app, follow [Installation](/docs/getting-started/installation). Code pull requests are not currently accepted; see [Contributing](/docs/developer-guide/contributing) before preparing a proposal.

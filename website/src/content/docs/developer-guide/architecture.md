@@ -3,6 +3,7 @@ title: "Architecture"
 description: "Find the main processes, session owner, runtime adapter, and UI boundaries in the OpenWaggle source."
 order: 3
 section: "Developer docs"
+kind: "overview"
 ---
 
 Use this guide to find where a change belongs in the source. OpenWaggle uses Electron for the desktop app and Pi for agent execution. The local Session Host owns session execution and saved state; the desktop UI and CLI act as clients.

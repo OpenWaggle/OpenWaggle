@@ -3,6 +3,7 @@ title: "Project instructions"
 description: "Add an AGENTS.md file with the commands, conventions, and constraints the agent should follow."
 order: 3
 section: "Customize"
+kind: "guide"
 ---
 
 Create an `AGENTS.md` file in your project root to give the agent instructions you would otherwise repeat in each conversation. Include the commands it should use, files it should leave alone, and checks it should run before reporting a task complete.

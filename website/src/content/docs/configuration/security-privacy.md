@@ -3,6 +3,7 @@ title: "Security and privacy"
 description: "Understand what stays on your machine, what can leave it, and what permissions do not protect."
 order: 2
 section: "Help"
+kind: "guide"
 ---
 
 OpenWaggle stores conversation data locally, but a local session is not the same as a local AI request. When you use a hosted model, your messages and any file contents, attachments, or tool output included in its context are sent to that provider. The provider's data-handling policy applies.

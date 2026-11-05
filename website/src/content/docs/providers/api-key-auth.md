@@ -3,6 +3,7 @@ title: "API key authentication"
 description: "Save, test, replace, or clear a provider API key in OpenWaggle."
 order: 10
 section: "Customize"
+kind: "guide"
 ---
 
 Create an API key in your provider's account before connecting it to OpenWaggle. Check that the account has access to the model you want and any required billing setup. Keep the key out of chat messages, screenshots, and committed project files.

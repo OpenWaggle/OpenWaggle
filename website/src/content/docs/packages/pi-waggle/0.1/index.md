@@ -3,6 +3,7 @@ title: "@openwaggle/pi-waggle"
 description: "Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit."
 order: 5
 section: "Packages"
+kind: "guide"
 ---
 
 `@openwaggle/pi-waggle` adds a structured two-agent collaboration loop to Pi.

@@ -3,6 +3,7 @@ title: "Projects and worktrees"
 description: "Choose whether the agent works in your current checkout or a separate Git worktree."
 order: 8
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 A project is a folder you open in OpenWaggle. A session is a conversation about work in that project. Before its first message, choose which working directory the session will use.

@@ -6,6 +6,7 @@ import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
 import { rehypeZoomableImages } from './src/lib/markdown-images';
 import { remarkMermaidDiagrams } from './src/lib/markdown-mermaid';
+import { rehypeScrollableTables } from './src/lib/markdown-tables';
 import { isIndexablePage } from './src/lib/sitemap';
 import { rehypeTrailingSlashLinks } from './src/lib/site-paths';
 
@@ -26,6 +27,7 @@ export default defineConfig({
         // First, so the links it adds to images go through the link plugins below.
         rehypeZoomableImages,
         [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
+        rehypeScrollableTables,
         rehypeTrailingSlashLinks,
       ],
     }),

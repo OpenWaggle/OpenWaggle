@@ -3,6 +3,7 @@ title: "Scheduled tasks"
 description: "Send a prompt on a schedule, into an existing Session or as a new Session each time."
 order: 8
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 A Scheduled task delivers a prompt for you on a schedule. There are two kinds:

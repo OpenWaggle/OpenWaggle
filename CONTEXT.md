@@ -2,6 +2,8 @@
 
 OpenWaggle is an Electron desktop coding-agent workspace built on Pi. This glossary captures product-domain language that should stay stable across planning, issues, docs, and implementation.
 
+In user-facing docs (`website/src/content/docs/`), write the glossary's ordinary nouns in lowercase (session, run, worker, follow-up, steering, delegation, workspace) and keep capitals only for names (OpenWaggle, Pi, Hive, Queen, Waggle, Session Host) and UI labels spelled as the app shows them (ADR 0061). Code, issues, ADRs, and agent-facing text keep the capitalised terms below.
+
 Unless a statement is explicitly labelled as current implementation, this glossary describes the agreed product model. The Session Host cutover implements the Session Control, Hive, and native Hive-tool model below; since ADR 0053 the tool, CLI and MCP tool are named `hive`, `openwaggle hive` and `openwaggle_hive`, and their former `sessions` names are not accepted. Older entries that describe the pre-cutover runtime are historical context.
 
 ## Language

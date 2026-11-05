@@ -3,6 +3,7 @@ title: "Develop extensions"
 description: "Build a local extension package that adds desktop UI, commands, or agent tools."
 order: 7
 section: "Developer docs"
+kind: "guide"
 ---
 
 Build an OpenWaggle extension when you need to add desktop UI, commands, or agent tools. An extension is a local package with a manifest and declared code files. For reusable instructions without new code, use a [skill](/docs/extending/skills-system) instead.

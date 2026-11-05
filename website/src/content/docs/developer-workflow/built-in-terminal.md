@@ -3,6 +3,7 @@ title: "Built-in terminal"
 description: "Run commands yourself, manage terminal tabs, and share command output with the agent."
 order: 5
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 Use the built-in terminal to run commands yourself, such as starting a development server or checking the agent's work with your project's tests. It is separate from the commands the agent runs through its tools.

@@ -3,6 +3,7 @@ title: "Pi runtime"
 description: "How OpenWaggle connects Pi's agent execution to desktop tools, session history, and MCP."
 order: 4
 section: "Developer docs"
+kind: "overview"
 ---
 
 Pi is the coding-agent runtime inside OpenWaggle. The current source pins the Pi version in the `pi-runtime` catalog of `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.

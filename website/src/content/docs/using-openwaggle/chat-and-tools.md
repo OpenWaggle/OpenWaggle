@@ -3,6 +3,7 @@ title: "Conversations and tools"
 description: "Give the agent a task, follow its tool activity, and continue work in a project conversation."
 order: 1
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 A session is a conversation about work in a project. It keeps your messages, the agent's replies, and a record of the tools it used. You can return to the same session later instead of explaining the task again.

@@ -3,6 +3,7 @@ title: "Providers and models"
 description: "Connect a provider account, enable models, and choose a model for your conversation."
 order: 1
 section: "Customize"
+kind: "guide"
 ---
 
 A provider gives OpenWaggle access to AI models. You bring your own account, and the provider's charges and usage limits still apply. Connecting an account and choosing a model are separate steps.

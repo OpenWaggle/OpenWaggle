@@ -3,6 +3,7 @@ title: "Session Summary and resources"
 description: "Check a session's working directory, review changes, and find files and images shared during the conversation."
 order: 7
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 Session Summary brings together the current session's working directory, Git actions, shared files, and results. Use it to find something from the conversation without scrolling back through every message.

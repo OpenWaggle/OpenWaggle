@@ -3,6 +3,7 @@ title: "Troubleshooting and recovery"
 description: "Resolve connection problems, waiting sessions, and missing worktrees before considering database recovery."
 order: 1
 section: "Help"
+kind: "guide"
 ---
 
 Start with the problem you can see. Read the error or pending request before retrying. Database restoration is not a fix for an unavailable model, a waiting approval, or a deleted worktree.

@@ -3,6 +3,7 @@ title: "Installation"
 description: "How to install OpenWaggle on macOS, Windows, or Linux."
 order: 2
 section: "Getting started"
+kind: "guide"
 ---
 
 Download an installer from [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases). Choose the version and platform you intend to use; prereleases are marked on GitHub. You do not need Node.js or a source checkout to run the installed app.
@@ -68,20 +69,19 @@ The script does not open the app over SSH, in CI, or on Linux without a display.
 install without opening it, set `OPENWAGGLE_NO_LAUNCH=1` or pass `--no-launch`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
-  | bash -s -- --no-launch
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash -s -- --no-launch
 ```
 
-To opt into a prerelease channel, use the same installer:
+To opt into a prerelease channel, use the same installer. Beta also receives release candidates and Stable releases:
 
 ```bash
-# Alpha also receives Beta, release candidate, and Stable releases.
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
-  | OPENWAGGLE_CHANNEL=alpha bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=beta bash
+```
 
-# Beta also receives release candidate and Stable releases.
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
-  | OPENWAGGLE_CHANNEL=beta bash
+Alpha also receives Beta, release candidate and Stable releases:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=alpha bash
 ```
 
 The installer saves the selected policy channel, not merely the channel label on the artifact it
@@ -95,9 +95,7 @@ Installing a version older than the one you have is a downgrade, which OpenWaggl
 support: an older version may not open data a newer one has already migrated.
 
 ```bash
-# Example tag: v1.0.0 is published when OpenWaggle 1.0 ships.
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh \
-  | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
 ```
 
 ## Command-line access
@@ -112,15 +110,21 @@ agents headlessly and control the same live Sessions shown in the app; see
 ## Choose an update channel
 
 The app and CLI share one saved update channel. Change it from **Settings → General → About &
-Updates**, or from a terminal. Check availability first, then choose one channel or an exact version:
+Updates**, or from a terminal. To check what is available without changing anything:
 
 ```bash
 openwaggle update --check
-openwaggle update --channel alpha
+```
+
+To switch channel, run one of these with `alpha`, `beta` or `stable`:
+
+```bash
 openwaggle update --channel beta
-openwaggle update --channel stable
-# Exact-version example; choose a version published on GitHub Releases.
-# 1.0.0 is published when OpenWaggle 1.0 ships.
+```
+
+To install an exact version, replace `1.0.0` with a version listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases):
+
+```bash
 openwaggle update --version 1.0.0
 ```
 

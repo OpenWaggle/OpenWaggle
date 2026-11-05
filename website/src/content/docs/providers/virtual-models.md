@@ -3,6 +3,7 @@ title: "Virtual models"
 description: "Use a router model that sends each request to a different real model, and see which model answered."
 order: 3
 section: "Customize"
+kind: "guide"
 ---
 
 A virtual model is a model you pick like any other, but it does not answer by itself. A small program called a router looks at each request and sends it to a real model. A router might send quick questions to a small, cheap model and hard problems to a large one, while you keep one model selected for the whole session.

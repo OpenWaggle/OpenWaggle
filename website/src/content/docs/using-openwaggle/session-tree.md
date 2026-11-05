@@ -3,6 +3,7 @@ title: "Session tree and branches"
 description: "Return to an earlier message, try another approach, or copy a conversation into a new session."
 order: 6
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 Use the Session tree when you want to return to an earlier point in a conversation and try a different approach. A conversation branch keeps the original path available while you continue along another.

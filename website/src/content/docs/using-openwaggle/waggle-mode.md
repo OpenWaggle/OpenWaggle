@@ -3,6 +3,7 @@ title: "Waggle Mode"
 description: "Let two agents take sequential turns on a task in the same conversation."
 order: 2
 section: "Multiple agents"
+kind: "guide"
 ---
 
 Waggle Mode is optional. It lets two configured agents take turns on one task in the same conversation. For example, one can propose a change and the other can review it.

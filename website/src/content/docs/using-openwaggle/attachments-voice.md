@@ -3,6 +3,7 @@ title: "Attachments and voice input"
 description: "Share a file or screenshot with the agent, or dictate a message and review it before sending."
 order: 2
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 Attach a file when the agent needs something outside the project, such as a screenshot, sample data, or a document. Use a project-file reference when the file is already in your repository.

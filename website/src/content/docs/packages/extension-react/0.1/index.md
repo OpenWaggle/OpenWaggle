@@ -3,6 +3,7 @@ title: "@openwaggle/extension-react"
 description: "React primitives for OpenWaggle extension surfaces that use the extension UI style contract."
 order: 3
 section: "Packages"
+kind: "guide"
 ---
 
 `@openwaggle/extension-react` provides small React primitives for OpenWaggle extension surfaces.

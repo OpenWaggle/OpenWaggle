@@ -3,6 +3,7 @@ title: "@openwaggle/extension-react API"
 description: "Complete public API reference for @openwaggle/extension-react 0.1."
 order: 90
 section: "Packages"
+kind: "reference"
 ---
 
 <!-- Generated from the checked public package declarations. -->

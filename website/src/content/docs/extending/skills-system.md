@@ -3,6 +3,7 @@ title: "Skills"
 description: "Give the agent a reusable workflow with a SKILL.md file, then select it in a conversation."
 order: 4
 section: "Customize"
+kind: "guide"
 ---
 
 A skill is a set of instructions for a particular task, such as reviewing a change or writing a migration. It lives in a `SKILL.md` file. Skills do not install new tools or grant permissions.

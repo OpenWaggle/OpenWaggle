@@ -3,6 +3,7 @@ title: "Codemode"
 description: "Let the agent write a short script that calls several tools in one step, and read what the script did."
 order: 4
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 Codemode is a tool that lets the agent write a small JavaScript program that calls its other tools. Instead of reading ten files one at a time, the agent can read all ten in one script and keep only the lines it needs. Only what the script prints reaches the model, so long outputs stay out of the conversation and the work finishes sooner.

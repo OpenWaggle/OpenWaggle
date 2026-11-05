@@ -71,10 +71,10 @@ function namedExportParts(rawExport: string) {
   const normalized = rawExport.trim().replace(/^type\s+/u, '')
   const [importedName, exportedName = importedName] = normalized.split(/\s+as\s+/u)
   if (
-    importedName === undefined
-    || exportedName === undefined
-    || !/^[A-Za-z_$][\w$]*$/u.test(importedName)
-    || !/^[A-Za-z_$][\w$]*$/u.test(exportedName)
+    importedName === undefined ||
+    exportedName === undefined ||
+    !/^[A-Za-z_$][\w$]*$/u.test(importedName) ||
+    !/^[A-Za-z_$][\w$]*$/u.test(exportedName)
   ) {
     return undefined
   }
@@ -88,8 +88,7 @@ function mergeStarExports(
   declaration: string,
   visiting: ReadonlySet<string>,
 ) {
-  const starExportPattern =
-    /^export\s+(?:type\s+)?\*\s+from\s+['"]([^'"]+)['"]\s*;/gmu
+  const starExportPattern = /^export\s+(?:type\s+)?\*\s+from\s+['"]([^'"]+)['"]\s*;/gmu
   for (const match of declaration.matchAll(starExportPattern)) {
     const specifier = match[1]
     const targetPath = specifier
@@ -116,17 +115,16 @@ function mergeNamedExports(
     const targetPath = specifier
       ? declarationPathFromSpecifier(declarationPath, specifier)
       : undefined
-    const targetSymbols = specifier === undefined
-      ? [...symbols.values()]
-      : targetPath
-        ? exportedSymbols(sections, targetPath, visiting)
-        : []
+    const targetSymbols =
+      specifier === undefined
+        ? [...symbols.values()]
+        : targetPath
+          ? exportedSymbols(sections, targetPath, visiting)
+          : []
     for (const rawExport of match[1]?.split(',') ?? []) {
       const parts = namedExportParts(rawExport)
       if (parts === undefined) continue
-      const targetSymbol = targetSymbols.find(
-        (candidate) => candidate.name === parts.importedName,
-      )
+      const targetSymbol = targetSymbols.find((candidate) => candidate.name === parts.importedName)
       symbols.set(parts.exportedName, {
         kind: targetSymbol?.kind ?? 're-export',
         name: parts.exportedName,
@@ -158,7 +156,8 @@ function exportedSymbols(
 const PACKAGE_MODULE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   '@openwaggle/extension-sdk': {
     '.': 'Convenience entry point that re-exports the complete browser-safe extension author contract.',
-    './agent-loop': 'Typed DTOs and schemas for tool, interaction, transcript, custom-message, and run-status surfaces.',
+    './agent-loop':
+      'Typed DTOs and schemas for tool, interaction, transcript, custom-message, and run-status surfaces.',
     './broker': 'Capability-broker request, response, scope, audit, and SDK helpers.',
     './constants': 'Stable extension and broker protocol constants.',
     './context': 'Federated-module mount context, surface SDK, and shared-module helpers.',
@@ -199,18 +198,25 @@ const PACKAGE_MODULE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<strin
 }
 
 function moduleDescription(packageName: string, subpath: string) {
-  return PACKAGE_MODULE_DESCRIPTIONS[packageName]?.[subpath]
-    ?? `Public API for the \`${subpath}\` package export.`
+  return (
+    PACKAGE_MODULE_DESCRIPTIONS[packageName]?.[subpath] ??
+    `Public API for the \`${subpath}\` package export.`
+  )
 }
 
-function renderModule(input: RenderApiReferenceInput, sections: ReadonlyMap<string, string>, subpath: string, target: unknown) {
+function renderModule(
+  input: RenderApiReferenceInput,
+  sections: ReadonlyMap<string, string>,
+  subpath: string,
+  target: unknown,
+) {
   const typesPath = exportTypesPath(target)
-  const symbols = typesPath === undefined
-    ? []
-    : exportedSymbols(sections, typesPath.replace(/^\.\//u, ''))
-  const importPath = subpath === '.'
-    ? input.packageName
-    : `${input.packageName}/${subpath.slice(SUBPATH_PREFIX_LENGTH)}`
+  const symbols =
+    typesPath === undefined ? [] : exportedSymbols(sections, typesPath.replace(/^\.\//u, ''))
+  const importPath =
+    subpath === '.'
+      ? input.packageName
+      : `${input.packageName}/${subpath.slice(SUBPATH_PREFIX_LENGTH)}`
   const lines = [`## \`${importPath}\``, '', moduleDescription(input.packageName, subpath), '']
   if (symbols.length === 0) {
     lines.push('This export contains styles or re-exports the typed modules listed below.', '')
@@ -227,20 +233,23 @@ export function renderApiReference(input: RenderApiReferenceInput) {
   const moduleSections = Object.entries(input.exports).map(([subpath, target]) =>
     renderModule(input, sections, subpath, target),
   )
-  return normalizeMarkdown([
-    '---',
-    `title: "${input.packageName} API"`,
-    `description: "Complete public API reference for ${input.packageName} ${input.version}."`,
-    'order: 90',
-    'section: "Packages"',
-    '---',
-    '',
-    GENERATED_API_MARKER,
-    '',
-    `This reference inventories every public entry point and named export in \`${input.packageName}\` ${input.version}.`,
-    '',
-    input.apiDescription,
-    '',
-    ...moduleSections,
-  ].join('\n'))
+  return normalizeMarkdown(
+    [
+      '---',
+      `title: "${input.packageName} API"`,
+      `description: "Complete public API reference for ${input.packageName} ${input.version}."`,
+      'order: 90',
+      'section: "Packages"',
+      'kind: "reference"',
+      '---',
+      '',
+      GENERATED_API_MARKER,
+      '',
+      `This reference inventories every public entry point and named export in \`${input.packageName}\` ${input.version}.`,
+      '',
+      input.apiDescription,
+      '',
+      ...moduleSections,
+    ].join('\n'),
+  )
 }

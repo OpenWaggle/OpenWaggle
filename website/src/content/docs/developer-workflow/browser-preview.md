@@ -3,6 +3,7 @@ title: "Browser preview"
 description: "Open your running web app, check different screen sizes, and send visual feedback to the agent."
 order: 4
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
 Browser preview opens a web page inside OpenWaggle. Use it to check the app you are building and show the agent what needs changing. You and the agent use the same page, so you can inspect its actions or take over.

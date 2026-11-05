@@ -3,6 +3,7 @@ title: "Contributing"
 description: "Report bugs, suggest features, and improve the documentation through GitHub issues."
 order: 2
 section: "Developer docs"
+kind: "guide"
 ---
 
 OpenWaggle currently accepts community input through GitHub issues. Code pull requests are not yet accepted. See the repository's [CONTRIBUTING.md](https://github.com/OpenWaggle/OpenWaggle/blob/main/CONTRIBUTING.md) for the contribution policy.
