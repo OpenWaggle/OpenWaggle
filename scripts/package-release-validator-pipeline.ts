@@ -24,6 +24,18 @@ const EXPECTED_PACKAGE_PATHS = [
   'packages/pi-waggle',
 ] as const
 
+/** Release Please never relabels merged release PRs while skip-github-release is set, so the workflow must. */
+function validateReleaseLabelJob(workflowText: string, violations: string[]) {
+  const markTagged = workflowJobBlock(workflowText, 'mark-release-tagged')
+  requireText(markTagged, [
+    ['- publish', `${WORKFLOW_PATH} must mark the merged release PR tagged only after promotion creates every tag.`],
+    ["needs.publish.result == 'success'", `${WORKFLOW_PATH} must mark the merged release PR tagged only after promotion creates every tag.`],
+    ['pull-requests: write', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
+    ['labels[]=autorelease: tagged', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
+    ['labels/autorelease%3A%20pending', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
+  ], violations)
+}
+
 function validatePackageReleaseWorkflow(
   workflowText: string, promoteSource: string,
   artifactsSource: string, locatorSource: string, contextSource: string,
@@ -41,7 +53,6 @@ function validatePackageReleaseWorkflow(
   const releasePlease = workflowJobBlock(workflowText, 'release-please')
   const releasePlan = workflowJobBlock(workflowText, 'release-plan')
   const publish = workflowJobBlock(workflowText, 'publish')
-  const markTagged = workflowJobBlock(workflowText, 'mark-release-tagged')
   for (const packagePath of EXPECTED_PACKAGE_PATHS) {
     addViolation(!workflowText.includes(`${packagePath}/**`), `${WORKFLOW_PATH} must trigger for ${packagePath}/**.`, violations)
   }
@@ -96,13 +107,7 @@ function validatePackageReleaseWorkflow(
     ['RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}', `${WORKFLOW_PATH} recovery promotion must bind to the explicit merged release SHA.`],
     [`${DIRECT_NODE} scripts/package-release-promote.ts`, `${WORKFLOW_PATH} must promote only through the typed artifact promoter.`],
   ], violations)
-  requireText(markTagged, [
-    ['- publish', `${WORKFLOW_PATH} must mark the merged release PR tagged only after promotion creates every tag.`],
-    ["needs.publish.result == 'success'", `${WORKFLOW_PATH} must mark the merged release PR tagged only after promotion creates every tag.`],
-    ['pull-requests: write', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
-    ['labels[]=autorelease: tagged', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
-    ['labels/autorelease%3A%20pending', `${WORKFLOW_PATH} must relabel the merged release PR so later Release Please runs do not abort.`],
-  ], violations)
+  validateReleaseLabelJob(workflowText, violations)
   const forbiddenWorkflowText = executableWorkflowText(workflowText)
   for (const forbidden of ['npm stage', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'gh pr merge', 'enablePullRequestAutoMerge']) {
     addViolation(forbiddenWorkflowText.includes(forbidden), `${WORKFLOW_PATH} must not contain ${forbidden}.`, violations)
