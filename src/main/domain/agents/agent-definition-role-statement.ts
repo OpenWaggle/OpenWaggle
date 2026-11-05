@@ -69,9 +69,20 @@ const PHRASE_BREAKS = new Set(
 )
 /** The longest noun phrase read after the opener, determiner excluded; a longer one is no role. */
 const MAX_PHRASE_WORDS = 5
-/** A label line that introduces the objective's own text: "Role:", "Your task:", "## Context:". */
+/** A line ending in a colon, emphasis around it allowed: "Worker objective:", "**Each gets:**". */
+const COLON_LINE = /:[\s*_]*$/u
+/** A label line that introduces the objective's own text: "Role:", "**Your task:**", "## Context:". */
 const OWN_LABEL =
-  /^[\s*_#>-]*(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)\s*:\s*$/iu
+  /^[\s*_#>-]*(?:your\s+)?(?:role|task|goal|scope|context|mission|objective)[*_]*\s*:[\s*_]*$/iu
+/** Tokens that join a second role as "and" does: "the reviewer & fixer", "reviewer / fixer". */
+const ROLE_JOINERS = new Set(['&', '+', '/'])
+/**
+ * After a comma, a list of further roles ("the planner, implementer and tester"): agent nouns
+ * joined by commas and a last "and" or "or". A verb after the comma ("the reviewer, review and
+ * report") is not one, so the phrase still reads.
+ */
+const ROLE_LIST =
+  /^(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?(?:,\s*(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?)*,?\s+(?:and|or)\s+(?:(?:an?|the)\s+)?\p{L}+(?:er|or|ist|ant|ect)s?\b/iu
 
 export function nameWords(name: string) {
   // Every word of the name, short ones included: `ux-reviewer` and `qa` keep their qualifier.
@@ -87,6 +98,18 @@ function isPluralPossessive(word: string) {
 }
 
 /**
+ * What a token does to the phrase before it is read as a word: `drop` the whole phrase (a quoted
+ * word, a possessive, a joined second role), `end` it (a contraction: "who's", "it's"), or nothing.
+ */
+function tokenStop(raw: string): 'drop' | 'end' | undefined {
+  if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw) || ROLE_JOINERS.has(raw)) return 'drop'
+  // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
+  const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
+  if (!contraction) return undefined
+  return CONTRACTION_BASES.has(contraction[1] ?? '') ? 'end' : 'drop'
+}
+
+/**
  * "independent code reviewer" from "an independent code reviewer with a fresh context": the
  * noun phrase right after the opener, a determiner that opens it left out. A possessive means
  * its head is another noun ("the reviewer's assistant"), so it gives no phrase.
@@ -94,11 +117,10 @@ function isPluralPossessive(word: string) {
 function rolePhrase(rest: string) {
   const phrase: string[] = []
   let opening = true
-  for (const raw of rest.split(/\s+/u)) {
-    if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw)) return []
-    // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
-    const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
-    if (contraction) return CONTRACTION_BASES.has(contraction[1] ?? '') ? phrase : []
+  const tokens = rest.split(/\s+/u)
+  for (const [index, raw] of tokens.entries()) {
+    const stop = tokenStop(raw)
+    if (stop) return stop === 'end' ? phrase : []
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
     if (core === '' || PHRASE_BREAKS.has(core)) break
@@ -108,7 +130,9 @@ function rolePhrase(rest: string) {
     if (opens && DETERMINERS.has(core)) continue
     phrase.push(...nameWords(core))
     if (phrase.length > MAX_PHRASE_WORDS) return []
-    if (core !== word) break
+    if (core === word) continue
+    const listed = word.endsWith(',') && ROLE_LIST.test(tokens.slice(index + 1).join(' '))
+    return listed ? [] : phrase
   }
   return phrase
 }
@@ -132,7 +156,7 @@ function beforeIntroducingLine(text: string) {
   let start = 0
   for (const line of text.split('\n')) {
     start += line.length + 1
-    if (/:\s*$/u.test(line) && !OWN_LABEL.test(line)) return text.slice(0, start)
+    if (COLON_LINE.test(line) && !OWN_LABEL.test(line)) return text.slice(0, start)
   }
   return text
 }

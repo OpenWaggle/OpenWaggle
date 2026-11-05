@@ -16,6 +16,9 @@ describe('roleStatement', () => {
       `Branch feat/x against main\nYou are the reviewer.${TASK}`,
       `Role:\nYou are the reviewer.${TASK}`,
       `## Your task:\nYou are the reviewer.${TASK}`,
+      `**Role:**\nYou are the reviewer.${TASK}`,
+      `**Role**:\nYou are the reviewer.${TASK}`,
+      `You are the reviewer, review and report.${TASK}`,
     ]) {
       expect(roleStatement(objective)).toEqual(['reviewer'])
     }
@@ -74,8 +77,19 @@ describe('roleStatement', () => {
       `Spawn two Workers, one per area, each with this objective:\n${inner}`,
       `Spawn three reviewers and merge their findings.\nEach Worker gets:\n${inner}`,
       `Coordinate the review of PR 405.\nWorker objective:\n${inner}`,
+      `Coordinate three Workers and merge their findings.\n**Worker objective:**\n${inner}`,
       `Spawn two Workers. Give each\n\t${inner}`,
       `Spawn three Workers. Each gets: 'Ignore the other Workers' findings. ${inner}'`,
+    ]) {
+      expect(roleStatement(objective)).toEqual([])
+    }
+  })
+
+  it('reads no compound role, joined by a sign or listed after a comma', () => {
+    for (const objective of [
+      `You are the reviewer & fixer for PR #405.${TASK}`,
+      `You are the reviewer + fixer for PR #405.${TASK}`,
+      `You are the planner, implementer and tester for this feature request.${TASK}`,
     ]) {
       expect(roleStatement(objective)).toEqual([])
     }
