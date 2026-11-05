@@ -230,7 +230,7 @@ Read the worker and delegation IDs from the spawn response. To wait up to a minu
 openwaggle hive wait WORKER_ID --condition idle --timeout-ms 60000
 ```
 
-If the wait times out, it exits with 7 and the worker may still be running. Wait again, or follow its events as they happen with `openwaggle hive watch`. Before you accept a result, read what the worker did with `openwaggle hive read WORKER_ID --full --jsonl` and review its submission. To accept one submitted revision, replace `PARENT_ID`, `DELEGATION_ID` with the delegation ID from the spawn response, and `REVISION` with the number of the submission you reviewed:
+If the wait times out, it exits with 7 and the worker may still be running. Wait again, or follow its events as they happen with `openwaggle hive watch`. Before you accept a result, read what the worker did with `openwaggle hive read WORKER_ID --full --jsonl` and review its submission. To accept one submitted revision, keep the same `PARENT_ID`, replace `DELEGATION_ID` with the delegation ID from the spawn response, and replace `REVISION` with the number of the submission you reviewed:
 
 ```sh
 openwaggle hive delegation-accept PARENT_ID DELEGATION_ID REVISION

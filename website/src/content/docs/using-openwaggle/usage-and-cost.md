@@ -68,7 +68,7 @@ If the scan fails, the page says **Usage & Cost is unavailable**. Choose **Try a
 
 ## What it reads
 
-Usage & Cost reads the session files in Pi's sessions folder, `~/.pi/agent/sessions`. Sessions you keep in another folder with [`PI_CODING_AGENT_SESSION_DIR`](/docs/reference/environment-variables#pi) or Pi's `sessionDir` setting are not counted.
+Usage & Cost reads the session files in the `sessions` folder of Pi's agent folder, `~/.pi/agent/sessions` unless [`PI_CODING_AGENT_DIR`](/docs/reference/environment-variables#pi) moves it. Sessions you keep in another folder with [`PI_CODING_AGENT_SESSION_DIR`](/docs/reference/environment-variables#pi) or Pi's `sessionDir` setting are not counted.
 
 Everything happens on your computer. The page reads only files already on your disk, and nothing it shows leaves your computer. It isn't related to OpenWaggle's anonymous [usage statistics](/docs/configuration/usage-statistics), which are a separate feature with their own setting.
 

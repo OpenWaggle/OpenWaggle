@@ -243,7 +243,7 @@ A steered message the agent has not read yet is not lost when its run ends first
 
 A direct steer that comes back runs with the session's settings, like any steer. `queue_list` marks it as `returnedSteer`, with the steer's run and its idempotency key, so the caller can find it instead of sending it again.
 
-Returned steers can push the queue past 256. To keep that bounded, the Session Host refuses a direct steer with `queue_capacity_reached` while the queue is full, and with `steering_capacity_reached` once the run holds 64 steers it could return. A stopped run pauses the queue as usual, so you can resume, steer or dismiss what came back.
+Returned steers can push the queue past 256. So the queue cannot grow without limit, the Session Host refuses a direct steer with `queue_capacity_reached` while the queue is full, and with `steering_capacity_reached` once the run holds 64 steers it could return. A stopped run pauses the queue as usual, so you can resume, steer or dismiss what came back.
 
 When you promote a follow-up in the app, its preview moves into the conversation while the Session Host handles it, and shows that it is waiting during compaction. The preview stays until the message reaches the transcript, even if you switch sessions. If the promotion is refused, the follow-up stays in the queue.
 

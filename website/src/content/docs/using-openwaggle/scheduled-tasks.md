@@ -13,7 +13,7 @@ A scheduled task sends a prompt for you on a schedule. Use one to keep an eye on
 | Heartbeat | It sends the prompt into one session you already have. |
 | Launch schedule | It starts a new session in a project, with its own model and workspace. |
 
-The Session Host runs scheduled tasks. While any task is turned on, the Host keeps running, even with every window closed. Nothing runs while your computer sleeps or the Host is not running. Exact limits, the command-line options and the export format are in the [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference).
+The Session Host runs scheduled tasks. While any task is turned on, the Session Host keeps running, even with every window closed. Nothing runs while your computer sleeps or the Session Host is not running. Exact limits, the command-line options and the export format are in the [scheduled tasks reference](/docs/using-openwaggle/scheduled-tasks-reference).
 
 ## Find your tasks
 
@@ -95,17 +95,17 @@ When a check does not need the session's own history, a Launch schedule, which s
 
 ## Read the run history
 
-Each run says what fired it: **Scheduled** when the schedule came due, **Catch-up** when it came due while the Host was not running or the computer slept, or **Run now** when someone chose **Run now**. One catch-up covers every missed time, and the history says how many. A manual run fires at once, not at a scheduled time, and the task's **Last run** line names the trigger too, so you never mistake it for a misfire.
+Each run says what fired it: **Scheduled** when the schedule came due, **Catch-up** when it came due while the Session Host was not running or the computer slept, or **Run now** when someone chose **Run now**. One catch-up covers every missed time, and the history says how many. A manual run fires at once, not at a scheduled time, and the task's **Last run** line names the trigger too, so you never mistake it for a misfire.
 
 A Heartbeat with a wake check leads with its last check, such as **Last check 07:04 · nothing to do · next 07:34**, and its Session Summary row says **Nothing to do**. Each Heartbeat run in the history shows its outcome, and whether the agent reported it or OpenWaggle worked it out.
 
 ## When a task cannot fire
 
-- If the computer slept or the Host was not running, the task runs once when the Host is back, marked as a catch-up, not once per missed time.
+- If the computer slept or the Session Host was not running, the task runs once when the Session Host is back, marked as a catch-up, not once per missed time.
 - If the Heartbeat's session is busy, because a run is active, messages are queued or a question waits for you, the Heartbeat waits and checks again every minute. It never steers or jumps the queue. If it is still waiting at its next time, OpenWaggle records the earlier firing as skipped.
 - If the `pi` command line wrote to the Heartbeat's session last, the Heartbeat waits as if the session were busy. Continue the session in OpenWaggle to let it run.
 - If a Launch schedule's previous session is still running, OpenWaggle skips that firing. A task has at most one run in progress.
-- If the Host is already running as many runs as it allows, OpenWaggle skips that firing and records it.
+- If the Session Host is already running as many runs as it allows, OpenWaggle skips that firing and records it.
 - If the Heartbeat's session was archived, the Heartbeat pauses and asks for your attention. Deleting the session deletes the Heartbeat.
 - If someone revoked the access profile that created the task, or it can no longer schedule work, the task stops and asks for your attention.
 - If a Launch schedule's model is gone, or its agent definition no longer works, the task stops and asks for your attention. It never falls back to another model.
@@ -139,7 +139,7 @@ Each session is titled with the task's name and the date, and its row in the sid
 
 To keep tasks firing after you restart or log out, turn on **Background start** in **Settings > Scheduled tasks**. OpenWaggle then starts only the Session Host, with no window, when you log in. It offers this after you create your first task. Background start works in installed builds on macOS (as a LaunchAgent), Windows (as a login item) and Linux (as an autostart entry).
 
-`openwaggle status` lists the tasks that are turned on and when each fires next, so you can always see why a Host is running.
+`openwaggle status` lists the tasks that are turned on and when each fires next, so you can always see why the Session Host is running.
 
 ## Choose notifications
 

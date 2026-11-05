@@ -72,7 +72,7 @@ Name the file, say what result you want, and say what must stay as it is. For a 
 
 ## Review the change
 
-Press **Cmd+D** on macOS or **Ctrl+D** on Windows and Linux to open the diff panel, then select **Working tree** to see changes that are not committed yet.
+Press `Cmd+D` on macOS or `Ctrl+D` on Windows and Linux to open the diff panel, then select **Working tree** to see changes that are not committed yet.
 
 Read the diff itself, not only the agent's summary. Check that the right files changed and that the text or code is correct. The diff shows what is already on disk. The agent writes files as it works, and opening the diff is not a step that applies them. It can also include changes you or another session made in the same folder.
 

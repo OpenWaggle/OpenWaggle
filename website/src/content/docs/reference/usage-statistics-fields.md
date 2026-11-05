@@ -155,14 +155,14 @@ The app drops the message text of every report, because a message can quote your
 
 Before a report leaves your machine, the app replaces:
 
-| Found in the report | Replaced with |
+| Placeholder | What it replaces |
 | --- | --- |
-| Your home directory, in each form listed below | `~` |
-| macOS per-user temporary folders under `/var/folders`, and your temporary directory, such as Windows `%TEMP%` | `<tmp>` |
-| OpenWaggle scratch and evidence folders | `<scratch>` |
-| UUIDs, such as session and run IDs | `<id>` |
-| Other hexadecimal runs of 16 or more characters | `<hex>` |
-| Stack frames from code outside the app, such as a Pi extension, a worktree or any other folder | `<external>` |
+| `~` | Your home directory, in each form listed below |
+| `<tmp>` | macOS per-user temporary folders under `/var/folders`, and your temporary directory, such as Windows `%TEMP%` |
+| `<scratch>` | OpenWaggle scratch and evidence folders |
+| `<id>` | UUIDs, such as session and run IDs |
+| `<hex>` | Other hexadecimal runs of 16 or more characters |
+| `<external>` | Stack frames from code outside the app, such as a Pi extension, a worktree or any other folder |
 
 The app recognizes your home directory as `/Users/<name>`, `/home/<name>`, `/var/home/<name>`, `/root`, `/System/Volumes/Data/Users/<name>`, `C:\Users\<name>` with either separator, `\Users\<name>` without a drive, `\\wsl.localhost\<distro>\home\<name>`, `\\wsl$\<distro>\home\<name>`, `\\wsl.localhost\<distro>\root`, and `/mnt/<drive>/Users/<name>`. A Windows name ends only at a separator, a character Windows forbids in names, or the end of a line, so the app replaces names with spaces or apostrophes whole.
 

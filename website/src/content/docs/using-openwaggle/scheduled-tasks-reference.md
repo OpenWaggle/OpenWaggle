@@ -30,7 +30,7 @@ This page lists the exact values for [scheduled tasks](/docs/using-openwaggle/sc
 | Trigger | Meaning |
 | --- | --- |
 | Scheduled | The task's schedule came due. |
-| Catch-up | The task came due while the Host was not running or the computer slept. One catch-up covers every missed time, and the history says how many. |
+| Catch-up | The task came due while the Session Host was not running or the computer slept. One catch-up covers every missed time, and the history says how many. |
 | Run now | Someone chose **Run now**, ran `openwaggle schedules run`, or the agent called `schedule_run_now`. It fires at once, not at a scheduled time. |
 
 The task's **Last run** line, `openwaggle schedules list` and `show`, and the agent's `schedule_list` and `schedule_read` name the trigger of the last run.

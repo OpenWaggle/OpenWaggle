@@ -341,7 +341,7 @@ On Windows, starting a detached Session Host uses the built-in Windows PowerShel
 
 The installed Windows command adds Electron's `--` argument separator for you. If you run the executable directly, include it: `OpenWaggle.exe -- access profiles create ...`. For a development build, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read`, or URL arguments, before OpenWaggle starts.
 
-The current local session protocol revision is **30**, and the Session Host accepts **only revision 30**. It refuses an older client when it connects, and that client must upgrade. `nextActor` is an added field of query outcomes, which clients do not decode strictly, so it needed no new revision.
+The current local session protocol revision is 30, and the Session Host accepts only revision 30. It refuses an older client when it connects, and that client must upgrade. `nextActor` is an added field of query outcomes, which clients do not decode strictly, so it needed no new revision.
 
 | Revision | What it added |
 | --- | --- |

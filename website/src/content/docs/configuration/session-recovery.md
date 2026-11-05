@@ -47,7 +47,7 @@ If the worktree of an existing session was deleted, OpenWaggle stops new message
 
 If OpenWaggle could not create the worktree for a new session, open **More details** on the **Worktree setup failed** card. Fix the Git problem it reports and choose **Retry**. **Cancel** puts your message back in the draft. **Work locally** sends it again in the current checkout instead.
 
-These choices change where the session works. Restoring the session database never brings back deleted files. See [Recovering a missing worktree](/docs/developer-workflow/projects-and-worktrees#recover-a-missing-worktree).
+These choices change where the session works. Restoring the session database never brings back deleted files. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees#recover-a-missing-worktree) for what a recreated worktree keeps.
 
 ## Fix a worktree that no longer matches its preparation
 
@@ -84,7 +84,7 @@ flowchart LR
   desktop <-->|"reconnects when you reopen the app"| host
 ```
 
-When no desktop app or other client is connected and no work is left, the Session Host exits after 5 minutes by default.
+When no desktop app or other client is connected and no work is left, the Session Host exits after 5 minutes by default. An enabled scheduled task keeps it running.
 
 To stop work, click the square **Cancel** button beside the message box and wait until the run has stopped. Check the last tool results and file changes before you ask the agent to carry on. Cancelling cannot undo edits already made, or take back a request already sent to an outside service.
 

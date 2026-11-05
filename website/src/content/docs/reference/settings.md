@@ -167,7 +167,9 @@ A key test sends one short prompt and gives up after 15 seconds. See [API keys](
 | **Title model** choice | What happens |
 | --- | --- |
 | **Automatic** | The cheapest available model from each session's own provider and model family writes its title, with the same sign-in and region. |
-| A model | That model writes every title. Each session's opening message and each worker's task go to that model's provider, and so does up to about 8,000 characters of the conversation when a title is refined or regenerated. If the model fails, OpenWaggle tries the session's own model. |
+| A model | That model writes every title. |
 | **Off** | OpenWaggle generates no titles. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
+
+When you pick a model, each session's opening message and each worker's task go to that model's provider, and so does up to about 8,000 characters of the conversation when a title is refined or regenerated. If the model fails, OpenWaggle tries the session's own model.
 
 Titles use the models of each session's project, so a provider or virtual model that a project's Pi extension adds can write titles for that project's sessions.

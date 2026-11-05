@@ -92,7 +92,7 @@ A Heartbeat whose last wake check found no work shows **Nothing to do**. See [Sc
 
 ## Follow a Hive
 
-For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled). In a Queen titled Prepare the 1.0 release, it can read `3 direct Workers · 1 needs you · 2 waiting for Prepare the 1.0 release`. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
+For a Queen or a worker, the **Hive** row counts the session's direct workers by who acts next. It shows how many **need you**, how many are **waiting for** this session, how many are **working**, and how many are **closed** (accepted or cancelled). In a Queen titled Prepare the 1.0 release, it can read `5 direct Workers · 1 needs you`, then `1 waiting for Prepare the 1.0 release` and `1 working · 2 closed`, as in the image above. These are the groups the [Hive panel](/docs/using-openwaggle/hives-and-sessions#who-acts-next) uses. Only **need you** appears in the attention color.
 
 A worker waiting for this session may have a result to review, a failed run, or a question. That is for this session's agent to handle, not you. In a Hive with more than 50 direct workers, a count followed by `+` covers only the workers loaded so far.
 
@@ -151,7 +151,7 @@ The list keeps updating while the session works in the background, without mixin
 
 ## View images
 
-Click an image in a message to page through that message's images. Open an image from the Summary or the resource browser to page through every image in the session: images on the branch you are viewing come first, including those from earlier shared history, then images that exist only on other branches.
+Click an image in a message to page through that message's images. Open an image from the Summary or the resource browser to page through every image in the session. Images on the branch you are viewing come first, including those from earlier shared history, then images that exist only on other branches.
 
 In the viewer you can:
 

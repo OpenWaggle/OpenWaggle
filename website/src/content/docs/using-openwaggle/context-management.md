@@ -47,9 +47,9 @@ A summary can leave things out. Keep lasting project conventions in [project ins
 
 ## Change when compaction happens
 
-By default, OpenWaggle compacts when the context reaches **80%** of the model's context window. To change the percentage, open **Settings > General > Context compaction**. The setting applies to every project and session.
+By default, OpenWaggle compacts when the context reaches 80% of the model's context window. To change the percentage, open **Settings > General > Context compaction**. The setting applies to every project and session.
 
-Whatever the percentage, automatic compaction happens by **400,000 tokens** at the latest. Every request sends the whole context again, so on a model with a 1M-token window, a context of 800,000 tokens makes each later request about twice as expensive and slow as one at 400,000 tokens.
+Whatever the percentage, automatic compaction happens by 400,000 tokens at the latest. Every request sends the whole context again, so on a model with a 1M-token window, a context of 800,000 tokens makes each later request about twice as expensive and slow as one at 400,000 tokens.
 
 Compaction happens before a request to the model, never while a reply is streaming. If the agent is idle when the context crosses the threshold, OpenWaggle waits for your next message. During a task, it can compact between a tool result and the next request.
 
