@@ -35,8 +35,8 @@ const FRAME_READY_TEXT = 'Plan these formats'
 
 /**
  * Selectable tiles and one primary action, with the skill's own utilities (`.viz-grid`,
- * `.btn.viz-tile`, `.btn-primary`, `.text-muted`, `.text-small`). The selection survives a reload through
- * `window.openai.visualizationState`.
+ * `.btn.viz-tile`, `.btn-primary`, `.text-muted`, `.text-small`). The selection survives a
+ * reload through `window.openai.visualizationState`.
  */
 const FRAGMENT = `<div id="jotter-export-formats">
 <style>
