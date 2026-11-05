@@ -26,6 +26,8 @@ The agent works in the folder you started the `pi` session in, with the model an
 
 When you send a message in a session that `pi` used last, OpenWaggle first asks where to continue:
 
+![The question Continue this session in OpenWaggle, with Remember for this project and the buttons Keep running in pi and Continue in OpenWaggle](/screenshots/pi-session-continue-prompt.png)
+
 - **Continue in OpenWaggle** sends the message.
 - **Keep running in pi** opens the session's terminal in the folder the session ran in, with `pi --session <file>` typed in for you to run, and keeps your message in the composer.
 
