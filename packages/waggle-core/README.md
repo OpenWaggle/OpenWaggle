@@ -162,7 +162,7 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 
 **A host needs Pi commands or renderers.** Keep core runtime-neutral and integrate through `@openwaggle/pi-waggle` or a host-specific adapter.
 
-**Turn execution does not stop.** Always honor both the primary stop policy and `maxTurnsSafety`; the safety limit is the final bounded-loop guard.
+**Turn execution does not stop.** Always honor both the primary stop policy and `maxTurnsSafety`. The safety limit is the final guard against an endless loop.
 
 There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.
 
