@@ -38,13 +38,13 @@ A model request carries more than your message. It also holds system instruction
 
 The largest value is {benchmarkMaxTokens.toLocaleString('en-US')} tokens. Short bars have a minimum visible width of 6% and enough room for their label, so use the printed counts for exact comparisons.
 
-OpenWaggle's first call is smaller than opencode's, Codex's and Claude Code's, and about three times the size of the Pi CLI it is built on. Its first request's system prompt and tool declarations come to 3,665 o200k tokens against Pi's 1,213. Of the 2,452-token difference, 1,452 are tool declarations, mostly the `hive` tool for Worker Sessions, `codemode` and `tool_search`. The other 1,000 are system prompt: the rules for those tools, a pointer to the documentation, the built-in visualization skill, and the Session's directories and identity. OpenWaggle declares 7 tools on the first turn. Its other first-party tools (browser preview, project actions, source control, docs and MCP server tools) stay behind `tool_search` until a task needs them.
+OpenWaggle's first call is smaller than opencode's, Codex's and Claude Code's, and about three times the size of the Pi CLI it is built on. Its first request's system prompt and tool declarations come to 3,665 o200k tokens against Pi's 1,213. Of the 2,452-token difference, 1,452 are tool declarations, mostly the `hive` tool for worker sessions, `codemode` and `tool_search`. The other 1,000 are system prompt: the rules for those tools, a pointer to the documentation, the built-in visualization skill, and the session's folders and identity. OpenWaggle declares 7 tools on the first turn. Its other first-party tools (browser preview, project actions, source control, docs and MCP server tools) stay behind `tool_search` until a task needs them.
 
-## Details worth knowing
+## What the numbers include
 
 - Every agent ran in an empty project. Real repositories can add instructions, skills, extensions and MCP tools. With six MCP servers, 45 skills and `AGENTS.md` files in the home and the project, OpenWaggle's first request measured 8,721 o200k tokens. MCP tools are not declared on the first turn; the skills listing is most of the increase.
 - The counts are provider-reported prompt tokens of the first call, including the probe message. The proxy log also holds an o200k count of each first request's system prompt and tool declarations.
-- OpenWaggle made two more model calls in the same run: one generates the Session title and one refines it after the answer (515 and 724 prompt tokens). They are not counted. opencode also made one background title call, which is not counted either.
+- OpenWaggle made two more model calls in the same run: one generates the session title and one refines it after the answer (515 and 724 prompt tokens). They are not counted. opencode also made one background title call, which is not counted either.
 - Codex used an explicit `model_reasoning_effort` setting for its OpenRouter Responses request.
 
 ## How we measured
@@ -61,15 +61,21 @@ It does not measure code quality, task completion, latency or equivalent capabil
 
 ## Run it yourself
 
-The run sends requests to OpenRouter and can incur charges. The four container agents run wherever Docker runs. The OpenWaggle row runs on macOS only, because it drives the packaged app through the macOS performance harness. From a development checkout on macOS with Docker running:
+The run sends requests to OpenRouter, which can cost money. The four container agents run wherever Docker runs. The OpenWaggle row runs on macOS only, because it drives the packaged app through the macOS performance harness.
+
+From a development checkout on macOS, with Docker running, build the packaged app first:
 
 ```sh
 pnpm build && pnpm exec electron-builder --dir
-BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=sk-or-... \
-  scripts/benchmark-docker/run.sh
 ```
 
-Without `BENCH_OPENWAGGLE_APP` it runs only the four container agents. `results.json` records the OpenWaggle app's version and commit. Keep them, the other versions and the raw proxy output with any new result.
+Then run the benchmark. Replace `sk-or-...` with your OpenRouter API key. The path is for Apple silicon; on an Intel Mac the app is in `dist/mac/`.
+
+```sh
+BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=sk-or-... scripts/benchmark-docker/run.sh
+```
+
+Without `BENCH_OPENWAGGLE_APP`, it runs only the four container agents. `results.json` records the OpenWaggle app's version and commit. Keep them, the other versions and the raw proxy output with any new result.
 
 To measure OpenWaggle's first request without a provider, `pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty` captures a packaged app's first request with a local recording provider and counts it in o200k tokens per section and per tool. `--setup maintainer` adds MCP servers, skills and an `AGENTS.md`.
 

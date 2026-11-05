@@ -6,42 +6,44 @@ section: "Developer docs"
 kind: "guide"
 ---
 
-Use a Pi extension when you need to add an agent tool, register a provider, or respond to agent-session events. Pi is the coding-agent runtime inside OpenWaggle. A Pi extension changes runtime behavior; it does not automatically add desktop UI.
+A Pi extension adds an agent tool, registers a provider, or reacts to events in an agent session. Pi is the coding-agent runtime inside OpenWaggle, so a Pi extension changes what the agent can do. It does not add any desktop UI by itself. Start with Pi's [extension reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md). If you also want a settings page, a panel, or a custom look for a tool, declare those in an [OpenWaggle extension](/docs/extending/openwaggle-extensions).
 
-Start with Pi's [extension reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md). If you also need a settings page, panel, or custom tool display, use the [OpenWaggle extension package format](/docs/extending/openwaggle-extensions) to declare those desktop contributions.
+## Choose between a skill and an extension
 
-## Skills vs runtime extensions
+A [skill](/docs/extending/skills-system) gives the agent instructions. A Pi extension runs code and can change which tools the agent has. If all you need is a prompt you can repeat, write a skill, not code.
 
-A [skill](/docs/extending/skills-system) provides instructions. A runtime extension executes code and can change the tools available to the agent. Do not install runtime code merely to provide a repeatable prompt.
+## Know where Pi finds your extension
 
-OpenWaggle supplies project resource roots to Pi in this order:
+OpenWaggle gives Pi the project's resource folders for skills, extensions, prompts, and themes, in this order:
 
 ```text
 .openwaggle > .pi > .agents
 ```
 
-OpenWaggle supplies roots for skills, extensions, prompts, and themes in that order. Enabled OpenWaggle packages can insert declared Pi resource roots before `.pi`. The managed `.openwaggle/extensions` package directory is not blindly loaded as executable Pi code: package eligibility controls which packages and declared roots reach Pi. Pi applies its own loading and conflict rules to the supplied resources. OpenWaggle packages have their own manifest and trust lifecycle; use [Install extensions](/docs/extending/plugins) for that workflow.
+An enabled OpenWaggle package can add the Pi resource folders it declares, ahead of `.pi`. OpenWaggle does not load everything in `.openwaggle/extensions` as Pi code. Only eligible packages, and the folders they declare, reach Pi. Pi then applies its own loading and conflict rules. OpenWaggle packages have their own manifest and trust steps; see [Install extensions](/docs/extending/plugins).
 
 Commands a Pi extension registers, and Pi's own `/mcp`, are listed under **Pi extensions** when you type `/` in the composer, in a session or in a new session for a project.
 
-Pi terminal UI renderers do not run as desktop UI. Standard interactions have OpenWaggle fallbacks, while custom interactions need a matching desktop renderer. See [Interaction primitives](/docs/extending/openwaggle-extensions#interaction-primitives).
+## Show your tool in the app
 
-For custom provider registration, see Pi's [`pi.registerProvider()` reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md).
+Pi's terminal UI renderers do not run in the desktop app. The standard questions a tool can ask, such as `confirm` and `select`, have OpenWaggle's own UI as a fallback. A custom question needs a matching desktop renderer. See [Answer a question from Pi](/docs/extending/openwaggle-extensions#answer-a-question-from-pi).
 
-## Integrating with the app
+To register a custom provider, see Pi's [`pi.registerProvider()` reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md).
 
-When changing OpenWaggle itself, keep Pi SDK imports in `src/main/adapters/pi/`. Application and IPC layers call OpenWaggle-owned ports; the renderer receives OpenWaggle-owned data and events. Dedicated `packages/pi-*` packages may use Pi SDKs within their package boundaries.
+## Connect MCP servers
 
-New tools should use Pi extension APIs rather than a second tool execution system. Desktop presentation and any new host capabilities need explicit support in OpenWaggle's public contracts.
+You do not need a Pi extension to connect an MCP server. Set it up in [MCP settings](/docs/configuration/mcp).
 
-## MCP
+OpenWaggle loads Pi's built-in MCP, codemode, and tool-search extensions into every session, so MCP works as it does in the `pi` command. In Pi, an extension that registers its own `/mcp` command, such as `pi-mcp-adapter`, replaces Pi's built-in MCP. OpenWaggle does not load `pi-mcp-adapter`, because the built-in support already covers it.
 
-You do not need a Pi extension to connect an MCP server. Configure it through [MCP settings](/docs/configuration/mcp).
+OpenWaggle also does not load an installed `@openwaggle/pi-waggle` package, because OpenWaggle has Waggle built in. The `pi` command still loads it.
 
-OpenWaggle loads Pi's built-in MCP, codemode, and tool-search extensions into every session, so MCP works as it does in the `pi` command. An extension that registers its own `/mcp` command, such as `pi-mcp-adapter`, replaces Pi's built-in MCP in Pi; OpenWaggle does not load `pi-mcp-adapter`, because the built-in support already covers it.
+Extensions can still add servers to a session with `pi.registerMcpServer()`, as in Pi.
 
-In the same way, OpenWaggle does not load an installed `@openwaggle/pi-waggle` package, because OpenWaggle provides Waggle itself; the `pi` command still loads it.
+## Change OpenWaggle itself
 
-Extensions can still add servers for a session with `pi.registerMcpServer()`, as in Pi.
+When you change OpenWaggle's own code, keep Pi SDK imports in `src/main/adapters/pi/`. The application and IPC layers call OpenWaggle's own ports, and the renderer receives OpenWaggle's own data and events. The dedicated `packages/pi-*` packages may use the Pi SDK inside their own package.
 
-For app development, keep transports, configuration files, and sign-in storage in `src/main/adapters/mcp/`, and the code that loads Pi's extensions in `src/main/adapters/pi/`.
+New tools should use Pi's extension APIs, not a second way of running tools. How a tool looks in the app, and any new host capability, needs support in OpenWaggle's public contracts.
+
+For MCP work in the app, keep transports, configuration files, and sign-in storage in `src/main/adapters/mcp/`, and the code that loads Pi's extensions in `src/main/adapters/pi/`.
