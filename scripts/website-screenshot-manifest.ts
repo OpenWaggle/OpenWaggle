@@ -4,7 +4,7 @@ import path from 'node:path'
 /**
  * Every image under `website/public/screenshots/`, each produced by one capture of
  * `capture-website-screenshots.ts`. A screenshot the script cannot regenerate drifts from the
- * app; one the website does not use is dead weight (`screenshot-references.test.ts`).
+ * app; one the website does not use is dead weight (`screenshot-references.unit.test.ts`).
  */
 export const WEBSITE_SCREENSHOTS = [
   'hive-sessions.png',
@@ -17,6 +17,46 @@ export const WEBSITE_SCREENSHOTS = [
   'feature-git-workflow.png',
   'session-tree-panel.png',
   'feature-browser-preview.png',
+  'right-panel-all-panels.png',
+  'codemode-script-card.png',
+  'context-compacted.png',
+  'missing-worktree.png',
+  'settings-skills.png',
+  'settings-agents.png',
+  'settings-permissions.png',
+  'settings-shortcuts.png',
+  'settings-waggle-mode.png',
+  'waggle-conversation.png',
+  'context-meter.png',
+  'terminal-split-panes.png',
+  'terminal-add-to-chat.png',
+  'terminal-context-chip.png',
+  'mcp-servers.png',
+  'mcp-server-detail.png',
+  'mcp-server-error.png',
+  'browser-preview-device-toolbar.png',
+  'browser-preview-annotation.png',
+  'browser-preview-annotation-chip.png',
+  'extensions-review.png',
+  'extensions-settings-section.png',
+  'extensions-surfaces.png',
+  // First-session essentials (website-screenshot-essentials-captures.ts), captured last.
+  'composer-controls.png',
+  'settings-connections.png',
+  'settings-api-key-providers.png',
+  'settings-oauth-providers.png',
+  'slash-command-menu.png',
+  'command-palette.png',
+  'approval-request.png',
+  'queued-follow-ups.png',
+  'sidebar-states.png',
+  'tool-rows.png',
+  'diff-review-comment.png',
+  'commit-dialog.png',
+  'worktree-first-send.png',
+  'project-actions-panel.png',
+  'project-action-add.png',
+  'action-output-terminal.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]
@@ -27,7 +67,9 @@ export function selectedScreenshots(argv: readonly string[]): readonly WebsiteSc
   if (flagIndex < 0) return WEBSITE_SCREENSHOTS
   const names = (argv[flagIndex + 1] ?? '').split(',').filter((name) => name.length > 0)
   const selected = WEBSITE_SCREENSHOTS.filter((file) => names.includes(file.replace(/\.png$/, '')))
-  const unknown = names.filter((name) => !WEBSITE_SCREENSHOTS.some((file) => file === `${name}.png`))
+  const unknown = names.filter(
+    (name) => !WEBSITE_SCREENSHOTS.some((file) => file === `${name}.png`),
+  )
   if (unknown.length > 0 || selected.length === 0) {
     throw new Error(
       `Unknown screenshot for --only: ${unknown.join(', ') || '(none)'}. Known: ${WEBSITE_SCREENSHOTS.join(', ')}`,

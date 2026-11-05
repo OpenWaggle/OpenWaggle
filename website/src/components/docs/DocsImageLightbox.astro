@@ -1,0 +1,24 @@
+---
+import Button from '@/components/ui/Button.astro';
+import { LIGHTBOX_IDS } from '@/lib/docs-image-lightbox';
+
+// The dialog that docs-image-lightbox.ts opens for a docs image link (markdown-images.ts).
+---
+
+<dialog id={LIGHTBOX_IDS.dialog} class="docs-lightbox" aria-label="Full-size image">
+  <div class="docs-lightbox-body">
+    <img id={LIGHTBOX_IDS.image} class="docs-lightbox-image" alt="" />
+    <div class="docs-lightbox-actions">
+      <Button id={LIGHTBOX_IDS.original} href="/" variant="secondary" size="small">Open image file</Button>
+      <form method="dialog">
+        <Button id={LIGHTBOX_IDS.close} type="submit" variant="secondary" size="small">Close</Button>
+      </form>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import { enhanceDocsImageLightbox } from '@/lib/docs-image-lightbox';
+
+  enhanceDocsImageLightbox(document);
+</script>

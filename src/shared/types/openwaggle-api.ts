@@ -20,7 +20,6 @@ import type {
   FirstPartyDocsTopicSummary,
 } from './docs'
 import type { AgentExtensionCommand } from './extension-command'
-import type { GuiStartupStatus } from './gui-startup'
 import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
@@ -37,6 +36,7 @@ import type { OpenWaggleScheduledTasksApi } from './openwaggle-api-scheduled-tas
 import type { OpenWaggleSessionCatalogApi } from './openwaggle-api-session-catalog'
 import type { OpenWaggleSessionControlApi } from './openwaggle-api-session-control'
 import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
+import type { OpenWaggleStartupApi } from './openwaggle-api-startup'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleBrowserPreviewApi } from './openwaggle-browser-preview-api'
@@ -90,6 +90,7 @@ export interface PreparedSelectedAttachment {
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
     OpenWaggleDesktopApi,
+    OpenWaggleStartupApi,
     OpenWaggleBrowserPreviewApi,
     OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
@@ -290,9 +291,6 @@ export interface OpenWaggleApi
   readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
-  getStartupStatus(): Promise<GuiStartupStatus>
-  retryStartup(): Promise<void>
-  onStartupStatusChanged(callback: (status: GuiStartupStatus) => void): () => void
   openPath(path: string): Promise<void>
   revealPath(path: string): Promise<void>
 

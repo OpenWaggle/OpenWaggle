@@ -21,6 +21,17 @@ src/
 
 The renderer has no direct Node access and no Pi SDK imports. It talks to the main process through typed IPC exposed by preload.
 
+At run time these are separate processes. The Session Host is a detached process that the desktop app and the CLI both connect to:
+
+```mermaid
+flowchart TD
+  renderer["Renderer<br/>React UI"] -->|"preload API"| preload["Preload<br/>contextBridge"]
+  preload -->|"typed IPC"| main["Main process<br/>Electron, terminals, browser previews"]
+  main <-->|"Local Session transport"| host["Session Host<br/>Session Control, SQLite"]
+  cli["openwaggle CLI"] <-->|"Local Session transport"| host
+  host --> pi["Pi runtime<br/>runs inside the Session Host"]
+```
+
 ## Hexagonal main process
 
 The main process separates business logic from infrastructure through ports and adapters. App-level Pi SDK imports stay in `src/main/adapters/pi/`; dedicated `packages/pi-*` packages can use Pi within their own boundaries.

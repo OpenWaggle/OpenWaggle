@@ -38,9 +38,23 @@ Do not edit files unless asked. State which checks you ran and which you did not
 
 Keep the description specific. It helps the agent decide when the skill applies.
 
+### Frontmatter fields
+
+Pi, the agent runtime used by OpenWaggle, reads the frontmatter. These are the fields it acts on:
+
+| Field | Required | What it does |
+| --- | --- | --- |
+| `name` | Yes, for **Settings > Skills** | The skill's name and its `/skill:name` command. Use lowercase letters, digits, and single hyphens, up to 64 characters. Pi warns about a name that breaks these rules but still loads the skill. Without a `name`, Pi uses the folder name, but **Settings > Skills** reports the skill as an error. |
+| `description` | Yes | When the agent should use the skill, up to 1024 characters. Pi warns about a longer one but still loads the skill. Pi skips a skill without a description. In the agent's list of skills, OpenWaggle shortens it to about 160 characters and keeps a "Use when…" sentence whole when it can. |
+| `disable-model-invocation` | No | `true` leaves the skill out of the agent's list, so the agent never loads it by itself. Type `/skill:name` to use it. |
+
+The Agent Skills format also defines `license`, `compatibility`, `metadata`, and `allowed-tools`. Pi accepts a file that has them and ignores them, so `allowed-tools` does not approve any tool in advance.
+
 ## Skills panel
 
 Open **Settings > Skills** and choose the project in the header. Select a skill to preview its instructions, then enable or disable it for that project. The panel also shows the root `AGENTS.md` status.
+
+![Settings > Skills for the OpenWaggle project: AGENTS.md marked Found, two enabled skills, review-change and write-migration, and the selected review-change skill's instructions in the preview](/screenshots/settings-skills.png)
 
 The project picker can browse recent projects, projects with sessions, or another folder. Browsing does not change the project selected beside the message box.
 
@@ -60,7 +74,7 @@ OpenWaggle loads project resources in this order. For skills with the same name,
 .agents/skills/
 ```
 
-Enabled OpenWaggle extension packages can add skill resource roots between `.openwaggle/skills/` and `.pi/skills/`. Pi also discovers user/global skills. The Settings catalog scans `.openwaggle/skills/` and root `.agents/skills/`, so it is not a complete inventory of every skill Pi can load.
+[Resource precedence](/docs/configuration/per-project-config#resource-precedence) draws this lookup as a diagram. Enabled OpenWaggle extension packages can add skill resource roots between `.openwaggle/skills/` and `.pi/skills/`. Pi also discovers user/global skills. The Settings catalog scans `.openwaggle/skills/` and root `.agents/skills/`, so it is not a complete inventory of every skill Pi can load.
 
 Catalog toggles filter loaded skills before Pi builds the agent's context. For the two catalog roots, the toggle key is the normalized skill directory name. For other Pi-loaded skills, including global/user, `.pi/skills/`, and ancestor `.agents/skills/` resources, it is the normalized skill name. An explicit disabled toggle therefore also excludes a matching skill from those sources in that project without changing other projects. Pi still controls discovery outside the catalog.
 

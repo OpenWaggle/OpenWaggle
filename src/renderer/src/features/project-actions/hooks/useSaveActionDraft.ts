@@ -54,7 +54,7 @@ export function useSaveActionDraft(input: {
     if (useChatStore.getState().activeSessionId !== input.scope.sessionId) {
       useUIStore
         .getState()
-        .showToast('Open the session you saved it from, or run it from + Action.', 'neutral')
+        .showToast('Open the session you saved it from, or run it from Project Actions.', 'neutral')
       return
     }
     void run(saved)

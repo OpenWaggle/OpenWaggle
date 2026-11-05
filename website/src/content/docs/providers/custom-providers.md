@@ -21,6 +21,38 @@ OpenWaggle reads custom models and providers through Pi, the agent engine includ
 
 Keep credentials in supported credential storage or environment variables, not checked-in examples. Only load provider extensions you trust, because they execute code.
 
+## Example: a local OpenAI-compatible server
+
+LM Studio, Ollama, vLLM, and SGLang can all answer OpenAI-style chat requests. This `~/.pi/agent/models.json` adds a model served by LM Studio on its default port:
+
+```json
+{
+  "$schema": "https://pi.dev/schemas/models.schema.json",
+  "providers": {
+    "lmstudio": {
+      "name": "LM Studio",
+      "baseUrl": "http://localhost:1234/v1",
+      "api": "openai-completions",
+      "apiKey": "lm-studio",
+      "models": [
+        {
+          "id": "qwen2.5-coder-7b-instruct",
+          "contextWindow": 32768
+        }
+      ]
+    }
+  }
+}
+```
+
+- The key under `providers`, here `lmstudio`, is the provider part of the model's identity, so the model above is `lmstudio/qwen2.5-coder-7b-instruct`.
+- `id` must be the model name the server expects. Ask the server for its list, for example `curl http://localhost:1234/v1/models`.
+- A new provider needs `baseUrl` and `api`. `openai-completions` sends OpenAI Chat Completions requests.
+- The server ignores `apiKey`, but Pi offers only models whose provider has a key. For a server that checks it, write `"$NAME"` to read an environment variable instead of the key itself.
+- `contextWindow` is optional. Pi assumes 128000 tokens when you leave it out, so set it when the server's limit is smaller.
+
+The file is Pi's format, so Pi's documentation is the reference: [Choose a model](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md) covers compatible endpoints and [Models configuration](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models-configuration.md) lists every field. The `$schema` line points your editor at Pi's published schema.
+
 ## Project scope
 
 The default `models.json` is user-wide, not a project-local file. Providers registered by project extensions can appear only while that project is selected. Check the project before assuming a missing model was removed.

@@ -9,6 +9,10 @@ A thinking level asks a model how much reasoning effort to spend before answerin
 
 ## Choose a level
 
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+_The thinking-level control is number 6, beside the model selector (5)._
+
 1. Select a model beside the message box.
 2. Open the thinking-level control next to the model controls. It shows the current level, such as **Medium**.
 3. Choose one of the available levels. The control is unavailable while a Run is starting, running, or stopping. You can still change the level while a Session is only waiting on queued messages. In a new conversation that has no Session yet, your choice becomes the default and the Session starts with it.

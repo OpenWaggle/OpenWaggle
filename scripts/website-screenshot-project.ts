@@ -1,17 +1,7 @@
-import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
-
-const execFileAsync = promisify(execFile)
-
-const GIT_IDENTITY = [
-  '-c',
-  'user.name=OpenWaggle Screenshot Fixture',
-  '-c',
-  'user.email=screenshots@openwaggle.local',
-] as const
+import { fixtureGit } from './website-screenshot-fixture-git'
 
 /** Checked-in art the fixture project shows as an image an agent produced. */
 const OUTPUT_IMAGE_SOURCE = path.join('website', 'public', 'og', 'openwaggle.png')
@@ -20,7 +10,7 @@ export const SCREENSHOT_WORKTREE_IDS = ['3f9c2a1e', '7b41d0c8'] as const
 
 export const OUTPUT_IMAGE_RELATIVE_PATH = path.join('docs', 'release-notes-preview.png')
 
-export interface ScreenshotWorktree {
+interface ScreenshotWorktree {
   readonly id: string
   readonly path: string
   readonly branch: string
@@ -30,10 +20,6 @@ export interface ScreenshotProject {
   readonly projectPath: string
   readonly outputImagePath: string
   readonly worktrees: readonly ScreenshotWorktree[]
-}
-
-function git(cwd: string, args: readonly string[]) {
-  return execFileAsync('git', [...GIT_IDENTITY, ...args], { cwd })
 }
 
 /**
@@ -48,6 +34,7 @@ export async function createScreenshotProject(input: {
   readonly worktreeIds: readonly string[]
 }): Promise<ScreenshotProject> {
   const { projectPath } = input
+  const git = (cwd: string, args: readonly string[]) => fixtureGit(cwd, args, input.homeDir)
   await fs.mkdir(projectPath, { recursive: true })
   await git(projectPath, ['init', '--initial-branch=main'])
   const readmePath = path.join(projectPath, 'README.md')
@@ -60,7 +47,12 @@ export async function createScreenshotProject(input: {
   await git(projectPath, ['commit', '-m', 'chore: seed screenshot fixture'])
 
   const realProjectPath = await fs.realpath(projectPath)
-  const worktreeRoot = path.join(input.homeDir, '.openwaggle', 'worktrees', path.basename(realProjectPath))
+  const worktreeRoot = path.join(
+    input.homeDir,
+    '.openwaggle',
+    'worktrees',
+    path.basename(realProjectPath),
+  )
   await fs.mkdir(worktreeRoot, { recursive: true })
   const worktrees: ScreenshotWorktree[] = []
   for (const id of input.worktreeIds) {

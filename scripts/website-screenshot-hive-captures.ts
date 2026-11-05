@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
+import { shootWindow } from './website-screenshot-capture-kit'
 import { HIVE_NESTED_WORKER_TITLE, HIVE_QUEEN_TITLE } from './website-screenshot-hive-fixture'
 import { SCREENSHOT_WORKTREE_IDS } from './website-screenshot-project'
 import {
@@ -7,12 +8,10 @@ import {
   closeRightPanel,
   openSession,
   setSessionSummary,
-  shoot,
   showRailSurface,
+  UI_TIMEOUT_MS,
   waitForUi,
 } from './website-screenshot-ui'
-
-const UI_TIMEOUT_MS = 30_000
 
 function hivePanel(page: Page) {
   return page.getByRole('region', { name: 'Hive' })
@@ -28,14 +27,17 @@ async function setHiveView(page: Page, grouped: boolean) {
 async function openQueenHive(page: Page) {
   await openSession(page, HIVE_QUEEN_TITLE)
   await showRailSurface(page, 'Hive')
-  await hivePanel(page).getByText(HIVE_NESTED_WORKER_TITLE).first().waitFor({ timeout: UI_TIMEOUT_MS })
+  await hivePanel(page)
+    .getByText(HIVE_NESTED_WORKER_TITLE)
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
 }
 
 /** The Hive panel's default tree: every Session from the Queen down, at any depth (#377). */
 export async function captureHiveTree(context: CaptureContext) {
   await openQueenHive(context.page)
   await setHiveView(context.page, false)
-  await shoot(context, 'hive-sessions.png')
+  await shootWindow(context, 'hive-sessions.png', { lossless: true })
 }
 
 /** The same Hive grouped by who acts next (ADR 0059). */
@@ -43,7 +45,7 @@ export async function captureHiveNextActor(context: CaptureContext) {
   await openQueenHive(context.page)
   await setHiveView(context.page, true)
   await hivePanel(context.page).getByText('Needs you').first().waitFor({ timeout: UI_TIMEOUT_MS })
-  await shoot(context, 'hive-next-actor.png')
+  await shootWindow(context, 'hive-next-actor.png', { lossless: true })
   await setHiveView(context.page, false)
   await closeRightPanel(context.page)
 }
@@ -58,15 +60,17 @@ export async function captureSessionSummary(context: CaptureContext) {
   await outputs.waitFor({ timeout: UI_TIMEOUT_MS })
   if ((await outputs.getAttribute('aria-expanded')) === 'false') await outputs.click()
   await summary.getByRole('region', { name: 'Outputs list' }).waitFor({ timeout: UI_TIMEOUT_MS })
-  await shoot(context, 'session-summary.png')
+  await shootWindow(context, 'session-summary.png', { lossless: true })
 }
 
 /** Sources & outputs: the Resource Browser the Summary's Show all opens. */
 export async function captureSessionResources(context: CaptureContext) {
   await openSession(context.page, HIVE_QUEEN_TITLE)
   await showRailSurface(context.page, 'Resources')
-  await context.page.getByRole('heading', { name: 'Sources & outputs' }).waitFor({ timeout: UI_TIMEOUT_MS })
-  await shoot(context, 'session-resources.png')
+  await context.page
+    .getByRole('heading', { name: 'Sources & outputs' })
+    .waitFor({ timeout: UI_TIMEOUT_MS })
+  await shootWindow(context, 'session-resources.png', { lossless: true })
   await closeRightPanel(context.page)
 }
 
@@ -74,7 +78,7 @@ export async function captureSessionResources(context: CaptureContext) {
 export async function captureScheduledTasks(context: CaptureContext) {
   await openSession(context.page, HIVE_QUEEN_TITLE)
   await showRailSurface(context.page, 'Scheduled')
-  await shoot(context, 'scheduled-tasks.png')
+  await shootWindow(context, 'scheduled-tasks.png', { lossless: true })
   await closeRightPanel(context.page)
 }
 
@@ -86,9 +90,15 @@ export async function captureSettingsWorktrees(context: CaptureContext) {
   const { page } = context
   await page.getByRole('button', { name: 'Settings' }).first().click()
   await page.getByRole('button', { name: 'Worktrees' }).first().click()
-  await page.getByRole('button', { name: /^In use/ }).first().click({ timeout: UI_TIMEOUT_MS })
-  await page.getByText(sessionWorktreeBranchForId(SCREENSHOT_WORKTREE_IDS[0])).first().waitFor({ timeout: UI_TIMEOUT_MS })
-  await shoot(context, 'settings-worktrees.png')
+  await page
+    .getByRole('button', { name: /^In use/ })
+    .first()
+    .click({ timeout: UI_TIMEOUT_MS })
+  await page
+    .getByText(sessionWorktreeBranchForId(SCREENSHOT_WORKTREE_IDS[0]))
+    .first()
+    .waitFor({ timeout: UI_TIMEOUT_MS })
+  await shootWindow(context, 'settings-worktrees.png', { lossless: true })
   await page.getByRole('button', { name: 'Back to app' }).first().click()
   await waitForUi(page)
 }

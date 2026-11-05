@@ -5,7 +5,7 @@ order: 4
 section: "Developer docs"
 ---
 
-Pi is the coding-agent runtime inside OpenWaggle. The current source pins Pi **1.2.0** in `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.
+Pi is the coding-agent runtime inside OpenWaggle. The current source pins the Pi version in the `pi-runtime` catalog of `pnpm-workspace.yaml`. It handles the model conversation, tool execution, and context compaction. OpenWaggle supplies the desktop interface, session coordination, permissions, and integrations.
 
 This page is for developers tracing agent execution or extending the app. You do not need to configure Pi separately to use OpenWaggle. For everyday use, start with [Conversations and tools](/docs/using-openwaggle/chat-and-tools); for adding runtime behavior, see [Pi extensions](/docs/extending/pi-extensions).
 
@@ -14,11 +14,30 @@ This page is for developers tracing agent execution or extending the app. You do
 When you send a message:
 
 1. OpenWaggle resolves the active project session and selected provider-qualified model.
-2. The main process calls the `AgentKernelService` port.
+2. The main process sends a Session Control `message` command to the Session Host, which calls the `AgentKernelService` port.
 3. The Pi adapter creates project-scoped Pi services.
 4. Pi executes the run using its native session, model, auth, tool, and compaction behavior.
 5. OpenWaggle translates Pi session events into vendor-free `AgentTransportEvent` values for the renderer.
 6. The SQLite projection stores session nodes, branches, and UI read models.
+
+The same path across the processes, for a message that starts a Run:
+
+```mermaid
+sequenceDiagram
+  participant R as Renderer
+  participant M as Main process
+  participant H as Session Host
+  participant P as Pi
+  R->>M: agent:send-message
+  M->>H: Session Control message command
+  H->>P: Start a Run through AgentKernelService
+  P-->>H: Pi session events
+  H->>H: Update the SQLite projection
+  H-->>M: AgentTransportEvent
+  M-->>R: AgentTransportEvent over IPC
+```
+
+If the Session already has a Run or waiting Follow-ups, the Session Host queues the message as a Follow-up instead of starting a Run.
 
 Pi executes the tools enabled for the run. OpenWaggle renders their events in the transcript and applies its session policy through the Pi adapter.
 

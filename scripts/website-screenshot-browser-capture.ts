@@ -1,12 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
-import sharp from 'sharp'
+import {
+  compositeGuestImage,
+  settleForShot,
+  writeScreenshot,
+} from './website-screenshot-capture-kit'
 import { BROWSER_THREAD_TITLE } from './website-screenshot-fixture'
 import { startFixtureSite } from './website-screenshot-fixture-site'
 import {
   type CaptureContext,
-  blurFocusedControl,
   closeRightPanel,
   openSession,
   setSessionSummary,
@@ -16,13 +19,6 @@ import {
 
 const GUEST_TIMEOUT_MS = 30_000
 const GUEST_POLL_MS = 100
-
-interface ViewBounds {
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
-}
 
 /** The window's native WebContentsView children showing `url`, with their bounds in the window. */
 async function guestViewBounds(context: CaptureContext, url: string) {
@@ -37,7 +33,7 @@ async function guestViewBounds(context: CaptureContext, url: string) {
   }, url)
 }
 
-async function waitForGuest(context: CaptureContext, url: string) {
+export async function waitForGuest(context: CaptureContext, url: string) {
   const deadline = Date.now() + GUEST_TIMEOUT_MS
   while (Date.now() < deadline) {
     const page = context.app.windows().find((candidate) => candidate.url().startsWith(url))
@@ -51,29 +47,7 @@ async function waitForGuest(context: CaptureContext, url: string) {
   throw new Error(`The Browser preview did not show ${url}.`)
 }
 
-/**
- * Hidden-window screenshots on macOS can leave out a native WebContentsView even when its page
- * is loaded (MEMORY.md, Electron Runtime). Capture the renderer and the guest page separately at
- * CSS-pixel scale and place the guest's pixels at its view's bounds.
- */
-async function compositeGuest(input: {
-  readonly renderer: Buffer
-  readonly guest: Buffer
-  readonly bounds: ViewBounds
-}) {
-  const guestMeta = await sharp(input.guest).metadata()
-  if (guestMeta.width !== input.bounds.width || guestMeta.height !== input.bounds.height) {
-    throw new Error(
-      `Browser guest is ${String(guestMeta.width)}x${String(guestMeta.height)}, but its view is ${String(input.bounds.width)}x${String(input.bounds.height)}.`,
-    )
-  }
-  return sharp(input.renderer)
-    .composite([{ input: input.guest, left: input.bounds.x, top: input.bounds.y }])
-    .png()
-    .toBuffer()
-}
-
-async function openPreview(page: Page, url: string) {
+export async function openPreview(page: Page, url: string) {
   const address = page.getByRole('textbox', { name: 'Preview address' }).first()
   await address.waitFor({ timeout: GUEST_TIMEOUT_MS })
   await address.fill(url)
@@ -91,13 +65,19 @@ export async function captureBrowserPreview(context: CaptureContext) {
     await showRailSurface(page, 'Browser')
     await openPreview(page, site.url)
     const guest = await waitForGuest(context, site.url)
-    await page.mouse.move(1, 1)
-    await blurFocusedControl(page)
+    await settleForShot(page)
+    // Hidden-window screenshots on macOS can leave out the native WebContentsView even when its
+    // page is loaded (MEMORY.md, Electron Runtime), so the guest is captured on its own.
     const renderer = await page.screenshot({ animations: 'disabled', scale: 'css' })
     const guestImage = await guest.page.screenshot({ animations: 'disabled', scale: 'css' })
-    const composite = await compositeGuest({ renderer, guest: guestImage, bounds: guest.bounds })
+    const composite = await compositeGuestImage({
+      renderer,
+      guest: guestImage,
+      bounds: guest.bounds,
+      ratio: 1,
+    })
     const file = 'feature-browser-preview.png'
-    await fs.writeFile(path.join(context.outputDir, file), composite)
+    await writeScreenshot(context, file, composite, { lossless: true })
     // The originals and bounds stay with the evidence, so the composite can be checked.
     await fs.writeFile(path.join(context.evidenceDir, `${file}.renderer.png`), renderer)
     await fs.writeFile(path.join(context.evidenceDir, `${file}.guest.png`), guestImage)
@@ -105,8 +85,6 @@ export async function captureBrowserPreview(context: CaptureContext) {
       path.join(context.evidenceDir, `${file}.bounds.json`),
       `${JSON.stringify(guest.bounds)}\n`,
     )
-    await fs.copyFile(path.join(context.outputDir, file), path.join(context.evidenceDir, file))
-    console.info(`[website-shots] wrote ${file} (renderer and guest composited)`)
     await closeRightPanel(page)
   } finally {
     await site.close()

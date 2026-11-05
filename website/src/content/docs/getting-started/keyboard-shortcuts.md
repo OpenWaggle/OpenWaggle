@@ -7,6 +7,8 @@ section: "Customize"
 
 These are the default bindings. Open **Settings > Shortcuts** to see or change configurable bindings. Sidebar filtering and pinned-session number keys are reserved rather than configurable. Some shortcuts depend on where focus is: for example, `Cmd/Ctrl+D` splits a terminal when you are typing in it, but toggles Changes elsewhere.
 
+![Settings > Shortcuts: the search field, Add binding and Reset defaults, and the Panels group listing each panel with its binding, such as ⌘D for Changes and Unassigned for Project Actions](/screenshots/settings-shortcuts.png)
+
 ## Shortcuts reference
 
 | Action | macOS | Windows/Linux |

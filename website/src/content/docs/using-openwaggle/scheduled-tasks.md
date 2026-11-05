@@ -64,7 +64,7 @@ Every Heartbeat run is a full agent turn in its Session, and a long Session make
 
 **A way to finish.** Creating a Heartbeat needs a Stop condition, an end date, a run limit, or **Runs indefinitely**, in the app, the command line and the agent's `hive` tool. The Run reads its Stop condition; once it is met, the agent pauses the Heartbeat and says why. A Heartbeat created before this rule is marked as running indefinitely, and its detail says it has no end.
 
-**A Wake check.** A Heartbeat may run a shell command before each firing, such as `gh pr checks 42 | grep -i fail`. The Session Host runs it in the Session's workspace, as a [project action](/docs/configuration/project-actions) would: your shell, your access, no chat context, the OpenWaggle app variables removed, at most 30 seconds, and up to 16 KiB of output.
+**A Wake check.** A Heartbeat may run a shell command before each firing, such as `gh pr checks 42 | grep -i fail || true`, which prints the failing checks and prints nothing when none fail. Keep the `|| true`. `grep` exits 1 when it finds no match, and a non-zero exit starts the Run. The Session Host runs the command in the Session's workspace, as a [project action](/docs/configuration/project-actions) would: your shell, your access, no chat context, the OpenWaggle app variables removed, at most 30 seconds, and up to 16 KiB of output.
 
 | The Wake check | What happens |
 | --- | --- |
@@ -143,7 +143,7 @@ A Heartbeat tells you about failures and tasks that need attention only, so a qu
 ```sh
 openwaggle schedules list
 openwaggle schedules create heartbeat <session> --name "Watch CI" --every 30m --stop-when "CI is green" \
-  --wake-if "gh pr checks 42 | grep -i fail" "Fix the failing checks."
+  --wake-if "gh pr checks 42 | grep -i fail || true" "Fix the failing checks."
 openwaggle schedules approve-wake-check <task-id>
 openwaggle schedules create launch . --name "Morning triage" --daily 09:00 --weekdays weekdays --prompt-file triage.md
 openwaggle schedules show <task-id>
@@ -176,5 +176,58 @@ openwaggle schedules import tasks.json
 `approve-wake-check` approves the command the task's Wake check runs now and prints it. An access profile cannot approve one.
 
 Add `--json` for versioned machine output. `export` prints tasks as JSON that `import` creates again under your identity. Tasks are stored only by the Session Host. No file creates one, and a project cannot share one.
+
+`openwaggle schedules export` writes a JSON array with one object per task; `--project <path>` limits it to one project, and `--session <session>` to the Heartbeats of one Session. This export holds a Heartbeat and a Launch schedule:
+
+```json
+[
+  {
+    "name": "Watch CI",
+    "prompt": "Fix the failing checks.",
+    "enabled": true,
+    "schedule": { "kind": "interval", "everyMinutes": 30 },
+    "timeZone": "Europe/Madrid",
+    "endsAt": null,
+    "maxRuns": null,
+    "target": {
+      "kind": "heartbeat",
+      "sessionId": "3f6c1b9e-2d4a-4c8e-9b71-5a0e6d2f8c13"
+    },
+    "notificationPolicy": "failures-only",
+    "heartbeat": {
+      "stopWhen": "CI is green",
+      "indefinite": false,
+      "idlePauseAfter": 3,
+      "wakeCheck": {
+        "command": "gh pr checks 42 | grep -i fail || true",
+        "onFailure": "wake"
+      }
+    }
+  },
+  {
+    "name": "Morning triage",
+    "prompt": "Triage the issues opened since yesterday.",
+    "enabled": true,
+    "schedule": { "kind": "daily", "at": "09:00", "weekdays": [1, 2, 3, 4, 5] },
+    "timeZone": "Europe/Madrid",
+    "endsAt": null,
+    "maxRuns": null,
+    "target": {
+      "kind": "launch",
+      "projectPath": "/Users/you/code/shop",
+      "workspace": "new-worktree",
+      "archiveFinishedSessions": true
+    },
+    "notificationPolicy": "every-run"
+  }
+]
+```
+
+- `schedule` is `{ "kind": "interval", "everyMinutes" }`, `{ "kind": "daily", "at", "weekdays" }` with ISO weekdays (1 is Monday), or `{ "kind": "rrule", "rule" }`.
+- `endsAt` is a time in milliseconds since 1970, or `null`. `maxRuns` is a number of runs, or `null`.
+- `target` names the Session a Heartbeat wakes, or the project, workspace, and Agent definition (`agentDefinitionName`) a Launch schedule starts. A task with its own model or thinking level also has `modelId` or `thinkingLevel` there.
+- `heartbeat` appears only on a Heartbeat.
+
+The export leaves out task ids, run history, and status. A Heartbeat's `sessionId` names a Session on the computer that exported it. Importing that Heartbeat where no Session has that id is refused with `That Session was not found.`
 
 An access profile needs the `schedules:read` capability to list tasks and `schedules:manage` to change them. See [Hive CLI](/docs/developer-workflow/hive-cli) for `--profile`.

@@ -73,7 +73,7 @@ In **New worktree** mode the first send needs a base branch. Until one resolves,
 
 > Select a base branch before sending in worktree mode.
 
-Managed worktrees are created outside your project, at `~/.openwaggle/worktrees/<repository>/<workspaceId>`, on a branch named `ow/session-<workspaceId>`. The workspace identifier can differ from the session ID, and several sessions can share one workspace. Existing worktrees retain their recorded names; **Recreate worktree** reattaches to the recorded branch rather than starting a new one, so commits made in the old tree are not stranded. Check **Session Summary > Environment** for the actual path and branch. You can list and remove worktrees in **Settings > Worktrees**.
+Managed worktrees are created outside your project, at `~/.openwaggle/worktrees/<project folder name>/<workspaceId>`, on a branch named `ow/session-<workspaceId>`. The workspace identifier can differ from the session ID, and several sessions can share one workspace. Existing worktrees retain their recorded names; **Recreate worktree** reattaches to the recorded branch rather than starting a new one, so commits made in the old tree are not stranded. Check **Session Summary > Environment** for the actual path and branch. You can list and remove worktrees in **Settings > Worktrees**.
 
 A new session branch does not track its base branch. Its first push publishes it under its own name, `origin/ow/session-<workspaceId>`, and sets that as its upstream, with `push.default` unset or set to `simple`, `current`, or `upstream`. Worktrees created by OpenWaggle 1.0.0-beta.25 and earlier track their base branch, such as `origin/main`. With `push.default` unset or `simple`, **Push** publishes those under their own name too and moves the upstream there, instead of failing as `git push` does. With `push.default=upstream`, the push goes to the tracked base branch, so OpenWaggle asks for confirmation first, as for any push to the default branch. If OpenWaggle cannot work out where a push would go, such as with `push.default=matching`, the Git status and **Commit** still work, and **Push** explains why it cannot run.
 
@@ -85,13 +85,17 @@ When the first message creates a worktree, OpenWaggle lists each step in the con
 2. **Pulling latest `<branch>` from origin** fetches a local base branch, when there is one to fetch.
 3. **Creating worktree `<branch>` from `<base>`** runs the Git worktree operation.
 4. **Running project setup** appears only when a Setup action will run.
-6. **Starting task** sends your submitted message to the agent.
+5. **Starting task** sends your submitted message to the agent.
 
 A finished step shows a check mark and the running one a spinner. While setup runs, the transcript shows a **Creating a worktree** card with **More details**, **Work locally**, and **Cancel**. **Work locally** stops the in-flight setup, changes that session to Current checkout, and retries the same submitted turn once. **Cancel** removes the optimistic turn and restores its text, attachments, skill reference, and Waggle preset to the composer.
 
 A first message in **Current checkout** gets a **Starting session** card for the same kind of wait: **Pulling latest changes** runs when the checked-out branch tracks an upstream. That card has no **Work locally** action and disappears once the agent starts. Until a step or the agent reports, the conversation shows **Starting session...**.
 
 If checkout creation fails, the card keeps the submitted turn visible and adds **Retry**. The details disclose the Git operation and error instead of replacing it with a generic spinner. Once the agent starts, the large card becomes a small expandable **Worktree created** row. That row remains in the transcript after reload as a record of where the session began. Local sessions and cancelled worktree launches do not get that row.
+
+![A first message sent in New worktree mode, with the Worktree created row expanded above the agent's reply: Preparing the session worktree, Fetching origin/main, Creating and then Created the ow/session branch from origin/main, and Starting the task in the new worktree](/screenshots/worktree-first-send.png)
+
+_Expand **Worktree created** to see what each step did, such as the ref it fetched and the branch it created._
 
 A configured preparation profile adds **Workspace setup** after checkout creation. Setup must succeed before the first agent turn. A failed or review-blocked setup has its own output and controls in **Session Summary > Workspace preparation**, including **Retry setup**, **Check the setup**, and **Continue anyway** where applicable. Development servers belong in on-demand Project actions, not setup. See [Workspace preparation](/docs/developer-workflow/built-in-terminal#workspace-preparation).
 
@@ -125,11 +129,13 @@ Toggle the diff panel with `Cmd+D` / `Ctrl+D`, by clicking the diff stats in the
 
 The right panel shows one panel at a time, so opening the diff replaces the [Session Tree](/docs/using-openwaggle/session-tree), Browser or any other panel that was showing.
 
+![A session with the diff panel open on the right: Changes for the Opened checkout, the Working tree tab, README.md with two added lines, the changed-file tree, and Commit, Revert all and Stage all along the bottom](/screenshots/feature-git-workflow.png)
+
 ### Diff scope
 
 Tabs at the top choose what you are reviewing:
 
-- **Working tree** shows uncommitted changes in the session's working tree.
+- **Working tree** shows uncommitted changes in the session's working tree, from `git diff HEAD`. An untracked file does not appear until you stage it.
 - **Branch** shows changes on `HEAD` relative to the merge base with a base ref. The default option, **Automatic**, resolves the repository's default branch and then names it, so the label reads `Automatic · origin/main` once the diff has loaded. Resolution asks the remote, in this order:
   1. `origin/HEAD`, the remote-tracking symref a clone sets up;
   2. the remote directly, when that symref is missing locally;
@@ -141,6 +147,24 @@ Tabs at the top choose what you are reviewing:
 
   If you are already sitting on the default branch, `HEAD` and the base are the same commit, so the Branch tab shows no changes; use **Working tree** to review uncommitted work there.
 - **Turns** shows changes captured during individual agent turns, when those checkpoints are available. The dropdown lists each turn with its `+`/`−` counts.
+
+Each tab compares a different pair of states:
+
+```mermaid
+flowchart LR
+  subgraph wt["Working tree"]
+    direction LR
+    h1["HEAD"] -->|"uncommitted changes"| d1["Tracked files on disk"]
+  end
+  subgraph br["Branch"]
+    direction LR
+    mb["Merge base with the base ref"] -->|"commits on this branch"| h2["HEAD"]
+  end
+  subgraph tu["Turns"]
+    direction LR
+    t0["Snapshot after the previous turn"] -->|"one agent turn"| t1["Snapshot after this turn"]
+  end
+```
 
 ### Reading diffs
 
@@ -161,6 +185,8 @@ While a review is open, a bar shows `N pending comments` with:
 - **Discard review** drops the pending comments.
 
 `Cmd/Ctrl+Enter` submits a comment or the review; `Escape` cancels.
+
+![The diff panel maximized during a review: a Pending comment on lines 3 to 7 of src/upload/retry.ts, a comment box open on line 24 with Cancel, Add comment and Add to review, and the bar reading 1 pending comment with Discard review and Submit review](/screenshots/diff-review-comment.png)
 
 ### Staged Git actions
 
@@ -193,6 +219,8 @@ Click **Open commit dialog** in the header. Hover the icon to see its label.
 3. Enter your commit message.
 4. Choose **Amend last commit** only if you intend to replace the previous commit rather than create a new one.
 5. Use **Refresh** if files changed while the dialog was open. This also refreshes the header's diff stats.
+
+![The Commit changes dialog: 1/1 files selected with +7 / -0, a commit message typed in, Amend last commit unchecked, src/upload/retry.ts checked, and Cancel and Commit](/screenshots/commit-dialog.png)
 
 On success a toast confirms the commit and the diff stats refresh. In New-worktree mode the commit lands in the session's worktree, leaving the opened checkout untouched.
 
