@@ -134,16 +134,20 @@ function isPluralPossessive(word: string) {
   return /s['’]$/u.test(word.replace(/[^\p{L}\p{N}'’]+$/u, ''))
 }
 
+/** "your own": the words after "of" that make a role a self-check. */
+const SELF_CHECK_WORDS = 2
+
 /**
  * What a token does to the phrase before it is read as a word: `drop` the whole phrase (a quoted
  * word, a possessive, a joined second role, a role over "your own" work), `end` it (a
  * contraction: "who's", "it's"), or end it unless further roles follow (`list`, a dash).
  */
-function tokenStop(raw: string, next: string | undefined): 'drop' | 'end' | 'list' | undefined {
+function tokenStop(raw: string, following: readonly string[]): 'drop' | 'end' | 'list' | undefined {
   if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw) || ROLE_JOINERS.has(raw)) return 'drop'
   if (DASH.test(raw)) return 'list'
   // "the reviewer of your own diff": a role over the Worker's own work is a self-check, not its role.
-  if (/^of$/iu.test(raw) && /^your$/iu.test(next ?? '')) return 'drop'
+  if (/^of$/iu.test(raw) && /^your\s+own\b/iu.test(following.slice(0, SELF_CHECK_WORDS).join(' ')))
+    return 'drop'
   // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
   const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
   if (!contraction) return undefined
@@ -173,7 +177,7 @@ function rolePhrase(rest: string) {
   let opening = true
   const tokens = rest.split(/\s+/u)
   for (const [index, raw] of tokens.entries()) {
-    const stop = tokenStop(raw, tokens[index + 1])
+    const stop = tokenStop(raw, tokens.slice(index + 1))
     if (stop === 'list') return endedBefore(phrase, tokens, index)
     if (stop) return stop === 'end' ? phrase : []
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
@@ -246,11 +250,13 @@ function readRole(objective: string, quoted: RegExp): readonly string[] {
     // first one, so a later "Act as the reviewer" does not count. It names no role itself.
     if (!opener) {
       // A role given without an opener ("Role: implementer", "Your role is…") is still the
-      // first statement, so a later one does not count; it names no role itself.
+      // first statement, so a later one does not count; it names no role itself. Read with and
+      // without an own label before it ("**Task:** Your role is…").
       const plain = opened.replace(/[*_]+/gu, '')
       if (
         EMBEDDED_STATEMENT.test(plain) ||
-        ROLE_LABEL.test(match[0].trim().replace(LIST_MARKER, ''))
+        ROLE_LABEL.test(match[0].trim().replace(LIST_MARKER, '')) ||
+        ROLE_LABEL.test(plain)
       )
         return []
       continue
