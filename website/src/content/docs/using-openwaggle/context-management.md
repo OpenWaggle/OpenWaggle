@@ -63,7 +63,7 @@ The threshold is the lowest of three limits. Pi's `compaction.reserveTokens` set
 ```mermaid
 flowchart TD
   grow["Context grows with messages, files, and tool results"] --> check{"At the threshold?"}
-  check -- "No" --> grow
+  check -- "No" --> later["Keep working; check again before the next request"]
   check -- "Yes, before the next model request" --> compact["Compaction"]
   limits["Threshold is the lowest of:<br/>your percentage of the window, 80% by default<br/>the window minus reserveTokens, 16,384 by default<br/>400,000 tokens"] -.-> check
   compact --> summary["Older context becomes a summary"]

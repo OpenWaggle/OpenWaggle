@@ -197,7 +197,7 @@ Other files have separate locations:
 
 Credentials may also come from environment variables or custom provider configuration. Do not treat the session database as a complete backup of credentials or project files.
 
-Managed worktrees live outside your project at `~/.openwaggle/worktrees/<repository>/<workspaceId>`. New workspace branches use `ow/session-<workspaceId>`; sessions that share a workspace use the same checkout. Existing worktrees retain their recorded names. Check **Session Summary > Environment** for the actual path and branch rather than deriving them from a session ID.
+Managed worktrees live outside your project at `~/.openwaggle/worktrees/<project folder name>/<workspaceId>`. New workspace branches use `ow/session-<workspaceId>`; sessions that share a workspace use the same checkout. Existing worktrees retain their recorded names. Check **Session Summary > Environment** for the actual path and branch rather than deriving them from a session ID.
 
 Sidebar sort order, collapsed projects, and the Pinned section's sort are remembered between launches. Pinned sessions and their dragged order are stored with app data. Text filters and state chips are not remembered, so an old filter does not keep hiding sessions.
 
