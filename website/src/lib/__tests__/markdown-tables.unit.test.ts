@@ -15,6 +15,13 @@ describe('scrollable doc tables', () => {
     expect(html.endsWith('</table></div>')).toBe(true);
   });
 
+  it('names each table region after the heading above it, numbering repeats', async () => {
+    const table = '| A | B |\n| --- | --- |\n| 1 | 2 |';
+    const html = await render(`## Exit codes\n\n${table}\n\n${table}\n\n## Flags\n\n${table}`);
+    const labels = [...html.matchAll(/aria-label="([^"]*)"/gu)].map((match) => match[1]);
+    expect(labels).toEqual(['Exit codes table', 'Exit codes table 2', 'Flags table']);
+  });
+
   it('keeps words whole in table cells, which overflow-wrap: anywhere on the page would break', () => {
     const css = readFileSync(new URL('../../styles/prose.css', import.meta.url), 'utf8');
     const tableRule = /\.prose-docs table \{[^}]*\}/u.exec(css)?.[0] ?? '';

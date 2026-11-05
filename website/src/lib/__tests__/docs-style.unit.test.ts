@@ -231,6 +231,16 @@ describe('docs wording', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('uses no em dashes in guides and overviews', () => {
+    const offenders = pages()
+      .filter((page) => page.kind !== 'reference')
+      .flatMap((page) => {
+        const text = prose(page.body);
+        return [...text.matchAll(/\u2014/gu)].map((match) => `${page.slug}:${lineOf(page, text, match.index)}`);
+      });
+    expect(offenders).toEqual([]);
+  });
+
   it('writes glossary nouns in lowercase except at the start of a sentence', () => {
     const nameStart = new RegExp(`^(?:${NAMES.join('|')})\\b`, 'u');
     const offenders = pages()
