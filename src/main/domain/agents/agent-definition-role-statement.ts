@@ -106,7 +106,7 @@ const ROLE_LIST = new RegExp(
  * a determiner. Without one ("the bug you are seeing") it is no statement.
  */
 const EMBEDDED_STATEMENT = new RegExp(
-  String.raw`(?:^|[\s,:;—–\])])(?:${OPENERS})\s+(?:(?:${[...LEADING_ADVERBS].join('|')})\s+)?(?:${[...DETERMINERS].join('|')})\s`,
+  String.raw`(?:^|[\s,:;—–\]()])(?:${OPENERS})\s+(?:(?:${[...LEADING_ADVERBS].join('|')})\s+)?(?:${[...DETERMINERS].join('|')})\s`,
   'iu',
 )
 /** A clause that gives the role by a label rather than an opener: "Role: implementer", "Your role is". */
@@ -155,6 +155,14 @@ function endedBefore(phrase: readonly string[], tokens: readonly string[], index
   return ROLE_LIST.test(tokens.slice(index + 1).join(' ')) ? [] : phrase
 }
 
+/** What a word before the phrase's first word is: an adverb, a determiner, or "also". */
+function openingWord(core: string): 'adverb' | 'determiner' | 'second-role' | undefined {
+  // "You are also the reviewer": a second role beside one stated elsewhere, so none.
+  if (core === 'also') return 'second-role'
+  if (LEADING_ADVERBS.has(core)) return 'adverb'
+  return DETERMINERS.has(core) ? 'determiner' : undefined
+}
+
 /**
  * "independent code reviewer" from "an independent code reviewer with a fresh context": the
  * noun phrase right after the opener, a determiner that opens it left out. A possessive means
@@ -171,10 +179,11 @@ function rolePhrase(rest: string) {
     const word = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '')
     const core = word.replace(/[^\p{L}\p{N}-]+$/u, '')
     if (core === '' || PHRASE_BREAKS.has(core)) break
-    if (opening && LEADING_ADVERBS.has(core)) continue
-    const opens = opening
+    const lead = opening ? openingWord(core) : undefined
+    if (lead === 'second-role') return []
+    if (lead === 'adverb') continue
     opening = false
-    if (opens && DETERMINERS.has(core)) continue
+    if (lead === 'determiner') continue
     phrase.push(...nameWords(core))
     if (phrase.length > MAX_PHRASE_WORDS) return []
     if (core === word) continue
@@ -238,7 +247,12 @@ function readRole(objective: string, quoted: RegExp): readonly string[] {
     if (!opener) {
       // A role given without an opener ("Role: implementer", "Your role is…") is still the
       // first statement, so a later one does not count; it names no role itself.
-      if (EMBEDDED_STATEMENT.test(opened) || ROLE_LABEL.test(match[0].trim())) return []
+      const plain = opened.replace(/[*_]+/gu, '')
+      if (
+        EMBEDDED_STATEMENT.test(plain) ||
+        ROLE_LABEL.test(match[0].trim().replace(LIST_MARKER, ''))
+      )
+        return []
       continue
     }
     const rest = opened.slice(opener[0].length)

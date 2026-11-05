@@ -40,7 +40,7 @@ function escapeXml(text: string) {
     .replaceAll('"', '&quot;')
 }
 
-function shortDescription(description: string) {
+export function shortDescription(description: string) {
   const flat = description.replace(/\s+/g, ' ').trim()
   // Counted and cut by code point, so a cut never splits a surrogate pair into a lone half.
   const codePoints = Array.from(flat)

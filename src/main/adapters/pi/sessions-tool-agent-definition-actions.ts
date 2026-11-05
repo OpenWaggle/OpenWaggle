@@ -17,6 +17,7 @@ import { suggestAgentDefinition } from '../../domain/agents/agent-definition-sug
 import { createLogger } from '../../logger'
 import { agentDefinitionProjectProbe } from '../../session-host/agent-definition-project-probe'
 import { describeError } from '../../utils/describe-error'
+import { shortDescription } from './available-agents-prompt'
 import {
   permitsSessionsToolAction,
   type SessionsToolActionGrant,
@@ -182,5 +183,5 @@ export async function spawnAgentHint(
     definitions,
   )
   if (!suggested) return undefined
-  return `suggestedAgent: ${JSON.stringify(suggested.name)}. This objective describes the role of the Agent definition ${JSON.stringify(suggested.name)} (${JSON.stringify(suggested.description)}). If that is this Worker's role, spawn the next such Worker with agent: ${JSON.stringify(suggested.name)} and an objective that carries only its task.`
+  return `suggestedAgent: ${JSON.stringify(suggested.name)}. This objective describes the role of the Agent definition ${JSON.stringify(suggested.name)} (${JSON.stringify(shortDescription(suggested.description))}). If that is this Worker's role, spawn the next such Worker with agent: ${JSON.stringify(suggested.name)} and an objective that carries only its task.`
 }
