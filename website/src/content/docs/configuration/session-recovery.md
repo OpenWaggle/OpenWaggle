@@ -92,7 +92,7 @@ Quitting the desktop window does not stop the Session Host. The database recover
 
 ## Archive a session when desktop tools are paused
 
-If archiving a session fails with "An attached OpenWaggle desktop is required", and a banner says **Desktop tools are paused**, the last OpenWaggle window closed without confirming that its terminals and previews had stopped. Check that nothing you started from its terminals is still running, then choose **Recover desktop tools** on the banner. See [App shutdown and recovery](/docs/developer-workflow/built-in-terminal#recover-after-the-app-closes).
+If archiving a session fails with "An attached OpenWaggle desktop is required", and a banner says **Desktop tools are paused**, the last OpenWaggle window closed without confirming that its terminals and previews had stopped. Check that nothing you started from its terminals is still running, then choose **Recover desktop tools** on the banner. See [Recover after the app closes](/docs/developer-workflow/built-in-terminal#recover-after-the-app-closes).
 
 ## Collect details before asking for help
 
