@@ -6,7 +6,7 @@ section: "Packages"
 kind: "reference"
 ---
 
-This catalogue renders the same class names, attributes, and stylesheet shipped by `@openwaggle/extension-react`. The examples are interactive HTML equivalents of the React components, so you can inspect focus, disabled, validation, and control states directly. This page supplies the SDK's default dark theme on each example root, the way the OpenWaggle host supplies the active theme to a mounted extension.
+This catalogue renders the same class names, attributes, and stylesheet shipped by `@openwaggle/extension-react`. The examples are interactive HTML equivalents of the React components, so you can inspect disabled, validation, and control states directly. This page supplies the SDK's default dark theme on each example root, the way the OpenWaggle host supplies the active theme to a mounted extension.
 
 Import the package stylesheet and render the components beneath the host-provided `.ow-extension-root` element.
 
@@ -157,7 +157,7 @@ import { Button, Field, Input, Panel, Stack } from '@openwaggle/extension-react'
 </Field>
 ```
 
-Keep labels visible, preserve keyboard interaction, and use native disabled and validation states. Package focus styles use the host-projected focus ring and shadow variables.
+Keep labels visible, preserve keyboard interaction, and use native disabled and validation states. Package focus styles use the host-projected focus ring and shadow variables. The default theme sets both to `transparent` and `none`, so it draws no focus ring.
 
 ## Source and syntax
 
@@ -172,11 +172,11 @@ Keep labels visible, preserve keyboard interaction, and use native disabled and 
 />
 ```
 
-`SourceView` shows line numbers by default and has a fixed height of up to 320 pixels. It renders only the lines in view, so long files stay fast. It asks the host to highlight a source only up to 64 KiB (65,536 UTF-16 code units) and 2,000 lines, and shows larger sources as plain text. It has no `wrap` option. Use `SyntaxBlock` with `wrap` for short snippets that should wrap.
+`SourceView` shows line numbers by default and has a fixed height of up to 320 pixels. It renders only the lines in view, so long files stay fast. It asks the host to highlight a source only up to 64 KiB (65,536 UTF-16 code units) and 2,000 lines, and shows larger sources as plain text. It ignores `wrap`. Use `SyntaxBlock` with `wrap` for short snippets that should wrap.
 
 Both components begin with safe plain text, then apply the latest host result. They ignore an obsolete async result after the source changes. The host owns theme selection, language aliases, scheduling, caching, input limits, and fallback diagnostics. The extension never receives highlighted HTML.
 
-This static example shows the plain-text markup a `SourceView` renders before the host result arrives:
+This static example shows the plain-text markup a `SyntaxBlock` with `showLineNumbers` renders before the host result arrives:
 
 <div class="ow-extension-root">
   <section aria-label="Extension manifest">

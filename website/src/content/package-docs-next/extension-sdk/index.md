@@ -289,12 +289,12 @@ For the full extension package lifecycle and manifest model, see [OpenWaggle Ext
 
 ## Migrating from 0.1
 
-Version 0.2 replaces the 0.1 theme tokens with the Tailwind-standard contract described under the theme contract. Code that only reads `context.theme` colours keeps working. Code that reads the removed tokens or builds theme objects itself needs these changes:
+Version 0.2 replaces the 0.1 theme tokens with the Tailwind-standard contract described under the theme contract. Code that only reads `context.theme` colours keeps working, though the `sm`, `md` and `lg` radii change size. Code that reads the removed tokens or builds theme objects itself needs these changes:
 
 - **Spacing.** `spacing.xs` through `spacing.xl` are gone. Use multiples of `spacing.unit`, for example `calc(var(--ow-spacing) * 3)` instead of `--ow-space-md`.
-- **Radius.** `radius.panel` and `--ow-radius-panel` are gone. Use one of the standard radii from `xs` to `fourXl`.
+- **Radius.** `radius.panel` and `--ow-radius-panel` are gone. Use one of the standard radii from `xs` to `fourXl`. `sm`, `md` and `lg` now follow Tailwind's scale (0.25rem, 0.375rem and 0.5rem instead of 6px, 9px and 12px).
 - **Shadow.** `elevation.card` and `elevation.overlay` are now `shadow.*`, and `--ow-elevation-*` is now `--ow-shadow-*`. The export `EXTENSION_THEME_ELEVATION_KEYS` is now `EXTENSION_THEME_SHADOW_KEYS`.
-- **Theme objects you build yourself.** An `OpenWaggleExtensionThemeTokens` object must now include the colour roles `dangerText`, `infoText`, `review`, `plan`, `progress`, and `neutral`, and `typography.typeScale`.
+- **Theme objects you build yourself.** An `OpenWaggleExtensionThemeTokens` object must now include the colour roles `dangerText`, `infoText`, `review`, `plan`, `progress`, and `neutral`, and `typography.typeScale`. `isOpenWaggleExtensionTheme` now rejects missing or extra keys, so a theme that still has `elevation` fails. Test doubles for the surface SDK need `syntax` (or use `createNoopExtensionSurfaceSdk()`), and broker SDK doubles need `resources`.
 - **Colour scheme.** `OpenWaggleExtensionColorScheme` can now be `light`, `high-contrast-dark`, or `high-contrast-light` as well as `dark`. Handle every value.
 
 New in 0.2: the `/syntax` subpath and `context.sdk.surface.syntax`, the `openwaggle.resources` capability, an `icon` for `sidePanels`, and `sessionSummarySections`.
