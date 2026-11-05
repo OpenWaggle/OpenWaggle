@@ -69,10 +69,10 @@ From a development checkout on macOS, with Docker running, build the packaged ap
 pnpm build && pnpm exec electron-builder --dir
 ```
 
-Then run the benchmark. Replace `sk-or-...` with your OpenRouter API key. The path is for Apple silicon. On an Intel Mac the app is in `dist/mac/`.
+Then run the benchmark. Replace `OPENROUTER_KEY` with your OpenRouter API key. The path is for Apple silicon. On an Intel Mac the app is in `dist/mac/`.
 
 ```sh
-BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=sk-or-... scripts/benchmark-docker/run.sh
+BENCH_OPENWAGGLE_APP=dist/mac-arm64/OpenWaggle.app OPENROUTER_API_KEY=OPENROUTER_KEY scripts/benchmark-docker/run.sh
 ```
 
 Without `BENCH_OPENWAGGLE_APP`, it runs only the four container agents. `results.json` records the OpenWaggle app's version and commit. Keep them, the other versions and the raw proxy output with any new result.

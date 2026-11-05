@@ -254,16 +254,16 @@ You can also go the other way and let another MCP client, such as a different ag
 - List the projects or sessions it may reach with `--workspace` or `--session`.
 - Grant only the operations it needs with `--grant`.
 
-All three are required. An empty scope never means every session. To make a profile for a helper that only finds and reads sessions in one project, run this, with your project's path:
+All three are required. An empty scope never means every session. To make a profile for a helper that only finds and reads sessions in one project, run this, replacing `PROJECT_PATH` with your project's folder:
 
 ```bash
-openwaggle access profiles create ci-helper --capability sessions:discover --capability sessions:read --project /path/to/project --credential-store
+openwaggle access profiles create ci-helper --capability sessions:discover --capability sessions:read --project PROJECT_PATH --credential-store
 ```
 
 Then point the other client at this command, which serves that profile over standard input and output:
 
 ```bash
-openwaggle mcp serve --stdio --profile ci-helper --grant sessions:discover --grant sessions:read --workspace /path/to/project
+openwaggle mcp serve --stdio --profile ci-helper --grant sessions:discover --grant sessions:read --workspace PROJECT_PATH
 ```
 
 To serve over HTTP on your own computer instead, pass a bearer token on standard input. The command below reads the token from `OPENWAGGLE_MCP_TOKEN`, so set that variable to a token of at least 32 bytes first. It serves your own access to one session, on a free port. Replace `SESSION_ID` with the session's ID or a [session link](/docs/using-openwaggle/chat-and-tools#session-links):
@@ -272,4 +272,4 @@ To serve over HTTP on your own computer instead, pass a bearer token on standard
 printf '%s' "$OPENWAGGLE_MCP_TOKEN" | openwaggle mcp serve --http 0 --token-stdin --owner --grant sessions:discover --session SESSION_ID
 ```
 
-The server prints its local URL but never the token. An `--owner` server can ask for approval at most, unless you start it with `--authorization-ceiling yolo` after reviewing the client. Run `openwaggle mcp serve --help` for every option, and see [OpenWaggle as an MCP server](/docs/configuration/mcp-reference#openwaggle-as-an-mcp-server) in the reference for the operations, limits, and errors.
+The server prints its local URL but never the token. An `--owner` server never goes past **Ask for Approval** unless you start it with `--authorization-ceiling yolo`. Do that only after you have reviewed the client. Run `openwaggle mcp serve --help` for every option, and see [OpenWaggle as an MCP server](/docs/configuration/mcp-reference#openwaggle-as-an-mcp-server) in the reference for the operations, limits, and errors.

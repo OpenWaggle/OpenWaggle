@@ -108,7 +108,7 @@ Give the prompt as words after `run` or with one of `--text`, `--stdin` or `--in
 | `--agent <name>` | Uses an [agent definition](/docs/extending/agent-definitions) |
 | `--model <provider/model>` | Model for the session |
 | `--thinking <level>` | Thinking level the new session starts with |
-| `--authorization ask-for-approval\|yolo` | Agent access for the session. `--yolo` is short for `--authorization yolo` |
+| `--authorization ask-for-approval\|yolo` | Access mode for this run only. The session's saved mode does not change. `--yolo` is short for `--authorization yolo` |
 | `--interaction-timeout-ms <ms>` | Interrupts the run when a question stays unanswered for `<ms>` milliseconds. The command then exits with status 7 |
 | `--jsonl` | Prints the session's Session Host events as versioned records instead of text |
 | `--idempotency-key <key>` | Reusing a key attaches to the run that key first started, instead of starting another |

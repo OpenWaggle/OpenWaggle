@@ -69,7 +69,7 @@ When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH,
 
 ### Update an existing install
 
-Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. If the installed version is too old to ask, the script stops its Session Host anyway, waiting up to 20 seconds for running work first, then installs.
+Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. If the installed version is too old to ask, the script tells its Session Host to stop, waits up to 20 seconds for running work, then installs even if that work is still finishing. A version without the `host` command is not stopped, so run `openwaggle host stop --update` after the install.
 
 On macOS, if the copy being replaced is open, the script quits it and opens the new version. A copy opened from somewhere else stays open. All installed copies share one Session Host, so if another copy is open when the script updates an existing install, the script stops and asks you to quit that copy first.
 

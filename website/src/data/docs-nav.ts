@@ -44,7 +44,7 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'Providers and models', slug: 'providers/overview' },
       { title: 'API keys', slug: 'providers/api-key-auth' },
-      { title: 'Subscription sign-in', slug: 'providers/oauth-auth' },
+      { title: 'Browser sign-in', slug: 'providers/oauth-auth' },
       { title: 'Custom providers', slug: 'providers/custom-providers' },
       { title: 'Virtual models', slug: 'providers/virtual-models' },
       { title: 'Approvals and permissions', slug: 'configuration/approvals-permissions' },

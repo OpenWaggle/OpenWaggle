@@ -6,11 +6,9 @@ section: "Customize"
 kind: "guide"
 ---
 
-Settings is where you connect models, decide how much the agent may do on its own, and adjust how OpenWaggle looks and behaves. Click the gear icon in the sidebar to open it. For a first setup you need two sections: **Connections** to connect a model, and **Permissions** to choose an access mode. Leave the rest alone until you need it. The [Settings reference](/docs/reference/settings) lists every setting, with its values and default.
+Settings is where you connect models, decide how much the agent may do on its own, and adjust how OpenWaggle looks and behaves. Click **Settings** at the bottom of the sidebar to open it. For a first setup you need two sections: **Connections** to connect a model, and **Permissions** to choose an access mode. Leave the rest alone until you need it. The [Settings reference](/docs/reference/settings) lists every setting, with its values and default.
 
 Most settings apply to the whole app. A few sections have a project picker so you can look at one project's settings. Picking a project there does not switch your conversation to it, so check which project is selected before you change something.
-
-## Find the right section
 
 The [Settings reference](/docs/reference/settings) goes through every section in the order the sidebar shows them, with each setting's values and default. The sections below cover the changes people make most.
 

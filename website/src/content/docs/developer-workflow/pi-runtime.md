@@ -70,7 +70,7 @@ The [Pi CLI sessions guide](/docs/using-openwaggle/pi-cli-sessions) explains wha
 - The composer asks before it continues a session whose latest prompt has no `openwaggle-user-input` record before it, which is the record OpenWaggle writes for its own prompts. OpenWaggle saves a remembered answer per project in your own settings, as `piSessionContinuationByProject`.
 - A session listed before it had a first message takes its title once it has one.
 - A fork made with the `pi` command copies the entry ids of the session it came from, and OpenWaggle stores the nodes of every session under one key. So the projection stores a listed session's entries under ids prefixed with its session id, and translates them back whenever it hands an entry to Pi.
-- Deleting a listed session marks its file as dismissed, so discovery does not list it again. Removing the project dismisses nothing, so its sessions come back if you add the folder again.
+- Deleting a listed session marks its file as dismissed, so discovery does not list it again. Removing the project deletes its sessions from OpenWaggle but dismisses none of their files, so they come back if you add the folder again.
 
 Forking a listed session never opens its file for writing. Pi branches from a copy of it in memory, and OpenWaggle writes the fork's file next to the source before the fork's session starts. Extensions see the files like this:
 

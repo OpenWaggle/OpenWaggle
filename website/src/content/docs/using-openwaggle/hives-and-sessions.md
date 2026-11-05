@@ -180,7 +180,7 @@ An agent running in OpenWaggle uses its `hive` tool. You, in a terminal, and cod
 
 ### Check on a session from a terminal
 
-Run these from your repository's folder. Replace `<session-id>` with an ID from `openwaggle hive list`, or with a session link copied from the app.
+Run these from your repository's folder. Replace `SESSION_ID` with an ID from `openwaggle hive list`, or with a session link copied from the app.
 
 To list the project's sessions:
 

@@ -51,7 +51,7 @@ Until a base branch is picked, sending stops with:
 
 When the base is a local branch, OpenWaggle first tries to fetch it from `origin`. It starts from `origin/<branch>` when your local branch is the same as it or behind it. A local branch that is ahead or has diverged keeps its own tip, unless the session was started with `--start-from-origin` from the CLI or the agent's `hive` tool. If the fetch fails, OpenWaggle uses the branches it already has, so you do not need a network connection. OpenWaggle uses a remote branch you picked, such as `origin/main`, as it is.
 
-OpenWaggle creates each worktree in a folder outside your project, on a branch named `ow/session-<workspace ID>`. Its folder has the same workspace ID as its name. The workspace ID is not the session ID, and several sessions can share one workspace. Worktrees that already exist keep the names they were created with. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where the folders live, and **Session Summary > Environment** shows a session's real path and branch.
+OpenWaggle creates each worktree in a folder outside your project, on a branch named `ow/session-<workspace ID>`. Its folder is named after the same workspace ID. The workspace ID is not the session ID, and several sessions can share one workspace. Worktrees that already exist keep the names they were created with. [Data locations](/docs/reference/data-locations#managed-worktrees) lists where the folders live, and **Session Summary > Environment** shows a session's real path and branch.
 
 See [Push a session branch](/docs/developer-workflow/git-integration#push-a-session-branch) for where the branch goes when you push it.
 
@@ -60,8 +60,8 @@ See [Push a session branch](/docs/developer-workflow/git-integration#push-a-sess
 When the first message creates a worktree, the conversation lists each step as it starts, before the agent runs:
 
 1. **Preparing the session worktree** finds the base branch and the folder to use.
-2. **Pulling latest** followed by the branch name, **from origin**, fetches a local base branch when there is one to fetch.
-3. **Creating worktree** followed by the new branch and its base runs the Git command.
+2. **Pulling latest main from origin**, with your base branch in place of `main`, fetches a local base branch when there is one to fetch.
+3. **Creating worktree ow/session-… from main**, with the new branch and its base, runs the Git command.
 4. **Running project setup** appears only when the project has setup to run.
 5. **Starting task** sends your message to the agent.
 

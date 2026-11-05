@@ -5,7 +5,7 @@ section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-The Usage & Cost page shows how many tokens your sessions used and roughly what they cost, by day, by model and by project. Open it when you want to know where your spending goes, or which session used up a day's budget. It counts every Pi session on your computer, the ones from OpenWaggle and the ones from `pi` in a terminal, and it reads them from the session files on your disk.
+The Usage & Cost page shows how many tokens your sessions used and roughly what they cost, by day, by model and by project. Open it when you want to know where your spending goes, or which session used up a day's budget. It counts every session in Pi's sessions folder, the ones from OpenWaggle and the ones from `pi` in a terminal, and it reads them from the session files on your disk.
 
 ## Open Usage & Cost
 

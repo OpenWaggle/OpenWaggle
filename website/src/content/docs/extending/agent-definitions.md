@@ -131,18 +131,18 @@ OpenWaggle reads the definition and keeps a copy of it when the session is creat
 
 ## Check and import definitions from the command line
 
-The `openwaggle agents` command checks, explains and imports definition files. `openwaggle agents help` lists every subcommand, including `create`, `update`, `duplicate`, `delete` and `refresh`. In these examples, replace `/path/to/project` with your project's folder, `./security-reviewer.md` with the path of your definition file, and `security-reviewer` with its name.
+The `openwaggle agents` command checks, explains and imports definition files. `openwaggle agents help` lists every subcommand, including `create`, `update`, `duplicate`, `delete` and `refresh`. In these examples, replace `PROJECT_PATH` with your project's folder, `./security-reviewer.md` with the path of your definition file, and `security-reviewer` with its name.
 
 To list the enabled definitions of a project:
 
 ```sh
-openwaggle hive agent-definitions-list --project /path/to/project
+openwaggle hive agent-definitions-list --project PROJECT_PATH
 ```
 
 To search them by name and description:
 
 ```sh
-openwaggle hive agent-definitions-search security --project /path/to/project
+openwaggle hive agent-definitions-search security --project PROJECT_PATH
 ```
 
 To check a file before you install it:
@@ -154,7 +154,7 @@ openwaggle agents validate ./security-reviewer.md --json
 To see how OpenWaggle resolves an installed definition in a project:
 
 ```sh
-openwaggle agents explain security-reviewer --project /path/to/project --json
+openwaggle agents explain security-reviewer --project PROJECT_PATH --json
 ```
 
 `validate` and `explain` look up every model, tool, skill and MCP server the definition names in the project's current catalogs. MCP servers are named by their configured name. A definition written before OpenWaggle used Pi's MCP configuration may still use a server's old instance ID, which keeps working while that server is configured. When a name is unknown, listed twice, or cannot be checked because a project catalog failed to load, validation lists what is wrong and exits with a non-zero code. `create`, `update`, `import` and `refresh` run the same checks before they write, so the CLI never installs an invalid role.

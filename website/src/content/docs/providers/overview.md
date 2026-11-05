@@ -15,7 +15,7 @@ A provider is the company or server that runs the AI models OpenWaggle talks to.
 3. Under **Available Models**, turn on the models you want to use.
 4. Go back to your conversation and pick one of them in the model selector beside the message box.
 
-This is the **Connections** page with **API Key Providers** expanded and one provider's key field open:
+To paste a key, expand **API Key Providers** and open a provider's key field:
 
 ![Settings > Connections with API Key Providers expanded and a provider's Auth key field open with a made-up key](/screenshots/settings-api-key-providers.png)
 

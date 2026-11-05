@@ -13,8 +13,9 @@ import {
  * directory's `sessions/` the way Pi writes them (`pi-usage-cost-parse.ts` reads them back): a
  * header, model changes, prompts, assistant messages with usage, and a compaction. Most records
  * carry the cost Pi recorded; the `pi` CLI sessions' records carry none, which the app prices
- * from Pi's catalog when it finds the model (MEMORY.md: it currently finds none). OpenWaggle sessions carry an `openwaggle-` custom entry, which is how
- * the page tells them from other Pi clients.
+ * from Pi's built-in catalog (`builtinModels()`), so the chart shows estimated bars. OpenWaggle
+ * sessions carry an `openwaggle-` custom entry, which is how the page tells them from other Pi
+ * clients.
  *
  * The working directories are invented paths outside `/tmp` (the scanner groups every session
  * under `/tmp`, where the scratch profile lives, as "Temporary directory"); their last segments

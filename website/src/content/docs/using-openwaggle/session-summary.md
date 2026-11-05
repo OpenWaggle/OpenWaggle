@@ -185,7 +185,7 @@ Older sessions fill in their lists in batches in the background. You can use the
 
 - If there is no Summary at all, send the session's first message, or close the right sidebar and click **Open Session Summary**. Running a project action also needs a session that already exists.
 - If there is no pull request row, or a disabled one, the remote must be on GitHub or GitLab, with `gh` or `glab` signed in to that host. **Settings > Connections > Source control** shows which provider OpenWaggle chose for the host and why. On a detached `HEAD`, create or check out a branch first. A new branch needs at least one commit, or local changes selected under **Commit and push local changes**, before you can open a request.
-- If a pull request exists but is missing from **Outputs**, use **Retry adding PR to Outputs** in the creation panel when it offers it.
+- If a pull request exists but is missing from **Outputs**, use **Retry adding PR to Outputs** (**MR** on GitLab) in the creation panel when it offers it.
 - If a changed file is missing from **Outputs**, check **Environment > Changes**. Only files the session recorded appear as outputs.
 - If a link is missing from **Sources**, it may have been a URL in ordinary text, which the session does not record.
 - If a section shows an error, use its **Retry**. For an image, use **Retry image** in the viewer.

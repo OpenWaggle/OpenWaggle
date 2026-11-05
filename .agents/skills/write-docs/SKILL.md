@@ -29,7 +29,7 @@ If a guide grows a table longer than 12 rows, or a list of every option, move it
 - Say what happens, with the real value: "MCP servers stop 5 minutes after the session's last run ends", not "servers are stopped after a period of inactivity".
 - Lowercase ordinary nouns: session, run, worker, follow-up, steering, delegation, workspace, project, branch. Capitalize names: OpenWaggle, Pi, Hive, Queen, Waggle, Session Host.
 - UI labels in **bold**, spelled and cased exactly as the app shows them. Check the string in `src/renderer`.
-- Do not use specification words in guides: durable, atomically, lineage, authoritative, workspace binding, idempotent, "exact active Run". Say what they mean ("kept after the app restarts", "in one step", "the session it came from").
+- Do not use specification words in guides and overviews: durable, atomically, lineage, authoritative, workspace binding, idempotent, "exact active Run". Say what they mean ("kept after the app restarts", "in one step", "the session it came from").
 - No em dashes, no "Note that", no "It is important to", no "This allows you to".
 
 Before and after, from the Hives guide:

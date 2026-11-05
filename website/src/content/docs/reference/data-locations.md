@@ -28,7 +28,7 @@ Set `OPENWAGGLE_USER_DATA_DIR` to use another folder. The desktop app, the Sessi
 | `session-host/session-host.sqlite` | The session database: sessions, transcripts, the session tree, app settings, pinned sessions and their order, Hives, delegations, scheduled tasks, and each project's private project actions and overrides |
 | `session-host/pre-cutover-openwaggle.sqlite` | The recovery copy kept when an upgrade migrated an older `openwaggle.db`. See [Recover an older session database](/docs/configuration/session-recovery#recover-an-older-session-database) |
 | `session-host/` | Also the Session Host's ownership files and access profile credentials, and its socket. See [The Session Host's socket](#the-session-hosts-socket) |
-| `logs/` | Log files. See [Logs](#logs) |
+| `logs/` | Log files on Windows and Linux, and on macOS when `OPENWAGGLE_USER_DATA_DIR` is set. See [Logs](#logs) |
 | `mcp/` | MCP secrets and sign-ins, encrypted, and the tool catalogs of your MCP servers. Each build keeps its own, because builds encrypt with different keys |
 | `extensions/<extension ID>/` | Global extension packages. See [Build an extension](/docs/extending/openwaggle-extensions) |
 | `visualizations/<session ID>/` | The HTML of each session's inline visualizations |
@@ -55,7 +55,7 @@ The session database is not a full backup. Provider credentials live in Pi's `au
 
 | Platform | Desktop app log | Session Host log |
 | --- | --- | --- |
-| macOS | `~/Library/Logs/openwaggle/` | `logs/` in the app data folder |
+| macOS | `~/Library/Logs/openwaggle/` | `~/Library/Logs/openwaggle/` |
 | Windows | `logs\` in the app data folder | `logs\` in the app data folder |
 | Linux | `logs/` in the app data folder | `logs/` in the app data folder |
 

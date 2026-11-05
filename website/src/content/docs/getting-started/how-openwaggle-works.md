@@ -45,7 +45,7 @@ flowchart TD
 
 So you can close the app while the agent works, and the run goes on. When you reopen the app, it shows the same session, still working or finished. A terminal running `openwaggle` sees the same sessions as the window, and an agent can read or message another session through its `hive` tool. When no app or other client is connected and no work is left, the Session Host exits after 5 minutes by default. [Command line](/docs/developer-workflow/command-line) shows how to check on it and stop it, and [session recovery](/docs/configuration/session-recovery) explains what happens after a crash.
 
-Terminal tabs are the exception. They belong to the desktop app and close with it.
+Terminal tabs and browser previews are the exception. They belong to the desktop app and close with it.
 
 ## Pi underneath
 

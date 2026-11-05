@@ -137,7 +137,7 @@ Read worker and delegation IDs from the `spawn` response. Do not guess them from
 
 ## Discovery and reading
 
-`list`, `search`, `delegations-list` and `delegations-conflicts` look at the current project by default: the project of the folder you run them in, with its main checkout and every worktree of it. Use `--project <path>` for another project, or `--all` for every session you may see.
+`list`, `search`, `delegations-list` and `delegations-conflicts` look at the current project by default. That is the project of the folder you run them in, with its main checkout and every worktree of it. Use `--project <path>` for another project, or `--all` for every session you may see.
 
 `list` and `search` leave archived sessions out. `list --archived` lists only archived ones, `search --include-archived` searches them too, and `list --parent <session>` lists only that session's direct workers. `delegations-list` shows every state, newest first, unless `--state` narrows it.
 
@@ -297,12 +297,12 @@ On Windows, a file export into a workspace currently fails. Windows lacks the fi
 
 ## Restricted external-agent profiles
 
-The desktop user needs no named profile and follows normal OpenWaggle permissions. For another agent tool, create a profile you can revoke, with only the capabilities and targets it should have. Replace `/absolute/project/path` with the project's folder.
+The desktop user needs no named profile and follows normal OpenWaggle permissions. For another agent tool, create a profile you can revoke, with only the capabilities and targets it should have. Replace `PROJECT_PATH` with the project's folder.
 
 To create the profile and store its credential:
 
 ```sh
-openwaggle access profiles create ci-helper --capability sessions:discover --capability sessions:read --capability sessions:message --project /absolute/project/path --authorization ask-for-approval --credential-store
+openwaggle access profiles create ci-helper --capability sessions:discover --capability sessions:read --capability sessions:message --project PROJECT_PATH --authorization ask-for-approval --credential-store
 ```
 
 To use it, pass `--profile`. Setting `OPENWAGGLE_PROFILE` to the profile's name works too. [Environment variables](/docs/reference/environment-variables#app-and-cli) lists it with `OPENWAGGLE_USER_DATA_DIR` and the other CLI variables.

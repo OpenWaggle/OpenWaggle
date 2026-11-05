@@ -145,11 +145,11 @@ Lists your MCP servers with controls to add, turn off, sign in to and inspect th
 | **Remove worktrees of archived Sessions automatically** | On, off | Off | Removes a worktree once every session in it has been archived long enough. |
 | **After archiving for** | 7, 14, 30, 60 or 90 days | 30 days | How long every session in a worktree must stay archived before OpenWaggle removes it. |
 
-The rest of the section lists the worktrees of every project in three groups, **Safe to remove**, **Needs a decision** and **In use**, with the space each would free. See [Settings](/docs/configuration/app-settings#clean-up-worktrees).
+The rest of the section lists the worktrees of every project in three groups, **Safe to remove**, **Needs a decision** and **In use**, with the space each would free. See [App settings](/docs/configuration/app-settings#clean-up-worktrees).
 
 ## Archived items
 
-Lists archived sessions and branches, with **Search**, filters for **Project**, **Archived date** and **Type**, and **Sort**. You can restore or open each item, and delete archived sessions for good. You can select up to 1,000 matches at once. See [Settings](/docs/configuration/app-settings#find-and-restore-archived-sessions).
+Lists archived sessions and branches, with **Search**, filters for **Project**, **Archived date** and **Type**, and **Sort**. You can restore or open each item, and delete archived sessions for good. You can select up to 1,000 matches at once. See [App settings](/docs/configuration/app-settings#find-and-restore-archived-sessions).
 
 ## Connections
 

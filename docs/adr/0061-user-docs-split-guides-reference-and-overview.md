@@ -25,6 +25,6 @@ The same pages are also what agents read. `pnpm docs:generate` bundles them into
 
 ## Consequences
 
-- `website/src/lib/__tests__/docs-style.unit.test.ts` enforces the page kinds, the guide shape, the image rules and a short list of banned words in guides, in the per-PR unit tier. A page that genuinely needs a banned word allows it in a comment at the top of the file (`<!-- docs-style allow: durable -->`), so each exception shows up in review.
+- `website/src/lib/__tests__/docs-style.unit.test.ts` enforces the page kinds, the guide shape, the image rules and a short list of banned words in guides and overviews, in the per-PR unit tier. A page that genuinely needs a banned word allows it in a comment at the top of the file (`<!-- docs-style allow: durable -->`), so each exception shows up in review.
 - `.agents/skills/write-docs/SKILL.md` is the writing guide, and `AGENTS.md` tells agents to load it before editing the docs.
 - A rewrite can lose a fact an agent relied on, such as an exit code or a timeout. Docs reviews check that every fact a page had is still somewhere, not only that the page reads well.

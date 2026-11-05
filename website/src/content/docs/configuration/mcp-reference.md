@@ -18,7 +18,7 @@ Each key under `mcpServers` in an MCP file is a server name: letters, digits, `-
 | `env` | object | None | Environment variables for a local server. |
 | `cwd` | string | None | A local server's working folder. |
 | `url` | string | None | A remote server's address. `ws://` or `wss://` connects over WebSocket. |
-| `type` | `"sse"`, `"websocket"` | From `url` | `"sse"` for an older server that only offers Server-Sent Events. |
+| `type` | `"http"`, `"streamable-http"`, `"sse"`, `"websocket"` | From `command` or `url` | Leave it out normally. `"sse"` is for an older server that only offers Server-Sent Events. |
 | `headers` | object | None | HTTP headers for a remote server. |
 | `oauth` | object | None | OAuth sign-in options: `clientId`, `clientSecret`, `callbackPort`, `callbackUrl`, `scope`, `clientName`, `clientRegistration`, `authServerMetadataUrl`. See Pi's MCP documentation. |
 | `auth` | `{ "provider": "<id>" }` | None | Sign in through a model provider. Works only in a global file. |
@@ -201,7 +201,7 @@ New servers go to `~/.openwaggle/mcp.json`, or with `-l` to `.openwaggle/mcp.jso
 | `--header KEY=VALUE` | An HTTP header. Repeatable. |
 | `--header-secret KEY=NAME` | An HTTP header read from a secret. OpenWaggle's files only. |
 | `--bearer-token-env-var <NAME>` | Sends `Authorization: Bearer ${NAME}`. |
-| `--oauth-client-id`, `--oauth-client-secret`, `--oauth-callback-port`, `--oauth-client-name` | OAuth options. |
+| `--oauth-*` | OAuth options: `--oauth-client-id`, `--oauth-client-secret`, `--oauth-callback-port` and `--oauth-client-name`. |
 | `--exposure <mode>` | `codemode` (default), `deferred`, or `hidden`. |
 | `--description <text>` | What the server offers. |
 | `--file <file>` | `pi-global`, `openwaggle-global`, `project-mcp-json`, `project-pi`, or `project-openwaggle`. |
@@ -215,8 +215,8 @@ New servers go to `~/.openwaggle/mcp.json`, or with `-l` to `.openwaggle/mcp.jso
 | `--from <apps>` | `import` | Apps to read, comma-separated. See [Imports](#imports). |
 | `--apply` | `import` | Import new servers, or the ones named with `--server`. |
 | `--server <name>` | `import` | Import only this server. Repeatable. |
-| `--conflict skip\|replace\|rename` | `import` | What to do when a name is in use. |
-| `--package npm\|pypi\|nuget\|oci\|mcpb` | `registry add` | Run a package instead of the hosted URL. |
+| `--conflict` | `import` | What to do when a name is in use: `skip`, `replace` or `rename`. |
+| `--package` | `registry add` | Run a package instead of the hosted URL: `npm`, `pypi`, `nuget`, `oci` or `mcpb`. |
 | `--name <server>` | `registry add` | The server's name in the file. Default: the last part of the Registry name. |
 | `--version <version>` | `registry get`, `registry add` | A specific version. |
 | `--scope global\|project` | `registry add` | Save for all projects or this project. |
@@ -242,7 +242,7 @@ New servers go to `~/.openwaggle/mcp.json`, or with `-l` to `.openwaggle/mcp.jso
 | `--workspace <path>` | A folder whose projects the server may reach. Repeatable. |
 | `--session <id>` | A session the server may reach, by ID or [session link](/docs/using-openwaggle/chat-and-tools#session-links). Repeatable. |
 | `--profile-credential-file <path>` | Read the profile credential from this file instead of the credential store. Same as `OPENWAGGLE_PROFILE_CREDENTIAL_FILE`. |
-| `--authorization-ceiling ask-for-approval\|yolo` | With `--owner` only. Default `ask-for-approval`. |
+| `--authorization-ceiling` | `ask-for-approval` or `yolo`. With `--owner` only. Default `ask-for-approval`. |
 | `--export-root <path>` | Where `export-create` may write. Repeatable. |
 | `--attachment-root <path>` | A folder the server may read attachments from. Repeatable. |
 | `--origin-session <id>` | The only session `report` may name as its source. Takes an ID or a session link. |
