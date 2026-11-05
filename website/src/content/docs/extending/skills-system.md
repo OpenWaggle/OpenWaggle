@@ -79,7 +79,7 @@ OpenWaggle looks for project skills in these folders, in this order. When two sk
 .agents/skills/
 ```
 
-[Resource precedence](/docs/configuration/per-project-config#resource-precedence) draws this order as a diagram. A few more sources add to it:
+[Override a skill for OpenWaggle only](/docs/configuration/per-project-config#resource-precedence) draws this order as a diagram. A few more sources add to it:
 
 - Enabled OpenWaggle extension packages can add skill folders between `.openwaggle/skills/` and `.pi/skills/`.
 - Pi also loads your user skills, the ones for every project, and `.agents/skills/` folders above the project.

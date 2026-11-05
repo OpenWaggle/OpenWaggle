@@ -51,7 +51,7 @@ OpenWaggle reads five files, in this order:
 | `<project>/.pi/mcp.json` | Pi's servers for the project |
 | `<project>/.openwaggle/mcp.json` | OpenWaggle's servers for the project |
 
-When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one. [MCP config precedence](/docs/configuration/per-project-config#mcp-config-precedence) draws this order as a diagram.
+When two files define a server with the same name, the project file wins over the global one, and a later file wins over an earlier one. [Decide which MCP file wins](/docs/configuration/per-project-config#mcp-config-precedence) draws this order as a diagram.
 
 A few cases change where these files are:
 

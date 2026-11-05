@@ -35,7 +35,7 @@ A session counts in **Sessions** when it used any tokens, even if it has no cost
 The cost comes from two places:
 
 - **Recorded** cost is what Pi wrote in the session file when the model answered.
-- **Estimated** cost is worked out from Pi's model prices when the file has no cost for a reply.
+- **Estimated** cost is worked out from the prices in Pi's built-in model catalog when the file has no cost for a reply. Models you add yourself in `models.json` are not in that catalog, so their replies without a recorded cost have no price.
 
 Tokens from a model Pi has no price for are left out of the cost. When that happens, a note under the cards says what share of the tokens have no price, and that the cost shown is a floor. In the lists, **est.** beside a model or project means all its cost is estimated.
 

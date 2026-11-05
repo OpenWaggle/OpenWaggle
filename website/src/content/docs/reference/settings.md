@@ -162,7 +162,7 @@ Lists archived sessions and branches, with **Search**, filters for **Project**, 
 | **Available Models** | A checkbox per model | None | Which models appear in the model selector. |
 | **Title model** | **Automatic**, **Off**, or any enabled model | **Automatic** | Which model writes session titles. |
 
-A key test sends one short prompt and gives up after 15 seconds. See [API keys](/docs/providers/api-key-auth) and [Subscription sign-in](/docs/providers/oauth-auth). For source control hosts and accounts, see [Pull and merge requests](/docs/developer-workflow/pull-requests#how-openwaggle-recognizes-a-host).
+A key test sends one short prompt and gives up after 15 seconds. See [API keys](/docs/providers/api-key-auth) and [Browser sign-in](/docs/providers/oauth-auth). For source control hosts and accounts, see [Pull and merge requests](/docs/developer-workflow/pull-requests#how-openwaggle-recognizes-a-host).
 
 | **Title model** choice | What happens |
 | --- | --- |

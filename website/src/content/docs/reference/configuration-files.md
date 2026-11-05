@@ -53,7 +53,7 @@ New OpenWaggle sessions never take their thinking level from a project file. The
 | `.openwaggle/actions.json` | Not allowed. OpenWaggle rejects any unknown key, `"$schema"` included. |
 | `waggle-presets.json` | Removed when Settings saves the file. |
 
-For the two files that cannot keep the key, point your editor at the schema instead. See [JSON Schemas for editors](/docs/configuration/per-project-config#json-schemas-for-editors).
+For the two files that cannot keep the key, point your editor at the schema instead. See [Get completion in your editor](/docs/configuration/per-project-config#json-schemas-for-editors).
 
 ## `.openwaggle/settings.json` keys
 

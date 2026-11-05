@@ -188,7 +188,7 @@ To list the project's sessions:
 openwaggle hive list
 ```
 
-To read a session's summary and state, replace `SESSION_ID` with the session's ID from the list:
+To read a session's summary and state:
 
 ```sh
 openwaggle hive read SESSION_ID

@@ -1,12 +1,12 @@
 ---
-title: "Waggle Mode"
+title: "Waggle mode"
 description: "Let two agents take turns on a task in the same conversation."
 order: 2
 section: "Multiple agents"
 kind: "guide"
 ---
 
-Waggle Mode lets two agents take turns on one task in the same conversation. One can propose a change while the other checks it, or the two can argue opposite sides of a design. Use it when a second opinion on each step is worth paying for. You choose the two agents, their models and their roles in a saved preset.
+Waggle mode lets two agents take turns on one task in the same conversation. One can propose a change while the other checks it, or the two can argue opposite sides of a design. Use it when a second opinion on each step is worth paying for. You choose the two agents, their models and their roles in a saved preset.
 
 The agents work one after the other, never at the same time. They share the conversation and the working directory. If you want agents to work side by side, each in its own session and optionally its own worktree, use a [Hive](/docs/using-openwaggle/hives-and-sessions) instead.
 
@@ -40,7 +40,7 @@ When you change a preset, it shows **Edited** until you save. **New Custom Prese
 
 ## Start a Waggle
 
-In a conversation, type `/` and select your Waggle preset. It appears as a chip beside your prompt and applies to that message only. Then write the task. A bounded task works best:
+In a conversation, type `/` and select your Waggle preset. It appears as a chip beside your prompt and applies to that message only. Then write the task. A task with a clear end works best:
 
 ```text
 Review the error handling in src/api/client.ts.

@@ -191,7 +191,7 @@ Settings writes `.openwaggle/actions.json` for you, so you rarely edit it by han
 
 When a save clashes with an edit made outside OpenWaggle, Settings keeps both drafts and shows them under **Inspect pending drafts**. [Recovery files](/docs/configuration/project-actions-reference#recovery-files) explains the copies OpenWaggle keeps and when you can delete them.
 
-If the file is missing a key or has one OpenWaggle does not know, OpenWaggle does not guess. **Settings > Project actions** shows the error, and none of the project's actions work, your own included, until you fix the file. Each field is described in [The actions.json file](/docs/configuration/project-actions-reference#the-actionsjson-file). The file has a JSON Schema, but do not add a `"$schema"` key, which counts as an unknown key. To get completion in your editor, link the schema to the file as shown in [JSON Schemas for editors](/docs/configuration/per-project-config#json-schemas-for-editors).
+If the file is missing a key or has one OpenWaggle does not know, OpenWaggle does not guess. **Settings > Project actions** shows the error, and none of the project's actions work, your own included, until you fix the file. Each field is described in [The actions.json file](/docs/configuration/project-actions-reference#the-actionsjson-file). The file has a JSON Schema, but do not add a `"$schema"` key, which counts as an unknown key. To get completion in your editor, link the schema to the file as shown in [Get completion in your editor](/docs/configuration/per-project-config#json-schemas-for-editors).
 
 ## Set up new worktrees
 
