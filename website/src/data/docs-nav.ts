@@ -80,6 +80,8 @@ export const docsNav: NavSection[] = [
       { title: 'Configuration files', slug: 'reference/configuration-files' },
       { title: 'Keyboard shortcuts', slug: 'getting-started/keyboard-shortcuts' },
       { title: 'Hive actions and states', slug: 'reference/hive' },
+      { title: 'MCP', slug: 'configuration/mcp-reference' },
+      { title: 'Project actions', slug: 'configuration/project-actions-reference' },
       { title: 'Environment variables', slug: 'reference/environment-variables' },
       { title: 'Data and file locations', slug: 'reference/data-locations' },
       { title: 'Usage statistics fields', slug: 'reference/usage-statistics-fields' },
