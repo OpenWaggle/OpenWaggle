@@ -20,7 +20,7 @@ const CODEMODE_SCRIPT = [
   'for (const [i, result] of results.entries()) {',
   "  if (result.status === 'rejected') console.log(files[i], result.reason)",
   '}',
-  'console.log(todos.output)',
+  'console.log(todos)',
 ].join('\n')
 
 const CODEMODE_OUTPUT = [

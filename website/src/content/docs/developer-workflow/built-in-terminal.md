@@ -23,7 +23,7 @@ The selection lands in the message box as a file chip named after the terminal p
 
 ![The message box with a Terminal context chip for the selected lines, followed by the question "Both release-notes tests pass. Is anything else missing before we merge?"](/screenshots/terminal-context-chip.png)
 
-Press the shortcut again to hide the panel. Hiding it does not stop commands or development servers. Close the pane or tab to stop its processes.
+Press `Cmd+J` on macOS or `Ctrl+J` on Windows and Linux again to hide the panel. Hiding it does not stop commands or development servers. Close the pane or tab to stop its processes.
 
 A session's terminal can hold several tabs, and each tab up to four panes, split side by side or one below another.
 
