@@ -59,7 +59,8 @@ const QUOTE_MARK = '\uE000'
  * as often a conjunction or someone else's role ("As the reviewer of PR #405 found, fix…",
  * "Acting as the reviewer, I found…") as the Worker's own.
  */
-const ROLE_OPENER = /^(?:you\s+are|you['’]re|act\s+as|serve\s+as|work\s+as)\s+/iu
+const OPENERS = String.raw`you\s+are|you['’]re|act\s+as|serve\s+as|work\s+as`
+const ROLE_OPENER = new RegExp(String.raw`^(?:${OPENERS})\s+`, 'iu')
 /** Words that may open the role's noun phrase without being part of it, once, before its words. */
 const DETERMINERS = new Set(['a', 'an', 'the', 'our', 'this', 'one', 'another'])
 /** Adverbs that may come before the determiner: "You are now the reviewer". */
@@ -103,8 +104,10 @@ const ROLE_LIST = new RegExp(
  * An opener inside a clause, after a lead-in ("Round 2 — you are the implementer"), followed by
  * a determiner. Without one ("the bug you are seeing") it is no statement.
  */
-const EMBEDDED_STATEMENT =
-  /(?:^|[\s,:;—–\])])(?:you\s+are|you['’]re|act\s+as|serve\s+as|work\s+as)\s+(?:(?:now|also|again|still)\s+)?(?:an?|the|our|this|one|another)\s/iu
+const EMBEDDED_STATEMENT = new RegExp(
+  String.raw`(?:^|[\s,:;—–\])])(?:${OPENERS})\s+(?:(?:${[...LEADING_ADVERBS].join('|')})\s+)?(?:${[...DETERMINERS].join('|')})\s`,
+  'iu',
+)
 /** A dash token that ends the phrase and may lead to a second role: "—", "–", "-", "--". */
 const DASH = /^(?:[—–]|-{1,2})$/u
 /**
