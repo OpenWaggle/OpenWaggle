@@ -82,8 +82,19 @@ describe('guided action editor', () => {
     expect(summary).toHaveTextContent('Runs pnpm run test · stops when done · only you')
     fireEvent.click(summary)
     expect(summary).toHaveTextContent(
-      'Clicking “Run tests (website)” in + Action runs pnpm run test',
+      'Clicking “Run tests (website)” in Project Actions runs pnpm run test',
     )
+  })
+
+  it('points to the Project Actions panel, not the retired + Action menu', async () => {
+    const panel = await openEditor(null)
+    await panel.findByRole('radio', { name: /A script from this project/ })
+    expect(
+      panel.getByText(/Save a command once, then run it with one click from/),
+    ).toHaveTextContent('Project Actions')
+    expect(panel.getByText('This is the name you’ll click in Project Actions.')).toBeInTheDocument()
+    expect(panel.getByText('Icon in Project Actions')).toBeInTheDocument()
+    expect(screen.getByTestId('action-panel')).not.toHaveTextContent('+ Action')
   })
 
   it('moves a choice with the arrow keys, keeping one tab stop per question', async () => {
@@ -206,7 +217,7 @@ describe('guided action editor', () => {
     useChatStore.setState({ activeSessionId: fromPartial('elsewhere') })
     useUIStore.getState().toastData?.action?.onClick?.()
     expect(useUIStore.getState().toastData?.message).toBe(
-      'Open the session you saved it from, or run it from + Action.',
+      'Open the session you saved it from, or run it from Project Actions.',
     )
     expect(mocks.manage.mock.calls.some(([request]) => request.operation.type === 'start')).toBe(
       false,

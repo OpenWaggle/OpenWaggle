@@ -37,7 +37,7 @@ Usage:
   openwaggle schedules resume <task-id>
   openwaggle schedules run <task-id>
   openwaggle schedules delete <task-id>
-  openwaggle schedules export [--project <path>]   Print tasks as JSON for import
+  openwaggle schedules export [--project <path>] [--session <session>]   Print tasks as JSON for import
   openwaggle schedules import [<file>|-]           Create tasks from exported JSON
 
 Schedule (one of):

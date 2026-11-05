@@ -57,8 +57,8 @@ export function ActionEditorForm(props: ActionEditorFormProps) {
       description={
         <>
           Save a command once, then run it with one click from{' '}
-          <strong className="font-medium text-text-secondary">+ Action</strong>. Only the first two
-          questions are needed.
+          <strong className="font-medium text-text-secondary">Project Actions</strong>. Only the
+          first two questions are needed.
         </>
       }
       footer={
@@ -142,7 +142,7 @@ function NameQuestion(props: {
     <PanelQuestion
       number={NAME_QUESTION}
       title="What should it be called?"
-      help="This is the name you’ll click in the + Action menu."
+      help="This is the name you’ll click in Project Actions."
     >
       <label htmlFor={id} className="sr-only">
         Name

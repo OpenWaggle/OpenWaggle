@@ -2,63 +2,42 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, expect, type Page } from '@playwright/test'
 import { stopElectronQaSessionHost } from './electron-qa-shutdown'
 import { launchOpenWaggleElectron } from './playwright-electron-launcher'
-import {
-  captureCodingAgent,
-  captureGitWorkflow,
-  captureSessionTree,
-} from './website-screenshot-conversation-captures'
-import { captureBrowserPreview } from './website-screenshot-browser-capture'
+import { CAPTURES } from './website-screenshot-captures'
+import { MODEL_SCENARIOS } from './website-screenshot-essentials-scenarios'
+import { settleEssentials } from './website-screenshot-essentials-setup'
+import { addFeatureProjectFiles } from './website-screenshot-feature-fixture'
+import { featureSessionSeeder } from './website-screenshot-feature-sessions'
 import {
   PROJECT_NAME,
   seedBrowserSession,
   seedMarketingSession,
 } from './website-screenshot-fixture'
-import {
-  captureHiveNextActor,
-  captureHiveTree,
-  captureScheduledTasks,
-  captureSessionResources,
-  captureSessionSummary,
-  captureSettingsWorktrees,
-} from './website-screenshot-hive-captures'
 import { seedHiveExample } from './website-screenshot-hive-fixture'
 import {
   publishScreenshots,
   selectedScreenshots,
   type WebsiteScreenshot,
 } from './website-screenshot-manifest'
+import { type FixtureModelServer, startFixtureModelServer } from './website-screenshot-model-server'
+import { writeFixturePiAgent } from './website-screenshot-pi-agent'
 import {
   createScreenshotProject,
   SCREENSHOT_WORKTREE_IDS,
   type ScreenshotProject,
 } from './website-screenshot-project'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
-import { type CaptureContext, recordFailureEvidence } from './website-screenshot-ui'
+import { type CaptureContext, recordFailureEvidence, WINDOW_SIZE } from './website-screenshot-ui'
+import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
-const WINDOW_WIDTH_PX = 1600
-const WINDOW_HEIGHT_PX = 1000
 /** The scratch profile's parent on macOS and Linux: its short paths show in Settings > Worktrees. */
 const POSIX_TEMP_DIR = '/tmp'
 /** `node` and the script path come before the user's arguments. */
 const USER_ARGUMENT_OFFSET = 2
-
-const CAPTURES: Readonly<Record<WebsiteScreenshot, (context: CaptureContext) => Promise<void>>> = {
-  'hive-sessions.png': captureHiveTree,
-  'hive-next-actor.png': captureHiveNextActor,
-  'session-summary.png': captureSessionSummary,
-  'session-resources.png': captureSessionResources,
-  'scheduled-tasks.png': captureScheduledTasks,
-  'settings-worktrees.png': captureSettingsWorktrees,
-  'feature-coding-agent.png': captureCodingAgent,
-  'feature-git-workflow.png': captureGitWorkflow,
-  'session-tree-panel.png': captureSessionTree,
-  'feature-browser-preview.png': captureBrowserPreview,
-}
 
 interface ScratchProfile {
   readonly root: string
@@ -75,21 +54,21 @@ async function launchApp(profile: ScratchProfile, projectPath: string) {
     homeDir: profile.homeDir,
     hidden: true,
   })
-  const page = await app.firstWindow()
-  await app.evaluate(
-    async ({ BrowserWindow }, { width, height }) => {
+  const page = await closingOnFailure(app, async () => {
+    const firstWindow = await app.firstWindow()
+    await app.evaluate(async ({ BrowserWindow }, { width, height }) => {
       BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
-    },
-    { width: WINDOW_WIDTH_PX, height: WINDOW_HEIGHT_PX },
-  )
-  await expect(page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
-  const runtime = await page.evaluate(() => ({
-    hasApi: typeof window.api.getSessionDetail === 'function',
-    isElectron: navigator.userAgent.includes('Electron'),
-  }))
-  if (!runtime.hasApi || !runtime.isElectron) {
-    throw new Error('Screenshot capture did not reach the Electron app with its preload API.')
-  }
+    }, WINDOW_SIZE)
+    await expect(firstWindow.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+    const runtime = await firstWindow.evaluate(() => ({
+      hasApi: typeof window.api.getSessionDetail === 'function',
+      isElectron: navigator.userAgent.includes('Electron'),
+    }))
+    if (!runtime.hasApi || !runtime.isElectron) {
+      throw new Error('Screenshot capture did not reach the Electron app with its preload API.')
+    }
+    return firstWindow
+  })
   return { app, page }
 }
 
@@ -106,26 +85,48 @@ async function configureProject(page: Page, projectPath: string) {
   )
 }
 
+/**
+ * Runs `step` with a launched app and closes the app if the step throws, so `main()`'s `finally`
+ * never stops the Session Host while an Electron it does not know about could start another one.
+ */
+async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>): Promise<T> {
+  try {
+    return await step()
+  } catch (error) {
+    await app.close().catch(() => undefined)
+    throw error
+  }
+}
+
 /** Seeds the Host database the first launch created, then restarts so the GUI reads it fresh. */
 async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProject) {
   const first = await launchApp(profile, project.projectPath)
-  await configureProject(first.page, project.projectPath)
-  await seedMarketingSession(profile.userDataDir, project.projectPath)
-  await seedBrowserSession(profile.userDataDir, project.projectPath)
-  const hive = await seedHiveExample(profile.userDataDir, project)
+  const hive = await closingOnFailure(first.app, async () => {
+    await configureProject(first.page, project.projectPath)
+    await seedMarketingSession(profile.userDataDir, project.projectPath)
+    await seedBrowserSession(profile.userDataDir, project.projectPath)
+    return seedHiveExample(profile.userDataDir, project)
+  })
   await first.app.close()
   const launched = await launchApp(profile, project.projectPath)
-  await createScheduledTasks(
-    launched.page,
-    scheduledTaskFixtures({
-      queenSessionId: hive.queenSessionId,
-      projectPath: project.projectPath,
-      now: new Date(),
-    }),
-  )
-  await launched.page.reload()
-  await expect(launched.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
-  return launched
+  await closingOnFailure(launched.app, async () => {
+    await createScheduledTasks(
+      launched.page,
+      scheduledTaskFixtures({
+        queenSessionId: hive.queenSessionId,
+        projectPath: project.projectPath,
+        now: new Date(),
+      }),
+    )
+    await launched.page.reload()
+    await expect(launched.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+  })
+  const seedFeatureSessionsOnce = featureSessionSeeder({
+    userDataDir: profile.userDataDir,
+    project,
+    homeDir: profile.homeDir,
+  })
+  return { ...launched, seedFeatureSessionsOnce }
 }
 
 function observeRendererErrors(page: Page) {
@@ -181,18 +182,35 @@ async function main() {
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
   let app: ElectronApplication | null = null
+  let page: Page | null = null
+  // The one scripted model behind every real Run; Pi reaches it through the scratch agent
+  // directory's auth.json and models.json, written before the first launch.
+  let model: FixtureModelServer | null = null
   try {
+    model = await startFixtureModelServer([...MODEL_SCENARIOS, WAGGLE_SCENARIO])
+    await writeFixturePiAgent({ ...profile, model })
     const project = await createScreenshotProject({
       rootDir: ROOT_DIR,
       projectPath: path.join(root, PROJECT_NAME),
       homeDir: profile.homeDir,
       worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
+    await addFeatureProjectFiles(project, profile.homeDir)
     const launched = await launchSeededApp(profile, project)
     app = launched.app
+    page = launched.page
     const rendererErrors = observeRendererErrors(launched.page)
     await runCaptures(
-      { app, page: launched.page, outputDir: stagingDir, evidenceDir },
+      {
+        app,
+        page: launched.page,
+        outputDir: stagingDir,
+        evidenceDir,
+        homeDir: profile.homeDir,
+        userDataDir: profile.userDataDir,
+        model,
+        seedFeatureSessionsOnce: launched.seedFeatureSessionsOnce,
+      },
       screenshots,
     )
     if (rendererErrors.length > 0) {
@@ -201,7 +219,14 @@ async function main() {
     await publishScreenshots({ stagingDir, outputDir: SCREENSHOT_OUTPUT_DIR, screenshots })
     console.info('[website-shots] screenshot capture complete')
   } finally {
+    if (page) {
+      await settleEssentials(page).catch((error: unknown) => {
+        console.warn('[website-shots] could not settle the essentials Sessions', error)
+      })
+    }
     await app?.close().catch(() => undefined)
+    // Ends any Run still streaming from it before the Host is asked to drain.
+    await model?.close()
     await releaseScratchProfile(profile)
   }
 }

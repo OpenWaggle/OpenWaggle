@@ -39,4 +39,42 @@ describe('tildifyPath', () => {
       ),
     ).toBe('.agents/skills/review/SKILL.md')
   })
+
+  it('shortens the home directory main passed, wherever it is', () => {
+    const home = '/private/tmp/openwaggle-shots-x1/home'
+    expect(tildifyPath(`${home}/.openwaggle/mcp.json`, home)).toBe('~/.openwaggle/mcp.json')
+    expect(tildifyPath(home, `${home}/`)).toBe('~')
+    expect(tildifyPath('C:\\Profiles\\Diego\\mcp.json', 'c:\\profiles\\diego')).toBe('~\\mcp.json')
+  })
+
+  it('leaves a sibling of the home directory alone', () => {
+    expect(tildifyPath('/srv/home-other/mcp.json', '/srv/home')).toBe('/srv/home-other/mcp.json')
+    expect(tildifyPath('/srv/project/mcp.json', '/srv/home')).toBe('/srv/project/mcp.json')
+    expect(tildifyPath('/Users/diego/mcp.json', '/')).toBe('~/mcp.json')
+  })
+
+  it('never guesses another home when the real home is known', () => {
+    expect(tildifyPath('/Users/bob/x', '/Users/diego')).toBe('/Users/bob/x')
+    expect(tildifyPath('/home/bob/.pi/mcp.json', '/home/diego')).toBe('/home/bob/.pi/mcp.json')
+    expect(tildifyPath('C:\\Users\\bob\\x', 'C:\\Users\\diego')).toBe('C:\\Users\\bob\\x')
+  })
+
+  it('compares Windows separators normalised', () => {
+    expect(tildifyPath('C:/Users/Diego/.openwaggle/mcp.json', 'C:\\Users\\Diego')).toBe(
+      '~/.openwaggle/mcp.json',
+    )
+    expect(tildifyPath('c:\\users\\diego\\mcp.json', 'C:/Users/Diego/')).toBe('~\\mcp.json')
+  })
+
+  it('shortens a UNC home directory, ignoring case', () => {
+    expect(tildifyPath('\\\\srv\\home\\x', '\\\\SRV\\Home')).toBe('~\\x')
+    expect(tildifyPath('\\\\srv\\home', '\\\\srv\\home\\')).toBe('~')
+    expect(tildifyPath('\\\\srv\\home-other\\x', '\\\\srv\\home')).toBe('\\\\srv\\home-other\\x')
+  })
+
+  it('treats a home at a filesystem root as unknown', () => {
+    expect(tildifyPath('C:\\Projects\\app', 'C:\\')).toBe('C:\\Projects\\app')
+    expect(tildifyPath('/opt/app', '/')).toBe('/opt/app')
+    expect(tildifyPath('\\\\srv\\share\\x', '\\\\srv')).toBe('\\\\srv\\share\\x')
+  })
 })

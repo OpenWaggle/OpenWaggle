@@ -16,6 +16,8 @@ For a first setup, connect one provider and enable one model. You can add more l
 3. Under **Available Models**, enable the models you want to use.
 4. Return to your conversation and select an enabled model beside the message box.
 
+![Settings > Connections with API Key Providers and OAuth Providers collapsed, Source control, and Available Models with three models selected](/screenshots/settings-connections.png)
+
 The model list in Settings can include models your account cannot use. The message-box selector shows only enabled models that Pi currently reports as available. Enabling a model does not buy access or change your provider's permissions.
 
 For models that support reasoning, use the thinking-level control beside the message box. See [Thinking levels](/docs/configuration/thinking-levels) for choosing a level and understanding its effect on usage.

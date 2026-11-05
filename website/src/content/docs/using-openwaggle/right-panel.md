@@ -19,6 +19,8 @@ Click an icon to show that panel. Click the icon of the panel that is already sh
 
 The first icon, **All panels**, opens a list of every panel you can open here, with its keyboard shortcut. Use it to learn shortcuts and to reach panels you took off the rail. When the window is too short for every icon, the All panels icon shows how many did not fit, and those panels are marked "No room on rail" in the list.
 
+![The All panels list beside the panel rail: Workspace panels (Changes, Project Actions, Scheduled, Browser, Files) and Session panels (Session Tree, Resources, and Hive, dimmed with Only for Sessions in a Hive), each with a pin and, for Changes, Browser and Session Tree, its shortcut, an empty Extensions group with Browse extensions, and Reset rail and Manage extensions at the bottom](/screenshots/right-panel-all-panels.png)
+
 Some panels open from elsewhere: a file link in the conversation opens Files, a change request opens under Changes, **Add action** opens under Project Actions, and a page the agent opens appears in Browser. The rail highlights the icon each one belongs to.
 
 Files follows changes on disk as they happen, except in files git ignores and inside a folder that is a symbolic link, such as a linked package in a monorepo: changes there are not followed.

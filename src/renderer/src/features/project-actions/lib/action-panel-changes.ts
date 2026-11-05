@@ -128,7 +128,7 @@ export function actionSummarySentence(input: ActionSummaryInput) {
       ? 'Only you will have it.'
       : 'Everyone on the project gets it once the file is committed.'
   return {
-    before: `Clicking ${name} in + Action runs `,
+    before: `Clicking ${name} in Project Actions runs `,
     command: input.command,
     after: ` in ${folderLabel(input.directory)}. ${behaviour} ${who} Saving does not run anything.`,
   }

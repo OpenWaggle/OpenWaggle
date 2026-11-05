@@ -47,7 +47,14 @@ Skills, extensions, prompts, and themes can live in these project folders. When 
 .openwaggle > .pi > .agents
 ```
 
-For example, `.openwaggle/skills/review/SKILL.md` takes precedence over a same-name skill in `.agents/skills`. This is useful when you need an OpenWaggle-specific version without changing files used by other tools.
+Pi matches skills by the `name` in their frontmatter, not by folder name. For a skill named `review`, OpenWaggle stops at the first folder that has one:
+
+```mermaid
+flowchart LR
+  A[".openwaggle/skills"] -->|"no skill named review"| B[".pi/skills"] -->|"no skill named review"| C[".agents/skills"]
+```
+
+For example, `.openwaggle/skills/review/SKILL.md` takes precedence over a skill in `.agents/skills` with the same `name`, whatever its folder is called. This is useful when you need an OpenWaggle-specific version without changing files used by other tools.
 
 A project might contain:
 
@@ -86,7 +93,49 @@ Choose **In the project** for an action, or project storage for setup or cleanup
 
 Each action, setup, and cleanup has its own storage choice. A private override can customize a shared definition without changing the repository copy. **Restore shared version** removes that override.
 
-Discovering shared setup or cleanup does not enable it. Review and enable the definition locally before automatic execution. Worktrees retain their selected preparation profile's snapshot until you explicitly adopt an update. See [Project actions](/docs/configuration/project-actions) for creating tasks, running services, and preparing workspaces.
+Discovering shared setup or cleanup does not enable it. Review and enable the definition locally before automatic execution. Worktrees retain their selected preparation profile's snapshot until you explicitly adopt an update. See [Project actions](/docs/configuration/project-actions) for creating tasks, running services, and preparing workspaces, and [What the shared file contains](/docs/configuration/project-actions#what-the-shared-file-contains) for an example `actions.json` and its fields.
+
+## JSON Schemas for editors
+
+OpenWaggle publishes a JSON Schema for each project file whose format it owns. An editor that knows the schema completes keys and flags mistakes before OpenWaggle reads the file.
+
+| File | Schema | `"$schema"` key |
+| --- | --- | --- |
+| `.openwaggle/settings.json` | [`project-settings.schema.json`](https://openwaggle.ai/schemas/project-settings.schema.json) | Supported |
+| `.openwaggle/actions.json` | [`project-actions-v1.schema.json`](https://openwaggle.ai/schemas/project-actions-v1.schema.json) | Not allowed |
+| `~/.openwaggle/mcp.json`, `.openwaggle/mcp.json` | [`mcp.schema.json`](https://openwaggle.ai/schemas/mcp.schema.json) | Supported |
+| `.pi/waggle-presets.json`, `~/.pi/agent/waggle-presets.json` | [`waggle-presets.schema.json`](https://openwaggle.ai/schemas/waggle-presets.schema.json) | Removed when Settings saves the file |
+| Frontmatter of an agent definition file (`.openwaggle/agents/*.md`, `.agents/agents/*.md` or `~/.openwaggle/agents/*.md`), OpenWaggle v1 format | [`agent-definition-v1.schema.json`](https://openwaggle.ai/schemas/agent-definition-v1.schema.json) | Supported in the frontmatter, see [Agent Definitions](/docs/extending/agent-definitions#openwaggle-v1-format) |
+
+Each schema lives at `https://openwaggle.ai/schemas/` followed by its file name. Where the key is supported, name the schema at the top of the file. OpenWaggle keeps the key when it writes `settings.json` or `mcp.json`:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "sessionHost": {
+    "multiAgentEnabled": true
+  }
+}
+```
+
+OpenWaggle rejects an unknown key in `actions.json`, `"$schema"` included. Settings rewrites the Waggle presets file without it. For those two files, tell the editor which schema to use. In VS Code, add this to the project's `.vscode/settings.json`:
+
+```json
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["**/.openwaggle/actions.json"],
+      "url": "https://openwaggle.ai/schemas/project-actions-v1.schema.json"
+    },
+    {
+      "fileMatch": ["**/.pi/waggle-presets.json", "**/.pi/agent/waggle-presets.json"],
+      "url": "https://openwaggle.ai/schemas/waggle-presets.schema.json"
+    }
+  ]
+}
+```
+
+The settings schema does not check the `pi` object. It holds Pi's own settings, which [Pi's settings reference](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/settings.md) describes.
 
 ## MCP config precedence
 
@@ -98,6 +147,19 @@ MCP servers have their own files. OpenWaggle reads them in this order, and for t
 <project>/.mcp.json
 <project>/.pi/mcp.json
 <project>/.openwaggle/mcp.json
+```
+
+Each file overrides a same-name server from the files above it, so the later file wins:
+
+```mermaid
+flowchart TD
+  subgraph global["Global files"]
+    G1["~/.pi/agent/mcp.json"] -->|"overridden by"| G2["~/.openwaggle/mcp.json"]
+  end
+  subgraph project["Project files"]
+    P1["&lt;project&gt;/.mcp.json"] -->|"overridden by"| P2["&lt;project&gt;/.pi/mcp.json"] -->|"overridden by"| P3["&lt;project&gt;/.openwaggle/mcp.json"]
+  end
+  G2 -->|"overridden by"| P1
 ```
 
 See [MCP configuration](/docs/configuration/mcp#where-servers-are-configured) for examples and secrets.

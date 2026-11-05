@@ -15,6 +15,12 @@ Start with **Ask for Approval** while you learn how the agent works. This asks y
 4. Under **Selected project**, choose its mode or **Use default** to remove a project override.
 5. Check the agent-access control beside the message box before sending work. A session may have its own choice rather than inherit the default.
 
+![Settings > Permissions for the OpenWaggle project: Default access mode set to YOLO (Full Access), Selected project set to Use default, and an empty Saved approvals list](/screenshots/settings-permissions.png)
+
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+_The agent-access control is number 4, here set to **Ask for approval**._
+
 OpenWaggle also offers **YOLO (Full Access)**. It automatically allows actions that use the app's authorization checks, without asking you each time. The shipped default is YOLO, so change it explicitly if you want approval prompts. Separate tool restrictions and ordinary questions can still apply.
 
 The project picker here only selects which project's permissions you are inspecting. It does not move your active conversation to that project.
@@ -23,9 +29,28 @@ The project picker here only selects which project's permissions you are inspect
 
 Read the action, requester, and target before approving. For a command, consider its effects rather than only its name. For an external tool, check which service or account it will reach.
 
+This is the path a protected action takes before it runs:
+
+```mermaid
+flowchart TD
+  action["The agent asks for a protected action"] --> mode{"Access mode"}
+  mode -- "YOLO (Full Access)" --> run["The action runs"]
+  mode -- "Ask for Approval" --> saved{"Saved approval?"}
+  saved -- "Yes, it covers this request" --> run
+  saved -- "No" --> request["Approval request"]
+  request -->|"Allow once"| run
+  request -->|"Allow… > Allow for this session"| run
+  request -->|"Allow… > Always allow…"| run
+  request -->|"Continue without"| skip["The agent continues without it"]
+```
+
+![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in jotter](/screenshots/approval-request.png)
+
+_The scope choices are under **Allow…**. Here, **Always allow** would cover opening the browser preview in the jotter project._
+
 - **Allow once** permits this request without saving a broader approval.
 - **Continue without** declines the request so the agent can continue without that action. Explain an alternative in the conversation if needed.
-- When scope choices are available, **Allow for this session** allows matching requests in that session. The **Always allow…** choice names the requester, target, and project it will cover.
+- When scope choices are available, **Allow…** opens a menu of them. **Allow for this session** allows matching requests in that session. The **Always allow…** choice names the requester, target, and project it will cover.
 
 Use a saved approval only when you understand what later requests it covers. Approving a request does not prove its output is safe or that the requested change is correct.
 

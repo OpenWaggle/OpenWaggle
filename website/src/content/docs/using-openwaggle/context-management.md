@@ -11,7 +11,16 @@ You usually do not need to manage this yourself. When a conversation gets long, 
 
 ## Context meter
 
+![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+
+_The context meter is number 7. In a new session it reads 0, beside GPT-5.4's 272k token window._
+
 When there is enough space beside the message box, the context ring shows the percentage of the selected model's context window in use. The adjacent number is the window's token limit. Hover for usage details.
+
+![The right end of the message box toolbar, with the model and thinking level pickers, the context ring at 14, and / 1M after it, marked 1 and 2](/screenshots/context-meter.png)
+
+1. The context ring: 14% of the model's context window is in use.
+2. The window's token limit, here 1M tokens.
 
 With a [virtual model](/docs/providers/virtual-models) selected, the meter uses the context window of the real model that produced the latest response, because each real model has its own limit.
 
@@ -35,6 +44,8 @@ Add instructions when particular details must survive:
 
 This is a command, not a request for an ordinary reply. OpenWaggle shows compaction progress in the conversation. After it finishes, a **Context compacted** marker stays in the conversation where the compaction happened, and you can continue with your next task.
 
+![A conversation with a Context compacted marker between the agent's earlier reply and the next request, which the agent answered from the compacted context](/screenshots/context-compacted.png)
+
 A summary may omit details. Keep lasting project conventions in project instructions and restate any critical constraint if the agent appears to have lost it.
 
 ## Automatic compaction
@@ -46,6 +57,18 @@ Whatever the percentage, automatic compaction runs by **400,000 tokens** at the 
 Compaction happens before a model request, not while a reply is streaming. If the agent is idle when usage crosses the threshold, OpenWaggle waits until the next message. During an ongoing task, it can compact between a tool result and the next model request.
 
 The model also needs room to reply. OpenWaggle may compact before your chosen percentage if that output reserve would otherwise run out.
+
+The threshold is the lowest of three limits. Pi's `compaction.reserveTokens` sets the reply room and `compaction.keepRecentTokens` sets how much recent context stays in full:
+
+```mermaid
+flowchart TD
+  grow["Context grows with messages, files, and tool results"] --> check{"At the threshold?"}
+  check -- "No" --> later["Keep working; check again before the next request"]
+  check -- "Yes, before the next model request" --> compact["Compaction"]
+  limits["Threshold is the lowest of:<br/>your percentage of the window, 80% by default<br/>the window minus reserveTokens, 16,384 by default<br/>400,000 tokens"] -.-> check
+  compact --> summary["Older context becomes a summary"]
+  compact --> recent["Portable compaction keeps the latest<br/>keepRecentTokens, 20,000 by default, in full"]
+```
 
 ### Compaction while you are away
 

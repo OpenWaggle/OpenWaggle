@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwaggle.ai/schemas/waggle-presets.schema.json",
+  "title": "OpenWaggle Waggle presets",
+  "description": "Waggle presets in <project>/.pi/waggle-presets.json or ~/.pi/agent/waggle-presets.json. Settings > Waggle Mode writes this file.",
+  "type": "object",
+  "properties": {
+    "wagglePresets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "config",
+          "isBuiltIn",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Stable identifier."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 16384,
+            "description": "Name shown in the / menu and in Settings."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the preset is for."
+          },
+          "config": {
+            "type": "object",
+            "required": [
+              "mode",
+              "agents",
+              "stop"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "sequential"
+                ],
+                "description": "How the agents work. Only sequential turns exist."
+              },
+              "agents": {
+                "type": "array",
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "label",
+                      "model",
+                      "roleDescription",
+                      "color"
+                    ],
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "maxLength": 16384,
+                        "description": "Name shown on the agent’s turns."
+                      },
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "pattern": "^(?:\\$inherit|(?=\\S)(?![\\s\\S]*\\s$)[^/]+/[\\s\\S]+)$",
+                        "description": "$inherit for the session model, or a provider/model id."
+                      },
+                      "roleDescription": {
+                        "type": "string",
+                        "maxLength": 16384,
+                        "description": "The agent’s role, given to it as instructions."
+                      },
+                      "color": {
+                        "type": "string",
+                        "enum": [
+                          "blue",
+                          "amber",
+                          "emerald",
+                          "violet"
+                        ],
+                        "description": "Color of the agent’s turns."
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "label",
+                      "model",
+                      "roleDescription",
+                      "color"
+                    ],
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "maxLength": 16384,
+                        "description": "Name shown on the agent’s turns."
+                      },
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "pattern": "^(?:\\$inherit|(?=\\S)(?![\\s\\S]*\\s$)[^/]+/[\\s\\S]+)$",
+                        "description": "$inherit for the session model, or a provider/model id."
+                      },
+                      "roleDescription": {
+                        "type": "string",
+                        "maxLength": 16384,
+                        "description": "The agent’s role, given to it as instructions."
+                      },
+                      "color": {
+                        "type": "string",
+                        "enum": [
+                          "blue",
+                          "amber",
+                          "emerald",
+                          "violet"
+                        ],
+                        "description": "Color of the agent’s turns."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ],
+                "items": false,
+                "description": "Agent A and Agent B, in turn order."
+              },
+              "stop": {
+                "type": "object",
+                "required": [
+                  "primary",
+                  "maxTurnsSafety"
+                ],
+                "properties": {
+                  "primary": {
+                    "type": "string",
+                    "enum": [
+                      "consensus",
+                      "user-stop"
+                    ],
+                    "description": "consensus: stop when the agents agree (Consensus). user-stop: run until you stop it (Manual)."
+                  },
+                  "maxTurnsSafety": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Turn limit, a safety cap in either mode. The Settings slider offers 4 to 20."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "isBuiltIn": {
+            "type": "boolean",
+            "description": "false for your presets. OpenWaggle saves every preset with false."
+          },
+          "createdAt": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Creation time, in milliseconds since 1970."
+          },
+          "updatedAt": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Last change, in milliseconds since 1970."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Saved presets. A preset with the id of a built-in one, or of one in the user file, replaces it. Presets that do not match this schema are skipped."
+    },
+    "hiddenBuiltInPresetIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Ids of built-in presets to hide."
+    }
+  },
+  "additionalProperties": false
+}

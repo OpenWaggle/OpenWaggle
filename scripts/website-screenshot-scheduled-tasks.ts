@@ -1,12 +1,5 @@
 import type { Page } from '@playwright/test'
 import type { ScheduledTaskInput } from '@shared/types/scheduled-task'
-import type { OpenWaggleApi } from '@shared/types/ipc'
-
-declare global {
-  interface Window {
-    readonly api: OpenWaggleApi
-  }
-}
 
 const HEARTBEAT_EVERY_MINUTES = 60
 const MORNING_TRIAGE_AT = '09:00'
@@ -22,7 +15,7 @@ function minutesOfDay(hhmm: string) {
 }
 
 /** The morning triage time, moved an hour later when the capture runs right around it. */
-export function morningTriageTime(now: Date) {
+function morningTriageTime(now: Date) {
   const current = now.getHours() * MINUTES_PER_HOUR + now.getMinutes()
   const distance = Math.abs(minutesOfDay(MORNING_TRIAGE_AT) - current)
   return distance < LAUNCH_SAFETY_MINUTES ? LATE_MORNING_TRIAGE_AT : MORNING_TRIAGE_AT
