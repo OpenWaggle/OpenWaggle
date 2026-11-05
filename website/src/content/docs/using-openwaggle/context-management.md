@@ -14,7 +14,7 @@ You usually don't have to manage this. When a conversation gets long, OpenWaggle
 
 The context meter sits at the right of the message box, beside the model and thinking level pickers, when there is room for it. Its ring shows the percentage of the selected model's context window in use, and the number after it is the window's size in tokens. Hover the meter for details:
 
-![The context meter at the right of the message box, with its usage details open](/screenshots/context-meter.png)
+![The context meter beside the send button, showing 14 percent of a 1M token context window](/screenshots/context-meter.png)
 
 - **Context** shows the tokens in use out of the window's size, and the percentage.
 - **Session** shows the session's total tokens and cost, then the cost and tokens of each model that answered.

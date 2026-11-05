@@ -9,7 +9,7 @@ aliases: "session hub, hub, session resources"
 
 The Session Summary is a panel that floats over the right side of a conversation. It shows where the session works, its Git branch and changes, its project actions and scheduled tasks, its Hive, and the files, links and images that went into the conversation or came out of it. Use it to find something from the session without scrolling back through every message, or to commit and open a pull request from the session's own checkout. In OpenWaggle's code and design documents it is called the Session Hub; the app calls it the Session Summary.
 
-![The Session Summary over a Queen session, with Environment, two scheduled Heartbeats, the Hive row counting its workers, Outputs and Sources](/screenshots/session-summary.png)
+![The Session Summary card of a Queen session, with Environment, two scheduled heartbeats, the Hive row, Outputs and Sources](/screenshots/session-summary.png)
 
 ## Open and hide the Summary
 

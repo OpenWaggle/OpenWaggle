@@ -19,7 +19,7 @@ To make sure the agent uses the skill, type `/visualize` in the message box and 
 
 The visualization appears in the reply, where the agent put it:
 
-![An interactive chart inside the agent's reply in the conversation](/screenshots/visualization-inline.png)
+![A wide chart in the agent's reply comparing the jotter project's upload retries by status before and after a fix](/screenshots/visualization-inline.png)
 
 The agent doesn't draw a visualization for everything:
 
@@ -47,7 +47,7 @@ When you do send a message, OpenWaggle includes the current state of the visuali
 
 A visualization made for a wide layout, such as a full app mockup or several charts side by side, has an **Expand visualization** button at its top right. In the conversation it is up to 1,024 pixels wide, and the button opens it over the whole window:
 
-![The same chart opened large over the app, with the button that closes it](/screenshots/visualization-expanded.png)
+![The same retry chart opened with Expand in a larger dialog, with its close button in the corner](/screenshots/visualization-expanded.png)
 
 To close it, click **Close expanded visualization**, press `Escape`, or click outside it. Visualizations at the normal width have no expand button.
 

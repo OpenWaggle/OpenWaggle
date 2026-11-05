@@ -17,7 +17,7 @@ A provider is the company or server that runs the AI models OpenWaggle talks to.
 
 This is the **Connections** page with **API Key Providers** expanded and one provider's key field open:
 
-![Settings > Connections with API Key Providers expanded and a provider's Auth key field open with a placeholder key](/screenshots/settings-api-key-providers.png)
+![Settings > Connections with API Key Providers expanded and a provider's Auth key field open with a made-up key](/screenshots/settings-api-key-providers.png)
 
 Settings can list models your account cannot use. The model selector shows only the models you turned on that Pi, the agent engine inside OpenWaggle, reports as available. Turning a model on does not buy access or change what your provider lets you use.
 

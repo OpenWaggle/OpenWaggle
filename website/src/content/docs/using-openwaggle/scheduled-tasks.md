@@ -23,7 +23,7 @@ The Session Host runs scheduled tasks. While any task is turned on, the Host kee
 | **Settings > Scheduled tasks** | Every task in every project, and **Background start**. |
 | **Scheduled** in the [Session Summary](/docs/using-openwaggle/session-summary) | The Heartbeats that run in this session, or the Launch schedule that started it. Hover a row for its next run; right-click it for **Run now**, **Pause**, **Edit** and **Delete**. |
 
-![The Scheduled panel beside a session, listing two Heartbeats, one of them paused, and a weekday Launch schedule, each with its schedule and next run](/screenshots/scheduled-tasks.png)
+![The Scheduled panel listing two heartbeats into this session, one of them paused, and a weekday launch schedule](/screenshots/scheduled-tasks.png)
 
 Opening a task shows its settings and run history where you opened it. **Edit**, or **New task**, replaces that view with the editor in the same place.
 
