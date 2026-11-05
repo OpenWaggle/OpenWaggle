@@ -54,18 +54,21 @@ async function launchApp(profile: ScratchProfile, projectPath: string) {
     homeDir: profile.homeDir,
     hidden: true,
   })
-  const page = await app.firstWindow()
-  await app.evaluate(async ({ BrowserWindow }, { width, height }) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
-  }, WINDOW_SIZE)
-  await expect(page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
-  const runtime = await page.evaluate(() => ({
-    hasApi: typeof window.api.getSessionDetail === 'function',
-    isElectron: navigator.userAgent.includes('Electron'),
-  }))
-  if (!runtime.hasApi || !runtime.isElectron) {
-    throw new Error('Screenshot capture did not reach the Electron app with its preload API.')
-  }
+  const page = await closingOnFailure(app, async () => {
+    const firstWindow = await app.firstWindow()
+    await app.evaluate(async ({ BrowserWindow }, { width, height }) => {
+      BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
+    }, WINDOW_SIZE)
+    await expect(firstWindow.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+    const runtime = await firstWindow.evaluate(() => ({
+      hasApi: typeof window.api.getSessionDetail === 'function',
+      isElectron: navigator.userAgent.includes('Electron'),
+    }))
+    if (!runtime.hasApi || !runtime.isElectron) {
+      throw new Error('Screenshot capture did not reach the Electron app with its preload API.')
+    }
+    return firstWindow
+  })
   return { app, page }
 }
 
@@ -82,25 +85,42 @@ async function configureProject(page: Page, projectPath: string) {
   )
 }
 
+/**
+ * Runs `step` with a launched app and closes the app if the step throws, so `main()`'s `finally`
+ * never stops the Session Host while an Electron it does not know about could start another one.
+ */
+async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>): Promise<T> {
+  try {
+    return await step()
+  } catch (error) {
+    await app.close().catch(() => undefined)
+    throw error
+  }
+}
+
 /** Seeds the Host database the first launch created, then restarts so the GUI reads it fresh. */
 async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProject) {
   const first = await launchApp(profile, project.projectPath)
-  await configureProject(first.page, project.projectPath)
-  await seedMarketingSession(profile.userDataDir, project.projectPath)
-  await seedBrowserSession(profile.userDataDir, project.projectPath)
-  const hive = await seedHiveExample(profile.userDataDir, project)
+  const hive = await closingOnFailure(first.app, async () => {
+    await configureProject(first.page, project.projectPath)
+    await seedMarketingSession(profile.userDataDir, project.projectPath)
+    await seedBrowserSession(profile.userDataDir, project.projectPath)
+    return seedHiveExample(profile.userDataDir, project)
+  })
   await first.app.close()
   const launched = await launchApp(profile, project.projectPath)
-  await createScheduledTasks(
-    launched.page,
-    scheduledTaskFixtures({
-      queenSessionId: hive.queenSessionId,
-      projectPath: project.projectPath,
-      now: new Date(),
-    }),
-  )
-  await launched.page.reload()
-  await expect(launched.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+  await closingOnFailure(launched.app, async () => {
+    await createScheduledTasks(
+      launched.page,
+      scheduledTaskFixtures({
+        queenSessionId: hive.queenSessionId,
+        projectPath: project.projectPath,
+        now: new Date(),
+      }),
+    )
+    await launched.page.reload()
+    await expect(launched.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+  })
   const seedFeatureSessionsOnce = featureSessionSeeder({
     userDataDir: profile.userDataDir,
     project,
