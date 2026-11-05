@@ -6,67 +6,60 @@ section: "Getting started"
 kind: "guide"
 ---
 
-OpenWaggle is a desktop app for working on code with an AI agent. You describe a task in a conversation. The agent can read project files, edit code, and run commands using tools.
-
-This guide takes you from installation to reviewing a small change in a Git repository you already have on your machine.
+OpenWaggle is a desktop app for working on code with an AI agent. You describe a task in a conversation, and the agent reads your project, edits files and runs commands to do it. This guide takes you from a fresh install to reviewing a small change in a Git repository you already have.
 
 ## Install OpenWaggle
 
-Download the installer for your operating system from [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases), install it, and open the app. See [Installation](/docs/getting-started/installation) for platform-specific steps and the command-line installer.
+Download the installer for your computer from [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases), install it, and open the app. [Installation](/docs/getting-started/installation) has the steps for each platform and a one-line installer for the terminal.
 
-You'll also need access to an AI provider. OpenWaggle connects to your provider account; that provider's charges and usage limits still apply. When you use a hosted model, your messages and the code included in its context leave your machine.
+You also need an account with an AI provider. OpenWaggle uses your account, so the provider's prices and usage limits apply. With a hosted model, your messages and the code the agent reads go to that provider.
 
 ## Connect a model
 
-A provider supplies access to AI models. You connect your account once, then choose which model to use for a conversation.
+A provider gives you access to models. You connect a provider once, then pick a model for each session.
 
-1. Click the gear icon in the sidebar to open Settings, then choose **Connections**.
-2. Expand **API Key Providers** to enter a provider's API key, or **OAuth Providers** to sign in through your browser.
-3. Under **Available Models**, enable a model you have access to. Enabled models appear in the model selector beside the message box.
+1. Click **Settings** at the bottom of the sidebar, then choose **Connections**.
+2. Expand **API Key Providers** to paste an API key, or **OAuth Providers** to sign in through your browser.
+3. Under **Available Models**, turn on a model you have access to. The models you turn on appear in the model picker beside the message box.
 
-![Settings > Connections with API Key Providers and OAuth Providers collapsed, Source control, and Available Models with three models selected](/screenshots/settings-connections.png)
+![Settings > Connections with API Key Providers and OAuth Providers collapsed, Source control, and Available Models with 3 models selected](/screenshots/settings-connections.png)
 
-For other authentication methods or connection problems, see [Providers and models](/docs/providers/overview).
+If you sign in another way or the connection fails, see [Providers and models](/docs/providers/overview).
 
 ## Open your project
 
-Click **Select a project folder to get started** on the welcome screen and choose your local repository. You can also hover over **Projects** in the sidebar and click **Open project folder**.
+On the welcome screen, click **Select a project folder to get started** and choose your repository. Later, you can add more projects by hovering over **Projects** in the sidebar and clicking **Open project folder**.
 
-Select your enabled model beside the message box. If the same model appears under several providers, choose the provider you connected.
+## Start a session
 
-Before sending a message, check the other controls above and beside the message box:
+A session is one conversation with the agent about your project. Choose **New session** under your project. The message box shows where the agent will work and how much it may do without asking:
 
-![The composer of a new session with eight numbered controls: Current checkout, the main branch, the + menu, Ask for approval, the GPT-5.4 model selector, the Medium thinking level, the context meter and the microphone](/screenshots/composer-controls.png)
+![The message box of a new session in the jotter project, with Current checkout, the main branch, Ask for approval and the GPT-5.4 model](/screenshots/composer-new-session.png)
 
-- Choose **Current checkout** (1) to work in the folder you opened. The agent's edits will change files in that folder. Start on a development branch (2), with unrelated work committed or saved elsewhere.
-- Set agent access (4) to **Ask for approval**. This asks before protected actions. It does not prompt for every file read or guarantee that the agent cannot edit files.
+1. Leave **Current checkout** selected to work in the folder you opened. The agent's edits change files in that folder, so start on a development branch and commit or put aside unrelated work first.
+2. Leave the access mode on **Ask for approval**. The agent then asks before protected actions, such as opening the browser preview. It does not ask before every file read, and it can still edit files in the project. [Approvals and permissions](/docs/configuration/approvals-permissions) explains each mode.
+3. Pick the model you turned on. If the same model is listed under several providers, pick the provider you connected.
 
-The model selector is number 5. The other numbered controls are described in [Conversations and tools](/docs/using-openwaggle/chat-and-tools#sessions).
+To keep the agent's changes out of your folder, choose **New worktree** instead and pick a base branch. The session then gets its own Git worktree, a separate checkout of the repository. If the project has a setup command, OpenWaggle runs it while creating the worktree, before the agent starts, so check what it does. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees).
 
-Before a new conversation's first run, OpenWaggle tries to fast-forward the current branch from its upstream. A failed pull does not block the conversation, so check that your local files are current.
-
-If you prefer a separate checkout, choose **New worktree** and select a base branch before sending. A Git worktree gives the conversation its own working directory. If the project has workspace preparation configured, review its Setup command too, since creating the worktree can run it before the agent starts. See [Projects and worktrees](/docs/developer-workflow/projects-and-worktrees) for details.
+Before a session's first run, OpenWaggle tries to fast-forward your branch from its upstream. If that pull fails, the session still starts, so make sure your local files are up to date.
 
 ## Ask about the code
 
-Start with a question that helps you check the agent's understanding. For example:
+Start with a question, so you can check what the agent understands before it changes anything:
 
 ```text
 Explain how this project is organized and how to run its tests.
 Read the relevant files, but don't edit files or run commands yet.
 ```
 
-Send the message. The conversation shows the response and the tool activity used to produce it. Read the answer and check the files it refers to. Correct any assumptions before asking for changes.
+Send the message. The reply appears in the conversation, with a row for each tool the agent used, such as each file it read. Check the files it mentions and correct anything it got wrong before you ask for changes. Telling the agent not to edit is an instruction to the model. It does not stop the agent from editing.
 
-When an approval request appears, inspect the proposed action and its target. Use **Allow once** if you want that action to proceed. Otherwise, choose **Continue without** and explain what the agent should do instead. Asking the agent not to edit is an instruction, not a security boundary.
-
-![An approval request above the message box: Allow open browser preview? from OpenWaggle browser preview, with Continue without, Allow once, and the Allow… menu open on Allow for this session and Always allow open browser preview for OpenWaggle browser preview in jotter](/screenshots/approval-request.png)
-
-_**Allow…** opens the broader choices. See [Approvals and permissions](/docs/configuration/approvals-permissions#respond-to-an-approval-request) before you use them._
+If the agent asks for approval, read what it wants to do and to what. Choose **Allow once** to let it go ahead, or **Continue without** and tell it what to do instead. [Respond to an approval request](/docs/configuration/approvals-permissions#respond-to-an-approval-request) covers the other choices.
 
 ## Make a small change
 
-Choose something easy to inspect for your first task. For example, continue the conversation with:
+Pick a first task that is easy to check. Continue the conversation with something like:
 
 ```text
 Add a short section to the README explaining how to run the existing tests.
@@ -74,24 +67,25 @@ Use the commands you found in this project. Only edit the README.
 Don't commit or push anything.
 ```
 
-You can name a file, describe the result you want, and state what should stay unchanged. For a code change, ask the agent to run the relevant tests and report the result too.
+Name the file, say what result you want, and say what must stay as it is. For a code change, also ask the agent to run the tests that cover it and tell you the result.
 
-## Review the result
+## Review the change
 
-Open the diff panel with **Cmd+D** on macOS or **Ctrl+D** on Windows and Linux. These are the default shortcuts. Select **Working tree** to review uncommitted changes.
+Press **Cmd+D** on macOS or **Ctrl+D** on Windows and Linux to open the diff panel, then select **Working tree** to see changes that are not committed yet.
 
-Read the diff, not just the agent's summary. Check that the right files changed and that the instructions or code are correct. The diff shows changes already made to disk; opening it is not an approval step before applying edits. It can also include changes you or another session made in the same checkout.
+Read the diff itself, not only the agent's summary. Check that the right files changed and that the text or code is correct. The diff shows what is already on disk: the agent writes files as it works, and opening the diff is not a step that applies them. It can also include changes you or another session made in the same folder.
 
-To request a correction, click a changed line, write your feedback, and choose **Add comment** to send it to the agent. You can also reply in the conversation:
+To ask for a fix, click a changed line, write what should change, and choose **Add comment**. The comment goes to the agent. You can also reply in the conversation:
 
 ```text
 Keep the new test instructions, but leave the existing introduction unchanged.
 ```
 
-Review the updated diff. When you're satisfied, commit the changes using your usual Git workflow or OpenWaggle's [Git controls](/docs/developer-workflow/git-integration). Committing or pushing is not required to finish this walkthrough.
+Review the diff again. When you are happy with it, commit with your usual Git tools or with OpenWaggle's [Git controls](/docs/developer-workflow/git-integration). You don't have to commit to finish this guide.
 
 ## Next steps
 
-- [Conversations and tools](/docs/using-openwaggle/chat-and-tools) covers continuing work with the agent.
-- [Browser preview](/docs/developer-workflow/browser-preview) explains how to inspect a running web app and send visual feedback.
-- [Project instructions](/docs/extending/agents-md) explains how to give the agent conventions it should follow each time.
+- [How OpenWaggle works](/docs/getting-started/how-openwaggle-works) explains projects, sessions, runs and the background process that keeps the agent working.
+- [Conversations and tools](/docs/using-openwaggle/chat-and-tools) covers longer work with the agent.
+- [Browser preview](/docs/developer-workflow/browser-preview) shows how to look at a running web app and send visual feedback.
+- [Project instructions](/docs/extending/agents-md) tells the agent your conventions once, for every session.
