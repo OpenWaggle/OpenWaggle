@@ -166,6 +166,11 @@ async function refreshCatalogSessions(
     ) {
       await get().loadHiveSessions(hiveContextSessionId)
     }
+  } catch (error) {
+    // The Session Host refresh fires this action with `void`, so a rejection here would float as
+    // an unhandled renderer rejection (Sentry issues OPENWAGGLE-6 and OPENWAGGLE-7). A targeted
+    // refresh is best effort: the next host event retries it, so the failure is only logged.
+    logger.warn('Failed to refresh Sessions in the catalog', { error: String(error) })
   } finally {
     activeTargetedOperationIds.delete(operationId)
     pruneTargetedSessionOperationIds()
