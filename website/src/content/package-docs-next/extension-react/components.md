@@ -192,4 +192,4 @@ This static example shows the plain-text markup a `SourceView` renders before th
 
 The stylesheet uses the complete `@openwaggle/extension-sdk` 0.2 appearance projection. OpenWaggle supplies it on the extension root. A standalone preview must apply `.ow-extension-root` and provide the same variables, for example from `extensionThemeCssVariableDeclarations()` in `@openwaggle/extension-sdk`. The stylesheet has no fallback theme of its own.
 
-See the [API reference](./api-reference) for the exported components and prop type names.
+See the [API reference](../api-reference) for the exported components and prop type names.
