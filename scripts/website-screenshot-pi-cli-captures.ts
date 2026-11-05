@@ -30,8 +30,13 @@ const SESSION_ID = '6f1c2a9e-3b7d-4e58-9a10-c4d2e8f7b153'
 /** How long ago the pi session ran, so the sidebar shows it as recent. */
 const STARTED_AGO_MS = 25 * MINUTE_MS
 const REPLIED_AGO_MS = 22 * MINUTE_MS
-/** Entry ids are the session id's first characters plus a counter, the way short Pi ids look. */
-const ENTRY_ID_PREFIX_LENGTH = 8
+/** Fixed entry ids, full UUIDs like the ones Pi writes, so every run writes the same file. */
+const ENTRY_IDS = {
+  model: '0b7e4c1a-52d9-4f3e-8a61-9d2c7b4e5f10',
+  prompt: '1c8f5d2b-63ea-4a4f-9b72-ae3d8c5f6a21',
+  reply: '2d9a6e3c-74fb-4b5a-8c83-bf4e9d6a7b32',
+  name: '3eab7f4d-85ac-4c6b-9d94-c05fae7b8c43',
+} as const
 /** The reply's recorded token usage. */
 const REPLY_USAGE = { input: 4_210, output: 380, cacheRead: 0, cacheWrite: 0 } as const
 /** A margin of the dimmed window around the question. */
@@ -41,7 +46,6 @@ async function writePiCliSession(context: CaptureContext, projectPath: string) {
   const { piAgentDir } = playwrightElectronHome(context)
   const now = Date.now()
   const at = (agoMs: number) => new Date(now - agoMs).toISOString()
-  const id = (suffix: string) => `${SESSION_ID.slice(0, ENTRY_ID_PREFIX_LENGTH)}${suffix}`
   const lines = [
     {
       type: 'session',
@@ -52,7 +56,7 @@ async function writePiCliSession(context: CaptureContext, projectPath: string) {
     },
     {
       type: 'model_change',
-      id: id('01'),
+      id: ENTRY_IDS.model,
       parentId: null,
       timestamp: at(STARTED_AGO_MS),
       provider: 'openai',
@@ -60,8 +64,8 @@ async function writePiCliSession(context: CaptureContext, projectPath: string) {
     },
     {
       type: 'message',
-      id: id('02'),
-      parentId: id('01'),
+      id: ENTRY_IDS.prompt,
+      parentId: ENTRY_IDS.model,
       timestamp: at(STARTED_AGO_MS),
       message: {
         role: 'user',
@@ -71,14 +75,16 @@ async function writePiCliSession(context: CaptureContext, projectPath: string) {
     },
     {
       type: 'message',
-      id: id('03'),
-      parentId: id('02'),
+      id: ENTRY_IDS.reply,
+      parentId: ENTRY_IDS.prompt,
       timestamp: at(REPLIED_AGO_MS),
       message: {
         role: 'assistant',
         content: [{ type: 'text', text: REPLY }],
+        api: 'openai-completions',
         provider: 'openai',
         model: 'gpt-5.4',
+        // Without a cost, like the pi CLI sessions in the Usage & Cost fixture.
         usage: { ...REPLY_USAGE, totalTokens: REPLY_USAGE.input + REPLY_USAGE.output },
         stopReason: 'stop',
         timestamp: now - REPLIED_AGO_MS,
@@ -86,8 +92,8 @@ async function writePiCliSession(context: CaptureContext, projectPath: string) {
     },
     {
       type: 'session_info',
-      id: id('04'),
-      parentId: id('03'),
+      id: ENTRY_IDS.name,
+      parentId: ENTRY_IDS.reply,
       timestamp: at(REPLIED_AGO_MS),
       name: PI_CLI_SESSION_TITLE,
     },
