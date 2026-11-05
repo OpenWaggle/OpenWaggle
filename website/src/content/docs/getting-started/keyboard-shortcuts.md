@@ -2,146 +2,132 @@
 title: "Keyboard shortcuts"
 description: "Default shortcuts for conversations, terminals, browser preview, and navigation."
 order: 9
-section: "Customize"
+section: "Reference"
+kind: "reference"
 ---
 
-These are the default bindings. Open **Settings > Shortcuts** to see or change configurable bindings. Sidebar filtering and pinned-session number keys are reserved rather than configurable. Some shortcuts depend on where focus is: for example, `Cmd/Ctrl+D` splits a terminal when you are typing in it, but toggles Changes elsewhere.
+This page lists the default keyboard shortcuts. To see or change them, open **Settings > Shortcuts**.
 
-![Settings > Shortcuts: the search field, Add binding and Reset defaults, and the Panels group listing each panel with its binding, such as ⌘D for Changes and Unassigned for Project Actions](/screenshots/settings-shortcuts.png)
+![Settings > Shortcuts with the search field, Add binding, Reset defaults, and the Panels group listing each panel and its binding](/screenshots/settings-shortcuts.png)
 
-## Shortcuts reference
+## Default shortcuts
 
-| Action | macOS | Windows/Linux |
-|--------|-------|---------------|
-| Send message | `Enter` | `Enter` |
-| New line | `Shift+Enter` | `Shift+Enter` |
-| New session | `Cmd+N` or `Cmd+Shift+O` | `Ctrl+N` or `Ctrl+Shift+O` |
-| Command palette | `Cmd+K` | `Ctrl+K` |
-| Go to file | `Cmd+P` | `Ctrl+P` |
-| Toggle sidebar | `Cmd+B` | `Ctrl+B` |
-| Filter projects and sessions | `Cmd+F` | `Ctrl+F` |
-| Open pinned session 1 to 9 | `Cmd+1` … `Cmd+9` | `Ctrl+1` … `Ctrl+9` |
-| Toggle terminal | `Cmd+J` | `Ctrl+J` |
-| Toggle Changes | `Cmd+D` | `Ctrl+D` |
-| Toggle right panel | `Cmd+Option+B` | `Ctrl+Alt+B` |
-| Toggle Browser | `Cmd+Shift+J` | `Ctrl+Shift+J` |
-| Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
-| Focus a pending request | `Cmd+Shift+A` | `Ctrl+Shift+A` |
-| Copy session link | `Cmd+Option+L` | `Ctrl+Alt+L` |
-| Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
-| Cancel diff comment or review | `Escape` | `Escape` |
+The names are the ones **Settings > Shortcuts** shows. **Where** says when the shortcut works: **Anywhere**, **Outside a terminal** (not while you type in a terminal), **In a terminal**, or **In the browser preview** (while it has focus).
 
-**Copy session link** copies the link of the session you have open and also works while you type in a terminal. Some Linux desktops lock the screen on `Ctrl+Alt+L`; choose another key in **Settings > Shortcuts** if yours does.
+| Command | macOS | Windows and Linux | Where |
+| --- | --- | --- | --- |
+| **Command palette** | `Cmd+K` | `Ctrl+K` | Outside a terminal |
+| **Go to file** | `Cmd+P` | `Ctrl+P` | Outside a terminal |
+| **New session** | `Cmd+N` or `Cmd+Shift+O` | `Ctrl+N` or `Ctrl+Shift+O` | Outside a terminal |
+| **Toggle sidebar** | `Cmd+B` | `Ctrl+B` | Anywhere |
+| **Toggle terminal** | `Cmd+J` | `Ctrl+J` | Anywhere |
+| **Toggle right panel** | `Cmd+Option+B` | `Ctrl+Alt+B` | Anywhere |
+| **Maximize right panel** | Unassigned | Unassigned | Anywhere |
+| **Close right panel** | `Cmd+W` | `Ctrl+W` | Outside a terminal |
+| **Toggle diff** | `Cmd+D` | `Ctrl+D` | Outside a terminal |
+| **Toggle session tree** | `Cmd+Shift+Y` | `Ctrl+Shift+Y` | Outside a terminal |
+| **Toggle preview** | `Cmd+Shift+J` | `Ctrl+Shift+J` | Anywhere |
+| **Go to pending request** | `Cmd+Shift+A` | `Ctrl+Shift+A` | Anywhere |
+| **Copy session link** | `Cmd+Option+L` | `Ctrl+Alt+L` | Anywhere |
+| **New terminal** | `Cmd+N` | `Ctrl+N` | In a terminal |
+| **Split terminal side by side** | `Cmd+D` | `Ctrl+D` | In a terminal |
+| **Split terminal vertically** | `Cmd+Shift+D` | `Ctrl+Shift+D` | In a terminal |
+| **Close terminal** | `Cmd+W` | `Ctrl+W` | In a terminal |
+| **Focus preview address** | `Cmd+L` | `Ctrl+L` | In the browser preview |
+| **Refresh preview** | `Cmd+R` | `Ctrl+R` | In the browser preview |
+| **Zoom preview in** | `Cmd+=` or `Cmd++` | `Ctrl+=` or `Ctrl++` | In the browser preview |
+| **Zoom preview out** | `Cmd+-` | `Ctrl+-` | In the browser preview |
+| **Reset preview zoom** | `Cmd+0` | `Ctrl+0` | In the browser preview |
 
-On keyboards where `Ctrl+Alt` (AltGr) with a key types a character, such as `Ctrl+Alt+L` for `ł` on Polish or `Ctrl+Alt+B` for `{` on Czech and Hungarian keyboards on Windows, the character goes to the field or terminal you are typing in, and the shortcut runs everywhere else. In the Browser preview on Windows, a letter such as `ł` always goes to the page, while a symbol such as `{` can still run a matching `Ctrl+Alt` shortcut.
+**Toggle diff** shows the **Changes** panel. **Split terminal vertically** adds a pane below the active one. **Close terminal** closes the active pane. **Close right panel** closes the panel that is showing. When no panel is open, OpenWaggle passes the key on to whatever has focus.
 
-Focusing a pending request does not approve it. Read the action and choose a response; use `Escape` to return to your message.
+**Go to pending request** moves focus to a request waiting for you, without moving your cursor in the message box. It never answers the request. Press `Escape` to go back to your message.
 
-## Terminal shortcuts
+**Copy session link** copies a link to the session you have open. Some Linux desktops lock the screen on `Ctrl+Alt+L`. If yours does, choose another key.
 
-These actions apply while focus is inside a terminal pane:
+**Command palette**, **Go to file** and **New session** must always keep at least one shortcut.
 
-| Action | macOS | Windows/Linux |
-|--------|-------|---------------|
-| New terminal tab | `Cmd+N` | `Ctrl+N` |
-| Split terminal side by side | `Cmd+D` | `Ctrl+D` |
-| Split terminal below | `Cmd+Shift+D` | `Ctrl+Shift+D` |
-| Close active terminal pane | `Cmd+W` | `Ctrl+W` |
+Shortcuts also work inside the browser preview page, but ordinary typing stays in the page field that has focus.
 
-Terminal focus makes these bindings contextual. Outside a terminal, `Cmd/Ctrl+N` creates a session
-and `Cmd/Ctrl+D` toggles Changes.
+On keyboards where `Ctrl+Alt` (AltGr) with a key types a character, such as `Ctrl+Alt+L` for `ł` on a Polish keyboard or `Ctrl+Alt+B` for `{` on Czech and Hungarian keyboards on Windows, the character goes to the field or terminal you are typing in, and the shortcut works everywhere else. In the browser preview on Windows, a letter such as `ł` always goes to the page, while a symbol such as `{` can still run a matching `Ctrl+Alt` shortcut.
 
 ## Panel shortcuts
 
-Every panel the right panel can show has its own shortcut command. Pressing a panel's shortcut
-shows that panel, or closes the right panel when that panel is already showing, just like clicking
-its icon on the panel rail.
+Each view the right panel can show has a command. Its shortcut shows that panel, or closes the right panel when that panel is already showing, the same as clicking its icon on the panel rail. Panel shortcuts don't work while you type in a terminal, except **Toggle preview**, which works everywhere.
 
-| Panel | Default |
-|-------|---------|
-| All panels | Unassigned |
-| Changes | `Cmd/Ctrl+D` |
-| Project Actions | Unassigned |
-| Scheduled | Unassigned |
-| Browser | `Cmd/Ctrl+Shift+J` |
-| Files | Unassigned |
-| Session Tree | `Cmd/Ctrl+Shift+Y` |
-| Resources | Unassigned |
-| Extension side panels | Unassigned |
+| Panel | Command | Default |
+| --- | --- | --- |
+| **All panels** | **Toggle All panels** | Unassigned |
+| **Changes** | **Toggle diff** | `Cmd/Ctrl+D` |
+| **Project Actions** | **Toggle Project Actions** | Unassigned |
+| **Scheduled** | **Toggle Scheduled** | Unassigned |
+| **Browser** | **Toggle preview** | `Cmd/Ctrl+Shift+J` |
+| **Files** | **Toggle Files** | Unassigned |
+| **Session Tree** | **Toggle session tree** | `Cmd/Ctrl+Shift+Y` |
+| **Resources** | **Toggle Resources** | Unassigned |
+| **Hive** | **Toggle Hive** | Unassigned |
+| Extension side panels | The panel's name | Unassigned |
 
-Assign the unassigned ones under **Settings > Shortcuts > Panels**. That group lists the built-in
-panels, the right panel toggle, and each installed extension's side panels under the extension's
-name. Record a combination, then **Save**; use the reset button to return a built-in panel to its
-default or the clear button to unassign it.
+Assign them under **Settings > Shortcuts > Panels**. That group lists the built-in panels, **Toggle right panel**, and each installed extension's side panels under the extension's name. Record a key combination, then click **Save**. The reset button returns a built-in panel to its default, and the clear button unassigns it.
 
-Extensions cannot choose shortcuts for their panels; only you can. A panel shortcut must be unique:
-OpenWaggle refuses one that a built-in command, a reserved combination, or another panel already
-uses, and names what uses it. Panel shortcuts work everywhere except while you type in a terminal.
+Extensions cannot choose shortcuts for their panels. Only you can. A panel shortcut must be unique. OpenWaggle refuses one that a built-in command, a reserved key or another panel already uses, and names what uses it.
 
-An extension panel's shortcut does nothing while the panel cannot be shown, for example while its
-extension is disabled, untrusted, or waiting for an update, and the key goes to whatever has focus.
-The binding is kept when you uninstall the extension. It is listed under **Extensions not
-installed** so you can remove it, and it works again if you reinstall the extension.
+An extension panel's shortcut does nothing while the panel cannot be shown, for example while its extension is disabled, untrusted or waiting for an update, and the key goes to whatever has focus. The shortcut is kept when you uninstall the extension. It is listed under **Extensions not installed**, where you can remove it, and it works again if you reinstall the extension.
 
-## Right panel and browser preview
+## Fixed keys
 
-`Cmd/Ctrl+W` closes the active right panel outside a terminal. When no panel is open, OpenWaggle
-leaves that shortcut to the focused application or browser content instead of swallowing it.
+These keys cannot be changed. If you give another command `Cmd/Ctrl+F` or `Cmd/Ctrl+1` to `Cmd/Ctrl+9`, **Settings > Shortcuts** marks it as a conflict with the sidebar.
 
-These actions apply while focus is inside a Browser preview:
+| macOS | Windows and Linux | What it does | Where |
+| --- | --- | --- | --- |
+| `Enter` | `Enter` | Sends the message | Message box |
+| `Shift+Enter` | `Shift+Enter` | Starts a new line | Message box |
+| `ArrowUp` | `ArrowUp` | Recalls your previous message | Message box, cursor at the start |
+| `ArrowDown` | `ArrowDown` | Recalls your next message | Message box, cursor at the end |
+| `Escape` | `Escape` | Stops editing a queued message | Message box, while editing a queued message |
+| `Cmd+F` | `Ctrl+F` | Filters projects and sessions | Outside Settings |
+| `Escape` | `Escape` | Clears the filter | Sidebar filter field |
+| `Cmd+1` to `Cmd+9` | `Ctrl+1` to `Ctrl+9` | Opens pinned session 1 to 9 | Main window |
+| `Option+ArrowUp`, `Option+ArrowDown` | `Alt+ArrowUp`, `Alt+ArrowDown` | Moves a panel up or down the rail | Panel rail icon |
+| `Cmd+Enter` | `Ctrl+Enter` | Submits a diff comment or review | Diff comment field |
+| `Escape` | `Escape` | Cancels a diff comment or review | Diff comment field |
 
-| Action | macOS | Windows/Linux |
-|--------|-------|---------------|
-| Focus address | `Cmd+L` | `Ctrl+L` |
-| Refresh | `Cmd+R` | `Ctrl+R` |
-| Zoom in | `Cmd+=` or `Cmd++` | `Ctrl+=` or `Ctrl++` |
-| Zoom out | `Cmd+-` | `Ctrl+-` |
-| Reset zoom | `Cmd+0` | `Ctrl+0` |
+`Cmd/Ctrl+F` focuses the filter field at the top of the sidebar, and opens the sidebar first if it is collapsed. `Escape` in that field clears both the text and any state chip.
 
-Shortcuts also work inside the preview page. Ordinary typing stays in the focused page field.
+`Cmd/Ctrl+1` to `Cmd/Ctrl+9` open the first nine rows of the **Pinned** section, in the order the section shows now, so they follow a reorder or a sort change. Positions count the whole section before any filter, so a pin's badge and its shortcut always mean the same session, even while a filter hides rows. You can pin a tenth session, but it gets no shortcut.
 
-## Customize bindings
+## Session Tree keys
 
-Open **Settings > Shortcuts** to search built-in and Project Action bindings in one place. Each
-command may have more than one ordered binding. Record a chord, then use the visual condition
-builder or its expression field to control where it applies. Conflicts are highlighted but may be
-saved intentionally. Matching Project Action rules take precedence over built-in rules. Within each
-ordered list, the last matching rule wins. Default bindings can be edited and reset, while custom
-rules can also be removed.
+Open the Session Tree from **Session Tree** on the panel rail, with `Cmd/Ctrl+Shift+Y`, or from **Session Tree** in the command palette's **Panels** section. These keys work while focus is in the tree:
 
-Conditions can use `terminalFocus`, `terminalOpen`, `previewFocus`, `previewOpen`, and
-`modelPickerOpen`, combined with `!`, `&&`, `||`, and parentheses. Unknown context names are kept for
-forward compatibility and evaluate to false until the runtime provides them.
+| Key | What it does |
+| --- | --- |
+| `ArrowUp`, `ArrowDown` | Moves focus |
+| `ArrowRight` | Expands the focused node, or moves to its first child |
+| `ArrowLeft` | Collapses the focused node, or moves to its parent |
+| `Enter` | Selects the focused node |
+| `Escape` | Closes the Session Tree |
 
-## Project Action bindings
+## How bindings combine
 
-Open **Settings > Project actions** to edit an action and its bindings directly, or use the unified
-browser under **Settings > Shortcuts**. A binding can be unconditional or contextual.
+**Settings > Shortcuts** lists built-in commands and project action shortcuts together, with a search field. A command can have several bindings, in order. You record a key combination, then use the condition builder or its expression field to say where it applies. Settings highlights conflicts, but you can save one on purpose. You can edit and reset default bindings, and remove custom ones.
 
-Project Action bindings form the final project-scoped layer over built-ins, so a matching Project
-Action rule overrides a built-in command regardless of when the built-in was edited. Context-specific
-rules can reuse the same chord when their conditions do not overlap.
+| Rule | What it means |
+| --- | --- |
+| Project actions first | A matching project action shortcut wins over a built-in command, however recently you edited the built-in. |
+| Last match wins | Within each ordered list of bindings, the last one that matches applies. |
+| Same key, different places | Bindings can share a key when their conditions do not overlap. |
 
-## Sidebar
+Conditions use these names, combined with `!`, `&&`, `||` and parentheses:
 
-`Cmd/Ctrl+F` focuses the filter field at the top of the sidebar, opening the sidebar first if it is
-collapsed. `Escape` while the field has focus clears both the text filter and any active state
-chip, which is the way out of a narrowed sidebar without reaching for the mouse.
+| Condition | True when |
+| --- | --- |
+| `terminalFocus` | You are typing in a terminal. |
+| `terminalOpen` | The terminal is open. |
+| `previewFocus` | The browser preview has focus. |
+| `previewOpen` | The browser preview is open. |
+| `modelPickerOpen` | The model selector is open. |
 
-`Cmd/Ctrl+1` through `Cmd/Ctrl+9` open the first nine rows of the **Pinned** section. The mapping is
-positional against the section as currently ordered, so it follows a reorder or a sort change.
-Positions are assigned over the whole section before any filtering, so a badge and its shortcut
-always refer to the same session even while a state chip or the text filter is hiding rows. A tenth
-pin is still allowed, it simply has no shortcut.
+OpenWaggle keeps an unknown condition name, so a binding made for a newer version still loads, and the condition counts as false.
 
-## Session tree
-
-Open the Session Tree from **Session tree** on the panel rail, with `Cmd+Shift+Y` / `Ctrl+Shift+Y`, or from **Session Tree** in the command palette's **Panels** section. When focus is inside the tree:
-
-| Action | Shortcut |
-|--------|----------|
-| Move focus | `ArrowUp` / `ArrowDown` |
-| Expand focused node or move to first child | `ArrowRight` |
-| Collapse focused node or move to parent | `ArrowLeft` |
-| Select focused node | `Enter` |
-| Close Session Tree | `Escape` |
+You can also edit a project action's shortcuts with the action itself in **Settings > Project actions**. A binding can apply everywhere or only under a condition. See [Project actions](/docs/configuration/project-actions#add-a-keyboard-shortcut).

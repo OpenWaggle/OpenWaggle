@@ -172,6 +172,10 @@ const docs = defineCollection({
     description: z.string().optional(),
     order: z.number().default(DEFAULT_DOC_ORDER),
     section: z.string(),
+    // ADR 0061: a guide teaches one task, a reference page lists exact facts, an overview explains the model.
+    kind: z.enum(['guide', 'reference', 'overview']),
+    // Other names readers and agents search for, comma-separated; the installed docs index them.
+    aliases: z.string().optional(),
   }),
 });
 

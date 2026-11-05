@@ -32,6 +32,7 @@
     "scripts/mcp-conformance-client.mts",
     "functions/**/*.ts",
     "website/src/lib/**/*.ts",
+    "website/src/data/docs-nav.ts",
     "doctor.config.ts",
     "eslint.config.ts",
     "electron.vite.config.ts",

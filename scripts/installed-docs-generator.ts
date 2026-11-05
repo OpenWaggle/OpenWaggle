@@ -16,9 +16,9 @@ import {
   markdownOutputPath,
   OPENWAGGLE_GROUP,
   OUTPUT_ROOT,
-  parseFrontmatter,
   PI_DOCS_ROOT,
   PI_GROUP,
+  parseFrontmatter,
   posixPath,
   ROOT_README_TOPIC_LIMIT,
   titleFromSlug,
@@ -51,7 +51,10 @@ function websiteDocumentationRoute(slug: string) {
 
 function installedDocumentationRoutes(files: readonly OpenWaggleSourceFile[]) {
   const routes = new Map<string, string>([['/docs', 'README.md']])
-  const packageGuides = new Map<string, { readonly bundlePath: string; readonly version: string }[]>()
+  const packageGuides = new Map<
+    string,
+    { readonly bundlePath: string; readonly version: string }[]
+  >()
 
   for (const file of files) {
     routes.set(websiteDocumentationRoute(file.slug), file.bundlePath)
@@ -65,9 +68,9 @@ function installedDocumentationRoutes(files: readonly OpenWaggleSourceFile[]) {
   }
 
   for (const [packageSlug, guides] of packageGuides) {
-    const latest = guides.toSorted((left, right) =>
-      left.version.localeCompare(right.version, 'en', { numeric: true }),
-    ).at(-1)
+    const latest = guides
+      .toSorted((left, right) => left.version.localeCompare(right.version, 'en', { numeric: true }))
+      .at(-1)
     if (latest) routes.set(`/docs/packages/${packageSlug}`, latest.bundlePath)
   }
   return routes
@@ -97,9 +100,7 @@ export function rewriteInstalledDocumentationLinks(
         path.posix.dirname(sourceBundlePath),
         targetBundlePath,
       )
-      const relativeDestination = relativePath.startsWith('.')
-        ? relativePath
-        : `./${relativePath}`
+      const relativeDestination = relativePath.startsWith('.') ? relativePath : `./${relativePath}`
       return `${prefix}${relativeDestination}${parsed.search}${parsed.hash}${suffix}`
     },
   )
@@ -177,7 +178,13 @@ async function buildOpenWaggleTopics(outputRoot: string) {
       order,
       sourcePath: posixPath(path.relative(process.cwd(), file.filePath)),
       bundlePath: file.bundlePath,
-      aliases: aliasesFor({ slug: file.slug, title, section, source: OPENWAGGLE_GROUP.id }),
+      aliases: aliasesFor({
+        slug: file.slug,
+        title,
+        section,
+        source: OPENWAGGLE_GROUP.id,
+        extraAliases: parsed.fields.get('aliases'),
+      }),
       keywords: keywordsFor({ slug: file.slug, title, description, section }),
       contentHash: hashContent(installedContent),
     })
@@ -279,7 +286,10 @@ export async function generateInstalledDocs(options: GenerateInstalledDocsOption
     topics,
   }
 
-  await writeFile(path.join(outputRoot, INDEX_FILE), `${JSON.stringify(manifest, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(outputRoot, INDEX_FILE),
+    `${JSON.stringify(manifest, null, JSON_INDENT)}\n`,
+  )
   await writeFile(path.join(outputRoot, 'README.md'), rootReadme(manifest), 'utf8')
   await mkdir(path.join(outputRoot, 'topics', OPENWAGGLE_GROUP.id), { recursive: true })
   await mkdir(path.join(outputRoot, 'topics', PI_GROUP.id), { recursive: true })

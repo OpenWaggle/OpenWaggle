@@ -3,29 +3,51 @@ title: "Command line"
 description: "Open the app, run an agent headlessly, check the Session Host, and find every openwaggle command."
 order: 5
 section: "Developer docs"
+kind: "reference"
 ---
 
-The `openwaggle` command opens the desktop app and runs everything else without it. The installed app includes the command; see [Installation](/docs/getting-started/installation) for putting it on your `PATH`. From a source checkout, use `pnpm cli:dev -- <command>`.
+The `openwaggle` command opens the desktop app, and runs every other OpenWaggle command without a window. [Installation](/docs/getting-started/installation) puts it on your `PATH`, and [Control a Hive from outside the app](/docs/using-openwaggle/hives-and-sessions#control-a-hive-from-outside-the-app) shows how to work with sessions from a terminal. From a source checkout, run `pnpm cli:dev -- <command>` instead.
 
-```sh
-openwaggle              # open the desktop app, or focus it if it is already open
-openwaggle .            # open the desktop app on this project
-openwaggle --help       # list every command
-openwaggle --version    # print the installed version
-```
+## Open the app
 
-`openwaggle <path>` accepts any existing directory. It selects that project and starts a new draft Session in it, as choosing the project in the sidebar does. A file opens the folder that contains it. If the app is already open, it takes the project and comes to the front instead of starting a second copy; on macOS it opens a new window when none is open. A command name wins over a folder with the same name, so write `./hive` to open a folder called `hive`.
+| Form | Command | What it does |
+| --- | --- | --- |
+| No arguments | `openwaggle` | Opens the desktop app, or brings it to the front if it is already open |
+| Current folder | `openwaggle .` | Opens the desktop app on the project in the current folder |
+| Folder | `openwaggle <path>` | Opens the desktop app on the project at `<path>` |
+| Session link | `openwaggle openwaggle://sessions/<session-id>` | Opens the desktop app on that session, like clicking its [session link](/docs/using-openwaggle/chat-and-tools#session-links) |
+| Help | `openwaggle --help` | Lists every command |
+| Version | `openwaggle --version` | Prints the installed version |
+| Command help | `openwaggle help <command>` | Prints the usage of one command. `openwaggle --help <command>` and `openwaggle <command> --help` do the same |
 
-`openwaggle openwaggle://sessions/<session-id>` opens the desktop app on that session, the same as clicking its [session link](/docs/using-openwaggle/chat-and-tools#session-links). Anything after the link, or an `openwaggle:` value that is not a session link, is a mistake and does not open the app.
+`openwaggle <path>` accepts any existing folder. It selects that project and starts a new draft session in it, as choosing the project in the sidebar does. A file opens the folder that contains it. If the app is already open, the open app takes the project and comes to the front, so you never get a second copy. On macOS it opens a new window when none is open.
 
-## Help and mistakes
+A command name wins over a folder with the same name, so write `./hive` to open a folder called `hive`. After a session link, any further argument is a mistake, and so is an `openwaggle:` value that is not a session link. Neither opens the app.
 
-`openwaggle help <command>` and `openwaggle <command> --help` print the usage for one command, for example `openwaggle help hive`.
+## Commands
 
-A mistyped command never opens the app. OpenWaggle prints the error, a suggestion when one is close, and the full help to stderr, then exits with status 2:
+| Command | What it does |
+| --- | --- |
+| `run` | Runs an agent in a project and streams its reply to the terminal |
+| `status` | Shows whether the Session Host is running and which runs are active |
+| `host` | Checks on, starts, or stops the background Session Host |
+| `hive` | Finds, starts, messages, steers, waits for, and exports sessions, and reviews worker delegations. See [Hive CLI](/docs/developer-workflow/hive-cli) |
+| `schedules` | Creates and manages [scheduled tasks](/docs/using-openwaggle/scheduled-tasks) |
+| `agents` | Validates, imports, explains, and edits [agent definitions](/docs/extending/agent-definitions) |
+| `access` | Manages named access profiles for agents and scripts. See [Hive CLI](/docs/developer-workflow/hive-cli#access-profiles) |
+| `mcp` | Adds, lists, and signs in to [MCP servers](/docs/configuration/mcp-reference#command-line), or serves OpenWaggle over MCP |
+| `update` | Checks for and installs updates |
+| `recovery` | Inspects or restores the copy of the database made before a migration |
+
+None of these open a window. They talk to the Session Host, the background process that runs sessions and agent runs. The Session Host starts when a command needs it and keeps running while work is active. A session you start from the terminal shows up in the desktop app whenever you open it, with its live progress.
+
+[Environment variables](/docs/reference/environment-variables#app-and-cli) lists the variables the app and the `openwaggle` command read, such as `OPENWAGGLE_USER_DATA_DIR` and `OPENWAGGLE_PROFILE`.
+
+## Mistakes
+
+A mistake never opens the app. `openwaggle` prints the error, a suggestion when one is close, and the full help to stderr, then exits with status 2. For `openwaggle hvie list` it prints:
 
 ```text
-$ openwaggle hvie list
 openwaggle: unknown command 'hvie'. Did you mean 'hive'?
 
 OpenWaggle 0.4.0
@@ -35,51 +57,108 @@ Usage:
   ...
 ```
 
-The same applies to an unknown short option such as `-x`, a mistyped or differently cased `--hlep`, `--HELP`, `--h`, `--verison`, or `--v`, a value given to `--help` or `--version`, and a path that does not exist. In the installed app, an unknown long option followed by a word, such as `openwaggle --json hive list`, is a mistake too; a development build passes it to Electron, which needs such arguments. A command written as a switch, such as `--status`, is reported with the command it meant. The commands that were renamed before 1.0, `sessions` and `delegations`, are reported with the `hive` command they became, such as `hive list` for `sessions list` and `hive delegation-accept` for `delegations accept`, and do not run; with `--json` or `--jsonl` the report is a JSON error envelope instead of the usage text. Other long switches on their own, such as `--remote-debugging-port=9222`, still go to Electron and start the app, because automation, debugging, and the updater rely on them.
+| Input | Example | Result |
+| --- | --- | --- |
+| Unknown command | `openwaggle hvie list` | Exit 2, with a suggestion |
+| Unknown short option | `-x` | Exit 2 |
+| Mistyped help or version | `--hlep`, `--HELP`, `--h`, `--verison`, `--v` | Exit 2 |
+| Value after version | `--version hive` | Exit 2 |
+| Extra or unknown help topic | `--help hive list`, `help hvie` | Exit 2 |
+| Missing path | `openwaggle ./missing` | Exit 2 |
+| Unknown long option, then a word | `openwaggle --json hive list` | Exit 2 in the installed app |
+| Command as a switch | `--status` | Exit 2, naming the command it meant |
+| Command renamed before 1.0 | `sessions list`, `delegations accept` | Does not run, and names the `hive` command it became |
+| Other long switch on its own | `--remote-debugging-port=9222` | Passed to Electron, which starts the app |
 
-## Commands
+A development build passes an unknown long option followed by a word to Electron, which needs such arguments. A renamed command names its replacement, such as `hive list` or `hive delegation-accept`. With `--json` or `--jsonl` it reports a JSON error envelope instead of the usage text. Automation, debugging and the updater rely on other long switches reaching Electron.
 
-| Command | Purpose |
-| --- | --- |
-| `run` | Run an agent in a project and stream its reply to the terminal |
-| `status` | Show whether the Session Host is running and which Runs are active |
-| `host` | Check on, start, or stop the background Session Host |
-| `hive` | Find, start, message, steer, wait for, and export Sessions, and review Worker Delegations. See [Hive CLI](/docs/developer-workflow/hive-cli) |
-| `schedules` | Create and manage [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks) |
-| `agents` | Validate, import, explain, and edit [Agent definitions](/docs/extending/agent-definitions) |
-| `access` | Manage named access profiles for agents and scripts |
-| `mcp` | Add, list, and sign in to [MCP servers](/docs/configuration/mcp#command-line), or serve OpenWaggle over MCP |
-| `update` | Check for and install updates |
-| `recovery` | Inspect or restore the pre-migration database copy |
+## run
 
-None of these open a window. They talk to the Session Host, the background process that owns Sessions and agent Runs. The Host starts on demand and keeps running while work is active, so a Session started from the terminal shows up in the desktop app whenever you open it, with its live progress.
-
-## Run an agent without the app
+`openwaggle run` starts a new session in the current folder, or in `--project`, and waits for its run to finish.
 
 ```sh
 openwaggle run fix the failing unit tests
+```
+
+With a project and a model:
+
+```sh
 openwaggle run --project ../api --model anthropic/claude-sonnet-4-5 "summarize the open TODOs"
+```
+
+With the prompt on stdin, here a diff to review:
+
+```sh
 git diff | openwaggle run --stdin --title "Review this diff"
 ```
 
-`run` launches a new Session in the current directory (or `--project`) and waits for its Run to finish. The reply streams to stdout, so you can pipe it. Progress lines, tool calls, and questions go to stderr. It accepts the same options as `sessions launch`: `--attach`, `--title`, `--workspace`, `--agent`, `--model`, `--thinking`, `--authorization` or `--yolo`, and `--interaction-timeout-ms`. Words after `--` are part of the prompt, which helps when the prompt contains something that looks like an option.
+Give the prompt as words after `run` or with one of `--text`, `--stdin` or `--input-file`, not both. Words after `--` are part of the prompt, which helps when the prompt contains something that looks like an option.
 
-When the agent asks for approval and the command runs in an interactive terminal, `run` asks `Allow? [y/N]` inline. Anything but `y` declines. Answering in the desktop app works too, and the terminal prompt goes away when you do. When there is no terminal to ask, `run` prints the `openwaggle hive request-respond` command that answers the question, and keeps waiting.
+### Options
 
-Press Ctrl-C once to interrupt the Run and wait for it to stop. Press it again to stop waiting; the Run may still be finishing in the Host. Either way, the Session stays saved. Continue it with `openwaggle hive follow-up <session-id> --text "..."` or open it in the app.
+| Option | What it does |
+| --- | --- |
+| `--project <path>` | Project folder. Without it, `run` uses the current folder |
+| `--text <prompt>` | The prompt |
+| `--stdin` | Reads the prompt from stdin |
+| `--input-file <path>` | Reads the prompt from a file |
+| `--attach <path>` | Attaches a file. Repeat it for more files |
+| `--title <title>` | Session title |
+| `--workspace current\|local\|existing\|new-worktree` | Where the session works. Goes with `--workspace-id <id>`, `--base-ref <ref>`, and `--start-from-origin` |
+| `--agent <name>` | Uses an [agent definition](/docs/extending/agent-definitions) |
+| `--model <provider/model>` | Model for the session |
+| `--thinking <level>` | Thinking level the new session starts with |
+| `--authorization ask-for-approval\|yolo` | Access mode for this run only. The session's saved mode does not change. `--yolo` is short for `--authorization yolo` |
+| `--interaction-timeout-ms <ms>` | Interrupts the run when a question stays unanswered for `<ms>` milliseconds. The command then exits with status 7 |
+| `--jsonl` | Prints the session's Session Host events as versioned records instead of text |
+| `--idempotency-key <key>` | Reusing a key attaches to the run that key first started, instead of starting another |
+| `--profile <name>` | Runs as a named access profile. Goes with `--credential-stdin` or `--profile-credential-file <path>` |
 
-`run` exits with 0 when the Run completes, 1 when it fails or its result cannot be read, 2 for a usage error, 3 to 6 for authentication, authorization, not-found, and conflict errors, 7 when a question outlasts `--interaction-timeout-ms`, 8 when the Session Host is unavailable or exits, and 130 when the Run is interrupted. If another client replaces or deletes the Run, `run` reports that and exits instead of waiting. Reusing `--idempotency-key` attaches to the Run the key first started. Add `--jsonl` to get the Session's Host events as versioned records instead of text, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
+`--project` and `--jsonl` work only with `run`. The other options match `openwaggle hive launch`. See [Hive CLI](/docs/developer-workflow/hive-cli).
 
-Agent-controlled text written to your terminal, such as tool arguments and approval messages, shows control characters, text-direction overrides, and invisible characters (zero-width spaces, byte-order marks, variation selectors, tag characters, line separators) as escapes such as `\x1b` or `\u202e`, so it cannot rewrite, reorder, or hide part of the line you are about to approve. Emoji, including joined sequences and subdivision flags, print normally. The reply on stdout is treated the same way when stdout is a terminal, and left untouched when you pipe it. When the reader of stdout goes away, as with `openwaggle run ... | head -1`, `run` interrupts the Run and exits.
+### Output
 
-## Check the Session Host
+The agent's reply streams to stdout, so you can pipe it. Progress lines, tool calls, and questions go to stderr. With `--jsonl`, stdout gets the session's events instead, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
+
+Text the agent controls, such as tool arguments and approval messages, can contain characters that change what a terminal shows. `run` prints control characters, text-direction overrides, and invisible characters (zero-width spaces, byte-order marks, variation selectors, tag characters, line separators) as escapes such as `\x1b` or `\u202e`. That way they cannot rewrite, reorder, or hide part of the line you are about to approve. Emoji, including joined sequences and subdivision flags, print normally. The reply on stdout gets the same treatment when stdout is a terminal. `run` leaves it untouched when you pipe it.
+
+### Questions, approvals and stopping
+
+| Situation | What `run` does |
+| --- | --- |
+| Approval, in a terminal | Asks `Allow? [y/N]`. Anything but `y` declines. |
+| Question or approval, no terminal | Prints the command that answers it and keeps waiting |
+| Ctrl-C | Interrupts the run and waits for it to stop |
+| Ctrl-C again | Stops waiting, while the run may still be finishing in the Session Host |
+| Reader of stdout goes away | Interrupts the run and exits, as with `openwaggle run ... \| head -1` |
+| Run replaced or deleted | Says so and exits instead of waiting |
+
+You can answer an approval in the desktop app instead, and the terminal prompt goes away. Without a terminal, the command `run` prints is `openwaggle hive request-respond`, or `openwaggle hive approval-respond` for an approval.
+
+After a Ctrl-C the session stays saved. Continue it with `openwaggle hive follow-up <session-id> --text "..."`, or open it in the app.
+
+### Exit status
+
+| Status | Meaning |
+| --- | --- |
+| `0` | The run completed |
+| `1` | The run failed, or its result could not be read |
+| `2` | Usage error |
+| `3` | Authentication error |
+| `4` | Authorization error |
+| `5` | Not found |
+| `6` | Conflict |
+| `7` | A question was not answered before `--interaction-timeout-ms` ran out, so OpenWaggle stopped the run |
+| `8` | The Session Host is unavailable, or exited during the run |
+| `130` | The run was interrupted, or a second Ctrl-C stopped the command waiting while the run may still be finishing |
+
+## status
 
 ```sh
 openwaggle status
-openwaggle status --json
 ```
 
-`status` never starts the Host. It reports whether the Host is running and lists each active Run with its Session, Run ID, model, how long it has run, and whether it is waiting for an answer:
+`status` never starts the Session Host. It says whether the Session Host is running and lists each active run with its session, run ID, model, how long it has run, and whether it is waiting for an answer. Add `--json` for machine-readable output.
 
 ```text
 OpenWaggle 0.4.0
@@ -89,34 +168,69 @@ Active runs: 1
     Run 0b9d8c7e-1a2b-4c3d-8e9f-0a1b2c3d4e5f  in /Users/you/code/app
 ```
 
-When Scheduled tasks are enabled, `status` also lists each one and when it fires next. An enabled task keeps the Host running, so this is where to look when a Host stays up with no window open.
+- When scheduled tasks are enabled, `status` also lists each one and when it fires next. An enabled task keeps the Session Host running, so look here when the Session Host stays up with no window open.
+- If the running Session Host is an older version, `status` says that it hands over to this version once its active runs end. Any command, `status` included, asks an older Session Host to hand over.
+- A detail `status` could not read, such as a session title, shows as unavailable. `status` never guesses it.
+- `openwaggle host status` is the same command. Checking the status counts as activity, so an idle Session Host waits another 5 minutes, by default, before it exits.
+- An agent running inside OpenWaggle must pass an access profile with `--profile`, as with `openwaggle hive`. It should normally use its `hive` tool instead.
 
-If the Session Host is an older version, `status` reports that it hands over to this version once its active Runs end. Any command, including `status`, asks an older Host to do that. Details `status` could not read, such as a Session title, are shown as unavailable rather than guessed.
-
-An agent running inside OpenWaggle must pass an access profile with `--profile`, as with `openwaggle hive`. It should normally use its native `hive` tool instead.
-
-## Start the Session Host
+## host start
 
 ```sh
 openwaggle host start
 ```
 
-`host start` starts the Host with no window if it is not running, then returns. [Background start](/docs/using-openwaggle/scheduled-tasks#background-start) runs it at login so Scheduled tasks keep firing after a restart. With no task enabled, the Host exits again a few minutes later.
+`host start` starts the Session Host with no window if it is not running, then returns. With no scheduled task enabled, the Session Host exits again 5 minutes later by default. To start it at login, so scheduled tasks keep firing after a restart, see [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks#keep-tasks-running-after-a-restart).
 
-## Stop the Session Host
+## host stop
+
+The Session Host exits on its own 5 minutes after its last work ends, by default, unless a scheduled task is enabled. Every update also stops it before installing. So you rarely need `host stop`.
 
 ```sh
 openwaggle host stop
+```
+
+`host stop` makes the Session Host refuse new work at once. It exits as soon as its active runs, running actions, exports, and other work it owns finish. It never interrupts a run, and the command says what the Session Host is waiting for. Follow-ups already queued behind an active run still run first. To stop sooner, pause the queue with `openwaggle hive queue-pause <session-id> --queue-revision <n>`. `openwaggle hive queue-list <session-id>` shows the revision.
+
+While it stops, the Session Host still answers the commands that end work. You can read sessions (but not wait on them), answer a run's questions and approvals, interrupt a run with `openwaggle hive interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an action in the desktop app, which keeps showing your sessions. Commands that start work fail with a message that the Session Host is stopping.
+
+If the desktop app is open, it starts a new Session Host the next time it needs one. Only you can stop the Session Host. Named access profiles and agents cannot.
+
+To wait until the Session Host has exited, add `--wait`. `--timeout-ms` sets how long to wait:
+
+```sh
 openwaggle host stop --wait --timeout-ms 60000
+```
+
+### Stop for an update
+
+```sh
 openwaggle host stop --update
 ```
 
-The Session Host exits on its own a few minutes after its last work ends, unless a Scheduled task is enabled, and every update stops it before installing, so stopping it is rarely needed. `host stop` makes it refuse new work at once and exit as soon as its active Runs, running Actions, exports, and other owned work finish. It never interrupts a Run. Follow-ups already queued behind an active Run still run first; pause the queue with `openwaggle hive queue-pause <session-id> --queue-revision <n>` to stop sooner (`openwaggle hive queue-list <session-id>` shows the revision). The command says what the Host is waiting for.
+This is the stop an update uses. **Restart to update**, `openwaggle update`, and the install script all stop the Session Host this way before they replace the app.
 
-While it stops, the Host still answers the commands that end work: you can read Sessions (but not wait on them), answer a Run's questions and approvals, interrupt a Run with `openwaggle hive interrupt <session-id> --expected-run <run-id>` (`openwaggle status` lists both IDs), and stop an Action in the desktop app, which keeps showing your Sessions. Commands that start work fail with a message that the Host is stopping.
+1. If agent runs are active, it asks whether to wait until they finish (the default), stop them now, or cancel.
+2. Stopping them now gives the Session Host 10 seconds to finish its work. Then it interrupts any run still active, marks it interrupted, and exits. So stopping now ends the runs within about 13 seconds.
+3. The command returns once the Session Host process is gone.
 
-With `--wait` the command returns once the Host has exited, or exits with status 7 if its work outlasts the timeout (2 minutes by default). If the desktop app is open, it starts a new Host the next time it needs one. Only you can stop the Host; named access profiles and agents cannot.
+It asks on the terminal, so it also works under `curl … | bash`. Without a terminal, as on Windows, it waits for the runs. An older Session Host that is handing over to this version cannot be told to stop its runs, so the command only waits for them.
 
-`host stop --update` is the stop an update uses. **Restart to update**, `openwaggle update`, and the install script all stop the Host this way before they replace the app. If agent Runs are active, it asks whether to wait until they finish (the default), stop them now, or cancel. Then the Host gets 10 seconds to finish its work, interrupts any Run still active, which is recorded as interrupted, and exits; so stopping them now ends them within about 13 seconds. An older Session Host that is handing over to this version cannot be told to stop its Runs, so the command only waits for them. The command returns once the Host process is gone. It asks on the terminal, so it also works under `curl … | bash`. Without a terminal, as on Windows, it waits for the Runs. Ctrl-C at the question cancels like `c`; while it waits, Ctrl-C cancels the update too, though a stop already sent to the Host still goes ahead. While the desktop app is open it leaves the Host alone, because the app owns it then. It exits with status 6 when you cancel, when the app is open, or when another OpenWaggle process, such as `openwaggle mcp serve`, keeps starting a new Host; 7 if the Host has not exited after 20 seconds; 1 if the Host refused the stop; and 130 after Ctrl-C while it waits.
+Ctrl-C at the question cancels, like answering `c`. While it waits, Ctrl-C cancels the update too, though a stop already sent to the Session Host still goes ahead. While the desktop app is open, the command leaves the Session Host alone, because the app owns it then.
 
-`openwaggle host status` is the same as `openwaggle status`. Checking the status counts as activity, so an idle Host waits a little longer before it exits.
+### Options and exit status
+
+| Option | What it does | Default |
+| --- | --- | --- |
+| `--wait` | Returns only once the Session Host has exited | Off |
+| `--timeout-ms <ms>` | How long `--wait` waits | `120000` (2 minutes) |
+| `--update` | Stops the Session Host for an update, as described above | Off |
+| `--json` | Prints the report as JSON | Off |
+
+| Status | `host stop` | `host stop --update` |
+| --- | --- | --- |
+| `0` | The Session Host accepted the stop, or with `--wait`, exited | The Session Host exited |
+| `1` | | The Session Host refused the stop |
+| `6` | | You cancelled, the desktop app is open, or another OpenWaggle process, such as `openwaggle mcp serve`, keeps starting a new Session Host |
+| `7` | With `--wait`, its work outlasted `--timeout-ms` | The Session Host had not exited after 20 seconds |
+| `130` | | Ctrl-C while it waits |

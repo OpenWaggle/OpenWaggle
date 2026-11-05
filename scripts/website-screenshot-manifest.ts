@@ -10,9 +10,13 @@ export const WEBSITE_SCREENSHOTS = [
   'hive-sessions.png',
   'hive-next-actor.png',
   'session-summary.png',
-  'session-resources.png',
+  'session-summary-add-source.png',
+  'session-resources-browser.png',
   'scheduled-tasks.png',
   'settings-worktrees.png',
+  // Usage & Cost reads every Pi session file, so it runs before any capture starts a real Run.
+  'usage-cost-page.png',
+  'usage-cost-sidebar-button.png',
   'feature-coding-agent.png',
   'feature-git-workflow.png',
   'session-tree-panel.png',
@@ -41,7 +45,10 @@ export const WEBSITE_SCREENSHOTS = [
   'extensions-settings-section.png',
   'extensions-surfaces.png',
   // First-session essentials (website-screenshot-essentials-captures.ts), captured last.
-  'composer-controls.png',
+  'composer-new-session.png',
+  'composer-plus-menu.png',
+  'composer-thinking-menu.png',
+  'composer-agent-access-menu.png',
   'settings-connections.png',
   'settings-api-key-providers.png',
   'settings-oauth-providers.png',
@@ -57,6 +64,9 @@ export const WEBSITE_SCREENSHOTS = [
   'project-actions-panel.png',
   'project-action-add.png',
   'action-output-terminal.png',
+  // A new jotter session, seeded after every other jotter capture so no earlier sidebar changes.
+  'visualization-inline.png',
+  'visualization-expanded.png',
 ] as const
 
 export type WebsiteScreenshot = (typeof WEBSITE_SCREENSHOTS)[number]

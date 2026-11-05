@@ -8,6 +8,7 @@ import {
   generateInstalledDocs,
   rewriteInstalledDocumentationLinks,
 } from '../installed-docs-generator'
+import { aliasesFor } from '../installed-docs-generator-model'
 
 let tempDir = ''
 
@@ -93,6 +94,44 @@ describe('installed docs generator output', () => {
           topic.sourcePath.startsWith('node_modules/@earendil-works/pi-coding-agent/docs/'),
       ),
     ).toBe(true)
+  })
+
+  it('adds the aliases frontmatter of a page to its topic aliases', async () => {
+    const rawManifest = await lifecycleFs.readFile(
+      lifecyclePath.join(outputRoot(), 'index.json'),
+      'utf8',
+    )
+    const parsed: unknown = JSON.parse(rawManifest)
+    const decoded = safeDecodeUnknown(installedDocsManifestSchema, parsed)
+    if (!decoded.success) {
+      throw new Error(decoded.issues.join('; '))
+    }
+    const sessionSummary = decoded.data.topics.find(
+      (topic) => topic.topic === 'openwaggle:using-openwaggle/session-summary',
+    )
+
+    expect(sessionSummary?.aliases).toEqual(
+      expect.arrayContaining(['session hub', 'hub', 'session resources']),
+    )
+  })
+
+  it('splits aliases frontmatter on commas, trimmed, lowercased, without blanks or repeats', () => {
+    expect(
+      aliasesFor({
+        slug: 'using-openwaggle/example',
+        title: 'Example',
+        section: 'Using OpenWaggle',
+        source: 'openwaggle',
+        extraAliases: ' Session Hub, ,hub ,example, HUB',
+      }),
+    ).toEqual([
+      'using-openwaggle/example',
+      'example',
+      'openwaggle/using-openwaggle/example',
+      'using openwaggle',
+      'session hub',
+      'hub',
+    ])
   })
 
   it('expands website-only package install elements for agent-readable Markdown', async () => {

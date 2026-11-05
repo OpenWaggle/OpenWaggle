@@ -1,16 +1,15 @@
 import type { Locator, Page } from '@playwright/test'
 import {
   around,
-  numbered,
   regionOf,
   settleForShot,
   shootRegion,
-  shootWindow,
   writeScreenshot,
 } from './website-screenshot-capture-kit'
 import {
   deleteFixtureExtension,
   FIXTURE_EXTENSION_NAME,
+  FIXTURE_REPOSITORY,
   GITHUB_API_URL_PATTERN,
   githubIssuesFixture,
   installFixtureExtension,
@@ -34,7 +33,7 @@ const PACKAGE_HEADING_LEVEL = 3
 const SAVE_BUTTON_GAP_PX = 6
 /** Text every issue-summary surface of the fixture shows once it has read `githubIssuesFixture`. */
 const SUMMARY_TEXT = '6 open, 3 ready-for-agent, 1 stale'
-const FIRST_ISSUE_TEXT = '#418 Remember the last Settings section per window'
+const FIRST_ISSUE_TEXT = '#2184 Remember the last Settings section per window'
 
 /** The sandboxed frame an extension contribution renders into, inside one host surface. */
 function extensionFrame(surface: Locator, contributionTitle: string) {
@@ -54,6 +53,15 @@ function settingsSave(page: Page) {
   return extensionFrame(settingsContributions(page), 'GitHub Issues Settings').getByRole('button', {
     name: 'Save configuration',
   })
+}
+
+/** Saves the made-up repository in the fixture's settings form, so no surface shows a real one. */
+async function useFixtureRepository(page: Page) {
+  const form = extensionFrame(settingsContributions(page), 'GitHub Issues Settings')
+  await form.getByLabel('Repository owner').fill(FIXTURE_REPOSITORY.owner)
+  await form.getByLabel('Repository name').fill(FIXTURE_REPOSITORY.repo)
+  await settingsSave(page).click()
+  await form.getByText(/^Configuration saved\./).waitFor({ timeout: UI_TIMEOUT_MS })
 }
 
 /** The package's card in Settings > Extensions. */
@@ -215,13 +223,14 @@ export async function captureExtensionSettingsSection(context: CaptureContext) {
 }
 
 /**
- * Where one extension's surfaces appear around a Session, numbered: its side panel, a side panel
- * icon on the Panel rail still marked new, its transcript card, and its status widget.
+ * Where one extension's surfaces appear around a Session: its side panel, a side panel icon on
+ * the Panel rail still marked new, its transcript card, and its status widget.
  */
 export async function captureExtensionSurfaces(context: CaptureContext) {
   const { page } = context
   await withFixtureExtension(page, async () => {
     await loadFixtureExtension(page)
+    await useFixtureRepository(page)
     await backToApp(page)
     const sidePanel = page.getByRole('complementary').filter({ hasText: 'Extension side panel' })
     const transcriptCard = page
@@ -253,18 +262,20 @@ export async function captureExtensionSurfaces(context: CaptureContext) {
     })
     await waitForUi(page)
     await settleForShot(page)
-    const rail = page.getByRole('navigation', { name: 'Panels' })
-    const callouts = numbered([
-      { region: await regionOf(sidePanel), badge: 'left-top' },
-      {
-        region: await regionOf(rail.getByRole('button', { name: /^GitHub Session Resources/ })),
-        badge: 'left',
-      },
-      { region: await regionOf(transcriptCard), badge: 'inside-top-right' },
-      { region: await regionOf(statusWidgets), badge: 'inside-top-right' },
-    ])
-    // The whole window at CSS scale, like the other overview images.
-    await shootWindow(context, 'extensions-surfaces.png', { callouts })
+    // Everything right of the sidebar: the transcript card and status widget in the chat, the
+    // side panel, and its icon on the Panel rail.
+    const sidebar = await regionOf(page.getByRole('navigation', { name: 'Sidebar' }))
+    const view = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }))
+    const left = sidebar.x + sidebar.width
+    await shootRegion(context, 'extensions-surfaces.png', {
+      x: left,
+      y: 0,
+      width: view.width - left,
+      height: view.height,
+    })
     await closeRightPanel(page)
   })
 }

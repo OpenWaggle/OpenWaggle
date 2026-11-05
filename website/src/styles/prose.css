@@ -40,6 +40,42 @@
     overflow-x: auto;
     margin: 1em 0;
   }
+  /* docs-code-copy.ts wraps each block so its Copy button sits in the top-right corner. */
+  .prose-docs .docs-code-copy-wrap {
+    position: relative;
+  }
+  .prose-docs .docs-code-copy-wrap pre {
+    padding-right: 7em;
+  }
+  /* The live region that tells screen readers a copy worked or failed. */
+  .prose-docs .docs-code-copy-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .prose-docs .docs-code-copy {
+    position: absolute;
+    top: 0.6em;
+    right: 0.6em;
+    padding: 0.2em 0.7em;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+    cursor: pointer;
+  }
+  .prose-docs .docs-code-copy:hover {
+    color: var(--color-text-primary);
+  }
+  .prose-docs .docs-code-copy:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
   .prose-docs pre code {
     background: none;
     padding: 0;
@@ -88,11 +124,19 @@
     margin: 1em 0;
   }
 
+  /* A wide table scrolls in its own box (markdown-tables.ts) instead of squeezing its columns. */
+  .prose-docs .docs-table-scroll {
+    margin: 1em 0;
+    max-width: 100%;
+    overflow-x: auto;
+  }
   .prose-docs table {
     border-collapse: collapse;
-    margin: 1em 0;
     width: 100%;
     font-size: 14px;
+    /* The page allows breaks anywhere so long links never overflow; in a table that lets a column
+       shrink until words split ("Messag / e"). Cells break only between words. */
+    overflow-wrap: normal;
   }
   .prose-docs th,
   .prose-docs td {

@@ -1,13 +1,14 @@
 ---
 title: "@openwaggle/extension-react"
-description: "React primitives for OpenWaggle extension surfaces that use the extension UI style contract."
+description: "React components for OpenWaggle extension surfaces that use the extension UI style contract."
 order: 3
 section: "Packages"
+kind: "guide"
 ---
 
-`@openwaggle/extension-react` provides small React primitives for OpenWaggle extension surfaces.
+`@openwaggle/extension-react` provides small React components for OpenWaggle extension surfaces.
 
-Use it when an extension contribution is implemented in React and should match the OpenWaggle extension theme contract. It is optional; non-React extensions can use `@openwaggle/extension-sdk` UI helpers directly.
+Use it when an extension contribution is implemented in React and should match the OpenWaggle extension theme contract. It is optional. Non-React extensions can use `@openwaggle/extension-sdk` UI helpers directly.
 
 <package-install packages="@openwaggle/extension-react @openwaggle/extension-sdk react react-dom"></package-install>
 
@@ -21,7 +22,7 @@ import '@openwaggle/extension-react/styles.css'
 
 ## Components
 
-The package exports primitives for common extension settings, forms, status, and surface layout:
+The package exports components for common extension settings, forms, status, and surface layout:
 
 ```tsx
 import {
@@ -38,11 +39,11 @@ import {
 } from '@openwaggle/extension-react'
 ```
 
-These primitives use extension SDK class names and data attributes. They are not OpenWaggle app renderer components and they do not import the app's Tailwind or renderer CSS.
+These components use extension SDK class names and data attributes. They are not OpenWaggle app renderer components and they do not import the app's Tailwind or renderer CSS.
 
-Explore every primitive, tone, variant, form state, and accessibility contract in the [visual component catalogue](./components).
+Explore every component, tone, variant, form state, and accessibility contract in the [visual component catalogue](./components).
 
-## React Mount Example
+## React mount example
 
 ```tsx
 import '@openwaggle/extension-react/styles.css'
@@ -84,13 +85,13 @@ const module: OpenWaggleFederatedModule = {
 export const mount = module.mount
 ```
 
-Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persistence and OpenWaggle capability calls. The React package only supplies UI primitives.
+Use the broker SDK from `context.sdk` or `@openwaggle/extension-sdk` for persistence and OpenWaggle capability calls. The React package only supplies UI components.
 
-## When Not To Use It
+## When not to use it
 
 Do not use `@openwaggle/extension-react` if your extension uses plain DOM, Vue, Preact, Svelte, or another renderer. The federated-module contract is framework-neutral, so those extensions can use `@openwaggle/extension-sdk` types, theme helpers, and UI stylesheet helpers directly.
 
-Do not import OpenWaggle renderer components to fill gaps. If a primitive is missing, build a scoped extension-owned component on top of the extension UI style contract.
+Do not import OpenWaggle renderer components to fill gaps. If a component is missing, build a scoped extension-owned component on top of the extension UI style contract.
 
 ## Compatibility
 
@@ -102,7 +103,7 @@ Do not import OpenWaggle renderer components to fill gaps. If a primitive is mis
 | Module format | ESM and CommonJS |
 | OpenWaggle package docs | 0.1 |
 
-## Reference And Support
+## Reference and support
 
 - [Visual component catalogue](./components)
 - [Complete API reference](./api-reference)
@@ -114,7 +115,7 @@ Do not import OpenWaggle renderer components to fill gaps. If a primitive is mis
 
 **Components render without OpenWaggle styling.** Import `@openwaggle/extension-react/styles.css` once in the extension bundle.
 
-**React is installed twice.** Keep compatible React and React DOM versions in your extension project and deduplicate them in its build. The host does not supply React through the extension mount context; your bundler must produce a browser-loadable artifact.
+**React is installed twice.** Keep compatible React and React DOM versions in your extension project and deduplicate them in its build. The host does not supply React through the extension mount context. Your bundler must produce a browser-loadable artifact.
 
 **A non-React extension needs the same visual language.** Use the framework-neutral classes and stylesheet helpers from `@openwaggle/extension-sdk` instead.
 

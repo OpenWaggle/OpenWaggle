@@ -3,212 +3,143 @@ title: "App settings"
 description: "Find settings for models, permissions, appearance, browser previews, and project tools."
 order: 8
 section: "Customize"
+kind: "guide"
 ---
 
-Click the gear icon in the sidebar to open Settings. For a first setup, connect a model in **Connections**, choose an access mode in **Permissions**, and leave the other settings alone until you need them.
+Settings is where you connect models, decide how much the agent may do on its own, and adjust how OpenWaggle looks and behaves. Click **Settings** at the bottom of the sidebar to open it. For a first setup you need two sections: **Connections** to connect a model, and **Permissions** to choose an access mode. Leave the rest alone until you need it. The [Settings reference](/docs/reference/settings) lists every setting, with its values and default.
 
-Most settings apply across the app. Sections with a project picker let you inspect a particular project without switching your current conversation. Check the selected project before changing an override.
+Most settings apply to the whole app. A few sections have a project picker so you can look at one project's settings. Picking a project there does not switch your conversation to it, so check which project is selected before you change something.
 
-## Active sections
+The [Settings reference](/docs/reference/settings) goes through every section in the order the sidebar shows them, with each setting's values and default. The sections below cover the changes people make most.
 
-| Section | Use it to |
-|---------|-----------|
-| General | Choose where links open, adjust automatic context compaction, choose where sessions the `pi` CLI used last continue, turn codemode and prompt cache warming on or off, check for updates, and turn off usage statistics. |
-| Browser | Manage browser profiles, agent browser access, cookie imports, and preview defaults. |
-| Project actions | Save project tasks and services, choose local or shared storage, and configure workspace setup and cleanup. |
-| Shortcuts | View and customize keyboard bindings. |
-| Appearance | Choose syntax colors, terminal colors, fonts, diff layout, and reduced motion. |
-| Waggle Mode | Configure multi-agent collaboration and presets. |
-| Extensions | Manage OpenWaggle and Pi extensions. |
-| Skills | Browse skills for a selected project. |
-| Agents | Configure agent-created Workers and browse Markdown agent definitions. |
-| Permissions | Set default and project access modes, and revoke saved approvals. |
-| MCP | Connect external tools and services, choose how the agent reaches their tools, and diagnose connection problems. |
-| Worktrees | Choose where new sessions run, see how much space worktrees take, and remove them by hand or automatically. |
-| Archived items | Search archived sessions and conversation branches, restore them (with Undo), and permanently delete archived sessions. |
-| Connections | Connect provider accounts and choose which models appear beside the message box. |
+## Connect a model
 
-## Agent tools
+In **Connections**, expand **API Key Providers** to save a key or **OAuth Providers** to sign in through your browser. Then turn on the models you want under **Available Models**. The model selector beside the message box shows the models that are turned on and available through a connected provider. See [Providers and models](/docs/providers/overview).
 
-**Settings > General > Agent tools** holds two settings that OpenWaggle passes to Pi, the agent runtime. OpenWaggle keeps them in its own settings and does not change your Pi settings files, so the Pi command line keeps its own choices.
+Turning a model on only adds it to the selector. A session that already uses another model, for example one you continue from the `pi` CLI, keeps that model as long as its provider is signed in, the same way `pi --resume` does. If the session's model is gone, such as a virtual model whose extension you removed, the session continues on the model that answered last and the run says so. If the provider is not signed in or the project does not have the model, sending a message tells you which model is missing and where to connect it. A model you turned on from one project's extensions stays on when you open another project, but it shows only where that project's model list has it.
 
-- **Codemode** lets the agent write short scripts that call several tools in one step. It is on by default. See [Codemode](/docs/using-openwaggle/codemode).
-- **Keep prompt caches warm** decides whether Pi refreshes the provider's prompt cache during long tool calls, so the next request does not pay to rebuild it. **While working** (the default) refreshes only when Pi expects the refresh to save more than it costs. **Off** never refreshes. **Between runs** also keeps refreshing for up to 30 minutes after the agent finishes, in case you reply. Pi expects a reply less often than a next tool call, so it refreshes less often than while working. Starting a new run, compacting, branching, archiving, or deleting the session stops these refreshes, and so does quitting OpenWaggle. Refreshes count toward the session's usage and show in the context meter's session cost the next time it is read.
+**Title model** chooses which model writes [session titles](/docs/using-openwaggle/chat-and-tools#session-titles). **Automatic** uses the cheapest model from each session's own provider. Choosing a specific model sends each session's opening message to that model's provider. The [Settings reference](/docs/reference/settings#connections) lists exactly what each choice sends.
 
-Until you change them here, both settings follow your own Pi settings (`defaultTools` and `cacheWarming` in `~/.pi/agent/settings.json`) when you have set them there, and OpenWaggle's defaults otherwise. OpenWaggle reads your Pi settings again for each run, so a change you make there while OpenWaggle is open applies to the next run. Once you choose here, your OpenWaggle choice wins. OpenWaggle does not write either value to Pi's files.
+## Choose how much the agent can do alone
 
-## Agents and permissions
+Open **Permissions** and set **Default access mode**. **Ask for Approval** makes the agent ask before protected actions. It is not a read-only mode. The shipped default is **YOLO (Full Access)**. A project can have its own mode under **Selected project**, and **Use default** removes it. See [Approvals and permissions](/docs/configuration/approvals-permissions).
 
-Start with **Settings > Permissions > Default access mode > Ask for Approval** if you want to review protected actions. This is not a read-only mode. See [Approvals and permissions](/docs/configuration/approvals-permissions) before granting wider access.
+## Let agents share work
 
-**Selected project** sets a project-specific mode. **Use default** removes that override. **Saved approvals** lists permissions you kept for the selected project; **Revoke** stops their future use but does not undo completed work.
+In **Agents**, **Agent-created Workers** lets an agent start other sessions to share a task. A worker is a separate conversation with its own messages and tool activity. Read [Hives](/docs/using-openwaggle/hives-and-sessions) before you turn on parallel work.
 
-In **Settings > Agents**, **Agent-created Workers** allows agents to create other sessions to share a task. A Worker is another conversation with its own work and tool activity. See [Hives and sessions](/docs/using-openwaggle/hives-and-sessions) before enabling parallel work.
+**Agents** has two limits. **Workers per parent** allows 4 runs at a time by the parent's direct workers, and **Active agent runs** allows 16 runs at a time across the whole app. A run is one stretch of agent work, not a saved conversation, so saved sessions and queued follow-ups do not count. When a new run would pass a limit, OpenWaggle refuses it with an error you can retry instead of queuing it. You can raise the limits, but more runs at once can slow your computer and use up your provider quota faster.
 
-- **Workers per parent** defaults to `4` active direct Worker runs per parent session.
-- **Active agent runs** defaults to `16` across independent sessions and Hives.
+A project's `.openwaggle/settings.json` can set its own values for **Agent-created Workers** and **Workers per parent**, and the file wins. If an older version saved per-project values in the app, **Saved project overrides** shows them and **Clear saved value** removes them. Clearing does not change a project file. See [Per-project configuration](/docs/configuration/per-project-config).
 
-A run is one period of agent work, not a saved conversation. Saved sessions, queued follow-ups, searches, waits, and exports do not consume these run slots. Reaching a limit rejects a new run with a retryable error rather than hiding it in a queue. You can raise the limits, but more simultaneous runs may strain your machine or provider quota.
+Below the limits, pick a project to read its agent definitions, and turn each one on or off for new sessions. OpenWaggle has no built-in roles and no editor for them. You write the Markdown files in your project. See [Agent definitions](/docs/extending/agent-definitions).
 
-Project configuration can override the project-specific controls. If an older version saved project overrides, **Saved project overrides** lets you inspect and clear them. Clearing a saved value does not remove an override in a project file.
+## Control compaction and the agent's tools
 
-Below the controls, select a project to read its agent definitions or enable and disable them for new sessions. There are no bundled roles or built-in definition editor. Edit the Markdown files in your project; see [Agent definitions](/docs/extending/agent-definitions). **Skills** has its own project picker and browser.
+**General > Context compaction** sets when OpenWaggle shrinks the older part of a long conversation so it can continue. **Automatic compaction threshold** starts at 80% of the model's context window, and compaction runs by 400,000 tokens at the latest, whatever the percentage. The setting covers every model, project and session. The model decides whether compaction uses the provider's own method or a portable summary. There is no switch for that. See [Context and compaction](/docs/using-openwaggle/context-management).
 
-## General
+**General > Agent tools** has two settings that OpenWaggle passes to Pi:
 
-**Open web links in** chooses whether links open in OpenWaggle or your external browser.
+- **Codemode** lets the agent write a short script that calls several tools in one step. It is on unless you turn it off. Each tool the script calls still asks for approval when it normally would. See [Codemode](/docs/using-openwaggle/codemode).
+- **Keep prompt caches warm** decides whether Pi resends the conversation during long tool calls, so the provider keeps it cached and the next request does not pay to rebuild it. **While working**, the default, refreshes only when Pi expects the refresh to save more than it costs. **Off** never refreshes. **Between runs** also keeps refreshing for up to 30 minutes after the agent finishes, in case you reply. Pi expects a reply less often than a next tool call, so it refreshes less often then.
 
-**Context compaction** controls when OpenWaggle reduces the older context sent to a model so a long conversation can continue. **Automatic compaction threshold** defaults to **80%** of the model's context capacity, and compaction runs by 400,000 tokens at the latest whatever the percentage. It applies across models, projects, and sessions. The model's capabilities determine whether this uses native compaction or a portable summary; there is no provider-specific switch.
+Cache refreshes stop when you start a new run, compact, branch, archive or delete the session, or quit OpenWaggle. They count toward the session's usage and show in the context meter's session cost the next time it updates.
 
-**Pi sessions** lists your projects with what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. The choice is yours only. It is stored in your OpenWaggle settings, not in the project, so others working on the project choose for themselves.
+Until you change these two here, they follow `defaultTools` and `cacheWarming` in your own `~/.pi/agent/settings.json` if you set them there. OpenWaggle reads your Pi settings again for each run, so a change there applies to the next run. Once you choose in OpenWaggle, your choice wins, and OpenWaggle never writes it to Pi's files. The Pi command line keeps its own choices.
 
-**About & Updates** shows your installed version and update channel. Until you choose a channel, a Stable build follows Stable, an Alpha or Beta build follows its own channel, and a release candidate follows Beta. Beta also accepts release candidate and Stable releases; Alpha accepts Alpha, Beta, release candidate, and Stable releases. Entering Alpha requires confirmation. Changing the channel saves it and immediately checks for an eligible update, but never authorizes a downgrade. Until the first Stable release is published, Stable has nothing to install and shows that you are up to date.
+## Continue sessions from the pi CLI
 
-Use **Check now** to check again. A downloaded update installs only when you choose **Restart to update**. OpenWaggle rechecks that it is still eligible for your channel before restarting; ordinary app exit does not install it. The app and `openwaggle update` share the channel setting.
+**General > Pi sessions** lists your projects. For each one, choose what happens when you send in a session that the `pi` CLI used last: **Ask** (the default), **OpenWaggle** to continue it here without asking, or **pi** to open the session's terminal with the `pi` command typed in. OpenWaggle stores the choice in your own settings, not in the project, so everyone on the project chooses for themselves.
 
-After **Restart to update**, the update shows as installing while OpenWaggle stops its background Session Host and quits. It reopens on its own once the update is installed, usually within a few seconds; opening it yourself before then makes the install fail. On macOS an update cannot install while another OpenWaggle process is still running, such as `openwaggle mcp serve` used by another agent or `openwaggle hive wait` in a terminal. If an update did not install, OpenWaggle says why once that update is ready to install again, shortly after it next opens; close the other process and choose **Restart to update** again.
+## Update OpenWaggle
 
-**Share anonymous usage statistics and error reports**, below the update channel, is on by default in released builds. Turning it off stops both and deletes statistics that have not been sent yet. In a Dev build, an automated test launch, or when `DO_NOT_TRACK`, `PI_TELEMETRY` or `CI` turns statistics off, the switch shows off, cannot be changed, and says why; your saved choice applies again once that no longer holds. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
+**General > About & Updates** shows your version and **Update channel**. Until you choose a channel, a Stable build follows Stable, an Alpha or Beta build follows its own channel, and a release candidate follows Beta. Beta also gets release candidates and Stable releases. Alpha gets Alpha, Beta, release candidate and Stable releases. Switching to Alpha asks you to confirm first.
 
-### Command-line availability
+Changing the channel saves it and checks for an update straight away. It never installs an older version. Until the first Stable release is out, Stable has nothing to install and says you are up to date. The app and `openwaggle update` share the channel setting.
 
-The CLI ships with the app. Packaged macOS and Linux launches install or refresh `~/.local/bin/openwaggle`; the Windows installer provides the command. Ensure the install directory is on your shell's `PATH`.
+Click **Check now** to check again. A downloaded update installs only when you click **Restart to update**. Quitting the app the normal way does not install it. Before restarting, OpenWaggle checks again that the update fits your channel.
 
-General shows a read-only warning if the command is missing, outdated, blocked by another file, or not on `PATH`. There are no CLI installation controls here. OpenWaggle does not replace an unrelated file at the command path; resolve that conflict yourself. An exact legacy macOS link to the app still works, but rerun the installer if you move the app. From source, use `pnpm cli:dev -- <command>`.
+If agent runs are still working when you click **Restart to update**, OpenWaggle asks what to do. **Restart when idle** waits and installs as soon as no run is active, and the status line says how many runs it is waiting for. **Restart now** stops the runs and installs. **Cancel** leaves the runs going and installs nothing.
 
-## Appearance
+While the update installs, OpenWaggle stops its background Session Host and quits. It reopens on its own once the update is in place, usually within a few seconds. If you open it yourself before then, the install fails. On macOS an update cannot install while another OpenWaggle process is running, such as `openwaggle mcp serve` used by another agent or `openwaggle hive wait` in a terminal. When an update did not install, OpenWaggle tells you why shortly after it next opens, once the update is ready again. Close the other process and click **Restart to update** again.
 
-Use **Settings > Appearance** to adjust readability without changing your code:
+See [Installation](/docs/getting-started/installation) for installing and updating from the command line.
 
-- Choose syntax themes and accessibility profiles using the preview.
-- Adjust terminal colors and typography.
-- Set **Diff layout** to **Unified** or **Side by side**.
-- Enable **Wrap long lines** to avoid horizontal scrolling in diffs.
-- Enable **Reduce motion** to minimize animation instead of following the operating system's preference.
+## Turn off usage statistics
 
-Diff layout and line wrapping are shared with the diff panel's own controls. These appearance choices apply across projects, not through a project settings file.
+**Share anonymous usage statistics and error reports**, under the update channel, is on in released builds. Turning it off stops both and deletes statistics that have not been sent yet. In a Dev build, during an automated test launch, or when `DO_NOT_TRACK`, `PI_TELEMETRY` or `CI` turns statistics off, the switch shows off, you cannot change it, and it says why. Your saved choice applies again once none of those holds. **What is sent** opens [Usage statistics and error reports](/docs/configuration/usage-statistics), which lists every field and the other ways to turn them off.
 
-## Browser
+## Check the command-line tool
 
-In **Settings > Browser**, use **Let agents open and drive the preview browser** to control agent access. Turning this off withholds browser tools from the agent. It is separate from where links open.
+The `openwaggle` command comes with the app. On macOS and Linux, opening the packaged app installs or refreshes `~/.local/bin/openwaggle`. On Windows, the installer adds the command. Make sure the install folder is on your shell's `PATH`.
 
-**New preview tabs use** selects a browser profile. Persistent profiles keep cookies and site data; Incognito uses memory only. Review what an imported login allows before giving an agent access to that profile.
+**General** shows a warning if the command is missing, out of date, blocked by another file, or not on `PATH`. There are no install buttons. OpenWaggle never replaces an unrelated file at the command's path, so you have to move that file yourself. An older macOS link straight to the app still works, but run the installer again if you move the app. When you run OpenWaggle from source, use `pnpm cli:dev -- <command>`.
 
-Preview defaults include **Viewport**, **Zoom**, **Appearance**, **Recording**, and **Show agent-opened previews**. See [Browser preview](/docs/developer-workflow/browser-preview) for using a preview during development and [Security and privacy](/docs/configuration/security-privacy) for its limits.
+## Change how OpenWaggle looks
 
-## Project actions and shortcuts
+**Appearance** changes how things read without touching your code. Pick syntax themes for light, dark and high-contrast appearances, set terminal colors, and choose fonts and sizes for the interface, documents, code and the terminal. **Diff layout** switches between **Unified** and **Side by side**, and **Wrap long lines** stops sideways scrolling in diffs. The diff panel's own controls change the same two settings. **Reduce motion** keeps animation to a minimum instead of following your operating system. These choices apply in every project, and no project file can change them.
 
-Use **Settings > Project actions** to save commands such as tests and builds, or a dev server that keeps running. Choose a discovered project script or enter a custom command. New definitions are saved for **Just me** in that project by default; **Everyone working on this project** saves a shareable `.openwaggle/actions.json` file.
+## Set up the preview browser
 
-Launch actions from **Project Actions** on the right panel rail. They run in that session's workspace, which may be a separate worktree. Inspect output, stop or restart a run, and open its ready preview from the Project Actions panel or Session Summary. A running action shows Stop, Restart and its output instead of starting another copy.
+In **Browser**, **Let agents open and drive the preview browser** decides whether agents get the browser tools at all. It is separate from where links open.
 
-The separate **Workspace preparation** section configures setup and cleanup for preparation profiles. Enabled setup must finish before the first agent turn in a new managed worktree. Existing checkouts only run it when you choose **Run setup**. Shared preparation commands need local review and enablement. See [Project actions](/docs/configuration/project-actions) for the full workflow.
+**New preview tabs use** picks the browser profile new tabs start with. **Default** and the profiles you add keep cookies and site data. **Incognito** keeps them only in memory. Before you let an agent use a profile, check what the logins you imported into it allow. The other defaults are **Viewport**, **Zoom**, **Appearance**, **Recording** and **Show agent-opened previews**. See [Browser preview](/docs/developer-workflow/browser-preview) and [Security and privacy](/docs/configuration/security-privacy).
 
-Use **Settings > Shortcuts** for both app keyboard bindings and Project Action bindings. **Add binding** lets you choose either kind of command. Review overlap warnings when assigning a shortcut already used elsewhere.
+## Save project commands and shortcuts
 
-## Worktrees
+**Project actions** saves commands such as tests and builds, or a dev server that keeps running, and sets up what runs when OpenWaggle creates a worktree. You start actions from **Project Actions** on the right panel rail. See [Project actions](/docs/configuration/project-actions).
 
-**Settings > Worktrees** shows the Session worktrees of every project, how much space they take, and which ones you can remove. Removing a worktree deletes its folder, including ignored files such as `.env` and `node_modules`. Its branch is always kept.
+**Shortcuts** covers both app keyboard shortcuts and project action shortcuts. **Add binding** lets you pick either kind of command. Check the overlap warning before you take a shortcut that something else already uses. See [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts).
 
-**New Sessions run in** sets the default for new sessions:
+## Clean up worktrees
 
-- **Current checkout** edits the project folder you opened. This is the shipped default.
-- **A new worktree** creates a separate Git checkout for the session.
+**Worktrees** lists the session worktrees of every project, how much space each takes, and which ones you can remove. Removing a worktree deletes its folder, including ignored files such as `.env` and `node_modules`. Its branch is always kept.
 
-You can choose a different mode before a session's first message. See [Git integration](/docs/developer-workflow/git-integration).
+**New Sessions run in** sets where new sessions work. **Current checkout**, the default, edits the project folder you opened. **A new worktree** gives the session its own Git checkout. You can still change it for one session before its first message. See [Reviewing changes and Git](/docs/developer-workflow/git-integration).
 
-![Settings > Worktrees: the storage summary, the Automatic cleanup setting, and two managed worktrees In use, each with its Session, branch, the space it frees and Archive & remove](/screenshots/settings-worktrees.png)
+![Settings > Worktrees with the storage summary, the Automatic cleanup setting, and two worktrees In use, each with its session, branch, size and Archive & remove](/screenshots/settings-worktrees.png)
 
-### Storage
+The storage card adds up the space each worktree would free. OpenWaggle measures sizes in the background, and each shows **Measuring…** until it arrives. They are estimates. Files shared with another folder, such as a pnpm package store, do not count, because removing the worktree would not free them. **Free about X** removes every worktree in **Safe to remove** after one confirmation that lists them.
 
-The storage card adds up the space each worktree would free and splits it into three groups. Sizes are measured in the background and show **Measuring…** until they arrive. They are approximate: files shared with another folder, such as a pnpm package store, are not counted because removing the worktree would not free them. **Free about X** removes every worktree in **Safe to remove** after one confirmation that lists them.
+OpenWaggle sorts worktrees into three groups:
 
-### Groups
+- **Safe to remove** holds worktrees whose every change is committed and pushed to a remote, and that no open session uses. **Remove** asks once more in the row, then removes it.
+- **Needs a decision** holds worktrees with uncommitted changes or commits that are on no remote, worktrees made outside OpenWaggle, and worktrees that are locked, whose cleanup failed, or whose state Git could not report. **Discard & remove** or **Remove** opens a confirmation that says what you would lose.
+- **In use** holds worktrees that an open session, a run, a terminal or a project action uses. This group starts collapsed. **Archive & remove** archives every session in the worktree and then removes it, and the confirmation names each session. It never throws away uncommitted changes. A worktree that has some offers **Archive Sessions** instead, which archives the sessions and keeps the worktree. While it still has changes it is listed under **Needs a decision**, where **Discard & remove** is a separate step. **Archive & remove** is not available while a run, terminal or action uses the worktree, and the row says which.
 
-- **Safe to remove**: every change is committed and on a remote, and no open session uses it. **Remove** asks once more in the row, then removes it.
-- **Needs a decision**: it has uncommitted changes or commits that are not on any remote, it was created outside OpenWaggle, it is locked, its Workspace cleanup failed, or Git could not report its state. **Discard & remove** or **Remove** opens a confirmation that says what would be lost.
-- **In use**: an open session, a run, a terminal, or a Project Action uses it. This group starts collapsed. **Archive & remove** archives every session in the worktree and then removes it; the confirmation names each session. It never discards uncommitted changes: a worktree that has some is offered as **Archive Sessions** instead, which archives them and keeps the worktree. While it still has changes it is listed under **Needs a decision**, where **Discard & remove** is a separate step. It is unavailable while a run, terminal or action uses the worktree, and the row says which.
+Worktrees that OpenWaggle manages appear for every project. Worktrees made outside OpenWaggle appear only for the project you opened, under **Needs a decision** unless something uses them, because removing one also deletes ignored files such as `.env` that OpenWaggle cannot bring back. A worktree in OpenWaggle's worktree folder that this OpenWaggle profile has no record of, for example one a development build made, reads **Not recorded by this OpenWaggle profile** and also needs a decision. A managed worktree that no session uses reads **No Session uses this worktree**, and you can only remove it by hand. Use the project picker and search to narrow a long list.
 
-Worktrees OpenWaggle manages appear for every project. Worktrees created outside OpenWaggle appear only for the opened project, under **Needs a decision** unless something uses them, because removing one also deletes ignored files such as `.env` that OpenWaggle cannot restore. A worktree in OpenWaggle's worktree folder that this OpenWaggle profile has no record of, for example one a development build made, is labelled **Not recorded by this OpenWaggle profile** and also needs a decision. A managed worktree that no session uses is labelled **No Session uses this worktree** and can only be removed by hand. Use the project picker and search to narrow a long list.
+Archiving a session keeps its worktree, so restoring the session is instant. If you remove an archived session's worktree and restore the session later, its next message offers to recreate the worktree from the kept branch or to continue in the current checkout.
 
-Archiving a session keeps its worktree, so restoring the session is instant. If you remove the worktree of an archived session and restore the session later, its next message offers to recreate the worktree from the kept branch or to continue in the current checkout.
+### Remove worktrees automatically
 
-### Automatic cleanup
+**Remove worktrees of archived Sessions automatically** is off until you turn it on. Then OpenWaggle removes a managed worktree, in every project, once every session in it has been archived for the number of days you choose under **After archiving for**: 7, 14, 30, 60 or 90, with 30 to start. It checks when the app starts and about once a day after that. It never removes a worktree with uncommitted changes, commits on no remote, a failed cleanup or a lock. Those stay under **Needs a decision** with the reason. The line beside the setting shows what it would remove right now.
 
-**Remove worktrees of archived Sessions automatically** is off until you turn it on. When it is on, OpenWaggle removes a managed worktree once every session in it has been archived for the number of days you choose (7, 14, 30, 60 or 90; 30 by default), in every project. It checks when the app starts and about once a day after that. It never removes a worktree with uncommitted changes, commits that are not on a remote, a failed cleanup, or a lock; those stay under **Needs a decision** with the reason. The line beside the setting previews what it would remove now.
+The card shows when the rule last checked, and the last time it removed something, with each session and its kept branch. The rule measures each worktree just before removing it, so it can tell you how much space it freed. After it removes something, the next time you open the app you see one notice with a **View** button that opens this page.
 
-The card shows when the rule last checked, and the last run that removed something, with each session and its kept branch. Just before removing a worktree, the rule measures it, so the notice can say how much space it freed. After a run removes something, the next time the app opens it shows one notice with a **View** button that opens this page.
+### When removal fails
 
-### Cleanup failures and forced removal
+OpenWaggle checks each removal again just before it runs, so it keeps a worktree that came into use after the list loaded. If cleanup fails, the worktree stays in the list with its output and **Retry cleanup**. **Delete anyway** skips cleanup, which can leave outside resources behind, such as a temporary database. **Force remove** also removes worktrees with changes or a lock and can throw away uncommitted work. Save anything you need before you use it.
 
-OpenWaggle checks every removal again just before it runs, so a worktree that came into use after the list loaded is kept. If configured cleanup fails, the worktree stays in the list with its output and **Retry cleanup** controls. **Delete anyway** skips cleanup, which may leave external resources behind. **Force remove** also removes dirty or locked worktrees and can discard uncommitted work. Preserve anything you need before using it.
+## Find and restore archived sessions
 
-## Connections
+**Archived items** lists every archived session, and every archived branch of a session you still use, newest first. Use it to bring back a session you archived by mistake.
 
-Expand **API Key Providers** to save a key or **OAuth Providers** to sign in through a browser. Under **Available Models**, enable the models you want beside the message box. The selector shows models that are both enabled and available through their provider. Enabling a model only adds it to the selector. A session that already uses another model, such as one you continue from the `pi` CLI, keeps that model while its provider is signed in, as `pi --resume` does. If the session's model is gone, such as a virtual model whose extension was removed, the session continues on the model that answered last and the run says so. Otherwise, if its provider is not signed in or the project does not have the model, sending says which model is missing and where to connect it. Models enabled from one project's extensions stay enabled when you open another project, though they show only where that project's catalog lists them.
+- **Search** looks in a session's title, its project, the session a branch belongs to, and the conversation itself. Every word you type has to appear somewhere, and you can leave off the end of a word, so `refac` finds "refactor". A match inside the conversation shows the passage it came from.
+- **Project**, **Archived date** (last 24 hours, 7 days, 30 days, or older) and **Type** (sessions or branches) narrow the list. Each option shows how many items you would see if you chose it.
+- While you search, the best matches come first. Otherwise the list groups items by when you archived them: Today, Yesterday, Earlier this week and so on. **Sort** switches to newest or oldest first.
+- **Restore** puts an item back in the sidebar, and the confirmation offers **Undo**, which archives it again with its original date. You can select several items, Shift-click to select a range, or select every match, up to 1,000 in the order the list shows, and restore them together. Changing the search or a filter clears the selection.
+- **Open** shows an archived session without restoring it. It keeps its archived notice and **Restore** button, and stays out of the sidebar until you restore it. Opening a branch opens the session it belongs to.
+- **Delete** deletes archived sessions for good after you confirm, once for the whole selection. You cannot undo it. OpenWaggle keeps a selected session that someone restored somewhere else in the meantime, for example in another window. You can restore archived branches here, but not delete them.
 
-**Title model** chooses the model that writes [session titles](/docs/using-openwaggle/chat-and-tools#session-titles):
+The sidebar hides archived branches, and the full Session Tree still marks them.
 
-| Choice | What happens |
-|---|---|
-| **Automatic** (default) | The cheapest available model from each session's own provider and model family writes its title, using the same sign-in and region. |
-| A specific model | That model writes every title. Each session's opening message and each Worker's task are sent to that model's provider, and so is the conversation, up to about 8,000 characters, when a title is refined or regenerated. If that model fails, the session's own model is tried instead. |
-| **Off** | No titles are generated. Sessions keep their opening message as the title, and **Regenerate title** is hidden. |
+## Set up MCP servers
 
-Titles use the models of each session's project, so a provider or virtual model that a project's Pi extension adds works for its sessions, under **Automatic** or chosen as the Title model.
+MCP connects the agent to tools and services beyond its built-in file and command tools. OpenWaggle reads the same MCP files as Pi, so servers you set up for Pi show up in **MCP** too. Add servers, turn them off or sign in to them there. See [MCP connections](/docs/configuration/mcp).
 
-See [Providers and models](/docs/providers/overview) for the full setup.
+<a id="logs"></a>
 
-## MCP
+## Find logs and app data
 
-MCP connects the agent to tools and services outside its built-in file and command tools. OpenWaggle reads the same MCP files as Pi, so servers you set up for Pi appear in **Settings > MCP** too. Add, turn off, or sign in to servers there. See [Model Context Protocol](/docs/configuration/mcp) for setup and credentials.
-
-## Archived items
-
-Every archived session, and every archived conversation branch of a session you still use, is listed here in one place, newest first. Use it to find a session you archived by mistake and bring it back.
-
-- **Search** finds words in a session's title, its project, the session a branch belongs to, and the conversation itself. Every word you type must appear somewhere; the end of a word is optional, so `refac` finds "refactor". A match inside the conversation shows the passage it came from.
-- **Project**, **Archived date** (last 24 hours, 7 days, 30 days, or older), and **Type** (sessions or branches) narrow the list. Each option shows how many items you would see if you chose it.
-- While you search, the best matches come first. Otherwise, items are grouped by when they were archived: Today, Yesterday, Earlier this week, and so on. **Sort** switches to newest or oldest first.
-- **Restore** brings an item back to the sidebar, and the confirmation offers **Undo**, which archives it again with its original archive date. Select several items, Shift-click to select a run, or select every match (up to 1,000, taken in the order the list shows) to restore them together. Changing the search or a filter clears the selection.
-- **Open** shows an archived session without restoring it; it keeps its archived notice and **Restore** action, and stays out of the sidebar until you restore it. A branch opens the session it belongs to.
-- **Delete** permanently deletes archived sessions after you confirm, once for the whole selection. It cannot be undone. A selected session that was restored elsewhere in the meantime, for example from another window, is kept and never deleted. Branches can only be restored, never deleted.
-
-Archived branches are hidden from normal sidebar navigation but remain marked in the full Session Tree.
-
-## Data storage
-
-For repository-specific resources and advanced runtime options, see [Per-project configuration](/docs/configuration/per-project-config).
-
-OpenWaggle stores app settings and session records under its application-data directory. The active session database is `session-host/session-host.sqlite`. If an older database was migrated, use the explicit [Session recovery](/docs/configuration/session-recovery) commands to inspect or restore its recovery copy.
-
-Other files have separate locations:
-
-| Data | Default location |
-|------|------------------|
-| Private Project Actions, overrides, and preparation state | Local application storage, scoped to the project and workspace |
-| Shared Project Actions and preparation definitions | `<project>/.openwaggle/actions.json` |
-| User Waggle presets | `~/.pi/agent/waggle-presets.json` |
-| Project Waggle presets | `<project>/.pi/waggle-presets.json` |
-| Provider credentials saved through Pi | `~/.pi/agent/auth.json` |
-| Global MCP servers | `~/.pi/agent/mcp.json` and `~/.openwaggle/mcp.json` |
-| Project MCP servers | `<project>/.mcp.json`, `<project>/.pi/mcp.json`, and `<project>/.openwaggle/mcp.json` |
-| MCP secrets and sign-ins (encrypted) | `mcp/` in OpenWaggle's application data folder, separate for each build |
-
-Credentials may also come from environment variables or custom provider configuration. Do not treat the session database as a complete backup of credentials or project files.
-
-Managed worktrees live outside your project at `~/.openwaggle/worktrees/<project folder name>/<workspaceId>`. New workspace branches use `ow/session-<workspaceId>`; sessions that share a workspace use the same checkout. Existing worktrees retain their recorded names. Check **Session Summary > Environment** for the actual path and branch rather than deriving them from a session ID.
-
-Sidebar sort order, collapsed projects, and the Pinned section's sort are remembered between launches. Pinned sessions and their dragged order are stored with app data. Text filters and state chips are not remembered, so an old filter does not keep hiding sessions.
-
-## Logs
-
-| Platform | Location |
-|----------|----------|
-| macOS | `~/Library/Logs/OpenWaggle/` |
-| Windows | `%APPDATA%\OpenWaggle\logs\` |
-| Linux | `~/.config/OpenWaggle/logs/` |
-
-The desktop app writes `openwaggle-YYYY-MM-DD.log` there. The background session service, which runs agent work, writes `openwaggle-host-YYYY-MM-DD.log` to the `logs` folder of the application-data directory, beside `session-host/`. Each line starts with its time in UTC, such as `16:54:22.855Z`, and the date in the file name is the UTC date too.
-
-The error display can open the logs directory when agent work fails. Review logs for secrets and private project details before sharing them.
+When something goes wrong, the log files are the first place to look. Review them for secrets and private project details before you share them. When agent work fails, the error display can open the logs folder for you. [Data and file locations](/docs/reference/data-locations#logs) lists where OpenWaggle keeps its logs, session database and worktrees on each platform, and [Configuration files](/docs/reference/configuration-files) lists every file it reads settings from.

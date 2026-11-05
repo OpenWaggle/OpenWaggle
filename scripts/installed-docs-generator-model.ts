@@ -146,6 +146,8 @@ export function aliasesFor(input: {
   readonly title: string
   readonly section: string | undefined
   readonly source: InstalledDocTopic['source']
+  /** The page's `aliases` frontmatter: other names readers search for, comma-separated. */
+  readonly extraAliases?: string | undefined
 }) {
   const basename = input.slug.split('/').at(-1) ?? input.slug
   return unique([
@@ -154,6 +156,10 @@ export function aliasesFor(input: {
     input.title.toLowerCase(),
     `${input.source}/${input.slug}`,
     ...(input.section ? [input.section.toLowerCase()] : []),
+    ...(input.extraAliases ?? '')
+      .split(',')
+      .map((alias) => alias.trim().toLowerCase())
+      .filter((alias) => alias.length > 0),
   ])
 }
 

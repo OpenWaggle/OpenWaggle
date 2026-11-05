@@ -2,11 +2,10 @@ import { expect, type Page } from '@playwright/test'
 import { SupportedModelId } from '@shared/types/brand'
 import {
   CROP_MARGIN_PX,
-  numbered,
   regionOf,
   shootRegion,
   shootSettingsContent,
-  shootWindow,
+  unionRegion,
 } from './website-screenshot-capture-kit'
 import { WAGGLE_PRESET_NAME, WAGGLE_THREAD_TITLE } from './website-screenshot-feature-fixture'
 import {
@@ -28,10 +27,8 @@ const RUN_TIMEOUT_MS = 60_000
 const WAGGLE_SETTINGS_WINDOW = { width: 1280, height: 1560 } as const
 /** Each turn reports a little more context than the one before, as a real conversation does. */
 const WAGGLE_TOKENS_PER_TURN = 2_600
-/** The context meter crop starts at the toolbar's model picker, just left of the middle. */
-const METER_CROP_START = 0.45
-const METER_CROP_TOP_MARGINS = 1.5
 const TWICE = 2
+const METER_SIDE_PAD_PX = 6
 
 /** The provider models a fresh profile needs before Waggle presets can name them. */
 const WAGGLE_MODELS = [
@@ -195,12 +192,26 @@ export async function captureWaggleConversation(context: CaptureContext) {
   const { page } = context
   await ensureHeldWaggleRun(context)
   await closeRightPanel(page)
-  await shootWindow(context, 'waggle-conversation.png')
+  // The conversation column, from the top of the transcript to the composer: the sidebar and
+  // the empty margins beside the column belong to other pages.
+  await shootRegion(context, 'waggle-conversation.png', async () => {
+    const log = await regionOf(page.getByRole('log', { name: 'Chat messages' }))
+    const composer = await regionOf(
+      page.getByRole('region', { name: 'Composer file drop zone' }).locator('visible=true').first(),
+    )
+    const left = composer.x - CROP_MARGIN_PX
+    return {
+      x: left,
+      y: log.y,
+      width: composer.width + CROP_MARGIN_PX * TWICE,
+      height: composer.y + composer.height + CROP_MARGIN_PX - log.y,
+    }
+  })
 }
 
 /**
- * The context meter of the Waggle Session once its Run stopped, with numbered markers for the
- * ring's percentage and the window's token limit.
+ * The context meter of the Waggle Session once its Run stopped: the ring's percentage and the
+ * window's token limit, outlined. Its details are a native tooltip, which no screenshot shows.
  */
 export async function captureContextMeter(context: CaptureContext) {
   const { page } = context
@@ -218,24 +229,21 @@ export async function captureContextMeter(context: CaptureContext) {
   await page.getByRole('button', { name: 'Send message' }).waitFor({ timeout: RUN_TIMEOUT_MS })
   // The ring shows the percentage once the Run's usage snapshot arrives.
   await expect(meter.locator('xpath=..')).toHaveText(/[1-9]\d*$/, { timeout: RUN_TIMEOUT_MS })
-  const composer = await regionOf(page.getByRole('region', { name: 'Composer file drop zone' }))
-  const ring = await regionOf(meter)
-  const limit = await regionOf(page.getByText(/^\/ \d/).last())
-  const left = composer.x + composer.width * METER_CROP_START
-  // From just above the toolbar row: the empty message box above it adds nothing.
-  const top = ring.y - METER_CROP_TOP_MARGINS * CROP_MARGIN_PX
-  const clip = {
-    x: left,
-    y: top,
-    width: composer.x + composer.width + CROP_MARGIN_PX - left,
-    height: composer.y + composer.height + CROP_MARGIN_PX - top,
-  }
-  // The markers sit in a band added under the crop, so they never cover what they point to.
-  await shootRegion(context, 'context-meter.png', clip, {
-    hideScrollbars: true,
-    callouts: numbered([
-      { region: ring, badge: 'band' },
-      { region: limit, badge: 'band' },
-    ]),
-  })
+  const toolbar = page.getByTestId('composer-toolbar').locator('visible=true').first()
+  // The ring and its "/ 1M" label share the element whose native tooltip holds the details.
+  const gauge = meter.locator('xpath=ancestor::div[@title][1]')
+  const thinking = toolbar.getByRole('button', { name: /^Thinking level/ })
+  const send = toolbar.getByRole('button', { name: 'Send message' })
+  // The toolbar's right end, from the thinking level to Send, with the meter outlined.
+  await shootRegion(
+    context,
+    'context-meter.png',
+    async () =>
+      // Close at the sides, so neither the model picker nor the composer's edge shows.
+      unionRegion([await regionOf(thinking), await regionOf(send)], {
+        x: METER_SIDE_PAD_PX,
+        y: CROP_MARGIN_PX / TWICE,
+      }),
+    { outline: await regionOf(gauge) },
+  )
 }
