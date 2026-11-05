@@ -131,7 +131,7 @@ OpenWaggle reads the definition and keeps a copy of it when the session is creat
 
 ## Check and import definitions from the command line
 
-The `openwaggle agents` command checks, explains and imports definition files. `openwaggle agents help` lists every subcommand, including `create`, `update`, `duplicate`, `delete` and `refresh`. In these examples, replace `/path/to/project` with your project's folder `./security-reviewer.md` with the path of your definition file, and `security-reviewer` with its name.
+The `openwaggle agents` command checks, explains and imports definition files. `openwaggle agents help` lists every subcommand, including `create`, `update`, `duplicate`, `delete` and `refresh`. In these examples, replace `/path/to/project` with your project's folder, `./security-reviewer.md` with the path of your definition file, and `security-reviewer` with its name.
 
 To list the enabled definitions of a project:
 

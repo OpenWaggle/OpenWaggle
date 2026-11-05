@@ -12,12 +12,12 @@ The agent can draw an interactive visualization right in its reply: a chart of y
 Describe what you want to see. For example:
 
 ```text
-Show me how the retry delay grows with each attempt for the current backoff settings, with a slider for the base delay.
+Show me how the 4xx retry fix changed upload retries in jotter.
 ```
 
 To make sure the agent uses the skill, type `/visualize` in the message box and choose **Visualize** from the menu. It shows as a chip on your message. The agent may also draw one on its own when a picture explains the answer better.
 
-The visualization appears in the reply, where the agent put it:
+The visualization appears in the reply, where the agent put it. For that request in the jotter project, it is a chart of upload retries by status, before and after the fix:
 
 ![A wide chart in the agent's reply comparing the jotter project's upload retries by status before and after a fix](/screenshots/visualization-inline.png)
 

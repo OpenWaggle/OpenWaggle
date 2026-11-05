@@ -29,12 +29,12 @@ Opening a task shows its settings and run history where you opened it. **Edit**,
 
 Choose **New task** in the Scheduled panel or in Settings. To add a Heartbeat for one session, choose **+** in the Scheduled section of its Session Summary. Then fill in the editor:
 
-1. **Prompt**: what the agent should do each time. The task is named after the start of the prompt until you give it a name.
-2. **Runs**: **Into a Session** for a Heartbeat, or **New Session each time** for a Launch schedule.
-3. **When**: the schedule and its time zone. The editor shows the next three times the task would fire. For an **Every…** schedule it also shows the shortest interval allowed: 5 minutes for a Heartbeat, 15 for a Launch schedule.
-4. **Stop when…**, for a Heartbeat: the outcome after which it should stop, such as "PR #42 is merged and main is green".
-5. **Before each run**, for a Heartbeat, optional: a **Wake check**, and how many idle runs in a row pause it. See [Keep Heartbeats cheap](#keep-heartbeats-cheap).
-6. The collapsed line below sets an end date, a maximum number of runs, and notifications.
+1. Under **Prompt**, write what the agent should do each time. The task is named after the start of the prompt until you give it a name.
+2. Under **Runs**, choose **Into a Session** for a Heartbeat, or **New Session each time** for a Launch schedule.
+3. Under **When**, pick the schedule and its time zone. The editor shows the next three times the task would fire. For an **Every…** schedule it also shows the shortest interval allowed: 5 minutes for a Heartbeat, 15 for a Launch schedule.
+4. For a Heartbeat, describe under **Stop when…** the outcome after which it should stop, such as "PR #42 is merged and main is green".
+5. For a Heartbeat, you can also add a **Wake check** under **Before each run**, and set in **Pause after idle runs** how many idle runs in a row pause it. See [Keep Heartbeats cheap](#keep-heartbeats-cheap).
+6. Open the collapsed line below to set an end date, a maximum number of runs, and notifications.
 
 A Heartbeat must have a way to finish: a stop condition, an end date, a run limit, or **Runs indefinitely**. It can also use its own **Model** and **Thinking level** for its runs, such as a cheaper model for a routine check. The session keeps its own model for everything else.
 

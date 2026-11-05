@@ -133,10 +133,10 @@ A contribution shows up only once every check passes: the manifest is valid, its
 
 ## Choose where your extension appears
 
-Pick a surface for the job the extension does, not for the framework you render it with. One extension can use several surfaces. They can share package state, while the transcript keeps the record of what the agent did.
+Choose where the extension shows up by what it does, not by the framework you render it with. It can add a settings section, a side panel, a dialog, a route, a command, a renderer in the transcript, a status widget or a Session Summary section, and one extension can add several of them. Those parts can share package state, while the transcript keeps the record of what the agent did.
 
 - `settingsSections` hold configuration, account setup, feature switches, and diagnostics. They read and write settings through SDK capabilities.
-- `sidePanels` hold content that stays open while you work, such as issue lists, project details, logs, or state shared with the extension's other surfaces.
+- `sidePanels` hold content that stays open while you work, such as issue lists, project details, logs, or state shared with the extension's other contributions.
 - `dialogs` are modals that OpenWaggle draws: confirmations, pickers, and forms that briefly interrupt what you are doing.
 - `routes` are larger views inside an OpenWaggle route container. They do not replace the app's navigation.
 - `commands` and `slashCommands` start actions from the slash command menu or the composer. In the composer they are compact launchers or selectors, never controls inside the text box.
@@ -149,7 +149,7 @@ Pick a surface for the job the extension does, not for the framework you render 
 
 OpenWaggle owns each container: where it goes, its frame, size, docking, what shows when the extension fails, and what it remembers. Your extension owns what it draws inside. Extensions add to OpenWaggle's screens. They cannot replace the main layout or the global navigation, and they cannot install themes for the whole app.
 
-The [development fixture](#test-with-the-development-fixture) uses most of these surfaces. Once trusted, enabled, and reloaded, its **GitHub Issues Overview** side panel opens from its icon on the Panel rail, with **Extension side panel** in the header above the panel's title. The icon of its second side panel carries a dot until you open that panel or **All panels**. A **GitHub Issues Transcript Summary** card sits at the end of the transcript, and the **GitHub Issues Status** widget sits above the composer. Settings sections do not appear here. They are in **Settings > Extensions**, under **Extension settings** (see [Install extensions](/docs/extending/plugins#review-and-enable-a-package)).
+The [development fixture](#test-with-the-development-fixture) uses most of these. Once trusted, enabled, and reloaded, its **GitHub Issues Overview** side panel opens from its icon on the Panel rail, with **Extension side panel** in the header above the panel's title. The icon of its second side panel carries a dot until you open that panel or **All panels**. A **GitHub Issues Transcript Summary** card sits at the end of the transcript, and the **GitHub Issues Status** widget sits above the composer. Settings sections do not appear here. They are in **Settings > Extensions**, under **Extension settings** (see [Install extensions](/docs/extending/plugins#review-and-enable-a-package)).
 
 ![A session with the GitHub Issues Overview extension, its side panel open on the right, a transcript summary card, and a status widget above the composer](/screenshots/extensions-surfaces.png)
 

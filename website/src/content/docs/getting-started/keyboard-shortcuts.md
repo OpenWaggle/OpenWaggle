@@ -78,19 +78,19 @@ An extension panel's shortcut does nothing while the panel cannot be shown, for 
 
 These keys cannot be changed. If you give another command `Cmd/Ctrl+F` or `Cmd/Ctrl+1` to `Cmd/Ctrl+9`, **Settings > Shortcuts** marks it as a conflict with the sidebar.
 
-| Action | macOS | Windows and Linux | Where |
+| macOS | Windows and Linux | What it does | Where |
 | --- | --- | --- | --- |
-| Send message | `Enter` | `Enter` | Message box |
-| New line | `Shift+Enter` | `Shift+Enter` | Message box |
-| Recall your previous message | `ArrowUp` | `ArrowUp` | Message box, cursor at the start |
-| Recall your next message | `ArrowDown` | `ArrowDown` | Message box, cursor at the end |
-| Stop editing a queued message | `Escape` | `Escape` | Message box, while editing a queued message |
-| Filter projects and sessions | `Cmd+F` | `Ctrl+F` | Outside Settings |
-| Clear the filter | `Escape` | `Escape` | Sidebar filter field |
-| Open pinned session 1 to 9 | `Cmd+1` to `Cmd+9` | `Ctrl+1` to `Ctrl+9` | Main window |
-| Move a panel up or down the rail | `Option+ArrowUp`, `Option+ArrowDown` | `Alt+ArrowUp`, `Alt+ArrowDown` | Panel rail icon |
-| Submit a diff comment or review | `Cmd+Enter` | `Ctrl+Enter` | Diff comment field |
-| Cancel a diff comment or review | `Escape` | `Escape` | Diff comment field |
+| `Enter` | `Enter` | Sends the message | Message box |
+| `Shift+Enter` | `Shift+Enter` | Starts a new line | Message box |
+| `ArrowUp` | `ArrowUp` | Recalls your previous message | Message box, cursor at the start |
+| `ArrowDown` | `ArrowDown` | Recalls your next message | Message box, cursor at the end |
+| `Escape` | `Escape` | Stops editing a queued message | Message box, while editing a queued message |
+| `Cmd+F` | `Ctrl+F` | Filters projects and sessions | Outside Settings |
+| `Escape` | `Escape` | Clears the filter | Sidebar filter field |
+| `Cmd+1` to `Cmd+9` | `Ctrl+1` to `Ctrl+9` | Opens pinned session 1 to 9 | Main window |
+| `Option+ArrowUp`, `Option+ArrowDown` | `Alt+ArrowUp`, `Alt+ArrowDown` | Moves a panel up or down the rail | Panel rail icon |
+| `Cmd+Enter` | `Ctrl+Enter` | Submits a diff comment or review | Diff comment field |
+| `Escape` | `Escape` | Cancels a diff comment or review | Diff comment field |
 
 `Cmd/Ctrl+F` focuses the filter field at the top of the sidebar, and opens the sidebar first if it is collapsed. `Escape` in that field clears both the text and any state chip.
 
@@ -100,13 +100,13 @@ These keys cannot be changed. If you give another command `Cmd/Ctrl+F` or `Cmd/C
 
 Open the Session Tree from **Session Tree** on the panel rail, with `Cmd/Ctrl+Shift+Y`, or from **Session Tree** in the command palette's **Panels** section. These keys work while focus is in the tree:
 
-| Action | Key |
+| Key | What it does |
 | --- | --- |
-| Move focus | `ArrowUp`, `ArrowDown` |
-| Expand the focused node, or move to its first child | `ArrowRight` |
-| Collapse the focused node, or move to its parent | `ArrowLeft` |
-| Select the focused node | `Enter` |
-| Close the Session Tree | `Escape` |
+| `ArrowUp`, `ArrowDown` | Moves focus |
+| `ArrowRight` | Expands the focused node, or moves to its first child |
+| `ArrowLeft` | Collapses the focused node, or moves to its parent |
+| `Enter` | Selects the focused node |
+| `Escape` | Closes the Session Tree |
 
 ## How bindings combine
 

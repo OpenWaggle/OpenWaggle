@@ -53,7 +53,7 @@ These shortcuts work while a terminal has focus:
 | Split below | `Cmd+Shift+D` | `Ctrl+Shift+D` |
 | Close the active pane | `Cmd+W` | `Ctrl+W` |
 
-Outside the terminal the same keys do other things: `Cmd+N` or `Ctrl+N` starts a new session, and `Cmd+D` or `Ctrl+D` opens the diff panel. Change any of them in **Settings > Shortcuts**.
+Outside the terminal the same keys do other things: `Cmd+N` or `Ctrl+N` starts a new session, and `Cmd+D` or `Ctrl+D` opens the diff panel. Change any of them in **Settings > Shortcuts**. [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts) lists every default, with the setting names for these four, such as **Split terminal side by side**.
 
 ## Know which folder a terminal uses
 
