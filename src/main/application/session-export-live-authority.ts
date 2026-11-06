@@ -1,6 +1,7 @@
 import path from 'node:path'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
+import { isTransientMcpCallerId } from '../domain/session-control/root-session-project-reach'
 import { requiredSessionControlCapabilities } from '../domain/session-control/session-capability-authorization'
 import {
   type SessionExportAuthorityTarget,
@@ -14,7 +15,7 @@ function requiresLiveAuthority(callerId: string) {
   return (
     callerId.startsWith('profile:') ||
     callerId.startsWith('session-agent:') ||
-    callerId.startsWith('transient-mcp:')
+    isTransientMcpCallerId(callerId)
   )
 }
 
@@ -110,7 +111,7 @@ export function ensureLiveExportAuthority(operation: SessionExportOperationRecor
     if (reason) {
       return yield* Effect.fail(new Error(`Export authority is no longer valid: ${reason}.`))
     }
-    if (operation.callerId.startsWith('transient-mcp:')) return expectedWorkspacePath
+    if (isTransientMcpCallerId(operation.callerId)) return expectedWorkspacePath
     const target = yield* authority.loadTarget(operation.sessionId)
     if (!target) return yield* Effect.fail(new Error('Export target Session was removed.'))
     const caller = yield* authority.loadCaller(operation.callerId)

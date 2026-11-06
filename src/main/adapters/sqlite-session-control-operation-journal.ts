@@ -8,6 +8,7 @@ import {
   type SessionControlOperationJournalShape,
 } from '../ports/session-control-operation-journal'
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
+import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
@@ -127,7 +128,9 @@ function claimExternalOperation(
           : input.decide(state)
         const now = Date.now()
         if (decision.accepted) {
-          if (decision.state) yield* persistSessionControlState(sql, decision.state, now)
+          if (decision.state) {
+            yield* persistAndRecordStop(sql, state, decision.state, input.callerId, now)
+          }
           yield* sql`
             INSERT INTO session_operations (
               caller_id, operation, target_scope, idempotency_key, request_json,

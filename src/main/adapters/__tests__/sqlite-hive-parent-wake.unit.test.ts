@@ -88,17 +88,22 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
           }),
           now: 3100,
         })
-        return yield* pendingUpdates(sql)
+        const causes = yield* sql<{ readonly trigger_caller_id: string | null }>`
+          SELECT trigger_caller_id FROM session_orchestration_updates
+        `
+        return { updates: yield* pendingUpdates(sql), causes }
       }),
     )
 
-    expect(result).toMatchObject([
+    expect(result.updates).toMatchObject([
       {
         state: 'needs_attention',
         summary: 'Which Jira project should the epics go to?',
         status: 'pending',
       },
     ])
+    // Who asked: a wake acts on it only if that cause may wake the parent.
+    expect(result.causes).toEqual([{ trigger_caller_id: WORKER_AGENT }])
   })
 
   it('wakes an idle parent for an update that arrived after its latest Run started', async () => {

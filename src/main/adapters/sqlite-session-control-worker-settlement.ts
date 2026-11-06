@@ -18,6 +18,8 @@ interface WorkerDelegationRow {
   readonly latest_submission_revision: number
   /** 1 when the Worker asked for help (`worker_request`) during the settling Run. */
   readonly explicit_needs_attention: number
+  /** Who stopped the settling Run, when a Session Control mutation did. */
+  readonly interrupted_by_caller_id: string | null
 }
 
 const SETTLING_STATES = ['working', 'waiting', 'revision_requested']
@@ -68,7 +70,9 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, ru
                 WHERE runs.id = ${runId} AND json_extract(runs.intent_json, '$.hiveWake') = 1
               )
             )
-      )) AS explicit_needs_attention
+      )) AS explicit_needs_attention,
+      (SELECT runs.interrupted_by_caller_id FROM session_runs AS runs WHERE runs.id = ${runId})
+        AS interrupted_by_caller_id
     FROM delegation_contracts AS contracts
     LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
     WHERE contracts.child_session_id = ${sessionId}
@@ -97,8 +101,10 @@ function insertSettlementUpdate(
     state: input.state,
     summary: input.summary,
     now: input.now,
-    // The Worker Run's own agent: whoever started that Run caused its end.
-    triggerCallerId: sessionAgentCallerId(input.settlement.sessionId, input.settlement.runId),
+    // Whoever stopped the Run caused its end; otherwise its own agent, so whoever started it.
+    triggerCallerId:
+      input.contract.interrupted_by_caller_id ??
+      sessionAgentCallerId(input.settlement.sessionId, input.settlement.runId),
   })
 }
 

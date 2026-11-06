@@ -42,50 +42,42 @@ export function selectHiveParentWakeCandidate(
   input: HiveParentWakeQuery,
 ) {
   return sql<WakeCandidateRow>`
-    SELECT latest.id AS latest_run_id,
-      json_extract(latest.intent_json, '$.callerId') AS caller_id,
-      json_extract(latest.intent_json, '$.runAuthorizationOverride')
-        AS run_authorization_override,
-      sessions.pi_session_file,
-      -- Who caused each update the wake would act on (sqlite-hive-wake-trigger-authority.ts).
-      (
-        SELECT json_group_array(updates.trigger_caller_id)
-        FROM session_orchestration_updates AS updates
-        WHERE updates.parent_session_id = sessions.id
-          AND updates.status = ${'pending'}
-          AND (
-            updates.created_at > latest.created_at
-            OR (
-              latest.status = ${'completed'}
-              AND json_extract(latest.intent_json, '$.hiveWake') IS NULL
+    SELECT * FROM (
+      SELECT latest.id AS latest_run_id,
+        json_extract(latest.intent_json, '$.callerId') AS caller_id,
+        json_extract(latest.intent_json, '$.runAuthorizationOverride')
+          AS run_authorization_override,
+        sessions.pi_session_file,
+        -- The updates the wake would act on, by who caused each one: the wake needs one, and
+        -- one whose cause may wake the parent (sqlite-hive-wake-trigger-authority.ts).
+        (
+          SELECT json_group_array(updates.trigger_caller_id)
+          FROM session_orchestration_updates AS updates
+          WHERE updates.parent_session_id = sessions.id
+            AND updates.status = ${'pending'}
+            AND (
+              updates.created_at > latest.created_at
+              OR (
+                latest.status = ${'completed'}
+                AND json_extract(latest.intent_json, '$.hiveWake') IS NULL
+              )
             )
-          )
-      ) AS trigger_caller_ids
-    FROM sessions
-    JOIN session_control_states AS states ON states.session_id = sessions.id
-    JOIN session_runs AS latest ON latest.id = (
-      SELECT runs.id FROM session_runs AS runs WHERE runs.session_id = sessions.id
-      ORDER BY runs.created_at DESC, runs.id DESC LIMIT 1
+        ) AS trigger_caller_ids
+      FROM sessions
+      JOIN session_control_states AS states ON states.session_id = sessions.id
+      JOIN session_runs AS latest ON latest.id = (
+        SELECT runs.id FROM session_runs AS runs WHERE runs.session_id = sessions.id
+        ORDER BY runs.created_at DESC, runs.id DESC LIMIT 1
+      )
+      WHERE sessions.id = ${input.parentSessionId}
+        AND sessions.archived = 0
+        AND states.active_run_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM session_follow_ups WHERE session_follow_ups.session_id = sessions.id
+        )
+        AND latest.status IN (${'completed'}, ${'failed'})
     )
-    WHERE sessions.id = ${input.parentSessionId}
-      AND sessions.archived = 0
-      AND states.active_run_id IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM session_follow_ups WHERE session_follow_ups.session_id = sessions.id
-      )
-      AND latest.status IN (${'completed'}, ${'failed'})
-      AND EXISTS (
-        SELECT 1 FROM session_orchestration_updates AS updates
-        WHERE updates.parent_session_id = sessions.id
-          AND updates.status = ${'pending'}
-          AND (
-            updates.created_at > latest.created_at
-            OR (
-              latest.status = ${'completed'}
-              AND json_extract(latest.intent_json, '$.hiveWake') IS NULL
-            )
-          )
-      )
+    WHERE json_array_length(trigger_caller_ids) > 0
     LIMIT 1
   `.pipe(
     Effect.map((rows): HiveParentWakeCandidate | undefined => {

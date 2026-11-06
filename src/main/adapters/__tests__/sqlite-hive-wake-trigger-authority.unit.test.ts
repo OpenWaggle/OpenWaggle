@@ -59,6 +59,8 @@ describe('Hive wake trigger authority', () => {
         yield* workerRunBy(sql, 'run-from-queen', QUEEN_AGENT)
         yield* workerRunBy(sql, 'run-from-profile', 'profile:other')
         return {
+          // Only who started a Run counts: a client that steered, answered or stopped it does
+          // not make its end the client's (ADR 0044 provenance; ADR 0030 amendment).
           queenStarted: yield* mayWake(sql, 'session-agent:session-worker:run-from-queen'),
           user: yield* mayWake(sql, 'local-user'),
           // The profile's own submission, and the Worker agent's in a Run the profile started.
@@ -153,6 +155,11 @@ describe('Hive wake trigger authority', () => {
             parentSessionId: 'session-parent',
             triggerCallerIds: [null, 'profile:other'],
           }),
+          // One allowed cause is enough; the profile's update rides along.
+          mixedMayWake: yield* wakeCandidateMayWake(sql, {
+            parentSessionId: 'session-parent',
+            triggerCallerIds: ['profile:other', WORKER_AGENT],
+          }),
         }
       }),
     )
@@ -162,6 +169,7 @@ describe('Hive wake trigger authority', () => {
       profileMayWake: false,
       workerMayWake: true,
       legacyMayWake: true,
+      mixedMayWake: true,
     })
   })
 })

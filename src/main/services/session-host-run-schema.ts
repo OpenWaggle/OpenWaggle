@@ -9,7 +9,8 @@ export const SESSION_RUN_TARGET_SCHEMA_STATEMENTS = [
     )),
     intent_json TEXT,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    interrupted_by_caller_id TEXT
   )
   `,
   `

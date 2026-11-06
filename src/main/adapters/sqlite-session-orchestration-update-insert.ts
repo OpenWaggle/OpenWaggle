@@ -14,7 +14,7 @@ export interface OrchestrationUpdateInsert {
   readonly summary: string
   readonly now: number
   /**
-   * Who caused the update (`hive-wake-trigger-authority.ts`): the caller of a Worker's own
+   * Who caused the update (`sqlite-hive-wake-trigger-authority.ts`): the caller of a Worker's own
    * Delegation change, or the agent of the Worker Run whose end recorded it.
    */
   readonly triggerCallerId: string

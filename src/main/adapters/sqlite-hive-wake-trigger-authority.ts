@@ -10,6 +10,7 @@ import {
   durableSessionRunId,
   isLocalUserCallerId,
   isProfileCallerId,
+  isTransientMcpCallerId,
   parseSessionAgentCallerId,
 } from '../domain/session-control/root-session-project-reach'
 
@@ -19,10 +20,8 @@ import {
  */
 type Profiles = ReadonlySet<string>
 
-const TRANSIENT_MCP_CALLER_PREFIX = 'transient-mcp:'
-
 function isExternalClientCallerId(callerId: string) {
-  return isProfileCallerId(callerId) || callerId.startsWith(TRANSIENT_MCP_CALLER_PREFIX)
+  return isProfileCallerId(callerId) || isTransientMcpCallerId(callerId)
 }
 
 const NO_PROFILES: Profiles = new Set()

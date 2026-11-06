@@ -24,6 +24,7 @@ export const installHiveParentWake = Effect.gen(function* () {
     start: (request, done) => {
       const { parentSessionId } = request
       let outcome: HiveParentWakeOutcome | undefined
+      let authorityRefused = false
       Effect.runFork(
         wakeIdleParent(request, (candidate) =>
           SqlClient.SqlClient.pipe(
@@ -31,13 +32,11 @@ export const installHiveParentWake = Effect.gen(function* () {
             Effect.tap((authority) =>
               Effect.sync(() => {
                 if (authority.blocked === undefined) return
-                logger.info(
-                  'A Hive wake was refused: its caller may no longer message the parent',
-                  {
-                    parentSessionId,
-                    reason: authority.blocked,
-                  },
-                )
+                authorityRefused = true
+                logger.info('A Hive wake was refused', {
+                  parentSessionId,
+                  reason: authority.blocked,
+                })
               }),
             ),
           ),
@@ -45,7 +44,10 @@ export const installHiveParentWake = Effect.gen(function* () {
           Effect.tap((result) =>
             Effect.sync(() => {
               outcome = result
-              if (result === 'refused') logger.info('A Hive wake was refused', { parentSessionId })
+              // A start the parent's own Session Control refused (it got a Run meanwhile).
+              if (result === 'refused' && !authorityRefused) {
+                logger.info('A Hive wake start was refused', { parentSessionId })
+              }
             }),
           ),
           Effect.provide(context),

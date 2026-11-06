@@ -12,12 +12,13 @@ import {
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
 import { hiveWakeRefusal, startsHiveWake } from './sqlite-hive-wake-admission'
+import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import {
   deliverAfterQueueDecision,
   newRunAdmissionRefusal,
 } from './sqlite-session-control-queue-delivery'
-import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
+import { loadSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
 
@@ -203,7 +204,7 @@ function executeMutation(
               hostRunCeiling,
             })
         if (admittedDecision.accepted) {
-          yield* persistSessionControlState(sql, admittedDecision.state, now)
+          yield* persistAndRecordStop(sql, state, admittedDecision.state, input.callerId, now)
           // A Hive wake is the Host acting for the caller, not the parent answering a Worker.
           if (!startsWake) {
             yield* clearWorkerRequestOnParentDelivery(sql, {

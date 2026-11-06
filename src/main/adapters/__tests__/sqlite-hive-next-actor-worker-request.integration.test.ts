@@ -193,6 +193,22 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
     expect(await withHost(readDelegation)).toMatchObject({ state: 'working', cause: null })
   })
 
+  // The start re-checks inside its transaction that an update it acts on may wake the Session:
+  // one a CLI profile not behind the latest Run caused waits, whoever asked for the wake.
+  it('refuses a wake for an update whose cause may not wake the Session', async () => {
+    await prepareWorkerWithUnreadUpdate()
+    await withHost((sql) =>
+      Effect.gen(function* () {
+        yield* sql`
+          UPDATE session_orchestration_updates SET trigger_caller_id = ${'profile:other'}
+          WHERE id = ${'update-sub'}
+        `
+      }),
+    )
+    const woken = await wakeWorker('session-agent:queen:run-q', 'profile-caused-wake')
+    expect(woken.outcome).toMatchObject({ effect: 'rejected', code: 'hive_wake_not_needed' })
+  })
+
   it('refuses a wake whose caller is no longer the caller of the latest Run', async () => {
     await prepareWorkerWithUnreadUpdate()
     // The Host resolved its authority for another Run's caller than the one its start finds.

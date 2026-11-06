@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { LocalSessionClientHello } from '@shared/types/local-session-protocol'
+import { transientMcpCallerId } from '../domain/session-control/root-session-project-reach'
 import type { AuthenticatedLocalSessionCaller } from './local-session-server'
 import { credentialsMatch } from './local-user-credential'
 
@@ -68,7 +69,7 @@ function authenticateTransientMcpAuthority(
     throw new Error('Transient MCP authority requires an explicit workspace or Session scope.')
   }
   return {
-    callerId: `transient-mcp:${transientAuthorityDigest(authority)}`,
+    callerId: transientMcpCallerId(transientAuthorityDigest(authority)),
     ...(hello.workingDirectory ? { workingDirectory: hello.workingDirectory } : {}),
     profileAuthority: authority,
     baseProfileScope: scope,

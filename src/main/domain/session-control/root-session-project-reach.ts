@@ -25,6 +25,17 @@ export function isProfileCallerId(callerId: string) {
   return callerId.startsWith(PROFILE_CALLER_PREFIX)
 }
 
+const TRANSIENT_MCP_CALLER_PREFIX = 'transient-mcp:'
+
+/** The caller id of an MCP client holding a transient authority, by its authority's digest. */
+export function transientMcpCallerId(authorityDigest: string) {
+  return `${TRANSIENT_MCP_CALLER_PREFIX}${authorityDigest}`
+}
+
+export function isTransientMcpCallerId(callerId: string) {
+  return callerId.startsWith(TRANSIENT_MCP_CALLER_PREFIX)
+}
+
 /** The caller id of a Session's agent acting in one of its Runs. */
 export function sessionAgentCallerId(sessionId: string, runId: string) {
   return `${SESSION_AGENT_CALLER_PREFIX}${sessionId}:${runId}`

@@ -5,7 +5,8 @@
 export const HIVE_WAKE_NOT_NEEDED = 'hive_wake_not_needed'
 
 /**
- * Why a Hive wake did not start: every pending update it would act on came from a CLI client
- * profile that is not behind the parent's latest Run, so the updates wait for its next Run.
+ * Why a Hive wake did not start: no pending update it would act on has a cause that may wake the
+ * parent (an external client not behind the parent's latest Run, or a cause the Host cannot
+ * identify), so the updates wait for its next Run.
  */
 export const HIVE_WAKE_CAUSE_MAY_NOT_WAKE = 'hive_wake_cause_may_not_wake'

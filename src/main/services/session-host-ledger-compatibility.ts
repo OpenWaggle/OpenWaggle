@@ -6,7 +6,7 @@ import {
   DELEGATION_ATTENTION_CAUSE_MIGRATION_ID,
   HEARTBEAT_EFFICIENCY_MIGRATION_ID,
   HIVE_TOOL_NAME_MIGRATION_ID,
-  ORCHESTRATION_UPDATE_TRIGGER_MIGRATION_ID,
+  HIVE_WAKE_CAUSE_MIGRATION_ID,
   PI_SESSION_ADOPTION_MIGRATION_ID,
   PI_SESSION_DISCOVERY_CREATE_MIGRATION_ID,
   PI_SESSION_FILE_STATE_MIGRATION_ID,
@@ -139,7 +139,7 @@ const currentIdentities = [
     name: 'session-node-mutation-revision-columns',
   },
   { id: SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION_ID, name: 'scheduled-task-authority-limits' },
-  { id: ORCHESTRATION_UPDATE_TRIGGER_MIGRATION_ID, name: 'orchestration-update-trigger' },
+  { id: HIVE_WAKE_CAUSE_MIGRATION_ID, name: 'hive-wake-cause' },
 ]
 
 export interface MigrationIdentity {
