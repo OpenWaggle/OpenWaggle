@@ -18,10 +18,15 @@ export type SessionCommandDispatch<E, R> = (input: {
   readonly payload: LocalSessionCommandPayload
 }) => Effect.Effect<LocalSessionCommandResult, E, R>
 
-/** Stops a Session's active run, or its standalone compaction, through the Session Host. */
+/**
+ * Stops a Session's active run, or its standalone compaction, through the Session Host. The
+ * desktop user stops it unless `interruptCallerId` names another caller, such as the Host itself
+ * as it shuts down.
+ */
 export function interruptSessionRunThrough<E, R>(
   dispatchLocalSessionCommand: SessionCommandDispatch<E, R>,
   sessionId: SessionId,
+  interruptCallerId = 'gui:local-user',
 ) {
   return Effect.gen(function* () {
     const statusResult = yield* dispatchLocalSessionCommand({
@@ -44,7 +49,7 @@ export function interruptSessionRunThrough<E, R>(
     }
     if (statusResult.response.outcome.activeRunId) {
       yield* dispatchLocalSessionCommand({
-        caller: { callerId: 'gui:local-user' },
+        caller: { callerId: interruptCallerId },
         payload: {
           contract: 'session-control-v2',
           request: {

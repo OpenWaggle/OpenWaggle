@@ -21,6 +21,12 @@ export function isLocalUserCallerId(callerId: string) {
   )
 }
 
+/**
+ * The Session Host stopping Runs as it shuts down. It acts with the desktop user's authority, but
+ * a stop of its own is no client's doing, so no Run counts as stopped by it.
+ */
+export const HOST_SHUTDOWN_CALLER_ID = 'local-user:host-shutdown'
+
 export function isProfileCallerId(callerId: string) {
   return callerId.startsWith(PROFILE_CALLER_PREFIX)
 }

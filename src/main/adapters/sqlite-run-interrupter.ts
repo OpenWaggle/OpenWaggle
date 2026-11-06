@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
+import { HOST_SHUTDOWN_CALLER_ID } from '../domain/session-control/root-session-project-reach'
 import { persistSessionControlState } from './sqlite-session-control-state'
 
 /**
@@ -18,6 +19,8 @@ export function recordRunInterrupter(
   },
 ) {
   const { before, after } = input
+  // The Host's own shutdown stop leaves the cause with whoever started the Run.
+  if (input.callerId === HOST_SHUTDOWN_CALLER_ID) return Effect.void
   if (after.run.state !== 'stopping') return Effect.void
   if (before.run.state !== 'active' && before.run.state !== 'starting') return Effect.void
   if (before.run.runId !== after.run.runId) return Effect.void

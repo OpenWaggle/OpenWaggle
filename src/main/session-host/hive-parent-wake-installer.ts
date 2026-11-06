@@ -1,7 +1,11 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import { type HiveParentWakeOutcome, wakeIdleParent } from '../application/hive-parent-wake'
+import {
+  type HiveParentWakeOutcome,
+  type HiveWakeAuthority,
+  wakeIdleParent,
+} from '../application/hive-parent-wake'
 import { installHiveParentWakeHandler } from '../application/hive-parent-wake-request'
 import { createLogger } from '../logger'
 import { resolveHiveWakeAuthority } from './hive-parent-wake-authority'
@@ -9,6 +13,12 @@ import { createHiveParentWakeScheduler } from './hive-parent-wake-scheduler'
 import { tryGetSessionHostEventRuntime } from './session-host-events'
 
 const logger = createLogger('hive-parent-wake')
+
+const HIVE_WAKE_HOST_SHUTTING_DOWN = 'the Session Host is shutting down'
+
+function isDraining() {
+  return tryGetSessionHostEventRuntime()?.liveness.isDraining() === true
+}
 
 type HiveParentWakeDependencies =
   | Effect.Effect.Context<ReturnType<typeof wakeIdleParent<never>>>
@@ -24,9 +34,8 @@ export const installHiveParentWake = Effect.gen(function* () {
   const scheduler = createHiveParentWakeScheduler({
     start: (request, done) => {
       const { parentSessionId } = request
-      // A draining Host starts no Run. Its stops are the Host's, not a client's, so the updates
-      // they record wait for the parent's next Run.
-      if (tryGetSessionHostEventRuntime()?.liveness.isDraining()) {
+      // A draining Host starts no Run; a drain that begins later is caught just before the start.
+      if (isDraining()) {
         logger.info('A Hive wake was refused: the Session Host is shutting down', {
           parentSessionId,
         })
@@ -38,7 +47,11 @@ export const installHiveParentWake = Effect.gen(function* () {
       Effect.runFork(
         wakeIdleParent(request, (candidate) =>
           SqlClient.SqlClient.pipe(
-            Effect.flatMap((sql) => resolveHiveWakeAuthority(sql, candidate)),
+            Effect.flatMap((sql) =>
+              isDraining()
+                ? Effect.succeed<HiveWakeAuthority>({ blocked: HIVE_WAKE_HOST_SHUTTING_DOWN })
+                : resolveHiveWakeAuthority(sql, candidate),
+            ),
             Effect.tap((authority) =>
               Effect.sync(() => {
                 if (authority.blocked === undefined) return

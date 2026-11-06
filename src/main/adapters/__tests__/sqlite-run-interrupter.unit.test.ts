@@ -7,6 +7,7 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { HOST_SHUTDOWN_CALLER_ID } from '../../domain/session-control/root-session-project-reach'
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
 import { persistAndRecordStop } from '../sqlite-run-interrupter'
@@ -153,5 +154,15 @@ describe('SQLite Run interrupter', () => {
     )
 
     expect(stoppers).toEqual([{ interrupted_by_caller_id: 'profile:first' }])
+  })
+
+  // The Host stops Runs itself as it shuts down, as the desktop user; that is no client's stop.
+  it('leaves a Run the Host stopped to shut down with its own agent as the cause', async () => {
+    const updates = await interruptWorkerRunAs(path.join(temporaryRoot, 'shutdown.sqlite'), [
+      HOST_SHUTDOWN_CALLER_ID,
+    ])
+
+    expect(updates).toHaveLength(1)
+    expect(updates[0]?.trigger_caller_id).toMatch(/^session-agent:worker:/)
   })
 })
