@@ -7,6 +7,8 @@ interface CommandPaletteItemButtonProps {
   readonly highlighted: boolean
   readonly index: number
   readonly onHighlightIndexChange: (index: number) => void
+  /** Set when the item is an `option` of a combobox listbox; it then stays out of the Tab order. */
+  readonly optionId?: string
 }
 
 export function CommandPaletteItemButton({
@@ -14,12 +16,16 @@ export function CommandPaletteItemButton({
   highlighted,
   index,
   onHighlightIndexChange,
+  optionId,
 }: CommandPaletteItemButtonProps) {
   return (
     <Button
       variant="unstyled"
       type="button"
-      role="menuitem"
+      id={optionId}
+      role={optionId ? 'option' : 'menuitem'}
+      tabIndex={optionId ? -1 : undefined}
+      aria-selected={optionId ? highlighted : undefined}
       disabled={item.disabled}
       aria-disabled={item.disabled}
       data-highlighted={highlighted}

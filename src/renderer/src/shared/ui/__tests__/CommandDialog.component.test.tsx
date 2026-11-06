@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { Button } from '../Button'
 import { CommandDialog } from '../CommandDialog'
+import { TextInput } from '../TextInput'
 
 describe('CommandDialog', () => {
   beforeAll(() => {
@@ -27,6 +28,33 @@ describe('CommandDialog', () => {
     fireEvent(dialog, new Event('cancel', { cancelable: true }))
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves focus to the search field instead of the backdrop control when it opens', () => {
+    render(
+      <CommandDialog title="Commands" onClose={vi.fn()}>
+        <TextInput aria-label="Search" />
+        <Button>Action</Button>
+      </CommandDialog>,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Search' })).toHaveFocus()
+  })
+
+  it('returns focus to the element that opened it when it closes', () => {
+    render(<Button>Opener</Button>)
+    const opener = screen.getByRole('button', { name: 'Opener' })
+    opener.focus()
+    const { unmount } = render(
+      <CommandDialog title="Commands" onClose={vi.fn()}>
+        <TextInput aria-label="Search" />
+      </CommandDialog>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Search' })).toHaveFocus()
+
+    unmount()
+
+    expect(opener).toHaveFocus()
   })
 
   it('offers an explicit backdrop control for pointer dismissal', () => {

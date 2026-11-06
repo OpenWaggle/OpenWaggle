@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from './Button'
 
 interface CommandDialogProps {
@@ -10,6 +10,14 @@ interface CommandDialogProps {
   readonly footer?: ReactNode
 }
 
+/**
+ * The search field a command dialog opens on. `showModal()` runs the native dialog focusing steps,
+ * which move focus to the first focusable descendant — the pointer-only backdrop control — and
+ * override any `autoFocus` React applied before the dialog opened.
+ */
+const INITIAL_FOCUS_SELECTOR =
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]'
+
 export function CommandDialog({
   title,
   description,
@@ -18,15 +26,26 @@ export function CommandDialog({
   footer,
 }: CommandDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
+  // Read during the first render, before the search field's `autoFocus` takes focus.
+  const [opener] = useState(() =>
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  )
 
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog || dialog.open) return
     dialog.showModal()
+    dialog.querySelector<HTMLElement>(INITIAL_FOCUS_SELECTOR)?.focus({ preventScroll: true })
     return () => {
       if (dialog.open) dialog.close()
+      // Hand focus back to what opened the dialog, unless the chosen command already moved it.
+      const focusDropped =
+        document.activeElement === null ||
+        document.activeElement === document.body ||
+        dialog.contains(document.activeElement)
+      if (focusDropped && opener?.isConnected) opener.focus({ preventScroll: true })
     }
-  }, [])
+  }, [opener])
 
   return (
     <dialog

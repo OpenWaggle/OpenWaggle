@@ -1,7 +1,7 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent, useState } from 'react'
 import {
   extensionSidePanelSurfaces,
   openableExtensionSidePanelSurfaceIds,
@@ -17,8 +17,10 @@ import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
 import { TextInput } from '@/shared/ui/TextInput'
+import { useCommandListHighlight } from '../hooks/useCommandListHighlight'
 import { useGlobalCommandActions } from '../hooks/useGlobalCommandActions'
 import { useGlobalExtensionActions } from '../hooks/useGlobalExtensionActions'
+import { nextEnabledCommandIndex } from '../lib/command-palette-navigation'
 import {
   createExtensionCommandItems,
   resolveExtensionCommandInvocationScope,
@@ -50,24 +52,20 @@ function handlePaletteKeyDown(
     readonly close: () => void
     readonly items: readonly CommandPaletteItem[]
     readonly selectedIndex: number
-    readonly setSelectedIndex: (updater: (current: number) => number) => void
+    readonly setSelectedIndex: (index: number) => void
   },
 ) {
+  if (event.nativeEvent.isComposing) return
   if (event.key === 'Escape') {
     event.preventDefault()
     input.close()
     return
   }
-  if (event.key === 'ArrowDown') {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
-    if (input.items.length > 0) {
-      input.setSelectedIndex((current) => Math.min(current + 1, input.items.length - 1))
-    }
-    return
-  }
-  if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    input.setSelectedIndex((current) => Math.max(0, current - 1))
+    if (input.items.length === 0) return
+    const delta = event.key === 'ArrowDown' ? 1 : -1
+    input.setSelectedIndex(nextEnabledCommandIndex(input.items, input.selectedIndex, delta))
     return
   }
   if (event.key === 'Enter') {
@@ -99,8 +97,6 @@ export function GlobalCommandPalette({
   const runProjectAction = useRunProjectAction(actionProjectPath)
   const runningTerminalCounts = useRunningTerminalCounts()
   const [query, setQuery] = useState('')
-  const [highlightIndex, setHighlightIndex] = useState(0)
-  const listRef = useRef<HTMLDivElement | null>(null)
   const { data: extensionContributions = null } = useQuery(
     extensionContributionsQueryOptions(projectPath ? [projectPath] : [], { sessionId }),
   )
@@ -149,14 +145,8 @@ export function GlobalCommandPalette({
     ...createRecentSessionItems(sessions, actions, runningTerminalCounts),
     ...extensionItems,
   ].filter((item) => itemMatches(item, query))
-  const boundedHighlightIndex = Math.min(highlightIndex, Math.max(0, items.length - 1))
-
-  useEffect(() => {
-    void boundedHighlightIndex
-    listRef.current
-      ?.querySelector<HTMLElement>('[data-highlighted="true"]')
-      ?.scrollIntoView({ block: 'nearest' })
-  }, [boundedHighlightIndex])
+  const { activeOptionId, boundedHighlightIndex, listboxId, listRef, setHighlightIndex } =
+    useCommandListHighlight(items)
 
   return (
     <CommandDialog
@@ -179,7 +169,7 @@ export function GlobalCommandPalette({
           value={query}
           onChange={(event) => {
             setQuery(event.target.value)
-            setHighlightIndex(0)
+            setHighlightIndex(null)
           }}
           onKeyDown={(event) =>
             handlePaletteKeyDown(event, {
@@ -191,6 +181,13 @@ export function GlobalCommandPalette({
           }
           placeholder="Search commands…"
           aria-label="Search commands"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-activedescendant={activeOptionId}
+          autoComplete="off"
+          spellCheck={false}
           className="h-12 px-0 text-sm"
         />
       </div>
@@ -199,6 +196,8 @@ export function GlobalCommandPalette({
         highlightIndex={boundedHighlightIndex}
         onHighlightIndexChange={setHighlightIndex}
         listRef={listRef}
+        listboxId={listboxId}
+        label="Commands"
       />
     </CommandDialog>
   )

@@ -101,14 +101,14 @@ function sidePanelEntry(): ExtensionContributionRegistryEntry {
 async function renderPalette() {
   const { GlobalCommandPalette } = await import('../GlobalCommandPalette')
   renderWithQueryClient(<GlobalCommandPalette />)
-  await screen.findByRole('menuitem', { name: /Notes/ })
+  await screen.findByRole('option', { name: /Notes/ })
 }
 
 /** The built-in panels plus the one extension panel this test installs. */
 const PANEL_COUNT = 10
 
 function panelLabels() {
-  const items = screen.getAllByRole('menuitem')
+  const items = screen.getAllByRole('option')
   const first = items.findIndex((item) => within(item).queryByText('All panels') !== null)
   return items.slice(first, first + PANEL_COUNT).map((item) => item.textContent)
 }
@@ -186,7 +186,7 @@ describe('GlobalCommandPalette Panels section', () => {
     unregister = registerRightPanelController(controller)
     await renderPalette()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Notes/ }))
+    fireEvent.click(screen.getByRole('option', { name: /^Notes/ }))
 
     expect(mocks.close).toHaveBeenCalled()
     expect(controller.showSurface).toHaveBeenCalledWith(NOTES)
@@ -197,18 +197,52 @@ describe('GlobalCommandPalette Panels section', () => {
     unregister = registerRightPanelController(controller)
     await renderPalette()
 
-    const search = screen.getByRole('textbox', { name: 'Search commands' })
+    const search = screen.getByRole('combobox', { name: 'Search commands' })
     fireEvent.change(search, { target: { value: 'session tree' } })
     fireEvent.keyDown(search, { key: 'Enter' })
 
     await waitFor(() => expect(controller.showSurface).toHaveBeenCalledWith('session-tree'))
   })
 
+  it('opens with the search focused and moves the highlight with the arrow keys', async () => {
+    unregister = registerRightPanelController(controller)
+    await renderPalette()
+
+    const search = screen.getByRole('combobox', { name: 'Search commands' })
+    await waitFor(() => expect(search).toHaveFocus())
+    fireEvent.change(search, { target: { value: 'panels' } })
+    const listbox = screen.getByRole('listbox', { name: 'Commands' })
+    expect(search).toHaveAttribute('aria-controls', listbox.id)
+
+    const options = within(listbox).getAllByRole('option')
+    expect(search).toHaveAttribute('aria-activedescendant', options[0]?.id)
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(search, { key: 'ArrowDown' })
+    expect(search).toHaveAttribute('aria-activedescendant', options[1]?.id)
+    fireEvent.keyDown(search, { key: 'ArrowUp' })
+    fireEvent.keyDown(search, { key: 'ArrowUp' })
+    // Wraps from the first option to the last.
+    expect(search).toHaveAttribute('aria-activedescendant', options.at(-1)?.id)
+    // Options stay out of the Tab order; focus remains in the search field.
+    for (const option of options) expect(option).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('closes on Escape from the search field', async () => {
+    await renderPalette()
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search commands' }), {
+      key: 'Escape',
+    })
+
+    expect(mocks.close).toHaveBeenCalled()
+  })
+
   it('opens the legacy route panel while no controller is registered', async () => {
     await renderPalette()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Changes/ }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Notes/ }))
+    fireEvent.click(screen.getByRole('option', { name: /^Changes/ }))
+    fireEvent.click(screen.getByRole('option', { name: /^Notes/ }))
 
     expect(mocks.openBuiltInPanel).toHaveBeenCalledWith('diff')
     expect(mocks.openExtensionPanel).toHaveBeenCalledWith({ entry: sidePanelEntry() })
@@ -226,7 +260,7 @@ describe('GlobalCommandPalette Panels section', () => {
     )
     renderWithQueryClient(<GlobalCommandPalette panelProjectPath="/repo/.worktrees/session-1" />)
 
-    expect(await screen.findByRole('menuitem', { name: /Notes/ })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /Notes/ })).toBeInTheDocument()
     expect(mocks.listExtensionContributions).toHaveBeenCalledWith(
       expect.objectContaining({ projectPaths: ['/repo/.worktrees/session-1'] }),
     )
