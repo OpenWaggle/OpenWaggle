@@ -3,15 +3,15 @@
 
 # @openwaggle/extension-sdk
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.1/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
 
 Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.
 
-[Full documentation](https://openwaggle.ai/docs/packages/extension-sdk/0.1/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
+[Full documentation](https://openwaggle.ai/docs/packages/extension-sdk/0.2/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
 
-Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
+Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme and syntax helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
 
 ## Install
 
@@ -67,6 +67,7 @@ Supported public subpaths include:
 | `@openwaggle/extension-sdk/runtime` | Runtime contribution schemas, types, and SDK creation. |
 | `@openwaggle/extension-sdk/docs` | Documentation discovery schemas and DTOs. |
 | `@openwaggle/extension-sdk/theme` | Theme token and CSS-variable helpers. |
+| `@openwaggle/extension-sdk/syntax` | Host-backed syntax highlighting types and plain-text fallback helper. |
 | `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
 | `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
 
@@ -134,6 +135,20 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 
 Declare matching capabilities and methods in `openwaggle.extension.json`. A call to a capability the manifest does not declare fails.
 
+## Host syntax highlighting
+
+Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active syntax theme, canonical language aliases, worker scheduling, size limits, caching, and a safe plain-text fallback.
+
+```ts
+const result = await context.sdk.surface.syntax.highlight({
+  source: 'export const ready = true',
+  language: 'typescript',
+  priority: 'visible',
+})
+```
+
+You can provide `path` instead of `language` when the filename is the reliable signal. The result contains token lines rather than HTML, so extensions keep control of rendering without accepting executable or unsanitized host markup. Do not instantiate a second Shiki highlighter inside the extension frame. A second highlighter bypasses the host's theme, worker, and performance policy.
+
 ## Manifest typing
 
 Use the manifest type to keep package metadata aligned with the public extension contract.
@@ -147,8 +162,8 @@ export default {
   name: 'Example Extension',
   version: '0.1.0',
   sdk: { openwaggle: '>=0.1.0 <0.2.0' },
-  sourceFiles: ['package.json', 'src/settings.ts'],
-  builtArtifacts: ['dist/settings.js'],
+  sourceFiles: ['package.json', 'src/settings.ts', 'src/results.ts'],
+  builtArtifacts: ['dist/settings.js', 'dist/results.js'],
   install: { source: 'prebuilt' },
   capabilities: [
     {
@@ -156,8 +171,21 @@ export default {
       methods: ['get', 'set'],
       scopes: ['project'],
     },
+    {
+      id: 'openwaggle.resources',
+      methods: ['list-resources', 'publish-resource'],
+      scopes: ['session'],
+    },
   ],
   contributions: {
+    commands: [
+      {
+        id: 'example.refresh',
+        title: 'Refresh extension status',
+        capability: 'openwaggle.storage',
+        method: 'get',
+      },
+    ],
     settingsSections: [
       {
         id: 'example.settings',
@@ -169,9 +197,95 @@ export default {
         methods: ['get', 'set'],
       },
     ],
+    sidePanels: [
+      {
+        id: 'example.results',
+        title: 'Example Results',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
+        entry: 'dist/results.js',
+        icon: 'flask-conical',
+        capability: 'openwaggle.resources',
+        methods: ['list-resources', 'publish-resource'],
+      },
+    ],
+    sessionSummarySections: [
+      {
+        id: 'example.session-summary',
+        title: 'Example Session Status',
+        placement: 'details',
+        rows: [
+          { id: 'status', label: 'Status', value: 'Ready' },
+          {
+            id: 'open-results',
+            label: 'Open results',
+            action: { family: 'sidePanels', contributionId: 'example.results' },
+          },
+        ],
+      },
+    ],
   },
 } satisfies OpenWaggleExtensionManifest
 ```
+
+A side panel's optional `icon` is its Panel rail icon. Use a bundled [Lucide](https://lucide.dev/icons/) icon name in kebab-case, such as `'ticket'`, or `{ svg: 'assets/panel-icon.svg' }` for a single-colour SVG file inside the package. The path must be relative to the package root (no leading `/` or `\` and no drive letter), must not contain empty, `.` or `..` segments, must not have leading or trailing whitespace or NUL bytes, must be at most 260 characters, and must end in `.svg`. OpenWaggle uses only the icon's shape and paints it in the rail's colours. A missing or unusable icon falls back to a letter tile and an extension diagnostic. Only side panels accept `icon`. `extensionSidePanelIconSchema` and the `ExtensionSidePanelIcon` type describe the accepted values. A runtime side panel registration must pass the same icon schema, and its SVG file must be one a manifest side panel declares.
+
+The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK and is accepted by extension discovery.
+
+## Session resources
+
+Extensions can publish explicit session Sources and Outputs through the brokered SDK. The calling contribution and package manifest must declare `openwaggle.resources`, `list-resources` and/or `publish-resource`, and `session` scope.
+
+```ts
+import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
+
+export async function publishPreview(context: OpenWaggleExtensionMountContext) {
+  const projectPath = context.projectPaths[0]
+  if (!context.sessionId || !projectPath) return
+  const scope = { kind: 'session' as const, projectPath, sessionId: context.sessionId }
+
+  const published = await context.sdk.openWaggle.resources.publish(scope, {
+    key: 'preview-site',
+    title: 'Preview site',
+    kind: 'link',
+    role: 'output',
+    locator: 'https://preview.example.com',
+  })
+  if (!published.ok) return published
+
+  return context.sdk.openWaggle.resources.list(scope)
+}
+```
+
+`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`. Publishing the same key, kind, role, and normalized locator again from one contribution changes nothing. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
+
+`list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same resource browser or image gallery as first-party resources.
+
+## Theme contract
+
+`context.theme` is one projection of the host's Appearance across the SDK boundary. Every role in the contract resolves to a real host CSS variable when the extension runs inside OpenWaggle, so extension UI matches the host without a second token system.
+
+The contract covers:
+
+- **Colour.** 23 semantic roles under `color`, including `dangerText` and `infoText` for small text plus `review`, `plan`, `progress`, and `neutral`.
+- **Typography.** `sansFamily`, `monoFamily`, and `typeScale` entries `xs`, `sm`, `base`, `lg`, `xl`, and `twoXl`. Each type-scale entry has `fontSize` and `lineHeight`.
+- **Spacing.** The Tailwind spacing unit at `spacing.unit`. Use it through `calc(var(--ow-spacing) * N)`.
+- **Radius.** `xs`, `sm`, `md`, `lg`, `xl`, `twoXl`, `threeXl`, and `fourXl`.
+- **Shadow.** `twoXs`, `xs`, `sm`, `md`, `lg`, `xl`, and `twoXl`.
+- **Focus.** `ring` and `shadow`, with `transparent` and `none` fallbacks.
+
+The type, spacing, radius, and shadow fallbacks match Tailwind 4.3.3. The contract has no `controlSize` or `elevation` group. Express control dimensions as spacing multiples and use the standard shadow scale.
+
+Hosted extensions receive the resolved Appearance through their mount context. Read that object rather than resolving the host's private `--color-*` source variables from inside the isolated frame:
+
+```ts
+export function mount(context: OpenWaggleExtensionMountContext) {
+  const { theme } = context
+  // Use theme.color, theme.typography, theme.spacing, theme.radius, and theme.shadow.
+}
+```
+
+Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallback tokens for extension tooling and standalone previews.
 
 ## Boundary rules
 
@@ -180,13 +294,14 @@ export default {
 - Do not import OpenWaggle renderer feature files, Zustand stores, Electron IPC helpers, main-process services, or Pi SDK internals.
 - Do not deep-import from `@openwaggle/extension-sdk/src`, `dist`, or `dist-cjs`.
 - Use `context.theme` and SDK UI helpers instead of importing OpenWaggle app CSS or Tailwind internals.
+- Use `context.sdk.surface.syntax` instead of bundling a separate syntax highlighter or shipping pre-highlighted HTML.
 - Bundle compatible helper code into your extension artifact or resolve the versioned package supplied by the installed SDK path.
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](https://openwaggle.ai/docs/extending/openwaggle-extensions/).
 
 ## Reference and support
 
-- [Complete API reference](https://openwaggle.ai/docs/packages/extension-sdk/0.1/api-reference/)
+- [Complete API reference](https://openwaggle.ai/docs/packages/extension-sdk/0.2/api-reference/)
 - [npm package](https://www.npmjs.com/package/@openwaggle/extension-sdk)
 - [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-sdk/CHANGELOG.md)
 - [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
@@ -195,11 +310,21 @@ For the full extension package lifecycle and manifest model, see [OpenWaggle Ext
 
 **A capability call fails with an undeclared error.** Confirm the capability, method, and scope are declared in `openwaggle.extension.json`. The broker rejects privileges that are not declared.
 
-**An import from `src` or `dist` fails.** Import only the documented root and subpath exports. Build directories and source paths are intentionally private.
+**An import from `src` or `dist` fails.** Import only the documented root and subpath exports. Build directories and source paths are private.
 
 **Styles do not match the host.** Use `context.theme`, `createOpenWaggleExtensionUiStylesheet`, and the exported UI class names instead of copying OpenWaggle renderer CSS.
 
-There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.
+## Migrating from 0.1
+
+Version 0.2 replaces the 0.1 theme tokens with the Tailwind-standard contract described under the theme contract. Code that only reads `context.theme` colours keeps working, though the `sm`, `md` and `lg` radii change size. Code that reads the removed tokens or builds theme objects itself needs these changes:
+
+- **Spacing.** `spacing.xs` through `spacing.xl` are gone. Use multiples of `spacing.unit`, for example `calc(var(--ow-spacing) * 3)` instead of `--ow-space-md`.
+- **Radius.** `radius.panel` and `--ow-radius-panel` are gone. Use one of the standard radii from `xs` to `fourXl`. `sm`, `md` and `lg` now follow Tailwind's scale (0.25rem, 0.375rem and 0.5rem instead of 6px, 9px and 12px).
+- **Shadow.** `elevation.card` and `elevation.overlay` are now `shadow.*`, and `--ow-elevation-*` is now `--ow-shadow-*`. The export `EXTENSION_THEME_ELEVATION_KEYS` is now `EXTENSION_THEME_SHADOW_KEYS`.
+- **Theme objects you build yourself.** An `OpenWaggleExtensionThemeTokens` object must now include the colour roles `dangerText`, `infoText`, `review`, `plan`, `progress`, and `neutral`, and `typography.typeScale`. `isOpenWaggleExtensionTheme` now rejects missing or extra keys, so a theme that still has `elevation` fails. Test doubles for the surface SDK need `syntax` (or use `createNoopExtensionSurfaceSdk()`), and broker SDK doubles need `resources`.
+- **Colour scheme.** `OpenWaggleExtensionColorScheme` can now be `light`, `high-contrast-dark`, or `high-contrast-light` as well as `dark`. Handle every value.
+
+New in 0.2: the `/syntax` subpath and `context.sdk.surface.syntax`, the `openwaggle.resources` capability, an `icon` for `sidePanels`, and `sessionSummarySections`.
 
 ## License
 
