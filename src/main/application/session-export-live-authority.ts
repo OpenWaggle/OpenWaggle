@@ -1,7 +1,11 @@
 import path from 'node:path'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
-import { isTransientMcpCallerId } from '../domain/session-control/root-session-project-reach'
+import {
+  isProfileCallerId,
+  isSessionAgentCallerId,
+  isTransientMcpCallerId,
+} from '../domain/session-control/root-session-project-reach'
 import { requiredSessionControlCapabilities } from '../domain/session-control/session-capability-authorization'
 import {
   type SessionExportAuthorityTarget,
@@ -13,8 +17,8 @@ import { authorizeTargetForCaller } from './local-session-derived-authority'
 
 function requiresLiveAuthority(callerId: string) {
   return (
-    callerId.startsWith('profile:') ||
-    callerId.startsWith('session-agent:') ||
+    isProfileCallerId(callerId) ||
+    isSessionAgentCallerId(callerId) ||
     isTransientMcpCallerId(callerId)
   )
 }

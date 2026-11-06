@@ -25,6 +25,11 @@ export function isProfileCallerId(callerId: string) {
   return callerId.startsWith(PROFILE_CALLER_PREFIX)
 }
 
+/** The access profile behind a `profile:<id>` caller, or undefined. */
+export function callerProfileId(callerId: string) {
+  return isProfileCallerId(callerId) ? callerId.slice(PROFILE_CALLER_PREFIX.length) : undefined
+}
+
 const TRANSIENT_MCP_CALLER_PREFIX = 'transient-mcp:'
 
 /** The caller id of an MCP client holding a transient authority, by its authority's digest. */
@@ -34,6 +39,10 @@ export function transientMcpCallerId(authorityDigest: string) {
 
 export function isTransientMcpCallerId(callerId: string) {
   return callerId.startsWith(TRANSIENT_MCP_CALLER_PREFIX)
+}
+
+export function isSessionAgentCallerId(callerId: string) {
+  return callerId.startsWith(SESSION_AGENT_CALLER_PREFIX)
 }
 
 /** The caller id of a Session's agent acting in one of its Runs. */

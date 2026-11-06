@@ -20,7 +20,17 @@ import {
  * A client that stops a Worker Run causes that Run's end: its update names the client, so a
  * client that may only interrupt a Worker cannot wake the Worker's parent through it.
  */
-function interruptWorkerRunAs(file: string, callerId: string) {
+function interruptWorkerRunAs(
+  file: string,
+  /** Who stops the Run, in order; none leaves it running until it ends. */
+  stoppers: readonly string[],
+  end: {
+    readonly terminalStatus: 'interrupted' | 'completed' | 'failed'
+    readonly finalResponse?: string
+  } = {
+    terminalStatus: 'interrupted',
+  },
+) {
   const layer = SqliteSessionControlOperationJournalLive.pipe(
     Layer.provideMerge(makeSessionControlRunLifecycleTestLayer(file)),
   )
@@ -34,24 +44,26 @@ function interruptWorkerRunAs(file: string, callerId: string) {
       const lifecycle = yield* SessionControlRunLifecycleRepository
       yield* lifecycle.activate({ sessionId: SessionId('worker'), runId })
       const journal = yield* SessionControlOperationJournal
-      yield* journal.claim({
-        callerId,
-        request: {
-          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-          requestId: 'request-interrupt',
-          idempotencyKey: 'idempotency-interrupt',
-          command: { operation: 'interrupt', sessionId: 'worker', expectedRunId: runId },
-        },
-        decide: (state) => ({
-          accepted: true,
-          state: { ...state, revision: state.revision + 1, run: { state: 'stopping', runId } },
-        }),
-      })
+      for (const [index, callerId] of stoppers.entries()) {
+        yield* journal.claim({
+          callerId,
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: `request-interrupt-${index}`,
+            idempotencyKey: `idempotency-interrupt-${index}`,
+            command: { operation: 'interrupt', sessionId: 'worker', expectedRunId: runId },
+          },
+          decide: (state) => ({
+            accepted: true,
+            state: { ...state, revision: state.revision + 1, run: { state: 'stopping', runId } },
+          }),
+        })
+      }
       yield* lifecycle.settle({
         sessionId: SessionId('worker'),
         runId,
         nextRunId: RunId('run-after'),
-        terminalStatus: 'interrupted',
+        ...end,
       })
       return yield* sql<{ readonly state: string; readonly trigger_caller_id: string | null }>`
         SELECT state, trigger_caller_id FROM session_orchestration_updates
@@ -72,9 +84,43 @@ describe('SQLite Run interrupter', () => {
   })
 
   it('names who stopped a Worker Run as the cause of its update', async () => {
-    const updates = await interruptWorkerRunAs(
-      path.join(temporaryRoot, 'profile.sqlite'),
+    const updates = await interruptWorkerRunAs(path.join(temporaryRoot, 'profile.sqlite'), [
       'profile:other',
+      // A second stop of the stopping Run changes nothing: the first stop wins.
+      'local-user',
+    ])
+
+    expect(updates).toEqual([{ state: 'needs_attention', trigger_caller_id: 'profile:other' }])
+  })
+
+  // The Run finished before the stop reached it: the stop changed nothing.
+  it('names the Worker Run’s own agent for a result a late stop did not prevent', async () => {
+    const updates = await interruptWorkerRunAs(
+      path.join(temporaryRoot, 'late-stop.sqlite'),
+      ['profile:other'],
+      { terminalStatus: 'completed', finalResponse: 'Validated the migration.' },
+    )
+
+    expect(updates).toHaveLength(1)
+    expect(updates[0]).toMatchObject({ state: 'ready_for_review' })
+    expect(updates[0]?.trigger_caller_id).toMatch(/^session-agent:worker:/)
+  })
+
+  it('names the Worker Run’s own agent when nobody stopped it', async () => {
+    const updates = await interruptWorkerRunAs(path.join(temporaryRoot, 'unstopped.sqlite'), [], {
+      terminalStatus: 'completed',
+      finalResponse: 'Validated the migration.',
+    })
+
+    expect(updates[0]?.trigger_caller_id).toMatch(/^session-agent:worker:/)
+  })
+
+  // A Run that failed after a stop may have failed because of it, so the stopper still caused it.
+  it('names who stopped a Worker Run that then failed', async () => {
+    const updates = await interruptWorkerRunAs(
+      path.join(temporaryRoot, 'failed.sqlite'),
+      ['profile:other'],
+      { terminalStatus: 'failed' },
     )
 
     expect(updates).toEqual([{ state: 'needs_attention', trigger_caller_id: 'profile:other' }])

@@ -101,9 +101,12 @@ function insertSettlementUpdate(
     state: input.state,
     summary: input.summary,
     now: input.now,
-    // Whoever stopped the Run caused its end; otherwise its own agent, so whoever started it.
+    // Whoever stopped a Run that did not complete caused its end; otherwise its own agent, so
+    // whoever started it. Only a completed Run proves a late stop changed nothing.
     triggerCallerId:
-      input.contract.interrupted_by_caller_id ??
+      (input.settlement.terminalStatus === 'completed'
+        ? null
+        : input.contract.interrupted_by_caller_id) ??
       sessionAgentCallerId(input.settlement.sessionId, input.settlement.runId),
   })
 }
