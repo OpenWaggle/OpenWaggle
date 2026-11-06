@@ -67,6 +67,9 @@ export const WEBSITE_SCREENSHOTS = [
   // A new jotter session, seeded after every other jotter capture so no earlier sidebar changes.
   'visualization-inline.png',
   'visualization-expanded.png',
+  // Two more new jotter sessions, seeded after the first visualization's captures.
+  'visualization-prototype.png',
+  'visualization-choice.png',
   // A pi CLI session in jotter, written last: its sidebar row and its Pi file (which the Usage &
   // Cost page would read) change no earlier image.
   'pi-session-continue-prompt.png',

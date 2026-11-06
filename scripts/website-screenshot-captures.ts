@@ -81,6 +81,8 @@ import {
   captureVisualizationExpanded,
   captureVisualizationInline,
 } from './website-screenshot-visualization-captures'
+import { captureVisualizationChoice } from './website-screenshot-visualization-choice-captures'
+import { captureVisualizationPrototype } from './website-screenshot-visualization-prototype-captures'
 import {
   captureContextMeter,
   captureWaggleConversation,
@@ -148,5 +150,7 @@ export const CAPTURES: Readonly<
   'action-output-terminal.png': captureActionOutputTerminal,
   'visualization-inline.png': captureVisualizationInline,
   'visualization-expanded.png': captureVisualizationExpanded,
+  'visualization-prototype.png': captureVisualizationPrototype,
+  'visualization-choice.png': captureVisualizationChoice,
   'pi-session-continue-prompt.png': capturePiSessionContinuePrompt,
 }
