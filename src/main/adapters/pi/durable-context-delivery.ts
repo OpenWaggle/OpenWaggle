@@ -82,7 +82,7 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
   let sessionManager: SessionEntries | undefined
   // Items a live delivery offered before Pi started the session: Pi cannot take a message yet,
   // and only then can the branch tell what is already on it.
-  const beforeStart: Item[] = []
+  const beforeStart = new Map<string, Item>()
 
   const acknowledgePersisted = (candidateIds: Iterable<string>) => {
     if (!sessionManager) return
@@ -117,10 +117,14 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
 
   const deliver = (items: readonly Item[]) => {
     if (!sessionManager) {
-      beforeStart.push(...items)
+      for (const item of items) beforeStart.set(input.itemId(item), item)
       return
     }
-    const fresh = notOnBranch(items.filter((item) => !acceptedIds.has(input.itemId(item))))
+    // Each live delivery offers every pending item, so an item may come more than once.
+    const unique = new Map(items.map((item) => [input.itemId(item), item]))
+    const fresh = notOnBranch(
+      [...unique.values()].filter((item) => !acceptedIds.has(input.itemId(item))),
+    )
     if (fresh.length === 0) return
     const itemIds = fresh.map(input.itemId)
     for (const itemId of itemIds) {
@@ -144,7 +148,8 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
 
   input.pi.on('session_start', (_event, context) => {
     sessionManager = context.sessionManager
-    const startItems = [...input.pendingItems, ...beforeStart.splice(0)]
+    const startItems = [...input.pendingItems, ...beforeStart.values()]
+    beforeStart.clear()
     if (!onModelRequest) acknowledgePersisted(startItems.map(input.itemId))
     deliver(startItems)
   })

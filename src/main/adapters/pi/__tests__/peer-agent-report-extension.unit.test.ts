@@ -232,4 +232,41 @@ describe('Pi peer-agent report extension', () => {
     expect(deliveredContent).toContain(`authored_by="${authoredBy}" author_kind="${authorKind}"`)
     extension.close()
   })
+
+  // Each live delivery offers every pending report, including the ones the Run started with.
+  it('sends each report once when live deliveries arrive before the session starts', async () => {
+    let sessionStart: (() => unknown) | undefined
+    const sendMessage = vi.fn()
+    const extension = createPeerAgentReportExtension({
+      runId: 'run-before-start',
+      pendingReports: [report],
+      onDelivered: vi.fn(),
+    })
+    await extension.factory(
+      fromPartial<ExtensionAPI>({
+        on: vi.fn((event: unknown, handler: unknown) => {
+          if (event === 'session_start' && typeof handler === 'function') {
+            sessionStart = () => handler({}, { sessionManager: { getEntries: () => [] } })
+          }
+        }),
+        sendMessage,
+      }),
+    )
+    const second = { ...report, reportId: 'report-second' }
+    const third = { ...report, reportId: 'report-third' }
+
+    deliverPeerAgentReports('run-before-start', [report, second])
+    deliverPeerAgentReports('run-before-start', [report, second, third])
+    expect(sendMessage).not.toHaveBeenCalled()
+    sessionStart?.()
+
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: { reportIds: ['report-worker', 'report-second', 'report-third'] },
+      }),
+      { deliverAs: 'steer', triggerTurn: false },
+    )
+    extension.close()
+  })
 })
