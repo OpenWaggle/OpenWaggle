@@ -28,8 +28,15 @@ const AGENT_MODELS: Readonly<Record<AgentLabel, SupportedModelId>> = {
   Advocate: ADVOCATE_MODEL,
   Critic: CRITIC_MODEL,
 }
-/** The built-in preset the seeded prompt started, shown as the chip on the user message. */
-const WAGGLE_INVOCATION = { presetId: 'debate', presetName: 'Debate', source: 'user' } as const
+/**
+ * The preset the seeded prompt started, shown as the chip on the user message: a project preset
+ * with its own agents, colours and models, not one of the built-in presets.
+ */
+const WAGGLE_INVOCATION = {
+  presetId: 'merge-review',
+  presetName: 'Merge Review',
+  source: 'user',
+} as const
 
 interface MarketingAssistantTurn {
   readonly id: string

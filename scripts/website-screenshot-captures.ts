@@ -86,8 +86,8 @@ import { captureVisualizationPrototype } from './website-screenshot-visualizatio
 import {
   captureContextMeter,
   captureWaggleConversation,
-  captureWaggleWindow,
   captureWaggleSettings,
+  captureWaggleWindow,
 } from './website-screenshot-waggle-captures'
 
 /** Every website image and the capture that makes it; the manifest's order is the run order. */

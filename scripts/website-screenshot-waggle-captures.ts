@@ -219,18 +219,19 @@ const FIRST_TURN_TOP_GAP_PX = 12
 
 /** Scrolls the transcript up just far enough that Turn 1's divider is in view, not cut. */
 async function showFirstTurn(page: Page) {
-  const label = page.getByText(/^Turn 1: Architect/).first()
+  const log = page.getByRole('log', { name: 'Chat messages' }).locator('visible=true').first()
+  const label = log.getByText(/^Turn 1: Architect/).first()
   await label.waitFor({ timeout: UI_TIMEOUT_MS })
-  await label.evaluate((element, gap) => {
-    let scroller = element.parentElement
-    while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
-      scroller = scroller.parentElement
-    }
-    if (!scroller) return
-    const offset =
-      element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - gap
-    if (offset < 0) scroller.scrollTop += offset
-  }, FIRST_TURN_TOP_GAP_PX)
+  const offset = (await regionOf(label)).y - (await regionOf(log)).y - FIRST_TURN_TOP_GAP_PX
+  if (offset < 0) {
+    await log.evaluate((scroller, by) => {
+      scroller.scrollTop += by
+    }, offset)
+  }
+  const shown = (await regionOf(label)).y - (await regionOf(log)).y
+  if (shown < FIRST_TURN_TOP_GAP_PX - 1) {
+    throw new Error(`Turn 1's divider is still cut off at the top of the transcript (${shown}px)`)
+  }
 }
 
 /**
