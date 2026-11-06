@@ -61,6 +61,7 @@ import {
   captureSettingsWorktrees,
 } from './website-screenshot-hive-captures'
 import type { WebsiteScreenshot } from './website-screenshot-manifest'
+import { capturePiSessionContinuePrompt } from './website-screenshot-pi-cli-captures'
 import {
   captureMcpServerDetail,
   captureMcpServerError,
@@ -151,4 +152,5 @@ export const CAPTURES: Readonly<
   'visualization-expanded.png': captureVisualizationExpanded,
   'visualization-prototype.png': captureVisualizationPrototype,
   'visualization-choice.png': captureVisualizationChoice,
+  'pi-session-continue-prompt.png': capturePiSessionContinuePrompt,
 }
