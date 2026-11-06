@@ -190,7 +190,7 @@ The parent hears about every result and every request for help as an update from
 | Update | Sent when |
 | --- | --- |
 | `ready_for_review` | The worker submits, or its run ends with a reply. |
-| `needs_attention` | The worker's run fails or is interrupted, or the worker sets `needs_attention` itself. |
+| `needs_attention` | The worker's run fails, is interrupted, or ends without a reply, or the worker sets `needs_attention` itself. |
 
 OpenWaggle starts that run only when all of these hold:
 
@@ -199,10 +199,11 @@ OpenWaggle starts that run only when all of these hold:
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.
 - Whoever started the parent's last run may still send it a message. A revoked CLI client profile, or one without `sessions:message`, gets no run.
+- The worker's own agent, or you in the app, made the change. A result or request for help that a CLI client profile sets for a worker reaches a running parent, but starts no run. The parent reads it at its next run.
 
-The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run did, or when that caller's ceiling is **Ask for approval** now. It is always a standard run, even when the last run was a Waggle. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
+The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run was started with **Ask for approval** for that run only, or when that caller's ceiling is **Ask for approval** now. It is always a standard run, even when the last run was a Waggle. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
 
-OpenWaggle checks these rules again just before the run starts, so a parent that got a run, a follow-up or was archived in the meantime is left alone. When the parent is itself a worker that asked its own parent for help, the run does not count as that parent's answer.
+OpenWaggle checks these rules again just before the run starts, so a parent that got a run, a follow-up or was archived in the meantime is left alone. When the parent is itself a worker that asked its own parent for help, the run does not count as that parent's answer. When the parent is itself a worker whose result waits for review, the run's reply, or a result it submits, replaces that result, and its own parent hears about it.
 
 Each update starts at most one run. If that run fails, OpenWaggle waits for the next update, or for you to send the parent a message, which also delivers the update. In the parent's transcript, the run starts with a **Hive · Worker updates arrived** line instead of a message from you. Several updates that arrive close together go into the same run.
 

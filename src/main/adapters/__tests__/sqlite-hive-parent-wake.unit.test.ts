@@ -209,4 +209,35 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
       afterFailed: undefined,
     })
   })
+
+  it('lets a woken Worker replace its unreviewed result, and only then', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* submit(3000, 'Still waiting for my own Worker.')
+        const unwoken = yield* submit(3100, 'Done after all.')
+        // The Host woke the Worker because its own Worker reported.
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (
+            ${'run-worker-wake'}, ${'session-worker'}, ${'active'},
+            ${JSON.stringify({ callerId: 'local-user', hiveWake: true })}, ${4000}, ${4000}
+          )
+        `
+        const woken = yield* submit(4100, 'All sub-tasks are done.')
+        return {
+          unwoken: unwoken.outcome,
+          woken: woken.outcome,
+          updates: yield* pendingUpdates(sql),
+        }
+      }),
+    )
+
+    expect(result.unwoken).toMatchObject({
+      effect: 'rejected',
+      code: 'delegation_not_contributable',
+    })
+    expect(result.woken).toMatchObject({ effect: 'delegation-updated', submissionRevision: 2 })
+    expect(result.updates.map((update) => update.summary)).toContain('All sub-tasks are done.')
+  })
 })

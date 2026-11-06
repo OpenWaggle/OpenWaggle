@@ -78,6 +78,30 @@ function loadContract(sql: SqlClient.SqlClient, delegationId: string) {
   `.pipe(Effect.map((rows) => rows[0]))
 }
 
+/**
+ * A Worker whose result waits for review may replace it during a Hive wake that started after
+ * it: its own Workers reported, and the parent must hear the outcome (see Worker settlement).
+ */
+function wokenAfterResult(sql: SqlClient.SqlClient, contract: DelegationContractRow) {
+  if (contract.state !== 'ready_for_review') return Effect.succeed(false)
+  return sql<{ readonly woken: number }>`
+    SELECT EXISTS (
+      SELECT 1 FROM session_runs AS runs
+      WHERE runs.id = (
+          SELECT latest.id FROM session_runs AS latest
+          WHERE latest.session_id = ${contract.child_session_id}
+          ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
+        )
+        AND runs.status IN (${'starting'}, ${'active'})
+        AND json_extract(runs.intent_json, '$.hiveWake') = 1
+        AND runs.created_at > COALESCE(
+          (SELECT MAX(created_at) FROM delegation_submissions WHERE delegation_id = ${contract.id}),
+          0
+        )
+    ) AS woken
+  `.pipe(Effect.map((rows) => rows[0]?.woken === 1))
+}
+
 function submitDelegation(
   sql: SqlClient.SqlClient,
   input: ExecuteDelegationInput,
@@ -89,9 +113,10 @@ function submitDelegation(
     if (command.sessionId !== contract.child_session_id) {
       return rejectedDelegationOutcome(input, 'worker_required')
     }
-    if (!['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state)) {
-      return rejectedDelegationOutcome(input, 'delegation_not_contributable')
-    }
+    const contributable =
+      ['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state) ||
+      (yield* wokenAfterResult(sql, contract))
+    if (!contributable) return rejectedDelegationOutcome(input, 'delegation_not_contributable')
     if (command.summary.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'submission_empty')
     }

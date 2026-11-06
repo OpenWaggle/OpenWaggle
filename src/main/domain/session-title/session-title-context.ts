@@ -30,7 +30,6 @@ const SECTION_SEPARATOR_LENGTH = 2
 const OMITTED = '[Earlier content truncated]\n\n'
 const RECENT_ATTACHMENT_LIMIT = 4
 
-/** Reasoning and tool traces are working notes, not what the Session is about, so they are dropped. */
 /**
  * The messages a title is made from. A Hive wake notice sits where a user message would, but the
  * Host wrote it, so it neither names the Session nor counts as the user's next message.
@@ -39,6 +38,7 @@ export function titleSourceMessages(messages: readonly Message[]) {
   return messages.filter((message) => !message.metadata?.hiveWake)
 }
 
+/** Reasoning and tool traces are working notes, not what the Session is about, so they are dropped. */
 export function toSessionTitleContextMessage(message: Message): SessionTitleContextMessage {
   return {
     role: message.role,

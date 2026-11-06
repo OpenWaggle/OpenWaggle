@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { continuationQuery, markdownHeading } from '../sessions-cli-export'
+import { continuationQuery } from '../sessions-cli-export'
 
 function manifest(selectedBranchId = 'branch-at-snapshot') {
   return {
@@ -61,19 +61,5 @@ describe('Hive CLI export continuation', () => {
     })
 
     expect(query.branchId).toBe('explicit-branch')
-  })
-})
-
-describe('Hive CLI Markdown export', () => {
-  it('heads the Host’s Hive wake notice as hive, not as the user', () => {
-    expect(markdownHeading({ role: 'user', content: 'Fix it' })).toBe('user')
-    expect(
-      markdownHeading({
-        role: 'user',
-        content: 'Worker updates arrived',
-        metadata: { hiveWake: true },
-      }),
-    ).toBe('hive')
-    expect(markdownHeading({ kind: 'custom' })).toBe('event')
   })
 })

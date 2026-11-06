@@ -4,6 +4,10 @@ import type {
   SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
+import {
+  isLocalUserCallerId,
+  parseSessionAgentCallerId,
+} from '../domain/session-control/root-session-project-reach'
 import { isHiveAgentCaller } from '../ports/hive-worker-cleanup-repository'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
@@ -51,10 +55,24 @@ function cleanupParentForTerminalDelegation(
 function notifiedParentForWorkerChange(response: SessionControlMutationResponse) {
   const outcome = response.outcome
   if (response.replayed || outcome.effect !== 'delegation-updated') return undefined
-  if (outcome.operation === 'delegation-submit') return outcome.parentSessionId
-  return outcome.operation === 'delegation-state' && outcome.delegationState === 'needs_attention'
-    ? outcome.parentSessionId
+  const notifies =
+    outcome.operation === 'delegation-submit' ||
+    (outcome.operation === 'delegation-state' && outcome.delegationState === 'needs_attention')
+  return notifies
+    ? { parentSessionId: outcome.parentSessionId, workerSessionId: outcome.workerSessionId }
     : undefined
+}
+
+/**
+ * Whether this caller's change may wake the parent: the Worker's own agent, or the desktop user.
+ * A CLI client profile may contribute to a Worker's Delegation without any right to start Runs
+ * on its parent, so its change reaches a running parent and waits for the next Run otherwise.
+ */
+function mayWakeParent(callerId: string, workerSessionId: string) {
+  return (
+    isLocalUserCallerId(callerId) ||
+    parseSessionAgentCallerId(callerId)?.sessionId === workerSessionId
+  )
 }
 
 export function executeSessionDelegationMutation(input: {
@@ -82,8 +100,14 @@ export function executeSessionDelegationMutation(input: {
       request: input.request,
       response,
     })
-    const notifiedParent = notifiedParentForWorkerChange(response)
-    if (notifiedParent) yield* notifyParentOfOrchestrationUpdates(notifiedParent)
+    const notified = notifiedParentForWorkerChange(response)
+    if (notified) {
+      yield* mayWakeParent(input.callerId, notified.workerSessionId)
+        ? notifyParentOfOrchestrationUpdates(notified.parentSessionId)
+        : delivery
+            .deliverPendingToActiveRun({ parentSessionId: notified.parentSessionId })
+            .pipe(Effect.catchAll(() => Effect.succeed(false)))
+    }
     const parentSessionId = cleanupParentForTerminalDelegation(input.callerId, response)
     if (parentSessionId) {
       // Hive cleanup trigger: the parent agent accepted or cancelled a Worker's Delegation. A
