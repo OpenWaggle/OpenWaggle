@@ -3,11 +3,11 @@
 
 # @openwaggle/waggle-core
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/waggle-core?color=f5a623)](https://www.npmjs.com/package/@openwaggle/waggle-core) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/waggle-core/0.1/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/waggle-core?color=f5a623)](https://www.npmjs.com/package/@openwaggle/waggle-core) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/waggle-core/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
 
 Runtime-neutral Waggle policy, prompts, state, presets, and turn orchestration primitives.
 
-[Full documentation](https://openwaggle.ai/docs/packages/waggle-core/0.1/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
+[Full documentation](https://openwaggle.ai/docs/packages/waggle-core/0.2/) · [OpenWaggle](https://openwaggle.ai/) · [Issues](https://github.com/OpenWaggle/OpenWaggle/issues)
 
 `@openwaggle/waggle-core` contains the reusable Waggle policy layer.
 
@@ -61,6 +61,7 @@ Supported public subpaths include:
 | `@openwaggle/waggle-core/config` | Waggle config types, constants, and parsing helpers. |
 | `@openwaggle/waggle-core/presets` | Built-in presets and preset merge helpers. |
 | `@openwaggle/waggle-core/prompts` | Prompt construction helpers. |
+| `@openwaggle/waggle-core/state` | Run state that records the current and completed turns. |
 | `@openwaggle/waggle-core/turn-policy` | Turn ownership and next-turn decisions. |
 | `@openwaggle/waggle-core/consensus` | Consensus result helpers. |
 | `@openwaggle/waggle-core/events` | Runtime-neutral event metadata helpers. |
@@ -134,7 +135,9 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 }
 ```
 
-`decideNextWaggleTurn` stops when consensus is reached, a terminal error is reported, or `stop.maxTurnsSafety` would be exceeded.
+`decideNextWaggleTurn` stops when consensus is reached, a terminal error is reported, or `stop.maxTurnsSafety` would be exceeded. `parseWaggleConfig` accepts a `stop.maxTurnsSafety` that is a whole number from 1 to 100.
+
+To keep a record of the run, `startWaggleRun` from `@openwaggle/waggle-core/state` creates the run state, and `completeWaggleTurn` records each finished turn and applies the same stop rules.
 
 ## Runtime boundary
 
@@ -147,11 +150,11 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 | Node.js | 22.19 and newer |
 | Runtime | Browser-safe or server-side JavaScript |
 | Module format | ESM and CommonJS |
-| Waggle documentation | 0.1 |
+| Waggle documentation | 0.2 |
 
 ## Reference and support
 
-- [Complete API reference](https://openwaggle.ai/docs/packages/waggle-core/0.1/api-reference/)
+- [Complete API reference](https://openwaggle.ai/docs/packages/waggle-core/0.2/api-reference/)
 - [npm package](https://www.npmjs.com/package/@openwaggle/waggle-core)
 - [Package changelog](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/waggle-core/CHANGELOG.md)
 - [Report an issue](https://github.com/OpenWaggle/OpenWaggle/issues/new)
@@ -164,7 +167,11 @@ export function nextPrompt(config: WaggleConfig, userPrompt: string, turnNumber:
 
 **Turn execution does not stop.** Always honor both the primary stop policy and `maxTurnsSafety`. The safety limit is the final guard against an endless loop.
 
-There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.
+## Migrating from 0.1
+
+Version 0.2 has the same API as 0.1, so code written for 0.1 works without changes. The new line comes from a build change. The package is now compiled with TypeScript 7.
+
+`@openwaggle/pi-waggle` 0.2 depends on `@openwaggle/waggle-core` 0.2. If you install both, upgrade them together.
 
 ## License
 

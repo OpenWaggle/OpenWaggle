@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/extension-react"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/extension-react/0.1/",
+  "homepage": "https://openwaggle.ai/docs/packages/extension-react/0.2/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },
