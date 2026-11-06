@@ -91,9 +91,8 @@ describe('Session Control Run coordinator settlement event', () => {
     })
   })
 
-  // The Host follows whoever started the Worker Run (hive-wake-trigger-authority.ts).
-  it('asks for a wake of an idle parent as the settled Worker Run’s agent', async () => {
-    const callerId = 'profile:cli'
+  it('asks for a wake of an idle parent when a Worker Run’s end recorded an update', async () => {
+    const callerId = 'session-agent:queen:run-q'
     const requested: unknown[] = []
     const delivered: string[] = []
     const release = installHiveParentWakeHandler((request) => requested.push(request))
@@ -161,9 +160,6 @@ describe('Session Control Run coordinator settlement event', () => {
 
     // A running parent receives the update either way.
     expect(delivered).toEqual(['queen'])
-    expect(requested).toContainEqual({
-      parentSessionId: 'queen',
-      triggerCallerId: 'session-agent:worker:run-worker',
-    })
+    expect(requested).toContainEqual({ parentSessionId: 'queen' })
   })
 })

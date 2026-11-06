@@ -6,14 +6,7 @@ import type { HiveParentWakeQuery } from '../ports/session-orchestration-update-
  * Asking for a Hive wake (`hive-parent-wake.ts`). Kept apart from the wake itself, which starts
  * Runs through Session Control, so Run coordination can ask without importing that module.
  */
-export type HiveParentWakeRequest = HiveParentWakeQuery & {
-  /**
-   * Who caused the Worker change asking for this wake. The Host wakes the parent only if that
-   * caller's CLI client profiles are behind the parent's latest Run too
-   * (`hive-wake-trigger-authority.ts`). Absent when the Host itself asks (a Run settled).
-   */
-  readonly triggerCallerId?: string
-}
+export type HiveParentWakeRequest = HiveParentWakeQuery
 
 let installedHandler: ((request: HiveParentWakeRequest) => void) | null = null
 
@@ -31,21 +24,14 @@ export function requestHiveParentWake(request: HiveParentWakeRequest) {
 }
 
 /**
- * A Worker update `triggerCallerId` caused was recorded for `parentSessionId`: deliver it to the
- * parent's active Run, or ask for a wake when no Run took it.
+ * A Worker update was recorded for `parentSessionId`: deliver it to the parent's active Run, or
+ * ask for a wake when no Run took it. The wake acts only on updates whose recorded cause may wake
+ * the parent (`sqlite-hive-wake-trigger-authority.ts`).
  */
-export function notifyParentOfOrchestrationUpdates(
-  parentSessionId: string,
-  triggerCallerId: string | undefined,
-) {
+export function notifyParentOfOrchestrationUpdates(parentSessionId: string) {
   return Effect.gen(function* () {
     const delivery = yield* SessionOrchestrationUpdateDeliveryService
     const delivered = yield* delivery.deliverPendingToActiveRun({ parentSessionId })
-    if (!delivered) {
-      yield* requestHiveParentWake({
-        parentSessionId,
-        ...(triggerCallerId === undefined ? {} : { triggerCallerId }),
-      })
-    }
+    if (!delivered) yield* requestHiveParentWake({ parentSessionId })
   })
 }

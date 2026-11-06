@@ -2,14 +2,10 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { type HiveParentWakeOutcome, wakeIdleParent } from '../application/hive-parent-wake'
-import {
-  type HiveParentWakeRequest,
-  installHiveParentWakeHandler,
-} from '../application/hive-parent-wake-request'
+import { installHiveParentWakeHandler } from '../application/hive-parent-wake-request'
 import { createLogger } from '../logger'
 import { resolveHiveWakeAuthority } from './hive-parent-wake-authority'
 import { createHiveParentWakeScheduler } from './hive-parent-wake-scheduler'
-import { workerChangeMayWakeParent } from './hive-wake-trigger-authority'
 
 const logger = createLogger('hive-parent-wake')
 
@@ -68,40 +64,6 @@ export const installHiveParentWake = Effect.gen(function* () {
         parentSessionId,
       }),
   })
-  // A Worker change someone caused wakes the parent only if they may (`hive-wake-trigger-
-  // authority.ts`); the Host's own requests (a Run settled) need no such check.
-  const request = (wake: HiveParentWakeRequest) => {
-    const { parentSessionId, triggerCallerId } = wake
-    if (triggerCallerId === undefined) {
-      scheduler.request({ parentSessionId })
-      return
-    }
-    Effect.runFork(
-      SqlClient.SqlClient.pipe(
-        Effect.flatMap((sql) =>
-          workerChangeMayWakeParent(sql, { parentSessionId, triggerCallerId }),
-        ),
-        Effect.tap((mayWake) =>
-          Effect.sync(() => {
-            if (mayWake) {
-              scheduler.request({ parentSessionId })
-              return
-            }
-            logger.info('A Worker update waits for the parent: its cause may not wake it', {
-              parentSessionId,
-            })
-          }),
-        ),
-        Effect.provide(context),
-        Effect.catchAllCause((cause) =>
-          Effect.sync(() => {
-            if (Cause.isInterruptedOnly(cause)) return
-            logger.warn('A Hive wake check failed', { parentSessionId, cause: Cause.pretty(cause) })
-          }),
-        ),
-      ),
-    )
-  }
-  const release = installHiveParentWakeHandler(request)
+  const release = installHiveParentWakeHandler(scheduler.request)
   yield* Effect.addFinalizer(() => Effect.sync(release))
 })

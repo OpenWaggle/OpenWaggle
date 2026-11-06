@@ -36,6 +36,11 @@ export interface HiveParentWakeCandidate {
   /** The latest Run's own Run mode override; the wake keeps it only when it narrows. */
   readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly piSessionFile: string | null
+  /**
+   * Who caused each pending update the wake would act on; null for one recorded before updates
+   * named their cause, which counts as the Host's own.
+   */
+  readonly triggerCallerIds: readonly (string | null)[]
 }
 
 export interface HiveParentWakeQuery {

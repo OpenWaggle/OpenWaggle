@@ -5,6 +5,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runHiveWakeTest } from '../../adapters/__tests__/sqlite-hive-parent-wake-test-support'
+import { HIVE_WAKE_CAUSE_MAY_NOT_WAKE } from '../../domain/session-control/hive-wake'
 import { resolveHiveWakeAuthority } from '../hive-parent-wake-authority'
 
 const PROFILE_CAPABILITIES = ['sessions:discover', 'sessions:read', 'sessions:message']
@@ -51,6 +52,7 @@ function wakeAuthorityFor(
       callerId,
       ...(runAuthorizationOverride ? { runAuthorizationOverride } : {}),
       piSessionFile: null,
+      triggerCallerIds: [null],
     })
   })
 }
@@ -138,5 +140,24 @@ describe('Hive wake authority', () => {
 
     // Follow-up delivery reads a missing source Session as revoked authority, and so does a wake.
     expect(authority).toEqual({ blocked: 'profile_revoked' })
+  })
+
+  it('refuses a wake whose every update came from a profile not behind the parent’s Run', async () => {
+    const authority = await runHiveWakeTest(
+      root,
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* wakeAuthorityFor(sql, 'local-user')
+        return yield* resolveHiveWakeAuthority(sql, {
+          parentSessionId: 'session-parent',
+          latestRunId: 'run-parent',
+          callerId: 'local-user',
+          piSessionFile: null,
+          triggerCallerIds: ['profile:other'],
+        })
+      }),
+    )
+
+    expect(authority).toEqual({ blocked: HIVE_WAKE_CAUSE_MAY_NOT_WAKE })
   })
 })

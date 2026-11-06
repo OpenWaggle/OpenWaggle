@@ -143,13 +143,11 @@ describe('Session Delegation service', () => {
     )
   }
 
-  // The Host decides from the caller whether the parent wakes (hive-wake-trigger-authority.ts).
-  it('asks for a wake of an idle parent, naming who submitted the result', async () => {
-    for (const callerId of ['session-agent:worker-1:run-w', 'local-user', 'profile:contributor']) {
-      expect(await submitByCaller(callerId)).toEqual({
-        wakes: [{ parentSessionId: 'queen', triggerCallerId: callerId }],
-        delivered: ['queen'],
-      })
-    }
+  // The wake decides from each update's recorded cause (sqlite-hive-wake-trigger-authority.ts).
+  it('asks for a wake of an idle parent for a submitted result', async () => {
+    expect(await submitByCaller('session-agent:worker-1:run-w')).toEqual({
+      wakes: [{ parentSessionId: 'queen' }],
+      delivered: ['queen'],
+    })
   })
 })

@@ -118,11 +118,7 @@ export function settleExternalSessionRun(input: {
       })
     }
     if (settlement.orchestrationUpdate) {
-      // The user ran it in the pi CLI: nobody else's change to check.
-      yield* notifyParentOfOrchestrationUpdates(
-        settlement.orchestrationUpdate.parentSessionId,
-        undefined,
-      )
+      yield* notifyParentOfOrchestrationUpdates(settlement.orchestrationUpdate.parentSessionId)
     }
     if (!settlement.scheduled) {
       yield* requestHiveWorkerCleanup(input.sessionId)

@@ -199,7 +199,7 @@ OpenWaggle starts that run only when all of these hold:
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.
 - Whoever started the parent's last run may still send it a message. A revoked CLI client profile, or one without `sessions:message`, gets no run.
-- A CLI client profile behind the update is also behind the parent's last run. That covers a result or request for help a profile sets for a worker, and everything in a worker run that a profile started, including a wake run that acts for a profile. Otherwise the update reaches a running parent but starts no run, and the parent reads it at its next run. A hive that a profile started still wakes its parent.
+- A CLI client profile or MCP client behind the update is also behind the parent's last run. That covers a result or request for help a profile sets for a worker, and everything in a worker run that a profile started, including a wake run that acts for a profile. Otherwise the update starts no run, even if it arrived while the parent was still running, and the parent reads it at its next run. A hive that a profile started still wakes its parent.
 
 The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run was started with **Ask for approval** for that run only, or when that caller's ceiling is **Ask for approval** now. It is always a standard run, even when the last run was a Waggle. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
 

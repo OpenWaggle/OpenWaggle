@@ -84,7 +84,7 @@ export function executeSessionDelegationMutation(input: {
     })
     const notifiedParent = notifiedParentForWorkerChange(response)
     if (notifiedParent) {
-      yield* notifyParentOfOrchestrationUpdates(notifiedParent, input.callerId)
+      yield* notifyParentOfOrchestrationUpdates(notifiedParent)
     }
     const parentSessionId = cleanupParentForTerminalDelegation(input.callerId, response)
     if (parentSessionId) {

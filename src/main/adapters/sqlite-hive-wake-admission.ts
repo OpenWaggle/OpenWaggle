@@ -4,6 +4,7 @@ import { HIVE_WAKE_NOT_NEEDED } from '../domain/session-control/hive-wake'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { messageCallerBlockReason } from './session-follow-up-authorization'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
+import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
 import { newRunAdmissionRefusal } from './sqlite-session-control-queue-delivery'
 
 /** Whether this decision starts a Host-authored Hive wake Run. */
@@ -15,7 +16,8 @@ export function startsHiveWake(state: SessionControlSessionState) {
  * A Hive wake checks its parent and its authority before it starts, but outside the mutation's
  * transaction. It starts only if both still hold inside it: the parent is idle, unarchived, with
  * no Follow-up and an unread update; its last Run's caller is still the wake's caller and may
- * still message it; and that Run asks for no wider mode than the wake carries.
+ * still message it; that Run asks for no wider mode than the wake carries; and an update it acts
+ * on has a cause that may wake the parent.
  */
 export function hiveWakeRefusal(
   sql: SqlClient.SqlClient,
@@ -34,6 +36,7 @@ export function hiveWakeRefusal(
     }
     const callerBlock = yield* messageCallerBlockReason(sql, sessionId, callerId)
     if (callerBlock) return callerBlock
+    if (!(yield* wakeCandidateMayWake(sql, candidate))) return HIVE_WAKE_NOT_NEEDED
     return yield* newRunAdmissionRefusal(sql, sessionId, hostRunCeiling)
   })
 }

@@ -13,8 +13,17 @@ import {
   parseSessionAgentCallerId,
 } from '../domain/session-control/root-session-project-reach'
 
-/** The CLI client profiles behind a caller: itself, or whoever started the Runs it acts in. */
+/**
+ * The external clients behind a caller (CLI client profiles and transient-authority MCP clients):
+ * itself, or whoever started the Runs it acts in.
+ */
 type Profiles = ReadonlySet<string>
+
+const TRANSIENT_MCP_CALLER_PREFIX = 'transient-mcp:'
+
+function isExternalClientCallerId(callerId: string) {
+  return isProfileCallerId(callerId) || callerId.startsWith(TRANSIENT_MCP_CALLER_PREFIX)
+}
 
 const NO_PROFILES: Profiles = new Set()
 /** A caller or Run the Host cannot identify. No other Run can lift it. */
@@ -23,7 +32,7 @@ const UNKNOWN: Profiles = new Set(['\u0000unknown'])
 function callerStep(callerId: string | null | undefined): RunVerdictStep<Profiles> {
   if (!callerId) return { verdict: UNKNOWN, followRuns: [] }
   if (isLocalUserCallerId(callerId)) return { verdict: NO_PROFILES, followRuns: [] }
-  if (isProfileCallerId(callerId)) return { verdict: new Set([callerId]), followRuns: [] }
+  if (isExternalClientCallerId(callerId)) return { verdict: new Set([callerId]), followRuns: [] }
   const agent = parseSessionAgentCallerId(callerId)
   return agent
     ? { verdict: NO_PROFILES, followRuns: [agent] }
@@ -57,8 +66,8 @@ function callerProfiles(sql: SqlClient.SqlClient, callerId: string | null | unde
 /**
  * Whether a Worker change by `triggerCallerId` (a result, a request for help, or a Worker Run
  * that ended) may wake its idle parent. The wake acts as the caller of the parent's latest Run, so
- * a CLI client profile behind the change, directly or through the Runs that led to it, must be
- * behind that Run too. A profile that may only contribute to a Worker, or message it, must not
+ * a CLI client profile (or transient-authority MCP client) behind the change, directly or through
+ * the Runs that led to it, must be behind that Run too. A profile that may only contribute to a Worker, or message it, must not
  * start Runs on the parent as someone else; a Hive the profile started still wakes its Queen.
  * Anything the Host cannot identify fails closed: the update then waits for the parent's next Run.
  */
@@ -80,4 +89,27 @@ export function workerChangeMayWakeParent(
     if (wake === UNKNOWN) return false
     return [...trigger].every((profile) => wake.has(profile))
   }).pipe(Effect.orElseSucceed(() => false))
+}
+
+/**
+ * Whether any update a wake would act on may wake the parent: one recorded before updates named
+ * their cause counts as the Host's own, and any other must pass `workerChangeMayWakeParent`. An
+ * update that cannot wake the parent still reaches its next Run.
+ */
+export function wakeCandidateMayWake(
+  sql: SqlClient.SqlClient,
+  candidate: {
+    readonly parentSessionId: string
+    readonly triggerCallerIds: readonly (string | null)[]
+  },
+) {
+  return Effect.gen(function* () {
+    if (candidate.triggerCallerIds.includes(null)) return true
+    for (const triggerCallerId of new Set(candidate.triggerCallerIds)) {
+      if (triggerCallerId === null) continue
+      const parentSessionId = candidate.parentSessionId
+      if (yield* workerChangeMayWakeParent(sql, { parentSessionId, triggerCallerId })) return true
+    }
+    return false
+  })
 }

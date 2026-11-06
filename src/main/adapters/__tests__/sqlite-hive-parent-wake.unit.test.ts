@@ -124,6 +124,8 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
         callerId: 'profile:cli',
         runAuthorizationOverride: 'ask-for-approval',
         piSessionFile: null,
+        // Who caused the update the wake would act on.
+        triggerCallerIds: ['session-agent:session-worker:run-worker'],
       },
     })
   })

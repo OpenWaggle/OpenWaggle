@@ -1,6 +1,5 @@
 import { RunId, type SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { sessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import {
   type SessionControlRunExecutionResult,
@@ -146,11 +145,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           })
         }
         if (settlement.orchestrationUpdate) {
-          // The Worker Run's own agent: the wake check follows whoever started that Run.
-          yield* notifyParentOfOrchestrationUpdates(
-            settlement.orchestrationUpdate.parentSessionId,
-            sessionAgentCallerId(input.sessionId, runId),
-          )
+          yield* notifyParentOfOrchestrationUpdates(settlement.orchestrationUpdate.parentSessionId)
         }
       }
       if (!settlement.accepted) return results

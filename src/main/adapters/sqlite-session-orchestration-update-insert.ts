@@ -13,6 +13,11 @@ export interface OrchestrationUpdateInsert {
   readonly state: 'ready_for_review' | 'needs_attention'
   readonly summary: string
   readonly now: number
+  /**
+   * Who caused the update (`hive-wake-trigger-authority.ts`): the caller of a Worker's own
+   * Delegation change, or the agent of the Worker Run whose end recorded it.
+   */
+  readonly triggerCallerId: string
 }
 
 /**
@@ -28,15 +33,17 @@ export function insertOrchestrationUpdate(
   return sql`
     INSERT INTO session_orchestration_updates (
       id, parent_session_id, worker_session_id, delegation_id, source_run_id,
-      state, summary, status, created_at
+      state, summary, status, created_at, trigger_caller_id
     ) VALUES (
       ${input.updateId}, ${input.parentSessionId}, ${input.workerSessionId},
       ${input.delegationId}, ${input.sourceRunId}, ${input.state},
-      ${input.summary.slice(0, ORCHESTRATION_UPDATE_SUMMARY_LIMIT)}, ${'pending'}, ${input.now}
+      ${input.summary.slice(0, ORCHESTRATION_UPDATE_SUMMARY_LIMIT)}, ${'pending'}, ${input.now},
+      ${input.triggerCallerId}
     )
     ON CONFLICT (delegation_id, source_run_id, state) DO UPDATE SET
       id = excluded.id,
       summary = excluded.summary,
+      trigger_caller_id = excluded.trigger_caller_id,
       status = ${'pending'},
       delivered_run_id = NULL,
       delivered_item_id = NULL,
@@ -62,6 +69,8 @@ export function recordWorkerOrchestrationUpdate(
     readonly cause: string
     readonly summary: string
     readonly now: number
+    /** The caller that made the change. */
+    readonly triggerCallerId: string
   },
 ) {
   return Effect.gen(function* () {
@@ -81,6 +90,7 @@ export function recordWorkerOrchestrationUpdate(
       state: input.state,
       summary: input.summary,
       now: input.now,
+      triggerCallerId: input.triggerCallerId,
     })
     return updateId
   })

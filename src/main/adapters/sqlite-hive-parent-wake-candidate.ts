@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { parseJsonUnknown } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
 import type {
@@ -11,6 +12,17 @@ interface WakeCandidateRow {
   readonly caller_id: string | null
   readonly run_authorization_override: string | null
   readonly pi_session_file: string | null
+  readonly trigger_caller_ids: string
+}
+
+/** The decoded causes; anything unreadable counts as one no wake may act on. */
+function triggerCallerIds(value: string): readonly (string | null)[] {
+  const decoded: unknown = parseJsonUnknown(value)
+  if (!Array.isArray(decoded)) return []
+  const entries: readonly unknown[] = decoded
+  return entries.map((entry): string | null =>
+    typeof entry === 'string' || entry === null ? entry : '',
+  )
 }
 
 function runAuthorizationOverride(value: string | null) {
@@ -34,7 +46,21 @@ export function selectHiveParentWakeCandidate(
       json_extract(latest.intent_json, '$.callerId') AS caller_id,
       json_extract(latest.intent_json, '$.runAuthorizationOverride')
         AS run_authorization_override,
-      sessions.pi_session_file
+      sessions.pi_session_file,
+      -- Who caused each update the wake would act on (sqlite-hive-wake-trigger-authority.ts).
+      (
+        SELECT json_group_array(updates.trigger_caller_id)
+        FROM session_orchestration_updates AS updates
+        WHERE updates.parent_session_id = sessions.id
+          AND updates.status = ${'pending'}
+          AND (
+            updates.created_at > latest.created_at
+            OR (
+              latest.status = ${'completed'}
+              AND json_extract(latest.intent_json, '$.hiveWake') IS NULL
+            )
+          )
+      ) AS trigger_caller_ids
     FROM sessions
     JOIN session_control_states AS states ON states.session_id = sessions.id
     JOIN session_runs AS latest ON latest.id = (
@@ -72,6 +98,7 @@ export function selectHiveParentWakeCandidate(
         callerId: row.caller_id,
         ...(override ? { runAuthorizationOverride: override } : {}),
         piSessionFile: row.pi_session_file,
+        triggerCallerIds: triggerCallerIds(row.trigger_caller_ids),
       }
     }),
   )

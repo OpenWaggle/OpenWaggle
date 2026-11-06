@@ -156,6 +156,7 @@ describe('Hive wake of an idle parent', () => {
         latestRunId: 'run-parent',
         callerId: 'local-user',
         piSessionFile: null,
+        triggerCallerIds: [null],
       },
     })
 
@@ -185,6 +186,7 @@ describe('Hive wake of an idle parent', () => {
       latestRunId: 'run-parent',
       callerId: 'profile:cli',
       piSessionFile: null,
+      triggerCallerIds: [null],
     }
     const clamped = harness({ candidate })
     const outcome = await Effect.runPromise(
@@ -231,6 +233,7 @@ describe('Hive wake of an idle parent', () => {
       latestRunId: 'run-parent',
       callerId: 'local-user',
       piSessionFile: null,
+      triggerCallerIds: [null],
     }
     const wake = (rejectWith: string) =>
       Effect.runPromise(
@@ -255,10 +258,10 @@ describe('Hive wake of an idle parent', () => {
       })
 
     await Effect.runPromise(
-      notifyParentOfOrchestrationUpdates(QUEEN, undefined).pipe(Effect.provide(delivery(true))),
+      notifyParentOfOrchestrationUpdates(QUEEN).pipe(Effect.provide(delivery(true))),
     )
     await Effect.runPromise(
-      notifyParentOfOrchestrationUpdates(QUEEN, undefined).pipe(Effect.provide(delivery(false))),
+      notifyParentOfOrchestrationUpdates(QUEEN).pipe(Effect.provide(delivery(false))),
     )
 
     expect(requests).toEqual([{ parentSessionId: QUEEN }])

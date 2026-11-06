@@ -72,8 +72,8 @@ describe('Scheduled task authority limits migration', () => {
     )
     const { APP_MIGRATIONS } = await import('../database-migrations')
     expect(SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION.id).toBe(86)
-    expect(APP_MIGRATIONS.at(-1)).toBe(SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(
+    expect(APP_MIGRATIONS.map(({ id }) => id)).toContain(86)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
       SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION.id,
     )
     const database = migratedDatabase()

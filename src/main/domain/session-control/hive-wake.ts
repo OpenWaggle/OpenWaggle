@@ -3,3 +3,9 @@
  * a Run, a Follow-up, or was archived after the Host checked it (`hive-parent-wake.ts`).
  */
 export const HIVE_WAKE_NOT_NEEDED = 'hive_wake_not_needed'
+
+/**
+ * Why a Hive wake did not start: every pending update it would act on came from a CLI client
+ * profile that is not behind the parent's latest Run, so the updates wait for its next Run.
+ */
+export const HIVE_WAKE_CAUSE_MAY_NOT_WAKE = 'hive_wake_cause_may_not_wake'

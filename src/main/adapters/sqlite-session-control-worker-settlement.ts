@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
+import { sessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { markRunFailedAttention } from './sqlite-delegation-attention'
 import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
@@ -96,6 +97,8 @@ function insertSettlementUpdate(
     state: input.state,
     summary: input.summary,
     now: input.now,
+    // The Worker Run's own agent: whoever started that Run caused its end.
+    triggerCallerId: sessionAgentCallerId(input.settlement.sessionId, input.settlement.runId),
   })
 }
 

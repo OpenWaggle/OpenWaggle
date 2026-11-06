@@ -153,6 +153,7 @@ function submitDelegation(
       cause: `submission-${revision}`,
       summary: command.summary,
       now: input.now,
+      triggerCallerId: input.callerId,
     })
     return updatedDelegationOutcome(input, contract, 'ready_for_review', revision)
   })
