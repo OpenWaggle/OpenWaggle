@@ -116,3 +116,37 @@ it('does not carry an aborted run’s messages into a later turn', async () => {
 
   expect(turns).toEqual([[answer]])
 })
+
+it('ends the loop when the host calls fail, so no later run is judged as a turn', async () => {
+  const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
+  const onTurnComplete = vi.fn((_input: PiWaggleTurnCompleteInput<null>) => ({ continue: true }))
+  const extension = createPiWaggleExtension({
+    config: {
+      mode: 'sequential',
+      agents: [
+        { label: 'A', model: 'p/a', roleDescription: 'A', color: 'blue' },
+        { label: 'B', model: 'p/b', roleDescription: 'B', color: 'amber' },
+      ],
+      stop: { primary: 'consensus', maxTurnsSafety: 4 },
+    },
+    createTurnMetadata: () => null,
+    onTurnComplete,
+    buildTurnMessage: () => ({ customType: 'turn', content: '', display: false }),
+  })
+  extension.factory(
+    fromPartial<ExtensionAPI>({
+      on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+        handlers.set(event, handler)
+      },
+    }),
+  )
+  const failure = new Error('The host could not start the next turn.')
+
+  extension.fail(failure)
+  await expect(extension.done).rejects.toBe(failure)
+
+  // The run Pi was already running settles after the failure. It is not a turn of the failed Waggle.
+  await handlers.get('agent_end')?.({ messages: [answer] }, {})
+  await handlers.get('agent_settled')?.({ type: 'agent_settled', aborted: false }, {})
+  expect(onTurnComplete).not.toHaveBeenCalled()
+})

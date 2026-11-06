@@ -239,3 +239,38 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-promote.ts "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
+
+  mark-release-tagged:
+    name: Mark the merged release PR as tagged
+    needs:
+      - release-plan
+      - publish
+    if: ${{ always() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Relabel the merged release PR from autorelease pending to tagged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.release-plan.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          # skip-github-release leaves Release Please's label untouched, and a merged release PR still
+          # labelled "autorelease: pending" makes every later Release Please run abort.
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          PULLS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA/pulls")
+          PR_NUMBER=$(jq -r 'map(select(.merged_at != null and .base.ref == "main" and .head.ref == "release-please--branches--main")) | first | .number // ""' <<<"$PULLS")
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No merged Release Please PR is associated with $SOURCE_SHA."
+            exit 1
+          fi
+          LABELS=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" --jq '.[].name')
+          if ! grep -Fxq "autorelease: tagged" <<<"$LABELS"; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=autorelease: tagged" > /dev/null
+          fi
+          if grep -Fxq "autorelease: pending" <<<"$LABELS"; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels/autorelease%3A%20pending" > /dev/null
+          fi
+          echo "Marked release PR #$PR_NUMBER as autorelease: tagged."

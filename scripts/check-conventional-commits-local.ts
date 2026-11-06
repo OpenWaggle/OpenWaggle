@@ -36,7 +36,13 @@ async function resolveLocalBaseline(): Promise<string | null> {
 
 async function main() {
   const baseline = await resolveLocalBaseline()
-  const result = await validateConventionalCommits(baseline === null ? {} : { baseline })
+  const result = await validateConventionalCommits({
+    ...(baseline === null ? {} : { baseline }),
+    missingReleaseHistory: 'skip',
+  })
+  for (const warning of result.releaseLineWarnings) {
+    console.warn(`Skipped the package documentation line check: ${warning}`)
+  }
 
   /*
    * An empty range without an explicit baseline means the validator could not scope this

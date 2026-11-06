@@ -33,6 +33,8 @@ export function enhanceDocsCodeCopy(
   let added = 0;
   for (const pre of root.querySelectorAll<HTMLPreElement>('.prose-docs pre')) {
     if (pre.parentElement?.classList.contains(`${CODE_COPY_CLASS}-wrap`)) continue;
+    // A live extension example renders its own code view, line numbers included. It is not a snippet to copy.
+    if (pre.closest('.ow-extension-root')) continue;
     const wrap = pre.ownerDocument.createElement('div');
     wrap.className = `${CODE_COPY_CLASS}-wrap`;
     pre.replaceWith(wrap);

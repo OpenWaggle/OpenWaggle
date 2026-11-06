@@ -24,11 +24,22 @@ export async function touchesPublishablePackage(input: {
   readonly fallbackBase: string
   readonly to: string
 }) {
+  return touchesPath({ ...input, path: PUBLISHABLE_PATH_PREFIX })
+}
+
+/** {@link touchesPublishablePackage} for one path, such as a single package directory. */
+export async function touchesPath(input: {
+  readonly base: string
+  readonly cwd: string
+  readonly fallbackBase: string
+  readonly path: string
+  readonly to: string
+}) {
   for (const base of [input.base, input.fallbackBase]) {
     try {
       const { stdout } = await execFile(
         'git',
-        ['diff', '--name-only', '-z', `${base}...${input.to}`, '--', PUBLISHABLE_PATH_PREFIX],
+        ['diff', '--name-only', '-z', `${base}...${input.to}`, '--', input.path],
         { cwd: input.cwd },
       )
       return stdout.split('\0').some((entry) => entry.length > 0)

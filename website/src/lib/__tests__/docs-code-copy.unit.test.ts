@@ -104,6 +104,12 @@ describe('docs code copy buttons', () => {
     expect(document.querySelectorAll(`.${CODE_COPY_CLASS}`)).toHaveLength(2);
   });
 
+  it('skips the code view inside a live extension example', () => {
+    document.body.innerHTML = `<article class="prose-docs"><pre><code>pnpm add x</code></pre><div class="ow-extension-root"><pre class="ow-syntax-block"><span>1</span>{}</pre></div></article>`;
+    expect(enhanceDocsCodeCopy(document, { writeText: vi.fn(async () => undefined) })).toBe(1);
+    expect(document.querySelector('.ow-extension-root .' + CODE_COPY_CLASS)).toBeNull();
+  });
+
   it('leaves blocks plain without the Clipboard API', () => {
     expect(enhanceDocsCodeCopy(document, undefined)).toBe(0);
     expect(document.querySelector(`.${CODE_COPY_CLASS}`)).toBeNull();

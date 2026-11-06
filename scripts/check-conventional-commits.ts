@@ -1,7 +1,9 @@
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
+import { type CommitSubject, readCommitSubjects } from './commit-subjects'
 import { isAncestor } from './git-ancestry'
 import { collectUpstreamUpdateMergeHashes } from './upstream-merge-attribution'
+import { checkPackageReleaseLines } from './package-release-lines'
 import { touchesPublishablePackage } from './publishable-package-diff'
 
 const execFile = promisify(execFileCallback)
@@ -12,25 +14,20 @@ const CONVENTIONAL_COMMIT_SUBJECT_PATTERN =
   /^(?:feat|fix|docs|test|chore|refactor|perf|ci|build|revert)(?:\([^()\r\n]+\))?!?: \S.*$/
 const PACKAGE_RELEASE_INTENT_PATTERN =
   /^(?:(?:feat|fix|revert)(?:\([^()\r\n]+\))?!?: \S.*|chore\(main\): release \S.*)$/
-const COMMIT_BODY_FIELD_OFFSET = 3
-const COMMIT_FIELD_COUNT = 4
-const COMMIT_PARENTS_FIELD_OFFSET = 1
-const COMMIT_SUBJECT_FIELD_OFFSET = 2
 const GIT_LOG_MAX_BUFFER_BYTES = 10 * 1024 * 1024
 const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
 
-export interface CommitSubject {
-  readonly body: string
-  readonly changedPaths: readonly string[]
-  readonly hash: string
-  readonly parentHashes: readonly string[]
-  readonly subject: string
-}
+export type { CommitSubject } from './commit-subjects'
 
 export interface ConventionalCommitValidationOptions {
   readonly baseline?: string
   readonly cwd?: string
   readonly from?: string
+  /**
+   * Whether a missing package tag or a shallow clone fails the package documentation line check.
+   * CI fetches full history and tags, so it fails there; the local pre-push check skips with a warning.
+   */
+  readonly missingReleaseHistory?: 'fail' | 'skip'
   readonly prTitle?: string
   readonly to?: string
 }
@@ -159,65 +156,6 @@ async function resolveEffectiveFrom(input: {
   return input.from
 }
 
-async function readCommitSubjects(cwd: string, from: string, to: string) {
-  const { stdout } = await execFile(
-    'git',
-    ['log', '--format=%H%x00%P%x00%s%x00%b%x00', `${from}..${to}`],
-    { cwd, maxBuffer: GIT_LOG_MAX_BUFFER_BYTES },
-  )
-  const fields = stdout.split('\0')
-  const commits: CommitSubject[] = []
-
-  for (let index = 0; index + COMMIT_BODY_FIELD_OFFSET < fields.length; index += COMMIT_FIELD_COUNT) {
-    const hash = fields[index]
-    const parents = fields[index + COMMIT_PARENTS_FIELD_OFFSET]
-    const subject = fields[index + COMMIT_SUBJECT_FIELD_OFFSET]
-    const body = fields[index + COMMIT_BODY_FIELD_OFFSET]
-
-    if (
-      hash === undefined ||
-      parents === undefined ||
-      subject === undefined ||
-      body === undefined ||
-      hash.length === 0
-    ) {
-      continue
-    }
-
-    const normalizedHash = hash.trim()
-    const parentHashes = parents.trim().split(' ').filter((parentHash) => parentHash.length > 0)
-    const firstParent = parentHashes[0]
-    const changedPathsArgs =
-      parentHashes.length > 1 && firstParent !== undefined
-        ? ['diff', '--no-renames', '--name-only', '-z', firstParent, normalizedHash]
-        : [
-            'diff-tree',
-            '--no-commit-id',
-            '--no-renames',
-            '--name-only',
-            '--root',
-            '-r',
-            '-z',
-            normalizedHash,
-          ]
-    const { stdout: changedPathsOutput } = await execFile(
-      'git',
-      changedPathsArgs,
-      { cwd, maxBuffer: GIT_LOG_MAX_BUFFER_BYTES },
-    )
-
-    commits.push({
-      body,
-      changedPaths: [...new Set(changedPathsOutput.split('\0').filter((entry) => entry.length > 0))],
-      hash: normalizedHash,
-      parentHashes,
-      subject,
-    })
-  }
-
-  return commits
-}
-
 /**
  * Merges in the range whose incoming parents are all already contained in the base ref.
  * See {@link isUpstreamUpdateMerge} for why those are exempt from the package rule.
@@ -284,14 +222,30 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
         ]
       : []
 
+  /*
+   * Release Please promotes pending package docs when a release opens a new major.minor line, and
+   * fails on its release branch after merge when they are missing. Predict that release from the
+   * same commits (and the title this pull request will be squashed under) and ask for the docs here.
+   */
+  const releaseLines = await checkPackageReleaseLines({
+    base: from,
+    cwd,
+    fallbackBase: effectiveFrom,
+    missingHistory: options.missingReleaseHistory ?? 'fail',
+    ...(options.prTitle === undefined ? {} : { prTitle: options.prTitle }),
+    to,
+  })
+
   return {
     commits,
     effectiveFrom,
+    releaseLineWarnings: releaseLines.skipped,
     to,
     violations: [
       ...validateConventionalCommitSubjects(commits, upstreamMergeHashes),
       ...prTitleViolations,
       ...packageReleaseIntentViolations,
+      ...releaseLines.violations,
     ],
   }
 }
