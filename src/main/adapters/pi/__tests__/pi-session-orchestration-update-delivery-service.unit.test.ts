@@ -86,5 +86,6 @@ describe('PiSessionOrchestrationUpdateDeliveryService', () => {
     })
 
     await expect(deliverPendingSpecifications()).resolves.toBe(false)
+    expect(mocks.deliverSpecifications).toHaveBeenCalledWith('run-worker')
   })
 })
