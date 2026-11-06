@@ -238,6 +238,30 @@ describe('GlobalCommandPalette Panels section', () => {
     expect(mocks.close).toHaveBeenCalled()
   })
 
+  it('exposes each section as a named group of options', async () => {
+    await renderPalette()
+
+    const listbox = screen.getByRole('listbox', { name: 'Commands' })
+    const panels = within(listbox).getByRole('group', { name: 'Panels' })
+    expect(within(panels).getByRole('option', { name: /^Notes/ })).toBeInTheDocument()
+  })
+
+  it('announces when no command matches the query', async () => {
+    await renderPalette()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Search commands' }), {
+      target: { value: 'zzz-no-such-command' },
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('No matching commands')
+    expect(
+      within(screen.getByRole('listbox', { name: 'Commands' })).queryAllByRole('option'),
+    ).toEqual([])
+    expect(screen.getByRole('combobox', { name: 'Search commands' })).not.toHaveAttribute(
+      'aria-activedescendant',
+    )
+  })
+
   it('opens the legacy route panel while no controller is registered', async () => {
     await renderPalette()
 

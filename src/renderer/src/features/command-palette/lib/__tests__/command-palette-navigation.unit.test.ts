@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { groupCommandPaletteItems } from '../command-palette-entries'
 import { firstEnabledCommandIndex, nextEnabledCommandIndex } from '../command-palette-navigation'
 
 const items = [{ disabled: true }, {}, { disabled: true }, {}]
@@ -20,5 +21,40 @@ describe('command palette navigation', () => {
     expect(firstEnabledCommandIndex(items)).toBe(1)
     expect(firstEnabledCommandIndex([{ disabled: true }])).toBe(0)
     expect(firstEnabledCommandIndex([])).toBe(0)
+  })
+})
+
+describe('groupCommandPaletteItems', () => {
+  const item = (id: string, section?: string) => ({
+    id,
+    label: id,
+    icon: null,
+    action: () => undefined,
+    ...(section ? { section } : {}),
+  })
+
+  it('groups consecutive items by section and keeps their list indices', () => {
+    const groups = groupCommandPaletteItems([
+      item('loose'),
+      item('a', 'Project actions'),
+      item('b', 'Project actions'),
+      item('c', 'View'),
+      item('d', 'configure'),
+    ])
+
+    expect(
+      groups.map((group) => ({
+        label: group.label,
+        indices: group.entries.map((entry) => entry.index),
+      })),
+    ).toEqual([
+      { label: undefined, indices: [0] },
+      { label: 'Project actions', indices: [1, 2] },
+      { label: 'View', indices: [3] },
+      // The slash menu's configure section has no visible header.
+      { label: undefined, indices: [4] },
+    ])
+    // Keys become DOM id fragments, so they must not carry the section's spaces.
+    for (const group of groups) expect(group.key).not.toMatch(/\s/)
   })
 })

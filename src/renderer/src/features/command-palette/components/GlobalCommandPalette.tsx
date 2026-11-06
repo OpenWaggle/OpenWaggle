@@ -36,7 +36,7 @@ import {
   showPanelSurface,
 } from '../lib/global-command-panel-items'
 import type { CommandPaletteItem } from '../model'
-import { CommandPaletteList } from './CommandPaletteList'
+import { CommandPaletteListbox } from './CommandPaletteListbox'
 
 function itemMatches(item: CommandPaletteItem, query: string) {
   const value = [item.label, item.description, item.section, item.trailing]
@@ -191,7 +191,7 @@ export function GlobalCommandPalette({
           className="h-12 px-0 text-sm"
         />
       </div>
-      <CommandPaletteList
+      <CommandPaletteListbox
         items={items}
         highlightIndex={boundedHighlightIndex}
         onHighlightIndexChange={setHighlightIndex}

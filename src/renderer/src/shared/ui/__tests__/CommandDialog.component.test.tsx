@@ -57,6 +57,60 @@ describe('CommandDialog', () => {
     expect(opener).toHaveFocus()
   })
 
+  it('returns focus to the first opener when one dialog replaces another', () => {
+    function Surfaces({ surface }: { readonly surface: 'palette' | 'files' | null }) {
+      if (surface === 'palette')
+        return (
+          <CommandDialog key="palette" title="Commands" onClose={vi.fn()}>
+            <TextInput aria-label="Search commands" />
+          </CommandDialog>
+        )
+      if (surface === 'files')
+        return (
+          <CommandDialog key="files" title="Go to file" onClose={vi.fn()}>
+            <TextInput aria-label="Search files" />
+          </CommandDialog>
+        )
+      return null
+    }
+    render(<Button>Opener</Button>)
+    const opener = screen.getByRole('button', { name: 'Opener' })
+    opener.focus()
+    const { rerender } = render(<Surfaces surface="palette" />)
+    expect(screen.getByRole('textbox', { name: 'Search commands' })).toHaveFocus()
+
+    // The palette's "Go to file…" swaps the surfaces in one commit.
+    rerender(<Surfaces surface="files" />)
+    expect(screen.getByRole('textbox', { name: 'Search files' })).toHaveFocus()
+
+    rerender(<Surfaces surface={null} />)
+    expect(opener).toHaveFocus()
+  })
+
+  it('returns focus to the first opener when focus dropped before the next dialog mounted', () => {
+    render(<Button>Opener</Button>)
+    const opener = screen.getByRole('button', { name: 'Opener' })
+    opener.focus()
+    const palette = render(
+      <CommandDialog title="Commands" onClose={vi.fn()}>
+        <TextInput aria-label="Search commands" />
+      </CommandDialog>,
+    )
+    // Suspense hides the still-mounted palette while the next surface's chunk loads.
+    screen.getByRole('textbox', { name: 'Search commands' }).blur()
+    const files = render(
+      <CommandDialog title="Go to file" onClose={vi.fn()}>
+        <TextInput aria-label="Search files" />
+      </CommandDialog>,
+    )
+    palette.unmount()
+    expect(screen.getByRole('textbox', { name: 'Search files' })).toHaveFocus()
+
+    files.unmount()
+
+    expect(opener).toHaveFocus()
+  })
+
   it('offers an explicit backdrop control for pointer dismissal', () => {
     const onClose = vi.fn()
     render(
