@@ -19,6 +19,7 @@ import {
   markOrchestrationUpdatesDelivered,
   markReportsDelivered,
   markSpecificationUpdatesDelivered,
+  pendingUpdatesForRequestedWaggle,
 } from './session-control-run-context-delivery'
 import { publishRunFailure, publishRunStartFailure } from './session-control-run-result'
 import {
@@ -283,11 +284,10 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         // put on the branch counts as delivered once a Waggle model request sees it.
         authority: {
           ...authority,
-          // An unreadable list never fails a Run that succeeded: those updates stay pending and
-          // wake the parent once it settles.
-          orchestrationUpdates: yield* context.orchestration
-            .listPending({ parentSessionId: input.request.sessionId })
-            .pipe(Effect.orElseSucceed(() => [])),
+          orchestrationUpdates: yield* pendingUpdatesForRequestedWaggle(
+            context.orchestration,
+            input.request,
+          ),
           onOrchestrationUpdatesDelivered,
         },
       })

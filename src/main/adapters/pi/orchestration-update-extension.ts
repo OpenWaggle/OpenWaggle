@@ -72,7 +72,9 @@ export function createOrchestrationUpdateExtension(input: {
 
 /**
  * Delivers updates to the active Run of the Session. A Waggle the classic Run requested has its
- * own sink once the classic Run's has closed, so it reads an update that arrives meanwhile.
+ * own sink once the classic Run's has closed, so it reads an update that arrives meanwhile. One
+ * that arrives while the hand-off is still being set up finds no sink and wakes the parent once
+ * the Run settles.
  */
 export function deliverOrchestrationUpdates(
   runId: string,

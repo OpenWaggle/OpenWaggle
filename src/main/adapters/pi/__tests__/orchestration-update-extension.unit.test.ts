@@ -50,13 +50,14 @@ async function startRun(input: {
   readonly runId: string
   readonly branch: readonly SessionEntry[]
   readonly abandoned?: readonly SessionEntry[]
+  readonly pendingUpdates?: readonly (typeof updates)[number][]
 }) {
   const handlers = new Map<string, (event: unknown, context?: unknown) => unknown>()
   const sendMessage = vi.fn()
   const delivered = vi.fn()
   const extension = createOrchestrationUpdateExtension({
     runId: input.runId,
-    pendingUpdates: updates,
+    pendingUpdates: input.pendingUpdates ?? updates,
     onDelivered: delivered,
   })
   await extension.factory(
@@ -250,6 +251,26 @@ describe('Pi orchestration update extension', () => {
       expect.objectContaining({ details: { updateIds: ['update-1', 'update-2'] } }),
       { deliverAs: 'steer', triggerTurn: false },
     )
+    run.close()
+  })
+
+  // A Waggle that inherited no list (it could not be read) learns of an update already on the
+  // branch only from a later live delivery: it is acknowledged, never sent again.
+  it('does not send again a live update already on the branch', async () => {
+    const run = await startRun({
+      runId: 'run-live-on-branch',
+      branch: [persistedUpdate('pi-entry-final-turn', ['update-1'])],
+      pendingUpdates: [],
+    })
+
+    expect(deliverOrchestrationUpdates('run-live-on-branch', updates)).toBe(true)
+    expect(run.sendMessage).toHaveBeenCalledTimes(1)
+    expect(run.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ details: { updateIds: ['update-2'] } }),
+      { deliverAs: 'steer', triggerTurn: false },
+    )
+    run.handlers.get('turn_start')?.({})
+    expect(run.delivered).toHaveBeenCalledWith(['update-1'])
     run.close()
   })
 })

@@ -98,8 +98,22 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
     if (!onModelRequest) acknowledgePersisted(candidateIds)
   }
 
+  // Already on the branch (a retried Run, or an entry no request saw): never sent twice, and
+  // acknowledged with the rest at the next request.
+  const notOnBranch = (items: readonly Item[]) => {
+    if (!onModelRequest || !sessionManager || items.length === 0) return items
+    const persisted = persistedItemIds(sessionManager, input)
+    return items.filter((item) => {
+      const itemId = input.itemId(item)
+      if (!persisted.has(itemId)) return true
+      acceptedIds.add(itemId)
+      awaitingPersistence.add(itemId)
+      return false
+    })
+  }
+
   const deliver = (items: readonly Item[]) => {
-    const fresh = items.filter((item) => !acceptedIds.has(input.itemId(item)))
+    const fresh = notOnBranch(items.filter((item) => !acceptedIds.has(input.itemId(item))))
     if (fresh.length === 0) return
     const itemIds = fresh.map(input.itemId)
     for (const itemId of itemIds) {
@@ -123,18 +137,7 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
 
   input.pi.on('session_start', (_event, context) => {
     sessionManager = context.sessionManager
-    const pendingIds = input.pendingItems.map(input.itemId)
-    if (onModelRequest) {
-      // Already in the session (a retried Run, or an entry no request saw): never sent twice,
-      // and acknowledged with the rest at this Run's first request.
-      const persisted = persistedItemIds(context.sessionManager, input)
-      for (const itemId of pendingIds.filter((itemId) => persisted.has(itemId))) {
-        acceptedIds.add(itemId)
-        awaitingPersistence.add(itemId)
-      }
-    } else {
-      acknowledgePersisted(pendingIds)
-    }
+    if (!onModelRequest) acknowledgePersisted(input.pendingItems.map(input.itemId))
     deliver(input.pendingItems)
   })
   if (onModelRequest) {
