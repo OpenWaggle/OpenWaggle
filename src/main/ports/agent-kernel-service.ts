@@ -62,6 +62,8 @@ export interface AgentKernelRunInput {
   readonly runIdentityContext?: string
   /** The Scheduled task whose run sent this Run's request, recorded with its prompt message. */
   readonly scheduledTask?: MessageScheduledTaskOrigin
+  /** Prompt with the Host's Hive wake message instead of a user message (`hive-wake-prompt.ts`). */
+  readonly hiveWake?: true
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]

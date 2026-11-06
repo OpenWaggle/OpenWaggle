@@ -8,9 +8,10 @@ import {
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
 import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
-import { buildPiRunNewMessages } from '../pi-run-result'
+import { buildPiRunAssistantMessages, buildPiRunNewMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { createRunAttributionExtension } from '../run-attribution-extension'
+import { promptPiSessionForHiveWake } from './hive-wake-prompt'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { registerPiLiveRun } from './pi-live-run-registry'
 import { piResponseUsageInput } from './pi-response-usage'
@@ -203,8 +204,15 @@ export async function runPiSession(
     unsubscribe,
     abortWarning: 'Failed to abort Pi session cleanly',
     preAbortWarning: 'Failed to abort pre-cancelled Pi session cleanly',
-    operation: () => promptPiSession(session, model, input.payload, input.scheduledTask),
-    buildErrorMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
+    operation: () =>
+      input.hiveWake
+        ? promptPiSessionForHiveWake(session)
+        : promptPiSession(session, model, input.payload, input.scheduledTask),
+    // A Hive wake has no user message to show, even when its Run fails.
+    buildErrorMessages: (appended) =>
+      input.hiveWake
+        ? buildPiRunAssistantMessages(appended)
+        : buildPiRunNewMessages(input.payload, appended),
   }).finally(() => {
     inline.close()
     unregisterLiveRun()

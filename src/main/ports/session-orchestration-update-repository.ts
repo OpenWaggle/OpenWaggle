@@ -23,6 +23,25 @@ export interface PendingDelegationSpecificationUpdate {
   readonly createdAt: number
 }
 
+/**
+ * An idle parent the Host should wake because Worker updates reached it that it never acted on
+ * (`hive-parent-wake.ts`), with the caller its latest Run acted for, which the wake Run reuses.
+ */
+export interface HiveParentWakeCandidate {
+  readonly parentSessionId: string
+  readonly callerId: string
+  readonly piSessionFile: string | null
+}
+
+export interface HiveParentWakeQuery {
+  readonly parentSessionId: string
+  /**
+   * The parent Run that just settled and when its last turn ended. An update delivered to it
+   * after that moment reached a Run that had already answered, so it still needs a Run.
+   */
+  readonly settledRun?: { readonly runId: string; readonly terminalEventAt: number }
+}
+
 export interface SessionOrchestrationUpdateRepositoryShape {
   readonly listPending: (input: {
     readonly parentSessionId: string
@@ -40,6 +59,14 @@ export interface SessionOrchestrationUpdateRepositoryShape {
     readonly PendingDelegationSpecificationUpdate[],
     SessionControlRepositoryError
   >
+  /**
+   * The parent, if it is idle, not archived, has no queued Follow-up, its latest Run completed or
+   * failed (a stopped Run is the user's choice), and an update reached it that no Run acted on.
+   * Optional so test doubles that never wake keep compiling.
+   */
+  readonly parentWakeCandidate?: (
+    input: HiveParentWakeQuery,
+  ) => Effect.Effect<HiveParentWakeCandidate | undefined, SessionControlRepositoryError>
   readonly markSpecificationsDelivered: (input: {
     readonly updateIds: readonly string[]
     readonly workerSessionId: string

@@ -196,6 +196,8 @@ export function executeSessionControlMutation(input: {
   readonly authority?: LocalSessionProfileAuthority
   readonly hostRunCeiling?: number
   readonly request: SessionControlMutationRequest
+  /** A `start` the Host sends to wake an idle parent (`hive-parent-wake.ts`). */
+  readonly hiveWake?: true
 }): Effect.Effect<
   SessionControlMutationResponse,
   unknown,

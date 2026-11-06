@@ -13,6 +13,7 @@ function incorporatedUserMetadata(userMessage: AgentTransportUserMessage) {
     ...(userMessage.durableTextSha256 ? { durableTextSha256: userMessage.durableTextSha256 } : {}),
     ...(userMessage.waggleInvocation ? { waggleInvocation: userMessage.waggleInvocation } : {}),
     ...(userMessage.scheduledTask ? { scheduledTask: userMessage.scheduledTask } : {}),
+    ...(userMessage.hiveWake ? { hiveWake: true as const } : {}),
   }
 }
 

@@ -43,6 +43,8 @@ function resolveLastUserMessage(messages: UIMessage[]) {
   if (!lastUserMessage) {
     return null
   }
+  // A Hive wake row holds the Host's notice, not a request to send again.
+  if (lastUserMessage.metadata?.hiveWake) return null
 
   const textParts: string[] = []
   for (const part of lastUserMessage.parts) {

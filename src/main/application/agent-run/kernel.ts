@@ -50,6 +50,7 @@ function runContextOptions(input: AgentRunInput) {
       : {}),
     ...(input.runIdentityContext ? { runIdentityContext: input.runIdentityContext } : {}),
     ...(input.scheduledTask ? { scheduledTask: input.scheduledTask } : {}),
+    ...(input.hiveWake ? { hiveWake: input.hiveWake } : {}),
     ...runDeliveryContextOptions(input),
     ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),

@@ -63,7 +63,8 @@ function hasUIMetadata(metadata: MessageMetadata) {
     !metadata.waggleInvocation &&
     !metadata.visualizationSessionId &&
     !metadata.error &&
-    !metadata.scheduledTask
+    !metadata.scheduledTask &&
+    !metadata.hiveWake
   )
 }
 
@@ -82,6 +83,7 @@ function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMe
     ...(metadata.waggleInvocation ? { waggleInvocation: metadata.waggleInvocation } : {}),
     ...(metadata.error ? { error: metadata.error } : {}),
     ...(metadata.scheduledTask ? { scheduledTask: metadata.scheduledTask } : {}),
+    ...(metadata.hiveWake ? { hiveWake: true as const } : {}),
   }
 }
 

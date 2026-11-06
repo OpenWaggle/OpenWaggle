@@ -148,16 +148,20 @@ function interactionGuideline(permits: Permits) {
     .join(' ')
 }
 
+/** A parent need not stay in a Run to hear from its Workers (Hive wake, ADR 0030 amendment). */
+const IDLE_PARENT_WAKE =
+  'A Worker result or help request that arrives while you are idle starts a Run for you.'
+
 function delegationGuideline(permits: Permits) {
   const submits = permits('delegation_submit')
   const reviews = permits('delegation_accept') || permits('delegation_request_revision')
   if (submits && reviews) {
-    return 'Workers submit immutable Delegation results; parents request revision or accept an exact submission revision.'
+    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
   }
   if (submits)
     return 'Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision.'
   if (reviews)
-    return 'Workers submit immutable Delegation results; request revision or accept an exact submission revision.'
+    return `Workers submit immutable Delegation results; request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
   return undefined
 }
 

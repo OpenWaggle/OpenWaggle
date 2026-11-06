@@ -5,7 +5,7 @@
  * remaining vendor-free shared types.
  */
 
-import type { MessagePart, MessageScheduledTaskOrigin } from './agent'
+import type { MessageMetadata, MessagePart, MessageScheduledTaskOrigin } from './agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionKind,
@@ -149,7 +149,7 @@ export interface AgentTransportTurnEndEvent extends TransportEventBase {
  * Carries the same source-free display parts and identity the persisted user node projects, never
  * Pi's model input (synthesized attachment text or image payloads).
  */
-export interface AgentTransportUserMessage {
+export interface AgentTransportUserMessage extends Pick<MessageMetadata, 'hiveWake'> {
   readonly parts: readonly MessagePart[]
   /** Native Session log order the user node is appended at, as `MessageMetadata` carries it. */
   readonly sessionNodeCreatedOrder: number
