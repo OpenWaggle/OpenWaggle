@@ -308,23 +308,27 @@ export function createPiWaggleExtension<TMeta>(
   input: PiWaggleExtensionInput<TMeta>,
 ): PiWaggleExtensionController {
   const completion = createDeferred()
+  // Once the Waggle ends (it completes, fails, is stopped between turns, or the user aborts its run),
+  // no later run is one of its turns.
+  let ended = false
+  const end = () => {
+    ended = true
+    completion.resolve()
+  }
+  const fail = (error: unknown) => {
+    ended = true
+    completion.reject(error)
+  }
 
   return {
     done: completion.promise,
-    fail: completion.reject,
+    fail,
     factory: (pi) => {
-      // Once the Waggle ends (it completes, is stopped between turns, or the user aborts its run),
-      // no later run is one of its turns.
-      let ended = false
-      const end = () => {
-        ended = true
-        completion.resolve()
-      }
       registerPiWaggleLoop(
         {
           ...input,
           onComplete: end,
-          onError: completion.reject,
+          onError: fail,
         },
         {
           onAgentEnd: (handler) =>

@@ -96,6 +96,39 @@ describe('package release workflow validation', () => {
     )
   })
 
+  it('accepts the merged release PR relabel after promotion', async () => {
+    const result = await validatePackageReleaseFiles(await temporaryProject())
+
+    expect(result.violations).toEqual([])
+    expect(validWorkflow).toContain('  mark-release-tagged:\n')
+  })
+
+  it('rejects a workflow that leaves merged release PRs labelled autorelease: pending', async () => {
+    const start = validWorkflow.indexOf('\n  mark-release-tagged:\n')
+    expect(start).toBeGreaterThan(0)
+    const result = await validatePackageReleaseFiles(await temporaryProject(`${validWorkflow.slice(0, start)}\n`))
+
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+      '.github/workflows/package-release.yml must mark the merged release PR tagged only after promotion creates every tag.',
+      '.github/workflows/package-release.yml must relabel the merged release PR so later Release Please runs do not abort.',
+    ]))
+  })
+
+  it.each([
+    ['before promotion succeeds', "needs.publish.result == 'success'", "needs.release-plan.result == 'success'"],
+    ['without removing the pending label', 'labels/autorelease%3A%20pending', 'labels/autorelease%3A%20snoozed'],
+    ['without adding the tagged label', 'labels[]=autorelease: tagged', 'labels[]=autorelease: released'],
+  ])('rejects relabelling the merged release PR %s', async (_name, target, replacement) => {
+    const invalidWorkflow = replaceRequired(validWorkflow, target, replacement)
+    const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
+
+    expect(result.violations).toEqual(expect.arrayContaining([
+      '.github/workflows/package-release.yml must match its exact fail-closed AST contract.',
+    ]))
+    expect(result.violations.some((violation) => violation.includes('merged release PR'))).toBe(true)
+  })
+
   it('rejects release planning without its own exact Node 24.14.0 setup and version guard', async () => {
     const invalidWorkflow = replaceRequired(
       validWorkflow,

@@ -1,16 +1,15 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { developerDocsNav, docsNav } from '../../data/docs-nav';
+import { docsPageFiles } from './docs-page-files';
 
 // ADR 0061 and .agents/skills/write-docs/SKILL.md: guides teach a task, reference pages list exact
 // facts, overviews explain the model; screenshots appear once, without captions or numbered callouts;
 // user docs use plain words in lowercase. A page that genuinely needs a banned word lists it in a
 // `<!-- docs-style allow: word, other -->` comment, so the exception is visible in review.
 // Set DOCS_STYLE_ONLY=using-openwaggle/,reference/ to check only pages whose slug starts with one of them.
+// Pending package lines (src/content/package-docs-next/) are checked as `packages/<package>/next/<page>`,
+// because Release Please promotes them into the docs unchanged.
 
-const DOCS_ROOT = fileURLToPath(new URL('../../content/docs/', import.meta.url));
 const ONLY = (process.env.DOCS_STYLE_ONLY ?? '')
   .split(',')
   .map((prefix) => prefix.trim())
@@ -52,10 +51,8 @@ function splitPage(text: string) {
 }
 
 function pages(): DocPage[] {
-  return readdirSync(DOCS_ROOT, { recursive: true, encoding: 'utf8' })
-    .filter((file) => /\.mdx?$/u.test(file))
-    .map((file) => {
-      const text = readFileSync(join(DOCS_ROOT, file), 'utf8').replaceAll('\r\n', '\n');
+  return docsPageFiles()
+    .map(({ slug, text }) => {
       const { frontmatter, body, bodyLine } = splitPage(text);
       const allowed = new Set(
         [...body.matchAll(/<!-- docs-style allow: ([^>]*?) -->/gu)].flatMap(([, words = '']) =>
@@ -63,7 +60,7 @@ function pages(): DocPage[] {
         ),
       );
       return {
-        slug: file.replaceAll('\\', '/').replace(/\.mdx?$/u, ''),
+        slug,
         kind: /^kind: "?(\w+)"?$/mu.exec(frontmatter)?.[1] ?? '',
         body,
         bodyLine,

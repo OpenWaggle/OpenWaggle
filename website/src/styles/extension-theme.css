@@ -1,0 +1,85 @@
+/*
+ * Theme projection for the extension component catalogues.
+ *
+ * Inside OpenWaggle the host projects the extension theme onto every extension root. A docs page has
+ * no host, and @openwaggle/extension-react's stylesheet has no fallback values, so without this file
+ * every catalogue example renders unstyled. The declarations below are the SDK's default theme,
+ * exactly as extensionThemeCssVariableDeclarations() from @openwaggle/extension-sdk returns them.
+ * website/src/lib/__tests__/extension-theme-css.unit.test.ts fails when they drift.
+ */
+.prose-docs .ow-extension-root {
+  --ow-color-background: #141719;
+  --ow-color-surface: #1a1d22;
+  --ow-color-surface-raised: #20242b;
+  --ow-color-surface-hover: #262b33;
+  --ow-color-surface-active: #2b313a;
+  --ow-color-border: #1e2229;
+  --ow-color-border-strong: #2a3240;
+  --ow-color-text: #e7e9ee;
+  --ow-color-text-subtle: #c9cdd6;
+  --ow-color-text-muted: #9098a8;
+  --ow-color-text-dim: #8f98a8;
+  --ow-color-accent: #f5a623;
+  --ow-color-accent-dim: #d18a2c;
+  --ow-color-success: #4caf72;
+  --ow-color-danger: #ef4444;
+  --ow-color-danger-text: #f87171;
+  --ow-color-warning: #f97316;
+  --ow-color-info: #3b82f6;
+  --ow-color-info-text: #60a5fa;
+  --ow-color-review: #a78bfa;
+  --ow-color-plan: #e879f9;
+  --ow-color-progress: #7dd3fc;
+  --ow-color-neutral: #9098a8;
+  --ow-font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --ow-font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --ow-text-xs: 0.75rem;
+  --ow-text-xs--line-height: calc(1 / 0.75);
+  --ow-text-sm: 0.875rem;
+  --ow-text-sm--line-height: calc(1.25 / 0.875);
+  --ow-text-base: 1rem;
+  --ow-text-base--line-height: calc(1.5 / 1);
+  --ow-text-lg: 1.125rem;
+  --ow-text-lg--line-height: calc(1.75 / 1.125);
+  --ow-text-xl: 1.25rem;
+  --ow-text-xl--line-height: calc(1.75 / 1.25);
+  --ow-text-2xl: 1.5rem;
+  --ow-text-2xl--line-height: calc(2 / 1.5);
+  --ow-spacing: 0.25rem;
+  --ow-radius-xs: 0.125rem;
+  --ow-radius-sm: 0.25rem;
+  --ow-radius-md: 0.375rem;
+  --ow-radius-lg: 0.5rem;
+  --ow-radius-xl: 0.75rem;
+  --ow-radius-2xl: 1rem;
+  --ow-radius-3xl: 1.5rem;
+  --ow-radius-4xl: 2rem;
+  --ow-shadow-2xs: 0 1px rgb(0 0 0 / 0.05);
+  --ow-shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --ow-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --ow-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --ow-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --ow-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --ow-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --ow-focus-ring: transparent;
+  --ow-focus-shadow: none;
+}
+
+/*
+ * The published 0.1 catalogue puts the panel and stack classes on the root element itself. The
+ * current stylesheet only styles them beneath a root, so these two rules repeat its panel and stack
+ * layout for that markup.
+ */
+.prose-docs .ow-extension-root.ow-extension-panel {
+  background: var(--ow-color-surface);
+  border: 1px solid var(--ow-color-border);
+  border-radius: var(--ow-radius-3xl);
+  box-shadow: var(--ow-shadow-sm);
+  padding: calc(var(--ow-spacing) * 4);
+}
+
+.prose-docs .ow-extension-root.ow-extension-stack {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--ow-spacing) * 3);
+}

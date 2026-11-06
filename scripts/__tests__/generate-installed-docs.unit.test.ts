@@ -9,6 +9,17 @@ import {
   rewriteInstalledDocumentationLinks,
 } from '../installed-docs-generator'
 import { aliasesFor } from '../installed-docs-generator-model'
+import { documentationVersionFromPackageVersion } from '../package-documentation-model'
+
+/** The docs line a package alias resolves to: its manifest version's major.minor, which a release moves. */
+async function currentPackageLine(slug: string) {
+  const manifest: unknown = JSON.parse(
+    await lifecycleFs.readFile(lifecyclePath.join('packages', slug, 'package.json'), 'utf8'),
+  )
+  const version = typeof manifest === 'object' && manifest !== null && 'version' in manifest ? manifest.version : undefined
+  if (typeof version !== 'string') throw new Error(`packages/${slug}/package.json has no version.`)
+  return documentationVersionFromPackageVersion(version)
+}
 
 let tempDir = ''
 
@@ -162,9 +173,10 @@ describe('installed docs generator output', () => {
       'overview.md',
     )
     const packageOverview = await lifecycleFs.readFile(packageOverviewPath, 'utf8')
+    const sdkLine = await currentPackageLine('extension-sdk')
 
     expect(packageOverview).toContain(
-      '[`@openwaggle/extension-sdk`](./extension-sdk/0.1/index.md)',
+      `[\`@openwaggle/extension-sdk\`](./extension-sdk/${sdkLine}/index.md)`,
     )
     expect(packageOverview).toContain(
       '[OpenWaggle Extensions](../extending/openwaggle-extensions.md)',
@@ -175,7 +187,7 @@ describe('installed docs generator output', () => {
       lifecycleFs.stat(
         lifecyclePath.resolve(
           lifecyclePath.dirname(packageOverviewPath),
-          './extension-sdk/0.1/index.md',
+          `./extension-sdk/${sdkLine}/index.md`,
         ),
       ),
     ).resolves.toBeDefined()
