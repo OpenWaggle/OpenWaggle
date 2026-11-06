@@ -26,6 +26,11 @@ export function isProfileCallerId(callerId: string) {
 }
 
 /** The Session and Run of a `session-agent:<sessionId>:<runId>` caller, or undefined. */
+/** The caller id of a Session's agent acting in one of its Runs. */
+export function sessionAgentCallerId(sessionId: string, runId: string) {
+  return `${SESSION_AGENT_CALLER_PREFIX}${sessionId}:${runId}`
+}
+
 export function parseSessionAgentCallerId(callerId: string) {
   if (!callerId.startsWith(SESSION_AGENT_CALLER_PREFIX)) return undefined
   const separator = callerId.lastIndexOf(':')

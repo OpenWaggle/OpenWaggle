@@ -5,6 +5,7 @@ import type {
 } from '@shared/types/session-control'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
+import { sessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { createLogger } from '../logger'
 import { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
 import type { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
@@ -67,7 +68,10 @@ export function settleDeferredWorkerDelegationAfterQueueChange(
       })
     }
     if (update.orchestrationUpdate) {
-      yield* notifyParentOfOrchestrationUpdates(update.orchestrationUpdate.parentSessionId)
+      yield* notifyParentOfOrchestrationUpdates(
+        update.orchestrationUpdate.parentSessionId,
+        sessionAgentCallerId(sessionId, update.orchestrationUpdate.sourceRunId),
+      )
     }
     return true
   }).pipe(

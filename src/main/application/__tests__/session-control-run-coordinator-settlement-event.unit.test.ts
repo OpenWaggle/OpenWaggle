@@ -91,17 +91,12 @@ describe('Session Control Run coordinator settlement event', () => {
     })
   })
 
-  it.each([
-    { callerId: 'session-agent:queen:run-q', wakes: ['queen'] },
-    { callerId: 'local-user', wakes: ['queen'] },
-    // A CLI client profile may message a Worker without any right to start Runs on its parent.
-    { callerId: 'profile:cli', wakes: [] },
-  ])('lets a Worker Run $callerId started wake its parent: $wakes', async ({ callerId, wakes }) => {
-    const requested: string[] = []
+  // The Host follows whoever started the Worker Run (hive-wake-trigger-authority.ts).
+  it('asks for a wake of an idle parent as the settled Worker Run’s agent', async () => {
+    const callerId = 'profile:cli'
+    const requested: unknown[] = []
     const delivered: string[] = []
-    const release = installHiveParentWakeHandler((request) =>
-      requested.push(request.parentSessionId),
-    )
+    const release = installHiveParentWakeHandler((request) => requested.push(request))
     const layer = Layer.mergeAll(
       Layer.succeed(SessionControlIdentityService, {
         nextRunId: Effect.succeed(RunId('run-next')),
@@ -166,6 +161,9 @@ describe('Session Control Run coordinator settlement event', () => {
 
     // A running parent receives the update either way.
     expect(delivered).toEqual(['queen'])
-    expect(requested.filter((parentSessionId) => parentSessionId === 'queen')).toEqual(wakes)
+    expect(requested).toContainEqual({
+      parentSessionId: 'queen',
+      triggerCallerId: 'session-agent:worker:run-worker',
+    })
   })
 })

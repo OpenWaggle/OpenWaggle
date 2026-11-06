@@ -21,6 +21,8 @@ function settleWorkerRunAfterResult(
   file: string,
   input: {
     readonly hiveWake: boolean
+    /** How the unreviewed result came: the Host captured a reply, or the Worker submitted it. */
+    readonly resultProvenance?: 'host-captured' | 'agent-submitted'
     /** When the wake Run starts; the captured result is from 500. */
     readonly wakeStartedAt?: number
     readonly terminalStatus?: 'completed' | 'failed' | 'interrupted'
@@ -40,7 +42,7 @@ function settleWorkerRunAfterResult(
           provenance, created_at
         ) VALUES (
           ${'delegation-worker'}, ${1}, ${1}, ${'Still waiting for my Worker.'}, ${'session-host'},
-          ${'run-first'}, ${'host-captured'}, ${500}
+          ${'run-first'}, ${input.resultProvenance ?? 'host-captured'}, ${500}
         )
       `
       yield* sql`
@@ -160,5 +162,17 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
     })
 
     expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
+  })
+
+  it('keeps a result the Worker submitted itself through a wake that only replies', async () => {
+    const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'submitted.sqlite'), {
+      hiveWake: true,
+      resultProvenance: 'agent-submitted',
+      finalResponse: 'Noted; my result is already submitted.',
+    })
+
+    expect(result.state).toBe('ready_for_review')
+    expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
+    expect(result.updates).toEqual([])
   })
 })

@@ -81,9 +81,9 @@ describe('Session Delegation service', () => {
   })
 
   function submitByCaller(callerId: string) {
-    const wakes: string[] = []
+    const wakes: unknown[] = []
     const delivered: string[] = []
-    const release = installHiveParentWakeHandler((request) => wakes.push(request.parentSessionId))
+    const release = installHiveParentWakeHandler((request) => wakes.push(request))
     const request: SessionControlDelegationMutationRequest = {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
       requestId: 'request-submit',
@@ -143,19 +143,13 @@ describe('Session Delegation service', () => {
     )
   }
 
-  it('wakes the parent for a result an agent or the desktop user submitted', async () => {
-    expect(await submitByCaller('session-agent:worker-1:run-w')).toEqual({
-      wakes: ['queen'],
-      delivered: ['queen'],
-    })
-    expect(await submitByCaller('local-user')).toEqual({ wakes: ['queen'], delivered: ['queen'] })
-  })
-
-  it('never lets a CLI profile that may only contribute start a Run on the parent', async () => {
-    // It reaches a running parent, and waits for the parent's next Run otherwise.
-    expect(await submitByCaller('profile:contributor')).toEqual({
-      wakes: [],
-      delivered: ['queen'],
-    })
+  // The Host decides from the caller whether the parent wakes (hive-wake-trigger-authority.ts).
+  it('asks for a wake of an idle parent, naming who submitted the result', async () => {
+    for (const callerId of ['session-agent:worker-1:run-w', 'local-user', 'profile:contributor']) {
+      expect(await submitByCaller(callerId)).toEqual({
+        wakes: [{ parentSessionId: 'queen', triggerCallerId: callerId }],
+        delivered: ['queen'],
+      })
+    }
   })
 })

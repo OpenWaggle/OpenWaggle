@@ -181,6 +181,18 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
     })
   })
 
+  // The wake's own re-check is for the start it makes, not for whatever lands while it starts.
+  it('accepts a parent’s answer while a wake is still starting', async () => {
+    await prepareWorkerWithUnreadUpdate()
+    const woken = await wakeWorker('session-agent:queen:run-q', 'starting-wake')
+    expect(woken.outcome).toMatchObject({ effect: 'started-run' })
+
+    const answered = await withHost(() => message('session-agent:queen:run-q', 'parent-answers'))
+    expect(answered.outcome).toMatchObject({ effect: 'queued-follow-up' })
+    // That is the parent answering its Worker's request for help, not the wake.
+    expect(await withHost(readDelegation)).toMatchObject({ state: 'working', cause: null })
+  })
+
   it('refuses a wake whose caller is no longer the caller of the latest Run', async () => {
     await prepareWorkerWithUnreadUpdate()
     // The Host resolved its authority for another Run's caller than the one its start finds.

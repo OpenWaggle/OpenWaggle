@@ -255,10 +255,10 @@ describe('Hive wake of an idle parent', () => {
       })
 
     await Effect.runPromise(
-      notifyParentOfOrchestrationUpdates(QUEEN).pipe(Effect.provide(delivery(true))),
+      notifyParentOfOrchestrationUpdates(QUEEN, undefined).pipe(Effect.provide(delivery(true))),
     )
     await Effect.runPromise(
-      notifyParentOfOrchestrationUpdates(QUEEN).pipe(Effect.provide(delivery(false))),
+      notifyParentOfOrchestrationUpdates(QUEEN, undefined).pipe(Effect.provide(delivery(false))),
     )
 
     expect(requests).toEqual([{ parentSessionId: QUEEN }])

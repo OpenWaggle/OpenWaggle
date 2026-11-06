@@ -184,12 +184,13 @@ function executeMutation(
         const startsNewRun =
           decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
         const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
-        const refusal =
-          decision.accepted && startsHiveWake(decision.state)
-            ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
-            : startsNewRun
-              ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
-              : undefined
+        // This mutation starts the wake; any other one landing while a wake starts is ordinary.
+        const startsWake = startsNewRun && startsHiveWake(decision.state)
+        const refusal = startsWake
+          ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
+          : startsNewRun
+            ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
+            : undefined
         const admittedDecision = refusal
           ? ({
               accepted: false,
@@ -204,7 +205,7 @@ function executeMutation(
         if (admittedDecision.accepted) {
           yield* persistSessionControlState(sql, admittedDecision.state, now)
           // A Hive wake is the Host acting for the caller, not the parent answering a Worker.
-          if (!startsHiveWake(admittedDecision.state)) {
+          if (!startsWake) {
             yield* clearWorkerRequestOnParentDelivery(sql, {
               workerSessionId: targetScope,
               callerId: input.callerId,

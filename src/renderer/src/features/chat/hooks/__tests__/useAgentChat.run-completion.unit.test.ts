@@ -210,6 +210,38 @@ describe('useAgentChat run completions bound to their Run', () => {
     expect(isHiveWakeRunError(result.current.error)).toBe(true)
   })
 
+  it('shows no card for a wake the deleted Pi session file refused', async () => {
+    const { result } = renderChat()
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SESSION_ID,
+        event: { type: 'agent_start', runId: 'run-wake', model: MODEL, timestamp: 1 },
+      })
+      emitAgentEvent({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'agent_end',
+          runId: 'run-wake',
+          reason: 'error',
+          error: {
+            message:
+              "This Session's Pi session file was deleted outside OpenWaggle (/tmp/s.jsonl), so its history is gone and it cannot be continued.",
+          },
+          timestamp: 2,
+        },
+      })
+      emitRunCompleted({
+        sessionId: SESSION_ID,
+        runId: 'run-wake',
+        terminalStatus: 'failed',
+        hiveWake: true,
+      })
+    })
+
+    // The Session's notice says why; an error card would repeat it.
+    expect(result.current.error).toBeUndefined()
+  })
+
   it('leaves a failed Run the user started retryable', async () => {
     const { result } = renderChat()
     await act(async () => {

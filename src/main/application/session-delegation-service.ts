@@ -4,7 +4,6 @@ import type {
   SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
-import { workerChangeMayWakeParent } from '../domain/session-control/hive-wake'
 import { isHiveAgentCaller } from '../ports/hive-worker-cleanup-repository'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
@@ -85,9 +84,7 @@ export function executeSessionDelegationMutation(input: {
     })
     const notifiedParent = notifiedParentForWorkerChange(response)
     if (notifiedParent) {
-      yield* notifyParentOfOrchestrationUpdates(notifiedParent, {
-        mayWake: workerChangeMayWakeParent(input.callerId),
-      })
+      yield* notifyParentOfOrchestrationUpdates(notifiedParent, input.callerId)
     }
     const parentSessionId = cleanupParentForTerminalDelegation(input.callerId, response)
     if (parentSessionId) {

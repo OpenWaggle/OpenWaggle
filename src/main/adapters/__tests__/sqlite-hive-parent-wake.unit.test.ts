@@ -4,6 +4,10 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  requestedWaggleRunId,
+  sessionAgentCallerId,
+} from '../../domain/session-control/root-session-project-reach'
 import { SessionDelegationRepository } from '../../ports/session-delegation-repository'
 import { SessionOrchestrationUpdateRepository } from '../../ports/session-orchestration-update-repository'
 import {
@@ -227,12 +231,19 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
         // Only the wake Run's own agent may replace the result, not another contributor.
         const otherCaller = yield* submit(4050, 'Replaced by a client.', 'profile:contributor')
         const earlierRun = yield* submit(4060, 'Replaced by an old Run.')
+        // A Waggle the wake requested acts in the wake Run.
         const woken = yield* submit(
           4100,
           'All sub-tasks are done.',
+          sessionAgentCallerId('session-worker', requestedWaggleRunId('run-worker-wake')),
+        )
+        const again = yield* submit(
+          4200,
+          'Submitted twice.',
           'session-agent:session-worker:run-worker-wake',
         )
         return {
+          again: again.outcome,
           otherCaller: otherCaller.outcome,
           earlierRun: earlierRun.outcome,
           unwoken: unwoken.outcome,
@@ -246,7 +257,8 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
       effect: 'rejected',
       code: 'delegation_not_contributable',
     })
-    for (const refused of [result.otherCaller, result.earlierRun]) {
+    // One result per wake: the same Run's classic agent cannot submit over its Waggle's.
+    for (const refused of [result.otherCaller, result.earlierRun, result.again]) {
       expect(refused).toMatchObject({ effect: 'rejected', code: 'delegation_not_contributable' })
     }
     expect(result.woken).toMatchObject({ effect: 'delegation-updated', submissionRevision: 2 })
