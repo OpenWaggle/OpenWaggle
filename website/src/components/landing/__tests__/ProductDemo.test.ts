@@ -7,7 +7,7 @@ import ProductDemo from '../ProductDemo.astro';
 const VIEWS = ['hive', 'waggle', 'conversation', 'changes', 'browser'];
 const SCREENSHOTS = [
   'hive-sessions.png',
-  'session-tree-panel.png',
+  'feature-waggle.png',
   'feature-coding-agent.png',
   'feature-git-workflow.png',
   'feature-browser-preview.png',

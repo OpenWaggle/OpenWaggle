@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import { seedSingleSession } from './support/session-fixtures'
 
 export const PROJECT_NAME = 'OpenWaggle'
@@ -17,10 +18,22 @@ const FINAL_ADVOCATE_TURN_NUMBER = 4
 
 type AgentLabel = 'Advocate' | 'Critic'
 
+/**
+ * Each agent runs its own model. Waggle configs only accept provider-qualified model ids: a bare
+ * id fails the branch's config schema, and the transcript then drops every turn's attribution.
+ */
+const ADVOCATE_MODEL = SupportedModelId('anthropic/claude-opus-4-6')
+const CRITIC_MODEL = SupportedModelId('anthropic/claude-sonnet-4-6')
+const AGENT_MODELS: Readonly<Record<AgentLabel, SupportedModelId>> = {
+  Advocate: ADVOCATE_MODEL,
+  Critic: CRITIC_MODEL,
+}
+/** The built-in preset the seeded prompt started, shown as the chip on the user message. */
+const WAGGLE_INVOCATION = { presetId: 'debate', presetName: 'Debate', source: 'user' } as const
+
 interface MarketingAssistantTurn {
   readonly id: string
   readonly label: AgentLabel
-  readonly model: string
   readonly offsetMs: number
   readonly turnNumber: number
   readonly lines: readonly string[]
@@ -30,7 +43,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-1',
     label: 'Advocate',
-    model: 'claude-opus-4-6',
     offsetMs: OPENING_ADVOCATE_OFFSET_MS,
     turnNumber: 0,
     lines: [
@@ -54,7 +66,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-2',
     label: 'Critic',
-    model: 'claude-sonnet-4-6',
     offsetMs: FIRST_CRITIC_OFFSET_MS,
     turnNumber: 1,
     lines: [
@@ -72,7 +83,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-3',
     label: 'Advocate',
-    model: 'claude-opus-4-6',
     offsetMs: SECOND_ADVOCATE_OFFSET_MS,
     turnNumber: SECOND_ADVOCATE_TURN_NUMBER,
     lines: [
@@ -90,7 +100,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-4',
     label: 'Critic',
-    model: 'claude-sonnet-4-6',
     offsetMs: SECOND_CRITIC_OFFSET_MS,
     turnNumber: SECOND_CRITIC_TURN_NUMBER,
     lines: [
@@ -108,7 +117,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-5',
     label: 'Advocate',
-    model: 'claude-opus-4-6',
     offsetMs: FINAL_ADVOCATE_OFFSET_MS,
     turnNumber: FINAL_ADVOCATE_TURN_NUMBER,
     lines: [
@@ -130,28 +138,53 @@ function makeWaggleMetadata(agentLabel: AgentLabel, turnNumber: number) {
     agentIndex: isAdvocate ? 0 : 1,
     agentLabel,
     agentColor: isAdvocate ? 'blue' : 'amber',
-    agentModel: isAdvocate ? 'claude-opus-4-6' : 'claude-sonnet-4-6',
+    agentModel: AGENT_MODELS[agentLabel],
     turnNumber,
   }
 }
 
-function buildMarketingMessages(now: number) {
-  return [
+/** The seeded branch's Waggle config, as the Waggle Mode editor would save it. */
+export const MARKETING_WAGGLE_CONFIG = {
+  mode: 'sequential',
+  agents: [
     {
-      id: 'website-user-1',
-      role: 'user',
-      createdAt: now - USER_MESSAGE_OFFSET_MS,
-      parts: [{ type: 'text', text: THREAD_PROMPT }],
+      label: 'Advocate',
+      model: ADVOCATE_MODEL,
+      roleDescription: 'Argues for the strongest technical case',
+      color: 'blue',
     },
-    ...MARKETING_ASSISTANT_TURNS.map((turn) => ({
-      id: turn.id,
-      role: 'assistant',
-      model: turn.model,
-      createdAt: now - turn.offsetMs,
-      metadata: { waggle: makeWaggleMetadata(turn.label, turn.turnNumber) },
-      parts: [{ type: 'text', text: turn.lines.join('\n') }],
-    })),
-  ]
+    {
+      label: 'Critic',
+      model: CRITIC_MODEL,
+      roleDescription: 'Challenges assumptions and validates evidence',
+      color: 'amber',
+    },
+  ],
+  stop: {
+    primary: 'consensus',
+    maxTurnsSafety: WAGGLE_MAX_TURNS_SAFETY,
+  },
+}
+
+export function marketingPrompt(now: number) {
+  return {
+    id: 'website-user-1',
+    role: 'user',
+    createdAt: now - USER_MESSAGE_OFFSET_MS,
+    metadata: { waggleInvocation: WAGGLE_INVOCATION },
+    parts: [{ type: 'text', text: THREAD_PROMPT }],
+  }
+}
+
+export function marketingReplies(now: number) {
+  return MARKETING_ASSISTANT_TURNS.map((turn) => ({
+    id: turn.id,
+    role: 'assistant',
+    model: AGENT_MODELS[turn.label],
+    createdAt: now - turn.offsetMs,
+    metadata: { waggle: makeWaggleMetadata(turn.label, turn.turnNumber) },
+    parts: [{ type: 'text', text: turn.lines.join('\n') }],
+  }))
 }
 
 export async function seedMarketingSession(userDataDir: string, projectPath: string) {
@@ -162,28 +195,9 @@ export async function seedMarketingSession(userDataDir: string, projectPath: str
     title: THREAD_TITLE,
     projectPath,
     updatedAt: now,
-    waggleConfig: {
-      mode: 'sequential',
-      agents: [
-        {
-          label: 'Advocate',
-          model: 'claude-opus-4-6',
-          roleDescription: 'Argues for the strongest technical case',
-          color: 'blue',
-        },
-        {
-          label: 'Critic',
-          model: 'claude-sonnet-4-6',
-          roleDescription: 'Challenges assumptions and validates evidence',
-          color: 'amber',
-        },
-      ],
-      stop: {
-        primary: 'consensus',
-        maxTurnsSafety: WAGGLE_MAX_TURNS_SAFETY,
-      },
-    },
-    messages: buildMarketingMessages(now),
+    executionModel: ADVOCATE_MODEL,
+    waggleConfig: MARKETING_WAGGLE_CONFIG,
+    messages: [marketingPrompt(now), ...marketingReplies(now)],
   })
 }
 

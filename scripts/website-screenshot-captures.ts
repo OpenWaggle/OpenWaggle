@@ -86,6 +86,7 @@ import { captureVisualizationPrototype } from './website-screenshot-visualizatio
 import {
   captureContextMeter,
   captureWaggleConversation,
+  captureWaggleWindow,
   captureWaggleSettings,
 } from './website-screenshot-waggle-captures'
 
@@ -116,6 +117,7 @@ export const CAPTURES: Readonly<
   'settings-shortcuts.png': captureSettingsShortcuts,
   'settings-waggle-mode.png': captureWaggleSettings,
   'waggle-conversation.png': captureWaggleConversation,
+  'feature-waggle.png': captureWaggleWindow,
   'context-meter.png': captureContextMeter,
   'terminal-split-panes.png': captureTerminalSplitPanes,
   'terminal-add-to-chat.png': captureTerminalAddToChat,

@@ -31,6 +31,7 @@ export const WEBSITE_SCREENSHOTS = [
   'settings-shortcuts.png',
   'settings-waggle-mode.png',
   'waggle-conversation.png',
+  'feature-waggle.png',
   'context-meter.png',
   'terminal-split-panes.png',
   'terminal-add-to-chat.png',
