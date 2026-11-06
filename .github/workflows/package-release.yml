@@ -69,35 +69,49 @@ jobs:
           cache: pnpm
 
       - name: Synchronize versioned package documentation
+        id: docs
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
+          HUSKY: "0"
           RELEASE_PR_HEAD: ${{ steps.release-pr.outputs.head_branch }}
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile
           pnpm package-docs:update
-          if [ -z "$(git status --porcelain --untracked-files=all)" ]; then exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- packages website/src/content
-          git diff --cached --check
-          git commit -m "fix(packages): synchronize release documentation"
-          git push origin "HEAD:$RELEASE_PR_HEAD"
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A -- packages website/src/content
+            git diff --cached --check
+            git commit -m "fix(packages): synchronize release documentation"
+            git push origin "HEAD:$RELEASE_PR_HEAD"
+          fi
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Validate CI for the exact release PR head
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
+          EXPECTED_HEAD_SHA: ${{ steps.docs.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
           PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
           set -euo pipefail
           PR_NUMBER=$(jq -er '.number' <<<"$PR_JSON")
           EXPECTED_HEAD_REF=$(jq -er '.headBranchName' <<<"$PR_JSON")
-          PR_DETAILS=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
-          HEAD_REF=$(jq -er '.head.ref' <<<"$PR_DETAILS")
-          HEAD_SHA=$(jq -er '.head.sha' <<<"$PR_DETAILS")
-          test "$HEAD_REF" = "$EXPECTED_HEAD_REF"
-          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # The pull request API can still report the previous head for a few seconds after the
+          # documentation push, so wait until it reports the exact commit the previous step pushed or checked out.
+          HEAD_SHA=""
+          for HEAD_ATTEMPT in $(seq 1 24); do
+            PR_DETAILS=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+            HEAD_REF=$(jq -er '.head.ref' <<<"$PR_DETAILS")
+            HEAD_SHA=$(jq -er '.head.sha' <<<"$PR_DETAILS")
+            test "$HEAD_REF" = "$EXPECTED_HEAD_REF"
+            if [ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]; then break; fi
+            echo "Waiting for Release Please PR head $EXPECTED_HEAD_SHA; the API reports $HEAD_SHA (${HEAD_ATTEMPT}/24)."
+            sleep 5
+          done
+          test "$HEAD_SHA" = "$EXPECTED_HEAD_SHA"
 
           RUN_ID=""
           for RUN_ATTEMPT in $(seq 1 12); do
