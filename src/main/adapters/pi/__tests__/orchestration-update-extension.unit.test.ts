@@ -164,19 +164,57 @@ describe('Pi orchestration update extension', () => {
 
   // The Session's active Run is still the classic one, but its sink closed when the Waggle began.
   it('delivers to the Waggle a classic Run requested once the classic Run has ended', async () => {
-    const sendMessage = vi.fn()
-    const extension = createOrchestrationUpdateExtension({
-      runId: 'waggle-of-run-classic',
-      pendingUpdates: [],
-      onDelivered: vi.fn(),
-    })
-    await extension.factory(fromPartial<ExtensionAPI>({ on: vi.fn(), sendMessage }))
+    const run = await startRun({ runId: 'waggle-of-run-classic', branch: [], pendingUpdates: [] })
 
     expect(deliverOrchestrationUpdates('run-classic', updates)).toBe(true)
-    expect(sendMessage).toHaveBeenCalledWith(
+    expect(run.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ customType: 'openwaggle-orchestration-update' }),
       { deliverAs: 'steer', triggerTurn: false },
     )
+    run.close()
+  })
+
+  // Pi loads extensions well before it starts the session, and refuses messages until then.
+  it('takes no live update before the session starts', async () => {
+    const handlers = new Map<string, (event: unknown, context?: unknown) => unknown>()
+    // Pi's loader refuses messages until the runtime is bound.
+    let runtimeBound = false
+    const sendMessage = vi.fn(() => {
+      if (!runtimeBound) throw new Error('Extension runtime not initialized')
+    })
+    const delivered = vi.fn()
+    const extension = createOrchestrationUpdateExtension({
+      runId: 'run-before-start',
+      pendingUpdates: [],
+      onDelivered: delivered,
+    })
+    await extension.factory(
+      fromPartial<ExtensionAPI>({
+        on: vi.fn((event: string, handler: (event: unknown, context?: unknown) => unknown) => {
+          handlers.set(event, handler)
+        }),
+        sendMessage,
+      }),
+    )
+
+    expect(deliverOrchestrationUpdates('run-before-start', updates)).toBe(false)
+    expect(sendMessage).not.toHaveBeenCalled()
+
+    // The classic Run's final turn already put update-1 on the branch.
+    runtimeBound = true
+    handlers.get('session_start')?.(
+      {},
+      { sessionManager: sessionEntries([persistedUpdate('pi-entry-final-turn', ['update-1'])]) },
+    )
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(deliverOrchestrationUpdates('run-before-start', updates)).toBe(true)
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ details: { updateIds: ['update-2'] } }),
+      { deliverAs: 'steer', triggerTurn: false },
+    )
+    handlers.get('turn_start')?.({})
+    expect(delivered).toHaveBeenCalledWith(['update-1'])
     extension.close()
   })
 
@@ -258,18 +296,20 @@ describe('Pi orchestration update extension', () => {
   // branch only from a later live delivery: it is acknowledged, never sent again.
   it('does not send again a live update already on the branch', async () => {
     const run = await startRun({
-      runId: 'run-live-on-branch',
+      runId: 'waggle-of-run-classic',
       branch: [persistedUpdate('pi-entry-final-turn', ['update-1'])],
       pendingUpdates: [],
     })
 
-    expect(deliverOrchestrationUpdates('run-live-on-branch', updates)).toBe(true)
+    // The Session's active Run is still the classic one.
+    expect(deliverOrchestrationUpdates('run-classic', updates)).toBe(true)
     expect(run.sendMessage).toHaveBeenCalledTimes(1)
     expect(run.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ details: { updateIds: ['update-2'] } }),
       { deliverAs: 'steer', triggerTurn: false },
     )
     run.handlers.get('turn_start')?.({})
+    expect(run.delivered).toHaveBeenCalledTimes(1)
     expect(run.delivered).toHaveBeenCalledWith(['update-1'])
     run.close()
   })

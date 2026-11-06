@@ -17,14 +17,20 @@ export const PiSessionOrchestrationUpdateDeliveryServiceLive = Layer.effect(
           const active = activeRuns.get(SessionId(parentSessionId))
           if (!active) return false
           const updates = yield* repository.listPending({ parentSessionId })
-          return deliverOrchestrationUpdates(active.metadata.runId, updates)
+          // A throw from Pi is a failed delivery: the update stays pending and the parent is
+          // asked for a wake, instead of a defect in the command that recorded it.
+          return yield* Effect.try(() =>
+            deliverOrchestrationUpdates(active.metadata.runId, updates),
+          )
         }).pipe(Effect.catchAll(() => Effect.succeed(false))),
       deliverPendingSpecificationsToActiveRun: ({ workerSessionId }) =>
         Effect.gen(function* () {
           const active = activeRuns.get(SessionId(workerSessionId))
           if (!active) return false
           const updates = yield* repository.listPendingSpecifications({ workerSessionId })
-          return deliverDelegationSpecificationUpdates(active.metadata.runId, updates)
+          return yield* Effect.try(() =>
+            deliverDelegationSpecificationUpdates(active.metadata.runId, updates),
+          )
         }).pipe(Effect.catchAll(() => Effect.succeed(false))),
     })
   }),

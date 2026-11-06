@@ -7,6 +7,8 @@ const CUSTOM_TYPE = 'openwaggle-orchestration-update'
 
 interface LiveUpdateSink {
   readonly deliver: (updates: readonly PendingSessionOrchestrationUpdate[]) => void
+  /** Pi takes no message before it starts the session, nor for a Run whose session never did. */
+  readonly started: () => boolean
 }
 
 const liveSinks = new Map<string, LiveUpdateSink>()
@@ -51,6 +53,7 @@ function installLiveSink(
   })
   const sink: LiveUpdateSink = {
     deliver: delivery.deliver,
+    started: delivery.started,
   }
   liveSinks.set(runId, sink)
   return () => {
@@ -73,15 +76,16 @@ export function createOrchestrationUpdateExtension(input: {
 /**
  * Delivers updates to the active Run of the Session. A Waggle the classic Run requested has its
  * own sink once the classic Run's has closed, so it reads an update that arrives meanwhile. One
- * that arrives while the hand-off is still being set up finds no sink and wakes the parent once
- * the Run settles.
+ * that arrives before the Waggle's session starts finds no sink and wakes the parent once the
+ * Run settles.
  */
 export function deliverOrchestrationUpdates(
   runId: string,
   updates: readonly PendingSessionOrchestrationUpdate[],
 ) {
   const sink = liveSinks.get(runId) ?? liveSinks.get(requestedWaggleRunId(runId))
-  if (!sink) return false
+  // An update offered before the session starts stays pending and wakes the parent later.
+  if (!sink?.started()) return false
   sink.deliver(updates)
   return true
 }
