@@ -6,6 +6,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
 import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
+import { installModalDialogStub } from '@/test-utils/modal-dialog'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const NOTES = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
@@ -101,14 +102,14 @@ function sidePanelEntry(): ExtensionContributionRegistryEntry {
 async function renderPalette() {
   const { GlobalCommandPalette } = await import('../GlobalCommandPalette')
   renderWithQueryClient(<GlobalCommandPalette />)
-  await screen.findByRole('menuitem', { name: /Notes/ })
+  await screen.findByRole('option', { name: /Notes/ })
 }
 
 /** The built-in panels plus the one extension panel this test installs. */
 const PANEL_COUNT = 10
 
 function panelLabels() {
-  const items = screen.getAllByRole('menuitem')
+  const items = screen.getAllByRole('option')
   const first = items.findIndex((item) => within(item).queryByText('All panels') !== null)
   return items.slice(first, first + PANEL_COUNT).map((item) => item.textContent)
 }
@@ -125,12 +126,7 @@ describe('GlobalCommandPalette Panels section', () => {
   beforeAll(async () => {
     // The palette's module graph is large; load it once here instead of inside the first test.
     await import('../GlobalCommandPalette')
-    HTMLDialogElement.prototype.showModal ??= function showModal() {
-      this.setAttribute('open', '')
-    }
-    HTMLDialogElement.prototype.close ??= function close() {
-      this.removeAttribute('open')
-    }
+    installModalDialogStub()
     Element.prototype.scrollIntoView ??= function scrollIntoView() {}
   }, COLD_IMPORT_TIMEOUT_MS)
 
@@ -186,7 +182,7 @@ describe('GlobalCommandPalette Panels section', () => {
     unregister = registerRightPanelController(controller)
     await renderPalette()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Notes/ }))
+    fireEvent.click(screen.getByRole('option', { name: /^Notes/ }))
 
     expect(mocks.close).toHaveBeenCalled()
     expect(controller.showSurface).toHaveBeenCalledWith(NOTES)
@@ -197,18 +193,94 @@ describe('GlobalCommandPalette Panels section', () => {
     unregister = registerRightPanelController(controller)
     await renderPalette()
 
-    const search = screen.getByRole('textbox', { name: 'Search commands' })
+    const search = screen.getByRole('combobox', { name: 'Search commands' })
     fireEvent.change(search, { target: { value: 'session tree' } })
     fireEvent.keyDown(search, { key: 'Enter' })
 
     await waitFor(() => expect(controller.showSurface).toHaveBeenCalledWith('session-tree'))
   })
 
+  it('opens with the search focused and moves the highlight with the arrow keys', async () => {
+    unregister = registerRightPanelController(controller)
+    await renderPalette()
+
+    const search = screen.getByRole('combobox', { name: 'Search commands' })
+    await waitFor(() => expect(search).toHaveFocus())
+    fireEvent.change(search, { target: { value: 'panels' } })
+    const listbox = screen.getByRole('listbox', { name: 'Commands' })
+    expect(search).toHaveAttribute('aria-controls', listbox.id)
+
+    const options = within(listbox).getAllByRole('option')
+    expect(search).toHaveAttribute('aria-activedescendant', options[0]?.id)
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(search, { key: 'ArrowDown' })
+    expect(search).toHaveAttribute('aria-activedescendant', options[1]?.id)
+    fireEvent.keyDown(search, { key: 'ArrowUp' })
+    fireEvent.keyDown(search, { key: 'ArrowUp' })
+    // Wraps from the first option to the last.
+    expect(search).toHaveAttribute('aria-activedescendant', options.at(-1)?.id)
+    // Options stay out of the Tab order; focus remains in the search field.
+    for (const option of options) expect(option).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('points aria-activedescendant at the new top match while filtering', async () => {
+    await renderPalette()
+    const search = screen.getByRole('combobox', { name: 'Search commands' })
+
+    fireEvent.change(search, { target: { value: 'changes' } })
+    const changes = screen.getByRole('option', { name: /^Changes/ })
+    expect(search).toHaveAttribute('aria-activedescendant', changes.id)
+
+    fireEvent.change(search, { target: { value: 'notes' } })
+    const notes = screen.getByRole('option', { name: /^Notes/ })
+    expect(notes.id).not.toBe(changes.id)
+    expect(search).toHaveAttribute('aria-activedescendant', notes.id)
+  })
+
+  it('closes on Escape from the search field', async () => {
+    await renderPalette()
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search commands' }), {
+      key: 'Escape',
+    })
+
+    expect(mocks.close).toHaveBeenCalled()
+  })
+
+  it('exposes each section as a named group of options', async () => {
+    await renderPalette()
+
+    const listbox = screen.getByRole('listbox', { name: 'Commands' })
+    const panels = within(listbox).getByRole('group', { name: 'Panels' })
+    expect(within(panels).getByRole('option', { name: /^Notes/ })).toBeInTheDocument()
+  })
+
+  it('announces when no command matches the query', async () => {
+    await renderPalette()
+    // A live region announces changes only once it is already in the accessibility tree.
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Search commands' }), {
+      target: { value: 'zzz-no-such-command' },
+    })
+
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('No matching commands')
+    expect(
+      within(screen.getByRole('listbox', { name: 'Commands' })).queryAllByRole('option'),
+    ).toEqual([])
+    expect(screen.getByRole('combobox', { name: 'Search commands' })).not.toHaveAttribute(
+      'aria-activedescendant',
+    )
+  })
+
   it('opens the legacy route panel while no controller is registered', async () => {
     await renderPalette()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Changes/ }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Notes/ }))
+    fireEvent.click(screen.getByRole('option', { name: /^Changes/ }))
+    fireEvent.click(screen.getByRole('option', { name: /^Notes/ }))
 
     expect(mocks.openBuiltInPanel).toHaveBeenCalledWith('diff')
     expect(mocks.openExtensionPanel).toHaveBeenCalledWith({ entry: sidePanelEntry() })
@@ -226,7 +298,7 @@ describe('GlobalCommandPalette Panels section', () => {
     )
     renderWithQueryClient(<GlobalCommandPalette panelProjectPath="/repo/.worktrees/session-1" />)
 
-    expect(await screen.findByRole('menuitem', { name: /Notes/ })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /Notes/ })).toBeInTheDocument()
     expect(mocks.listExtensionContributions).toHaveBeenCalledWith(
       expect.objectContaining({ projectPaths: ['/repo/.worktrees/session-1'] }),
     )
