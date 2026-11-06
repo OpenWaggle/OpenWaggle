@@ -6,6 +6,7 @@ import { installHiveParentWakeHandler } from '../application/hive-parent-wake-re
 import { createLogger } from '../logger'
 import { resolveHiveWakeAuthority } from './hive-parent-wake-authority'
 import { createHiveParentWakeScheduler } from './hive-parent-wake-scheduler'
+import { tryGetSessionHostEventRuntime } from './session-host-events'
 
 const logger = createLogger('hive-parent-wake')
 
@@ -23,6 +24,15 @@ export const installHiveParentWake = Effect.gen(function* () {
   const scheduler = createHiveParentWakeScheduler({
     start: (request, done) => {
       const { parentSessionId } = request
+      // A draining Host starts no Run. Its stops are the Host's, not a client's, so the updates
+      // they record wait for the parent's next Run.
+      if (tryGetSessionHostEventRuntime()?.liveness.isDraining()) {
+        logger.info('A Hive wake was refused: the Session Host is shutting down', {
+          parentSessionId,
+        })
+        done(undefined)
+        return
+      }
       let outcome: HiveParentWakeOutcome | undefined
       let authorityRefused = false
       Effect.runFork(

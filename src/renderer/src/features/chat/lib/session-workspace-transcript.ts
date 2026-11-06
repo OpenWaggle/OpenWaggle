@@ -1,7 +1,10 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
-import { messagePartToUIParts } from '@/features/chat/lib/useAgentChat.utils'
+import {
+  messageMetadataToUI,
+  messagePartToUIParts,
+} from '@/features/chat/lib/chat-message-conversion'
 
 interface ResolveTranscriptMessagesInput {
   readonly activeSessionId: SessionId | null
@@ -39,26 +42,13 @@ function fromWorkspaceNode(
 ) {
   const cached = persistedMessage.get(message)
   if (cached?.nodeId === nodeId) return cached.message
-  // Read once per message instead of re-walking message.metadata.* per branch.
-  const branchSummary = message.metadata?.branchSummary
-  const compactionSummary = message.metadata?.compactionSummary
-  const error = message.metadata?.error
-  const scheduledTask = message.metadata?.scheduledTask
-  // A Host-written row on another branch must still read as the Host's, never as the user's.
-  const hiveWake = message.metadata?.hiveWake
   const next: UIMessage = {
     id: String(message.id),
     role: message.role,
     parts: message.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(message.createdAt),
-    metadata: {
-      sessionNodeId: nodeId,
-      ...(branchSummary ? { branchSummary } : {}),
-      ...(compactionSummary ? { compactionSummary } : {}),
-      ...(error ? { error } : {}),
-      ...(scheduledTask ? { scheduledTask } : {}),
-      ...(hiveWake ? { hiveWake: true as const } : {}),
-    },
+    // The same metadata the active branch's rows keep, so a row reads alike on every branch.
+    metadata: { sessionNodeId: nodeId, ...messageMetadataToUI(message.metadata) },
   }
   persistedMessage.set(message, { nodeId, message: next })
   return next

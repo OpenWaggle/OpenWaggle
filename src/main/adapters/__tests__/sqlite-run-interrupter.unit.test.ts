@@ -88,7 +88,7 @@ describe('SQLite Run interrupter', () => {
   it('names who stopped a Worker Run as the cause of its update', async () => {
     const updates = await interruptWorkerRunAs(path.join(temporaryRoot, 'profile.sqlite'), [
       'profile:other',
-      // The Host refuses a second stop of a Run that is already stopping.
+      // A stop of a Run already stopping records nothing (the Host refuses one anyway).
       'local-user',
     ])
 

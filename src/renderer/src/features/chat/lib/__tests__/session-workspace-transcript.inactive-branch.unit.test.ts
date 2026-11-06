@@ -83,7 +83,7 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
   })
 
   // The row the Host wrote to start a Run for worker updates never reads as the user's.
-  it('keeps the Hive wake mark of a row on another branch', () => {
+  it('keeps the Host marks of a row on another branch', () => {
     const wakeNode = assistantNode('inactive-branch-head', 'Worker updates arrived', 0)
     const inactiveBranchHead: SessionNode = {
       ...wakeNode,
@@ -92,7 +92,7 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
       message: wakeNode.message && {
         ...wakeNode.message,
         role: 'user',
-        metadata: { hiveWake: true },
+        metadata: { hiveWake: true, scheduledTask: { taskId: 'task-1', name: 'Nightly triage' } },
       },
     }
     const sessionHead = assistantNode('session-head', 'Current session head', 1)
@@ -104,6 +104,9 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
       messages: [],
     })
 
-    expect(resolved[0]?.metadata?.hiveWake).toBe(true)
+    expect(resolved[0]?.metadata).toMatchObject({
+      hiveWake: true,
+      scheduledTask: { taskId: 'task-1', name: 'Nightly triage' },
+    })
   })
 })
