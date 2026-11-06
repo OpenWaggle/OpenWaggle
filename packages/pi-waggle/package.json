@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/pi-waggle",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit.",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/pi-waggle"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/pi-waggle/0.1/",
+  "homepage": "https://openwaggle.ai/docs/packages/pi-waggle/0.2/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },
