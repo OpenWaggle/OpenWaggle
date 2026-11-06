@@ -213,6 +213,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
       hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),
       ...(input.execution.scheduledTask ? { scheduledTask: input.execution.scheduledTask } : {}),
+      ...(input.request.intent.hiveWake ? { hiveWake: true } : {}),
       signal: input.controller.signal,
       onEvent: (event) => {
         terminal.observe(event)

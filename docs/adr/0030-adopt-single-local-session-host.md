@@ -2,6 +2,8 @@
 
 Status: accepted
 
+Amended 2026-11-06: an idle parent is woken when its Workers report (see the Amendment at the end).
+
 OpenWaggle uses one per-user local process as the authority for live agent runs and cross-session control. Electron, CLI, MCP, and internal agents share that authority instead of coordinating through renderer memory, direct database writes, or loopback MCP.
 
 ## Context
@@ -168,7 +170,7 @@ A file or bundle export is a durable Session Host operation with its own identit
 
 The lexical and semantic discovery projections are derived and rebuildable from canonical session data. They carry independent schema and model versions so migration can backfill or rebuild them after tokenizer, embedding-model, or projection changes without turning either index into a second source of truth. Full transcript search is a separate explicit operation with its own bounded query path; it is never enabled implicitly by a default discovery query.
 
-Child completion produces an OpenWaggle-authored orchestration update rather than impersonating user steering or a queued follow-up. A matching active wait returns the result immediately; an active parent otherwise receives it at a safe agent-loop boundary. An idle parent is not restarted automatically: the activity projection shows the result, and the next parent run receives pending updates. Several completions may be batched while full results remain in their child sessions.
+Child completion produces an OpenWaggle-authored orchestration update rather than impersonating user steering or a queued follow-up. A matching active wait returns the result immediately; an active parent otherwise receives it at a safe agent-loop boundary. An idle parent is not restarted automatically: the activity projection shows the result, and the next parent run receives pending updates. (Superseded by the 2026-11-06 Amendment: the Host now wakes an idle parent.) Several completions may be batched while full results remain in their child sessions.
 
 Parent and child run interruption are independently controlled, matching Codex's individual-subagent and explicit stop-all surfaces. Interrupting, replacing, completing, or archiving a parent does not stop its durable child sessions or active child runs. `interrupt` targets one exact Session and Run identity. `interrupt-descendants` snapshots every active recursive descendant, deepest first, and interrupts those exact Runs without interrupting the parent; the CLI exposes the same name and the native Pi tool uses `interrupt_descendants`. The idempotent outcome records every accepted Session, Run, and resulting state revision so GUI and watch clients receive updates for the actual Workers. Profile revocation and Session Host loss retain their separate cascading security and recovery semantics.
 
@@ -247,3 +249,13 @@ Read-only offline inspection may use a deliberately defined snapshot path, but m
 **Use OpenWaggle's MCP server as the internal control plane.** Rejected because Session Control is a first-party domain service used by more than MCP, and internal agents must not depend on loopback protocol configuration or server grants.
 
 **Expose a loopback WebSocket or HTTP service.** Rejected as the default local path because a filesystem-scoped socket or named pipe provides full-duplex commands and subscriptions without opening a TCP listener. Remote control can remain an explicit separately authenticated adapter.
+
+## Amendment (2026-11-06): an idle parent is woken when its Workers report
+
+The Decision said an idle parent is not restarted automatically and that its next Run receives pending updates. In practice a Queen ended its turn with "I'll report back when the Workers are done", its six Workers finished half an hour later, and no Run ever started, so the user was told to wait for a report that could not come. The same incident showed a second gap: a Worker that submitted through `delegation_submit` produced no orchestration update at all, because only a Worker Run's end recorded one, and that settlement skips a Delegation already in `ready_for_review`.
+
+Now every Worker-made change the parent must act on records an orchestration update: an explicit submission, the Worker's own `needs_attention`, and, as before, a Run that ends with a reply or fails. An active parent receives it in its Run. An idle parent is woken: the Session Host starts a Run on it whose prompt is a Host-authored custom message (`openwaggle-hive-wake`), not a user message, after the pending updates the Run delivers when it starts. The transcript shows that message as a muted "Hive · Worker updates arrived" row where a user message would be, so the reply folds as its own turn and never reads as something the user wrote. The wake Run acts for the caller of the parent's latest Run, so it has no authority that Run lacked, and it passes the usual Session authority check and the Workers per parent and Active agent runs limits; a full limit defers it until another Run settles.
+
+A wake happens only when the parent has no active Run and no queued Follow-up, is not archived, was not last continued in the pi CLI, and its latest Run completed or failed. A Run the user stopped is the user taking over, so it is left alone. An update claims a wake when it is pending and newer than the parent's latest Run, or when the Run that just settled received it only after its last turn ended. Any Run that starts after an update ends that claim, so a failing wake Run is not retried in a loop; the next update or the user's next message delivers it. Reviews (accept, cancel, revision requests) and reports never wake anyone, which keeps a parent and its Workers from waking each other forever.
+
+Considered and rejected: keeping the Decision and telling agents to `wait` instead of ending their turn (a model that ends its turn anyway breaks the promise again, and a 30-minute wait holds a Run and its cache warm for nothing), a Heartbeat per Hive (a schedule for an event the Host already sees), and a wake prompt sent as a user message (the transcript would show a message the user never wrote, which ADR 0057 avoids for Scheduled tasks too).

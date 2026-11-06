@@ -1,5 +1,9 @@
 import type { RunId } from '@shared/types/brand'
-import type { SessionControlIntentSnapshot, SessionControlSessionState } from './message-aggregate'
+import type {
+  SessionControlIntentSnapshot,
+  SessionControlRunIntent,
+  SessionControlSessionState,
+} from './message-aggregate'
 import { type RunStartSettings, withRunStartSettings } from './run-start-settings'
 
 const STATE_REVISION_INCREMENT = 1
@@ -26,7 +30,7 @@ export type ApplyRunStartResult =
 export interface ApplyRunStartInput {
   readonly state: SessionControlSessionState
   readonly runId: RunId
-  readonly intent: SessionControlIntentSnapshot
+  readonly intent: SessionControlIntentSnapshot & Pick<SessionControlRunIntent, 'hiveWake'>
   readonly runSettings?: RunStartSettings
 }
 

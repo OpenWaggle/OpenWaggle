@@ -6,13 +6,17 @@ import {
   SessionControlRunExecutor,
 } from '../ports/session-control-run-executor'
 import { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
-import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import {
   type ActiveSessionRunReservation,
   hasClaimedSessionWriterSuccessor,
   reserveActiveSessionRun,
 } from './active-session-runs'
+import {
+  notifyParentOfOrchestrationUpdates,
+  requestHiveParentWake,
+  settledParentWake,
+} from './hive-parent-wake-request'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { publishDelegationAttentionCleared } from './session-control-event-projection'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
@@ -49,7 +53,6 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
   return Effect.gen(function* () {
     const identities = yield* SessionControlIdentityService
     const lifecycle = yield* SessionControlRunLifecycleRepository
-    const updateDelivery = yield* SessionOrchestrationUpdateDeliveryService
     const executor = yield* SessionControlRunExecutor
     const results: CoordinatedRunResult[] = []
     let runId = input.startingRunId
@@ -140,9 +143,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           })
         }
         if (settlement.orchestrationUpdate) {
-          yield* updateDelivery.deliverPendingToActiveRun({
-            parentSessionId: settlement.orchestrationUpdate.parentSessionId,
-          })
+          yield* notifyParentOfOrchestrationUpdates(settlement.orchestrationUpdate.parentSessionId)
         }
       }
       if (!settlement.accepted) return results
@@ -150,6 +151,9 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
         // Hive cleanup trigger: the Session settled with nothing scheduled. It may be a finished
         // Worker, or a parent whose accepted/cancelled Workers can now be archived.
         yield* requestHiveWorkerCleanup(input.sessionId)
+        // Hive wake trigger: as a parent, Worker updates may have reached this Run too late for it
+        // to act on them.
+        yield* requestHiveParentWake(settledParentWake(input.sessionId, runId, settledExecution))
         return results
       }
       runId = RunId(settlement.scheduled.runId)

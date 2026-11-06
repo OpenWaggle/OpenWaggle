@@ -31,9 +31,8 @@ import type {
 import { responseContextUsageEvent } from './pi-response-usage'
 import { emitEvent } from './transport-emitter'
 import {
+  incorporatedCustomMessageDisplay,
   incorporatedUserMessageDisplay,
-  incorporatedWaggleUserRequestDisplay,
-  isVisibleWaggleUserRequest,
   type PiUserMessageEntrySource,
 } from './user-message-events'
 
@@ -132,13 +131,10 @@ function handleIncorporatedUserMessage(
     emitIncorporatedUserMessage(state, (source) => incorporatedUserMessageDisplay(source, message))
     return true
   }
-  if (message.role === 'custom' && isVisibleWaggleUserRequest(message)) {
-    emitIncorporatedUserMessage(state, (source) =>
-      incorporatedWaggleUserRequestDisplay(source, message),
-    )
-    return true
-  }
-  return false
+  const display = message.role === 'custom' ? incorporatedCustomMessageDisplay(message) : null
+  if (!display) return false
+  emitIncorporatedUserMessage(state, display)
+  return true
 }
 
 function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {

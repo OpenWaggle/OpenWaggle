@@ -6,6 +6,7 @@ import {
   rejectedDelegationOutcome,
   updatedDelegationOutcome,
 } from './sqlite-session-delegation-support'
+import { recordWorkerOrchestrationUpdate } from './sqlite-session-orchestration-update-insert'
 
 export function updateDelegationState(
   sql: SqlClient.SqlClient,
@@ -42,6 +43,18 @@ export function updateDelegationState(
         updated_at = ${input.now}
       WHERE id = ${contract.id}
     `
+    if (command.state === 'needs_attention') {
+      // The Worker asks its parent for help: the parent hears about it like a result (ADR 0059).
+      yield* recordWorkerOrchestrationUpdate(sql, {
+        delegationId: contract.id,
+        parentSessionId: contract.parent_session_id,
+        workerSessionId: contract.child_session_id,
+        state: 'needs_attention',
+        cause: `worker-request-${input.now}`,
+        summary: command.reason,
+        now: input.now,
+      })
+    }
     return updatedDelegationOutcome(
       input,
       contract,

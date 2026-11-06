@@ -178,6 +178,11 @@ export interface MessageMetadata {
   readonly error?: string
   /** A user message a Scheduled task run delivered, not one a person typed. */
   readonly scheduledTask?: MessageScheduledTaskOrigin
+  /**
+   * The notice of a Hive wake: the Host started this Run because Worker updates reached an idle
+   * parent. Its row holds the Host's notice text, never anything the user wrote.
+   */
+  readonly hiveWake?: true
 }
 
 export interface Message {

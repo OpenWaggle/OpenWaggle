@@ -63,17 +63,17 @@ const followUpIntentFields = {
 }
 
 /**
- * A starting Run's intent: its Follow-up intent snapshot plus the settings it was started with
- * (`thinkingLevel`, `runAuthorizationOverride`), which only a Run started on an idle Session has.
- * A stored Follow-up decodes with the same schema, and `decodeFollowUpIntent` drops those two
- * settings from it. `authorCallerId` is kept: it names who queued a Follow-up the desktop user
- * adopted (`queue-adopt`), for provenance and as the owner of its attachments.
+ * A starting Run's intent: its Follow-up intent snapshot plus what only a Run started on an idle
+ * Session has: its settings (`thinkingLevel`, `runAuthorizationOverride`) and the Host's `hiveWake`.
+ * A stored Follow-up decodes with the same schema; `decodeFollowUpIntent` drops those three.
+ * `authorCallerId` is kept: who queued a Follow-up the desktop user adopted (`queue-adopt`).
  */
 const storedIntentSchema = Schema.Struct({
   ...followUpIntentFields,
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   authorCallerId: Schema.optional(Schema.String),
+  hiveWake: Schema.optional(Schema.Literal(true)),
 })
 
 function repositoryError(operation: string, cause: unknown) {
@@ -81,8 +81,7 @@ function repositoryError(operation: string, cause: unknown) {
 }
 
 function decodeRunIntent(raw: string): SessionControlRunIntent {
-  const decoded = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
-  const { waggle, ...intent } = decoded
+  const { waggle, ...intent } = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
   return {
     ...intent,
     ...(waggle ? { waggle: toWaggleInvocation(waggle) } : {}),
@@ -93,6 +92,7 @@ function decodeFollowUpIntent(raw: string): SessionControlIntentSnapshot {
   const {
     thinkingLevel: _thinkingLevel,
     runAuthorizationOverride: _runAuthorizationOverride,
+    hiveWake: _hiveWake,
     ...intent
   } = decodeRunIntent(raw)
   return intent

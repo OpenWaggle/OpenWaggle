@@ -36,6 +36,11 @@ export interface AgentRunInput {
   readonly runIdentityContext?: string
   /** The Scheduled task whose run sent this Run's request, recorded with its prompt message. */
   readonly scheduledTask?: MessageScheduledTaskOrigin
+  /**
+   * The Host started this Run on an idle parent because Worker results arrived: its prompt is a
+   * Host-authored message, not a user message (`hive-parent-wake.ts`).
+   */
+  readonly hiveWake?: true
   readonly peerAgentReports?: readonly PeerAgentReportContext[]
   readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
   readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]

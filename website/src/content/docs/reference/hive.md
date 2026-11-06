@@ -183,6 +183,26 @@ A worker whose run ends normally with a reply, without submitting, gets that rep
 
 A `needs_attention` that OpenWaggle set for a failed run goes back to `working` (or `revision_requested`) when a new run starts on the worker. One the worker set itself goes back to `working` when its parent's agent sends it anything. The history keeps both changes, by `session-host` and by the parent.
 
+### When a worker reports to an idle parent
+
+The parent hears about every result and every request for help as an update from OpenWaggle. A running parent gets the update in its current run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
+
+| Update | Sent when |
+| --- | --- |
+| `ready_for_review` | The worker submits, or its run ends with a reply. |
+| `needs_attention` | The worker's run fails or is interrupted, or the worker sets `needs_attention` itself. |
+
+OpenWaggle starts that run only when all of these hold:
+
+- The parent has no active run and no queued follow-up.
+- The parent is not archived.
+- The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
+- The parent was not last continued in the pi CLI.
+
+The run acts for whoever started the parent's last run, with the same permissions. It counts toward **Workers per parent** and **Active agent runs**. When a limit is full, OpenWaggle tries again when another run ends.
+
+Each update starts at most one run. If that run fails, OpenWaggle waits for the next update, or for you to send the parent a message, which also delivers the update. In the parent's transcript, the run starts with a **Hive · Worker updates arrived** line instead of a message from you. Several updates that arrive close together go into the same run.
+
 ### Who acts next
 
 Every session summary and delegation that carries a delegation state (`list`, `search`, `read`, `delegations_list` and `delegations_read`) also carries `nextActor`, who acts next on that worker.
