@@ -50,11 +50,16 @@ function CommandPaletteEmptyState() {
 
 interface CommandPaletteSectionHeaderProps {
   readonly label: string
+  readonly id?: string
 }
 
-function CommandPaletteSectionHeader({ label }: CommandPaletteSectionHeaderProps) {
+export function CommandPaletteSectionHeader({ label, id }: CommandPaletteSectionHeaderProps) {
   return (
-    <div className="flex h-7 items-center border-t border-border px-3.5">
+    <div
+      id={id}
+      role="presentation"
+      className="flex h-7 items-center border-t border-border px-3.5"
+    >
       <span className="text-xs font-medium text-text-muted">{label}</span>
     </div>
   )

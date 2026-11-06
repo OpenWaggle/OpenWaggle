@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import { $getRoot, COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND, type LexicalEditor } from 'lexical'
 import { type RefObject, useEffectEvent, useLayoutEffect } from 'react'
 import { isGuiOnlyComposerCommand } from '@/features/composer/commands'
+import { nextEnabledCommandIndex } from '../lib/command-palette-navigation'
 import type { CommandPaletteItem } from '../model'
 
 interface UseCommandPaletteKeyboardInput {
@@ -39,7 +40,7 @@ export function useCommandPaletteKeyboard({
 
   function moveHighlight(delta: 1 | -1) {
     if (items.length === 0) return
-    setHighlightIndex(nextEnabledHighlightIndex(items, highlightIndex, delta))
+    setHighlightIndex(nextEnabledCommandIndex(items, highlightIndex, delta))
     scrollHighlightedIntoView()
   }
 
@@ -81,22 +82,4 @@ export function useCommandPaletteKeyboard({
       COMMAND_PRIORITY_HIGH,
     )
   }, [editor])
-}
-
-function nextHighlightIndex(currentIndex: number, delta: 1 | -1, itemCount: number) {
-  if (delta === 1) return (currentIndex + 1) % itemCount
-  return currentIndex === 0 ? itemCount - 1 : currentIndex - 1
-}
-
-function nextEnabledHighlightIndex(
-  items: readonly CommandPaletteItem[],
-  currentIndex: number,
-  delta: 1 | -1,
-) {
-  let candidate = currentIndex
-  for (let attempts = 0; attempts < items.length; attempts += 1) {
-    candidate = nextHighlightIndex(candidate, delta, items.length)
-    if (!items[candidate]?.disabled) return candidate
-  }
-  return currentIndex
 }
