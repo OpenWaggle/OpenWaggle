@@ -3,6 +3,7 @@ import { canonicalJson } from '@shared/canonical-json'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { HIVE_WAKE_NOT_NEEDED } from '../domain/session-control/hive-wake'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
 import {
@@ -11,6 +12,7 @@ import {
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
+import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import {
   deliverAfterQueueDecision,
@@ -19,6 +21,22 @@ import {
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
+
+function startsHiveWake(state: SessionControlSessionState) {
+  return state.run.state === 'starting' && state.run.intent.hiveWake === true
+}
+
+/**
+ * A Hive wake checks its parent before it starts, but outside this transaction. It starts only if
+ * the parent still needs it here: still idle, unarchived, with no Follow-up and an unread update.
+ */
+function hiveWakeRefusal(sql: SqlClient.SqlClient, sessionId: string, hostRunCeiling: number) {
+  return Effect.gen(function* () {
+    const candidate = yield* selectHiveParentWakeCandidate(sql, { parentSessionId: sessionId })
+    if (!candidate) return HIVE_WAKE_NOT_NEEDED
+    return yield* newRunAdmissionRefusal(sql, sessionId, hostRunCeiling)
+  })
+}
 
 interface SessionOperationRow {
   readonly request_json: string
@@ -183,9 +201,12 @@ function executeMutation(
         const startsNewRun =
           decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
         const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
-        const refusal = startsNewRun
-          ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
-          : undefined
+        const refusal =
+          decision.accepted && startsHiveWake(decision.state)
+            ? yield* hiveWakeRefusal(sql, targetScope, hostRunCeiling)
+            : startsNewRun
+              ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
+              : undefined
         const admittedDecision = refusal
           ? ({
               accepted: false,
@@ -199,12 +220,15 @@ function executeMutation(
             })
         if (admittedDecision.accepted) {
           yield* persistSessionControlState(sql, admittedDecision.state, now)
-          yield* clearWorkerRequestOnParentDelivery(sql, {
-            workerSessionId: targetScope,
-            callerId: input.callerId,
-            operation,
-            now,
-          })
+          // A Hive wake is the Host acting for the caller, not the parent answering a Worker.
+          if (!startsHiveWake(admittedDecision.state)) {
+            yield* clearWorkerRequestOnParentDelivery(sql, {
+              workerSessionId: targetScope,
+              callerId: input.callerId,
+              operation,
+              now,
+            })
+          }
         }
         yield* sql`
         INSERT INTO session_operations (

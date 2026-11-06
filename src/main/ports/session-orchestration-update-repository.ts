@@ -33,7 +33,7 @@ export interface HiveParentWakeCandidate {
   /** The parent's latest Run, whose caller the wake acts for and whose initiator bounds it. */
   readonly latestRunId: string
   readonly callerId: string
-  /** The latest Run's own Run mode override, which the wake keeps. */
+  /** The latest Run's own Run mode override; the wake keeps it only when it narrows. */
   readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly piSessionFile: string | null
 }

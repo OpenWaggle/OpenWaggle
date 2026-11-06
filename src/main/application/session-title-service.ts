@@ -6,6 +6,7 @@ import * as Schedule from 'effect/Schedule'
 import type { SessionTitleContextAttachment } from '../domain/session-title/session-title-context'
 import {
   formatSessionTitleContext,
+  titleSourceMessages,
   toSessionTitleContextMessage,
 } from '../domain/session-title/session-title-context'
 import { SessionTitleGenerationError } from '../errors'
@@ -188,7 +189,9 @@ function regenerate(
     const state = yield* repository.getState(sessionId)
     if (!state) return { outcome: 'failed', message: 'The session no longer exists.' } as const
     const session = yield* (yield* SessionProjectionRepository).get(sessionId)
-    const context = formatSessionTitleContext(session.messages.map(toSessionTitleContextMessage))
+    const context = formatSessionTitleContext(
+      titleSourceMessages(session.messages).map(toSessionTitleContextMessage),
+    )
     if (!context.message.trim()) return { outcome: 'unavailable', reason: 'empty' } as const
     const generated = yield* generateTitle({
       state,

@@ -242,6 +242,8 @@ describe('Hive wake of an idle parent', () => {
     expect(await wake('host_run_ceiling_reached')).toBe('deferred')
     expect(await wake('parent_concurrency_limit_reached')).toBe('deferred')
     expect(await wake('profile_revoked')).toBe('refused')
+    // The parent got a Run, a Follow-up, or was archived after the Host checked it.
+    expect(await wake('hive_wake_not_needed')).toBe('not-needed')
   })
 
   it('asks for a wake only when no active parent Run took the update', async () => {

@@ -6,6 +6,7 @@ import {
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import { HIVE_WAKE_NOT_NEEDED } from '../domain/session-control/hive-wake'
 import { PiSessionFiles } from '../ports/pi-session-discovery'
 import {
   type HiveParentWakeCandidate,
@@ -23,8 +24,8 @@ import { publishControlResponse } from './session-control-event-projection'
  * done" never did. Now the Host starts a Run on the idle parent, prompted by a Host-authored
  * message rather than a user message (ADR 0030, amended). The wake Run acts for the caller the
  * parent's latest Run acted for, as a Follow-up that caller queued would: that caller's authority
- * is checked again as Follow-up delivery checks it, the Run keeps the latest Run's Run mode
- * override, and it never runs above the live Authorization ceiling of whoever started that Run.
+ * is checked again as Follow-up delivery checks it, and the Run keeps only a narrowing Run mode
+ * override: it never runs above the live Authorization ceiling of whoever started that Run.
  * The Workers per parent and Active agent runs limits apply as to any new Run.
  *
  * This constant is the wake Run's intent text; its prompt is the Pi adapter's Host-authored
@@ -67,6 +68,7 @@ function outcomeOf(response: SessionControlMutationResponse): HiveParentWakeOutc
   const { outcome } = response
   if (outcome.effect === 'started-run') return 'started'
   if (outcome.effect === 'rejected' && RUN_LIMIT_REFUSALS.has(outcome.code)) return 'deferred'
+  if (outcome.effect === 'rejected' && outcome.code === HIVE_WAKE_NOT_NEEDED) return 'not-needed'
   return 'refused'
 }
 

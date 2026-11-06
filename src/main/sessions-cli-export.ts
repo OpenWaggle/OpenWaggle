@@ -55,6 +55,12 @@ function writeHeader(manifest: unknown, format: ExportFormat) {
   )
 }
 
+/** A Markdown record's heading: its role, except the Host's Hive wake notice, which no user wrote. */
+export function markdownHeading(record: Readonly<Record<string, unknown>>) {
+  if (isRecord(record.metadata) && record.metadata.hiveWake === true) return 'hive'
+  return String(record.role ?? 'event')
+}
+
 async function writeRecords(records: readonly unknown[], format: ExportFormat) {
   for (const record of records) {
     if (format === 'jsonl') {
@@ -63,7 +69,7 @@ async function writeRecords(records: readonly unknown[], format: ExportFormat) {
     }
     if (!isRecord(record)) continue
     await writeCliStdout(
-      `## ${String(record.role ?? 'event')}\n\n${markdownContent(record.content ?? record)}\n\n`,
+      `## ${markdownHeading(record)}\n\n${markdownContent(record.content ?? record)}\n\n`,
     )
   }
 }

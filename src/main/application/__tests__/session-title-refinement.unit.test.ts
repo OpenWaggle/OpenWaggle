@@ -51,6 +51,22 @@ describe('refineSessionTitle', () => {
     expect(world().cleared).toEqual([SESSION_ID])
   })
 
+  it('refines a first turn that a Hive wake answered, without the Host notice in its context', async () => {
+    world().messages = [
+      text('user', 'Draft the epics with six Workers', 'u1'),
+      text('assistant', 'The Workers are drafting. I will report back.', 'a1'),
+      { ...text('user', 'Worker updates arrived', 'wake-1'), metadata: { hiveWake: true } },
+      text('assistant', 'All six epics are drafted.', 'a2'),
+    ]
+    world().replies = ['Six spec-driven epics']
+
+    await run(refineSessionTitle(SESSION_ID))
+
+    expect(world().requests).toHaveLength(1)
+    expect(JSON.stringify(world().requests[0])).not.toContain('Worker updates arrived')
+    expect(world().cleared).toEqual([])
+  })
+
   it('happens at most once, even when the request fails', async () => {
     world().messages = [
       text('user', 'look at this', 'u1'),

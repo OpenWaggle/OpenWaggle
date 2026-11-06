@@ -66,21 +66,25 @@ describe('Hive wake authority', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  it('keeps the local user’s Run mode override', async () => {
+  it('keeps only a narrowing Run mode override of the latest Run', async () => {
     const authority = await runHiveWakeTest(
       root,
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         return {
           plain: yield* wakeAuthorityFor(sql, 'local-user'),
-          overridden: yield* wakeAuthorityFor(sql, 'local-user', 'ask-for-approval'),
+          asked: yield* wakeAuthorityFor(sql, 'local-user', 'ask-for-approval'),
+          yolo: yield* wakeAuthorityFor(sql, 'local-user', 'yolo'),
         }
       }),
     )
 
+    // A yolo override was for that Run alone: the wake runs in the Session's own mode, which the
+    // user may have changed since.
     expect(authority).toEqual({
       plain: {},
-      overridden: { runAuthorizationOverride: 'ask-for-approval' },
+      asked: { runAuthorizationOverride: 'ask-for-approval' },
+      yolo: {},
     })
   })
 
@@ -120,5 +124,19 @@ describe('Hive wake authority', () => {
       revoked: { blocked: 'profile_revoked' },
       narrowed: { blocked: 'authority_changed' },
     })
+  })
+
+  it('refuses a wake for a Session agent that no longer reaches the parent', async () => {
+    const authority = await runHiveWakeTest(
+      root,
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        // The agent of a Session that is gone, or was never this parent's: nothing grants it.
+        return yield* wakeAuthorityFor(sql, 'session-agent:session-gone:run-gone')
+      }),
+    )
+
+    // Follow-up delivery reads a missing source Session as revoked authority, and so does a wake.
+    expect(authority).toEqual({ blocked: 'profile_revoked' })
   })
 })

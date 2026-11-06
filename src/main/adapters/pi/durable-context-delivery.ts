@@ -28,7 +28,7 @@ interface DurableContextDeliveryInput<Item> {
   readonly acknowledgeWhen?: 'persisted' | 'model-request'
 }
 
-type SessionEntries = Pick<ExtensionContext['sessionManager'], 'getEntries'>
+type SessionEntries = Pick<ExtensionContext['sessionManager'], 'getEntries' | 'getBranch'>
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -45,12 +45,23 @@ function itemIdsFromEntry(
     : []
 }
 
+/**
+ * Item ids already in the session. Read on the current branch when delivery means a model request
+ * read it: an entry left on a branch the user moved away from is in no request of this Run.
+ */
 function persistedItemIds(
   sessionManager: SessionEntries,
-  input: Pick<DurableContextDeliveryInput<unknown>, 'customType' | 'idsDetailKey'>,
+  input: Pick<
+    DurableContextDeliveryInput<unknown>,
+    'customType' | 'idsDetailKey' | 'acknowledgeWhen'
+  >,
 ) {
   const persisted = new Set<string>()
-  for (const entry of sessionManager.getEntries()) {
+  const entries =
+    input.acknowledgeWhen === 'model-request'
+      ? sessionManager.getBranch()
+      : sessionManager.getEntries()
+  for (const entry of entries) {
     if (entry.type !== 'custom_message') continue
     for (const itemId of itemIdsFromEntry(entry, input)) persisted.add(itemId)
   }
