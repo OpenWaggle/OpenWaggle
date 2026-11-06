@@ -15,8 +15,10 @@ export function useCommandListHighlight(items: readonly CommandPaletteItem[]) {
     highlightIndex ?? firstEnabledCommandIndex(items),
     Math.max(0, items.length - 1),
   )
-  const activeOptionId =
-    items.length > 0 ? commandPaletteOptionId(listboxId, boundedHighlightIndex) : undefined
+  const highlightedItem = items[boundedHighlightIndex]
+  const activeOptionId = highlightedItem
+    ? commandPaletteOptionId(listboxId, highlightedItem.id)
+    : undefined
 
   useEffect(() => {
     void boundedHighlightIndex

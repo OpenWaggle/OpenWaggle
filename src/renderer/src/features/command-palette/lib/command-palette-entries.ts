@@ -45,7 +45,10 @@ interface CommandPaletteGroupEntry {
 }
 
 export interface CommandPaletteGroup {
-  /** Unique within one list and safe as a DOM id fragment (section names contain spaces). */
+  /**
+   * Stable while filtering (the section plus how often it already appeared), unique within one
+   * list, and safe as a DOM id fragment (section names contain spaces).
+   */
   readonly key: string
   /** The visible section name; `undefined` for items rendered outside a named section. */
   readonly label: string | undefined
@@ -58,6 +61,7 @@ export function groupCommandPaletteItems(
 ): readonly CommandPaletteGroup[] {
   const groups: { key: string; label: string | undefined; entries: CommandPaletteGroupEntry[] }[] =
     []
+  const sectionOccurrences = new Map<string, number>()
   items.forEach((item, index) => {
     const current = groups.at(-1)
     if (current !== undefined && items[index - 1]?.section === item.section) {
@@ -65,7 +69,14 @@ export function groupCommandPaletteItems(
       return
     }
     const label = item.section === 'configure' ? undefined : item.section
-    groups.push({ key: `group-${index}`, label, entries: [{ item, index }] })
+    const section = item.section ?? ''
+    const occurrence = sectionOccurrences.get(section) ?? 0
+    sectionOccurrences.set(section, occurrence + 1)
+    groups.push({
+      key: `group-${encodeURIComponent(section)}-${occurrence}`,
+      label,
+      entries: [{ item, index }],
+    })
   })
   return groups
 }

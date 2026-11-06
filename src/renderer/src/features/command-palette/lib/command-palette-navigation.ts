@@ -27,7 +27,12 @@ export function firstEnabledCommandIndex(items: readonly NavigableItem[]) {
   return index === -1 ? 0 : index
 }
 
-/** The DOM id of a listbox option, which the combobox names in `aria-activedescendant`. */
-export function commandPaletteOptionId(listboxId: string, index: number) {
-  return `${listboxId}-option-${index}`
+/**
+ * The DOM id of a listbox option, which the combobox names in `aria-activedescendant`. It follows
+ * the item rather than its position, so the attribute changes (and is announced) when filtering
+ * brings a different item to the highlighted row. Item ids can hold spaces (project paths), so
+ * they are encoded to stay valid id tokens.
+ */
+export function commandPaletteOptionId(listboxId: string, itemId: string) {
+  return `${listboxId}-option-${encodeURIComponent(itemId)}`
 }

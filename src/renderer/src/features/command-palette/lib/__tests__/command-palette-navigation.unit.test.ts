@@ -57,4 +57,15 @@ describe('groupCommandPaletteItems', () => {
     // Keys become DOM id fragments, so they must not carry the section's spaces.
     for (const group of groups) expect(group.key).not.toMatch(/\s/)
   })
+
+  it('keeps a section group key stable when filtering removes earlier items', () => {
+    const all = groupCommandPaletteItems([
+      item('a', 'Create'),
+      item('b', 'View'),
+      item('c', 'View'),
+    ])
+    const filtered = groupCommandPaletteItems([item('c', 'View')])
+
+    expect(filtered[0]?.key).toBe(all[1]?.key)
+  })
 })

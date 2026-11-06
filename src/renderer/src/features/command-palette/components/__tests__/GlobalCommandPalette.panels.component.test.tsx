@@ -224,6 +224,20 @@ describe('GlobalCommandPalette Panels section', () => {
     for (const option of options) expect(option).toHaveAttribute('tabindex', '-1')
   })
 
+  it('points aria-activedescendant at the new top match while filtering', async () => {
+    await renderPalette()
+    const search = screen.getByRole('combobox', { name: 'Search commands' })
+
+    fireEvent.change(search, { target: { value: 'changes' } })
+    const changes = screen.getByRole('option', { name: /^Changes/ })
+    expect(search).toHaveAttribute('aria-activedescendant', changes.id)
+
+    fireEvent.change(search, { target: { value: 'notes' } })
+    const notes = screen.getByRole('option', { name: /^Notes/ })
+    expect(notes.id).not.toBe(changes.id)
+    expect(search).toHaveAttribute('aria-activedescendant', notes.id)
+  })
+
   it('closes on Escape from the search field', async () => {
     await renderPalette()
 

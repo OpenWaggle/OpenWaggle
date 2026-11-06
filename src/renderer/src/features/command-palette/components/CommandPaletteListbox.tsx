@@ -36,7 +36,7 @@ export function CommandPaletteListbox({
       highlighted={entry.index === highlightIndex}
       index={entry.index}
       onHighlightIndexChange={onHighlightIndexChange}
-      optionId={commandPaletteOptionId(listboxId, entry.index)}
+      optionId={commandPaletteOptionId(listboxId, entry.item.id)}
     />
   )
 
