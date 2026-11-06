@@ -19,7 +19,10 @@ import type { ProviderServiceShape } from '../../ports/provider-service'
 import { ProviderService } from '../../ports/provider-service'
 import type { SessionControlAttachmentServiceShape } from '../../ports/session-control-attachment-service'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
-import type { SessionOrchestrationUpdateRepositoryShape } from '../../ports/session-orchestration-update-repository'
+import type {
+  PendingSessionOrchestrationUpdate,
+  SessionOrchestrationUpdateRepositoryShape,
+} from '../../ports/session-orchestration-update-repository'
 import { SessionOrchestrationUpdateRepository } from '../../ports/session-orchestration-update-repository'
 import type { SessionProjectionRepositoryShape } from '../../ports/session-projection-repository'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
@@ -70,7 +73,11 @@ function testLayer(runIfRequested: AgentRequestedWaggleServiceShape['runIfReques
     Layer.succeed(
       SessionOrchestrationUpdateRepository,
       fromPartial<SessionOrchestrationUpdateRepositoryShape>({
-        listPending: () => Effect.succeed([]),
+        // Nothing is pending when the classic Run starts; one update arrives in its final turn.
+        listPending: vi
+          .fn<SessionOrchestrationUpdateRepositoryShape['listPending']>()
+          .mockReturnValueOnce(Effect.succeed([]))
+          .mockReturnValue(Effect.succeed([lateUpdate])),
         listPendingSpecifications: () => Effect.succeed([]),
       }),
     ),
@@ -88,6 +95,11 @@ function testLayer(runIfRequested: AgentRequestedWaggleServiceShape['runIfReques
   )
 }
 
+const lateUpdate = fromPartial<PendingSessionOrchestrationUpdate>({
+  updateId: 'update-late',
+  delegationId: 'delegation-1',
+})
+
 const pendingReport = {
   reportId: 'report-1',
   correlationId: 'correlation-1',
@@ -103,7 +115,7 @@ describe('agent-requested Waggle after a classic Run', () => {
     publishSessionHostEventMock.mockReset()
   })
 
-  it('hands the classic Run authorization context to the Waggle, and not its deliveries', async () => {
+  it('hands the classic Run authorization context and still-pending updates to the Waggle', async () => {
     const runIfRequested = vi.fn<AgentRequestedWaggleServiceShape['runIfRequested']>(() =>
       Effect.succeed(false),
     )
@@ -149,12 +161,14 @@ describe('agent-requested Waggle after a classic Run', () => {
         sessionCapabilities: ['sessions:read'],
       },
     })
+    // An update the classic Run's final turn put on the branch is still pending: the Waggle's
+    // first model request sees it, so the parent is not woken for an update it already read.
+    expect(request?.authority?.orchestrationUpdates).toEqual([lateUpdate])
+    expect(request?.authority?.onOrchestrationUpdatesDelivered).toBeTypeOf('function')
     // The classic Run already delivered these; passing them again would deliver them twice.
     for (const key of [
       'peerAgentReports',
       'onPeerAgentReportsDelivered',
-      'orchestrationUpdates',
-      'onOrchestrationUpdatesDelivered',
       'delegationSpecificationUpdates',
       'onDelegationSpecificationUpdatesDelivered',
     ]) {
