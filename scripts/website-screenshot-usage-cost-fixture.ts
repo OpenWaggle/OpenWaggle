@@ -70,7 +70,7 @@ function costOf(rates: Rates, tokens: Rates) {
 }
 
 /** Pi's per-folder session directory name for a working directory. */
-function sessionDirectoryName(cwd: string) {
+export function piSessionDirectoryName(cwd: string) {
   return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
 }
 
@@ -189,7 +189,7 @@ export async function writeUsageCostSessions(input: {
       input.now.getTime() - LATEST_START_MINUTES * MINUTE_MS,
     )
     const { cwd, id, lines } = sessionLines(session, startedAt, next)
-    const directory = path.join(sessionsRoot, sessionDirectoryName(cwd))
+    const directory = path.join(sessionsRoot, piSessionDirectoryName(cwd))
     await fs.mkdir(directory, { recursive: true })
     const stamp = new Date(startedAt).toISOString().replace(/[:.]/g, '-')
     await fs.writeFile(
