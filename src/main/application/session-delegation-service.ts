@@ -8,6 +8,7 @@ import { isHiveAgentCaller } from '../ports/hive-worker-cleanup-repository'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
+import { notifyParentOfOrchestrationUpdates } from './hive-parent-wake-request'
 import {
   requestHiveWorkerCleanup,
   restoreHiveWorkerAfterDelegationReview,
@@ -42,6 +43,20 @@ function cleanupParentForTerminalDelegation(
     : undefined
 }
 
+/**
+ * The parent of a Worker that just submitted a result or asked for help itself: the Delegation
+ * repository recorded an orchestration update for it, which a running parent receives now and an
+ * idle one through a Hive wake.
+ */
+function notifiedParentForWorkerChange(response: SessionControlMutationResponse) {
+  const outcome = response.outcome
+  if (response.replayed || outcome.effect !== 'delegation-updated') return undefined
+  if (outcome.operation === 'delegation-submit') return outcome.parentSessionId
+  return outcome.operation === 'delegation-state' && outcome.delegationState === 'needs_attention'
+    ? outcome.parentSessionId
+    : undefined
+}
+
 export function executeSessionDelegationMutation(input: {
   readonly callerId: string
   readonly request: SessionControlDelegationMutationRequest
@@ -67,6 +82,8 @@ export function executeSessionDelegationMutation(input: {
       request: input.request,
       response,
     })
+    const notifiedParent = notifiedParentForWorkerChange(response)
+    if (notifiedParent) yield* notifyParentOfOrchestrationUpdates(notifiedParent)
     const parentSessionId = cleanupParentForTerminalDelegation(input.callerId, response)
     if (parentSessionId) {
       // Hive cleanup trigger: the parent agent accepted or cancelled a Worker's Delegation. A

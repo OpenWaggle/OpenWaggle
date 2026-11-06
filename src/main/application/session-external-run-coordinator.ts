@@ -6,8 +6,11 @@ import {
   SessionControlRunLifecycleRepository,
   type SessionControlTerminalRunStatus,
 } from '../ports/session-control-run-lifecycle-repository'
-import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import {
+  notifyParentOfOrchestrationUpdates,
+  requestHiveParentWake,
+} from './hive-parent-wake-request'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { publishDelegationAttentionCleared } from './session-control-event-projection'
 import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
@@ -82,7 +85,6 @@ export function settleExternalSessionRun(input: {
   return Effect.gen(function* () {
     const identities = yield* SessionControlIdentityService
     const lifecycle = yield* SessionControlRunLifecycleRepository
-    const updateDelivery = yield* SessionOrchestrationUpdateDeliveryService
     const nextRunId = yield* identities.nextRunId
     const settlement = yield* settleWithUndeliveredSteers({
       sessionId: input.sessionId,
@@ -116,11 +118,12 @@ export function settleExternalSessionRun(input: {
       })
     }
     if (settlement.orchestrationUpdate) {
-      yield* updateDelivery.deliverPendingToActiveRun({
-        parentSessionId: settlement.orchestrationUpdate.parentSessionId,
-      })
+      yield* notifyParentOfOrchestrationUpdates(settlement.orchestrationUpdate.parentSessionId)
     }
-    if (!settlement.scheduled) yield* requestHiveWorkerCleanup(input.sessionId)
+    if (!settlement.scheduled) {
+      yield* requestHiveWorkerCleanup(input.sessionId)
+      yield* requestHiveParentWake({ parentSessionId: input.sessionId })
+    }
     return settlement
   })
 }

@@ -7,6 +7,7 @@ import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { toJsonValue } from '../pi-message-mapper'
 import { assistantMessageProjection } from './assistant-message-projection'
+import { hiveWakeProjection, isHiveWakeEntry } from './hive-wake-prompt'
 import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
@@ -253,6 +254,7 @@ function customMessageProjection(
   if (entry.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE && entry.display) {
     return visibleWaggleUserMessageProjection(entry)
   }
+  if (isHiveWakeEntry(entry)) return hiveWakeProjection()
 
   return hiddenOrCustomMessageProjection(entry)
 }

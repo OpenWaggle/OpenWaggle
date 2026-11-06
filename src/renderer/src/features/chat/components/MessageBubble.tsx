@@ -3,6 +3,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
 import { AssistantMessageBubble, type WaggleInfo } from './AssistantMessageBubble'
+import { HiveWakeNotice } from './HiveWakeNotice'
 import { UserMessageBubble } from './UserMessageBubble'
 
 export interface MessageBubbleRuntime {
@@ -38,6 +39,24 @@ interface MessageBubbleProps {
   }
 }
 
+/** A user row: the user's own message, or the Host's Hive wake notice, which takes no actions. */
+function UserMessageRow({
+  message,
+  actions,
+}: {
+  readonly message: UIMessage
+  readonly actions: MessageBubbleProps['actions'] | undefined
+}) {
+  if (message.metadata?.hiveWake) return <HiveWakeNotice message={message} />
+  return (
+    <UserMessageBubble
+      message={message}
+      onBranchFromMessage={actions?.onBranchFromMessage}
+      onForkFromMessage={actions?.onForkFromMessage}
+    />
+  )
+}
+
 export function MessageBubble({
   message,
   runtime,
@@ -51,13 +70,7 @@ export function MessageBubble({
   // refuses a copy or a branch while it runs.
   const idle = run?.isRunActive !== true && actions?.copiesBlocked !== true
   if (message.role === 'user') {
-    return (
-      <UserMessageBubble
-        message={message}
-        onBranchFromMessage={idle ? actions?.onBranchFromMessage : undefined}
-        onForkFromMessage={idle ? actions?.onForkFromMessage : undefined}
-      />
-    )
+    return <UserMessageRow message={message} actions={idle ? actions : undefined} />
   }
   // A reply's turn diff opens from the changed-files card at the end of its turn.
   const headerTurnDiff =

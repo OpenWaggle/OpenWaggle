@@ -77,7 +77,15 @@ export interface SessionControlFollowUpEditHold {
 }
 
 /** What a starting Run runs: its Follow-up intent snapshot plus any settings it was started with. */
-export type SessionControlRunIntent = SessionControlIntentSnapshot & RunStartSettings
+export type SessionControlRunIntent = SessionControlIntentSnapshot &
+  RunStartSettings & {
+    /**
+     * Set only by the Host when it starts a Run on an idle parent because Worker results arrived
+     * (`hive-parent-wake.ts`). The Run's prompt is then a Host-authored message, never a user
+     * message, and no client command can set it.
+     */
+    readonly hiveWake?: true
+  }
 
 export interface SessionControlFollowUp extends FollowUpQueueItem {
   readonly intent: SessionControlIntentSnapshot

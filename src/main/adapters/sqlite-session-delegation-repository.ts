@@ -20,6 +20,7 @@ import {
   rejectedDelegationOutcome,
   updatedDelegationOutcome,
 } from './sqlite-session-delegation-support'
+import { recordWorkerOrchestrationUpdate } from './sqlite-session-orchestration-update-insert'
 
 function storeOutcome(
   sql: SqlClient.SqlClient,
@@ -120,6 +121,15 @@ function submitDelegation(
       UPDATE delegation_contracts SET state = ${'ready_for_review'}, updated_at = ${input.now}
       WHERE id = ${contract.id}
     `
+    yield* recordWorkerOrchestrationUpdate(sql, {
+      delegationId: contract.id,
+      parentSessionId: contract.parent_session_id,
+      workerSessionId: contract.child_session_id,
+      state: 'ready_for_review',
+      cause: `submission-${revision}`,
+      summary: command.summary,
+      now: input.now,
+    })
     return updatedDelegationOutcome(input, contract, 'ready_for_review', revision)
   })
 }

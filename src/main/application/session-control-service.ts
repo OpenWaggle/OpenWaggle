@@ -36,6 +36,8 @@ export interface StartSessionRunInput {
   readonly callerAuthorizationCeiling?: AgentAuthorizationMode
   readonly hostRunCeiling?: number
   readonly request: SessionControlStartMutationRequest
+  /** The Host's Hive wake of an idle parent (`hive-parent-wake.ts`); no client command sets it. */
+  readonly hiveWake?: true
 }
 
 export interface QueueSessionFollowUpInput {
@@ -160,6 +162,7 @@ export function startSessionRun(input: StartSessionRunInput) {
             callerId: input.callerId,
             acceptedAt,
             idempotencyKey: input.request.idempotencyKey,
+            ...(input.hiveWake ? { hiveWake: true } : {}),
           },
         })
         return result.accepted

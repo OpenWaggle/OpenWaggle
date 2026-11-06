@@ -20,6 +20,7 @@ import {
 } from './application/pi-session-discovery'
 import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { installSessionTitleWorker } from './application/session-title-scheduler'
+import { installHiveParentWake } from './session-host/hive-parent-wake-installer'
 import { runScheduledTaskSchedulerBackground } from './session-host/scheduled-task-scheduler'
 import { installAppSessionToolGateway } from './session-host/session-tool-gateway-installer'
 import { runTranscriptTermRepairBackground } from './store/session-details/snapshot-transcript-term-projection'
@@ -36,7 +37,7 @@ export interface HostServiceOptions<R> {
 
 /**
  * Host services that must run before the Host serves its first client: the migrations every read
- * depends on, the session tool gateway, Follow-up edit-hold expiry and the Title worker (a Spawn or
+ * depends on, the session tool gateway, the Hive wake, Follow-up edit-hold expiry and the Title worker (a Spawn or
  * Launch asks it for a title, and a request before it is installed is dropped). Anything that can
  * wait starts once the Host listens (`startHostServicesOnceListening`, A-F8).
  */
@@ -56,6 +57,8 @@ export function startHostBackgroundServices() {
     // serves clients (`startHostServicesAfterListening`).
     yield* Effect.promise(() => migrateOpenWaggleMcpFilesAtHostStart())
     yield* installAppSessionToolGateway
+    // Before the first Run settles: an idle parent whose Workers report gets a Run (Hive wake).
+    yield* installHiveParentWake
     yield* runFollowUpEditHoldExpiryBackground
     yield* installSessionTitleWorker
   })

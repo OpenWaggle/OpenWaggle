@@ -1,6 +1,7 @@
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import type { AgentTransportUserMessage } from '@shared/types/stream'
+import { HIVE_WAKE_CUSTOM_TYPE, hiveWakeDisplay } from './hive-wake-prompt'
 import { piUserContentToDisplayParts } from './message-parts'
 import { findUserInputProjection } from './user-input-projection'
 import { visibleWaggleUserMessageDisplay } from './visible-waggle-user-message-projection'
@@ -98,4 +99,29 @@ export function incorporatedWaggleUserRequestDisplay(
     sessionNodeCreatedOrder: position.createdOrder,
     ...(display.waggleInvocation ? { waggleInvocation: display.waggleInvocation } : {}),
   }
+}
+
+/** The transcript row of a Hive wake message, at the log position of the entry Pi appended. */
+export function incorporatedHiveWakeDisplay(
+  source: PiUserMessageEntrySource,
+  message: PiCustomMessage,
+): AgentTransportUserMessage {
+  return hiveWakeDisplay(
+    logPosition(source, (entry) => isEntryOfCustomMessage(entry, message)).createdOrder,
+  )
+}
+
+/**
+ * How a custom message the Run incorporated is shown as a user row, if it is one: a visible
+ * Waggle user request, or the Host's Hive wake notice. Any other custom message is not a row.
+ */
+export function incorporatedCustomMessageDisplay(message: PiCustomMessage) {
+  if (isVisibleWaggleUserRequest(message)) {
+    return (source: PiUserMessageEntrySource) =>
+      incorporatedWaggleUserRequestDisplay(source, message)
+  }
+  if (message.customType === HIVE_WAKE_CUSTOM_TYPE) {
+    return (source: PiUserMessageEntrySource) => incorporatedHiveWakeDisplay(source, message)
+  }
+  return null
 }

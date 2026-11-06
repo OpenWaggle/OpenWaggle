@@ -35,9 +35,11 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
     // An extension command is not the user's request: the title waits for the first real prompt.
+    // Neither is a Hive wake, whose prompt the Host wrote.
     const invokesCommand =
       sessionTitleOwed(session) &&
-      (yield* invokesExtensionCommand({ session, model: input.model, payload: input.payload }))
+      (input.hiveWake === true ||
+        (yield* invokesExtensionCommand({ session, model: input.model, payload: input.payload })))
     const assignedTitle = invokesCommand
       ? null
       : yield* assignSessionTitleFromUserText(input.sessionId, session, {

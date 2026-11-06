@@ -7,8 +7,9 @@ import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
-import { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
+import type { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { notifyParentOfOrchestrationUpdates } from './hive-parent-wake-request'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 
 const logger = createLogger('follow-up-edit-worker-settlement')
@@ -66,10 +67,7 @@ export function settleDeferredWorkerDelegationAfterQueueChange(
       })
     }
     if (update.orchestrationUpdate) {
-      const delivery = yield* SessionOrchestrationUpdateDeliveryService
-      yield* delivery.deliverPendingToActiveRun({
-        parentSessionId: update.orchestrationUpdate.parentSessionId,
-      })
+      yield* notifyParentOfOrchestrationUpdates(update.orchestrationUpdate.parentSessionId)
     }
     return true
   }).pipe(

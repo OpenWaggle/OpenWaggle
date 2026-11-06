@@ -3,6 +3,10 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { markRunFailedAttention } from './sqlite-delegation-attention'
+import {
+  insertOrchestrationUpdate,
+  ORCHESTRATION_UPDATE_SUMMARY_LIMIT,
+} from './sqlite-session-orchestration-update-insert'
 
 interface WorkerDelegationRow {
   readonly id: string
@@ -13,8 +17,6 @@ interface WorkerDelegationRow {
   /** 1 when the Worker asked for help (`worker_request`) during the settling Run. */
   readonly explicit_needs_attention: number
 }
-
-const HOST_CAPTURED_RESULT_LIMIT = 100_000
 
 function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, runId: string) {
   return sql<WorkerDelegationRow>`
@@ -44,7 +46,7 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, ru
   `.pipe(Effect.map((rows) => rows[0]))
 }
 
-function insertOrchestrationUpdate(
+function insertSettlementUpdate(
   sql: SqlClient.SqlClient,
   input: {
     readonly updateId: string
@@ -55,16 +57,16 @@ function insertOrchestrationUpdate(
     readonly now: number
   },
 ) {
-  return sql`
-    INSERT INTO session_orchestration_updates (
-      id, parent_session_id, worker_session_id, delegation_id, source_run_id,
-      state, summary, status, created_at
-    ) VALUES (
-      ${input.updateId}, ${input.contract.parent_session_id}, ${input.settlement.sessionId},
-      ${input.contract.id}, ${input.settlement.runId}, ${input.state}, ${input.summary},
-      ${'pending'}, ${input.now}
-    )
-  `
+  return insertOrchestrationUpdate(sql, {
+    updateId: input.updateId,
+    parentSessionId: input.contract.parent_session_id,
+    workerSessionId: input.settlement.sessionId,
+    delegationId: input.contract.id,
+    sourceRunId: input.settlement.runId,
+    state: input.state,
+    summary: input.summary,
+    now: input.now,
+  })
 }
 
 function settleUnsuccessfulWorker(
@@ -91,7 +93,7 @@ function settleUnsuccessfulWorker(
       now: input.now,
     })
     const updateId = `orchestration:${input.contract.id}:${input.settlement.runId}:needs-attention`
-    yield* insertOrchestrationUpdate(sql, {
+    yield* insertSettlementUpdate(sql, {
       updateId,
       contract: input.contract,
       settlement: input.settlement,
@@ -139,7 +141,9 @@ function settleCompletedWorker(
     // since answered, is resolved here.
     if (input.contract.explicit_needs_attention === 1) return undefined
     const revision = input.contract.latest_submission_revision + 1
-    const summary = input.settlement.finalResponse.trim().slice(0, HOST_CAPTURED_RESULT_LIMIT)
+    const summary = input.settlement.finalResponse
+      .trim()
+      .slice(0, ORCHESTRATION_UPDATE_SUMMARY_LIMIT)
     yield* sql`
       INSERT INTO delegation_submissions (
         delegation_id, revision, specification_revision, summary, submitted_by,
@@ -166,7 +170,7 @@ function settleCompletedWorker(
       WHERE id = ${input.contract.id}
     `
     const updateId = `orchestration:${input.contract.id}:${input.settlement.runId}:ready-for-review`
-    yield* insertOrchestrationUpdate(sql, {
+    yield* insertSettlementUpdate(sql, {
       updateId,
       contract: input.contract,
       settlement: input.settlement,

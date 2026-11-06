@@ -107,6 +107,8 @@ export interface UIMessageMetadata {
   readonly liveIncorporated?: true
   /** A user message a Scheduled task run delivered (Host-recorded), shown as "Scheduled · name". */
   readonly scheduledTask?: MessageScheduledTaskOrigin
+  /** The Host's Hive wake notice: a row the Host wrote, shown as "Hive · Worker updates arrived". */
+  readonly hiveWake?: true
 }
 
 export interface UIMessage {

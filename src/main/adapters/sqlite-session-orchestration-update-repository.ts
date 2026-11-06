@@ -8,6 +8,7 @@ import {
   SessionOrchestrationUpdateRepository,
   type SessionOrchestrationUpdateRepositoryShape,
 } from '../ports/session-orchestration-update-repository'
+import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 
 interface PendingUpdateRow {
   readonly id: string
@@ -157,6 +158,10 @@ export const SqliteSessionOrchestrationUpdateRepositoryLive = Layer.effect(
       markDelivered: (input) => markDelivered(sql, input),
       listPendingSpecifications: (input) => listPendingSpecifications(sql, input),
       markSpecificationsDelivered: (input) => markSpecificationsDelivered(sql, input),
+      parentWakeCandidate: (input) =>
+        selectHiveParentWakeCandidate(sql, input).pipe(
+          Effect.mapError((cause) => repositoryError('hive-parent-wake-candidate', cause)),
+        ),
     })
   }),
 )
