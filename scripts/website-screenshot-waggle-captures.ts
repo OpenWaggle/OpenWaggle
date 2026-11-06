@@ -29,6 +29,11 @@ const WAGGLE_SETTINGS_WINDOW = { width: 1280, height: 1560 } as const
 const WAGGLE_TOKENS_PER_TURN = 2_600
 const TWICE = 2
 const METER_SIDE_PAD_PX = 6
+/**
+ * A smaller 16:10 window for the landing page's Waggle view, shot at twice CSS size: the frame
+ * shows it at the same width as the other views, so each turn reads larger.
+ */
+const WAGGLE_WINDOW = { width: 1440, height: 900 } as const
 
 /** The provider models a fresh profile needs before Waggle presets can name them. */
 const WAGGLE_MODELS = [
@@ -206,6 +211,45 @@ export async function captureWaggleConversation(context: CaptureContext) {
       width: composer.width + CROP_MARGIN_PX * TWICE,
       height: composer.y + composer.height + CROP_MARGIN_PX - log.y,
     }
+  })
+}
+
+/** Space above the first turn's divider, so its label is not cut by the header. */
+const FIRST_TURN_TOP_GAP_PX = 12
+
+/** Scrolls the transcript up just far enough that Turn 1's divider is in view, not cut. */
+async function showFirstTurn(page: Page) {
+  const log = page.getByRole('log', { name: 'Chat messages' }).locator('visible=true').first()
+  const label = log.getByText(/^Turn 1: Architect/).first()
+  await label.waitFor({ timeout: UI_TIMEOUT_MS })
+  const offset = (await regionOf(label)).y - (await regionOf(log)).y - FIRST_TURN_TOP_GAP_PX
+  if (offset < 0) {
+    await log.evaluate((scroller, by) => {
+      scroller.scrollTop += by
+    }, offset)
+  }
+  const shown = (await regionOf(label)).y - (await regionOf(log)).y
+  if (shown < FIRST_TURN_TOP_GAP_PX - 1) {
+    throw new Error(`Turn 1's divider is still cut off at the top of the transcript (${shown}px)`)
+  }
+}
+
+/**
+ * The whole window during the live Waggle Run, for the landing page's Waggle view: two agents on
+ * different models taking turns, and the status bar naming both while the third turn runs.
+ */
+export async function captureWaggleWindow(context: CaptureContext) {
+  const { page } = context
+  await ensureHeldWaggleRun(context)
+  await closeRightPanel(page)
+  await withWindowSize(context, WAGGLE_WINDOW, async () => {
+    await showFirstTurn(page)
+    await shootRegion(
+      context,
+      'feature-waggle.png',
+      { x: 0, y: 0, ...WAGGLE_WINDOW },
+      { lossless: true, hideScrollbars: true },
+    )
   })
 }
 
