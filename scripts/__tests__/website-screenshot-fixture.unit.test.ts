@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { safeDecodeUnknown } from '../../src/shared/schema'
+import { safeDecodeUnknown } from '@shared/schema'
 import {
   waggleConfigSchema,
   waggleInvocationMetadataSchema,
   waggleMetadataSchema,
-} from '../../src/shared/schemas/waggle'
+} from '@shared/schemas/waggle'
 import {
   MARKETING_WAGGLE_CONFIG,
   marketingPrompt,
