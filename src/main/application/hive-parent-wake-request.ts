@@ -34,21 +34,3 @@ export function notifyParentOfOrchestrationUpdates(parentSessionId: string) {
     if (!delivered) yield* requestHiveParentWake({ parentSessionId })
   })
 }
-
-/**
- * The wake request for a Session whose Run just settled with nothing scheduled. A completed Run
- * names when its last turn ended, so an update delivered to it after that still gets a Run.
- */
-export function settledParentWake(
-  sessionId: string,
-  runId: string,
-  execution: { readonly terminalStatus: string; readonly terminalEventAt?: number } | undefined,
-): HiveParentWakeRequest {
-  if (execution?.terminalStatus !== 'completed' || execution.terminalEventAt === undefined) {
-    return { parentSessionId: sessionId }
-  }
-  return {
-    parentSessionId: sessionId,
-    settledRun: { runId, terminalEventAt: execution.terminalEventAt },
-  }
-}

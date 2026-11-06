@@ -66,6 +66,7 @@ function messagePreview(node: SessionNode) {
   return {
     hasMessage: true,
     ...(text ? { preview: codePointPrefix(text, SESSION_TREE_PREVIEW_CHARACTERS) } : {}),
+    ...(node.message.metadata?.hiveWake ? { hiveWake: true as const } : {}),
   }
 }
 

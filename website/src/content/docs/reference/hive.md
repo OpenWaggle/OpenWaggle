@@ -185,7 +185,7 @@ A `needs_attention` that OpenWaggle set for a failed run goes back to `working` 
 
 ### When a worker reports to an idle parent
 
-The parent hears about every result and every request for help as an update from OpenWaggle. A running parent gets the update in its current run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
+The parent hears about every result and every request for help as an update from OpenWaggle. A running parent reads the update at its next model request in the current run. An update that arrives while the parent writes its last answer, or after it, waits for a new run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
 
 | Update | Sent when |
 | --- | --- |
@@ -198,8 +198,9 @@ OpenWaggle starts that run only when all of these hold:
 - The parent is not archived.
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.
+- Whoever started the parent's last run may still send it a message. A revoked CLI client profile, or one without `sessions:message`, gets no run.
 
-The run acts for whoever started the parent's last run, with the same permissions. It counts toward **Workers per parent** and **Active agent runs**. When a limit is full, OpenWaggle tries again when another run ends.
+The run acts for whoever started the parent's last run. It keeps that run's mode, and it runs in **Ask for approval** when that caller's ceiling is **Ask for approval** now. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
 
 Each update starts at most one run. If that run fails, OpenWaggle waits for the next update, or for you to send the parent a message, which also delivers the update. In the parent's transcript, the run starts with a **Hive · Worker updates arrived** line instead of a message from you. Several updates that arrive close together go into the same run.
 

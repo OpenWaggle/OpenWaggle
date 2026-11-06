@@ -1,3 +1,4 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { DelegationSpecificationInput } from '@shared/types/session-lifecycle'
 import { Context, type Effect } from 'effect'
 import type { SessionControlRepositoryError } from '../errors'
@@ -29,17 +30,16 @@ export interface PendingDelegationSpecificationUpdate {
  */
 export interface HiveParentWakeCandidate {
   readonly parentSessionId: string
+  /** The parent's latest Run, whose caller the wake acts for and whose initiator bounds it. */
+  readonly latestRunId: string
   readonly callerId: string
+  /** The latest Run's own Run mode override, which the wake keeps. */
+  readonly runAuthorizationOverride?: AgentAuthorizationMode
   readonly piSessionFile: string | null
 }
 
 export interface HiveParentWakeQuery {
   readonly parentSessionId: string
-  /**
-   * The parent Run that just settled and when its last turn ended. An update delivered to it
-   * after that moment reached a Run that had already answered, so it still needs a Run.
-   */
-  readonly settledRun?: { readonly runId: string; readonly terminalEventAt: number }
 }
 
 export interface SessionOrchestrationUpdateRepositoryShape {
