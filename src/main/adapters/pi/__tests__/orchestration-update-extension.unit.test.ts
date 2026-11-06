@@ -27,6 +27,54 @@ const updates = [
   },
 ] as const
 
+/** A session on one branch: every entry is on the path to its leaf. */
+function sessionEntries(entries: readonly SessionEntry[]) {
+  return { getEntries: () => [...entries], getBranch: () => [...entries] }
+}
+
+function persistedUpdate(id: string, updateIds: readonly string[]): SessionEntry {
+  return {
+    type: 'custom_message',
+    id,
+    parentId: null,
+    timestamp: new Date(0).toISOString(),
+    customType: 'openwaggle-orchestration-update',
+    content: 'persisted',
+    display: true,
+    details: { updateIds: [...updateIds] },
+  }
+}
+
+/** The extension of a Run that starts with `pendingUpdates`, over a session holding `entries`. */
+async function startRun(input: {
+  readonly runId: string
+  readonly branch: readonly SessionEntry[]
+  readonly abandoned?: readonly SessionEntry[]
+}) {
+  const handlers = new Map<string, (event: unknown, context?: unknown) => unknown>()
+  const sendMessage = vi.fn()
+  const delivered = vi.fn()
+  const extension = createOrchestrationUpdateExtension({
+    runId: input.runId,
+    pendingUpdates: updates,
+    onDelivered: delivered,
+  })
+  await extension.factory(
+    fromPartial<ExtensionAPI>({
+      on: vi.fn((event: string, handler: (event: unknown, context?: unknown) => unknown) => {
+        handlers.set(event, handler)
+      }),
+      sendMessage,
+    }),
+  )
+  const sessionManager = {
+    getEntries: () => [...input.branch, ...(input.abandoned ?? [])],
+    getBranch: () => [...input.branch],
+  }
+  handlers.get('session_start')?.({}, { sessionManager })
+  return { handlers, sendMessage, delivered, close: extension.close }
+}
+
 describe('Pi orchestration update extension', () => {
   it('batches pending Worker results into one Host-authored parent context message', async () => {
     let sessionStart: ((entries: readonly SessionEntry[]) => unknown) | undefined
@@ -54,8 +102,7 @@ describe('Pi orchestration update extension', () => {
       fromPartial<ExtensionAPI>({
         on: vi.fn((event: unknown, handler: unknown) => {
           if (event === 'session_start' && typeof handler === 'function') {
-            sessionStart = (entries) =>
-              handler({}, { sessionManager: { getEntries: () => [...entries] } })
+            sessionStart = (entries) => handler({}, { sessionManager: sessionEntries(entries) })
           }
           if (event === 'turn_start' && typeof handler === 'function') turnStart = () => handler({})
         }),
@@ -96,7 +143,7 @@ describe('Pi orchestration update extension', () => {
         on: vi.fn((event: unknown, handler: unknown) => {
           if (event === 'session_start' && typeof handler === 'function') {
             sessionStart = (currentEntries) =>
-              handler({}, { sessionManager: { getEntries: () => [...currentEntries] } })
+              handler({}, { sessionManager: sessionEntries(currentEntries) })
           }
         }),
         sendMessage,
@@ -117,7 +164,7 @@ describe('Pi orchestration update extension', () => {
   it('leaves a result that reached the parent during its final turn pending', async () => {
     const handlers = new Map<string, (event: unknown, context?: unknown) => unknown>()
     const entries: SessionEntry[] = []
-    const sessionManager = { getEntries: () => [...entries] }
+    const sessionManager = sessionEntries(entries)
     const delivered = vi.fn()
     const extension = createOrchestrationUpdateExtension({
       runId: 'run-parent-final-turn',
@@ -157,5 +204,34 @@ describe('Pi orchestration update extension', () => {
     handlers.get('turn_start')?.({})
     expect(delivered).toHaveBeenCalledWith(['update-1', 'update-2'])
     extension.close()
+  })
+
+  it('acknowledges an update an earlier Run left unread at the wake Run’s first request', async () => {
+    // The parent's last Run ended with both updates appended after its answer.
+    const run = await startRun({
+      runId: 'run-wake',
+      branch: [persistedUpdate('pi-entry-unread', ['update-1', 'update-2'])],
+    })
+
+    expect(run.sendMessage).not.toHaveBeenCalled()
+    run.handlers.get('agent_end')?.({})
+    expect(run.delivered).not.toHaveBeenCalled()
+    run.handlers.get('turn_start')?.({})
+    expect(run.delivered).toHaveBeenCalledWith(['update-1', 'update-2'])
+    run.close()
+  })
+
+  it('sends an update again when its entry is only on a branch the user left', async () => {
+    const run = await startRun({
+      runId: 'run-after-edit',
+      branch: [],
+      abandoned: [persistedUpdate('pi-entry-abandoned', ['update-1', 'update-2'])],
+    })
+
+    expect(run.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ details: { updateIds: ['update-1', 'update-2'] } }),
+      { deliverAs: 'steer', triggerTurn: false },
+    )
+    run.close()
   })
 })

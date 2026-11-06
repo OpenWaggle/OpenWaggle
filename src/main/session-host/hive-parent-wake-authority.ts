@@ -8,9 +8,10 @@ import { runInitiatorCeiling } from './session-agent-run-ceiling'
 /**
  * What a Hive wake may do for the caller of the parent's latest Run (`hive-parent-wake.ts`). That
  * caller must still be allowed to send the parent a message, checked as Follow-up delivery checks
- * a queued Follow-up's caller. The wake keeps the latest Run's Run mode override and is clamped to
- * ask-for-approval when the live ceiling of whoever started that Run is, so it never runs with
- * more than a Run that caller could start now.
+ * a queued Follow-up's caller. A Run mode override belongs to the one Run it was sent with, so the
+ * wake keeps only a narrowing one: it runs in ask-for-approval when the latest Run did, or when the
+ * live ceiling of whoever started that Run is ask-for-approval, and otherwise in the Session's own
+ * mode. It never runs with more than a Run that caller could start now.
  */
 export function resolveHiveWakeAuthority(
   sql: SqlClient.SqlClient,
@@ -28,10 +29,10 @@ export function resolveHiveWakeAuthority(
       candidate.parentSessionId,
       candidate.latestRunId,
     )
-    const runAuthorizationOverride =
-      ceiling === 'ask-for-approval' ? ceiling : candidate.runAuthorizationOverride
+    const asks =
+      ceiling === 'ask-for-approval' || candidate.runAuthorizationOverride === 'ask-for-approval'
     return (
-      runAuthorizationOverride ? { runAuthorizationOverride } : {}
+      asks ? { runAuthorizationOverride: 'ask-for-approval' } : {}
     ) satisfies HiveWakeAuthority
   })
 }

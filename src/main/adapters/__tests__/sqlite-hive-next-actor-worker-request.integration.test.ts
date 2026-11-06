@@ -8,6 +8,7 @@ import {
   message,
   openHiveNextActorHost,
   readDelegation,
+  runWorker,
   setParentQueue,
   setWorkerState,
   startWorker,
@@ -75,6 +76,99 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
     )
     expect(started.outcome.effect).toBe('started-run')
     expect(await withHost(readDelegation)).toMatchObject({ state: 'working', cause: null })
+  })
+
+  it('keeps a Worker’s request for help through a Hive wake its own Workers caused', async () => {
+    await withHost(() => runWorker('session-agent:queen:run-q', 'first', 'completed'))
+    await withHost((sql) =>
+      Effect.gen(function* () {
+        yield* setWorkerState(sql, 'needs_attention')
+        // The columns the wake's eligibility check reads, which this minimal schema leaves out.
+        yield* sql.unsafe('ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0')
+        yield* sql.unsafe('ALTER TABLE sessions ADD COLUMN pi_session_file TEXT')
+        // The Worker's own Worker reported after the Worker's last Run.
+        yield* sql`
+          INSERT INTO delegation_contracts (
+            id, parent_session_id, child_session_id, state,
+            current_specification_revision, created_at, updated_at
+          ) VALUES (
+            ${'delegation-sub'}, ${'worker'}, ${'stranger'}, ${'ready_for_review'}, ${1},
+            ${1000}, ${1000}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (${'run-sub'}, ${'stranger'}, ${'completed'}, ${'{"callerId":"local-user"}'},
+            ${1000}, ${1000})
+        `
+        yield* sql`
+          INSERT INTO session_orchestration_updates (
+            id, parent_session_id, worker_session_id, delegation_id, source_run_id, state,
+            summary, status, created_at
+          ) VALUES (
+            ${'update-sub'}, ${'worker'}, ${'stranger'}, ${'delegation-sub'}, ${'run-sub'},
+            ${'ready_for_review'}, ${'Sub-task done.'}, ${'pending'}, ${Date.now() + 60_000}
+          )
+        `
+      }),
+    )
+    // The Worker is itself a parent: its own Worker reported, so the Host wakes it as the caller
+    // of its latest Run, its parent's agent. That is not its parent answering.
+    const woken = await withHost(() =>
+      startSessionRun({
+        callerId: 'session-agent:queen:run-q',
+        hiveWake: true,
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-hive-wake',
+          idempotencyKey: 'hive-wake',
+          command: {
+            operation: 'start',
+            sessionId: 'worker',
+            input: {
+              text: 'Worker updates arrived while this Session was idle.',
+              attachmentIds: [],
+            },
+          },
+        },
+      }),
+    )
+    expect(woken.outcome.effect).toBe('started-run')
+    expect(await withHost(readDelegation)).toMatchObject({
+      state: 'needs_attention',
+      cause: 'worker_request',
+    })
+  })
+
+  it('refuses a wake whose Session no longer needs it when its start runs', async () => {
+    await withHost(() => runWorker('session-agent:queen:run-q', 'first', 'completed'))
+    await withHost((sql) =>
+      Effect.gen(function* () {
+        yield* sql.unsafe('ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0')
+        yield* sql.unsafe('ALTER TABLE sessions ADD COLUMN pi_session_file TEXT')
+      }),
+    )
+    // No update waits: someone else's Run read it after the Host checked, for one.
+    const woken = await withHost(() =>
+      startSessionRun({
+        callerId: 'session-agent:queen:run-q',
+        hiveWake: true,
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-stale-wake',
+          idempotencyKey: 'stale-wake',
+          command: {
+            operation: 'start',
+            sessionId: 'worker',
+            input: {
+              text: 'Worker updates arrived while this Session was idle.',
+              attachmentIds: [],
+            },
+          },
+        },
+      }),
+    )
+    expect(woken.outcome).toMatchObject({ effect: 'rejected', code: 'hive_wake_not_needed' })
   })
 
   it('clears a Worker’s request for help when it sets itself back to working', async () => {

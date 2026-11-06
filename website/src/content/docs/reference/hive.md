@@ -200,7 +200,9 @@ OpenWaggle starts that run only when all of these hold:
 - The parent was not last continued in the pi CLI.
 - Whoever started the parent's last run may still send it a message. A revoked CLI client profile, or one without `sessions:message`, gets no run.
 
-The run acts for whoever started the parent's last run. It keeps that run's mode, and it runs in **Ask for approval** when that caller's ceiling is **Ask for approval** now. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
+The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run did, or when that caller's ceiling is **Ask for approval** now. It is always a standard run, even when the last run was a Waggle. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
+
+OpenWaggle checks these rules again just before the run starts, so a parent that got a run, a follow-up or was archived in the meantime is left alone. When the parent is itself a worker that asked its own parent for help, the run does not count as that parent's answer.
 
 Each update starts at most one run. If that run fails, OpenWaggle waits for the next update, or for you to send the parent a message, which also delivers the update. In the parent's transcript, the run starts with a **Hive · Worker updates arrived** line instead of a message from you. Several updates that arrive close together go into the same run.
 
@@ -286,7 +288,7 @@ A worker gets its parent's access by default. A spawn or an [agent definition](/
 
 ## Run limits
 
-Two settings in **Settings > Agents > Hive controls** cap how many runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active agent runs** to 16 runs across the whole app. [Settings](/docs/reference/settings) lists both. A new run at either limit fails with an error the caller can retry. It is not queued. The limits count active runs, not saved sessions, queues, searches, exports, waits or watchers.
+Two settings in **Settings > Agents > Hive controls** cap how many runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active agent runs** to 16 runs across the whole app. [Settings](/docs/reference/settings) lists both. A new run at either limit fails with an error the caller can retry. It is not queued. A run OpenWaggle starts for a parent whose workers reported is the exception, because it is retried when another run ends. The limits count active runs, not saved sessions, queues, searches, exports, waits or watchers.
 
 ## Worker cleanup timing
 

@@ -52,6 +52,14 @@ describe('filterSessionTreeNodes', () => {
     expect(filterSessionTreeNodes(nodes, 'user-only').map((item) => String(item.id))).toEqual([
       'user-1',
     ])
+    // The Host's Hive wake notice is not one of the user's messages.
+    const wake = {
+      ...node({ id: 'wake-1', kind: 'user_message', role: 'user' }),
+      hiveWake: true as const,
+    }
+    expect(filterSessionTreeNodes([...nodes, wake], 'user-only').map(String)).not.toContain(
+      'wake-1',
+    )
     expect(filterSessionTreeNodes(nodes, 'labeled-only').map((item) => String(item.id))).toEqual([
       'label-1',
     ])
