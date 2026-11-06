@@ -81,10 +81,21 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
  * instead of red a whole run on one timeout.
  */
 const INSTALL_COMPOSITE_STEP = '      - uses: ./.github/actions/pnpm-install'
+/*
+ * Jobs that run Electron (the Pi main-bundle smoke and tests that require `electron`) fetch
+ * its binary in the install action, with retries. Electron otherwise downloads it lazily on
+ * first use with no retry, and one GitHub 504 failed a whole Typecheck & Lint run.
+ */
+const INSTALL_COMPOSITE_WITH_ELECTRON_STEP = `${INSTALL_COMPOSITE_STEP}
+        with:
+          electron-binary: 'true'`
 const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes zsh
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes zsh; then break; fi
+            sleep 15
+          done
           /bin/zsh --version
           while IFS= read -r insecure_path; do
             [ -n "$insecure_path" ] || continue
@@ -97,9 +108,20 @@ const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration
  * Pinned here because a broken installer script otherwise only surfaces when the release
  * workflow packages Windows - it silently broke two consecutive releases before this
  * check existed.
+ *
+ * The apt steps tolerate a failing `apt-get update`: the runner image ships third-party
+ * sources (packages.microsoft.com once answered 403), and `apt-get update` fails on any of
+ * them even though the Ubuntu archive refreshed. The install and the version probe after it
+ * still fail the job when the package really is unavailable.
  */
 const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script check
-        run: sudo apt-get update && sudo apt-get install -y nsis`
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes nsis; then break; fi
+            sleep 15
+          done
+          makensis -VERSION`
 const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
 const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
         env:
@@ -137,7 +159,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       CHECKOUT_STEP,
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_STEP,
+      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       NSIS_INSTALL_STEP,
       '      - run: pnpm check',
     ],
@@ -149,7 +171,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       CHECKOUT_STEP,
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_STEP,
+      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       '      - run: pnpm test:unit',
     ],
   ],
@@ -160,7 +182,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       CHECKOUT_STEP,
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_STEP,
+      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       TERMINAL_SHELLS_INSTALL_STEP,
       '      - run: pnpm test:integration && pnpm test:component',
     ],

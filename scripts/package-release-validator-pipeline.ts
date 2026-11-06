@@ -15,7 +15,7 @@ import { validateCiWorkflow } from './package-release-validator-ci'
 
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '9240d591bcaa6e56a550ee84817d7cc817b9a08df0c240eb1fd672aaff3d0b27'
+  '0bff3042da820667bde285cdd0fb7c20f461265d9e9b342415791e24ecb24537'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -72,6 +72,10 @@ function validatePackageReleaseWorkflow(
     ['pnpm package-docs:update', `${WORKFLOW_PATH} Release Please must generate the versioned documentation line before validation.`],
     ['git commit -m "fix(packages): synchronize release documentation"', `${WORKFLOW_PATH} Release Please must commit generated documentation to its exact head.`],
     ['git push origin "HEAD:$RELEASE_PR_HEAD"', `${WORKFLOW_PATH} Release Please must validate the generated documentation commit.`],
+    ['HUSKY: "0"', `${WORKFLOW_PATH} Release Please must push generated documentation without running local git hooks.`],
+    ['echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"', `${WORKFLOW_PATH} Release Please must record the exact head it generated.`],
+    ['EXPECTED_HEAD_SHA: ${{ steps.docs.outputs.head_sha }}', `${WORKFLOW_PATH} Release Please must validate CI for the head it generated, not a stale API head.`],
+    ['test "$HEAD_SHA" = "$EXPECTED_HEAD_SHA"', `${WORKFLOW_PATH} Release Please must fail closed when the PR head never reaches the generated commit.`],
     ['repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches', `${WORKFLOW_PATH} Release Please must dispatch immutable exact-head CI.`],
     ['gh run watch "$RUN_ID" --exit-status', `${WORKFLOW_PATH} Release Please must wait for exact-head CI success.`],
   ], violations)

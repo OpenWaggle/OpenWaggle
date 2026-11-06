@@ -290,7 +290,7 @@ async function runCli() {
   for (const violation of result.violations) console.error(violation)
   if (result.violations.length > 0) process.exitCode = FAILURE_EXIT_CODE
   if (result.changedFiles.length === 0) {
-    console.log('Package documentation is current.')
+    if (result.violations.length === 0) console.log('Package documentation is current.')
     return
   }
   if (argument !== '--update') return

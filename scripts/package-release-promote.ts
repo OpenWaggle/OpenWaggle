@@ -293,13 +293,19 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
     ensureGitHubRelease,
     ensureTag,
     publish: async (_artifact, tarballPath) => {
-      await run('node', [
+      const result = await run('node', [
         '--disable-warning=MODULE_TYPELESS_PACKAGE_JSON',
         path.join('scripts', 'package-release-publish.ts'),
         tarballPath,
       ])
+      if (result.stdout) process.stdout.write(result.stdout)
+      if (result.stderr) process.stderr.write(result.stderr)
     },
-    readRegistryIntegrity,
+    readRegistryIntegrity: async (name, version) => {
+      const integrity = await readRegistryIntegrity(name, version)
+      if (integrity === null) console.log(`npm does not serve ${name}@${version} yet.`)
+      return integrity
+    },
     sleep,
   })
 }
