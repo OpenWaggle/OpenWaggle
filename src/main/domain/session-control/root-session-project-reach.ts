@@ -27,6 +27,9 @@ export function isLocalUserCallerId(callerId: string) {
  */
 export const HOST_SHUTDOWN_CALLER_ID = 'local-user:host-shutdown'
 
+/** Who may stop a Run in-process: the desktop user, or the Host as it shuts down. */
+export type InProcessInterruptCallerId = 'gui:local-user' | typeof HOST_SHUTDOWN_CALLER_ID
+
 export function isProfileCallerId(callerId: string) {
   return callerId.startsWith(PROFILE_CALLER_PREFIX)
 }

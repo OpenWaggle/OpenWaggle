@@ -1,7 +1,10 @@
 import type { SessionId } from '@shared/types/brand'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import { HOST_SHUTDOWN_CALLER_ID } from '../domain/session-control/root-session-project-reach'
+import {
+  HOST_SHUTDOWN_CALLER_ID,
+  type InProcessInterruptCallerId,
+} from '../domain/session-control/root-session-project-reach'
 import { createLogger } from '../logger'
 import { listHostUiActiveActivities } from './host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
@@ -12,7 +15,10 @@ const logger = createLogger('session-run-interruption')
 type HostDispatch = ReturnType<typeof dispatchLocalSessionCommand>
 
 /** Stops a Session's active run, or its standalone compaction, in this Session Host. */
-export function interruptSessionRun(sessionId: SessionId, interruptCallerId?: string) {
+export function interruptSessionRun(
+  sessionId: SessionId,
+  interruptCallerId?: InProcessInterruptCallerId,
+) {
   return interruptSessionRunThrough<
     Effect.Effect.Error<HostDispatch>,
     Effect.Effect.Context<HostDispatch>

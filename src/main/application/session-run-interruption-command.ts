@@ -8,6 +8,7 @@ import type {
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import type { InProcessInterruptCallerId } from '../domain/session-control/root-session-project-reach'
 
 /**
  * How a caller reaches the Session Host: the Host dispatches in its own process, the desktop
@@ -26,7 +27,7 @@ export type SessionCommandDispatch<E, R> = (input: {
 export function interruptSessionRunThrough<E, R>(
   dispatchLocalSessionCommand: SessionCommandDispatch<E, R>,
   sessionId: SessionId,
-  interruptCallerId = 'gui:local-user',
+  interruptCallerId: InProcessInterruptCallerId = 'gui:local-user',
 ) {
   return Effect.gen(function* () {
     const statusResult = yield* dispatchLocalSessionCommand({
