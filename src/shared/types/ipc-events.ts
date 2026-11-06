@@ -35,6 +35,8 @@ export interface AgentRunCompletedPayload {
   readonly terminalStatus?: SessionRunTerminalStatus
   /** The Run failed after it had reported a clean end, e.g. it could not be saved. */
   readonly failureCode?: string
+  /** The Run was a Hive wake: no prompt of the user's started it, so none is retried. */
+  readonly hiveWake?: true
   readonly continues?: true
 }
 

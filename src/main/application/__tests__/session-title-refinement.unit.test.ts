@@ -203,6 +203,20 @@ describe('regenerateSessionTitle', () => {
     )
   })
 
+  it('leaves the Host’s Hive wake notice out of the context', async () => {
+    world().messages = [
+      ...world().messages,
+      { ...text('user', 'Worker updates arrived', 'wake-1'), metadata: { hiveWake: true } },
+      text('assistant', 'The Workers finished.', 'a2'),
+    ]
+    world().replies.push(json('Short session titles'))
+
+    await run(regenerateSessionTitle(SESSION_ID))
+
+    expect(JSON.stringify(world().requests[0])).toContain('Make titles short')
+    expect(JSON.stringify(world().requests[0])).not.toContain('Worker updates arrived')
+  })
+
   it('reports an accurate previous title as unchanged', async () => {
     world().replies.push(json('Old manual title'))
 

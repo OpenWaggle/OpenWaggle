@@ -63,6 +63,7 @@ describe('Session Host renderer bridge settlement', () => {
         runId: 'run-2',
         terminalStatus: 'failed',
         failureCode: 'persist-failed',
+        hiveWake: true,
       },
     })
 
@@ -71,6 +72,7 @@ describe('Session Host renderer bridge settlement', () => {
       runId: 'run-2',
       terminalStatus: 'failed',
       failureCode: 'persist-failed',
+      hiveWake: true,
     })
     expect(getStreamBuffer(SESSION_ID)).toBeNull()
   })

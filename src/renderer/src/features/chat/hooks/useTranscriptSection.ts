@@ -22,6 +22,7 @@ import {
   readAgentLoopEventsFromWorkspace,
 } from '../lib/agent-loop-transcript-events'
 import { areCopiesBlocked } from '../lib/copies-blocked'
+import { isHiveWakeRunError } from '../lib/hive-wake-run-error'
 import { retryableLastUserMessage } from '../lib/retryable-last-user-message'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import { remoteTranscriptHistory, workspacePathNodeIds } from '../lib/transcript-remote-history'
@@ -189,7 +190,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const toggleTurnFold = useTurnFoldStore((state) => state.toggleTurnFold)
   const displayedSelection = displayedWorkspaceSelection(activeWorkspace, activeSessionId)
 
-  const lastUserMessage = retryableLastUserMessage(transcriptMessages)
+  const lastUserMessage = isHiveWakeRunError(error)
+    ? null
+    : retryableLastUserMessage(transcriptMessages)
   const interruptedRun =
     activeWorkspace?.tree.session.id === activeSessionId
       ? activeWorkspace.tree.branches.find((branch) => branch.id === activeWorkspace.activeBranchId)

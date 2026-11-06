@@ -56,6 +56,11 @@ function writeHeader(manifest: unknown, format: ExportFormat) {
   )
 }
 
+/** One exported record as Markdown: its heading (the Host's notice is not the user) and content. */
+export function markdownExportRecord(record: Record<string, unknown>) {
+  return `## ${sessionExportMarkdownHeading(record)}\n\n${markdownContent(record.content ?? record)}\n\n`
+}
+
 async function writeRecords(records: readonly unknown[], format: ExportFormat) {
   for (const record of records) {
     if (format === 'jsonl') {
@@ -63,9 +68,7 @@ async function writeRecords(records: readonly unknown[], format: ExportFormat) {
       continue
     }
     if (!isRecord(record)) continue
-    await writeCliStdout(
-      `## ${sessionExportMarkdownHeading(record)}\n\n${markdownContent(record.content ?? record)}\n\n`,
-    )
+    await writeCliStdout(markdownExportRecord(record))
   }
 }
 

@@ -1,5 +1,6 @@
 import { RunId, type SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
+import { workerChangeMayWakeParent } from '../domain/session-control/hive-wake'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import {
   type SessionControlRunExecutionResult,
@@ -61,10 +62,14 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
       const reservation = initialReservation ?? reserveActiveSessionRun(input.sessionId, runId)
       initialReservation = undefined
       let settledExecution: SessionControlRunExecutionResult | undefined
+      let hiveWake = false
+      let runCallerId: string | undefined
       const settlement = yield* Effect.gen(function* () {
         const activation = yield* lifecycle.activate({ sessionId: input.sessionId, runId })
         if (!activation.accepted && !reservation.controller.signal.aborted) return undefined
         if (activation.accepted) {
+          hiveWake = activation.intent.hiveWake === true
+          runCallerId = activation.intent.callerId
           publishSessionHostEvent({
             kind: 'session-state-changed',
             sessionId: input.sessionId,
@@ -133,6 +138,7 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
                 ...(settledExecution.failure ? { failureCode: settledExecution.failure.code } : {}),
               }
             : {}),
+          ...(hiveWake ? { hiveWake: true as const } : {}),
         })
         if (settlement.delegationUpdate) {
           publishSessionHostEvent({
@@ -142,7 +148,13 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
           })
         }
         if (settlement.orchestrationUpdate) {
-          yield* notifyParentOfOrchestrationUpdates(settlement.orchestrationUpdate.parentSessionId)
+          yield* notifyParentOfOrchestrationUpdates(
+            settlement.orchestrationUpdate.parentSessionId,
+            {
+              // A Run that never activated was ended by the Host, not started by anyone new.
+              mayWake: runCallerId === undefined || workerChangeMayWakeParent(runCallerId),
+            },
+          )
         }
       }
       if (!settlement.accepted) return results

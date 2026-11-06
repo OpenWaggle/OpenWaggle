@@ -17,7 +17,16 @@ import {
  * 1, unreviewed), went idle, and was woken when its own Worker reported. The woken Run's outcome
  * must reach the parent, or the parent only ever holds the stale answer.
  */
-function settleWorkerRunAfterResult(file: string, input: { readonly hiveWake: boolean }) {
+function settleWorkerRunAfterResult(
+  file: string,
+  input: {
+    readonly hiveWake: boolean
+    /** When the wake Run starts; the captured result is from 500. */
+    readonly wakeStartedAt?: number
+    readonly terminalStatus?: 'completed' | 'failed' | 'interrupted'
+    readonly finalResponse?: string
+  },
+) {
   const layer = makeSessionControlRunLifecycleTestLayer(file)
   return Effect.runPromise(
     Effect.gen(function* () {
@@ -45,14 +54,22 @@ function settleWorkerRunAfterResult(file: string, input: { readonly hiveWake: bo
           WHERE id = ${'run-next'}
         `
       }
+      if (input.wakeStartedAt !== undefined) {
+        yield* sql`
+          UPDATE session_runs SET created_at = ${input.wakeStartedAt} WHERE id = ${'run-next'}
+        `
+      }
       const lifecycle = yield* SessionControlRunLifecycleRepository
       yield* lifecycle.activate({ sessionId: SessionId('worker'), runId: RunId('run-next') })
       const settlement = yield* lifecycle.settle({
         sessionId: SessionId('worker'),
         runId: RunId('run-next'),
         nextRunId: RunId('run-after'),
-        terminalStatus: 'completed',
-        finalResponse: 'All three sub-tasks are done; here is the combined result.',
+        terminalStatus: input.terminalStatus ?? 'completed',
+        finalResponse:
+          'finalResponse' in input
+            ? input.finalResponse
+            : 'All three sub-tasks are done; here is the combined result.',
       })
       const submissions = yield* sql<{ readonly revision: number; readonly source_run_id: string }>`
         SELECT revision, source_run_id FROM delegation_submissions
@@ -62,7 +79,10 @@ function settleWorkerRunAfterResult(file: string, input: { readonly hiveWake: bo
         SELECT summary, status FROM session_orchestration_updates
         WHERE delegation_id = ${'delegation-worker'}
       `
-      return { settlement, submissions, updates }
+      const [contract] = yield* sql<{ readonly state: string }>`
+        SELECT state FROM delegation_contracts WHERE id = ${'delegation-worker'}
+      `
+      return { settlement, submissions, updates, state: contract?.state }
     }).pipe(Effect.provide(layer)),
   )
 }
@@ -101,5 +121,44 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
     expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
     expect(result.updates).toEqual([])
     expect(result.settlement).not.toHaveProperty('orchestrationUpdate')
+  })
+
+  it.each([
+    { terminalStatus: 'failed' as const, finalResponse: undefined },
+    { terminalStatus: 'interrupted' as const, finalResponse: undefined },
+    { terminalStatus: 'completed' as const, finalResponse: '  ' },
+  ])(
+    'leaves the result reviewable when the wake ends $terminalStatus without a reply',
+    async (end) => {
+      const result = await settleWorkerRunAfterResult(
+        path.join(temporaryRoot, `${end.terminalStatus}.sqlite`),
+        { hiveWake: true, ...end },
+      )
+
+      expect(result.state).toBe('ready_for_review')
+      expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
+      expect(result.updates).toEqual([])
+    },
+  )
+
+  it('replaces the result with a wake that started in the millisecond it was captured', async () => {
+    const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'same-ms.sqlite'), {
+      hiveWake: true,
+      wakeStartedAt: 500,
+    })
+
+    expect(result.submissions).toEqual([
+      { revision: 1, source_run_id: 'run-first' },
+      { revision: 2, source_run_id: 'run-next' },
+    ])
+  })
+
+  it('keeps the result through a wake that started before it was captured', async () => {
+    const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'earlier.sqlite'), {
+      hiveWake: true,
+      wakeStartedAt: 499,
+    })
+
+    expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
   })
 })

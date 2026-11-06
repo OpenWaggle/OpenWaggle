@@ -5,8 +5,10 @@ import type { DelegationState } from '@shared/types/session-collaboration'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
+import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
 import { reviewDelegation } from './sqlite-session-delegation-review'
 import { updateDelegationState } from './sqlite-session-delegation-state'
@@ -79,27 +81,24 @@ function loadContract(sql: SqlClient.SqlClient, delegationId: string) {
 }
 
 /**
- * A Worker whose result waits for review may replace it during a Hive wake that started after
- * it: its own Workers reported, and the parent must hear the outcome (see Worker settlement).
+ * A Worker whose result waits for review may replace it from inside a Hive wake that started
+ * after it (see `wakeMayReplaceResult`). Only that wake Run's own agent may.
  */
-function wokenAfterResult(sql: SqlClient.SqlClient, contract: DelegationContractRow) {
-  if (contract.state !== 'ready_for_review') return Effect.succeed(false)
-  return sql<{ readonly woken: number }>`
-    SELECT EXISTS (
-      SELECT 1 FROM session_runs AS runs
-      WHERE runs.id = (
-          SELECT latest.id FROM session_runs AS latest
-          WHERE latest.session_id = ${contract.child_session_id}
-          ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
-        )
-        AND runs.status IN (${'starting'}, ${'active'})
-        AND json_extract(runs.intent_json, '$.hiveWake') = 1
-        AND runs.created_at > COALESCE(
-          (SELECT MAX(created_at) FROM delegation_submissions WHERE delegation_id = ${contract.id}),
-          0
-        )
-    ) AS woken
-  `.pipe(Effect.map((rows) => rows[0]?.woken === 1))
+function wokenAfterResult(
+  sql: SqlClient.SqlClient,
+  callerId: string,
+  contract: DelegationContractRow,
+) {
+  const agent = parseSessionAgentCallerId(callerId)
+  if (contract.state !== 'ready_for_review' || agent?.sessionId !== contract.child_session_id) {
+    return Effect.succeed(false)
+  }
+  return wakeMayReplaceResult(sql, {
+    delegationId: contract.id,
+    workerSessionId: contract.child_session_id,
+    runId: agent.runId,
+    whileActive: true,
+  })
 }
 
 function submitDelegation(
@@ -115,7 +114,7 @@ function submitDelegation(
     }
     const contributable =
       ['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state) ||
-      (yield* wokenAfterResult(sql, contract))
+      (yield* wokenAfterResult(sql, input.callerId, contract))
     if (!contributable) return rejectedDelegationOutcome(input, 'delegation_not_contributable')
     if (command.summary.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'submission_empty')

@@ -3,6 +3,7 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { isHiveWakeRunError } from '../../lib/hive-wake-run-error'
 import { MessageDeliveredRunFailed } from '../../lib/message-delivery'
 import { useRunFinishingStore } from '../../state/run-finishing-store'
 import {
@@ -172,6 +173,51 @@ describe('useAgentChat run completions bound to their Run', () => {
     expect(first.value).toBeInstanceOf(MessageDeliveredRunFailed)
     expect(result.current.status).toBe('error')
     expect(result.current.error).toBeInstanceOf(Error)
+  })
+
+  /*
+   * The Host started a Hive wake for Worker updates. Its failure must not offer Retry, which
+   * resends the user's last message: a wake that failed before its notice row was saved leaves
+   * the user's earlier, already answered prompt as the last user row.
+   */
+  it('marks a failed Hive wake so that it offers no Retry, reported or not', async () => {
+    const { result } = renderChat()
+    await act(async () => {
+      emitRunCompleted({
+        sessionId: SESSION_ID,
+        runId: 'run-wake-1',
+        terminalStatus: 'failed',
+        failureCode: 'invalid-model',
+        hiveWake: true,
+      })
+    })
+    expect(result.current.status).toBe('error')
+    expect(isHiveWakeRunError(result.current.error)).toBe(true)
+
+    await act(async () => {
+      failRun('run-wake-2')
+    })
+    expect(isHiveWakeRunError(result.current.error)).toBe(false)
+    await act(async () => {
+      emitRunCompleted({
+        sessionId: SESSION_ID,
+        runId: 'run-wake-2',
+        terminalStatus: 'failed',
+        hiveWake: true,
+      })
+    })
+    expect(result.current.error?.message).toBe(BILLING_ERROR)
+    expect(isHiveWakeRunError(result.current.error)).toBe(true)
+  })
+
+  it('leaves a failed Run the user started retryable', async () => {
+    const { result } = renderChat()
+    await act(async () => {
+      failRun('run-1')
+      emitRunCompleted({ sessionId: SESSION_ID, runId: 'run-1', terminalStatus: 'failed' })
+    })
+    expect(result.current.error?.message).toBe(BILLING_ERROR)
+    expect(isHiveWakeRunError(result.current.error)).toBe(false)
   })
 
   // The agent is done and the Host is still settling the Run: not idle, and not running either.

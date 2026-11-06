@@ -8,7 +8,7 @@ import {
 import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
 import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
 import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
-import { buildPiRunAssistantMessages, buildPiRunNewMessages } from '../pi-run-result'
+import { buildClassicRunMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { createRunAttributionExtension } from '../run-attribution-extension'
 import { promptPiSessionForHiveWake } from './hive-wake-prompt'
@@ -208,15 +208,8 @@ export async function runPiSession(
       input.hiveWake
         ? promptPiSessionForHiveWake(session)
         : promptPiSession(session, model, input.payload, input.scheduledTask),
-    // A Hive wake has no user message: its prompt is the Host's, whether the Run fails or not.
-    buildErrorMessages: (appended) =>
-      input.hiveWake
-        ? buildPiRunAssistantMessages(appended)
-        : buildPiRunNewMessages(input.payload, appended),
-    buildSuccessMessages: (appended) =>
-      input.hiveWake
-        ? buildPiRunAssistantMessages(appended)
-        : buildPiRunNewMessages(input.payload, appended),
+    buildErrorMessages: (appended) => buildClassicRunMessages(input, appended),
+    buildSuccessMessages: (appended) => buildClassicRunMessages(input, appended),
   }).finally(() => {
     inline.close()
     unregisterLiveRun()

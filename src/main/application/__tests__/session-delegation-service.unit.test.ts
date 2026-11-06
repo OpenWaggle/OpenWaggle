@@ -143,7 +143,7 @@ describe('Session Delegation service', () => {
     )
   }
 
-  it('wakes the parent for a result the Worker’s own agent or the desktop user submitted', async () => {
+  it('wakes the parent for a result an agent or the desktop user submitted', async () => {
     expect(await submitByCaller('session-agent:worker-1:run-w')).toEqual({
       wakes: ['queen'],
       delivered: ['queen'],
@@ -154,10 +154,6 @@ describe('Session Delegation service', () => {
   it('never lets a CLI profile that may only contribute start a Run on the parent', async () => {
     // It reaches a running parent, and waits for the parent's next Run otherwise.
     expect(await submitByCaller('profile:contributor')).toEqual({
-      wakes: [],
-      delivered: ['queen'],
-    })
-    expect(await submitByCaller('session-agent:stranger:run-s')).toEqual({
       wakes: [],
       delivered: ['queen'],
     })

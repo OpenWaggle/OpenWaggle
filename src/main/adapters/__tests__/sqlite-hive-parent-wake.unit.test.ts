@@ -224,8 +224,17 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
             ${JSON.stringify({ callerId: 'local-user', hiveWake: true })}, ${4000}, ${4000}
           )
         `
-        const woken = yield* submit(4100, 'All sub-tasks are done.')
+        // Only the wake Run's own agent may replace the result, not another contributor.
+        const otherCaller = yield* submit(4050, 'Replaced by a client.', 'profile:contributor')
+        const earlierRun = yield* submit(4060, 'Replaced by an old Run.')
+        const woken = yield* submit(
+          4100,
+          'All sub-tasks are done.',
+          'session-agent:session-worker:run-worker-wake',
+        )
         return {
+          otherCaller: otherCaller.outcome,
+          earlierRun: earlierRun.outcome,
           unwoken: unwoken.outcome,
           woken: woken.outcome,
           updates: yield* pendingUpdates(sql),
@@ -237,6 +246,9 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
       effect: 'rejected',
       code: 'delegation_not_contributable',
     })
+    for (const refused of [result.otherCaller, result.earlierRun]) {
+      expect(refused).toMatchObject({ effect: 'rejected', code: 'delegation_not_contributable' })
+    }
     expect(result.woken).toMatchObject({ effect: 'delegation-updated', submissionRevision: 2 })
     expect(result.updates.map((update) => update.summary)).toContain('All sub-tasks are done.')
   })

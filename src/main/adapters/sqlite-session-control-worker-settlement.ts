@@ -3,6 +3,7 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { markRunFailedAttention } from './sqlite-delegation-attention'
+import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import {
   insertOrchestrationUpdate,
   ORCHESTRATION_UPDATE_SUMMARY_LIMIT,
@@ -16,19 +17,28 @@ interface WorkerDelegationRow {
   readonly latest_submission_revision: number
   /** 1 when the Worker asked for help (`worker_request`) during the settling Run. */
   readonly explicit_needs_attention: number
-  /**
-   * 1 when the settling Run is a Hive wake that started after the Worker's unreviewed result: its
-   * own Workers reported, so this Run's outcome replaces that result (a nested Queen's "still
-   * waiting" first answer must not be the last its parent hears).
-   */
-  readonly woken_after_result: number
 }
 
 const SETTLING_STATES = ['working', 'waiting', 'revision_requested']
 
-/** Whether a Run's end settles this Delegation: a state it works in, or a wake after its result. */
-function settles(contract: WorkerDelegationRow, states: readonly string[]) {
-  return states.includes(contract.state) || contract.woken_after_result === 1
+/**
+ * Whether a Run that completed with a reply settles this Delegation: a state it works in, or a
+ * wake after its unreviewed result (`wakeMayReplaceResult`). A failed or empty wake leaves that
+ * result reviewable.
+ */
+function settlesWithReply(
+  sql: SqlClient.SqlClient,
+  contract: WorkerDelegationRow,
+  settlement: { readonly sessionId: string; readonly runId: string },
+) {
+  if ([...SETTLING_STATES, 'needs_attention'].includes(contract.state)) return Effect.succeed(true)
+  if (contract.state !== 'ready_for_review') return Effect.succeed(false)
+  return wakeMayReplaceResult(sql, {
+    delegationId: contract.id,
+    workerSessionId: settlement.sessionId,
+    runId: settlement.runId,
+    whileActive: false,
+  })
 }
 
 function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, runId: string) {
@@ -46,20 +56,18 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, ru
             )
             AND transitions.to_state = ${'needs_attention'}
             -- Set during the settling Run: an earlier request the parent left unanswered settles
-            -- as usual once a later Run completes with text.
-            AND transitions.created_at >= COALESCE(
-              (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
+            -- as usual once a later Run completes with text. A Hive wake is not the parent
+            -- answering either (its own Workers reported), so its reply never clears the request.
+            AND (
+              transitions.created_at >= COALESCE(
+                (SELECT runs.created_at FROM session_runs AS runs WHERE runs.id = ${runId}), 0
+              )
+              OR EXISTS (
+                SELECT 1 FROM session_runs AS runs
+                WHERE runs.id = ${runId} AND json_extract(runs.intent_json, '$.hiveWake') = 1
+              )
             )
-      )) AS explicit_needs_attention,
-      (contracts.state = ${'ready_for_review'} AND EXISTS (
-        SELECT 1 FROM session_runs AS runs
-        WHERE runs.id = ${runId}
-          AND json_extract(runs.intent_json, '$.hiveWake') = 1
-          AND runs.created_at > COALESCE((
-            SELECT MAX(latest.created_at) FROM delegation_submissions AS latest
-            WHERE latest.delegation_id = contracts.id
-          ), 0)
-      )) AS woken_after_result
+      )) AS explicit_needs_attention
     FROM delegation_contracts AS contracts
     LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
     WHERE contracts.child_session_id = ${sessionId}
@@ -101,7 +109,7 @@ function settleUnsuccessfulWorker(
   },
 ) {
   return Effect.gen(function* () {
-    if (!settles(input.contract, SETTLING_STATES)) return undefined
+    if (!SETTLING_STATES.includes(input.contract.state)) return undefined
     const summary =
       input.summary ??
       `Worker Run ${input.settlement.runId} ${input.settlement.terminalStatus} and needs attention.`
@@ -149,10 +157,10 @@ function settleCompletedWorker(
 ) {
   return Effect.gen(function* () {
     if (!input.settlement.finalResponse?.trim()) return undefined
-    if (!settles(input.contract, [...SETTLING_STATES, 'needs_attention'])) return undefined
-    // A Worker that asked for attention in this Run stays there: its reply explains the request
-    // and is not a result. A Host-set needs_attention, or one from an earlier Run the parent has
-    // since answered, is resolved here.
+    if (!(yield* settlesWithReply(sql, input.contract, input.settlement))) return undefined
+    // A Worker that asked for attention in this Run, or in any Run before a Hive wake, stays
+    // there: its reply explains the request and is not a result. A Host-set needs_attention, or
+    // one from an earlier Run the parent has since answered, is resolved here.
     if (input.contract.explicit_needs_attention === 1) return undefined
     const revision = input.contract.latest_submission_revision + 1
     const summary = input.settlement.finalResponse

@@ -127,6 +127,20 @@ describe('sessionTreeView', () => {
     expect(node?.preview?.isWellFormed()).toBe(true)
   })
 
+  // The tree's role label, User-only filter and branch prefill all read this flag.
+  it('marks the Host’s Hive wake notice, and only it', () => {
+    const user = messageNode('a', null, 'Draft the epics', 0)
+    const base = messageNode('w', 'a', 'Worker updates arrived', 2)
+    const wake: SessionNode = {
+      ...base,
+      ...(base.message ? { message: { ...base.message, metadata: { hiveWake: true } } } : {}),
+    }
+    const [userView, wakeView] = sessionTreeView(tree([user, wake])).nodes
+
+    expect(wakeView).toMatchObject({ id: SessionNodeId('w'), hiveWake: true })
+    expect(userView).not.toHaveProperty('hiveWake')
+  })
+
   it('keeps the content of agent-loop audit nodes, which the transcript places as cards', () => {
     const audit = auditNode('audit', 'a', 1)
     const nodes = sessionTreeView(tree([messageNode('a', null, 'hi', 0), audit])).nodes

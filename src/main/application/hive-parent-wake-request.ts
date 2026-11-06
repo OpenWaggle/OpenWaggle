@@ -25,12 +25,16 @@ export function requestHiveParentWake(request: HiveParentWakeRequest) {
 
 /**
  * A Worker update was recorded for `parentSessionId`: deliver it to the parent's active Run, or
- * ask for a wake when no Run took it.
+ * ask for a wake when no Run took it and the change may wake the parent
+ * (`workerChangeMayWakeParent`).
  */
-export function notifyParentOfOrchestrationUpdates(parentSessionId: string) {
+export function notifyParentOfOrchestrationUpdates(
+  parentSessionId: string,
+  options: { readonly mayWake: boolean } = { mayWake: true },
+) {
   return Effect.gen(function* () {
     const delivery = yield* SessionOrchestrationUpdateDeliveryService
     const delivered = yield* delivery.deliverPendingToActiveRun({ parentSessionId })
-    if (!delivered) yield* requestHiveParentWake({ parentSessionId })
+    if (!delivered && options.mayWake) yield* requestHiveParentWake({ parentSessionId })
   })
 }

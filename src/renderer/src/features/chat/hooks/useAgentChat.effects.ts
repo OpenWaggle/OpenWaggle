@@ -9,6 +9,7 @@ import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { declareShownSessions, subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
+import { hiveWakeRunError } from '../lib/hive-wake-run-error'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
 import { handleAgentStreamPayload } from './useAgentChat.stream-events'
@@ -127,9 +128,10 @@ function handleRunCompletedPayload(
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
   if (!terminalError) context.setStatus('ready')
-  // A failure only the settlement reported has not been shown yet.
-  if (terminalError && !reportedError) {
-    context.setError(terminalError)
+  // A failure only the settlement reported has not been shown yet, and a Hive wake's is shown
+  // again marked so that it offers no Retry.
+  if (terminalError && (!reportedError || payload.hiveWake)) {
+    context.setError(payload.hiveWake ? hiveWakeRunError(terminalError) : terminalError)
     context.setStatus('error')
   }
   context.deferredRefreshSessionIdRef.current = context.subscribedSessionId

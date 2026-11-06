@@ -43,11 +43,11 @@ export function delegationRequest(
   } as const
 }
 
-export const submit = (now: number, summary = 'Drafted the six epics.') =>
+export const submit = (now: number, summary = 'Drafted the six epics.', callerId = WORKER_AGENT) =>
   Effect.gen(function* () {
     const delegations = yield* SessionDelegationRepository
     return yield* delegations.execute({
-      callerId: WORKER_AGENT,
+      callerId,
       request: delegationRequest(`submit-${now}`, {
         operation: 'delegation-submit',
         sessionId: 'session-worker',
