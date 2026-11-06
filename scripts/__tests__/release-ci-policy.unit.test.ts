@@ -34,14 +34,26 @@ describe('release CI policy', () => {
   })
 
   it('rejects removal of the real zsh dependency from the Linux test job', () => {
-    const installCommand = '          sudo apt-get install --yes zsh\n'
-    const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]
+    const installCommand = '            if sudo apt-get install --yes zsh; then break; fi\n'
+    const positions = [...compliantWorkflow.matchAll(/ {12}if sudo apt-get install --yes zsh; then break; fi\n/gu)]
     expect(positions).toHaveLength(1)
     for (const match of positions) {
       const index = match.index
       const withoutShell = compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
       expect(validateReleaseCiPolicy(withoutShell)).not.toEqual([])
     }
+  })
+
+  it('rejects an NSIS install that no longer proves makensis is present', () => {
+    const probe = '          makensis -VERSION\n'
+    expect(compliantWorkflow.split(probe)).toHaveLength(2)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(probe, ''))).not.toEqual([])
+  })
+
+  it('rejects a Linux test job that stops fetching the Electron binary up front', () => {
+    const electronInput = "        with:\n          electron-binary: 'true'\n"
+    expect(compliantWorkflow.split(electronInput)).toHaveLength(4)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(electronInput, ''))).not.toEqual([])
   })
 
   it.each([

@@ -57,13 +57,15 @@ function registryReader(reads: Array<Error | null | string>) {
   })
 }
 
-function dependencies(readRegistryIntegrity: ReturnType<typeof registryReader>) {
+function dependencies(
+  readRegistryIntegrity: (name: string, version: string) => Promise<string | null>,
+) {
   return {
     ensureGitHubRelease: vi.fn(),
     ensureTag: vi.fn(),
     publish: vi.fn(),
     readRegistryIntegrity,
-    sleep: vi.fn(async () => undefined),
+    sleep: vi.fn(async (_durationMs: number) => undefined),
   }
 }
 
@@ -118,6 +120,39 @@ describe('package release promotion registry retries', () => {
 
     expect(readRegistryIntegrity).toHaveBeenCalledTimes(4)
     expect(promotion.sleep).toHaveBeenCalledExactlyOnceWith(5_000)
+  })
+
+  it('keeps waiting while npm takes minutes to serve an accepted publication', async () => {
+    // npm can take well over a minute to serve a version it accepted (the v0.2.0 release saw
+    // about 90 seconds), so a missing version right after `npm publish` is not a failure.
+    const slowRegistryReads = 20
+    const readRegistryIntegrity = registryReader([
+      null,
+      ...Array.from({ length: slowRegistryReads }, () => null),
+      'sha512-sdk',
+    ])
+    const promotion = dependencies(readRegistryIntegrity)
+
+    await promoteVerifiedPackageRelease(sdkPlan, sdkManifest, '/artifacts', promotion)
+
+    expect(promotion.publish).toHaveBeenCalledOnce()
+    expect(promotion.ensureTag).toHaveBeenCalledOnce()
+    const waitedMs = promotion.sleep.mock.calls.reduce((total, [durationMs]) => total + durationMs, 0)
+    expect(waitedMs).toBeGreaterThanOrEqual(3 * 60_000)
+  })
+
+  it('gives up on a publication npm never serves after the acceptance window', async () => {
+    const readRegistryIntegrity = vi.fn(async () => null)
+    const promotion = dependencies(readRegistryIntegrity)
+
+    await expect(
+      promoteVerifiedPackageRelease(sdkPlan, sdkManifest, '/artifacts', promotion),
+    ).rejects.toThrow('@openwaggle/extension-sdk@0.1.1 was not accepted by npm in time.')
+
+    expect(promotion.publish).toHaveBeenCalledOnce()
+    expect(promotion.ensureTag).not.toHaveBeenCalled()
+    const waitedMs = promotion.sleep.mock.calls.reduce((total, [durationMs]) => total + durationMs, 0)
+    expect(waitedMs).toBeLessThanOrEqual(15 * 60_000)
   })
 
   it('does not retry deterministic registry failures and bounds transient retries', async () => {

@@ -124,9 +124,17 @@ jobs:
           cache: pnpm
 
       - uses: ./.github/actions/pnpm-install
+        with:
+          electron-binary: 'true'
 
       - name: Install NSIS for the installer script check
-        run: sudo apt-get update && sudo apt-get install -y nsis
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes nsis; then break; fi
+            sleep 15
+          done
+          makensis -VERSION
 
       - run: pnpm check
 
@@ -162,6 +170,8 @@ jobs:
           cache: pnpm
 
       - uses: ./.github/actions/pnpm-install
+        with:
+          electron-binary: 'true'
 
       - run: pnpm test:unit
 
@@ -195,11 +205,16 @@ jobs:
           cache: pnpm
 
       - uses: ./.github/actions/pnpm-install
+        with:
+          electron-binary: 'true'
 
       - name: Install terminal integration shells
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes zsh
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes zsh; then break; fi
+            sleep 15
+          done
           /bin/zsh --version
           while IFS= read -r insecure_path; do
             [ -n "$insecure_path" ] || continue

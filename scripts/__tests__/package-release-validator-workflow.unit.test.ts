@@ -87,6 +87,16 @@ describe('package release workflow validation', () => {
     ],
     ['versioned docs synchronization', 'pnpm package-docs:update', 'echo skipped-docs-update'],
     ['successful completion wait', 'gh run watch "$RUN_ID" --exit-status', 'echo skipped-wait'],
+    [
+      'generated head binding',
+      'EXPECTED_HEAD_SHA: ${{ steps.docs.outputs.head_sha }}',
+      'EXPECTED_HEAD_SHA: ${{ github.sha }}',
+    ],
+    [
+      'generated head enforcement',
+      'test "$HEAD_SHA" = "$EXPECTED_HEAD_SHA"',
+      'echo "$HEAD_SHA"',
+    ],
   ])('rejects weakened Release Please CI coordination through %s', async (_name, target, replacement) => {
     const invalidWorkflow = replaceRequired(validWorkflow, target, replacement)
     const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))

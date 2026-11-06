@@ -14,7 +14,14 @@ export type {
 } from './package-release-artifact-contract'
 export type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
 
-const ACCEPTANCE_ATTEMPTS = 12
+/*
+ * npm can take well over a minute to serve a version it has accepted: the 0.2.0 release
+ * published each package, then saw `npm view` return 404 for about 90 seconds. Wait up to
+ * ten minutes before treating an accepted publication as missing, because a retried
+ * `npm publish` of the same version can never succeed.
+ */
+const ACCEPTANCE_ATTEMPTS = 60
+const ACCEPTANCE_POLL_DELAY_MS = 10_000
 const PUBLISH_ATTEMPTS = 3
 const REGISTRY_READ_ATTEMPTS = 3
 const REGISTRY_RETRY_DELAY_MS = 5_000
@@ -194,7 +201,7 @@ async function requireAcceptedRegistryArtifact(
     if (integrity !== null) {
       throw new Error(`${artifact.name}@${artifact.version} has different integrity on npm.`)
     }
-    if (attempt + 1 < ACCEPTANCE_ATTEMPTS) await dependencies.sleep(REGISTRY_RETRY_DELAY_MS)
+    if (attempt + 1 < ACCEPTANCE_ATTEMPTS) await dependencies.sleep(ACCEPTANCE_POLL_DELAY_MS)
   }
   throw new Error(`${artifact.name}@${artifact.version} was not accepted by npm in time.`)
 }
