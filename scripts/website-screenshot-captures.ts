@@ -87,6 +87,7 @@ import {
   captureContextMeter,
   captureWaggleConversation,
   captureWaggleSettings,
+  captureWaggleWindow,
 } from './website-screenshot-waggle-captures'
 
 /** Every website image and the capture that makes it; the manifest's order is the run order. */
@@ -116,6 +117,7 @@ export const CAPTURES: Readonly<
   'settings-shortcuts.png': captureSettingsShortcuts,
   'settings-waggle-mode.png': captureWaggleSettings,
   'waggle-conversation.png': captureWaggleConversation,
+  'feature-waggle.png': captureWaggleWindow,
   'context-meter.png': captureContextMeter,
   'terminal-split-panes.png': captureTerminalSplitPanes,
   'terminal-add-to-chat.png': captureTerminalAddToChat,
