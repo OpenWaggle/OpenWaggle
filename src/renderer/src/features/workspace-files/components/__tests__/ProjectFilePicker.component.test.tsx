@@ -3,6 +3,7 @@ import type { WorkspaceFileEntry } from '@shared/types/workspace-files'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings/state'
+import { installModalDialogStub } from '@/test-utils/modal-dialog'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const mocks = vi.hoisted(() => ({
@@ -22,12 +23,7 @@ import { ProjectFilePicker } from '../ProjectFilePicker'
 
 describe('ProjectFilePicker keyboard behavior', () => {
   beforeAll(() => {
-    HTMLDialogElement.prototype.showModal ??= function showModal() {
-      this.setAttribute('open', '')
-    }
-    HTMLDialogElement.prototype.close ??= function close() {
-      this.removeAttribute('open')
-    }
+    installModalDialogStub()
   })
 
   beforeEach(() => {
@@ -48,6 +44,8 @@ describe('ProjectFilePicker keyboard behavior', () => {
     renderWithQueryClient(<ProjectFilePicker />)
     const input = screen.getByRole('textbox', { name: 'Search project files' })
 
+    // The search field, not the dialog's backdrop control, has focus once the dialog opens.
+    expect(input).toHaveFocus()
     expect(screen.getByText('Indexing project files…')).toBeInTheDocument()
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'Enter' })

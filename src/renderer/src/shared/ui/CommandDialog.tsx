@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from './Button'
 
 interface CommandDialogProps {
@@ -10,6 +10,30 @@ interface CommandDialogProps {
   readonly footer?: ReactNode
 }
 
+/**
+ * The search field a command dialog opens on. `showModal()` runs the native dialog focusing steps,
+ * which move focus to the first focusable descendant — the pointer-only backdrop control — and
+ * override any `autoFocus` React applied before the dialog opened.
+ */
+const INITIAL_FOCUS_SELECTOR =
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]'
+
+/**
+ * The element each mounted command dialog returns focus to, in mount order. A dialog that opens
+ * while another is still mounted (the palette's "Go to file…" swaps surfaces in one commit, or
+ * Suspense hides the palette while the picker's chunk loads) inherits that dialog's opener, so
+ * closing the last surface of the chain returns focus to where the user started.
+ */
+const dialogOpeners = new Map<HTMLDialogElement, HTMLElement>()
+
+function resolveOpener(): HTMLElement | null {
+  const inherited = [...dialogOpeners.values()].at(-1)
+  if (inherited !== undefined) return inherited
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || active === document.body) return null
+  return active
+}
+
 export function CommandDialog({
   title,
   description,
@@ -18,15 +42,26 @@ export function CommandDialog({
   footer,
 }: CommandDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
+  // Read during the first render, before the search field's `autoFocus` takes focus.
+  const [opener] = useState(resolveOpener)
 
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog || dialog.open) return
+    if (opener) dialogOpeners.set(dialog, opener)
     dialog.showModal()
+    dialog.querySelector<HTMLElement>(INITIAL_FOCUS_SELECTOR)?.focus({ preventScroll: true })
     return () => {
+      dialogOpeners.delete(dialog)
       if (dialog.open) dialog.close()
+      // Hand focus back to what opened the dialog, unless the chosen command already moved it.
+      const focusDropped =
+        document.activeElement === null ||
+        document.activeElement === document.body ||
+        dialog.contains(document.activeElement)
+      if (focusDropped && opener?.isConnected) opener.focus({ preventScroll: true })
     }
-  }, [])
+  }, [opener])
 
   return (
     <dialog
