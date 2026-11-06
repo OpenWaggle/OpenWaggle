@@ -2,105 +2,22 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionDelegationRepository } from '../../ports/session-delegation-repository'
-import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
+import { SessionOrchestrationUpdateRepository } from '../../ports/session-orchestration-update-repository'
 import {
-  type HiveParentWakeQuery,
-  SessionOrchestrationUpdateRepository,
-} from '../../ports/session-orchestration-update-repository'
-import { SqliteSessionOrchestrationUpdateRepositoryLive } from '../sqlite-session-orchestration-update-repository'
-import {
-  makeSessionLifecycleTestLayer,
-  spawnLifecycleInput,
-} from './sqlite-session-lifecycle-test-support'
-
-const WORKER_AGENT = 'session-agent:session-worker:run-worker'
-
-function delegationRequest(
-  id: string,
-  command:
-    | {
-        readonly operation: 'delegation-submit'
-        readonly sessionId: string
-        readonly delegationId: string
-        readonly summary: string
-        readonly evidence: readonly []
-      }
-    | {
-        readonly operation: 'delegation-state'
-        readonly sessionId: string
-        readonly delegationId: string
-        readonly state: 'working' | 'waiting' | 'needs_attention'
-        readonly reason: string
-      },
-) {
-  return {
-    contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-    requestId: `request-${id}`,
-    idempotencyKey: `idempotency-${id}`,
-    command,
-  } as const
-}
-
-const submit = (now: number, summary = 'Drafted the six epics.') =>
-  Effect.gen(function* () {
-    const delegations = yield* SessionDelegationRepository
-    return yield* delegations.execute({
-      callerId: WORKER_AGENT,
-      request: delegationRequest(`submit-${now}`, {
-        operation: 'delegation-submit',
-        sessionId: 'session-worker',
-        delegationId: 'delegation-worker',
-        summary,
-        evidence: [],
-      }),
-      now,
-    })
-  })
-
-function pendingUpdates(sql: SqlClient.SqlClient) {
-  return sql<{
-    readonly parent_session_id: string
-    readonly worker_session_id: string
-    readonly source_run_id: string
-    readonly state: string
-    readonly summary: string
-    readonly status: string
-    readonly created_at: number
-  }>`
-    SELECT parent_session_id, worker_session_id, source_run_id, state, summary, status, created_at
-    FROM session_orchestration_updates ORDER BY created_at
-  `
-}
-
-/** The parent's Run ends, leaving it idle: the moment a Queen says "I'll report back". */
-function settleParentRun(
-  sql: SqlClient.SqlClient,
-  input: { readonly status?: string; readonly callerId?: string } = {},
-) {
-  return Effect.gen(function* () {
-    yield* sql`
-      UPDATE session_runs
-      SET status = ${input.status ?? 'completed'},
-        intent_json = ${JSON.stringify({ callerId: input.callerId ?? 'local-user' })}
-      WHERE id = ${'run-parent'}
-    `
-    yield* sql`
-      UPDATE session_control_states SET active_run_id = NULL WHERE session_id = ${'session-parent'}
-    `
-  })
-}
-
-const candidate = (query: Partial<HiveParentWakeQuery> = {}) =>
-  Effect.gen(function* () {
-    const updates = yield* SessionOrchestrationUpdateRepository
-    if (!updates.parentWakeCandidate) throw new Error('parentWakeCandidate is not implemented')
-    return yield* updates.parentWakeCandidate({ parentSessionId: 'session-parent', ...query })
-  })
+  candidate,
+  delegationRequest,
+  type HiveWakeTestServices,
+  insertParentRun,
+  markRead,
+  pendingUpdates,
+  runHiveWakeTest,
+  settleParentRun,
+  submit,
+  WORKER_AGENT,
+} from './sqlite-hive-parent-wake-test-support'
 
 describe('Hive wake: Worker updates reach an idle parent', () => {
   let root: string
@@ -113,26 +30,8 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  type HiveWakeTestServices =
-    | SqlClient.SqlClient
-    | SessionDelegationRepository
-    | SessionLifecycleRepository
-    | SessionOrchestrationUpdateRepository
-
-  function run<A, E>(effect: Effect.Effect<A, E, HiveWakeTestServices>) {
-    const lifecycleLayer = makeSessionLifecycleTestLayer(path.join(root, 'hive-wake.db'))
-    const layer = Layer.merge(
-      lifecycleLayer,
-      SqliteSessionOrchestrationUpdateRepositoryLive.pipe(Layer.provide(lifecycleLayer)),
-    )
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const lifecycle = yield* SessionLifecycleRepository
-        yield* lifecycle.execute(spawnLifecycleInput())
-        return yield* effect
-      }).pipe(Effect.provide(layer)),
-    )
-  }
+  const run = <A, E>(effect: Effect.Effect<A, E, HiveWakeTestServices>) =>
+    runHiveWakeTest(root, effect)
 
   it('records an update for the parent when a Worker submits its result itself', async () => {
     const result = await run(
@@ -202,18 +101,24 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
     const result = await run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* settleParentRun(sql, { callerId: 'local-user' })
+        yield* settleParentRun(sql, {
+          callerId: 'profile:cli',
+          runAuthorizationOverride: 'ask-for-approval',
+        })
         const beforeAnyUpdate = yield* candidate()
         yield* submit(3000)
         return { beforeAnyUpdate, afterSubmit: yield* candidate() }
       }),
     )
 
+    // The wake acts for the latest Run's caller and keeps that Run's Run mode override.
     expect(result).toEqual({
       beforeAnyUpdate: undefined,
       afterSubmit: {
         parentSessionId: 'session-parent',
-        callerId: 'local-user',
+        latestRunId: 'run-parent',
+        callerId: 'profile:cli',
+        runAuthorizationOverride: 'ask-for-approval',
         piSessionFile: null,
       },
     })
@@ -258,7 +163,7 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
     expect(result).toBeUndefined()
   })
 
-  it('wakes a parent whose Run received an update only after its last turn ended', async () => {
+  it('wakes for an update no model request read, never for one a request read', async () => {
     const result = await run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
@@ -266,35 +171,42 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
         const updates = yield* SessionOrchestrationUpdateRepository
         const [pending] = yield* updates.listPending({ parentSessionId: 'session-parent' })
         if (!pending) throw new Error('missing update')
-        // The live sink appended it to the parent's Run, which had already answered.
-        yield* updates.markDelivered({
-          updateIds: [pending.updateId],
-          parentSessionId: 'session-parent',
-          runId: 'run-parent',
-          itemIds: ['item-late'],
-          deliveredAt: 3050,
-        })
+        // Delivered during the parent's final turn: in its transcript, but no request read it.
         yield* settleParentRun(sql)
-        return {
-          answeredBefore: yield* candidate({
-            settledRun: { runId: 'run-parent', terminalEventAt: 2900 },
-          }),
-          answeredAfter: yield* candidate({
-            settledRun: { runId: 'run-parent', terminalEventAt: 3200 },
-          }),
-          withoutSettlement: yield* candidate(),
-        }
+        const unread = yield* candidate()
+        yield* markRead(pending.updateId, 'run-parent')
+        return { unread, read: yield* candidate() }
       }),
     )
 
     expect(result).toEqual({
-      answeredBefore: {
-        parentSessionId: 'session-parent',
-        callerId: 'local-user',
-        piSessionFile: null,
-      },
-      answeredAfter: undefined,
-      withoutSettlement: undefined,
+      unread: expect.objectContaining({ latestRunId: 'run-parent' }),
+      read: undefined,
+    })
+  })
+
+  it('wakes once for an older update a completed Run missed, but not after a wake or failure', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* settleParentRun(sql)
+        yield* submit(3000)
+        // A later Run of the parent missed it (it was committed after that Run listed updates).
+        yield* insertParentRun(sql, { id: 'run-missed', status: 'completed' })
+        const afterCompleted = yield* candidate()
+        yield* insertParentRun(sql, { id: 'run-wake', status: 'completed', hiveWake: true })
+        const afterWake = yield* candidate()
+        yield* sql`DELETE FROM session_runs WHERE id = ${'run-wake'}`
+        yield* sql`UPDATE session_runs SET status = ${'failed'} WHERE id = ${'run-missed'}`
+        const afterFailed = yield* candidate()
+        return { afterCompleted, afterWake, afterFailed }
+      }),
+    )
+
+    expect(result).toEqual({
+      afterCompleted: expect.objectContaining({ latestRunId: 'run-missed' }),
+      afterWake: undefined,
+      afterFailed: undefined,
     })
   })
 })

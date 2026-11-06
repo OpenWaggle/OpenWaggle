@@ -6,6 +6,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../../ports/agent-kernel-service'
 import { runSubscribedPiOperation } from '../run-lifecycle'
+import { classicRunInput } from './run-lifecycle-test-run-input'
 
 const POST_RUN_SETTLE_MAX_MS = 15_000
 
@@ -134,7 +135,7 @@ describe('run lifecycle settlement edge cases', () => {
     }
 
     const resultPromise = runSubscribedPiOperation({
-      runInput: runInput(payload()),
+      ...classicRunInput(runInput(payload())),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
@@ -188,7 +189,7 @@ describe('run lifecycle settlement edge cases', () => {
     }
 
     const result = await runSubscribedPiOperation({
-      runInput: runInput(payload(), controller.signal),
+      ...classicRunInput(runInput(payload(), controller.signal)),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
@@ -227,7 +228,7 @@ describe('run lifecycle settlement edge cases', () => {
     }
 
     const result = await runSubscribedPiOperation({
-      runInput: runInput(payload(), new AbortController().signal),
+      ...classicRunInput(runInput(payload(), new AbortController().signal)),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',

@@ -15,7 +15,6 @@ import {
 import {
   notifyParentOfOrchestrationUpdates,
   requestHiveParentWake,
-  settledParentWake,
 } from './hive-parent-wake-request'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { publishDelegationAttentionCleared } from './session-control-event-projection'
@@ -151,9 +150,9 @@ function coordinateLiveSessionRuns(input: CoordinateSessionRunsInput) {
         // Hive cleanup trigger: the Session settled with nothing scheduled. It may be a finished
         // Worker, or a parent whose accepted/cancelled Workers can now be archived.
         yield* requestHiveWorkerCleanup(input.sessionId)
-        // Hive wake trigger: as a parent, Worker updates may have reached this Run too late for it
-        // to act on them.
-        yield* requestHiveParentWake(settledParentWake(input.sessionId, runId, settledExecution))
+        // Hive wake trigger: as a parent, Worker updates may have reached this Run after its last
+        // model request, so no request saw them and they are still pending.
+        yield* requestHiveParentWake({ parentSessionId: input.sessionId })
         return results
       }
       runId = RunId(settlement.scheduled.runId)

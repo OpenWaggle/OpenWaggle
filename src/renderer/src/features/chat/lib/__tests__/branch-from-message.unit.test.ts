@@ -227,6 +227,19 @@ describe('createBranchDraftSelectionFromNode', () => {
       prefillText: 'Retry with tests',
     })
   })
+
+  it('branches before a Hive wake notice without offering its text as the user’s', () => {
+    const wake = node('wake-1', 'assistant-parent', {
+      kind: 'user_message',
+      text: 'Worker updates arrived',
+    })
+    const result = createBranchDraftSelectionFromNode({ ...wake, hiveWake: true })
+
+    expect(result).toEqual({
+      sourceNodeId: SessionNodeId('assistant-parent'),
+      routeNodeId: SessionNodeId('assistant-parent'),
+    })
+  })
 })
 
 describe('shouldPromptForBranchSummary', () => {

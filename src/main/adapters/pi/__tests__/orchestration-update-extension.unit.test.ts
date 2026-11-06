@@ -30,6 +30,7 @@ const updates = [
 describe('Pi orchestration update extension', () => {
   it('batches pending Worker results into one Host-authored parent context message', async () => {
     let sessionStart: ((entries: readonly SessionEntry[]) => unknown) | undefined
+    let turnStart: (() => unknown) | undefined
     const entries: SessionEntry[] = []
     const sendMessage = vi.fn(() => {
       entries.push({
@@ -56,6 +57,7 @@ describe('Pi orchestration update extension', () => {
             sessionStart = (entries) =>
               handler({}, { sessionManager: { getEntries: () => [...entries] } })
           }
+          if (event === 'turn_start' && typeof handler === 'function') turnStart = () => handler({})
         }),
         sendMessage,
       }),
@@ -72,6 +74,9 @@ describe('Pi orchestration update extension', () => {
       },
       { deliverAs: 'steer', triggerTurn: false },
     )
+    // Delivered once the Run's first model request includes them, not when they are appended.
+    expect(delivered).not.toHaveBeenCalled()
+    turnStart?.()
     expect(delivered).toHaveBeenCalledWith(['update-1', 'update-2'])
     extension.close()
   })
@@ -107,5 +112,50 @@ describe('Pi orchestration update extension', () => {
     expect(delivered).not.toHaveBeenCalled()
     extension.close()
     expect(deliverOrchestrationUpdates('run-parent-live', updates)).toBe(false)
+  })
+
+  it('leaves a result that reached the parent during its final turn pending', async () => {
+    const handlers = new Map<string, (event: unknown, context?: unknown) => unknown>()
+    const entries: SessionEntry[] = []
+    const sessionManager = { getEntries: () => [...entries] }
+    const delivered = vi.fn()
+    const extension = createOrchestrationUpdateExtension({
+      runId: 'run-parent-final-turn',
+      pendingUpdates: [],
+      onDelivered: delivered,
+    })
+    await extension.factory(
+      fromPartial<ExtensionAPI>({
+        on: vi.fn((event: string, handler: (event: unknown, context?: unknown) => unknown) => {
+          handlers.set(event, handler)
+        }),
+        // Pi appends a mid-turn message at the end of the turn.
+        sendMessage: vi.fn((message: { readonly details: Record<string, unknown> }) => {
+          entries.push({
+            type: 'custom_message',
+            id: `pi-entry-${entries.length}`,
+            parentId: null,
+            timestamp: new Date(0).toISOString(),
+            customType: 'openwaggle-orchestration-update',
+            content: 'persisted',
+            display: true,
+            details: message.details,
+          })
+        }),
+      }),
+    )
+    handlers.get('session_start')?.({}, { sessionManager })
+    handlers.get('turn_start')?.({})
+
+    deliverOrchestrationUpdates('run-parent-final-turn', updates)
+    handlers.get('agent_end')?.({})
+    handlers.get('agent_settled')?.({})
+
+    // The Run ended without another request, so the parent never read it: it stays pending and
+    // wakes the parent once this Run settles.
+    expect(delivered).not.toHaveBeenCalled()
+    handlers.get('turn_start')?.({})
+    expect(delivered).toHaveBeenCalledWith(['update-1', 'update-2'])
+    extension.close()
   })
 })

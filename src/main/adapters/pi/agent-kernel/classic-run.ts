@@ -208,8 +208,12 @@ export async function runPiSession(
       input.hiveWake
         ? promptPiSessionForHiveWake(session)
         : promptPiSession(session, model, input.payload, input.scheduledTask),
-    // A Hive wake has no user message to show, even when its Run fails.
+    // A Hive wake has no user message: its prompt is the Host's, whether the Run fails or not.
     buildErrorMessages: (appended) =>
+      input.hiveWake
+        ? buildPiRunAssistantMessages(appended)
+        : buildPiRunNewMessages(input.payload, appended),
+    buildSuccessMessages: (appended) =>
       input.hiveWake
         ? buildPiRunAssistantMessages(appended)
         : buildPiRunNewMessages(input.payload, appended),

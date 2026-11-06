@@ -37,6 +37,8 @@ export interface SessionTreeNode {
   readonly hasMessage?: boolean
   /** The start of the node's message text (whitespace kept), for labels and the tree filter. */
   readonly preview?: string
+  /** The Host's Hive wake notice (`hiveWake` message metadata): a user row the user did not write. */
+  readonly hiveWake?: true
   /**
    * Only agent-loop audit nodes keep their content in the tree: the transcript places their
    * cards from it, and they hang off the transcript path rather than on it.

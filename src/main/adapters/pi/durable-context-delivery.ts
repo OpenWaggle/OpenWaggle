@@ -19,6 +19,13 @@ interface DurableContextDeliveryInput<Item> {
   readonly customType: string
   readonly buildMessage: (items: readonly Item[]) => DurableContextMessage
   readonly onDelivered: (itemIds: readonly string[]) => void
+  /**
+   * When an item counts as delivered. `persisted` (the default): once its entry is in the Pi
+   * session. `model-request`: once a model request includes it, at the next `turn_start`. An entry
+   * appended during a Run's final turn, or after it, is in the transcript but no request saw it,
+   * so it stays pending in the outbox; for Worker results that is what wakes an idle parent.
+   */
+  readonly acknowledgeWhen?: 'persisted' | 'model-request'
 }
 
 type SessionEntries = Pick<ExtensionContext['sessionManager'], 'getEntries'>
@@ -75,6 +82,11 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
     input.onDelivered(delivered)
   }
 
+  const onModelRequest = input.acknowledgeWhen === 'model-request'
+  const acknowledgeNow = (candidateIds: Iterable<string>) => {
+    if (!onModelRequest) acknowledgePersisted(candidateIds)
+  }
+
   const deliver = (items: readonly Item[]) => {
     const fresh = items.filter((item) => !acceptedIds.has(input.itemId(item)))
     if (fresh.length === 0) return
@@ -95,17 +107,31 @@ export function installDurableContextDelivery<Item>(input: DurableContextDeliver
       }
       throw error
     }
-    acknowledgePersisted(itemIds)
+    acknowledgeNow(itemIds)
   }
 
   input.pi.on('session_start', (_event, context) => {
     sessionManager = context.sessionManager
     const pendingIds = input.pendingItems.map(input.itemId)
-    acknowledgePersisted(pendingIds)
+    if (onModelRequest) {
+      // Already in the session (a retried Run, or an entry no request saw): never sent twice,
+      // and acknowledged with the rest at this Run's first request.
+      const persisted = persistedItemIds(context.sessionManager, input)
+      for (const itemId of pendingIds.filter((itemId) => persisted.has(itemId))) {
+        acceptedIds.add(itemId)
+        awaitingPersistence.add(itemId)
+      }
+    } else {
+      acknowledgePersisted(pendingIds)
+    }
     deliver(input.pendingItems)
   })
-  input.pi.on('agent_end', () => acknowledgePersisted(awaitingPersistence))
-  input.pi.on('agent_settled', () => acknowledgePersisted(awaitingPersistence))
+  if (onModelRequest) {
+    input.pi.on('turn_start', () => acknowledgePersisted(awaitingPersistence))
+  } else {
+    input.pi.on('agent_end', () => acknowledgePersisted(awaitingPersistence))
+    input.pi.on('agent_settled', () => acknowledgePersisted(awaitingPersistence))
+  }
 
   return { deliver }
 }

@@ -44,6 +44,9 @@ function installLiveSink(
     customType: CUSTOM_TYPE,
     buildMessage: updateMessage,
     onDelivered,
+    // Delivered means a model request saw it: a result that reaches the parent during its final
+    // turn stays pending, so the parent is woken for it once that Run settles.
+    acknowledgeWhen: 'model-request',
   })
   const sink: LiveUpdateSink = {
     deliver: delivery.deliver,

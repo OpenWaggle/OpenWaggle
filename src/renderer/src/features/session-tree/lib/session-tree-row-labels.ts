@@ -11,7 +11,7 @@ export function sessionTreeNodeLabel(node: SessionTreeNode) {
 }
 
 export function sessionTreeNodeRoleLabel(node: SessionTreeNode) {
-  if (node.kind === 'user_message') return 'User'
+  if (node.kind === 'user_message') return node.hiveWake ? 'Hive' : 'User'
   if (node.kind === 'assistant_message') return 'Assistant'
   if (node.kind === 'tool_result') return 'Tool'
   if (node.kind === 'branch_summary') return 'Branch summary'

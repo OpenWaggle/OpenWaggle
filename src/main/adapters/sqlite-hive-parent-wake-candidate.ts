@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
 import type {
   HiveParentWakeCandidate,
@@ -6,25 +7,34 @@ import type {
 } from '../ports/session-orchestration-update-repository'
 
 interface WakeCandidateRow {
+  readonly latest_run_id: string
   readonly caller_id: string | null
+  readonly run_authorization_override: string | null
   readonly pi_session_file: string | null
 }
 
+function runAuthorizationOverride(value: string | null) {
+  return AGENT_AUTHORIZATION_MODES.find((mode) => mode === value)
+}
+
 /**
- * The parent to wake, read in one statement (`hive-parent-wake.ts`). An update needs a Run when
- * it is still pending and arrived after the parent's latest Run started (that Run could not have
- * loaded it), or when the Run that just settled received it only after its last turn ended. Every
- * Run that starts after an update, a wake included, ends that update's claim, so a wake whose Run
- * fails is not retried until another update arrives or someone sends the parent a message.
+ * The parent to wake, read in one statement (`hive-parent-wake.ts`). An update is pending until a
+ * model request of the parent includes it, so a pending update is one no Run has acted on. It
+ * needs a Run when it arrived after the parent's latest Run started, or when that Run completed
+ * without it: a Run the Host did not start for it, which no wake has answered yet. Every wake Run
+ * that starts after an update ends that update's claim, so a wake whose Run fails is not retried
+ * until another update arrives or someone sends the parent a message.
  */
 export function selectHiveParentWakeCandidate(
   sql: SqlClient.SqlClient,
   input: HiveParentWakeQuery,
 ) {
-  const settledRunId = input.settledRun?.runId ?? null
-  const settledAt = input.settledRun?.terminalEventAt ?? null
   return sql<WakeCandidateRow>`
-    SELECT json_extract(latest.intent_json, '$.callerId') AS caller_id, sessions.pi_session_file
+    SELECT latest.id AS latest_run_id,
+      json_extract(latest.intent_json, '$.callerId') AS caller_id,
+      json_extract(latest.intent_json, '$.runAuthorizationOverride')
+        AS run_authorization_override,
+      sessions.pi_session_file
     FROM sessions
     JOIN session_control_states AS states ON states.session_id = sessions.id
     JOIN session_runs AS latest ON latest.id = (
@@ -41,12 +51,12 @@ export function selectHiveParentWakeCandidate(
       AND EXISTS (
         SELECT 1 FROM session_orchestration_updates AS updates
         WHERE updates.parent_session_id = sessions.id
+          AND updates.status = ${'pending'}
           AND (
-            (updates.status = ${'pending'} AND updates.created_at > latest.created_at)
+            updates.created_at > latest.created_at
             OR (
-              latest.id = ${settledRunId}
-              AND updates.delivered_run_id = latest.id
-              AND updates.created_at >= ${settledAt}
+              latest.status = ${'completed'}
+              AND json_extract(latest.intent_json, '$.hiveWake') IS NULL
             )
           )
       )
@@ -55,9 +65,12 @@ export function selectHiveParentWakeCandidate(
     Effect.map((rows): HiveParentWakeCandidate | undefined => {
       const row = rows[0]
       if (!row?.caller_id) return undefined
+      const override = runAuthorizationOverride(row.run_authorization_override)
       return {
         parentSessionId: input.parentSessionId,
+        latestRunId: row.latest_run_id,
         callerId: row.caller_id,
+        ...(override ? { runAuthorizationOverride: override } : {}),
         piSessionFile: row.pi_session_file,
       }
     }),
