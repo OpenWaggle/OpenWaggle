@@ -60,11 +60,16 @@ export function CommandPaletteListbox({
           )
         })}
       </div>
-      {items.length === 0 ? (
-        <output className="flex h-16 items-center justify-center text-sm text-text-muted">
-          No matching commands
-        </output>
-      ) : null}
+      {/* Always mounted: a live region only announces changes once it is in the tree. */}
+      <output
+        className={
+          items.length === 0
+            ? 'flex h-16 items-center justify-center text-sm text-text-muted'
+            : 'sr-only'
+        }
+      >
+        {items.length === 0 ? 'No matching commands' : ''}
+      </output>
     </>
   )
 }

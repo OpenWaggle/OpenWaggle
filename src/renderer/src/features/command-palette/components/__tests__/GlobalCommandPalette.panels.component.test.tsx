@@ -6,6 +6,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
 import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
+import { installModalDialogStub } from '@/test-utils/modal-dialog'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const NOTES = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
@@ -125,12 +126,7 @@ describe('GlobalCommandPalette Panels section', () => {
   beforeAll(async () => {
     // The palette's module graph is large; load it once here instead of inside the first test.
     await import('../GlobalCommandPalette')
-    HTMLDialogElement.prototype.showModal ??= function showModal() {
-      this.setAttribute('open', '')
-    }
-    HTMLDialogElement.prototype.close ??= function close() {
-      this.removeAttribute('open')
-    }
+    installModalDialogStub()
     Element.prototype.scrollIntoView ??= function scrollIntoView() {}
   }, COLD_IMPORT_TIMEOUT_MS)
 
@@ -248,12 +244,16 @@ describe('GlobalCommandPalette Panels section', () => {
 
   it('announces when no command matches the query', async () => {
     await renderPalette()
+    // A live region announces changes only once it is already in the accessibility tree.
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Search commands' }), {
       target: { value: 'zzz-no-such-command' },
     })
 
-    expect(screen.getByRole('status')).toHaveTextContent('No matching commands')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('No matching commands')
     expect(
       within(screen.getByRole('listbox', { name: 'Commands' })).queryAllByRole('option'),
     ).toEqual([])

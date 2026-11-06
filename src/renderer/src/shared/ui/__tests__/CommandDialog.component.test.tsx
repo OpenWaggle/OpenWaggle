@@ -1,17 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { installModalDialogStub } from '@/test-utils/modal-dialog'
 import { Button } from '../Button'
 import { CommandDialog } from '../CommandDialog'
 import { TextInput } from '../TextInput'
 
 describe('CommandDialog', () => {
   beforeAll(() => {
-    HTMLDialogElement.prototype.showModal ??= function showModal() {
-      this.setAttribute('open', '')
-    }
-    HTMLDialogElement.prototype.close ??= function close() {
-      this.removeAttribute('open')
-    }
+    installModalDialogStub()
   })
 
   it('opens as a modal and handles the native cancel event', () => {
