@@ -2376,6 +2376,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "grouped Worker spawns" (Codex's "Created 3 agents") would make the transcript a second Worker list. Resolved: the **Hive panel** stays the only place Workers are listed (ADR 0054).
 - "notification" was used for both an announcement the agent sends and a request that holds the run. Resolved: an **Agent notification** can never be answered and lives in the **Notification stack**; an **Authorization request** or user-input request holds the run and docks to the composer.
 - "composer-adjacent notifications" was chosen from a design prototype and later reversed on purpose. Resolved: notifications float clear of the composer so that everything docked to the composer is something the user must answer.
+- "notification" was then also wanted for the operating-system notices that tell the person a Session needs them or is ready to read. Resolved: those are **Desktop notifications**; write **Desktop notification** or **Agent notification** whenever one is meant, and use the bare word only as a UI label, such as the Notifications settings section.
 - "title" was used both for a stable label and for a summary that tracks the conversation. Resolved: a **Session title** is a stable recognition label; it changes after its start only by rename, **Title regeneration**, or one bounded **Title refinement**. Titling deliberately follows T3Code rather than the **Codex parity baseline** (ADR 0043).
 
 - "MCP extension" can imply that MCP lifecycle belongs to a Pi or OpenWaggle extension package. Resolved: use **OpenWaggle MCP integration** for the product and **MCP runtime** for the per-session client lifecycle. Since Pi 1.0 the **MCP runtime** is Pi's built-in MCP extension, loaded by OpenWaggle rather than by the Pi CLI.
@@ -2748,3 +2749,50 @@ _Avoid_: auto-disable, expiry, stop (the user's own pause)
 - A **Launch schedule** runs a standard turn, never a Waggle, and titles each Session from the task name and date.
 - A **Heartbeat** whose target Session the `pi` CLI wrote to last treats it as busy; a **Scheduled task run** never makes a **Pi continuation choice**.
 - A **Scheduled task run** uses the same Session Control operations a person would (**Message submission** or **Session launch**); scheduling decides only when they happen.
+
+### Desktop notifications
+
+**Desktop notification**:
+An operating-system notification OpenWaggle shows on this computer to tell the person that one Session needs them or has something to read.
+_Avoid_: notification (bare, outside UI labels), alert, toast, Agent notification (that is a message from a Run, shown in the app)
+
+**Notification category**:
+One of the four kinds of event a person can turn **Desktop notifications** on or off for: **Needs you**, Ready to read, Failed or interrupted, and Agent errors.
+_Avoid_: notification type, event type, trigger
+
+**Notification badge**:
+The Dock or taskbar count of Sessions that have a **Desktop notification** still outstanding.
+_Avoid_: unread count, Dock badge (one platform's name for it)
+
+**Notification sound**:
+The sound chosen for one **Notification category**: one of OpenWaggle's bundled sounds, the system default, or none.
+_Avoid_: alert sound, chime
+
+**Notification mute**:
+A person's choice that one Session or one project sends no **Desktop notifications** except **Needs you**, kept until they remove it.
+_Avoid_: snooze, do not disturb (the operating system's), silence
+
+**Push notification**:
+A notification delivered to another device, such as a phone, through a hosted relay; OpenWaggle v1 has none.
+_Avoid_: Desktop notification (that one stays on this computer)
+
+- A **Desktop notification** belongs to exactly one Session; a newer one for the same Session replaces the older one rather than stacking.
+- **Needs you** notifies for any Session, Workers included: a Run that parked an approval or a question for the person, or a Worker that became **Stuck**. A Stuck Worker notifies once, and again only after it stops being Stuck and becomes Stuck again.
+- Ready to read notifies when a root Session's Run completes, once per Run.
+- Failed or interrupted notifies when a root Session's Run fails, stops waiting for an answer that never came, or is interrupted by losing the **Session Host**, except when the Host was stopped to install an update. A Run the person interrupted never notifies.
+- A Worker's completion, failure, review request or request for help never notifies the person, because its **Next actor** is its parent; pinning a Worker to the sidebar does not change that.
+- Agent errors notifies for an error-severity **Agent notification**; informational and warning ones never produce a **Desktop notification**.
+- A **Scheduled task**'s notification policy only narrows the **Notification categories**: "failures only" silences Ready to read for its Runs. **Needs you** always notifies, and a **Scheduled task** disabled or skipped for an authority reason always notifies as Failed or interrupted.
+- A **Notification category** the person turned off is silent everywhere, whatever a **Scheduled task**'s policy says, and is not counted by the **Notification badge**.
+- While OpenWaggle is not focused, a **Desktop notification** and its **Notification sound** are shown even for the Session on screen. While it is focused, the Session being viewed never notifies, and any other Session follows the person's choice: sound only (the default), the notification as well, or nothing.
+- A **Desktop notification**'s title names the Session, its project and, for a Worker, its parent; its body says what happened in the words the app already uses. A preview of the reply, request, question or error is shown only when the person turned previews on, which is off by default.
+- Clicking a **Desktop notification** opens OpenWaggle on that Session, a Worker's own Session for a Worker, with any **Needs you** request docked above the composer. A **Desktop notification** carries no action buttons: the person answers approvals and questions in the app.
+- A **Desktop notification** whose situation has ended (its request was answered anywhere, or its Session was read or archived) is withdrawn.
+- The **Notification badge** counts Sessions, not notifications. A Session leaves it when the person opens it or its request is resolved, from any client; the badge is shown only while the desktop app runs, and the person can turn it off.
+- Opening a Session marks its Ready to read and Failed or interrupted **Desktop notifications** read, by the same visit that clears the sidebar's unread state.
+- The **Session Host** decides when a **Desktop notification** is due, whichever client started the Run; the desktop app shows it while connected, and the Host shows it itself when no desktop app is connected (ADR 0062).
+- **Desktop notifications** are on by default, every **Notification category** included, with the bundled **Notification sounds**, sound only while OpenWaggle is focused, the **Notification badge** on and previews off; an existing install gets the same defaults and is told once where to change them.
+- OpenWaggle first asks the operating system for permission to show **Desktop notifications** when the person starts their first Run in the app, never from a notification that is due while they are away. When the system blocks them, sound, the **Notification badge** and the sidebar still work, and OpenWaggle says so once and in its settings rather than asking again; Focus and Do Not Disturb are always respected.
+- A **Notification mute** on a Session or a project silences Ready to read, Failed or interrupted and Agent errors for it, never **Needs you**; muting a Queen does not mute her Workers, and a muted Session still shows its unread state and a muted icon in the sidebar.
+- Ready to read, Failed or interrupted and Agent errors follow who started the Run, by its **Message provenance**: the person (in the app, or from their own CLI outside an agent Run) and a **Scheduled task** notify; another agent (a **CLI client profile**, an **OpenWaggle MCP server profile**, or another Session's **Hive tool**) does not, because that caller is waiting for the result. **Needs you** notifies whoever started the Run, and the sidebar's unread state is unaffected.
+- An agent cannot send a **Desktop notification** on purpose: it reaches the person only through the **Notification categories**, by parking a request, ending its Run, failing, or raising an error **Agent notification**.

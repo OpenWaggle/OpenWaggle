@@ -1,4 +1,5 @@
-import { AlertTriangle, Archive, Edit3, Folder, MoreHorizontal } from 'lucide-react'
+import { AlertTriangle, Archive, Bell, BellOff, Edit3, Folder, MoreHorizontal } from 'lucide-react'
+import { useProjectNotificationMute } from '@/features/desktop-notifications'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
@@ -58,6 +59,7 @@ export function ProjectActionsMenu({
    * nothing to archive.
    */
   const archivable = group.allSessions
+  const notificationMute = useProjectNotificationMute(group.projectPath)
   const sessionCount = archivable.length
   const archiveLabel =
     sessionCount === 0
@@ -100,6 +102,11 @@ export function ProjectActionsMenu({
         icon={Edit3}
         label="Rename project"
         onClick={() => closeAfter(() => actions.rename(group.projectPath, projectLabel))}
+      />
+      <ProjectMenuButton
+        icon={notificationMute.muted ? Bell : BellOff}
+        label={notificationMute.muted ? 'Unmute notifications' : 'Mute notifications'}
+        onClick={() => closeAfter(notificationMute.toggle)}
       />
       <ProjectMenuButton
         disabled={sessionCount === 0}

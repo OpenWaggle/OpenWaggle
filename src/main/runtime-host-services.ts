@@ -20,6 +20,7 @@ import {
 } from './application/pi-session-discovery'
 import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { installSessionTitleWorker } from './application/session-title-scheduler'
+import { runDesktopNotificationsBackground } from './session-host/desktop-notification-background'
 import { installHiveParentWake } from './session-host/hive-parent-wake-installer'
 import { runScheduledTaskSchedulerBackground } from './session-host/scheduled-task-scheduler'
 import { installAppSessionToolGateway } from './session-host/session-tool-gateway-installer'
@@ -80,8 +81,8 @@ function afterQuietStart<A, E, R>(indexer: Effect.Effect<A, E, R>) {
 
 /**
  * Host services that start once the Host serves clients, in the scope of the services above
- * (A-F8). None of them answers a client request: export recovery, the scratch sweep, the
- * scheduler (it settles interrupted firings before it forks), Pi session discovery, the Usage
+ * (A-F8). None of them answers a client request: export recovery, the scratch sweep, Desktop
+ * notifications, the scheduler (it settles interrupted firings before it forks), Pi session discovery, the Usage
  * statistics reporter, Automatic worktree removal, the background indexers after a quiet delay, and
  * trusted-main extension activation, which runs user code for as long as it takes.
  */
@@ -89,6 +90,8 @@ export function startHostServicesOnceListening<R = never>(options: HostServiceOp
   return Effect.gen(function* () {
     yield* runSessionExportRecoveryBackground
     yield* runSessionScratchSweepBackground
+    // Before the scheduler, so a task it stops for attention is announced (ADR 0062).
+    yield* runDesktopNotificationsBackground
     // After the tool gateway and title worker: a Launch schedule's Session gets its title.
     yield* runScheduledTaskSchedulerBackground
     if (options.createDiscoveredSession) {

@@ -47,6 +47,7 @@ export interface ToastData {
 
 export const SETTINGS_TABS = [
   'general',
+  'notifications',
   'browser',
   'actions',
   'shortcuts',

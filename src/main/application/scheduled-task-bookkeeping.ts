@@ -15,6 +15,7 @@ import {
   type ScheduledTaskRecordChanges,
   ScheduledTaskRepository,
 } from '../ports/scheduled-task-repository'
+import { signalScheduledTaskAttention } from './desktop-notifications/desktop-notification-signals'
 import { nextFiringOf, scheduleDefinitionOf } from './scheduled-task-presentation'
 
 /** A firing this much later than planned was missed (the Host was down or the machine slept). */
@@ -115,6 +116,19 @@ function advanceChanges(
   }
 }
 
+/** A task that just stopped for attention is announced as a Desktop notification (ADR 0062). */
+function announceNewAttention(before: ScheduledTaskRecord, after: ScheduledTaskRecord) {
+  if (before.attention !== null || after.attention === null) return
+  signalScheduledTaskAttention({
+    taskId: after.id,
+    taskName: after.name,
+    kind: after.kind,
+    projectPath: after.projectPath,
+    targetSessionId: after.target.kind === 'heartbeat' ? after.target.sessionId : null,
+    attention: after.attention,
+  })
+}
+
 function applyWithRetry(
   taskId: string,
   change: (current: ScheduledTaskRecord) => ScheduledTaskRecordChanges | null,
@@ -127,7 +141,10 @@ function applyWithRetry(
       const changes = change(current)
       if (!changes) return current
       const stored = yield* repository.update(taskId, current.updatedAt, changes)
-      if (stored) return stored
+      if (stored) {
+        announceNewAttention(current, stored)
+        return stored
+      }
     }
     return null
   })

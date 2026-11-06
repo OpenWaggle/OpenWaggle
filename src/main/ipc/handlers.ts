@@ -5,6 +5,7 @@ import { registerAuthHandlers } from './auth-handler'
 import { registerBackgroundStartHandlers } from './background-start-handler'
 import { registerBrowserPreviewHandlers } from './browser-preview-handler'
 import { registerComposerHandlers } from './composer-handler'
+import { registerDesktopNotificationsHandlers } from './desktop-notifications-handler'
 import { registerDocsHandlers } from './docs-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
 import { registerExtensionFrameHandlers } from './extension-frame-handler'
@@ -75,5 +76,6 @@ export function registerAllIpcHandlers(): void {
   registerUpdaterHandlers()
   registerComposerHandlers()
   registerDocsHandlers()
+  registerDesktopNotificationsHandlers()
   registerWorkspaceFileHandlers()
 }

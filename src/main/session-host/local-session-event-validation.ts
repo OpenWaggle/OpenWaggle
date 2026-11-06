@@ -1,6 +1,7 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { agentTransportUserMessageSchema } from '@shared/schemas/agent-transport-user-message'
 import { worktreeLaunchProgressSchema } from '@shared/schemas/background-run'
+import { desktopNotificationSchema } from '@shared/schemas/desktop-notification'
 import type {
   SessionHostEventCursor,
   SessionHostEventEnvelope,
@@ -71,6 +72,12 @@ function isEventPayload(value: Record<string, unknown>) {
   }
   if (value.kind === 'default-thinking-level-changed') {
     return THINKING_LEVELS.some((level) => level === value.level)
+  }
+  if (value.kind === 'desktop-notification-shown') {
+    return decodes(desktopNotificationSchema, value.notification)
+  }
+  if (value.kind === 'desktop-notification-withdrawn') {
+    return typeof value.notificationId === 'string' && typeof value.revision === 'number'
   }
   if (value.kind === 'session-title-model-refused') {
     return (

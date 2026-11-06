@@ -24,6 +24,7 @@ import {
   isSourceControlHostName,
 } from '@shared/types/source-control'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
+import { desktopNotificationSettingsSchema } from './desktop-notification'
 import {
   extensionPanelShortcutBindingsSchema,
   shortcutBindingSchema,
@@ -93,6 +94,7 @@ export const settingsUpdateSchema = Schema.Struct({
   updateChannel: Schema.optional(Schema.Literal(...UPDATE_CHANNELS)),
   usageStatisticsEnabled: Schema.optional(Schema.Boolean),
   automaticWorktreeRemoval: Schema.optional(automaticWorktreeRemovalSettingsSchema),
+  desktopNotifications: Schema.optional(desktopNotificationSettingsSchema),
   codemodeEnabled: Schema.optional(Schema.Boolean),
   cacheWarming: Schema.optional(Schema.Literal(...PI_CACHE_WARMING_MODES)),
   compactionThresholdPercent: Schema.optional(

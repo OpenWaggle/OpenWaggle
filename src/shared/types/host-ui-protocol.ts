@@ -1,6 +1,10 @@
 import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
+/** Desktop notifications ship with revision 31: the ones still outstanding (ADR 0062). */
+export const HOST_UI_REVISION_31_REQUIRED_CHANNELS = [
+  'desktop-notifications:list',
+] as const satisfies readonly IpcInvokeChannel[]
 /**
  * Settings > Worktrees across every project ships with revision 30: the inventory, Reclaimable
  * space, Archive & remove, and Automatic worktree removal's record (ADR 0060).
@@ -184,6 +188,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_31_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_30_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_29_REQUIRED_CHANNELS,
   ...HOST_UI_REVISION_25_REQUIRED_CHANNELS,

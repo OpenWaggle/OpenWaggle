@@ -1,5 +1,6 @@
 import type { RunMode, WorktreeLaunchProgress } from './background-run'
 import type { SupportedModelId } from './brand'
+import type { DesktopNotification } from './desktop-notification'
 import type {
   SessionExportOperationStatus,
   SessionExportProgress,
@@ -93,6 +94,21 @@ export type SessionHostEventPayload =
       readonly retryAt: number
     }
   | {
+      /**
+       * The Session Host decided a Desktop notification is due (ADR 0062). It replaces the
+       * notification standing under the same `id`; `presentedBy` says whether the desktop app
+       * shows it or the Host already did.
+       */
+      readonly kind: 'desktop-notification-shown'
+      readonly notification: DesktopNotification
+    }
+  | {
+      /** The situation ended (answered, read, archived): the notification under `id` goes. */
+      readonly kind: 'desktop-notification-withdrawn'
+      readonly notificationId: string
+      readonly revision: number
+    }
+  | {
       readonly kind: 'session-export-changed'
       readonly sessionId: string
       readonly exportOperationId: string
@@ -108,6 +124,8 @@ export type SessionlessHostEventPayload = Extract<
       | 'semantic-discovery-readiness-changed'
       | 'default-thinking-level-changed'
       | 'session-title-model-refused'
+      | 'desktop-notification-shown'
+      | 'desktop-notification-withdrawn'
   }
 >
 
@@ -122,7 +140,9 @@ export function isSessionlessHostEvent(
   return (
     payload.kind === 'semantic-discovery-readiness-changed' ||
     payload.kind === 'default-thinking-level-changed' ||
-    payload.kind === 'session-title-model-refused'
+    payload.kind === 'session-title-model-refused' ||
+    payload.kind === 'desktop-notification-shown' ||
+    payload.kind === 'desktop-notification-withdrawn'
   )
 }
 

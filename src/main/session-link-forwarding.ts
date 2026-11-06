@@ -20,8 +20,13 @@ const BUNDLE_FROM_EXECUTABLE = ['..', '..', '..'] as const
  * `open-url` again, and the app gets the environment of a normal launch, not this process's.
  */
 export function desktopAppLaunchArguments(executablePath: string, link: string) {
+  return [...desktopAppOpenArguments(executablePath), '--args', '--', link]
+}
+
+/** `open` arguments that start (or, through the single-instance lock, reveal) the desktop app. */
+export function desktopAppOpenArguments(executablePath: string) {
   const bundle = path.resolve(executablePath, ...BUNDLE_FROM_EXECUTABLE)
-  return ['-n', '-a', bundle, '--args', '--', link]
+  return ['-n', '-a', bundle]
 }
 
 /**

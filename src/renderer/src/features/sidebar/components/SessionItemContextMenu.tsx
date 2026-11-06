@@ -3,6 +3,8 @@ import {
   Archive,
   ArrowDown,
   ArrowUp,
+  Bell,
+  BellOff,
   Copy,
   Edit3,
   Eye,
@@ -13,6 +15,7 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react'
+import { useSessionNotificationMute } from '@/features/desktop-notifications'
 import { useSessionTitleRegeneration } from '@/features/session-title'
 import { copySessionLink } from '@/features/sessions/commands'
 import { api } from '@/shared/lib/ipc'
@@ -96,6 +99,7 @@ export function SessionItemContextMenu({
 }: SessionItemContextMenuProps) {
   const { moveUp, moveDown, restore } = commands
   const titleRegeneration = useSessionTitleRegeneration(sessionId)
+  const notificationMute = useSessionNotificationMute(String(sessionId))
   const showToast = useUIStore((state) => state.showToast)
 
   function closeAfter(action: () => void) {
@@ -149,6 +153,11 @@ export function SessionItemContextMenu({
         icon={Eye}
         label="Mark as unread"
         onClick={() => closeAfter(() => actions.markUnread(sessionId))}
+      />
+      <SessionMenuButton
+        icon={notificationMute.muted ? Bell : BellOff}
+        label={notificationMute.muted ? 'Unmute notifications' : 'Mute notifications'}
+        onClick={() => closeAfter(notificationMute.toggle)}
       />
       <SessionMenuButton
         icon={Copy}

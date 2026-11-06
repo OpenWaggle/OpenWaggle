@@ -15,6 +15,7 @@ import type {
   BrowserPreviewZoomFactor,
 } from '@shared/types/browser-preview-controls'
 import type { BrowserProfile } from '@shared/types/browser-profile'
+import type { DesktopNotificationSettings } from '@shared/types/desktop-notification'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type {
   BrowserLinkTarget,
@@ -43,6 +44,8 @@ export interface PreferencesState {
   removeRecentProject: (path: string) => Promise<void>
   setUpdateChannel: (channel: UpdateChannel) => Promise<void>
   setUsageStatisticsEnabled: (enabled: boolean) => Promise<void>
+  /** Settings → Notifications (ADR 0062), saved whole. */
+  setDesktopNotifications: (value: DesktopNotificationSettings) => Promise<void>
   setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
   setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
   /** Automatic worktree removal (ADR 0060), app-wide and off until the user turns it on. */

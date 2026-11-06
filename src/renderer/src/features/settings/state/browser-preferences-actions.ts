@@ -7,6 +7,7 @@ type BrowserAndScalarActions = Pick<
   | 'setDefaultAuthorizationMode'
   | 'setUpdateChannel'
   | 'setUsageStatisticsEnabled'
+  | 'setDesktopNotifications'
   | 'setDefaultSessionEnvironmentMode'
   | 'setAutomaticWorktreeRemoval'
   | 'setMultiAgentEnabled'
@@ -67,6 +68,7 @@ export function createBrowserAndScalarPreferencesActions(
       await api.checkForUpdates(value)
     },
     setUsageStatisticsEnabled: (value) => persistSetting('usageStatisticsEnabled', value, set),
+    setDesktopNotifications: (value) => persistSetting('desktopNotifications', value, set),
     setDefaultAuthorizationMode: (value) => persistSetting('defaultAuthorizationMode', value, set),
     setDefaultSessionEnvironmentMode: (value) =>
       persistSetting('defaultSessionEnvironmentMode', value, set),

@@ -56,6 +56,7 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
     'worktrees:inventory',
     'worktrees:measure',
     'worktrees:automatic-removal-log',
+    'desktop-notifications:list',
   ])
 
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {

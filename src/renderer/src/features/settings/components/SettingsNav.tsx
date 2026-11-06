@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
+  Bell,
   Cable,
   CalendarClock,
   GitBranch,
@@ -30,6 +31,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'browser', label: 'Browser', icon: Globe2 },
   { id: 'actions', label: 'Project actions', icon: Play },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },

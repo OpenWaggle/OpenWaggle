@@ -71,7 +71,8 @@ export type ScheduledTaskTarget =
     } & ScheduledTaskModelChoice)
 
 /** Whom a Scheduled task notifies: every run, or only failures and attention. */
-export type ScheduledTaskNotificationPolicy = 'every-run' | 'failures-only'
+export const SCHEDULED_TASK_NOTIFICATION_POLICIES = ['every-run', 'failures-only'] as const
+export type ScheduledTaskNotificationPolicy = (typeof SCHEDULED_TASK_NOTIFICATION_POLICIES)[number]
 
 export const SCHEDULED_TASK_ATTENTION_REASONS = [
   'creator-authority-revoked',

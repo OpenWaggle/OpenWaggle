@@ -5,6 +5,8 @@ import type {
   BrowserWindowConstructorOptions,
   MenuItemConstructorOptions,
   MessageBoxOptions,
+  NativeImage,
+  Notification as NativeNotification,
   OpenDialogOptions,
   SaveDialogOptions,
   WebContents,
@@ -107,6 +109,7 @@ export function installAutomationDesktopUiBlockers() {
     replaceMethod(NativeBaseWindow.prototype, method, blockedSyncMethod(`BaseWindow.${method}`))
   }
   replaceMethod(Electron.Menu.prototype, 'popup', blockedSyncMethod('Menu.popup'))
+  replaceMethod(Electron.Notification.prototype, 'show', blockedSyncMethod('Notification.show'))
   // Electron exposes both window classes as non-configurable module properties,
   // so their constructors cannot be safely replaced. Core construction is
   // confined statically to the hidden-by-default helpers below, while the native
@@ -221,4 +224,101 @@ export function showSaveDialog(ownerWindow: BaseWindow | null, options: SaveDial
   return ownerWindow
     ? Electron.dialog.showSaveDialog(ownerWindow, options)
     : Electron.dialog.showSaveDialog(options)
+}
+
+export interface NativeNotificationOptions {
+  /** Replaces a delivered notification with the same id (macOS, Windows). */
+  readonly id: string
+  readonly groupId: string
+  readonly title: string
+  readonly body: string
+  /** Suppress the operating system's own sound. */
+  readonly silent: boolean
+  /** Keep it on screen until clicked (Windows drops clicks once it moves to the Action Center). */
+  readonly requireInteraction?: boolean
+}
+
+export interface NativeNotificationHandlers {
+  readonly onClick?: () => void
+  readonly onShow?: () => void
+  readonly onFailed?: (error: string) => void
+}
+
+export function nativeNotificationsSupported() {
+  return !isAutomationMode() && Electron.Notification.isSupported()
+}
+
+/**
+ * Show an operating-system notification (ADR 0062). Returns null when the system cannot show one
+ * or the run is automated, which never reaches the desktop.
+ */
+export function showNativeNotification(
+  options: NativeNotificationOptions,
+  handlers: NativeNotificationHandlers = {},
+): NativeNotification | null {
+  if (!nativeNotificationsSupported()) return null
+  const notification = new Electron.Notification({
+    id: options.id,
+    groupId: options.groupId,
+    title: options.title,
+    body: options.body,
+    silent: options.silent,
+    ...(options.requireInteraction ? { timeoutType: 'never' as const } : {}),
+  })
+  if (handlers.onClick) notification.on('click', handlers.onClick)
+  if (handlers.onShow) notification.on('show', handlers.onShow)
+  if (handlers.onFailed) {
+    const onFailed = handlers.onFailed
+    notification.on('failed', (_event, error) => onFailed(error))
+  }
+  notification.show()
+  return notification
+}
+
+/** Remove a delivered notification from Notification Center (macOS keeps it otherwise). */
+export function removeDeliveredNativeNotification(id: string) {
+  if (isAutomationMode() || process.platform !== 'darwin') return
+  Electron.Notification.remove(id)
+}
+
+/** The Dock (macOS) or launcher (Linux, where supported) count; 0 hides it. */
+export function setApplicationBadgeCount(count: number) {
+  if (isAutomationMode()) return
+  Electron.app.setBadgeCount(count)
+}
+
+/** The Windows taskbar overlay; null removes it. */
+export function setWindowOverlayIcon(
+  window: BrowserWindow,
+  image: NativeImage | null,
+  description: string,
+) {
+  if (isAutomationMode()) return
+  window.setOverlayIcon(image, description)
+}
+
+export function nativeImageFromBitmap(pixels: Buffer, width: number, height: number) {
+  return Electron.nativeImage.createFromBitmap(pixels, { width, height })
+}
+
+export function getFocusedBrowserWindow() {
+  return Electron.BrowserWindow.getFocusedWindow()
+}
+
+/** The system alert sound, for a System default Notification sound with nothing shown. */
+export function playSystemAlertSound() {
+  if (isAutomationMode()) return
+  Electron.shell.beep()
+}
+
+/** Opens the operating system's notification settings, where it has a page for them. */
+export function openSystemNotificationSettings() {
+  const url =
+    process.platform === 'darwin'
+      ? 'x-apple.systempreferences:com.apple.Notifications-Settings.extension'
+      : process.platform === 'win32'
+        ? 'ms-settings:notifications'
+        : null
+  if (!url || isAutomationMode()) return Promise.resolve()
+  return Electron.shell.openExternal(url)
 }

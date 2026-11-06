@@ -17,6 +17,7 @@ import { readInlineVisualizationSource } from './application/inline-visualizatio
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
 import { watchChromiumCacheSize } from './chromium-disk-cache'
+import { installDesktopNotificationPresenter } from './desktop-notification-presenter'
 import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
@@ -231,6 +232,7 @@ function registerAppLifecycle() {
     .then(() => {
       electronApp.setAppUserModelId('com.openwaggle.app')
       configureDesktopUiAfterReady(app, devDockIconPath)
+      installDesktopNotificationPresenter({ revealWindow: revealMainWindow })
 
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))

@@ -21,6 +21,10 @@ import {
 import type { BrowserProfile } from './browser-profile'
 import { DEFAULT_BROWSER_PROFILE_ID } from './browser-profile'
 import type { SourceControlProviderId } from './change-request'
+import {
+  DEFAULT_DESKTOP_NOTIFICATION_SETTINGS,
+  type DesktopNotificationSettings,
+} from './desktop-notification'
 import type { SessionEnvironmentMode } from './git'
 import {
   DEFAULT_SHORTCUT_RULES,
@@ -108,6 +112,8 @@ export interface Settings {
   readonly usageStatisticsEnabled: boolean
   /** Automatic worktree removal (ADR 0060): off by default, app-wide. */
   readonly automaticWorktreeRemoval: AutomaticWorktreeRemovalSettings
+  /** Settings → Notifications (ADR 0062): on by default, app-wide. */
+  readonly desktopNotifications: DesktopNotificationSettings
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   /** Named Agent definitions are enabled by default; false disables that name for one project. */
@@ -220,6 +226,7 @@ export const DEFAULT_SETTINGS: Settings = {
   updateChannel: DEFAULT_UPDATE_CHANNEL,
   usageStatisticsEnabled: true,
   automaticWorktreeRemoval: DEFAULT_AUTOMATIC_WORKTREE_REMOVAL,
+  desktopNotifications: DEFAULT_DESKTOP_NOTIFICATION_SETTINGS,
   recentProjects: [],
   skillTogglesByProject: {},
   agentDefinitionTogglesByProject: {},
