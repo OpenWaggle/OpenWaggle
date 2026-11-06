@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRunResult } from '../../application/agent-run/types'
+import { SessionControlRepositoryError } from '../../errors'
 import type { AgentKernelServiceShape } from '../../ports/agent-kernel-service'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import type { AgentRequestedWaggleServiceShape } from '../../ports/agent-requested-waggle-service'
@@ -49,11 +50,19 @@ vi.mock('../../application/agent-run-service', () => ({
 
 vi.mock('../../session-host/session-host-events', () => ({
   publishSessionHostEvent: publishSessionHostEventMock,
+  tryGetSessionHostEventRuntime: () => undefined,
 }))
 
 import { executeRegisteredRun } from '../session-control-run-dispatch'
 
-function testLayer(runIfRequested: AgentRequestedWaggleServiceShape['runIfRequested']) {
+function testLayer(
+  runIfRequested: AgentRequestedWaggleServiceShape['runIfRequested'],
+  listPending: SessionOrchestrationUpdateRepositoryShape['listPending'] = vi
+    .fn<SessionOrchestrationUpdateRepositoryShape['listPending']>()
+    // Nothing is pending when the classic Run starts; one update arrives in its final turn.
+    .mockReturnValueOnce(Effect.succeed([]))
+    .mockReturnValue(Effect.succeed([lateUpdate])),
+) {
   return Layer.mergeAll(
     Layer.succeed(
       SessionControlAttachmentService,
@@ -73,11 +82,8 @@ function testLayer(runIfRequested: AgentRequestedWaggleServiceShape['runIfReques
     Layer.succeed(
       SessionOrchestrationUpdateRepository,
       fromPartial<SessionOrchestrationUpdateRepositoryShape>({
-        // Nothing is pending when the classic Run starts; one update arrives in its final turn.
-        listPending: vi
-          .fn<SessionOrchestrationUpdateRepositoryShape['listPending']>()
-          .mockReturnValueOnce(Effect.succeed([]))
-          .mockReturnValue(Effect.succeed([lateUpdate])),
+        listPending,
+        markDelivered: markOrchestrationDelivered,
         listPendingSpecifications: () => Effect.succeed([]),
       }),
     ),
@@ -95,6 +101,10 @@ function testLayer(runIfRequested: AgentRequestedWaggleServiceShape['runIfReques
   )
 }
 
+const markOrchestrationDelivered = vi.fn<
+  SessionOrchestrationUpdateRepositoryShape['markDelivered']
+>(() => Effect.void)
+
 const lateUpdate = fromPartial<PendingSessionOrchestrationUpdate>({
   updateId: 'update-late',
   delegationId: 'delegation-1',
@@ -110,9 +120,38 @@ const pendingReport = {
   createdAt: 1,
 }
 
+const registeredRun: Parameters<typeof executeRegisteredRun>[0] = {
+  request: {
+    sessionId: SessionId('session-1'),
+    runId: RunId('run-classic'),
+    controller: new AbortController(),
+    intent: {
+      text: 'Review it.',
+      attachmentIds: [],
+      // An ask-for-approval CLI profile queued this Run on a yolo Session.
+      callerId: 'profile:asker',
+      runAuthorizationOverride: 'ask-for-approval',
+      acceptedAt: 1,
+      idempotencyKey: 'requested-waggle',
+    },
+  },
+  execution: {
+    model: SupportedModelId('openrouter/anthropic/claude-haiku-4.5'),
+    authorizationCeiling: 'yolo',
+    sessionCapabilities: ['sessions:read'],
+    toolAllowlist: ['read'],
+    projectPath: '/tmp/project',
+    identityContext: '',
+    runIdentityContext: '',
+  },
+  controller: new AbortController(),
+  allowModelMultiAgent: false,
+}
+
 describe('agent-requested Waggle after a classic Run', () => {
   beforeEach(() => {
     publishSessionHostEventMock.mockReset()
+    markOrchestrationDelivered.mockClear()
   })
 
   it('hands the classic Run authorization context and still-pending updates to the Waggle', async () => {
@@ -121,33 +160,7 @@ describe('agent-requested Waggle after a classic Run', () => {
     )
 
     await Effect.runPromise(
-      executeRegisteredRun({
-        request: {
-          sessionId: SessionId('session-1'),
-          runId: RunId('run-classic'),
-          controller: new AbortController(),
-          intent: {
-            text: 'Review it.',
-            attachmentIds: [],
-            // An ask-for-approval CLI profile queued this Run on a yolo Session.
-            callerId: 'profile:asker',
-            runAuthorizationOverride: 'ask-for-approval',
-            acceptedAt: 1,
-            idempotencyKey: 'requested-waggle',
-          },
-        },
-        execution: {
-          model: SupportedModelId('openrouter/anthropic/claude-haiku-4.5'),
-          authorizationCeiling: 'yolo',
-          sessionCapabilities: ['sessions:read'],
-          toolAllowlist: ['read'],
-          projectPath: '/tmp/project',
-          identityContext: '',
-          runIdentityContext: '',
-        },
-        controller: new AbortController(),
-        allowModelMultiAgent: false,
-      }).pipe(Effect.provide(testLayer(runIfRequested))),
+      executeRegisteredRun(registeredRun).pipe(Effect.provide(testLayer(runIfRequested))),
     )
 
     expect(runIfRequested).toHaveBeenCalledTimes(1)
@@ -164,7 +177,17 @@ describe('agent-requested Waggle after a classic Run', () => {
     // An update the classic Run's final turn put on the branch is still pending: the Waggle's
     // first model request sees it, so the parent is not woken for an update it already read.
     expect(request?.authority?.orchestrationUpdates).toEqual([lateUpdate])
-    expect(request?.authority?.onOrchestrationUpdatesDelivered).toBeTypeOf('function')
+    // The Waggle acknowledges them as the classic Run, the one with a Run row.
+    request?.authority?.onOrchestrationUpdatesDelivered?.(['update-late'])
+    await vi.waitFor(() =>
+      expect(markOrchestrationDelivered).toHaveBeenCalledWith(
+        expect.objectContaining({
+          updateIds: ['update-late'],
+          parentSessionId: 'session-1',
+          runId: 'run-classic',
+        }),
+      ),
+    )
     // The classic Run already delivered these; passing them again would deliver them twice.
     for (const key of [
       'peerAgentReports',
@@ -174,5 +197,28 @@ describe('agent-requested Waggle after a classic Run', () => {
     ]) {
       expect(request?.authority).not.toHaveProperty(key)
     }
+  })
+
+  it('still succeeds when the updates still pending cannot be read', async () => {
+    const runIfRequested = vi.fn<AgentRequestedWaggleServiceShape['runIfRequested']>(() =>
+      Effect.succeed(false),
+    )
+    const listPending = vi
+      .fn<SessionOrchestrationUpdateRepositoryShape['listPending']>()
+      .mockReturnValueOnce(Effect.succeed([]))
+      .mockReturnValue(
+        Effect.fail(
+          new SessionControlRepositoryError({ operation: 'list-pending', cause: 'busy' }),
+        ),
+      )
+
+    const ran = await Effect.runPromise(
+      executeRegisteredRun(registeredRun).pipe(
+        Effect.provide(testLayer(runIfRequested, listPending)),
+      ),
+    )
+
+    expect(ran.result).toMatchObject({ outcome: 'success' })
+    expect(runIfRequested.mock.calls[0]?.[0].authority?.orchestrationUpdates).toEqual([])
   })
 })

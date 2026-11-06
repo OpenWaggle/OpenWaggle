@@ -185,7 +185,7 @@ A `needs_attention` that OpenWaggle set for a failed run goes back to `working` 
 
 ### When a worker reports to an idle parent
 
-The parent hears about every result and every request for help as an update from OpenWaggle. A running parent reads the update at its next model request in the current run. An update that arrives while the parent writes its last answer, or after it, waits for a new run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
+The parent hears about every result and every request for help as an update from OpenWaggle. A running parent reads the update at its next model request in the current run. An update that arrives while the parent writes its last answer, or after it, waits for the parent's next model request. That is the Waggle the run hands off to, if any, or else a new run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
 
 | Update | Sent when |
 | --- | --- |

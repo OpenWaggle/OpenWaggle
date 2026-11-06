@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { requestedWaggleRunId } from '../../domain/session-control/root-session-project-reach'
 import type { PendingSessionOrchestrationUpdate } from '../../ports/session-orchestration-update-repository'
 import { installDurableContextDelivery } from './durable-context-delivery'
 
@@ -69,11 +70,15 @@ export function createOrchestrationUpdateExtension(input: {
   return { factory, close: () => close() }
 }
 
+/**
+ * Delivers updates to the active Run of the Session. A Waggle the classic Run requested has its
+ * own sink once the classic Run's has closed, so it reads an update that arrives meanwhile.
+ */
 export function deliverOrchestrationUpdates(
   runId: string,
   updates: readonly PendingSessionOrchestrationUpdate[],
 ) {
-  const sink = liveSinks.get(runId)
+  const sink = liveSinks.get(runId) ?? liveSinks.get(requestedWaggleRunId(runId))
   if (!sink) return false
   sink.deliver(updates)
   return true

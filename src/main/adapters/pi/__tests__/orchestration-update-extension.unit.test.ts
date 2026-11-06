@@ -161,6 +161,24 @@ describe('Pi orchestration update extension', () => {
     expect(deliverOrchestrationUpdates('run-parent-live', updates)).toBe(false)
   })
 
+  // The Session's active Run is still the classic one, but its sink closed when the Waggle began.
+  it('delivers to the Waggle a classic Run requested once the classic Run has ended', async () => {
+    const sendMessage = vi.fn()
+    const extension = createOrchestrationUpdateExtension({
+      runId: 'waggle-of-run-classic',
+      pendingUpdates: [],
+      onDelivered: vi.fn(),
+    })
+    await extension.factory(fromPartial<ExtensionAPI>({ on: vi.fn(), sendMessage }))
+
+    expect(deliverOrchestrationUpdates('run-classic', updates)).toBe(true)
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ customType: 'openwaggle-orchestration-update' }),
+      { deliverAs: 'steer', triggerTurn: false },
+    )
+    extension.close()
+  })
+
   it('leaves a result that reached the parent during its final turn pending', async () => {
     const handlers = new Map<string, (event: unknown, context?: unknown) => unknown>()
     const entries: SessionEntry[] = []
