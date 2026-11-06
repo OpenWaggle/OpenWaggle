@@ -9,7 +9,9 @@ import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
+import { persistAndRecordStop } from '../sqlite-run-interrupter'
 import { SqliteSessionControlOperationJournalLive } from '../sqlite-session-control-operation-journal'
+import { loadSessionControlState } from '../sqlite-session-control-state'
 import {
   makeSessionControlRunLifecycleTestLayer,
   prepareWorkerDelegation,
@@ -86,7 +88,7 @@ describe('SQLite Run interrupter', () => {
   it('names who stopped a Worker Run as the cause of its update', async () => {
     const updates = await interruptWorkerRunAs(path.join(temporaryRoot, 'profile.sqlite'), [
       'profile:other',
-      // A second stop of the stopping Run changes nothing: the first stop wins.
+      // The Host refuses a second stop of a Run that is already stopping.
       'local-user',
     ])
 
@@ -124,5 +126,32 @@ describe('SQLite Run interrupter', () => {
     )
 
     expect(updates).toEqual([{ state: 'needs_attention', trigger_caller_id: 'profile:other' }])
+  })
+
+  // Both Session Control write paths record through this helper; a recorded stopper is kept.
+  it('keeps the first recorded stopper of a Run', async () => {
+    const file = path.join(temporaryRoot, 'first-stop.sqlite')
+    const stoppers = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* prepareWorkerDelegation(sql)
+        const started = yield* startWorkerRun
+        if (started.outcome.effect !== 'started-run') throw new Error(started.outcome.effect)
+        const runId = RunId(started.outcome.runId)
+        yield* (yield* SessionControlRunLifecycleRepository).activate({
+          sessionId: SessionId('worker'),
+          runId,
+        })
+        const active = yield* loadSessionControlState(sql, 'worker')
+        const stopping = { ...active, run: { state: 'stopping' as const, runId } }
+        yield* persistAndRecordStop(sql, active, stopping, 'profile:first', 2000)
+        yield* persistAndRecordStop(sql, active, stopping, 'profile:second', 2001)
+        return yield* sql<{ readonly interrupted_by_caller_id: string | null }>`
+          SELECT interrupted_by_caller_id FROM session_runs WHERE id = ${runId}
+        `
+      }).pipe(Effect.provide(makeSessionControlRunLifecycleTestLayer(file))),
+    )
+
+    expect(stoppers).toEqual([{ interrupted_by_caller_id: 'profile:first' }])
   })
 })

@@ -43,6 +43,9 @@ function fromWorkspaceNode(
   const branchSummary = message.metadata?.branchSummary
   const compactionSummary = message.metadata?.compactionSummary
   const error = message.metadata?.error
+  const scheduledTask = message.metadata?.scheduledTask
+  // A Host-written row on another branch must still read as the Host's, never as the user's.
+  const hiveWake = message.metadata?.hiveWake
   const next: UIMessage = {
     id: String(message.id),
     role: message.role,
@@ -53,6 +56,8 @@ function fromWorkspaceNode(
       ...(branchSummary ? { branchSummary } : {}),
       ...(compactionSummary ? { compactionSummary } : {}),
       ...(error ? { error } : {}),
+      ...(scheduledTask ? { scheduledTask } : {}),
+      ...(hiveWake ? { hiveWake: true as const } : {}),
     },
   }
   persistedMessage.set(message, { nodeId, message: next })
