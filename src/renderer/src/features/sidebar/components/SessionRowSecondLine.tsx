@@ -1,5 +1,6 @@
 import type { SessionSummary } from '@shared/types/session'
 import { ChessQueen, Pencil, Pickaxe } from 'lucide-react'
+import { NotificationMutedIndicator } from '@/features/desktop-notifications/components'
 import { cn } from '@/shared/lib/cn'
 import { formatCompactRelativeTime } from '@/shared/lib/format'
 import { PINNED_SHORTCUT_LIMIT } from '../lib/pinned-sessions'
@@ -91,6 +92,7 @@ export function SessionRowSecondLine({
           </>
         )}
         <SessionProvenanceIndicators session={session} />
+        <NotificationMutedIndicator sessionId={String(session.id)} />
         <SessionGitBadge session={session} />
       </span>
 

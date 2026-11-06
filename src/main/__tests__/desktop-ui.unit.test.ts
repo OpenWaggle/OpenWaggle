@@ -30,11 +30,18 @@ const electronMocks = vi.hoisted(() => {
     }
     popup() {}
   }
+  class Notification {
+    static isSupported() {
+      return true
+    }
+    show() {}
+  }
 
   return {
     BaseWindow,
     BrowserWindow,
     Menu,
+    Notification,
     dialog: {
       showCertificateTrustDialog: vi.fn(),
       showErrorBox: vi.fn(),
@@ -75,6 +82,7 @@ import {
   showErrorBox,
   showItemInFolder,
   showMessageBox,
+  showNativeNotification,
   trashItem,
 } from '../desktop-ui'
 
@@ -107,6 +115,11 @@ describe('automation desktop UI policy', () => {
     expect(() => popupWebContentsMenu(createBrowserWindow({}), guest, [], null)).toThrow(
       AutomationDesktopUiError,
     )
+    // Desktop notifications never reach the desktop from an automated run (ADR 0062).
+    expect(
+      showNativeNotification({ id: 'a', groupId: 'a', title: 'Title', body: 'Body', silent: true }),
+    ).toBeNull()
+    expect(() => new electronMocks.Notification().show()).toThrow(AutomationDesktopUiError)
   })
 
   it('forces every Electron window hidden and blocks direct reveal methods', () => {

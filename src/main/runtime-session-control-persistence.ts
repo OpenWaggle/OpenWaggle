@@ -1,5 +1,6 @@
 import * as Layer from 'effect/Layer'
 import { GitSessionWorkspaceHandoffServiceLive } from './adapters/git-session-workspace-handoff-service'
+import { SqliteDesktopNotificationFactsLive } from './adapters/sqlite-desktop-notification-facts'
 import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteFollowUpEditHoldRepositoryLive } from './adapters/sqlite-follow-up-edit-hold-repository'
 import { SqliteLocalSessionProfileRepositoryLive } from './adapters/sqlite-local-session-profile-repository'
@@ -45,4 +46,5 @@ export const SessionControlPersistenceLive = Layer.mergeAll(
   SqliteSessionWorkspaceResourceRepositoryLive,
   SqliteSessionSettingsRepositoryLive,
   SqliteScheduledTaskRepositoryLive,
+  SqliteDesktopNotificationFactsLive,
 ).pipe(Layer.provide(AppDatabaseLive))

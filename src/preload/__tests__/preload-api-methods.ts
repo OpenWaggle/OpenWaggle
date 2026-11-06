@@ -6,6 +6,7 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { PRELOAD_AGENT_DEFINITION_METHODS } from './preload-agent-definition-methods'
 import { PRELOAD_ARCHIVED_ITEMS_METHODS } from './preload-archived-items-methods'
+import { PRELOAD_DESKTOP_NOTIFICATIONS_METHODS } from './preload-desktop-notifications-methods'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 import { PRELOAD_SESSION_DATA_METHODS } from './preload-session-data-methods'
 import { PRELOAD_SOURCE_CONTROL_METHODS } from './preload-source-control-methods'
@@ -16,6 +17,7 @@ import { PRELOAD_WORKTREES_METHODS } from './preload-worktrees-methods'
 
 export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   ...PRELOAD_USAGE_COST_METHODS,
+  ...PRELOAD_DESKTOP_NOTIFICATIONS_METHODS,
   ...PRELOAD_WORKTREES_METHODS,
   ...PRELOAD_ARCHIVED_ITEMS_METHODS,
   // Includes the Scheduled task methods.

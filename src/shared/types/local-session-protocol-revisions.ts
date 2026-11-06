@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 30 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 31 as const
+export const LOCAL_SESSION_DESKTOP_NOTIFICATIONS_REVISION = 31 as const
 export const LOCAL_SESSION_WORKTREE_INVENTORY_REVISION = 30 as const
 export const LOCAL_SESSION_SESSION_DATA_REVISION = 29 as const
 export const LOCAL_SESSION_HEARTBEAT_EFFICIENCY_REVISION = 28 as const
@@ -92,6 +93,10 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * (`worktrees:archive-and-remove`), and Automatic worktree removal's record
  * (`worktrees:automatic-removal-log`, `worktrees:acknowledge-automatic-removal`). Removing an
  * archived Session's worktree through `git:worktrees:remove` keeps its Workspace binding.
+ * Revision 31 adds Desktop notifications (ADR 0062): the sessionless `desktop-notification-shown`
+ * and `desktop-notification-withdrawn` events, which a revision-30 client decodes exactly and would
+ * reject, the `desktopNotifications` setting, and `desktop-notifications:list`, the notifications
+ * still outstanding, which the desktop app reads for its Notification badge when it connects.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -247,4 +252,9 @@ export const LOCAL_SESSION_REVISION_30_CAPABILITIES = [
   'host-ui:worktree-inventory-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_30_CAPABILITIES
+export const LOCAL_SESSION_REVISION_31_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_30_CAPABILITIES,
+  'host-ui:desktop-notifications-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_31_CAPABILITIES

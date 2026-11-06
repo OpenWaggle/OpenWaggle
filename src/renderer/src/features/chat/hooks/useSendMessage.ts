@@ -21,6 +21,7 @@ import {
   draftThinkingLevel,
   settledThinkingLevelWrites,
 } from '@/features/chat/state/session-thinking-level-writes'
+import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { snapshotDraftWorktreePlan } from '@/features/git'
 import {
   selectDraftWorkspacePreparation,
@@ -245,6 +246,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        * was therefore no rejection for the caller to react to, and a review submitted as a session's first
        * message was cleared on a failure that looked exactly like success.
        */
+      requestDesktopNotificationPermissionOnce()
       const report = config
         ? await api.sendWaggleMessage(sessionId, payload, executionModel, config)
         : await api.sendMessage(sessionId, payload, executionModel)

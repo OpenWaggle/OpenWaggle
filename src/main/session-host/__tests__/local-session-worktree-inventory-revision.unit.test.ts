@@ -32,7 +32,7 @@ describe('Local Session worktree inventory protocol revision', () => {
     'sends %s only to a revision-30 Host',
     (channel) => {
       const command = hostUiCommand(channel)
-      expect(supportedRevisionsForCommand(command)).toEqual([30])
+      expect(supportedRevisionsForCommand(command)).toEqual([31])
       expect(() => decodeLocalSessionCommandPayloadForRevision(command, 29)).toThrow(/revision 30/)
       expect(decodeLocalSessionCommandPayloadForRevision(command, 30)).toEqual(command)
     },

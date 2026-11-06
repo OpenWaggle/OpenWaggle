@@ -28,6 +28,7 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.automaticWorktreeRemoval,
       partial.automaticWorktreeRemoval,
     ),
+    desktopNotifications: nextSetting(current.desktopNotifications, partial.desktopNotifications),
     compactionThresholdPercent: nextSetting(
       current.compactionThresholdPercent,
       partial.compactionThresholdPercent,

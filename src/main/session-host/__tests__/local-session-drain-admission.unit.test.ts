@@ -174,6 +174,8 @@ describe('commands a draining Session Host still accepts', () => {
       'git:change-request:merge-candidate',
       'git:session:verify-working-path',
       'worktrees:automatic-removal-log',
+      // The Host's outstanding Desktop notifications, held in memory.
+      'desktop-notifications:list',
     ])
     const refused = new Set<HostBackedGuiChannel>([
       'agent:get-context-usage',

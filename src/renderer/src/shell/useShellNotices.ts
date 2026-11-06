@@ -1,3 +1,4 @@
+import { useDesktopNotificationsMonitor } from '@/features/desktop-notifications'
 import { useAutomaticWorktreeRemovalNotice } from '@/shell/useAutomaticWorktreeRemovalNotice'
 import { useTitleModelRefusalNotice } from '@/shell/useTitleModelRefusalNotice'
 
@@ -5,4 +6,5 @@ import { useTitleModelRefusalNotice } from '@/shell/useTitleModelRefusalNotice'
 export function useShellNotices() {
   useTitleModelRefusalNotice()
   useAutomaticWorktreeRemovalNotice()
+  useDesktopNotificationsMonitor()
 }

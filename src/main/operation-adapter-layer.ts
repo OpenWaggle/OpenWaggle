@@ -1,4 +1,5 @@
 import * as Layer from 'effect/Layer'
+import { ElectronDesktopNotificationHostPresenterLive } from './adapters/electron-desktop-notification-host-presenter'
 import { AutomaticWorktreeRemovalLogStoreLive } from './adapters/filesystem-automatic-worktree-removal-log'
 import { WorktreeSpaceServiceLive } from './adapters/filesystem-worktree-space-service'
 import { GitWorktreeServiceLive } from './adapters/git-worktree-service'
@@ -12,4 +13,5 @@ export const OperationAdapterLive = Layer.mergeAll(
   PiSkillDiagnosticServiceLive,
   WorktreeSpaceServiceLive,
   AutomaticWorktreeRemovalLogStoreLive,
+  ElectronDesktopNotificationHostPresenterLive,
 )

@@ -29,6 +29,7 @@ import type {
 import type { IpcEventPayload } from './ipc'
 import type { ProviderCatalogScope, ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
+import type { OpenWaggleDesktopNotificationsApi } from './openwaggle-api-desktop-notifications'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
@@ -97,6 +98,7 @@ export interface OpenWaggleApi
     OpenWaggleGitApi,
     OpenWaggleProjectConfigApi,
     OpenWaggleScheduledTasksApi,
+    OpenWaggleDesktopNotificationsApi,
     OpenWaggleUpdaterApi,
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,

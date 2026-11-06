@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
+import { acquireSubscriptionLiveness } from '../application/desktop-notifications/desktop-app-presence'
 import {
   appendJsonProperty,
   sessionHostEventJson,
@@ -123,7 +124,7 @@ export class LocalSessionConnectionSubscriptions {
         return false
       }
       const subscriptionId = randomUUID()
-      releaseLiveness = this.input.dependencies.liveness.acquire('subscription')
+      releaseLiveness = acquireSubscriptionLiveness(this.input.dependencies, caller, sessionIds)
       const active = {
         subscription: result.subscription,
         releaseLiveness,
