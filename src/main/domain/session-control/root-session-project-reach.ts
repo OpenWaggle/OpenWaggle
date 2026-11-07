@@ -21,8 +21,42 @@ export function isLocalUserCallerId(callerId: string) {
   )
 }
 
+/**
+ * The Session Host stopping Runs as it shuts down. It acts with the desktop user's authority, but
+ * a stop of its own is no client's doing, so no Run counts as stopped by it.
+ */
+export const HOST_SHUTDOWN_CALLER_ID = 'local-user:host-shutdown'
+
+/** Who may stop a Run in-process: the desktop user, or the Host as it shuts down. */
+export type InProcessInterruptCallerId = 'gui:local-user' | typeof HOST_SHUTDOWN_CALLER_ID
+
 export function isProfileCallerId(callerId: string) {
   return callerId.startsWith(PROFILE_CALLER_PREFIX)
+}
+
+/** The access profile behind a `profile:<id>` caller, or undefined. */
+export function callerProfileId(callerId: string) {
+  return isProfileCallerId(callerId) ? callerId.slice(PROFILE_CALLER_PREFIX.length) : undefined
+}
+
+const TRANSIENT_MCP_CALLER_PREFIX = 'transient-mcp:'
+
+/** The caller id of an MCP client holding a transient authority, by its authority's digest. */
+export function transientMcpCallerId(authorityDigest: string) {
+  return `${TRANSIENT_MCP_CALLER_PREFIX}${authorityDigest}`
+}
+
+export function isTransientMcpCallerId(callerId: string) {
+  return callerId.startsWith(TRANSIENT_MCP_CALLER_PREFIX)
+}
+
+export function isSessionAgentCallerId(callerId: string) {
+  return callerId.startsWith(SESSION_AGENT_CALLER_PREFIX)
+}
+
+/** The caller id of a Session's agent acting in one of its Runs. */
+export function sessionAgentCallerId(sessionId: string, runId: string) {
+  return `${SESSION_AGENT_CALLER_PREFIX}${sessionId}:${runId}`
 }
 
 /** The Session and Run of a `session-agent:<sessionId>:<runId>` caller, or undefined. */

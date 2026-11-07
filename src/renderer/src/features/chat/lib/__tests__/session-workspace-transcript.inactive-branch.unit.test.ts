@@ -81,4 +81,32 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
 
     expect(resolved[0]?.metadata?.error).toBe('401 Unauthorized')
   })
+
+  // The row the Host wrote to start a Run for worker updates never reads as the user's.
+  it('keeps the Host marks of a row on another branch', () => {
+    const wakeNode = assistantNode('inactive-branch-head', 'Worker updates arrived', 0)
+    const inactiveBranchHead: SessionNode = {
+      ...wakeNode,
+      kind: 'user_message',
+      role: 'user',
+      message: wakeNode.message && {
+        ...wakeNode.message,
+        role: 'user',
+        metadata: { hiveWake: true, scheduledTask: { taskId: 'task-1', name: 'Nightly triage' } },
+      },
+    }
+    const sessionHead = assistantNode('session-head', 'Current session head', 1)
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceAtInactiveBranchHead(sessionHead, inactiveBranchHead),
+      messages: [],
+    })
+
+    expect(resolved[0]?.metadata).toMatchObject({
+      hiveWake: true,
+      scheduledTask: { taskId: 'task-1', name: 'Nightly triage' },
+    })
+  })
 })

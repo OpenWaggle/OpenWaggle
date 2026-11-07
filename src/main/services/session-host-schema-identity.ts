@@ -43,9 +43,10 @@ export const SESSION_AUTHORITY_REVISION_MIGRATION_ID = 83
 export const PI_SESSION_FILE_TAIL_PROJECTION_VERSION_MIGRATION_ID = 84
 export const SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID = 85
 export const SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION_ID = 86
+export const HIVE_WAKE_CAUSE_MIGRATION_ID = 87
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v16'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = HIVE_WAKE_CAUSE_MIGRATION_ID

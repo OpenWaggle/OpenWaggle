@@ -123,6 +123,8 @@ function harness(input: {
   return { layer, executed, mutations, ran: ran.promise }
 }
 
+const allowed = () => Effect.succeed({})
+
 describe('Hive wake of an idle parent', () => {
   const releases: (() => void)[] = []
 
@@ -149,11 +151,17 @@ describe('Hive wake of an idle parent', () => {
     installRuntime()
     const requests = captureWakeRequests()
     const { layer, executed, mutations, ran } = harness({
-      candidate: { parentSessionId: QUEEN, callerId: 'local-user', piSessionFile: null },
+      candidate: {
+        parentSessionId: QUEEN,
+        latestRunId: 'run-parent',
+        callerId: 'local-user',
+        piSessionFile: null,
+        triggerCallerIds: [null],
+      },
     })
 
     const outcome = await Effect.runPromise(
-      wakeIdleParent({ parentSessionId: QUEEN }).pipe(Effect.provide(layer)),
+      wakeIdleParent({ parentSessionId: QUEEN }, allowed).pipe(Effect.provide(layer)),
     )
     await ran
     await vi.waitFor(() => expect(requests).toHaveLength(1))
@@ -168,12 +176,42 @@ describe('Hive wake of an idle parent', () => {
       }),
     ])
     // The wake Run settled like any parent Run, so the Host checks again for updates it missed.
-    expect(requests).toEqual([
-      {
-        parentSessionId: QUEEN,
-        settledRun: { runId: RunId('run-wake'), terminalEventAt: 6_000 },
-      },
+    expect(requests).toEqual([{ parentSessionId: QUEEN }])
+  })
+
+  it('runs no higher than the latest Run’s caller may, and not at all once it may not', async () => {
+    installRuntime()
+    const candidate = {
+      parentSessionId: QUEEN,
+      latestRunId: 'run-parent',
+      callerId: 'profile:cli',
+      piSessionFile: null,
+      triggerCallerIds: [null],
+    }
+    const clamped = harness({ candidate })
+    const outcome = await Effect.runPromise(
+      wakeIdleParent({ parentSessionId: QUEEN }, () =>
+        Effect.succeed({ runAuthorizationOverride: 'ask-for-approval' as const }),
+      ).pipe(Effect.provide(clamped.layer)),
+    )
+    await clamped.ran
+    const revoked = harness({ candidate })
+    const refused = await Effect.runPromise(
+      wakeIdleParent({ parentSessionId: QUEEN }, () =>
+        Effect.succeed({ blocked: 'profile_revoked' }),
+      ).pipe(Effect.provide(revoked.layer)),
+    )
+
+    expect(outcome).toBe('started')
+    expect(clamped.executed).toEqual([
+      expect.objectContaining({
+        callerId: 'profile:cli',
+        runAuthorizationOverride: 'ask-for-approval',
+        hiveWake: true,
+      }),
     ])
+    expect(refused).toBe('refused')
+    expect(revoked.mutations).toEqual([])
   })
 
   it('starts nothing when no update waits for the parent', async () => {
@@ -181,7 +219,7 @@ describe('Hive wake of an idle parent', () => {
     const { layer, mutations } = harness({ candidate: undefined })
 
     const outcome = await Effect.runPromise(
-      wakeIdleParent({ parentSessionId: QUEEN }).pipe(Effect.provide(layer)),
+      wakeIdleParent({ parentSessionId: QUEEN }, allowed).pipe(Effect.provide(layer)),
     )
 
     expect(outcome).toBe('not-needed')
@@ -190,10 +228,16 @@ describe('Hive wake of an idle parent', () => {
 
   it('defers a wake a full Run limit refused, and reports other refusals', async () => {
     installRuntime()
-    const candidate = { parentSessionId: QUEEN, callerId: 'local-user', piSessionFile: null }
+    const candidate = {
+      parentSessionId: QUEEN,
+      latestRunId: 'run-parent',
+      callerId: 'local-user',
+      piSessionFile: null,
+      triggerCallerIds: [null],
+    }
     const wake = (rejectWith: string) =>
       Effect.runPromise(
-        wakeIdleParent({ parentSessionId: QUEEN }).pipe(
+        wakeIdleParent({ parentSessionId: QUEEN }, allowed).pipe(
           Effect.provide(harness({ candidate, rejectWith }).layer),
         ),
       )
@@ -201,6 +245,8 @@ describe('Hive wake of an idle parent', () => {
     expect(await wake('host_run_ceiling_reached')).toBe('deferred')
     expect(await wake('parent_concurrency_limit_reached')).toBe('deferred')
     expect(await wake('profile_revoked')).toBe('refused')
+    // The parent got a Run, a Follow-up, or was archived after the Host checked it.
+    expect(await wake('hive_wake_not_needed')).toBe('not-needed')
   })
 
   it('asks for a wake only when no active parent Run took the update', async () => {

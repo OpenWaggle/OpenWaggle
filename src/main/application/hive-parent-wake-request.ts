@@ -25,7 +25,8 @@ export function requestHiveParentWake(request: HiveParentWakeRequest) {
 
 /**
  * A Worker update was recorded for `parentSessionId`: deliver it to the parent's active Run, or
- * ask for a wake when no Run took it.
+ * ask for a wake when no Run took it. The wake acts only on updates whose recorded cause may wake
+ * the parent (`sqlite-hive-wake-trigger-authority.ts`).
  */
 export function notifyParentOfOrchestrationUpdates(parentSessionId: string) {
   return Effect.gen(function* () {
@@ -33,22 +34,4 @@ export function notifyParentOfOrchestrationUpdates(parentSessionId: string) {
     const delivered = yield* delivery.deliverPendingToActiveRun({ parentSessionId })
     if (!delivered) yield* requestHiveParentWake({ parentSessionId })
   })
-}
-
-/**
- * The wake request for a Session whose Run just settled with nothing scheduled. A completed Run
- * names when its last turn ended, so an update delivered to it after that still gets a Run.
- */
-export function settledParentWake(
-  sessionId: string,
-  runId: string,
-  execution: { readonly terminalStatus: string; readonly terminalEventAt?: number } | undefined,
-): HiveParentWakeRequest {
-  if (execution?.terminalStatus !== 'completed' || execution.terminalEventAt === undefined) {
-    return { parentSessionId: sessionId }
-  }
-  return {
-    parentSessionId: sessionId,
-    settledRun: { runId, terminalEventAt: execution.terminalEventAt },
-  }
 }

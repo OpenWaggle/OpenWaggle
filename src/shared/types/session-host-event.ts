@@ -49,6 +49,8 @@ export type SessionHostEventPayload =
        * the classification code: messages stay on the transport, which needs `sessions:read`.
        */
       readonly failureCode?: string
+      /** The Run was a Hive wake: no prompt of the user's started it, so none is retried. */
+      readonly hiveWake?: true
     }
   | {
       readonly kind: 'session-waggle-transport'

@@ -9,6 +9,8 @@ import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
 import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { declareShownSessions, subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
+import { hiveWakeRunError } from '../lib/hive-wake-run-error'
+import { isPiSessionFileRefusal } from '../lib/message-delivery'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
 import { handleAgentStreamPayload } from './useAgentChat.stream-events'
@@ -104,6 +106,22 @@ function settlementFailure(payload: IpcEventPayload<'agent:run-completed'>) {
   return new Error(info.userMessage)
 }
 
+/**
+ * The error this completion puts on screen, if any. A failure only the settlement reported has not
+ * been shown yet, and a Hive wake's card is shown again marked so that it offers no Retry. A Pi
+ * session file refusal has no card: the Session's notice says why.
+ */
+function errorToShow(
+  payload: IpcEventPayload<'agent:run-completed'>,
+  terminalError: Error | undefined,
+  reportedError: Error | undefined,
+) {
+  if (!terminalError) return undefined
+  if (!reportedError) return payload.hiveWake ? hiveWakeRunError(terminalError) : terminalError
+  if (!payload.hiveWake || isPiSessionFileRefusal(reportedError)) return undefined
+  return hiveWakeRunError(terminalError)
+}
+
 function handleRunCompletedPayload(
   payload: IpcEventPayload<'agent:run-completed'>,
   context: RunCompletionContext,
@@ -127,9 +145,9 @@ function handleRunCompletedPayload(
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
   if (!terminalError) context.setStatus('ready')
-  // A failure only the settlement reported has not been shown yet.
-  if (terminalError && !reportedError) {
-    context.setError(terminalError)
+  const shownError = errorToShow(payload, terminalError, reportedError)
+  if (shownError) {
+    context.setError(shownError)
     context.setStatus('error')
   }
   context.deferredRefreshSessionIdRef.current = context.subscribedSessionId

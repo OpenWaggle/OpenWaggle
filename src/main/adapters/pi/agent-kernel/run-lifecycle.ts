@@ -11,11 +11,7 @@ import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/a
 import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
 import { scratchDirectorySystemPrompt } from '../pi-provider-resources'
-import {
-  buildPiRunNewMessages,
-  extractPiAssistantTerminalError,
-  getPiAssistantStopReason,
-} from '../pi-run-result'
+import { extractPiAssistantTerminalError, getPiAssistantStopReason } from '../pi-run-result'
 import { disposeOpenWagglePiSession } from '../pi-session-lifecycle'
 import {
   notePiRunProjectDefaultForUsageStatistics,
@@ -216,7 +212,7 @@ function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
   readonly nodeIds: PiEntryNodeIds
   readonly projectionBase: PiProjectionBase | null
-  readonly payload: HydratedAgentSendPayload
+  readonly newMessages: readonly Message[]
   readonly appended: readonly unknown[]
   readonly aborted: boolean
 }): AgentKernelRunResult {
@@ -224,7 +220,7 @@ function buildSuccessfulRunResult(input: {
   const stopReason = getPiAssistantStopReason(input.appended)
 
   return {
-    newMessages: buildPiRunNewMessages(input.payload, input.appended),
+    newMessages: input.newMessages,
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
     sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds, input.projectionBase),
@@ -241,6 +237,7 @@ export async function runSubscribedPiOperation(input: {
   readonly preAbortWarning: string
   readonly operation: () => Promise<void>
   readonly buildErrorMessages: (appended: readonly unknown[]) => readonly Message[]
+  readonly buildSuccessMessages: (appended: readonly unknown[]) => readonly Message[]
 }) {
   const abortListener = createAbortListener(input.session, input.abortWarning)
   let operationAborted = false
@@ -295,7 +292,7 @@ export async function runSubscribedPiOperation(input: {
         input.runInput.session,
         input.session.sessionFile,
       ),
-      payload: input.runInput.payload,
+      newMessages: input.buildSuccessMessages(appended),
       appended,
       aborted: operationAborted,
     })

@@ -114,3 +114,26 @@ export function markSpecificationUpdatesDelivered(
     }),
   )
 }
+
+/**
+ * The Worker updates still pending once a classic Run ends, for the Waggle it may hand off to.
+ * An unreadable list never fails a Run that succeeded: those updates stay pending and wake the
+ * parent once it settles.
+ */
+export function pendingUpdatesForRequestedWaggle(
+  updates: SessionOrchestrationUpdateRepository['Type'],
+  input: RunIdentity,
+) {
+  return updates.listPending({ parentSessionId: input.sessionId }).pipe(
+    Effect.tapError((error) =>
+      Effect.sync(() =>
+        logger.warn('Could not list the Worker updates still pending after a classic Run.', {
+          sessionId: input.sessionId,
+          runId: input.runId,
+          error: error.operation,
+        }),
+      ),
+    ),
+    Effect.orElseSucceed(() => []),
+  )
+}

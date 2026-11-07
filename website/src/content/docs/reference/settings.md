@@ -113,7 +113,7 @@ Has a project picker. Lists the skills found in the project's `.openwaggle/skill
 | **Workers per parent** | 1 or more | 4 | The most runs active at once by one parent session's direct workers. |
 | **Active agent runs** | 1 or more | 16 | The most runs active at once across the app, in every session and Hive. |
 
-OpenWaggle refuses a new run that would pass either limit, with an error you can retry. It does not queue the run. Saved sessions, queued follow-ups, searches, waits and exports do not count toward the limits. A project's `.openwaggle/settings.json` can set its own **Agent-created Workers** and **Workers per parent**, and the file wins.
+OpenWaggle refuses a new run that would pass either limit, with an error you can retry. It does not queue the run. A run OpenWaggle starts for a parent whose workers reported is the exception and is retried when another run ends, as the [Hive reference](/docs/reference/hive#run-limits) describes. Saved sessions, queued follow-ups, searches, waits and exports do not count toward the limits. A project's `.openwaggle/settings.json` can set its own **Agent-created Workers** and **Workers per parent**, and the file wins.
 
 **Saved project overrides** appears only when an older version saved per-project values. **Clear saved value** removes one. It does not change a project file.
 

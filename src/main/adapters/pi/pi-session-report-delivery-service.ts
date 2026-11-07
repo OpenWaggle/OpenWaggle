@@ -16,7 +16,8 @@ export const PiSessionReportDeliveryServiceLive = Layer.effect(
           const active = activeRuns.get(SessionId(targetSessionId))
           if (!active) return false
           const reports = yield* repository.listPending({ targetSessionId })
-          return deliverPeerAgentReports(active.metadata.runId, reports)
+          // A throw from Pi is a failed delivery: the report stays pending for the next Run.
+          return yield* Effect.try(() => deliverPeerAgentReports(active.metadata.runId, reports))
         }).pipe(Effect.catchAll(() => Effect.succeed(false))),
     })
   }),

@@ -1,75 +1,94 @@
+import * as SqlClient from '@effect/sql/SqlClient'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import { type HiveParentWakeOutcome, wakeIdleParent } from '../application/hive-parent-wake'
 import {
-  type HiveParentWakeRequest,
-  installHiveParentWakeHandler,
-} from '../application/hive-parent-wake-request'
+  type HiveParentWakeOutcome,
+  type HiveWakeAuthority,
+  wakeIdleParent,
+} from '../application/hive-parent-wake'
+import { installHiveParentWakeHandler } from '../application/hive-parent-wake-request'
 import { createLogger } from '../logger'
+import { resolveHiveWakeAuthority } from './hive-parent-wake-authority'
+import { createHiveParentWakeScheduler } from './hive-parent-wake-scheduler'
+import { tryGetSessionHostEventRuntime } from './session-host-events'
 
 const logger = createLogger('hive-parent-wake')
 
-/** Parents a full Run limit held back, retried at the next request; bounded like Hive cleanup. */
-const MAX_DEFERRED_PARENTS = 256
+const HIVE_WAKE_HOST_SHUTTING_DOWN = 'the Session Host is shutting down'
 
-type HiveParentWakeDependencies = Effect.Effect.Context<ReturnType<typeof wakeIdleParent>>
+function isDraining() {
+  return tryGetSessionHostEventRuntime()?.liveness.isDraining() === true
+}
+
+type HiveParentWakeDependencies =
+  | Effect.Effect.Context<ReturnType<typeof wakeIdleParent<never>>>
+  | SqlClient.SqlClient
 
 /**
- * Installs the Session Host's Hive wake handler (`hive-parent-wake.ts`). Each request runs in the
- * background, so Run settlement and Delegation commands never wait on it. One wake per parent runs
- * at a time; a request that arrives meanwhile runs after it. A wake a Run limit refused is retried
- * whenever any later request arrives, since every Run that settles asks.
+ * Installs the Session Host's Hive wake handler (`hive-parent-wake.ts`). Each wake runs in the
+ * background, so Run settlement and Delegation commands never wait on it, and one parent's wakes
+ * run one at a time (`hive-parent-wake-scheduler.ts`).
  */
 export const installHiveParentWake = Effect.gen(function* () {
   const context = yield* Effect.context<HiveParentWakeDependencies>()
-  const inFlight = new Set<string>()
-  const queued = new Map<string, HiveParentWakeRequest>()
-  const deferred = new Set<string>()
-
-  const settle = (parentSessionId: string, outcome: HiveParentWakeOutcome) => {
-    if (outcome !== 'deferred') {
-      deferred.delete(parentSessionId)
-      if (outcome === 'refused') logger.info('A Hive wake was refused', { parentSessionId })
-      return
-    }
-    if (deferred.size < MAX_DEFERRED_PARENTS) deferred.add(parentSessionId)
-  }
-
-  const run = (request: HiveParentWakeRequest) => {
-    const { parentSessionId } = request
-    if (inFlight.has(parentSessionId)) {
-      queued.set(parentSessionId, request)
-      return
-    }
-    inFlight.add(parentSessionId)
-    Effect.runFork(
-      wakeIdleParent(request).pipe(
-        Effect.tap((outcome) => Effect.sync(() => settle(parentSessionId, outcome))),
-        Effect.provide(context),
-        Effect.catchAllCause((cause) =>
-          Effect.sync(() => {
-            if (Cause.isInterruptedOnly(cause)) return
-            logger.warn('A Hive wake failed', { parentSessionId, cause: Cause.pretty(cause) })
-          }),
+  const scheduler = createHiveParentWakeScheduler({
+    start: (request, done) => {
+      const { parentSessionId } = request
+      // A draining Host starts no Run; a drain that begins later is caught just before the start.
+      if (isDraining()) {
+        logger.info('A Hive wake was refused: the Session Host is shutting down', {
+          parentSessionId,
+        })
+        done(undefined)
+        return
+      }
+      let outcome: HiveParentWakeOutcome | undefined
+      let authorityRefused = false
+      Effect.runFork(
+        wakeIdleParent(request, (candidate) =>
+          SqlClient.SqlClient.pipe(
+            Effect.flatMap((sql) =>
+              isDraining()
+                ? Effect.succeed<HiveWakeAuthority>({ blocked: HIVE_WAKE_HOST_SHUTTING_DOWN })
+                : resolveHiveWakeAuthority(sql, candidate),
+            ),
+            Effect.tap((authority) =>
+              Effect.sync(() => {
+                if (authority.blocked === undefined) return
+                authorityRefused = true
+                logger.info('A Hive wake was refused', {
+                  parentSessionId,
+                  reason: authority.blocked,
+                })
+              }),
+            ),
+          ),
+        ).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              outcome = result
+              // A start the parent's own Session Control refused (it got a Run meanwhile).
+              if (result === 'refused' && !authorityRefused) {
+                logger.info('A Hive wake start was refused', { parentSessionId })
+              }
+            }),
+          ),
+          Effect.provide(context),
+          Effect.catchAllCause((cause) =>
+            Effect.sync(() => {
+              if (Cause.isInterruptedOnly(cause)) return
+              logger.warn('A Hive wake failed', { parentSessionId, cause: Cause.pretty(cause) })
+            }),
+          ),
+          Effect.ensuring(Effect.sync(() => done(outcome))),
         ),
-        Effect.ensuring(
-          Effect.sync(() => {
-            inFlight.delete(parentSessionId)
-            const next = queued.get(parentSessionId)
-            if (!next) return
-            queued.delete(parentSessionId)
-            run(next)
-          }),
-        ),
-      ),
-    )
-  }
-
-  const release = installHiveParentWakeHandler((request) => {
-    run(request)
-    for (const parentSessionId of [...deferred]) {
-      if (parentSessionId !== request.parentSessionId) run({ parentSessionId })
-    }
+      )
+    },
+    onDeferredFull: (parentSessionId) =>
+      logger.warn('A Hive wake was dropped: too many parents wait for a free Run', {
+        parentSessionId,
+      }),
   })
+  const release = installHiveParentWakeHandler(scheduler.request)
   yield* Effect.addFinalizer(() => Effect.sync(release))
 })

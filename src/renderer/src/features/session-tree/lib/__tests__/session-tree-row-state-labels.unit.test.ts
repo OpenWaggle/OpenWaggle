@@ -59,6 +59,8 @@ describe('session tree row labels and state', () => {
 
     expect(sessionTreeNodeLabel(messageNode)).toBe('hello world')
     expect(sessionTreeNodeRoleLabel(messageNode)).toBe('User')
+    // The Host's Hive wake notice sits where a user message would, but the user did not write it.
+    expect(sessionTreeNodeRoleLabel({ ...messageNode, hiveWake: true })).toBe('Hive')
     expect(sessionTreeNodeLabel(branchSummaryNode)).toBe('branch summary')
   })
 

@@ -22,6 +22,8 @@ import {
   readAgentLoopEventsFromWorkspace,
 } from '../lib/agent-loop-transcript-events'
 import { areCopiesBlocked } from '../lib/copies-blocked'
+import { isHiveWakeRunError } from '../lib/hive-wake-run-error'
+import { retryableLastUserMessage } from '../lib/retryable-last-user-message'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import { remoteTranscriptHistory, workspacePathNodeIds } from '../lib/transcript-remote-history'
 import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
@@ -30,30 +32,6 @@ import type { ChatTranscriptSectionState, PendingSend } from '../model'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 import { useChatRows } from './useChatRows'
 import { useReplacedTranscriptRefresh } from './useReplacedTranscriptRefresh'
-
-function resolveLastUserMessage(messages: UIMessage[]) {
-  let lastUserMessage: UIMessage | undefined
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
-    if (message && message.role === 'user') {
-      lastUserMessage = message
-      break
-    }
-  }
-  if (!lastUserMessage) {
-    return null
-  }
-  // A Hive wake row holds the Host's notice, not a request to send again.
-  if (lastUserMessage.metadata?.hiveWake) return null
-
-  const textParts: string[] = []
-  for (const part of lastUserMessage.parts) {
-    if (part.type === 'text') textParts.push(part.content)
-  }
-  const content = textParts.join('\n')
-
-  return content || null
-}
 
 /**
  * A selected Session is loading until its detail arrived and, when it has messages, until they
@@ -212,7 +190,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const toggleTurnFold = useTurnFoldStore((state) => state.toggleTurnFold)
   const displayedSelection = displayedWorkspaceSelection(activeWorkspace, activeSessionId)
 
-  const lastUserMessage = resolveLastUserMessage(transcriptMessages)
+  const lastUserMessage = isHiveWakeRunError(error)
+    ? null
+    : retryableLastUserMessage(transcriptMessages)
   const interruptedRun =
     activeWorkspace?.tree.session.id === activeSessionId
       ? activeWorkspace.tree.branches.find((branch) => branch.id === activeWorkspace.activeBranchId)
