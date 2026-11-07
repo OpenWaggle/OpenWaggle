@@ -1,5 +1,9 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import {
+  resolveNextDesktopNotificationSettings,
+  resolveStoredDesktopNotificationSettings,
+} from './desktop-notification-settings'
+import {
   SETTINGS_KEY_MULTI_AGENT_ENABLED,
   SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
@@ -90,6 +94,7 @@ export function resolveStoredSessionHostSettings(
     ),
     ...resolveStoredPiSessionContinuationSettings(storedSettings),
     ...resolveStoredWorktreeRemovalSettings(storedSettings),
+    ...resolveStoredDesktopNotificationSettings(storedSettings),
   }
 }
 
@@ -128,5 +133,6 @@ export function resolveNextSessionHostSettings(current: Settings, partial: Parti
     multiAgentEnabledByProject,
     ...resolveNextPiSessionContinuationSettings(current, partial),
     ...resolveNextWorktreeRemovalSettings(current, partial),
+    ...resolveNextDesktopNotificationSettings(current, partial),
   }
 }

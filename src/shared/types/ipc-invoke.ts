@@ -1,6 +1,7 @@
 import type { IpcAuthorizationGrantInvokeChannelMap } from './ipc-invoke-authorization-grants'
 import type { IpcBrowserPreviewInvokeChannelMap } from './ipc-invoke-browser-preview'
 import type { IpcCoreInvokeChannelMap } from './ipc-invoke-core'
+import type { IpcDesktopNotificationsInvokeChannelMap } from './ipc-invoke-desktop-notifications'
 import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
 import type { IpcInlineVisualizationInvokeChannelMap } from './ipc-invoke-inline-visualization'
 import type { IpcIntegrationInvokeChannelMap } from './ipc-invoke-integrations'
@@ -20,4 +21,5 @@ export type IpcInvokeChannelMap = IpcCoreInvokeChannelMap &
   IpcAuthorizationGrantInvokeChannelMap &
   IpcInlineVisualizationInvokeChannelMap &
   IpcScheduledTasksInvokeChannelMap &
-  IpcWorktreesInvokeChannelMap
+  IpcWorktreesInvokeChannelMap &
+  IpcDesktopNotificationsInvokeChannelMap

@@ -1,6 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import * as Effect from 'effect/Effect'
 import { getSettingsOperation } from '../application/settings-operations'
+import { refreshDesktopNotificationBadge } from '../desktop-notification-presenter'
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
 import { createAppCliShimService } from '../services/cli-shim-service'
 import { getAppCliShimStatus } from '../services/cli-shim-startup'
@@ -17,10 +18,18 @@ function validateTreeFilterMode(value: unknown) {
 /**
  * The attached GUI reads Usage statistics enablement from its Host-hydrated settings cache, so a
  * change to the switch must reach that cache now rather than at the next unrelated settings read:
- * error reports from this process must stop as soon as the user turns statistics off.
+ * error reports from this process must stop as soon as the user turns statistics off. Desktop
+ * notification settings drive this process's badge and focus rule the same way.
  */
 function rehydrateAfterUsageStatisticsChange(result: unknown, raw: unknown) {
   if (!isMatching({ ok: true }, result)) return Effect.void
+  if (isMatching({ desktopNotifications: P.any }, raw)) {
+    // The badge and the focus rule read Settings → Notifications from this process too.
+    return getSettingsOperation().pipe(
+      Effect.tap(() => refreshDesktopNotificationBadge()),
+      Effect.asVoid,
+    )
+  }
   if (!isMatching({ usageStatisticsEnabled: P.boolean }, raw)) return Effect.void
   return Effect.asVoid(getSettingsOperation())
 }

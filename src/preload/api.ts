@@ -1,6 +1,7 @@
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import { agentDefinitionsApi } from './agent-definitions-api'
 import { browserPreviewApi } from './browser-preview-api'
+import { desktopNotificationsApi } from './desktop-notifications-api'
 import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 import { scheduledTasksApi } from './scheduled-tasks-api'
 import { sessionDataApi } from './session-data-api'
@@ -193,6 +194,7 @@ export const api: OpenWaggleApi = {
   // Browser preview
   ...browserPreviewApi,
   ...scheduledTasksApi,
+  ...desktopNotificationsApi,
   ...startupApi,
   ...sessionDataApi,
 

@@ -4,6 +4,10 @@ import type {
   SessionHostEventEnvelope,
   SessionHostEventPayload,
 } from '@shared/types/session-host-event'
+import {
+  presentDesktopNotificationEvent,
+  reconcileDesktopNotifications,
+} from '../desktop-notification-presenter'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 import { startEventLoopStallMonitor } from '../utils/event-loop-stall-monitor'
@@ -176,6 +180,7 @@ export function relaySessionHostEvent(
   if (delivery.payload.kind === 'session-state-changed') {
     relaySettlement(delivery.payload, options)
   }
+  presentDesktopNotificationEvent(delivery.payload)
   broadcastToWindows('session-host:event', delivery)
 }
 
@@ -253,7 +258,10 @@ export function startRemoteSessionHostRendererBridge(
     dependencies,
     signal: abortController.signal,
     handlers: {
-      onSnapshot: reconcileRemoteRunSnapshots,
+      onSnapshot: (snapshots) => {
+        void reconcileDesktopNotifications()
+        return reconcileRemoteRunSnapshots(snapshots)
+      },
       onResyncRequired: (reason) => broadcastToWindows('session-host:resync-required', { reason }),
       onEvent: relaySessionHostEvent,
     },

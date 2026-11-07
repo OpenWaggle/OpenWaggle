@@ -14,6 +14,10 @@ import type {
   BrowserPreviewRecordingCancelRequest,
   BrowserPreviewRecordingRequest,
 } from './browser-preview-recording-request'
+import type {
+  BundledNotificationSoundId,
+  DesktopNotificationPermissionStatus,
+} from './desktop-notification'
 import type { GuiStartupStatus } from './gui-startup'
 import type { AgentPhaseEventPayload } from './phase'
 import type { SessionHostEventEnvelope, SessionRunTerminalStatus } from './session-host-event'
@@ -52,6 +56,10 @@ export interface IpcSendChannelMap {
   }
   'clipboard:write-text': {
     args: [text: string]
+  }
+  /** The Session the window shows, for the Desktop notification focus rule (ADR 0062). */
+  'desktop-notifications:set-viewing-session': {
+    args: [sessionId: string | null]
   }
 }
 
@@ -121,6 +129,18 @@ export interface IpcEventChannelMap {
   /** A command-line launch asked to open a project; take it with `project:take-open-request`. */
   'app:open-project-requested': {
     payload: null
+  }
+  /** Play a Notification sound in this window (ADR 0062); only the focused window is asked. */
+  'desktop-notifications:play-sound': {
+    payload: { readonly sound: BundledNotificationSoundId }
+  }
+  /** What the operating system lets OpenWaggle show changed. */
+  'desktop-notifications:permission-changed': {
+    payload: DesktopNotificationPermissionStatus
+  }
+  /** A Desktop notification about a Launch schedule was clicked: open that task. */
+  'desktop-notifications:open-scheduled-task': {
+    payload: { readonly taskId: string }
   }
   /** A Session link was opened; take it with `app:take-open-session-link-request` (ADR 0056). */
   'app:open-session-link-requested': {

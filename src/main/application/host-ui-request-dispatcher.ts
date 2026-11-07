@@ -6,6 +6,7 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { LOCAL_SESSION_NATIVE_ACTIONS_REVISION } from '@shared/types/local-session-protocol-revisions'
 import * as Effect from 'effect/Effect'
 import { manageProjectActions } from './action-management'
+import { listOutstandingDesktopNotifications } from './desktop-notifications/desktop-notification-registry'
 import {
   dispatchHostUiAgentDefinitionOperation,
   isHostUiAgentDefinitionChannel,
@@ -142,6 +143,11 @@ function dispatchHostUiChannel(
     return dispatchHostUiSkillsOperation(channel, args)
   }
   if (isHostUiWorktreesChannel(channel)) return dispatchHostUiWorktreesOperation(channel, args)
+  if (channel === 'desktop-notifications:list') {
+    return requireHostUiArgCount(args, 0).pipe(
+      Effect.zipRight(Effect.sync(() => listOutstandingDesktopNotifications())),
+    )
+  }
   if (isHostUiAgentDefinitionChannel(channel)) {
     if (negotiatedRevision !== undefined && negotiatedRevision < HOST_UI_REVISION_11) {
       return invalidHostUiInput('Agent definitions require Local Session protocol revision 11.')

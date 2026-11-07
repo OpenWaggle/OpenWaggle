@@ -20,6 +20,7 @@ import {
   HOST_UI_REVISION_29_ARGUMENT_COUNTS,
   HOST_UI_REVISION_29_REQUIRED_CHANNELS,
   HOST_UI_REVISION_30_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_31_REQUIRED_CHANNELS,
   type HostBackedGuiChannel,
   type HostUiV1Request,
 } from '@shared/types/host-ui-protocol'
@@ -27,6 +28,7 @@ import {
   LOCAL_SESSION_ARCHIVED_ITEMS_REVISION,
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
+  LOCAL_SESSION_DESKTOP_NOTIFICATIONS_REVISION,
   LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
   LOCAL_SESSION_FOLLOW_UP_EDIT_REVISION,
   LOCAL_SESSION_HOST_CONTROL_REVISION,
@@ -75,10 +77,13 @@ function requiresRevision24(request: Pick<HostUiV1Request, 'channel' | 'args'>) 
 }
 
 /**
- * Settings > Worktrees across projects ships with revision 30, bounded Session reads with 29,
+ * Desktop notifications ship with revision 31, Settings > Worktrees across projects with 30, bounded Session reads with 29,
  * Settings > Archived items with 25, MCP configuration and more with 24.
  */
 function newestRevisionRequirement(request: Pick<HostUiV1Request, 'channel' | 'args'>) {
+  if (HOST_UI_REVISION_31_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel)) {
+    return LOCAL_SESSION_DESKTOP_NOTIFICATIONS_REVISION
+  }
   if (HOST_UI_REVISION_30_REQUIRED_CHANNELS.some((candidate) => candidate === request.channel)) {
     return LOCAL_SESSION_WORKTREE_INVENTORY_REVISION
   }

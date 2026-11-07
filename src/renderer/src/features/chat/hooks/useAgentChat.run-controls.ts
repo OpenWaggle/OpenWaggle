@@ -4,6 +4,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
+import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
 import { MessageDeliveredRunFailed, MessageNotDelivered } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
@@ -166,6 +167,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     const runPromise = run.promise
     // The Host reads the Session's model and thinking level at Run start: store a fresh pick first.
     await settledSessionSettingWrites(targetSessionId)
+    requestDesktopNotificationPermissionOnce()
     const sendPromise = waggleConfig
       ? api.sendWaggleMessage(targetSessionId, payload, model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, model)

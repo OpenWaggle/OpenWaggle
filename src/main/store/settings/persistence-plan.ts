@@ -1,4 +1,5 @@
 import type { Settings } from '@shared/types/settings'
+import { appendDesktopNotificationSettingsWrites } from './desktop-notification-settings'
 import { appendDiffSettingsWrites } from './diff-appearance-settings-snapshot'
 import {
   SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
@@ -273,6 +274,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendBrowserSettingsWrites(writes, partial, next)
   appendUsageStatisticsSettingsWrites(writes, partial, next)
   appendWorktreeRemovalSettingsWrites(writes, partial, next)
+  appendDesktopNotificationSettingsWrites(writes, partial, next)
   appendPiRuntimeSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
   appendPiSessionContinuationSettingsWrites(writes, partial, next)

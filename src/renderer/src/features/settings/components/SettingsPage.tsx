@@ -18,6 +18,7 @@ import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
+import { NotificationsSection } from './sections/NotificationsSection'
 import { PermissionsSection } from './sections/PermissionsSection'
 import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
@@ -70,6 +71,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
 function SettingsTabContent({ tab }: { readonly tab: SettingsTab }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
+    .with('notifications', () => <NotificationsSection />)
     .with('browser', () => <BrowserProfilesSection />)
     .with('actions', () => <ProjectActionsSettings />)
     .with('shortcuts', () => <ShortcutsSection />)
