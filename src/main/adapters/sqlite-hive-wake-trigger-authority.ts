@@ -112,22 +112,3 @@ export function wakeCandidateMayWake(
     return false
   })
 }
-
-/**
- * Whether the clients behind `actorCallerId` are all behind `ownerCallerId` too: a CLI client
- * profile or MCP client may act through a Hive wake only on what it was already behind. Anything
- * the Host cannot identify fails closed.
- */
-export function callerActsWithin(
-  sql: SqlClient.SqlClient,
-  input: { readonly actorCallerId: string; readonly ownerCallerId: string },
-) {
-  return Effect.gen(function* () {
-    const actor = yield* callerProfiles(sql, input.actorCallerId)
-    if (actor === UNKNOWN) return false
-    if (actor.size === 0) return true
-    const owner = yield* callerProfiles(sql, input.ownerCallerId)
-    if (owner === UNKNOWN) return false
-    return [...actor].every((profile) => owner.has(profile))
-  }).pipe(Effect.orElseSucceed(() => false))
-}

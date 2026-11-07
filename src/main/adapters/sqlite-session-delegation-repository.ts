@@ -8,7 +8,7 @@ import * as Layer from 'effect/Layer'
 import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
-import { wakeResultReplacement } from './sqlite-delegation-wake-replacement'
+import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
 import { reviewDelegation } from './sqlite-session-delegation-review'
 import { updateDelegationState } from './sqlite-session-delegation-state'
@@ -82,7 +82,7 @@ function loadContract(sql: SqlClient.SqlClient, delegationId: string) {
 
 /**
  * A Worker whose result waits for review may replace it from inside a Hive wake that started
- * after it (see `wakeResultReplacement`). Only that wake Run's own agent may.
+ * after it (see `wakeMayReplaceResult`). Only that wake Run's own agent may.
  */
 function wokenAfterResult(
   sql: SqlClient.SqlClient,
@@ -93,12 +93,12 @@ function wokenAfterResult(
   if (contract.state !== 'ready_for_review' || agent?.sessionId !== contract.child_session_id) {
     return Effect.succeed(false)
   }
-  return wakeResultReplacement(sql, {
+  return wakeMayReplaceResult(sql, {
     delegationId: contract.id,
     workerSessionId: contract.child_session_id,
     runId: agent.runId,
     whileActive: true,
-  }).pipe(Effect.map((replacement) => replacement === 'replace'))
+  })
 }
 
 function submitDelegation(

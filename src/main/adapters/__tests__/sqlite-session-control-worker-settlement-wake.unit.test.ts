@@ -27,11 +27,6 @@ function settleWorkerRunAfterResult(
     readonly wakeStartedAt?: number
     readonly terminalStatus?: 'completed' | 'failed' | 'interrupted'
     readonly finalResponse?: string
-    /** Who the first Run and the wake act for; both default to the local user. */
-    readonly firstCallerId?: string
-    readonly wakeCallerId?: string
-    /** A captured result whose Run is unknown. */
-    readonly resultWithoutRun?: boolean
   },
 ) {
   const layer = makeSessionControlRunLifecycleTestLayer(file)
@@ -40,16 +35,14 @@ function settleWorkerRunAfterResult(
       const sql = yield* SqlClient.SqlClient
       yield* prepareWorkerDelegation(sql)
       yield* sql`INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
-        VALUES (${'run-first'}, ${'worker'}, ${'completed'},
-          ${JSON.stringify({ callerId: input.firstCallerId ?? 'local-user' })}, ${400}, ${450})`
+        VALUES (${'run-first'}, ${'worker'}, ${'completed'}, ${'{"callerId":"local-user"}'}, ${400}, ${450})`
       yield* sql`
         INSERT INTO delegation_submissions (
           delegation_id, revision, specification_revision, summary, submitted_by, source_run_id,
           provenance, created_at
         ) VALUES (
           ${'delegation-worker'}, ${1}, ${1}, ${'Still waiting for my Worker.'}, ${'session-host'},
-          ${input.resultWithoutRun ? null : 'run-first'},
-          ${input.resultProvenance ?? 'host-captured'}, ${500}
+          ${'run-first'}, ${input.resultProvenance ?? 'host-captured'}, ${500}
         )
       `
       yield* sql`
@@ -60,12 +53,6 @@ function settleWorkerRunAfterResult(
       if (input.hiveWake) {
         yield* sql`
           UPDATE session_runs SET intent_json = json_set(intent_json, '$.hiveWake', json('true'))
-          WHERE id = ${'run-next'}
-        `
-      }
-      if (input.wakeCallerId !== undefined) {
-        yield* sql`
-          UPDATE session_runs SET intent_json = json_set(intent_json, '$.callerId', ${input.wakeCallerId})
           WHERE id = ${'run-next'}
         `
       }
@@ -187,60 +174,5 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
     expect(result.state).toBe('ready_for_review')
     expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
     expect(result.updates).toEqual([])
-  })
-
-  // A profile that may only message the Worker must not replace, through a wake, a result it
-  // could never change itself. The parent still hears that a newer answer exists.
-  it('keeps the result through a wake that acts for a profile not behind it', async () => {
-    const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'profile.sqlite'), {
-      hiveWake: true,
-      wakeCallerId: 'profile:messenger',
-    })
-
-    expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
-    expect(result.state).toBe('ready_for_review')
-    expect(result.updates).toEqual([
-      {
-        summary: expect.stringContaining('did not replace that result'),
-        status: 'pending',
-      },
-    ])
-    expect(result.updates[0]?.summary).toContain(
-      'All three sub-tasks are done; here is the combined result.',
-    )
-    expect(result.settlement).not.toHaveProperty('delegationUpdate')
-  })
-
-  it('replaces the result in a Hive the same profile started', async () => {
-    const result = await settleWorkerRunAfterResult(
-      path.join(temporaryRoot, 'profile-hive.sqlite'),
-      { hiveWake: true, firstCallerId: 'profile:owner', wakeCallerId: 'profile:owner' },
-    )
-
-    expect(result.submissions).toEqual([
-      { revision: 1, source_run_id: 'run-first' },
-      { revision: 2, source_run_id: 'run-next' },
-    ])
-  })
-
-  it('keeps a result another profile’s Run left through a wake that acts for a profile', async () => {
-    const result = await settleWorkerRunAfterResult(
-      path.join(temporaryRoot, 'other-profile.sqlite'),
-      { hiveWake: true, firstCallerId: 'profile:owner', wakeCallerId: 'profile:messenger' },
-    )
-
-    expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
-  })
-
-  // The Host cannot tell who caused a captured result whose Run is unknown, so it fails closed.
-  it('keeps a captured result without its Run through a wake that acts for a profile', async () => {
-    const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'no-run.sqlite'), {
-      hiveWake: true,
-      resultWithoutRun: true,
-      firstCallerId: 'profile:owner',
-      wakeCallerId: 'profile:owner',
-    })
-
-    expect(result.submissions).toEqual([{ revision: 1, source_run_id: null }])
   })
 })

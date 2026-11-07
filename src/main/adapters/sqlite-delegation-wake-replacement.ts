@@ -5,7 +5,6 @@ import {
   requestedWaggleRunId,
   sessionAgentCallerId,
 } from '../domain/session-control/root-session-project-reach'
-import { callerActsWithin } from './sqlite-hive-wake-trigger-authority'
 
 /**
  * Whether Worker Run `runId` may replace its Delegation's unreviewed result: it is a Hive wake
@@ -18,15 +17,8 @@ import { callerActsWithin } from './sqlite-hive-wake-trigger-authority'
  * and it may replace any result. Otherwise the Run's reply is captured at settlement, and it
  * replaces only a result the Host captured the same way: a reply such as "my result is already
  * submitted" must not bury a result the Worker submitted with its evidence.
- *
- * A wake acts for whoever started the Worker's latest Run, so every CLI client profile or MCP
- * client behind it must be behind the result it replaces too: a profile that may only message the
- * Worker must not replace, through a wake, a result it could never change itself. Such a wake is
- * `other-client`: its answer reaches the parent as an update, and the result stays.
  */
-export type WakeResultReplacement = 'replace' | 'other-client' | 'keep'
-
-export function wakeResultReplacement(
+export function wakeMayReplaceResult(
   sql: SqlClient.SqlClient,
   input: {
     readonly delegationId: string
@@ -70,47 +62,5 @@ export function wakeResultReplacement(
             )
         )
     ) AS replaces
-  `.pipe(
-    Effect.flatMap(
-      (rows): Effect.Effect<WakeResultReplacement, unknown> =>
-        rows[0]?.replaces === 1
-          ? wakeActsWithinResult(sql, { ...input, runId }).pipe(
-              Effect.map((within) => (within ? 'replace' : 'other-client')),
-            )
-          : Effect.succeed('keep' as const),
-    ),
-  )
-}
-
-/** Whether the clients behind wake Run `runId` are all behind the result it would replace. */
-function wakeActsWithinResult(
-  sql: SqlClient.SqlClient,
-  input: {
-    readonly delegationId: string
-    readonly workerSessionId: string
-    readonly runId: string
-  },
-) {
-  return Effect.gen(function* () {
-    const [latest] = yield* sql<{
-      readonly submitted_by: string
-      readonly source_run_id: string | null
-      readonly provenance: string
-    }>`
-      SELECT submitted_by, source_run_id, provenance FROM delegation_submissions
-      WHERE delegation_id = ${input.delegationId}
-      ORDER BY revision DESC LIMIT 1
-    `
-    if (!latest) return true
-    // A result the Host captured is caused by the Worker Run it captured it from. One without that
-    // Run names the Host, which no walk resolves, so it fails closed.
-    const ownerCallerId =
-      latest.provenance === 'host-captured' && latest.source_run_id
-        ? sessionAgentCallerId(input.workerSessionId, latest.source_run_id)
-        : latest.submitted_by
-    return yield* callerActsWithin(sql, {
-      actorCallerId: sessionAgentCallerId(input.workerSessionId, input.runId),
-      ownerCallerId,
-    })
-  })
+  `.pipe(Effect.map((rows) => rows[0]?.replaces === 1))
 }

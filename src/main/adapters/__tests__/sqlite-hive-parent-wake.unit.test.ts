@@ -271,37 +271,4 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
     expect(result.woken).toMatchObject({ effect: 'delegation-updated', submissionRevision: 2 })
     expect(result.updates.map((update) => update.summary)).toContain('All sub-tasks are done.')
   })
-
-  // A wake acts for whoever started the Worker's latest Run. A profile that may only message the
-  // Worker must not replace, through a wake, a result it could never change itself.
-  it.each([
-    ['refuses', 'local-user', 'rejected'],
-    ['takes', 'profile:messenger', 'delegation-updated'],
-  ])('%s a woken Worker’s result over one a Run for %s submitted', async (_, owner, effect) => {
-    const outcome = await run(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* sql`
-          UPDATE session_runs SET intent_json = ${JSON.stringify({ callerId: owner })}
-          WHERE id = ${'run-worker'}
-        `
-        yield* submit(3000, 'Still waiting for my own Worker.')
-        yield* sql`
-          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
-          VALUES (
-            ${'run-worker-wake'}, ${'session-worker'}, ${'active'},
-            ${JSON.stringify({ callerId: 'profile:messenger', hiveWake: true })}, ${4000}, ${4000}
-          )
-        `
-        const woken = yield* submit(
-          4100,
-          'All sub-tasks are done.',
-          'session-agent:session-worker:run-worker-wake',
-        )
-        return woken.outcome
-      }),
-    )
-
-    expect(outcome).toMatchObject({ effect })
-  })
 })
