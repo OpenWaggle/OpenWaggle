@@ -30,6 +30,8 @@ function settleWorkerRunAfterResult(
     /** Who the first Run and the wake act for; both default to the local user. */
     readonly firstCallerId?: string
     readonly wakeCallerId?: string
+    /** A captured result whose Run is unknown. */
+    readonly resultWithoutRun?: boolean
   },
 ) {
   const layer = makeSessionControlRunLifecycleTestLayer(file)
@@ -46,7 +48,8 @@ function settleWorkerRunAfterResult(
           provenance, created_at
         ) VALUES (
           ${'delegation-worker'}, ${1}, ${1}, ${'Still waiting for my Worker.'}, ${'session-host'},
-          ${'run-first'}, ${input.resultProvenance ?? 'host-captured'}, ${500}
+          ${input.resultWithoutRun ? null : 'run-first'},
+          ${input.resultProvenance ?? 'host-captured'}, ${500}
         )
       `
       yield* sql`
@@ -187,7 +190,7 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
   })
 
   // A profile that may only message the Worker must not replace, through a wake, a result it
-  // could never change itself.
+  // could never change itself. The parent still hears that a newer answer exists.
   it('keeps the result through a wake that acts for a profile not behind it', async () => {
     const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'profile.sqlite'), {
       hiveWake: true,
@@ -195,6 +198,17 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
     })
 
     expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
+    expect(result.state).toBe('ready_for_review')
+    expect(result.updates).toEqual([
+      {
+        summary: expect.stringContaining('did not replace that result'),
+        status: 'pending',
+      },
+    ])
+    expect(result.updates[0]?.summary).toContain(
+      'All three sub-tasks are done; here is the combined result.',
+    )
+    expect(result.settlement).not.toHaveProperty('delegationUpdate')
   })
 
   it('replaces the result in a Hive the same profile started', async () => {
@@ -207,5 +221,26 @@ describe('SQLite Worker settlement of a woken nested Queen', () => {
       { revision: 1, source_run_id: 'run-first' },
       { revision: 2, source_run_id: 'run-next' },
     ])
+  })
+
+  it('keeps a result another profile’s Run left through a wake that acts for a profile', async () => {
+    const result = await settleWorkerRunAfterResult(
+      path.join(temporaryRoot, 'other-profile.sqlite'),
+      { hiveWake: true, firstCallerId: 'profile:owner', wakeCallerId: 'profile:messenger' },
+    )
+
+    expect(result.submissions).toEqual([{ revision: 1, source_run_id: 'run-first' }])
+  })
+
+  // The Host cannot tell who caused a captured result whose Run is unknown, so it fails closed.
+  it('keeps a captured result without its Run through a wake that acts for a profile', async () => {
+    const result = await settleWorkerRunAfterResult(path.join(temporaryRoot, 'no-run.sqlite'), {
+      hiveWake: true,
+      resultWithoutRun: true,
+      firstCallerId: 'profile:owner',
+      wakeCallerId: 'profile:owner',
+    })
+
+    expect(result.submissions).toEqual([{ revision: 1, source_run_id: null }])
   })
 })

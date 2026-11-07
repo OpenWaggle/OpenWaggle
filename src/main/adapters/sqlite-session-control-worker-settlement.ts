@@ -4,7 +4,11 @@ import * as Effect from 'effect/Effect'
 import { sessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { markRunFailedAttention } from './sqlite-delegation-attention'
-import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
+import {
+  type WakeResultReplacement,
+  wakeResultReplacement,
+} from './sqlite-delegation-wake-replacement'
+import { reportUnsubmittedWakeReply } from './sqlite-delegation-wake-reply-report'
 import {
   insertOrchestrationUpdate,
   ORCHESTRATION_UPDATE_SUMMARY_LIMIT,
@@ -25,18 +29,20 @@ interface WorkerDelegationRow {
 const SETTLING_STATES = ['working', 'waiting', 'revision_requested']
 
 /**
- * Whether a Run that completed with a reply settles this Delegation: a state it works in, or a
- * wake after its unreviewed result (`wakeMayReplaceResult`). A failed or empty wake leaves that
- * result reviewable.
+ * How a Run that completed with a reply settles this Delegation: it `replace`s the result in a
+ * state the Worker works in, or in a wake after its unreviewed result (`wakeResultReplacement`).
+ * A failed or empty wake leaves that result reviewable.
  */
 function settlesWithReply(
   sql: SqlClient.SqlClient,
   contract: WorkerDelegationRow,
   settlement: { readonly sessionId: string; readonly runId: string },
-) {
-  if ([...SETTLING_STATES, 'needs_attention'].includes(contract.state)) return Effect.succeed(true)
-  if (contract.state !== 'ready_for_review') return Effect.succeed(false)
-  return wakeMayReplaceResult(sql, {
+): Effect.Effect<WakeResultReplacement, unknown> {
+  if ([...SETTLING_STATES, 'needs_attention'].includes(contract.state)) {
+    return Effect.succeed('replace')
+  }
+  if (contract.state !== 'ready_for_review') return Effect.succeed('keep')
+  return wakeResultReplacement(sql, {
     delegationId: contract.id,
     workerSessionId: settlement.sessionId,
     runId: settlement.runId,
@@ -169,15 +175,19 @@ function settleCompletedWorker(
 ) {
   return Effect.gen(function* () {
     if (!input.settlement.finalResponse?.trim()) return undefined
-    if (!(yield* settlesWithReply(sql, input.contract, input.settlement))) return undefined
+    const replacement = yield* settlesWithReply(sql, input.contract, input.settlement)
+    if (replacement === 'keep') return undefined
     // A Worker that asked for attention in this Run, or in any Run before a Hive wake, stays
     // there: its reply explains the request and is not a result. A Host-set needs_attention, or
     // one from an earlier Run the parent has since answered, is resolved here.
     if (input.contract.explicit_needs_attention === 1) return undefined
-    const revision = input.contract.latest_submission_revision + 1
     const summary = input.settlement.finalResponse
       .trim()
       .slice(0, ORCHESTRATION_UPDATE_SUMMARY_LIMIT)
+    if (replacement === 'other-client') {
+      return yield* reportUnsubmittedWakeReply(sql, { ...input, summary, insertSettlementUpdate })
+    }
+    const revision = input.contract.latest_submission_revision + 1
     yield* sql`
       INSERT INTO delegation_submissions (
         delegation_id, revision, specification_revision, summary, submitted_by,
