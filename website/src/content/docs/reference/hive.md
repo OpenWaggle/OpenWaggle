@@ -280,7 +280,7 @@ A session's model and thinking level are session settings. A run uses them when 
 | --- | --- | --- |
 | `create` | Sets the starting level | Not accepted, no run starts |
 | `launch`, `spawn` | Sets the starting level | Applies to the first run |
-| `message`, `start` on an idle session | Becomes the session's level | Applies to that run only |
+| `message`, `start` on an idle session | Becomes the session's level | Applies to that run only. An **Ask for approval** override also applies to a run OpenWaggle starts for worker updates after it |
 | `message` while a run is active | Refused | Refused |
 | `follow_up`, `steer`, `replace` | Never accepted | Never accepted |
 
