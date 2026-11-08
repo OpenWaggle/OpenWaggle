@@ -23,3 +23,18 @@ plistlib.InvalidFileException: Invalid file
 // Run 37285929256: attempts 1 and 3 failed creating the x64 image, attempt 2 attaching arm64.
 export const HDIUTIL_CREATE_LOG = dmgbuildFailureLog('hdiutil: create failed - Device not configured')
 export const HDIUTIL_ATTACH_LOG = dmgbuildFailureLog('hdiutil: attach failed - Device not configured')
+
+// Captured from the 1.0.0-beta.36 release, run 42493633669: notarization succeeded, then stapler
+// lost its connection to Apple's ticket service (CloudKit) while fetching the ticket.
+export const STAPLE_CONNECTION_LOST_LOG = `  • signing         file=dist/mac/OpenWaggle.app platform=darwin type=distribution
+  ⨯ Failed to staple your application with code: 68
+
+Processing: /Users/runner/work/OpenWaggle/OpenWaggle/dist/mac/OpenWaggle.app
+Domain is api.apple-cloudkit.com
+Response is (null)
+error is Error Domain=NSURLErrorDomain Code=-1005 "The network connection was lost." UserInfo={_kCFStreamErrorCodeKey=-4, NSErrorFailingURLStringKey=https://api.apple-cloudkit.com/database/1/com.apple.gk.ticket-delivery/production/public/records/lookup, _kCFStreamErrorDomainKey=4}
+Size of data is 0
+CloudKit's response is inconsistent with expections: (null)
+The staple and validate action failed! Error 68.
+  failedTask=build stackTrace=Error: Failed to staple your application with code: 68
+`

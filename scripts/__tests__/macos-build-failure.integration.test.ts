@@ -4,7 +4,11 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { HDIUTIL_ATTACH_LOG, RUNNER_OFFLINE_LOG } from './macos-build-failure-fixtures'
+import {
+  HDIUTIL_ATTACH_LOG,
+  RUNNER_OFFLINE_LOG,
+  STAPLE_CONNECTION_LOST_LOG,
+} from './macos-build-failure-fixtures'
 
 const temporaryDirectories: string[] = []
 
@@ -40,6 +44,9 @@ describe('macOS build failure CLI', () => {
     expect(result.stdout).toBe('hdiutil hit a runner device error while building the DMG\n')
     expect(runCli(writeLog(RUNNER_OFFLINE_LOG)).stdout).toBe(
       'Notarization lost its connection to Apple\n',
+    )
+    expect(runCli(writeLog(STAPLE_CONNECTION_LOST_LOG)).stdout).toBe(
+      'Stapling the notarization ticket lost its connection to Apple\n',
     )
   })
 
