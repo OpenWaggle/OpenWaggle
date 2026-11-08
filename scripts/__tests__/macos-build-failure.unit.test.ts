@@ -8,6 +8,7 @@ import {
   HDIUTIL_ATTACH_LOG,
   HDIUTIL_CREATE_LOG,
   RUNNER_OFFLINE_LOG,
+  STAPLE_CONNECTION_LOST_LOG,
 } from './macos-build-failure-fixtures'
 
 describe('macOS build failure classification', () => {
@@ -26,6 +27,39 @@ describe('macOS build failure classification', () => {
         'Failed to notarize via notarytool\nError: HTTPError(statusCode: 503, error: Service Unavailable)',
       ),
     ).toBe('notarization-connection')
+  })
+
+  it('treats stapler losing its connection to Apple after notarization as transient', () => {
+    expect(transientMacosBuildFailure(STAPLE_CONNECTION_LOST_LOG)).toBe('staple-connection')
+  })
+
+  it('fails fast when stapling fails for a reason a rebuild would not fix', () => {
+    expect(
+      transientMacosBuildFailure(
+        '  ⨯ Failed to staple your application with code: 65\nCould not validate ticket\nThe staple and validate action failed! Error 65.\n  failedTask=build',
+      ),
+    ).toBeNull()
+    expect(
+      transientMacosBuildFailure(
+        'Error Domain=NSURLErrorDomain Code=-1005 while downloading Electron\n  ⨯ Failed to staple your application with code: 73\n  failedTask=build',
+      ),
+    ).toBeNull()
+  })
+
+  it('fails fast when only one of two staple failures lost the connection', () => {
+    expect(
+      transientMacosBuildFailure(
+        `${STAPLE_CONNECTION_LOST_LOG}  ⨯ Failed to staple your application with code: 65\nCould not validate ticket\n  failedTask=build\n`,
+      ),
+    ).toBeNull()
+  })
+
+  it('fails fast on a notary rejection even when stapling the other architecture lost Apple', () => {
+    expect(
+      transientMacosBuildFailure(
+        `${STAPLE_CONNECTION_LOST_LOG}\n  ⨯ Failed to notarize via notarytool\n  status: Invalid`,
+      ),
+    ).toBeNull()
   })
 
   it('treats an hdiutil device error that failed dmgbuild as transient', () => {

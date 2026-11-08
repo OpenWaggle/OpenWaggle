@@ -42,14 +42,16 @@ Platform trust for v1:
   because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
 - The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
-  Apple's verdict, and `hdiutil` needs a working disk-image device to build the DMG.
+  Apple's verdict, stapler needs it to fetch the ticket afterwards, and `hdiutil` needs a working
+  disk-image device to build the DMG.
   `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first. When a `dmgbuild` call
   fails with `Device not configured`, `Resource busy`, or `Resource temporarily unavailable`, it
   retries that call alone, up to five attempts with 30 s to 4 min of backoff, and does not
   notarize again. Re-create the patch when `dmg-builder` changes version.
 - When `scripts/macos-build-failure.ts` identifies a failed macOS build as notarytool losing its
-  connection to Apple (a transport error or an Apple 5xx) or as one of those `hdiutil` errors
-  failing `dmgbuild`, the whole build rebuilds and resubmits, up to three attempts in total. The
+  connection to Apple (a transport error or an Apple 5xx), as stapler losing its connection to
+  Apple's ticket service after notarization succeeded (a transport error), or as one of those
+  `hdiutil` errors failing `dmgbuild`, the whole build rebuilds and resubmits, up to three attempts in total. The
   job turns off Spotlight indexing once and stops XProtect before each attempt, because `hdiutil`
   fails under concurrent disk activity on hosted runners. A rejected submission, a credential
   error, or any other failure fails the first attempt. A notary rejection or credential error
