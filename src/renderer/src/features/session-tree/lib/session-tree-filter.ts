@@ -17,8 +17,9 @@ function isToolNode(node: SessionTreeNode) {
   return node.kind === 'tool_result'
 }
 
+/** A message the user wrote: not the Host's Hive wake notice, which sits where one would. */
 function isUserNode(node: SessionTreeNode) {
-  return node.kind === 'user_message' || node.role === 'user'
+  return (node.kind === 'user_message' || node.role === 'user') && !node.hiveWake
 }
 
 function isLabeledNode(node: SessionTreeNode) {

@@ -108,7 +108,9 @@ export function createBranchDraftSelectionFromNode(
   node: SessionTranscriptNode,
 ): BranchDraftSelection {
   if (node.kind === 'user_message' && node.parentId) {
-    const text = node.message ? getAgentMessageText(node.message).trim() : ''
+    // A Hive wake notice is the Host's text: branching there must not send it as the user's.
+    const hiveWake = node.hiveWake || node.message?.metadata?.hiveWake
+    const text = node.message && !hiveWake ? getAgentMessageText(node.message).trim() : ''
     return {
       sourceNodeId: node.parentId,
       routeNodeId: node.parentId,

@@ -53,6 +53,7 @@ export function updateDelegationState(
         cause: `worker-request-${input.now}`,
         summary: command.reason,
         now: input.now,
+        triggerCallerId: input.callerId,
       })
     }
     return updatedDelegationOutcome(

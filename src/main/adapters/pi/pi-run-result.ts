@@ -116,3 +116,17 @@ export function buildPiRunAssistantMessages(appendedMessages: readonly unknown[]
 
   return piHistoryToProjectedMessages(filteredAppended)
 }
+
+/**
+ * A classic Run's new messages, whether it failed or not. A Hive wake has no user message: its
+ * prompt is the Host's, so nothing downstream (resource capture, a requested Waggle) reads the
+ * wake's text as something the user asked.
+ */
+export function buildClassicRunMessages(
+  input: { readonly hiveWake?: boolean; readonly payload: PersistedUserMessagePartsPayload },
+  appendedMessages: readonly unknown[],
+): Message[] {
+  return input.hiveWake
+    ? buildPiRunAssistantMessages(appendedMessages)
+    : buildPiRunNewMessages(input.payload, appendedMessages)
+}

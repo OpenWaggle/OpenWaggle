@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import {
   formatSessionTitleContext,
+  titleSourceMessages,
   toSessionTitleContextMessage,
 } from '../domain/session-title/session-title-context'
 import { createLogger } from '../logger'
@@ -36,15 +37,16 @@ function refine(sessionId: SessionId) {
     if (!state?.needsRefinement || state.source !== 'generated' || state.archived) return
     if (state.isWorker) return yield* settle(sessionId)
     const session = yield* (yield* SessionProjectionRepository).get(sessionId)
-    const userMessages = session.messages.filter((message) => message.role === 'user')
+    const messages = titleSourceMessages(session.messages)
+    const userMessages = messages.filter((message) => message.role === 'user')
     // The first turn may not be persisted yet; its Run triggers the refinement when it ends.
     const first = userMessages[0]
     if (!first) return
     if (userMessages.length > 1 || !isWithinTitleWorkWindow(first.createdAt, Date.now())) {
       return yield* settle(sessionId)
     }
-    const context = formatSessionTitleContext(session.messages.map(toSessionTitleContextMessage))
-    const answered = session.messages.some(
+    const context = formatSessionTitleContext(messages.map(toSessionTitleContextMessage))
+    const answered = messages.some(
       (message) =>
         message.role === 'assistant' && toSessionTitleContextMessage(message).text.trim(),
     )

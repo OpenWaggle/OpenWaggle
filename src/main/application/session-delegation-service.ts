@@ -51,10 +51,10 @@ function cleanupParentForTerminalDelegation(
 function notifiedParentForWorkerChange(response: SessionControlMutationResponse) {
   const outcome = response.outcome
   if (response.replayed || outcome.effect !== 'delegation-updated') return undefined
-  if (outcome.operation === 'delegation-submit') return outcome.parentSessionId
-  return outcome.operation === 'delegation-state' && outcome.delegationState === 'needs_attention'
-    ? outcome.parentSessionId
-    : undefined
+  const notifies =
+    outcome.operation === 'delegation-submit' ||
+    (outcome.operation === 'delegation-state' && outcome.delegationState === 'needs_attention')
+  return notifies ? outcome.parentSessionId : undefined
 }
 
 export function executeSessionDelegationMutation(input: {
@@ -83,7 +83,9 @@ export function executeSessionDelegationMutation(input: {
       response,
     })
     const notifiedParent = notifiedParentForWorkerChange(response)
-    if (notifiedParent) yield* notifyParentOfOrchestrationUpdates(notifiedParent)
+    if (notifiedParent) {
+      yield* notifyParentOfOrchestrationUpdates(notifiedParent)
+    }
     const parentSessionId = cleanupParentForTerminalDelegation(input.callerId, response)
     if (parentSessionId) {
       // Hive cleanup trigger: the parent agent accepted or cancelled a Worker's Delegation. A

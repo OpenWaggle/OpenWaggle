@@ -19,6 +19,7 @@ import {
   markOrchestrationUpdatesDelivered,
   markReportsDelivered,
   markSpecificationUpdatesDelivered,
+  pendingUpdatesForRequestedWaggle,
 } from './session-control-run-context-delivery'
 import { publishRunFailure, publishRunStartFailure } from './session-control-run-result'
 import {
@@ -267,7 +268,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         peerAgentReports: _reports,
         onPeerAgentReportsDelivered: _reportsDelivered,
         orchestrationUpdates: _updates,
-        onOrchestrationUpdatesDelivered: _updatesDelivered,
+        onOrchestrationUpdatesDelivered,
         delegationSpecificationUpdates: _specifications,
         onDelegationSpecificationUpdatesDelivered: _specificationsDelivered,
         ...authority
@@ -278,9 +279,17 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         messages: result.newMessages,
         model: input.execution.model,
         controller: input.controller,
-        // The classic Run already delivered its reports and updates; the Waggle inherits only
-        // who it acts for and what it may do.
-        authority,
+        // The classic Run already delivered its reports. The Waggle inherits who it acts for and
+        // what it may do, and the Worker updates still pending: one the classic Run's final turn
+        // put on the branch counts as delivered once a Waggle model request sees it.
+        authority: {
+          ...authority,
+          orchestrationUpdates: yield* pendingUpdatesForRequestedWaggle(
+            context.orchestration,
+            input.request,
+          ),
+          onOrchestrationUpdatesDelivered,
+        },
       })
     }
     return { mode: 'classic' as const, result, resourceResult: result, payload, ...ending }

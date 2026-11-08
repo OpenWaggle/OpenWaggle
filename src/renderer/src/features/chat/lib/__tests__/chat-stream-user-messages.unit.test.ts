@@ -212,4 +212,22 @@ describe('applyAgentTransportEvent incorporated user messages', () => {
     ])
     expect(messages[4]?.createdAt).toEqual(new Date(5_004))
   })
+
+  it('keeps the Hive wake mark on a live wake row', () => {
+    const messages = applyAgentTransportEvent(answered, {
+      type: 'message_start',
+      messageId: 'live-wake',
+      role: 'user',
+      userMessage: {
+        parts: [{ type: 'text', text: 'Worker updates arrived' }],
+        sessionNodeCreatedOrder: 2,
+        hiveWake: true,
+      },
+      timestamp: 1_000,
+    })
+
+    expect(messages.find((message) => message.id === 'live-wake')?.metadata).toMatchObject({
+      hiveWake: true,
+    })
+  })
 })

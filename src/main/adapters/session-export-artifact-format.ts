@@ -1,6 +1,7 @@
 import { canonicalJson } from '@shared/canonical-json'
 import type { SessionExportManifest, SessionExportNodeRecord } from '@shared/types/session-export'
 import type { SessionExportFormat } from '@shared/types/session-export-operation'
+import { sessionExportMarkdownHeading } from '@shared/utils/session-export-markdown'
 
 const JSON_INDENT_SPACES = 2
 
@@ -38,7 +39,7 @@ function markdownManifest(manifest: SessionExportManifest) {
 }
 
 function markdownRecord(record: SessionExportNodeRecord) {
-  return `## ${record.role ?? 'event'}\n\n${markdownContent(record.content)}\n\n`
+  return `## ${sessionExportMarkdownHeading(record)}\n\n${markdownContent(record.content)}\n\n`
 }
 
 export function serializeExportManifest(

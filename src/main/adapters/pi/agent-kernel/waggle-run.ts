@@ -11,7 +11,7 @@ import { SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata } from '@shared/types/waggle'
 import type { PiModel } from '../pi-provider-catalog'
-import { buildPiRunAssistantMessages } from '../pi-run-result'
+import { buildPiRunAssistantMessages, buildPiRunNewMessages } from '../pi-run-result'
 import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { logger } from './constants'
 import { onExtensionTurnStartFailure } from './extension-turn-start-failure'
@@ -275,6 +275,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
         waggleDone: waggleExtension.done,
       }),
     buildErrorMessages: buildPiRunAssistantMessages,
+    buildSuccessMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
   }).finally(() => {
     stopFailingOnTurnStart()
     extensions.close()

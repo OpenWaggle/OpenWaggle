@@ -5,8 +5,10 @@ import type { DelegationState } from '@shared/types/session-collaboration'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
+import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
 import { reviewDelegation } from './sqlite-session-delegation-review'
 import { updateDelegationState } from './sqlite-session-delegation-state'
@@ -78,6 +80,27 @@ function loadContract(sql: SqlClient.SqlClient, delegationId: string) {
   `.pipe(Effect.map((rows) => rows[0]))
 }
 
+/**
+ * A Worker whose result waits for review may replace it from inside a Hive wake that started
+ * after it (see `wakeMayReplaceResult`). Only that wake Run's own agent may.
+ */
+function wokenAfterResult(
+  sql: SqlClient.SqlClient,
+  callerId: string,
+  contract: DelegationContractRow,
+) {
+  const agent = parseSessionAgentCallerId(callerId)
+  if (contract.state !== 'ready_for_review' || agent?.sessionId !== contract.child_session_id) {
+    return Effect.succeed(false)
+  }
+  return wakeMayReplaceResult(sql, {
+    delegationId: contract.id,
+    workerSessionId: contract.child_session_id,
+    runId: agent.runId,
+    whileActive: true,
+  })
+}
+
 function submitDelegation(
   sql: SqlClient.SqlClient,
   input: ExecuteDelegationInput,
@@ -89,9 +112,10 @@ function submitDelegation(
     if (command.sessionId !== contract.child_session_id) {
       return rejectedDelegationOutcome(input, 'worker_required')
     }
-    if (!['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state)) {
-      return rejectedDelegationOutcome(input, 'delegation_not_contributable')
-    }
+    const contributable =
+      ['working', 'waiting', 'needs_attention', 'revision_requested'].includes(contract.state) ||
+      (yield* wokenAfterResult(sql, input.callerId, contract))
+    if (!contributable) return rejectedDelegationOutcome(input, 'delegation_not_contributable')
     if (command.summary.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'submission_empty')
     }
@@ -129,6 +153,7 @@ function submitDelegation(
       cause: `submission-${revision}`,
       summary: command.summary,
       now: input.now,
+      triggerCallerId: input.callerId,
     })
     return updatedDelegationOutcome(input, contract, 'ready_for_review', revision)
   })

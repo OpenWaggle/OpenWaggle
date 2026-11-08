@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../../ports/agent-kernel-service'
 import { PI_ABORTED_RUN_SETTLE_GRACE_MS } from '../pi-run-abort'
 import { runSubscribedPiOperation } from '../run-lifecycle'
+import { classicRunInput } from './run-lifecycle-test-run-input'
 
 const POST_RUN_SETTLE_MAX_MS = 15_000
 
@@ -62,7 +63,7 @@ function runUntilStopped(session: ReturnType<typeof busySession>, operation: () 
   const controller = new AbortController()
   const outcome = { settled: false }
   const result = runSubscribedPiOperation({
-    runInput: runInput(controller.signal),
+    ...classicRunInput(runInput(controller.signal)),
     session: fromPartial<AgentSession>(session),
     unsubscribe: vi.fn(),
     abortWarning: 'abort failed',

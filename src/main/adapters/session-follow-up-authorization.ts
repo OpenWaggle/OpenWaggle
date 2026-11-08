@@ -69,30 +69,36 @@ function directProfileBlockReason(sql: SqlClient.SqlClient, callerId: string, ta
   })
 }
 
+/**
+ * Why `callerId` may no longer send `sessionId` a message that starts a Run, or undefined when it
+ * still may: the check automatic Follow-up delivery makes (ADR 0057), which a Hive wake makes too.
+ */
+export function messageCallerBlockReason(
+  sql: SqlClient.SqlClient,
+  sessionId: string,
+  callerId: string,
+) {
+  return Effect.gen(function* () {
+    const liveAuthorityBlock = yield* liveSessionAuthorityBlockReason(sql, callerId, sessionId)
+    if (liveAuthorityBlock) return liveAuthorityBlock
+    const target = yield* loadTarget(sql, sessionId)
+    if (!target) return 'authority_changed' as const
+    if (profileId(callerId) !== undefined) {
+      return yield* directProfileBlockReason(sql, callerId, target)
+    }
+    if (sourceSessionId(callerId) !== undefined) {
+      return yield* sessionAgentBlockReason(sql, callerId, target)
+    }
+    return undefined
+  })
+}
+
 function blockReason(
   sql: SqlClient.SqlClient,
   sessionId: string,
   followUp: SessionControlFollowUp,
 ) {
-  return Effect.gen(function* () {
-    const liveAuthorityBlock = yield* liveSessionAuthorityBlockReason(
-      sql,
-      followUp.intent.callerId,
-      sessionId,
-    )
-    if (liveAuthorityBlock) return liveAuthorityBlock
-    const target = yield* loadTarget(sql, sessionId)
-    if (!target) return 'authority_changed' as const
-    const fromProfile = profileId(followUp.intent.callerId) !== undefined
-    const fromSessionAgent = sourceSessionId(followUp.intent.callerId) !== undefined
-    if (fromProfile) {
-      return yield* directProfileBlockReason(sql, followUp.intent.callerId, target)
-    }
-    if (fromSessionAgent) {
-      return yield* sessionAgentBlockReason(sql, followUp.intent.callerId, target)
-    }
-    return undefined
-  })
+  return messageCallerBlockReason(sql, sessionId, followUp.intent.callerId)
 }
 
 export function applyCurrentFollowUpAuthorization(

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   activities: vi.fn<() => readonly { readonly sessionId: string }[]>(() => []),
-  dispatch: vi.fn<(input: { readonly payload: unknown }) => unknown>(),
+  dispatch: vi.fn<(input: { readonly payload: unknown; readonly caller?: unknown }) => unknown>(),
 }))
 
 vi.mock('../host-ui-agent-operation', () => ({
@@ -25,6 +25,7 @@ vi.mock('../../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }))
 
+import { HOST_SHUTDOWN_CALLER_ID } from '../../domain/session-control/root-session-project-reach'
 import { interruptAllSessionRuns } from '../session-run-interruption'
 
 // The dispatcher is mocked, so the services its type names are never used.
@@ -75,9 +76,14 @@ describe('interrupting every Run at a drain deadline', () => {
 
     await runWithoutRequirements(interruptAllSessionRuns())
 
-    const interrupts = mocks.dispatch.mock.calls
-      .map(([input]) => input.payload)
-      .filter((payload) => contract(payload) === 'session-control-v2')
+    const interruptCalls = mocks.dispatch.mock.calls
+      .map(([input]) => input)
+      .filter((input) => contract(input.payload) === 'session-control-v2')
+    // The Host stops them itself, so no Run counts as stopped by the desktop user.
+    expect(interruptCalls.map((input) => input.caller)).toEqual([
+      { callerId: HOST_SHUTDOWN_CALLER_ID },
+    ])
+    const interrupts = interruptCalls.map((input) => input.payload)
     expect(interrupts).toHaveLength(1)
     expect(interrupts[0]).toMatchObject({
       request: {

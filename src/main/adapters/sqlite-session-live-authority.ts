@@ -1,5 +1,9 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import {
+  callerProfileId,
+  parseSessionAgentCallerId,
+} from '../domain/session-control/root-session-project-reach'
 import { createLogger } from '../logger'
 import {
   assertSessionAuthoritySnapshotForWorkspace,
@@ -10,15 +14,8 @@ import { describeError } from '../utils/describe-error'
 
 const logger = createLogger('session-live-authority')
 
-function profileId(callerId: string) {
-  return callerId.startsWith('profile:') ? callerId.slice('profile:'.length) : undefined
-}
-
 function sourceSessionId(callerId: string) {
-  const prefix = 'session-agent:'
-  if (!callerId.startsWith(prefix)) return undefined
-  const lastSeparator = callerId.lastIndexOf(':')
-  return lastSeparator > prefix.length ? callerId.slice(prefix.length, lastSeparator) : undefined
+  return parseSessionAgentCallerId(callerId)?.sessionId
 }
 
 function profileRevoked(sql: SqlClient.SqlClient, id: string) {
@@ -114,7 +111,7 @@ export function liveSessionAuthorityBlockReason(
   const targetChanged = targetSessionId
     ? sessionAuthorityChanged(sql, targetSessionId)
     : Effect.succeed(false)
-  const directProfileId = profileId(callerId)
+  const directProfileId = callerProfileId(callerId)
   if (directProfileId) {
     return Effect.all([profileRevoked(sql, directProfileId), targetChanged]).pipe(
       Effect.map(([revoked, changed]) =>
@@ -165,7 +162,7 @@ export function liveSessionAuthorityBlockReason(
     ) {
       return 'profile_revoked' as const
     }
-    const originProfileId = profileId(source.authority_origin_caller_id)
+    const originProfileId = callerProfileId(source.authority_origin_caller_id)
     if (originProfileId && (yield* profileRevoked(sql, originProfileId))) {
       return 'profile_revoked' as const
     }

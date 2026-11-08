@@ -11,12 +11,14 @@ import {
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
+import { hiveWakeRefusal, startsHiveWake } from './sqlite-hive-wake-admission'
+import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import {
   deliverAfterQueueDecision,
   newRunAdmissionRefusal,
 } from './sqlite-session-control-queue-delivery'
-import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
+import { loadSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
 
@@ -183,9 +185,13 @@ function executeMutation(
         const startsNewRun =
           decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
         const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
-        const refusal = startsNewRun
-          ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
-          : undefined
+        // This mutation starts the wake; any other one landing while a wake starts is ordinary.
+        const startsWake = startsNewRun && startsHiveWake(decision.state)
+        const refusal = startsWake
+          ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
+          : startsNewRun
+            ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
+            : undefined
         const admittedDecision = refusal
           ? ({
               accepted: false,
@@ -198,13 +204,16 @@ function executeMutation(
               hostRunCeiling,
             })
         if (admittedDecision.accepted) {
-          yield* persistSessionControlState(sql, admittedDecision.state, now)
-          yield* clearWorkerRequestOnParentDelivery(sql, {
-            workerSessionId: targetScope,
-            callerId: input.callerId,
-            operation,
-            now,
-          })
+          yield* persistAndRecordStop(sql, state, admittedDecision.state, input.callerId, now)
+          // A Hive wake is the Host acting for the caller, not the parent answering a Worker.
+          if (!startsWake) {
+            yield* clearWorkerRequestOnParentDelivery(sql, {
+              workerSessionId: targetScope,
+              callerId: input.callerId,
+              operation,
+              now,
+            })
+          }
         }
         yield* sql`
         INSERT INTO session_operations (

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../../ports/agent-kernel-service'
 import { idleCacheWarming } from '../pi-idle-cache-warming'
 import { runSubscribedPiOperation } from '../run-lifecycle'
+import { classicRunInput } from './run-lifecycle-test-run-input'
 
 const lifecycleMocks = vi.hoisted(() => ({
   disposeOpenWagglePiSession: vi.fn(async () => undefined),
@@ -55,7 +56,7 @@ describe('a Run whose prompt cache Pi keeps warm between runs', () => {
     })
 
     await runSubscribedPiOperation({
-      runInput: runInput(),
+      ...classicRunInput(runInput()),
       session,
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',

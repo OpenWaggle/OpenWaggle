@@ -185,12 +185,12 @@ A `needs_attention` that OpenWaggle set for a failed run goes back to `working` 
 
 ### When a worker reports to an idle parent
 
-The parent hears about every result and every request for help as an update from OpenWaggle. A running parent gets the update in its current run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
+The parent hears about every result and every request for help as an update from OpenWaggle. A running parent reads the update at its next model request in the current run. An update that arrives while the parent writes its last answer, or after it, waits for the parent's next model request. That is usually the Waggle the run hands off to, if any, or else a new run. When the parent is idle, OpenWaggle starts a new run on it with the update, so a Queen that said it would report back when its workers finish does report back.
 
 | Update | Sent when |
 | --- | --- |
 | `ready_for_review` | The worker submits, or its run ends with a reply. |
-| `needs_attention` | The worker's run fails or is interrupted, or the worker sets `needs_attention` itself. |
+| `needs_attention` | The worker's run fails, is interrupted, or ends without a reply, or the worker sets `needs_attention` itself. |
 
 OpenWaggle starts that run only when all of these hold:
 
@@ -198,8 +198,13 @@ OpenWaggle starts that run only when all of these hold:
 - The parent is not archived.
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.
+- The Session Host is not shutting down, as it does to install an app update. Worker updates that arrive meanwhile, such as from worker runs it stopped, wait for the parent's next run. **Restart now** stops runs as you before the Session Host starts shutting down, so a parent whose workers it stopped can still start a run. Installing the app update then stops that run within about 13 seconds.
+- Whoever started the parent's last run may still send it a message. A revoked CLI client profile, or one without `sessions:message`, gets no run.
+- A CLI client profile or MCP client behind the update is also behind the parent's last run. That covers a result or request for help a profile sets for a worker, and everything in a worker run that a profile started, including a run OpenWaggle started for worker updates on a profile's behalf. Otherwise the update starts no run, even if it arrived while the parent wrote its last answer, and the parent reads it at its next run. A Hive that a profile started still wakes its parent. A worker run counts as whoever started it, even when a client steered it or answered its questions. A run that a client stopped counts as that client's, unless the run still completed. A run the Session Host stopped to shut down still counts as whoever started it.
 
-The run acts for whoever started the parent's last run, with the same permissions. It counts toward **Workers per parent** and **Active agent runs**. When a limit is full, OpenWaggle tries again when another run ends.
+The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run was started with **Ask for approval** for that run only, or when that caller's ceiling is **Ask for approval** now. When an `openwaggle mcp serve --owner` server started that last run, the run always uses **Ask for approval**, because OpenWaggle cannot check that server's grants after it exits. It is always a standard run, even when the last run was a Waggle. It counts toward **Active agent runs**, and toward **Workers per parent** when the parent is itself a worker. When a limit is full, OpenWaggle tries again when another run ends.
+
+OpenWaggle checks these rules again just before the run starts, so a parent that got a run, a follow-up or was archived in the meantime is left alone, and so is one whose last caller lost the right to message it. When the parent is itself a worker that asked its own parent for help, the run does not count as that parent's answer, and its reply does not count as the worker's result. The request stays open. When the parent is itself a worker whose result waits for review, a result the run submits replaces that result, and its own parent hears about it. The run's reply replaces it only when that result was a reply too, not one the worker submitted. A run that fails, is stopped or ends without a reply leaves that result for its parent to review.
 
 Each update starts at most one run. If that run fails, OpenWaggle waits for the next update, or for you to send the parent a message, which also delivers the update. In the parent's transcript, the run starts with a **Hive · Worker updates arrived** line instead of a message from you. Several updates that arrive close together go into the same run.
 
@@ -275,17 +280,17 @@ A session's model and thinking level are session settings. A run uses them when 
 | --- | --- | --- |
 | `create` | Sets the starting level | Not accepted, no run starts |
 | `launch`, `spawn` | Sets the starting level | Applies to the first run |
-| `message`, `start` on an idle session | Becomes the session's level | Applies to that run only |
+| `message`, `start` on an idle session | Becomes the session's level | Applies to that run |
 | `message` while a run is active | Refused | Refused |
 | `follow_up`, `steer`, `replace` | Never accepted | Never accepted |
 
-A refused `message` fails with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`. So a queued follow-up always runs with the session's settings when its turn comes. An `authorization` override never changes the session's saved mode, and stays within the caller's limit. `yolo` needs a caller that already has full access.
+A refused `message` fails with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`. So a queued follow-up always runs with the session's settings when its turn comes. An `authorization` override never changes the session's saved mode, and stays within the caller's limit. `yolo` needs a caller that already has full access. An `ask-for-approval` override, from `launch`, `spawn`, `message` or `start`, also applies to the runs OpenWaggle starts for worker updates after the run it applied to, as [When a worker reports to an idle parent](#when-a-worker-reports-to-an-idle-parent) describes.
 
 A worker gets its parent's access by default. A spawn or an [agent definition](/docs/extending/agent-definitions) can keep or narrow approvals, tools, MCP servers and session capabilities. It cannot widen them.
 
 ## Run limits
 
-Two settings in **Settings > Agents > Hive controls** cap how many runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active agent runs** to 16 runs across the whole app. [Settings](/docs/reference/settings) lists both. A new run at either limit fails with an error the caller can retry. It is not queued. The limits count active runs, not saved sessions, queues, searches, exports, waits or watchers.
+Two settings in **Settings > Agents > Hive controls** cap how many runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active agent runs** to 16 runs across the whole app. [Settings](/docs/reference/settings) lists both. A new run at either limit fails with an error the caller can retry. It is not queued. A run OpenWaggle starts for a parent whose workers reported is the exception, because it is retried when another run ends. The limits count active runs, not saved sessions, queues, searches, exports, waits or watchers.
 
 ## Worker cleanup timing
 

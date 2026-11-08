@@ -51,6 +51,22 @@ describe('refineSessionTitle', () => {
     expect(world().cleared).toEqual([SESSION_ID])
   })
 
+  it('refines a first turn that a Hive wake answered, without the Host notice in its context', async () => {
+    world().messages = [
+      text('user', 'Draft the epics with six Workers', 'u1'),
+      text('assistant', 'The Workers are drafting. I will report back.', 'a1'),
+      { ...text('user', 'Worker updates arrived', 'wake-1'), metadata: { hiveWake: true } },
+      text('assistant', 'All six epics are drafted.', 'a2'),
+    ]
+    world().replies = ['Six spec-driven epics']
+
+    await run(refineSessionTitle(SESSION_ID))
+
+    expect(world().requests).toHaveLength(1)
+    expect(JSON.stringify(world().requests[0])).not.toContain('Worker updates arrived')
+    expect(world().cleared).toEqual([])
+  })
+
   it('happens at most once, even when the request fails', async () => {
     world().messages = [
       text('user', 'look at this', 'u1'),
@@ -185,6 +201,20 @@ describe('regenerateSessionTitle', () => {
     expect(world().requests[0]?.systemPrompt).toContain(
       'The previous title was "Old manual title".',
     )
+  })
+
+  it('leaves the Host’s Hive wake notice out of the context', async () => {
+    world().messages = [
+      ...world().messages,
+      { ...text('user', 'Worker updates arrived', 'wake-1'), metadata: { hiveWake: true } },
+      text('assistant', 'The Workers finished.', 'a2'),
+    ]
+    world().replies.push(json('Short session titles'))
+
+    await run(regenerateSessionTitle(SESSION_ID))
+
+    expect(JSON.stringify(world().requests[0])).toContain('Make titles short')
+    expect(JSON.stringify(world().requests[0])).not.toContain('Worker updates arrived')
   })
 
   it('reports an accurate previous title as unchanged', async () => {

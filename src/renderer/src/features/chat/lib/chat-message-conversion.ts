@@ -68,7 +68,10 @@ function hasUIMetadata(metadata: MessageMetadata) {
   )
 }
 
-function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMetadata | undefined {
+/** The metadata of a stored message the transcript shows, whichever branch it is on. */
+export function messageMetadataToUI(
+  metadata: MessageMetadata | undefined,
+): UIMessageMetadata | undefined {
   if (!metadata || !hasUIMetadata(metadata)) return undefined
   return {
     ...(metadata.sessionNodeCreatedOrder !== undefined

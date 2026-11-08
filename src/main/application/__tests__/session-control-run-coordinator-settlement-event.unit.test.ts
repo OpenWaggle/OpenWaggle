@@ -8,12 +8,16 @@ import { SessionControlRunExecutor } from '../../ports/session-control-run-execu
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
 import { SessionOrchestrationUpdateDeliveryService } from '../../ports/session-orchestration-update-delivery-service'
 import { installSessionHostEventPublisher } from '../../session-host/session-host-events'
+import { installHiveParentWakeHandler } from '../hive-parent-wake-request'
 import { coordinateSessionRuns } from '../session-control-run-coordinator'
 import { NoSteeringLayer } from './agent-steering-test-layer'
 
 describe('Session Control Run coordinator settlement event', () => {
   // Settlement learns when the Run was seen to end, and clients learn which Run settled and how.
-  it('settles with the terminal event time and names the Run it settled', async () => {
+  it.each([
+    { name: 'a Run the user started', hiveWake: undefined },
+    { name: 'a Hive wake', hiveWake: true as const },
+  ])('settles with the terminal event time and names $name it settled', async ({ hiveWake }) => {
     const sessionId = SessionId('session-terminal-event')
     const runId = RunId('run-terminal-event')
     const settleInputs: unknown[] = []
@@ -38,6 +42,7 @@ describe('Session Control Run coordinator settlement event', () => {
               callerId: 'local-user',
               acceptedAt: 1000,
               idempotencyKey: 'terminal-event',
+              ...(hiveWake ? { hiveWake } : {}),
             },
           }),
         settle: (input) =>
@@ -81,6 +86,80 @@ describe('Session Control Run coordinator settlement event', () => {
       runId,
       terminalStatus: 'failed',
       failureCode: 'persist-failed',
+      // A client offers no Retry of the user's last prompt for a failed wake.
+      ...(hiveWake ? { hiveWake } : {}),
     })
+  })
+
+  it('asks for a wake of an idle parent when a Worker Run’s end recorded an update', async () => {
+    const callerId = 'session-agent:queen:run-q'
+    const requested: unknown[] = []
+    const delivered: string[] = []
+    const release = installHiveParentWakeHandler((request) => requested.push(request))
+    const layer = Layer.mergeAll(
+      Layer.succeed(SessionControlIdentityService, {
+        nextRunId: Effect.succeed(RunId('run-next')),
+        nextFollowUpId: Effect.succeed(FollowUpId('follow-up-unused')),
+        nextReportId: Effect.succeed(ReportId('report-unused')),
+        nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
+        now: Effect.succeed(2000),
+      }),
+      Layer.succeed(SessionControlRunLifecycleRepository, {
+        activate: () =>
+          Effect.succeed({
+            accepted: true as const,
+            stateRevision: 1,
+            intent: {
+              text: 'Draft the epic.',
+              attachmentIds: [],
+              callerId,
+              acceptedAt: 1000,
+              idempotencyKey: 'worker-run',
+            },
+          }),
+        settle: () =>
+          Effect.succeed({
+            accepted: true,
+            stateRevision: 2,
+            orchestrationUpdate: {
+              updateId: 'update-1',
+              parentSessionId: SessionId('queen'),
+              workerSessionId: SessionId('worker'),
+              delegationId: 'delegation-1',
+              sourceRunId: RunId('run-worker'),
+              state: 'ready_for_review' as const,
+            },
+          }),
+        recoverHostLoss: Effect.succeed([]),
+      }),
+      Layer.succeed(SessionControlRunExecutor, {
+        execute: () =>
+          Effect.succeed({ terminalStatus: 'completed' as const, finalResponse: 'Drafted.' }),
+      }),
+      NoSteeringLayer,
+      Layer.succeed(SessionOrchestrationUpdateDeliveryService, {
+        deliverPendingToActiveRun: ({ parentSessionId }) =>
+          Effect.sync(() => {
+            delivered.push(parentSessionId)
+            return false
+          }),
+        deliverPendingSpecificationsToActiveRun: () => Effect.succeed(false),
+      }),
+    )
+
+    try {
+      await Effect.runPromise(
+        coordinateSessionRuns({
+          sessionId: SessionId('worker'),
+          startingRunId: RunId('run-worker'),
+        }).pipe(Effect.provide(layer)),
+      )
+    } finally {
+      release()
+    }
+
+    // A running parent receives the update either way.
+    expect(delivered).toEqual(['queen'])
+    expect(requested).toContainEqual({ parentSessionId: 'queen' })
   })
 })

@@ -94,6 +94,7 @@ function settledRunDetails(
     ...(payload.runId ? { runId: payload.runId } : {}),
     ...(payload.terminalStatus ? { terminalStatus: payload.terminalStatus } : {}),
     ...(payload.failureCode ? { failureCode: payload.failureCode } : {}),
+    ...(payload.hiveWake ? { hiveWake: payload.hiveWake } : {}),
   }
 }
 

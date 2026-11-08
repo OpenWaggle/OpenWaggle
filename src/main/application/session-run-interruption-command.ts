@@ -8,6 +8,7 @@ import type {
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import type { InProcessInterruptCallerId } from '../domain/session-control/root-session-project-reach'
 
 /**
  * How a caller reaches the Session Host: the Host dispatches in its own process, the desktop
@@ -18,10 +19,15 @@ export type SessionCommandDispatch<E, R> = (input: {
   readonly payload: LocalSessionCommandPayload
 }) => Effect.Effect<LocalSessionCommandResult, E, R>
 
-/** Stops a Session's active run, or its standalone compaction, through the Session Host. */
+/**
+ * Stops a Session's active run, or its standalone compaction, through the Session Host. The
+ * desktop user stops it unless `interruptCallerId` names another caller, such as the Host itself
+ * as it shuts down.
+ */
 export function interruptSessionRunThrough<E, R>(
   dispatchLocalSessionCommand: SessionCommandDispatch<E, R>,
   sessionId: SessionId,
+  interruptCallerId: InProcessInterruptCallerId = 'gui:local-user',
 ) {
   return Effect.gen(function* () {
     const statusResult = yield* dispatchLocalSessionCommand({
@@ -44,7 +50,7 @@ export function interruptSessionRunThrough<E, R>(
     }
     if (statusResult.response.outcome.activeRunId) {
       yield* dispatchLocalSessionCommand({
-        caller: { callerId: 'gui:local-user' },
+        caller: { callerId: interruptCallerId },
         payload: {
           contract: 'session-control-v2',
           request: {

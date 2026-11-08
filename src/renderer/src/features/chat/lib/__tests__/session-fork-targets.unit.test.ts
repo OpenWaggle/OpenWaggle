@@ -63,4 +63,19 @@ describe('getVisibleForkTargets', () => {
       { entryId: SessionNodeId('user-1'), text: 'Initial request' },
     ])
   })
+
+  it('never offers the Host’s Hive wake notice, which Pi cannot fork at', () => {
+    const wake = node('wake-1', 'user', 'Worker updates arrived')
+    const targets = getVisibleForkTargets(
+      workspace([
+        node('user-1', 'user', 'Initial request'),
+        {
+          ...wake,
+          message: wake.message ? { ...wake.message, metadata: { hiveWake: true } } : wake.message,
+        },
+      ]),
+    )
+
+    expect(targets).toEqual([{ entryId: SessionNodeId('user-1'), text: 'Initial request' }])
+  })
 })

@@ -6,6 +6,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../../ports/agent-kernel-service'
 import { runSubscribedPiOperation } from '../run-lifecycle'
+import { classicRunInput } from './run-lifecycle-test-run-input'
 
 const lifecycleMocks = vi.hoisted(() => ({
   disposeOpenWagglePiSession: vi.fn(async () => undefined),
@@ -143,7 +144,7 @@ describe('run lifecycle settlement', () => {
     }
 
     const result = await runSubscribedPiOperation({
-      runInput: runInput(payload),
+      ...classicRunInput(runInput(payload)),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
@@ -217,7 +218,7 @@ describe('run lifecycle settlement', () => {
     })
 
     const result = await runSubscribedPiOperation({
-      runInput: runInput({ text: 'Continue', attachments: [] }),
+      ...classicRunInput(runInput({ text: 'Continue', attachments: [] })),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
@@ -275,7 +276,7 @@ describe('run lifecycle settlement', () => {
     }
 
     const result = await runSubscribedPiOperation({
-      runInput: runInput(payload),
+      ...classicRunInput(runInput(payload)),
       session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',

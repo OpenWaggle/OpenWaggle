@@ -13,6 +13,7 @@ export const SESSION_ORCHESTRATION_TARGET_SCHEMA_STATEMENTS = [
     delivered_item_id TEXT,
     created_at INTEGER NOT NULL,
     delivered_at INTEGER,
+    trigger_caller_id TEXT,
     UNIQUE (delegation_id, source_run_id, state),
     CHECK (
       (status = 'pending' AND delivered_run_id IS NULL AND delivered_item_id IS NULL AND delivered_at IS NULL)

@@ -109,4 +109,21 @@ describe('sessionToUIMessages', () => {
       scheduledTask,
     })
   })
+
+  it('keeps the Hive wake mark, so the row shows as the Host’s notice', () => {
+    const session = fromPartial<SessionDetail>({
+      id: SessionId('session-1'),
+      messages: [
+        {
+          id: MessageId('wake-1'),
+          role: 'user',
+          parts: [{ type: 'text', text: 'Worker updates arrived' }],
+          metadata: { hiveWake: true },
+          createdAt: 1,
+        },
+      ],
+    })
+
+    expect(sessionToUIMessages(session)[0]?.metadata).toEqual({ hiveWake: true })
+  })
 })
