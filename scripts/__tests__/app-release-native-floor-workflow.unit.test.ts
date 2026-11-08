@@ -33,4 +33,11 @@ describe('desktop app release workflow native platform floor', () => {
     const parsed: unknown = parse(WORKFLOW)
     assertMatching({ jobs: { 'build-linux': { 'runs-on': 'ubuntu-22.04' } } }, parsed)
   })
+
+  it('builds macOS on a runner image GitHub still supports', () => {
+    // macos-14 was retired: every release job on it was cancelled before any step ran, so
+    // v1.0.0-beta.33 through beta.35 were tagged but never published.
+    const parsed: unknown = parse(WORKFLOW)
+    assertMatching({ jobs: { 'build-macos': { 'runs-on': 'macos-15' } } }, parsed)
+  })
 })
