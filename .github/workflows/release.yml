@@ -562,7 +562,8 @@ jobs:
     name: Build macOS
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: macos-14
+    # GitHub retired the macos-14 image; jobs on it are cancelled before any step runs.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
