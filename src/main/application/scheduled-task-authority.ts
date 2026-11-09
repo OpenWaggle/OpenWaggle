@@ -16,8 +16,9 @@ import { rejectedOutcome } from './scheduled-task-heartbeat-settings'
 import { LOCAL_USER_TASK_OWNER, type ScheduledTaskPrincipal } from './scheduled-task-principal'
 import { authorizeScheduledTaskTarget } from './scheduled-task-target-authorization'
 
+/** A Heartbeat keeps its Session, so the remedy names what its owner can change in the app and CLI. */
 const HEARTBEAT_REMEDY =
-  'Its owner can change its prompt, Session, stop condition or Wake check to run it with their own access.'
+  'Its owner can change its prompt, stop condition or Wake check to run it with their own access'
 
 /**
  * Why a Heartbeat held to `limits` may not wake its Session, or null. Its Run starts as the
@@ -39,14 +40,14 @@ export function heartbeatBoundaryRefusal(input: {
     if (!target) return null
     const owner = yield* repository.callerAuthorityBoundary(input.ownerCallerId)
     if (limits.scope.all !== true && owner.reachesEveryProject && target.reachesEveryProject) {
-      return `This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. ${HEARTBEAT_REMEDY}`
+      return `This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. ${HEARTBEAT_REMEDY}.`
     }
     if (
       limits.authorizationCeiling === 'ask-for-approval' &&
       owner.authorizationCeiling === 'yolo' &&
       target.authorizationCeiling === 'yolo'
     ) {
-      return `This Heartbeat runs within an agent's access, which has to ask for approval, but its Session runs in YOLO mode. ${HEARTBEAT_REMEDY}`
+      return `This Heartbeat runs within an agent's access, which has to ask for approval, but its Session runs in YOLO mode. ${HEARTBEAT_REMEDY}, or switch its Session to Ask for approval.`
     }
     return null
   })

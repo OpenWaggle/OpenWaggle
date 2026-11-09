@@ -3,7 +3,11 @@ import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import { ScheduledTaskRepository } from '../../ports/scheduled-task-repository'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
-import { changedHeartbeatBoundaryRefusal, runsAsAfterUpdate } from '../scheduled-task-authority'
+import {
+  changedHeartbeatBoundaryRefusal,
+  heartbeatBoundaryRefusal,
+  runsAsAfterUpdate,
+} from '../scheduled-task-authority'
 import type { ScheduledTaskPrincipal } from '../scheduled-task-principal'
 
 const LIMITS = {
@@ -219,5 +223,38 @@ describe('changedHeartbeatBoundaryRefusal', () => {
         ),
       ),
     ).toBeNull()
+  })
+})
+
+describe('heartbeatBoundaryRefusal', () => {
+  function refusal(
+    limits: typeof LIMITS | { readonly scope: { readonly projectPaths: string[] } },
+  ) {
+    const everywhere = { reachesEveryProject: true, authorizationCeiling: 'yolo' as const }
+    return Effect.runPromise(
+      heartbeatBoundaryRefusal({
+        ownerCallerId: 'local-user',
+        limits: fromPartial({ authorizationCeiling: 'yolo', ...limits }),
+        sessionId: 'session-1',
+      }).pipe(
+        Effect.provideService(
+          ScheduledTaskRepository,
+          fromPartial({
+            sessionAuthorityBoundary: () => Effect.succeed(everywhere),
+            callerAuthorityBoundary: () => Effect.succeed(everywhere),
+          }),
+        ),
+      ),
+    )
+  }
+
+  // A Heartbeat keeps its Session, so the message names only what its owner can change.
+  it('tells the owner how to run a Heartbeat beyond an agent’s access with their own', async () => {
+    expect(await refusal(LIMITS)).toBe(
+      "This Heartbeat runs within an agent's access, which has to ask for approval, but its Session runs in YOLO mode. Its owner can change its prompt, stop condition or Wake check to run it with their own access, or switch its Session to Ask for approval.",
+    )
+    expect(await refusal({ scope: { projectPaths: ['/work/app'] } })).toBe(
+      "This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. Its owner can change its prompt, stop condition or Wake check to run it with their own access.",
+    )
   })
 })
