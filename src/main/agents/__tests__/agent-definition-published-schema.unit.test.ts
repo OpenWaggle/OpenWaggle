@@ -4,7 +4,11 @@ import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { isAgentDefinitionName } from '../agent-definition-name'
+import {
+  AGENT_DEFINITION_NAME_PATTERN,
+  isAgentDefinitionName,
+  WINDOWS_RESERVED_BASENAME,
+} from '../agent-definition-name'
 import { agentDefinitionFrontmatterSchema, parseAgentDefinition } from '../agent-definition-parser'
 
 function record(value: unknown): Record<string, unknown> {
@@ -43,25 +47,54 @@ const IGNORED_KEYWORDS = new Set([
 /** Keywords whose value is a schema, or a list of schemas, to compare the same way. */
 const SUBSCHEMA_KEYWORDS = new Set(['items', 'not', 'anyOf', 'oneOf', 'allOf'])
 /**
- * Published patterns the parser enforces in code rather than with a Zod regex: the portable name
- * and the non-whitespace strings. The behavioral tests above check each of them.
+ * Published patterns the parser enforces in code rather than with a Zod regex, and the exact pattern
+ * each must be: the portable name (a negative lookahead for reserved Windows names, then the name
+ * pattern) and the non-whitespace strings. The behavioral tests above also sample each of them.
  */
-const CODE_ENFORCED_PATTERNS = new Set([
-  '#/properties/name',
-  '#/properties/description',
-  '#/properties/model',
-  '#/properties/tools/items',
-  '#/properties/skills/items',
-  '#/properties/mcpServers/items',
+const NON_WHITESPACE_PATTERN = '\\S'
+const CODE_ENFORCED_PATTERNS = new Map([
+  [
+    '#/properties/name',
+    `^(?!${WINDOWS_RESERVED_BASENAME.source.slice(1)})${AGENT_DEFINITION_NAME_PATTERN.source.slice(1)}`,
+  ],
+  ['#/properties/description', NON_WHITESPACE_PATTERN],
+  ['#/properties/model', NON_WHITESPACE_PATTERN],
+  ['#/properties/tools/items', NON_WHITESPACE_PATTERN],
+  ['#/properties/skills/items', NON_WHITESPACE_PATTERN],
+  ['#/properties/mcpServers/items', NON_WHITESPACE_PATTERN],
 ])
 
-/** Replaces a local `$ref` with its definition. Sibling keywords still apply in draft 2020-12. */
+/**
+ * Replaces a local `$ref` with its definition. Sibling keywords still apply in draft 2020-12, and both
+ * apply when the definition has the same keyword, so a sibling that differs from it is refused here.
+ */
 function resolveLocalReference(root: Record<string, unknown>, node: Record<string, unknown>) {
   const reference = node.$ref
   if (typeof reference !== 'string') return node
   const name = reference.replace(/^#\/\$defs\//u, '')
+  const definition = record(record(root.$defs)[name])
   const siblings = Object.entries(node).filter(([keyword]) => keyword !== '$ref')
-  return { ...record(record(root.$defs)[name]), ...Object.fromEntries(siblings) }
+  for (const [keyword, value] of siblings) {
+    if (keyword in definition && JSON.stringify(definition[keyword]) !== JSON.stringify(value)) {
+      throw new Error(`${reference} and the keyword "${keyword}" beside it disagree.`)
+    }
+  }
+  return { ...definition, ...Object.fromEntries(siblings) }
+}
+
+function jsonTypeOf(value: unknown) {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number'
+  return typeof value
+}
+
+/** Whether `type` allows every enum or const value, so the values alone already fix it. */
+function typeAgreesWithValues(type: unknown, values: unknown[]) {
+  return values.every((value) => {
+    const valueType = jsonTypeOf(value)
+    return type === valueType || (type === 'number' && valueType === 'integer')
+  })
 }
 
 function keywordContract(root: Record<string, unknown>, keyword: string, value: unknown): unknown {
@@ -83,7 +116,7 @@ function keywordContract(root: Record<string, unknown>, keyword: string, value: 
  * Reduces a schema to the keywords that constrain a document, so the hand-written published schema
  * and the one Zod generates from the parser compare keyword by keyword, in both directions: a
  * keyword only one of them has fails the comparison. An enum or const already fixes its type, so
- * `type` is dropped there.
+ * `type` is dropped there when it allows every value; a `type` that contradicts them stays and fails.
  */
 function contractOf(root: Record<string, unknown>, value: unknown): Record<string, unknown> {
   const node = resolveLocalReference(root, record(value))
@@ -92,7 +125,14 @@ function contractOf(root: Record<string, unknown>, value: unknown): Record<strin
     if (IGNORED_KEYWORDS.has(keyword)) continue
     contract[keyword] = keywordContract(root, keyword, keywordValue)
   }
-  if (contract.enum !== undefined || contract.const !== undefined) delete contract.type
+  const values = Array.isArray(contract.enum)
+    ? contract.enum
+    : 'const' in contract
+      ? [contract.const]
+      : undefined
+  if (values && (contract.type === undefined || typeAgreesWithValues(contract.type, values))) {
+    delete contract.type
+  }
   return contract
 }
 
@@ -120,7 +160,7 @@ describe('published Agent definition schema', () => {
     }
 
     expect(reasoning.enum).toEqual([...THINKING_LEVELS])
-    const publishedNamePattern = new RegExp(name.pattern)
+    const publishedNamePattern = new RegExp(name.pattern, 'u')
     for (const candidate of [
       'reviewer',
       'release.review',
@@ -140,6 +180,9 @@ describe('published Agent definition schema', () => {
       'nul.x',
       'lpt0',
       'com0.notes',
+      'Reviewer',
+      'revieweR',
+      'a~b',
       'a'.repeat(80),
       'a'.repeat(81),
       `r${'-'.repeat(78)}r`,
@@ -194,11 +237,12 @@ describe('published Agent definition schema', () => {
 
     const publishedPatterns = new Map(patternsOf(published, published))
     const generatedPatterns = new Map(patternsOf(generated, generated))
-    for (const path of CODE_ENFORCED_PATTERNS) {
-      expect(publishedPatterns.has(path), path).toBe(true)
+    for (const [path, pattern] of CODE_ENFORCED_PATTERNS) {
+      expect(generatedPatterns.has(path), path).toBe(false)
+      expect(publishedPatterns.get(path), path).toBe(pattern)
     }
     for (const path of new Set([...publishedPatterns.keys(), ...generatedPatterns.keys()])) {
-      if (CODE_ENFORCED_PATTERNS.has(path) && !generatedPatterns.has(path)) continue
+      if (CODE_ENFORCED_PATTERNS.has(path)) continue
       expect(publishedPatterns.get(path), path).toBe(generatedPatterns.get(path))
     }
   })
