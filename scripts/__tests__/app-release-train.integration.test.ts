@@ -27,7 +27,10 @@ const CHANGELOG_ENTRY: ReleaseTrainHistoryEntry = {
 }
 
 // Each case has its own temporary repositories, so they run concurrently.
-describe.concurrent('desktop app release candidate and Stable paths', () => {
+// Under a loaded runner one case has taken 43 s, close to the tier's 60 s deadline.
+const TRAIN_CASE_TIMEOUT_MS = 180_000
+
+describe.concurrent('desktop app release candidate and Stable paths', { timeout: TRAIN_CASE_TIMEOUT_MS }, () => {
   it('prepares the 1.0.0-rc.1 release PR from a target_version dispatch', async ({ expect }) => {
     const result = await runReleaseTrain({
       initialVersion: '1.0.0-beta.36',
@@ -261,5 +264,45 @@ describe.concurrent('desktop app release candidate and Stable paths', () => {
     expect(result.succeeded, result.stderr).toBe(true)
     expect(result.stdout).toContain('No published release candidate precedes 1.1.0; promotion guard skipped.')
     expect(result.releaseBranchManifest).toContain('"version": "1.1.0"')
+  })
+
+  it('bumps a Beta merge to the next Beta', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0-beta.36',
+      history: [BETA, RELEASE_BLOCKER_FIX],
+      run: { kind: 'merge' },
+      macosSigning: false,
+    })
+
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.bumpVersion).toBe('1.0.0-beta.38')
+    expect(result.releaseBranchManifest).toContain('"version": "1.0.0-beta.38"')
+  })
+
+  it('bumps a fix after 1.0.0 to 1.0.1 and waits for its CHANGELOG entry', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0-rc.1',
+      history: [{ kind: 'release', version: '1.0.0', release: 'published' }, RELEASE_BLOCKER_FIX],
+      run: { kind: 'merge' },
+    })
+
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.bumpVersion).toBe('1.0.1')
+    expect(result.stdout).toContain('Stable 1.0.1 waits for its CHANGELOG.md entry; no release PR was prepared.')
+    expect(result.outputs).toBe('should_release=false\n')
+    expect(result.events).toEqual([])
+    expect(result.releaseBranchHead).toBeNull()
+  })
+
+  it('fails the bump step on an unrecognized version', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0-preview.1',
+      history: [RELEASE_BLOCKER_FIX],
+      run: { kind: 'merge' },
+    })
+
+    expect(result.succeeded).toBe(false)
+    expect(result.stderr).toContain('Unrecognized desktop app version 1.0.0-preview.1.')
+    expect(result.releaseBranchHead).toBeNull()
   })
 })

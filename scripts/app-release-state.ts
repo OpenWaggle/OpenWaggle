@@ -3,7 +3,13 @@ import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema } from 'effect'
-import { APP_VERSION_PATTERN, promotionBase, promotionGuardViolations } from './app-release-promotion'
+import {
+  APP_VERSION_PATTERN,
+  manifestJsonSchema,
+  promotionBase,
+  promotionGuardViolations,
+  ROOT_MANIFEST_PATH,
+} from './app-release-promotion'
 
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
@@ -11,7 +17,6 @@ const JSON_INDENT = 2
 const RELEASE_SUBJECT_PATTERN =
   /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 const CHANNEL_RANK = { alpha: 0, beta: 1, rc: 2, stable: 3 } as const
-const ROOT_MANIFEST_PATH = 'package.json'
 
 const pullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -27,9 +32,6 @@ const pullRequestSchema = Schema.Struct({
   url: Schema.String,
 })
 const pullRequestListJsonSchema = Schema.parseJson(Schema.Array(pullRequestSchema))
-const manifestJsonSchema = Schema.parseJson(
-  Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-)
 
 export type AppReleasePullRequest = typeof pullRequestSchema.Type
 

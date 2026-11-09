@@ -138,9 +138,11 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
 async function runBump(paths: TrainPaths, stepEnv: NodeJS.ProcessEnv) {
   const bumpOutputsPath = path.join(paths.directory, 'bump-outputs')
   const bump = await runStep(await workflowStep(BUMP_STEP), paths.runner, { ...stepEnv, GITHUB_OUTPUT: bumpOutputsPath })
-  if (!bump.succeeded) throw new Error(`The bump step failed:\n${bump.stderr}`)
   const outputs = await readIfPresent(bumpOutputsPath)
   return {
+    succeeded: bump.succeeded,
+    stdout: bump.stdout,
+    stderr: bump.stderr,
     shouldRelease: /^should_release=(.*)$/mu.exec(outputs)?.[1] ?? '',
     version: /^new_version=(.*)$/mu.exec(outputs)?.[1] ?? '',
   }
@@ -204,13 +206,14 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
       TEST_RELEASES: paths.releases,
       TEST_RELEASES_UNREADABLE: String(options.releasesUnreadable === true),
     }
-    const bump = options.run.kind === 'merge' ? await runBump(paths, stepEnv) : { shouldRelease: '', version: '' }
-    const releaseVersion = releaseVersionOf(options.run, bump.version)
+    const bump = options.run.kind === 'merge' ? await runBump(paths, stepEnv) : null
+    const releaseVersion = releaseVersionOf(options.run, bump?.version ?? '')
     const releaseBranch = `app-release-v${releaseVersion}`
-    const result = await runStep(await workflowStep(RELEASE_STEP), paths.runner, {
+    // A failed bump step fails the job, so the release step never runs.
+    const result = bump?.succeeded === false ? bump : await runStep(await workflowStep(RELEASE_STEP), paths.runner, {
       ...stepEnv,
-      BUMP_SHOULD_RELEASE: bump.shouldRelease,
-      BUMP_VERSION: bump.version,
+      BUMP_SHOULD_RELEASE: bump?.shouldRelease ?? '',
+      BUMP_VERSION: bump?.version ?? '',
       RELEASE_TARGET_VERSION: options.run.kind === 'dispatch' ? options.run.targetVersion : '',
       GITHUB_OUTPUT: paths.outputs,
       MACOS_SIGNING_CONFIGURED: String(options.macosSigning ?? true),
@@ -220,8 +223,10 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
     })
     const missing = () => null
     return {
-      ...result,
-      bumpVersion: bump.version,
+      succeeded: result.succeeded,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      bumpVersion: bump?.version ?? '',
       mainSha,
       tags: await remoteTags(git, paths.remote),
       outputs: await readIfPresent(paths.outputs),

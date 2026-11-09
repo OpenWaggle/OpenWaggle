@@ -5,7 +5,7 @@
 import { Schema } from 'effect'
 
 export const APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
-const ROOT_MANIFEST_PATH = 'package.json'
+export const ROOT_MANIFEST_PATH = 'package.json'
 const RELEASE_CANDIDATE_TAG_PATTERN = /^v(?<core>\d+\.\d+\.\d+)-rc\.(?<sequence>\d+)$/u
 /**
  * Paths that never enter a desktop app artifact, so they may change between RC and Stable. The
@@ -28,7 +28,7 @@ const MAJOR_RELEASE_PATTERN = /^\d+\.0\.0$/u
 const gitHubReleaseLineSchema = Schema.parseJson(
   Schema.Struct({ tag_name: Schema.String, draft: Schema.Boolean }),
 )
-const manifestJsonSchema = Schema.parseJson(
+export const manifestJsonSchema = Schema.parseJson(
   Schema.Record({ key: Schema.String, value: Schema.Unknown }),
 )
 
