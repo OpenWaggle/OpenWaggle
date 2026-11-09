@@ -205,4 +205,13 @@ describe('Session image send failure ownership', () => {
       }),
     ).toEqual({ kind: 'restore', contextKey: 'session:created-session:pending' })
   })
+
+  it('ends the Host’s words with a full stop when they have none', () => {
+    expect(
+      disposition({ cause: new MessageNotDelivered('refused', 'Session not found', 'not_found') }),
+    ).toEqual({
+      kind: 'restore',
+      notice: 'Not sent: Session not found. Your message is back in the composer.',
+    })
+  })
 })

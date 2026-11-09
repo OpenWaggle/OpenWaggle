@@ -3,8 +3,8 @@ import { parseJsonUnknown } from '@shared/schema'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import {
-  isAgentsScheduledTaskRunKey,
   isScheduledTaskRunKey,
+  scheduledTaskRunWork,
 } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import { SETTINGS_KEY_SESSION_HOST_RUN_CEILING } from '../store/settings/keys'
@@ -34,9 +34,9 @@ export function isPersonCaller(sql: SqlClient.SqlClient, caller: RunCaller) {
   if (caller.hiveWake || !isLocalUserCallerId(caller.callerId)) return Effect.succeed(false)
   const { idempotencyKey } = caller
   if (!isScheduledTaskRunKey(idempotencyKey)) return Effect.succeed(true)
-  if (isAgentsScheduledTaskRunKey(idempotencyKey)) return Effect.succeed(false)
-  // An unmarked key is the person's, or a firing from before keys were marked; then its task
-  // says, while it still exists.
+  const work = scheduledTaskRunWork(idempotencyKey)
+  if (work) return Effect.succeed(work === 'person')
+  // A firing from before keys were marked: its task says, while it still exists.
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly creator_kind: string }>`
       SELECT tasks.creator_kind

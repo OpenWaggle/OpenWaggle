@@ -21,6 +21,16 @@ let temporaryRoot = ''
  * still runs, with a Follow-up from each of `callerIds` queued behind it, in order.
  */
 function workerEndingAtParentLimit(...callerIds: readonly string[]) {
+  return workerSettlingAtParentLimit({ callerIds, terminalStatus: 'completed' })
+}
+
+/** As `workerEndingAtParentLimit`, with how the Run ended and when each Follow-up was sent. */
+function workerSettlingAtParentLimit(input: {
+  readonly callerIds: readonly string[]
+  readonly terminalStatus: 'completed' | 'failed'
+  readonly acceptedAfterEnd?: boolean
+}) {
+  const { callerIds } = input
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* seedHive(sql, 1)
@@ -53,7 +63,8 @@ function workerEndingAtParentLimit(...callerIds: readonly string[]) {
         text: 'Next, please.',
         attachmentIds: [],
         callerId,
-        acceptedAt: position + 1,
+        // Sent after the Run was seen to end (at 2): a failed Run's explicit retry.
+        acceptedAt: input.acceptedAfterEnd ? position + 10 : position + 1,
         idempotencyKey: `key-${id}`,
       }
       yield* sql`
@@ -69,7 +80,7 @@ function workerEndingAtParentLimit(...callerIds: readonly string[]) {
       sessionId: SessionId('session-target'),
       runId: RunId('run-target'),
       nextRunId: RunId('run-after'),
-      terminalStatus: 'completed',
+      terminalStatus: input.terminalStatus,
       terminalEventAt: 2,
     })
     return { settled, after: yield* loadSessionControlState(sql, 'session-target') }
@@ -122,5 +133,28 @@ describe('Worker Run admission when a Run settles', () => {
       state: 'running',
       items: [{ id: 'next-1' }],
     })
+  })
+
+  it('pauses nothing when a Worker’s Run ends at its parent’s limit and nothing would start', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'nothing-next.sqlite'))
+    const result = await Effect.runPromise(workerEndingAtParentLimit().pipe(Effect.provide(layer)))
+
+    // A later Follow-up of the person's into this idle Worker must not find a capacity pause.
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue).toMatchObject({ state: 'running', items: [] })
+  })
+
+  it('keeps a failed Run’s pause reason when its agent retry waits at the parent’s limit', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'failed-retry.sqlite'))
+    const result = await Effect.runPromise(
+      workerSettlingAtParentLimit({
+        callerIds: [AGENT_CALLER],
+        terminalStatus: 'failed',
+        acceptedAfterEnd: true,
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue).toMatchObject({ state: 'paused', pauseReason: 'run-failed' })
   })
 })

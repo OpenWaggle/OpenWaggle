@@ -247,10 +247,11 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
         const repository = yield* SessionLifecycleRepository
         // An active Worker fills a ceiling of 1.
         yield* repository.execute(spawnLifecycleInput())
-        const agentKey = scheduledTaskRunKey('agent-task-run')
-        const personKey = scheduledTaskRunKey('person-task-run')
+        const agentKey = scheduledTaskRunKey('agent-task-run', 'agents')
+        // The person's own task, or the person's Run now of any task: marked as the person's.
+        const personKey = scheduledTaskRunKey('person-task-run', 'person')
         yield* seedScheduledFiring(sql, agentKey, 'session-agent', 'session-parent')
-        yield* seedScheduledFiring(sql, personKey, 'local-user', 'session-parent')
+        yield* seedScheduledFiring(sql, personKey, 'session-agent', 'session-parent')
         const fire = (key: string, base: ReturnType<typeof rootLifecycleInput>) =>
           repository.execute({
             ...base,

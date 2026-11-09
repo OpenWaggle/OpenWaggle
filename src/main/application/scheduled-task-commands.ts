@@ -9,6 +9,7 @@ import {
 } from '@shared/types/scheduled-task'
 import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
+import type { ScheduledTaskRunWork } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { authorizeSessionCapabilities } from '../domain/session-control/session-capability-authorization'
 import {
   type ScheduledTaskRecord,
@@ -121,13 +122,22 @@ function deleteTask(principal: ScheduledTaskPrincipal, taskId: string) {
   })
 }
 
+/**
+ * Whose work a Run now is: the person's when the person asked, whoever made the task, and an
+ * agent's or client profile's when one did, so the Worker limits treat it as theirs (ADR 0030).
+ */
+export function runNowWork(
+  principal: Pick<ScheduledTaskPrincipal, 'creator'>,
+): ScheduledTaskRunWork {
+  return principal.creator.kind === 'local-user' ? 'person' : 'agents'
+}
+
 function runNow(principal: ScheduledTaskPrincipal, taskId: string) {
   return Effect.gen(function* () {
     const repository = yield* ScheduledTaskRepository
     const record = yield* repository.get(taskId)
     if (!record || !visible(principal, record)) return notFound()
-    const runNowBy = principal.creator.kind === 'local-user' ? 'person' : 'agents'
-    const accepted = yield* scheduledTaskHooks().requestRunNow(taskId, runNowBy)
+    const accepted = yield* scheduledTaskHooks().requestRunNow(taskId, runNowWork(principal))
     if (accepted === 'busy') {
       return rejectedOutcome('run_already_in_progress', 'This task is already running.')
     }

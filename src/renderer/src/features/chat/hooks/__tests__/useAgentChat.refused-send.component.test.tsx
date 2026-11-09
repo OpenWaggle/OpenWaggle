@@ -10,6 +10,8 @@ import {
   createDeferred,
   createSession,
   createSessionWithIdAndMessages,
+  emitAgentEvent,
+  emitRunCompleted,
   firstSendRecoveryCalls,
   installUseAgentChatTestLifecycle,
   SEND_PAYLOAD,
@@ -109,5 +111,38 @@ describe('useAgentChat send the Session Host refused', () => {
     expect(result.current.status).toBe('submitted')
     expect(result.current.isLoading).toBe(true)
     later.resolve({ outcome: 'queued' })
+  })
+
+  it('shows no error of its own when its Run failed before the Host refused it', async () => {
+    const report = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockImplementationOnce(() => report.promise)
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+
+    await act(async () => {
+      void result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
+    })
+    // A Waggle that failed before it reached the agent: its Run ends in error, then the Host
+    // reports the send refused.
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'agent_end',
+          runId: 'run-x',
+          reason: 'error',
+          error: { message: 'boom' },
+          timestamp: 1,
+        },
+      })
+      emitRunCompleted({ sessionId: SESSION_ID })
+    })
+    await act(async () => {
+      report.resolve({ outcome: 'refused', message: 'boom', code: 'waggle_failed' })
+    })
+
+    // The composer says why; an error banner here would offer Retry for the message before it.
+    expect(result.current.error).toBeUndefined()
+    expect(result.current.status).toBe('ready')
+    expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
   })
 })

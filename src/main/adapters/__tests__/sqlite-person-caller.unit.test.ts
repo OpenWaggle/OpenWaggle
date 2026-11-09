@@ -22,14 +22,23 @@ function layer(name: string) {
   return makeSessionControlTestLayer(path.join(temporaryRoot, name))
 }
 
-/** A Heartbeat firing into `session-target`, a Worker at a full ceiling, as its owner. */
-function heartbeatIntoFullWorker(creatorKind: 'local-user' | 'session-agent') {
-  const key = scheduledTaskRunKey('fired')
+/**
+ * A Heartbeat firing into `session-target` at a full ceiling, as its owner: `work` is whose work
+ * the firing's key marks (undefined: a key from before keys were marked), `creatorKind` who made
+ * the task, and `inWorker` whether the target is a Worker.
+ */
+function heartbeatAtFullCeiling(
+  work: 'person' | 'agents' | undefined,
+  creatorKind: 'local-user' | 'session-agent',
+  options: { readonly inWorker?: boolean; readonly taskDeleted?: boolean } = {},
+) {
+  const key = work ? scheduledTaskRunKey('fired', work) : 'scheduled-task-run:fired'
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* seedHive(sql, 2)
-    yield* makeTargetAWorker(sql)
+    if (options.inWorker ?? true) yield* makeTargetAWorker(sql)
     yield* seedScheduledFiring(sql, key, creatorKind)
+    if (options.taskDeleted) yield* sql`DELETE FROM scheduled_tasks`
     return yield* submitSessionMessage({
       callerId: 'local-user',
       hostRunCeiling: 2,
@@ -80,7 +89,9 @@ describe('isPersonCaller', () => {
 
   it('holds an agent-created Heartbeat to the Worker limits, though it fires as the owner', async () => {
     const result = await Effect.runPromise(
-      heartbeatIntoFullWorker('session-agent').pipe(Effect.provide(layer('agent-task.sqlite'))),
+      heartbeatAtFullCeiling('agents', 'session-agent').pipe(
+        Effect.provide(layer('agent-task.sqlite')),
+      ),
     )
 
     expect(result.outcome).toMatchObject({
@@ -91,7 +102,9 @@ describe('isPersonCaller', () => {
 
   it('starts a Heartbeat the person created, however busy the Hive', async () => {
     const result = await Effect.runPromise(
-      heartbeatIntoFullWorker('local-user').pipe(Effect.provide(layer('person-task.sqlite'))),
+      heartbeatAtFullCeiling('person', 'local-user').pipe(
+        Effect.provide(layer('person-task.sqlite')),
+      ),
     )
 
     expect(result.outcome).toMatchObject({ effect: 'started-run' })
@@ -122,12 +135,43 @@ describe('isPersonCaller', () => {
             return yield* countActiveWorkerRuns(sql)
           })
         return {
-          person: yield* count(scheduledTaskRunKey('person'), 'local-user'),
-          agent: yield* count(scheduledTaskRunKey('agent'), 'session-agent'),
+          person: yield* count(scheduledTaskRunKey('person', 'person'), 'local-user'),
+          agent: yield* count(scheduledTaskRunKey('agent', 'agents'), 'session-agent'),
         }
       }).pipe(Effect.provide(layer('task-count.sqlite'))),
     )
 
     expect(result).toEqual({ person: 0, agent: 1 })
+  })
+
+  it('starts the person’s Run now of an agent’s task in a root at a full ceiling', async () => {
+    const result = await Effect.runPromise(
+      heartbeatAtFullCeiling('person', 'session-agent', { inWorker: false }).pipe(
+        Effect.provide(layer('person-run-now.sqlite')),
+      ),
+    )
+
+    expect(result.outcome).toMatchObject({ effect: 'started-run' })
+  })
+
+  it('holds an agent’s firing to the limits by its key, even once its task is deleted', async () => {
+    const result = await Effect.runPromise(
+      heartbeatAtFullCeiling('agents', 'session-agent', {
+        inWorker: false,
+        taskDeleted: true,
+      }).pipe(Effect.provide(layer('agent-task-deleted.sqlite'))),
+    )
+
+    expect(result.outcome).toMatchObject({ effect: 'rejected', code: 'host_run_ceiling_reached' })
+  })
+
+  it('judges a firing from before keys were marked by its task', async () => {
+    const result = await Effect.runPromise(
+      heartbeatAtFullCeiling(undefined, 'session-agent', { inWorker: false }).pipe(
+        Effect.provide(layer('legacy-key.sqlite')),
+      ),
+    )
+
+    expect(result.outcome).toMatchObject({ effect: 'rejected', code: 'host_run_ceiling_reached' })
   })
 })

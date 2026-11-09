@@ -151,8 +151,9 @@ export interface Settings {
   readonly sessionHostParentConcurrencyLimitsByProject: Readonly<Record<string, number>>
   /**
    * App-global maximum number of active Runs of agents' work: every Worker's Run, and any Run an
-   * agent, a client profile or an agent's Scheduled task started. The person's own Runs never
-   * count toward it and are never refused by it.
+   * agent, a client profile or an agent's Scheduled task started. The person's Runs count only in
+   * Workers, and a message, Follow-up or queue action from the person is never refused by it; a
+   * spawn is, whoever asks.
    */
   readonly sessionHostRunCeiling: number
   /** How long an idle Session Host remains alive after its final liveness owner disappears. */

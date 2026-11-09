@@ -136,13 +136,20 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
     for (const completion of held.splice(0)) route(completion)
   }
 
+  /**
+   * `refused`: a failure this send's own Run reported meanwhile (a Waggle that failed before it
+   * reached the agent) is the refusal the composer explains, so it is not left on screen.
+   */
   function handBack(
     refs: ForegroundRunRefs,
     targetSessionId: SessionId,
     setters: ForegroundRunSetters,
+    options: { readonly refused?: boolean } = {},
   ) {
     handedBack = true
     const completedMeanwhile = settled !== null || held.length > 0
+    const failedMeanwhile =
+      settled?.error !== undefined || held.some((completion) => completion.error)
     if (settled) forwardToPrevious(settled.error ? { error: settled.error } : {})
     for (const completion of held.splice(0)) forwardToPrevious(completion)
     // A later send that began meanwhile owns the foreground: what is on screen is its own.
@@ -155,6 +162,12 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
       refs.terminalRunErrorRef.current ??= previous.terminalRunError
     }
     if (laterSendOwnsForeground || refs.currentSessionIdRef.current !== targetSessionId) return
+    if (options.refused && failedMeanwhile) {
+      refs.terminalRunErrorRef.current = previous.terminalRunError
+      setters.setError(previous.error)
+      setters.setStatus(previous.status)
+      return
+    }
     restoreVisibleRunState(refs, previous, completedMeanwhile, setters)
   }
 
@@ -217,14 +230,17 @@ export function beginForegroundRun(
  * and Stop over a message the agent never got. If the Host has already started a queued one as
  * the next Run, its row is that Run's incorporated user message and stays.
  */
-export function forgetSendWithoutRun(input: {
-  readonly refs: ForegroundRunRefs
-  readonly setters: ForegroundRunSetters
-  readonly targetSessionId: SessionId
-  readonly run: ForegroundRun
-  readonly optimisticMessageId: UIMessage['id']
-}) {
-  input.run.handBack(input.refs, input.targetSessionId, input.setters)
+export function forgetSendWithoutRun(
+  input: {
+    readonly refs: ForegroundRunRefs
+    readonly setters: ForegroundRunSetters
+    readonly targetSessionId: SessionId
+    readonly run: ForegroundRun
+    readonly optimisticMessageId: UIMessage['id']
+  },
+  options: { readonly refused?: boolean } = {},
+) {
+  input.run.handBack(input.refs, input.targetSessionId, input.setters, options)
   dropOptimisticSend(input)
 }
 
@@ -244,7 +260,7 @@ export function settleSendWithoutRun(
       return undefined
     })
     .with('refused', () => {
-      forgetSendWithoutRun(sent)
+      forgetSendWithoutRun(sent, { refused: true })
       return new MessageNotDelivered('refused', report.message, report.code)
     })
     .with('cancelled', () => new MessageNotDelivered('cancelled', report.message))

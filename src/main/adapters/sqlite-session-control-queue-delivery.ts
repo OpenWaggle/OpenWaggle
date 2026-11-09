@@ -153,7 +153,8 @@ export function deliverAfterQueueDecision(
         )
     if (refusal) {
       // Both Worker limits pause as `parent-limit`, a reason every binary decodes: it marks a
-      // queue that waits on capacity, which the person's next Follow-up delivers again.
+      // queue that waits on capacity, delivered again when the Session's Run settles with the
+      // person's Follow-up in it, or when the person resumes it.
       const paused = pauseUndeliveredQueue(authorized, 'parent-limit')
       return { ...decision, state: paused, outcome: queueUpdated(operation, paused, withdrawn) }
     }

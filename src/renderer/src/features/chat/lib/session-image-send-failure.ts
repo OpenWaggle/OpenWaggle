@@ -28,6 +28,12 @@ const REFUSAL_REASONS: ReadonlyMap<string, string> = new Map([
   ['host_draining', 'the Session Host is restarting; send it again in a moment.'],
 ])
 
+/** Ends the Host's words with a full stop when they have none, so the toast reads as two sentences. */
+function asSentence(words: string) {
+  const trimmed = words.trim()
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`
+}
+
 /**
  * The toast for any other send the Session Host refused. Without it the message came back to the
  * composer with no word of why, which read as the app ignoring the person.
@@ -36,7 +42,8 @@ export function refusedSendNotice(refusal: MessageNotDelivered) {
   const readable =
     refusal.message !== DEFAULT_NOT_DELIVERED_MESSAGE && refusal.message !== refusal.code
   // The Host's own words when it wrote some, as for a Waggle it could not start; else its code.
-  if (readable) return `Not sent: ${refusal.message} Your message is back in the composer.`
+  if (readable)
+    return `Not sent: ${asSentence(refusal.message)} Your message is back in the composer.`
   const reason = refusal.code ? REFUSAL_REASONS.get(refusal.code) : undefined
   if (reason) return `Not sent: ${reason} Your message is back in the composer.`
   if (refusal.code) {

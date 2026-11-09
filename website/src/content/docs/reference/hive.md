@@ -194,7 +194,7 @@ The parent hears about every result and every request for help as an update from
 
 OpenWaggle starts that run only when all of these hold:
 
-- The parent has no active run and no queued follow-up.
+- The parent has no active run and no queued follow-up, unless its queue is paused at the worker limits.
 - The parent is not archived.
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.

@@ -13,7 +13,7 @@ import { withForegroundSend } from '../state/foreground-send-store'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { useRunFinishingStore } from '../state/run-finishing-store'
 import { settledSessionSettingWrites } from '../state/session-setting-writes'
-import { isRefusalWithoutLaunch } from './first-send-undelivered'
+import { forgetRefusedFirstMessage } from './first-send-undelivered'
 import {
   beginForegroundRun,
   clearRunPointers,
@@ -166,6 +166,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     const run = beginForegroundRun(refs, params, targetSessionId)
     const sent = { refs, setters: params, targetSessionId, run, optimisticMessageId }
     const runPromise = run.promise
+    // Awaited only once the Host starts the Run; its Run can fail before the report arrives.
+    void runPromise.catch(() => undefined)
     // The Host reads the Session's model and thinking level at Run start: store a fresh pick first.
     await settledSessionSettingWrites(targetSessionId)
     requestDesktopNotificationPermissionOnce()
@@ -195,8 +197,6 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         await runPromise
         return
       }
-      // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
-      void runPromise.catch(() => undefined)
       reportWithoutRun = report
     } catch (runError) {
       const normalizedError = normalizeError(runError)
@@ -277,8 +277,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
     ).catch((error: unknown) => {
       // Refused before any Run: the message goes back to the composer, so nothing is to recover.
-      if (params.isFirstMessage && isRefusalWithoutLaunch(error, sessionId)) {
-        params.setFirstSendRecovery(sessionId, null)
+      if (params.isFirstMessage) {
+        forgetRefusedFirstMessage(error, sessionId, params.setFirstSendRecovery)
       }
       throw error
     })

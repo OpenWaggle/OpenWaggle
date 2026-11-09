@@ -8,7 +8,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
 import { hiveWakeRefusal } from '../sqlite-hive-wake-admission'
 import { loadSessionControlState } from '../sqlite-session-control-state'
-import { runHiveWakeTest, settleParentRun, submit } from './sqlite-hive-parent-wake-test-support'
+import {
+  candidate,
+  runHiveWakeTest,
+  settleParentRun,
+  submit,
+} from './sqlite-hive-parent-wake-test-support'
 import { seedScheduledFiring } from './sqlite-worker-run-admission.test-support'
 
 /**
@@ -126,5 +131,43 @@ describe('Hive wake and the Worker ceiling', () => {
         wakeAtFullCeiling(false, { work: 'person', taskDeleted: true }, 3),
       ),
     ).toBeUndefined()
+  })
+
+  it('still wakes a Queen whose agent Follow-up waits on capacity, and not one with a running queue', async () => {
+    const queued = (queueState: 'paused' | 'running', pauseReason: string | null) =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* settleParentRun(sql, { callerId: 'gui:local-user' })
+        const intent = {
+          text: 'From an agent.',
+          attachmentIds: [],
+          callerId: 'transient-mcp:digest-agent',
+          acceptedAt: 2000,
+          idempotencyKey: 'key-agent',
+        }
+        yield* sql`
+          INSERT INTO session_follow_ups (
+            id, session_id, position, delivery_state, intent_json, created_at, updated_at
+          ) VALUES (
+            ${'agent-item'}, ${'session-parent'}, ${0}, ${'pending'}, ${JSON.stringify(intent)},
+            ${2000}, ${2000}
+          )
+        `
+        yield* sql`
+          UPDATE session_control_states
+          SET queue_state = ${queueState}, queue_pause_reason = ${pauseReason}
+          WHERE session_id = ${'session-parent'}
+        `
+        yield* submit(3000)
+        return yield* candidate()
+      })
+
+    expect(await runHiveWakeTest(root, queued('paused', 'parent-limit'))).toMatchObject({
+      parentSessionId: 'session-parent',
+    })
+    await fs.rm(root, { recursive: true, force: true })
+    root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-wake-ceiling-'))
+    // A running queue delivers its Follow-up instead, which carries the updates.
+    expect(await runHiveWakeTest(root, queued('running', null))).toBeUndefined()
   })
 })

@@ -133,7 +133,7 @@ export function planRunSettlement(
     const settled = settleSessionRun(state, input.runId)
     if (!settled.accepted) return { ...settled, scheduled: undefined }
     // A failed Run's queue keeps its failure reason: its Follow-ups wait for an explicit Resume,
-    // and a capacity pause is one the person's next Follow-up delivers again.
+    // while a capacity pause is delivered again at a settlement once it holds the person's.
     const reason =
       input.terminalStatus === 'completed'
         ? 'parent-limit'
@@ -161,8 +161,8 @@ export function planRunSettlement(
  * Plans the settlement, deferring the next Run when it is agents' work and a Worker limit is full
  * (ADR 0030, amended 2026-11-09). The person's Follow-up runs next whatever the limits, and so
  * does one an agent queued ahead of the person's: a queue delivers in order. A queue that waits
- * on capacity (`parent-limit`) with the person's Follow-up in it is delivered again for the
- * same reason, so the person's message never waits on agents' work.
+ * on capacity (`parent-limit`) with the person's Follow-up in it is delivered again here, at the
+ * Session's settlement, for the same reason. A settlement that starts nothing pauses nothing.
  */
 export function planRunSettlementWithinParentLimit(
   sql: SqlClient.SqlClient,
@@ -183,14 +183,14 @@ export function planRunSettlementWithinParentLimit(
     ) {
       return planned
     }
+    // Nothing starts, so nothing waits: the queue is left as the settlement planned it.
+    if (!nextRun) return planned
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
     if (!parentAdmission.admitted) return planRunSettlement(state, input, true)
     // The settling Run's own slot passes to the next one, so only other Sessions' Runs count.
-    if (nextRun) {
-      const ceiling = yield* storedHostRunCeiling(sql)
-      if ((yield* countActiveWorkerRuns(sql, input.sessionId)) >= ceiling) {
-        return planRunSettlement(state, input, true)
-      }
+    const ceiling = yield* storedHostRunCeiling(sql)
+    if ((yield* countActiveWorkerRuns(sql, input.sessionId)) >= ceiling) {
+      return planRunSettlement(state, input, true)
     }
     return planned
   })

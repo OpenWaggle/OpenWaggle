@@ -75,7 +75,10 @@ const {
       }),
   )
   // Read outside React by the refused-send path: no Session here has a worktree launch.
-  const backgroundRunStoreState = { getWorktreeLaunch: (_id: SessionId) => null }
+  const backgroundRunStoreState = {
+    getWorktreeLaunch: (_id: SessionId) => null,
+    setWorktreeLaunch: vi.fn((_id: SessionId, _launch: null) => undefined),
+  }
   Object.assign(useBackgroundRunStoreMock, { getState: () => backgroundRunStoreState })
   const upsertSessionMock = vi.fn()
   const useChatStoreMock = vi.fn(

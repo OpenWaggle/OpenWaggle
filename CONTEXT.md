@@ -241,7 +241,7 @@ The user-configurable maximum number of child sessions that one parent session m
 _Avoid_: hard-coded worker count, host-wide limit, queued spawn count
 
 **Host run ceiling**:
-The app-global user-configurable maximum number of active runs of agents' work (every Worker's run, and any run an agent, a client profile or an agent's task started) owned by one Session Host. The person's own runs never count toward it outside Workers, and a run the person starts is never refused by it. Settings calls it **Active Workers**.
+The app-global user-configurable maximum number of active runs of agents' work (every Worker's run, and any run an agent, a client profile or an agent's task started) owned by one Session Host. The person's own runs count toward it only in Workers, and a message, Follow-up or queue action from the person is never refused by it; a spawn is, whoever asks. Settings calls it **Active Workers**.
 _Avoid_: workspace limit, provider rate limit, session count, hidden run queue, limit on the person's sessions
 
 **Live orchestration smoke suite**:

@@ -33,11 +33,20 @@ export function forgetUndeliveredFirstSend(
   })
 }
 
-/** A refusal whose draft the composer takes back; a worktree launch's row keeps it instead. */
-export function isRefusalWithoutLaunch(error: unknown, sessionId: SessionId) {
-  return (
-    error instanceof MessageNotDelivered &&
-    error.outcome === 'refused' &&
-    useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === null
-  )
+/**
+ * A refused first message in a Session that already exists goes back to the composer, which
+ * restores it there whatever launch it had. So nothing else may offer to send it again: its
+ * first-send recovery and its worktree launch row (Retry, Work locally) both go, or the message
+ * could be sent twice. Returns whether the error was such a refusal.
+ */
+export function forgetRefusedFirstMessage(
+  error: unknown,
+  sessionId: SessionId,
+  setFirstSendRecovery: (sessionId: SessionId, recovery: null) => void,
+) {
+  if (!(error instanceof MessageNotDelivered) || error.outcome !== 'refused') return false
+  setFirstSendRecovery(sessionId, null)
+  const runs = useBackgroundRunStore.getState()
+  if (runs.getWorktreeLaunch(sessionId) !== null) runs.setWorktreeLaunch(sessionId, null)
+  return true
 }
