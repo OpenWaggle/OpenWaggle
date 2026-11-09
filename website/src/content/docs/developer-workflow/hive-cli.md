@@ -455,7 +455,7 @@ The current local session protocol revision is 31, and the Session Host accepts 
 | 8 | Steering receipts. |
 | 7 | MCP authorization. |
 
-Revision 31 added [desktop notifications](/docs/using-openwaggle/notifications) and their settings. The Session Host sends an event when it shows or withdraws a notification. When the app connects, it reads the notifications still waiting to set its badge.
+Revision 31 added [desktop notifications](/docs/using-openwaggle/notifications) and their settings. The Session Host sends an event when it shows or withdraws a notification. When the app connects, it reads the notifications that are still waiting and sets its badge from them.
 
 Revision 30 added the worktree list in **Settings > Worktrees**, measuring the space a worktree frees, **Archive & remove**, and the record of automatic worktree removal.
 

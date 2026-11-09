@@ -27,18 +27,22 @@ function stringPattern(value: unknown) {
   return new RegExp(pattern, 'u')
 }
 
-/** Keywords whose values the runtime parser decides; both schemas must agree on each of them. */
-const CONTRACT_KEYWORDS = [
-  'type',
-  'const',
-  'enum',
-  'format',
-  'minLength',
-  'maxLength',
-  'minimum',
-  'maxItems',
-  'additionalProperties',
-] as const
+/**
+ * Keywords left out of the comparison. Annotations and references change nothing a document may
+ * contain (references are resolved before comparing), and patterns are compared on their own below:
+ * the parser enforces names and non-whitespace strings in code, and the tests above check those.
+ */
+const IGNORED_KEYWORDS = new Set([
+  '$schema',
+  '$id',
+  '$defs',
+  '$ref',
+  'title',
+  'description',
+  'pattern',
+])
+/** Keywords whose value is a schema, or a list of schemas, to compare the same way. */
+const SUBSCHEMA_KEYWORDS = new Set(['items', 'not', 'anyOf', 'oneOf', 'allOf'])
 
 function resolveLocalReference(root: Record<string, unknown>, node: Record<string, unknown>) {
   const reference = node.$ref
@@ -47,31 +51,36 @@ function resolveLocalReference(root: Record<string, unknown>, node: Record<strin
   return record(record(root.$defs)[name])
 }
 
-/**
- * Reduces a JSON Schema node to the parts the runtime parser decides, so the hand-written published
- * schema and the one Zod generates from the parser compare field by field. Patterns are left out:
- * the parser enforces names and non-whitespace strings in code, and the tests above check those.
- * An enum or const already fixes its type, so `type` is dropped there; Zod's implicit
- * `Number.MAX_SAFE_INTEGER` bound on integers is dropped too.
+function keywordContract(root: Record<string, unknown>, keyword: string, value: unknown): unknown {
+  if (keyword === 'properties') {
+    return Object.fromEntries(
+      Object.entries(record(value))
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, property]) => [key, contractOf(root, property)]),
+    )
+  }
+  if (keyword === 'required' && Array.isArray(value)) return [...value].sort()
+  if (!SUBSCHEMA_KEYWORDS.has(keyword)) return value
+  return Array.isArray(value)
+    ? value.map((subschema) => contractOf(root, subschema))
+    : contractOf(root, value)
+}
+
+/**, so the hand-written published schema and the one
+ * Zod generates from the parser compare keyword by keyword, in both directions: a keyword only one
+ * of them has fails the comparison. An enum or const already fixes its type, so `type` is dropped
+ * there. Zod's implicit `Number.MAX_SAFE_INTEGER` bound on integers is dropped too.
  */
 function contractOf(root: Record<string, unknown>, value: unknown): Record<string, unknown> {
   const node = resolveLocalReference(root, record(value))
   const contract: Record<string, unknown> = {}
-  for (const keyword of CONTRACT_KEYWORDS) {
-    if (node[keyword] !== undefined) contract[keyword] = node[keyword]
+  for (const [keyword, keywordValue] of Object.entries(node)) {
+    if (IGNORED_KEYWORDS.has(keyword)) continue
+    contract[keyword] = keywordContract(root, keyword, keywordValue)
   }
   if (contract.enum !== undefined || contract.const !== undefined) delete contract.type
-  if (contract.type === 'integer' && node.maximum === Number.MAX_SAFE_INTEGER) {
+  if (contract.type === 'integer' && contract.maximum === Number.MAX_SAFE_INTEGER) {
     delete contract.maximum
-  }
-  if (Array.isArray(node.required)) contract.required = [...node.required].sort()
-  if (node.items !== undefined) contract.items = contractOf(root, node.items)
-  if (node.properties !== undefined) {
-    contract.properties = Object.fromEntries(
-      Object.entries(record(node.properties))
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, property]) => [key, contractOf(root, property)]),
-    )
   }
   return contract
 }
@@ -115,9 +124,14 @@ describe('published Agent definition schema', () => {
       'lpt9.output',
       'COM1',
       '-invalid',
+      'a'.repeat(80),
+      'a'.repeat(81),
+      `r${'-'.repeat(78)}r`,
     ]) {
       expect(publishedNamePattern.test(candidate), candidate).toBe(isAgentDefinitionName(candidate))
     }
+    expect(isAgentDefinitionName('a'.repeat(80))).toBe(true)
+    expect(isAgentDefinitionName('a'.repeat(81))).toBe(false)
   })
 
   it('matches runtime non-whitespace requirements for user-authored strings', async () => {
