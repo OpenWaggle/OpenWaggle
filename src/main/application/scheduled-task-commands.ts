@@ -126,7 +126,8 @@ function runNow(principal: ScheduledTaskPrincipal, taskId: string) {
     const repository = yield* ScheduledTaskRepository
     const record = yield* repository.get(taskId)
     if (!record || !visible(principal, record)) return notFound()
-    const accepted = yield* scheduledTaskHooks().requestRunNow(taskId)
+    const runNowBy = principal.creator.kind === 'local-user' ? 'person' : 'agents'
+    const accepted = yield* scheduledTaskHooks().requestRunNow(taskId, runNowBy)
     if (accepted === 'busy') {
       return rejectedOutcome('run_already_in_progress', 'This task is already running.')
     }

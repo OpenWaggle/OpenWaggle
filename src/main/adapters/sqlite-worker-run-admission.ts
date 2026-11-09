@@ -2,8 +2,12 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
-import { isScheduledTaskRunKey } from '../domain/scheduled-tasks/scheduled-task-run-key'
+import {
+  isAgentsScheduledTaskRunKey,
+  isScheduledTaskRunKey,
+} from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
+import { SETTINGS_KEY_SESSION_HOST_RUN_CEILING } from '../store/settings/keys'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
 /** Why the Host would not start an agent's Run now. Both are retryable. */
@@ -30,6 +34,9 @@ export function isPersonCaller(sql: SqlClient.SqlClient, caller: RunCaller) {
   if (caller.hiveWake || !isLocalUserCallerId(caller.callerId)) return Effect.succeed(false)
   const { idempotencyKey } = caller
   if (!isScheduledTaskRunKey(idempotencyKey)) return Effect.succeed(true)
+  if (isAgentsScheduledTaskRunKey(idempotencyKey)) return Effect.succeed(false)
+  // An unmarked key is the person's, or a firing from before keys were marked; then its task
+  // says, while it still exists.
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly creator_kind: string }>`
       SELECT tasks.creator_kind
@@ -38,8 +45,7 @@ export function isPersonCaller(sql: SqlClient.SqlClient, caller: RunCaller) {
       WHERE task_runs.idempotency_key = ${idempotencyKey}
       LIMIT 1
     `
-    // A firing whose task is gone is held to the agents' rule: the safe side for a limit.
-    return rows[0]?.creator_kind === 'local-user'
+    return rows[0] === undefined || rows[0].creator_kind === 'local-user'
   })
 }
 
@@ -61,34 +67,33 @@ export function isPersonRun(
   // work it is comes from that Run: an agent's Scheduled task fires as its local-user owner.
   return Effect.gen(function* () {
     const continued = yield* latestRunCallerBeforeWakes(sql, session.sessionId)
-    return continued ? yield* isPersonCaller(sql, continued) : true
+    // A wake continues some Run; with none to read, it is held to the agents' rule.
+    return continued ? yield* isPersonCaller(sql, continued) : false
   })
 }
 
-/** How many of a Session's latest Runs a wake looks through for the one it continues. */
-const WAKE_ORIGIN_LOOKBACK = 32
-
-/** The caller of the Session's latest Run that was not a Hive wake, by its stored intent. */
+/**
+ * The caller of the Session's latest Run that was not a Hive wake, by its stored intent: the Run
+ * a wake continues. The `(session_id, updated_at, id)` index walks back only past the wakes.
+ */
 function latestRunCallerBeforeWakes(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<{
       readonly caller_id: string | null
       readonly idempotency_key: string | null
-      readonly hive_wake: number | null
     }>`
       SELECT
         CASE WHEN json_valid(intent_json)
           THEN json_extract(intent_json, '$.callerId') END AS caller_id,
         CASE WHEN json_valid(intent_json)
-          THEN json_extract(intent_json, '$.idempotencyKey') END AS idempotency_key,
-        CASE WHEN json_valid(intent_json)
-          THEN json_extract(intent_json, '$.hiveWake') END AS hive_wake
+          THEN json_extract(intent_json, '$.idempotencyKey') END AS idempotency_key
       FROM session_runs
       WHERE session_id = ${sessionId}
+        AND NOT (json_valid(intent_json) AND json_extract(intent_json, '$.hiveWake') IS NOT NULL)
       ORDER BY updated_at DESC, id DESC
-      LIMIT ${WAKE_ORIGIN_LOOKBACK}
+      LIMIT 1
     `
-    const continued = rows.find((row) => !row.hive_wake)
+    const continued = rows[0]
     if (typeof continued?.caller_id !== 'string') return undefined
     return typeof continued.idempotency_key === 'string'
       ? { callerId: continued.caller_id, idempotencyKey: continued.idempotency_key }
@@ -121,8 +126,28 @@ function isWorkerSession(sql: SqlClient.SqlClient, sessionId: string) {
   )
 }
 
+/**
+ * Whether a root Session's active Run row is agents' work, or soon will be: an agent's claimed
+ * `replace` holds that Session's slot from its claim, before the Run it starts is written.
+ */
+function isAgentsWorkRow(sql: SqlClient.SqlClient, row: ActiveRunRow) {
+  return Effect.gen(function* () {
+    if (row.agents_replacing === 1) return true
+    // A Run whose intent names no caller is from before intents did, and was the person's.
+    if (typeof row.caller_id !== 'string') return false
+    const caller: RunCaller = {
+      callerId: row.caller_id,
+      ...(typeof row.idempotency_key === 'string' ? { idempotencyKey: row.idempotency_key } : {}),
+      ...(row.hive_wake ? { hiveWake: true as const } : {}),
+    }
+    return !(yield* isPersonRun(sql, caller, { sessionId: row.session_id, inWorker: false }))
+  })
+}
+
 interface ActiveRunRow {
   readonly session_id: string
+  /** An agent's `replace` is claimed and will start its Run here (`isLocalUserCallerId` in SQL). */
+  readonly agents_replacing: number
   readonly caller_id: string | null
   readonly idempotency_key: string | null
   readonly hive_wake: number | null
@@ -149,26 +174,24 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
         EXISTS (
           SELECT 1 FROM session_spawn_lineage AS lineage
           WHERE lineage.child_session_id = states.session_id
-        ) AS in_worker
+        ) AS in_worker,
+        EXISTS (
+          SELECT 1 FROM session_operations AS operations
+          WHERE operations.target_scope = states.session_id
+            AND operations.operation = 'replace'
+            AND operations.status = 'pending'
+            AND NOT (
+              operations.caller_id IN ('local-user', 'gui:local-user')
+              OR operations.caller_id LIKE 'local-user:%'
+            )
+        ) AS agents_replacing
       FROM session_control_states AS states
       LEFT JOIN session_runs AS runs ON runs.id = states.active_run_id
       WHERE states.active_run_id IS NOT NULL AND states.session_id <> ${exceptSessionId ?? ''}
     `
     let count = 0
     for (const row of rows) {
-      if (row.in_worker === 1) {
-        count += 1
-        continue
-      }
-      // A Run whose intent names no caller is from before intents did, and was the person's.
-      if (typeof row.caller_id !== 'string') continue
-      const caller: RunCaller = {
-        callerId: row.caller_id,
-        ...(typeof row.idempotency_key === 'string' ? { idempotencyKey: row.idempotency_key } : {}),
-        ...(row.hive_wake ? { hiveWake: true as const } : {}),
-      }
-      const session = { sessionId: row.session_id, inWorker: false }
-      if (!(yield* isPersonRun(sql, caller, session))) count += 1
+      if (row.in_worker === 1 || (yield* isAgentsWorkRow(sql, row))) count += 1
     }
     return count
   })
@@ -212,7 +235,9 @@ export function workerRunAdmissionRefusal(
 export function storedHostRunCeiling(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly value_json: string }>`
-      SELECT value_json FROM settings_store WHERE key = ${'sessionHostRunCeiling'} LIMIT 1
+      SELECT value_json FROM settings_store
+      WHERE key = ${SETTINGS_KEY_SESSION_HOST_RUN_CEILING}
+      LIMIT 1
     `
     const value = rows[0] ? parseJsonUnknown(rows[0].value_json) : undefined
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0

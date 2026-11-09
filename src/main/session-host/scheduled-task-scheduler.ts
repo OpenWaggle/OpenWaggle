@@ -8,6 +8,7 @@ import {
   type HeartbeatRunEnd,
   installScheduledTaskHooks,
 } from '../application/scheduled-task-hooks'
+import type { ScheduledTaskRunWork } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { createLogger } from '../logger'
 import { ScheduledTaskRepository } from '../ports/scheduled-task-repository'
 import { fireScheduledTask } from './scheduled-task-firing'
@@ -128,6 +129,7 @@ function runNow(
   state: SchedulerState,
   context: Context.Context<FiringDependencies>,
   taskId: string,
+  runNowBy: ScheduledTaskRunWork,
 ) {
   return Effect.sync(() => {
     if (state.inProgress.has(taskId)) return 'busy' as const
@@ -137,7 +139,7 @@ function runNow(
       const repository = yield* ScheduledTaskRepository
       const record = yield* repository.get(taskId)
       if (!record) return
-      yield* fireScheduledTask(sql, { record, trigger: 'run-now', now: Date.now() })
+      yield* fireScheduledTask(sql, { record, trigger: 'run-now', now: Date.now(), runNowBy })
     }).pipe(
       Effect.catchAllCause((cause) =>
         Effect.sync(() =>
@@ -190,7 +192,7 @@ export const runScheduledTaskSchedulerBackground = Effect.gen(function* () {
   }
   const releaseHooks = installScheduledTaskHooks({
     tasksChanged: () => state.wake?.(),
-    requestRunNow: (taskId) => runNow(sql, state, context, taskId),
+    requestRunNow: (taskId, runNowBy) => runNow(sql, state, context, taskId, runNowBy),
     runWakeCheck: runHostWakeCheck,
     heartbeatRunEnded: (end) => settleRunEnd(context, end),
   })

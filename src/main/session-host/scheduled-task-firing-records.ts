@@ -10,7 +10,10 @@ import {
   markScheduledTaskWaiting,
 } from '../application/scheduled-task-bookkeeping'
 import { scheduledTaskHooks } from '../application/scheduled-task-hooks'
-import { scheduledTaskRunKey } from '../domain/scheduled-tasks/scheduled-task-run-key'
+import {
+  type ScheduledTaskRunWork,
+  scheduledTaskRunKey,
+} from '../domain/scheduled-tasks/scheduled-task-run-key'
 import {
   type ScheduledTaskRecord,
   ScheduledTaskRepository,
@@ -36,8 +39,11 @@ export function newRunStart(
   timing: ReturnType<typeof firingTiming>,
   now: number,
   previous: { readonly sessionId?: string; readonly firedAt: number } | null,
+  runNowBy?: ScheduledTaskRunWork,
 ): ScheduledTaskRunStart {
   const id = scheduledTaskHooks().newId()
+  // A Run now is whoever asked for it; a scheduled firing is the work of whoever made the task.
+  const work = runNowBy ?? (record.creator.kind === 'local-user' ? 'person' : 'agents')
   return {
     id,
     taskId: record.id,
@@ -46,7 +52,7 @@ export function newRunStart(
     nominalAt: timing.nominalAt,
     firedAt: now,
     missedCount: timing.missedCount,
-    idempotencyKey: scheduledTaskRunKey(id),
+    idempotencyKey: scheduledTaskRunKey(id, work),
     callerId: record.creatorCallerId,
     previousSessionId: previous?.sessionId ?? null,
     previousFiredAt: previous?.firedAt ?? null,

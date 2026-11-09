@@ -3,6 +3,7 @@ import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import { machineTimeZone } from '@shared/utils/zoned-time'
 import * as Effect from 'effect/Effect'
+import type { ScheduledTaskRunWork } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import type {
   WakeCheckExecution,
   WakeCheckRequest,
@@ -34,7 +35,11 @@ export interface ScheduledTaskHooks {
   readonly newId: () => string
   readonly defaultTimeZone: () => string
   readonly tasksChanged: () => void
-  readonly requestRunNow: (taskId: string) => Effect.Effect<'accepted' | 'busy' | 'unavailable'>
+  /** `runNowBy`: the person asked, or an agent or client profile did (whose work the run is). */
+  readonly requestRunNow: (
+    taskId: string,
+    runNowBy: ScheduledTaskRunWork,
+  ) => Effect.Effect<'accepted' | 'busy' | 'unavailable'>
   /** The Authorization mode a Run of this Session would use for this caller, read now. */
   readonly sessionAuthorizationMode: (
     sessionId: string,

@@ -10,6 +10,7 @@ import {
   firingTiming,
 } from '../application/scheduled-task-bookkeeping'
 import { scheduledTaskRunPayload } from '../application/scheduled-task-target-authorization'
+import type { ScheduledTaskRunWork } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { PiSessionFiles } from '../ports/pi-session-discovery'
 import {
   type ScheduledTaskRecord,
@@ -186,6 +187,8 @@ export function fireScheduledTask(
     readonly record: ScheduledTaskRecord
     readonly trigger: 'schedule' | 'run-now'
     readonly now: number
+    /** Whose work a Run now is: the person's, or the agent's or profile's that asked for it. */
+    readonly runNowBy?: ScheduledTaskRunWork
   },
 ) {
   return Effect.gen(function* () {
@@ -204,7 +207,7 @@ export function fireScheduledTask(
       record,
       now,
       timing,
-      run: newRunStart(record, timing, now, previous),
+      run: newRunStart(record, timing, now, previous, input.runNowBy),
     }
     if (!resolution.live) {
       return yield* stopWithAttention(firing, 'creator-authority-revoked', resolution.message)

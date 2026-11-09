@@ -132,9 +132,15 @@ export function planRunSettlement(
   if (deferForParentLimit) {
     const settled = settleSessionRun(state, input.runId)
     if (!settled.accepted) return { ...settled, scheduled: undefined }
+    // A failed Run's queue keeps its failure reason: its Follow-ups wait for an explicit Resume,
+    // and a capacity pause is one the person's next Follow-up delivers again.
+    const reason =
+      input.terminalStatus === 'completed'
+        ? 'parent-limit'
+        : PAUSE_REASON_BY_TERMINAL_STATUS[input.terminalStatus]
     return {
       ...settled,
-      state: pauseRunningQueue(settled.state, input.nextRunId, 'parent-limit'),
+      state: pauseRunningQueue(settled.state, input.nextRunId, reason),
       scheduled: undefined,
     }
   }
@@ -169,7 +175,12 @@ export function planRunSettlementWithinParentLimit(
     const planned = planRunSettlement(state, input, false)
     const nextRun = planned.accepted ? planned.scheduled : undefined
     if (nextRun && (yield* isPersonCaller(sql, nextRun.intent))) return planned
-    if (nextRun && (yield* holdsPersonFollowUp(sql, planned.state.followUpQueue.items))) {
+    const queueRuns = planned.state.followUpQueue.state === 'running'
+    if (
+      nextRun &&
+      queueRuns &&
+      (yield* holdsPersonFollowUp(sql, planned.state.followUpQueue.items))
+    ) {
       return planned
     }
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)

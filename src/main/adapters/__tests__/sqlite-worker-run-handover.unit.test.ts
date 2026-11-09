@@ -25,7 +25,7 @@ let temporaryRoot = ''
  */
 function personRunAtFullCeiling(
   callerIds: readonly string[],
-  queue: { readonly pausedForCapacity?: boolean } = {},
+  queue: { readonly pausedForCapacity?: boolean; readonly runCallerId?: string } = {},
 ) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
@@ -44,7 +44,7 @@ function personRunAtFullCeiling(
     const personIntent = {
       text: 'Mine.',
       attachmentIds: [],
-      callerId: 'gui:local-user',
+      callerId: queue.runCallerId ?? 'gui:local-user',
       acceptedAt: 1,
       idempotencyKey: 'key-mine',
     }
@@ -100,25 +100,30 @@ function settleTarget(sql: SqlClient.SqlClient) {
   })
 }
 
-function replaceTarget(callerId: string) {
+function replaceTarget(
+  callerId: string,
+  sessionId = 'session-target',
+  runId = 'run-target',
+  hostRunCeiling = 2,
+) {
   return Effect.gen(function* () {
     const journal = yield* SessionControlOperationJournal
     return yield* journal.claim({
       callerId,
       request: {
         contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-        requestId: 'request-replace',
-        idempotencyKey: 'idempotency-replace',
+        requestId: `request-replace-${sessionId}`,
+        idempotencyKey: `idempotency-replace-${sessionId}`,
         command: {
           operation: 'replace',
-          sessionId: 'session-target',
-          expectedRunId: 'run-target',
+          sessionId,
+          expectedRunId: runId,
           input: { text: 'Do this instead.', attachmentIds: [] },
         },
       },
       replacementRun: {
-        caller: { callerId, idempotencyKey: 'idempotency-replace' },
-        hostRunCeiling: 2,
+        caller: { callerId, idempotencyKey: `idempotency-replace-${sessionId}` },
+        hostRunCeiling,
       },
       decide: (state) => ({ accepted: true, state }),
     })
@@ -197,5 +202,51 @@ describe('Worker limits when one Run hands a Session to the next', () => {
     )
 
     expect(claim).toMatchObject({ status: 'claimed' })
+  })
+
+  it('passes the settling agent’s slot to the next agent’s Follow-up at a full ceiling', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-to-agent.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        // Two Workers and this agent's Run fill a ceiling of 3; the next agent Run takes its slot.
+        const sql = yield* personRunAtFullCeiling([AGENT_CALLER], { runCallerId: AGENT_CALLER })
+        yield* storeHostRunCeiling(sql, 3)
+        return yield* settleTarget(sql)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.after.run).toMatchObject({ state: 'starting', runId: 'run-after' })
+    expect(result.activeWorkerRuns).toBe(3)
+  })
+
+  it('holds the last slot for an agent’s claimed replacement until its Run starts', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'replace-race.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* personRunAtFullCeiling([])
+        // One slot free: the person's two Sessions run Runs that use none.
+        yield* storeHostRunCeiling(sql, 3)
+        yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'session-other'}, ${'/project'})`
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (${'run-other'}, ${'session-other'}, ${'active'}, ${null}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+          ) VALUES (${'session-other'}, ${1}, ${'run-other'}, ${'running'}, ${0}, ${1})
+        `
+        const first = yield* replaceTarget(AGENT_CALLER, 'session-target', 'run-target', 3)
+        const second = yield* replaceTarget(AGENT_CALLER, 'session-other', 'run-other', 3)
+        return { first, second, activeWorkerRuns: yield* countActiveWorkerRuns(sql) }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.first).toMatchObject({ status: 'claimed' })
+    expect(result.second).toMatchObject({
+      status: 'completed',
+      outcome: { effect: 'rejected', code: 'host_run_ceiling_reached' },
+    })
+    expect(result.activeWorkerRuns).toBe(3)
   })
 })

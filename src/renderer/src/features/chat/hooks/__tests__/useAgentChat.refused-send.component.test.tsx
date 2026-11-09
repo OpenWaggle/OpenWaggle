@@ -1,3 +1,4 @@
+import type { AgentSendReport } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
@@ -6,6 +7,7 @@ import { MessageNotDelivered } from '../../lib/message-delivery'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 import {
   apiMock,
+  createDeferred,
   createSession,
   createSessionWithIdAndMessages,
   firstSendRecoveryCalls,
@@ -75,5 +77,37 @@ describe('useAgentChat send the Session Host refused', () => {
     const recoveries = firstSendRecoveryCalls.filter(([id]) => id === SESSION_ID)
     expect(recoveries.at(0)?.[1]).toMatchObject({ payload: SEND_PAYLOAD })
     expect(recoveries.at(-1)?.[1]).toBeNull()
+  })
+
+  it('leaves a later send on screen when an earlier send’s refusal arrives after Stop', async () => {
+    const earlier = createDeferred<AgentSendReport>()
+    const later = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockImplementationOnce(() => earlier.promise)
+    apiMock.sendMessage.mockImplementationOnce(() => later.promise)
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+
+    await act(async () => {
+      void result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
+    })
+    await act(async () => {
+      result.current.stop()
+    })
+    await act(async () => {
+      void result.current.sendMessage({ ...SEND_PAYLOAD, text: 'Later.' }).catch(() => undefined)
+    })
+    expect(result.current.status).toBe('submitted')
+
+    await act(async () => {
+      earlier.resolve({
+        outcome: 'refused',
+        message: 'queue_capacity_reached',
+        code: 'queue_capacity_reached',
+      })
+    })
+
+    // The later send still owns the Session: it is still waiting for its Run.
+    expect(result.current.status).toBe('submitted')
+    expect(result.current.isLoading).toBe(true)
+    later.resolve({ outcome: 'queued' })
   })
 })

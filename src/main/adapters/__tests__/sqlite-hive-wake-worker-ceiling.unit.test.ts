@@ -16,20 +16,26 @@ import { seedScheduledFiring } from './sqlite-worker-run-admission.test-support'
  * Host starts one: the idle parent's Worker has reported, the wake acts for the person who ran
  * the parent last, and that Worker's own active Run fills a Worker ceiling of 1.
  */
-function wakeAtFullCeiling(parentIsWorker: boolean, latestRunFiredByAgentTask = false) {
+function wakeAtFullCeiling(
+  parentIsWorker: boolean,
+  latestRunFiredBy?: { readonly work: 'person' | 'agents'; readonly taskDeleted?: boolean },
+  priorWakes = 0,
+) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* settleParentRun(sql, { callerId: 'local-user' })
-    if (latestRunFiredByAgentTask) {
-      // An agent's Launch schedule made this Queen: its Run fired as the local-user owner.
-      const key = scheduledTaskRunKey('agent-launch')
-      yield* seedScheduledFiring(sql, key, 'session-agent', 'session-parent')
+    if (latestRunFiredBy) {
+      // A Launch schedule made this Queen: its Run fired as the local-user owner.
+      const { work } = latestRunFiredBy
+      const key = scheduledTaskRunKey('launch', work)
+      const creator = work === 'person' ? 'local-user' : 'session-agent'
+      yield* seedScheduledFiring(sql, key, creator, 'session-parent')
+      if (latestRunFiredBy.taskDeleted) yield* sql`DELETE FROM scheduled_tasks`
       yield* sql`
         UPDATE session_runs SET intent_json = json_set(intent_json, '$.idempotencyKey', ${key})
         WHERE id = ${'run-parent'}
       `
     }
-    yield* submit(3000)
     if (parentIsWorker) {
       // A Worker's admission reads its parent's Worker limit from the app settings.
       yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS settings_store (
@@ -50,6 +56,18 @@ function wakeAtFullCeiling(parentIsWorker: boolean, latestRunFiredByAgentTask = 
         )
       `
     }
+    for (let index = 0; index < priorWakes; index += 1) {
+      const wake = { callerId: 'local-user', idempotencyKey: `hive-wake:${index}`, hiveWake: true }
+      yield* sql`
+        INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+        VALUES (
+          ${`run-wake-${index}`}, ${'session-parent'}, ${'completed'}, ${JSON.stringify(wake)},
+          ${100 + index}, ${100 + index}
+        )
+      `
+    }
+    // Earlier wakes the Queen already ran, then the Worker update this wake acts on.
+    yield* submit(3000)
     const idle = yield* loadSessionControlState(sql, 'session-parent')
     const waking = {
       ...idle,
@@ -90,8 +108,23 @@ describe('Hive wake and the Worker ceiling', () => {
   })
 
   it('holds the wake of a Queen an agent’s Launch schedule made, though it fired as the owner', async () => {
-    expect(await runHiveWakeTest(root, wakeAtFullCeiling(false, true))).toBe(
+    expect(await runHiveWakeTest(root, wakeAtFullCeiling(false, { work: 'agents' }))).toBe(
       'host_run_ceiling_reached',
     )
+  })
+
+  it('still holds that Queen’s wake after many wakes in a row', async () => {
+    expect(await runHiveWakeTest(root, wakeAtFullCeiling(false, { work: 'agents' }, 40))).toBe(
+      'host_run_ceiling_reached',
+    )
+  })
+
+  it('wakes a Queen the person’s Launch schedule made, even after the schedule is deleted', async () => {
+    expect(
+      await runHiveWakeTest(
+        root,
+        wakeAtFullCeiling(false, { work: 'person', taskDeleted: true }, 3),
+      ),
+    ).toBeUndefined()
   })
 })

@@ -135,8 +135,8 @@ export function MultiAgentAccessCard() {
       <div className="flex flex-col gap-0.5">
         <h2 className="text-sm font-semibold text-text-primary">Hive controls</h2>
         <p className="text-xs text-text-tertiary">
-          Control agent-created Workers and how much agents' work runs at once. Runs you start are
-          never limited.
+          Control agent-created Workers and how much agents' work runs at once. Messages you send
+          are never refused by these limits; starting a Worker is agents' work.
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
@@ -167,7 +167,7 @@ export function MultiAgentAccessCard() {
         </SettingRow>
         <SettingRow
           label="Active Workers"
-          description="Most runs of agents' work at once: every Worker's run, and any run an agent or client starts."
+          description="Most runs of agents' work at once: every Worker's run, and any run an agent, access profile or MCP client starts."
           last
         >
           <NumberStepper

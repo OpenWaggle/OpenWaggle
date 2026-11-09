@@ -145,13 +145,16 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
     const completedMeanwhile = settled !== null || held.length > 0
     if (settled) forwardToPrevious(settled.error ? { error: settled.error } : {})
     for (const completion of held.splice(0)) forwardToPrevious(completion)
+    // A later send that began meanwhile owns the foreground: what is on screen is its own.
+    const laterSendOwnsForeground =
+      refs.pendingRunWaiterRef.current !== null && refs.pendingRunWaiterRef.current !== tracked
     if (refs.pendingRunWaiterRef.current === tracked) {
       refs.pendingRunWaiterRef.current = previous.waiter
       refs.foregroundStreamActiveRef.current = previous.foregroundStreamActive
       refs.foregroundSessionIdRef.current = previous.foregroundSessionId
       refs.terminalRunErrorRef.current ??= previous.terminalRunError
     }
-    if (refs.currentSessionIdRef.current !== targetSessionId) return
+    if (laterSendOwnsForeground || refs.currentSessionIdRef.current !== targetSessionId) return
     restoreVisibleRunState(refs, previous, completedMeanwhile, setters)
   }
 
