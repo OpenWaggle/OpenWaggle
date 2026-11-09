@@ -11,7 +11,7 @@ This page lists every event, field and value that OpenWaggle's anonymous usage s
 
 | Field | Values |
 | --- | --- |
-| `version` | App version, such as `1.0.0-beta.4` |
+| `version` | App version, such as `1.0.0` |
 | `build_channel` | Channel of the build you run: `stable`, `beta`, `rc` or `alpha` |
 | `update_channel` | Update channel you follow: `stable`, `beta` or `alpha` |
 | `os` | `darwin` for macOS, `win32` for Windows, or `linux` |
