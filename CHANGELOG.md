@@ -78,7 +78,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 [Desktop notifications](https://openwaggle.ai/docs/using-openwaggle/notifications) are new. OpenWaggle shows a notification and plays a sound when a session needs you or has finished, so you can work in another app while it runs.
 
 - Four kinds notify. Needs you is for a session that waits for your approval or your answer, Workers included, and for a stuck Worker. The other three are Ready to read, Failed or interrupted, and Agent errors. They notify for a top-level session's run that you or a Scheduled task started, not for runs that another agent started. Failed or interrupted also covers a Scheduled task that OpenWaggle turned off because it needs your attention, unless it is a Heartbeat whose session you archived. A run you stopped never notifies.
-- The Session Host sends them, so they keep coming with every window closed. Clicking one opens OpenWaggle on that session.
+- The Session Host sends them, so they keep coming with every window closed. Clicking one about a session opens OpenWaggle on that session.
 - A session has at most one notification. Opening the session clears it, except Needs you, which stays until you answer the request or the Worker is no longer stuck. Archiving the session clears it too.
 - Settings > Notifications turns each kind on or off, picks its sound, and sets what happens while OpenWaggle is focused. Show badge counts your notifications on the Dock icon, or shows a red dot on Windows. Show previews is off by default, so message text stays off your lock screen.
 - Mute a session or a project from its menu in the sidebar. A muted session still notifies when it needs you.
