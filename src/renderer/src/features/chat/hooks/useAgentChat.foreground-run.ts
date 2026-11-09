@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
@@ -231,15 +232,20 @@ export function forgetSendWithoutRun(input: {
  */
 export function settleSendWithoutRun(
   sent: Parameters<typeof forgetSendWithoutRun>[0],
-  report: AgentSendReport | undefined,
-) {
-  if (!report || report.outcome === 'delivered') return undefined
-  if (report.outcome === 'queued') {
-    forgetSendWithoutRun(sent)
-    return undefined
-  }
-  if (report.outcome === 'refused') forgetSendWithoutRun(sent)
-  return new MessageNotDelivered(report.outcome, report.message, report.code)
+  report: AgentSendReport,
+): MessageNotDelivered | undefined {
+  return match(report.outcome)
+    .with('delivered', () => undefined)
+    .with('queued', () => {
+      forgetSendWithoutRun(sent)
+      return undefined
+    })
+    .with('refused', () => {
+      forgetSendWithoutRun(sent)
+      return new MessageNotDelivered('refused', report.message, report.code)
+    })
+    .with('cancelled', () => new MessageNotDelivered('cancelled', report.message))
+    .exhaustive()
 }
 
 /**

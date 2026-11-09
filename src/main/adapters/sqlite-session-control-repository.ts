@@ -32,6 +32,14 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
+/** Who sent a mutation's request, as the capacity rule reads it. */
+function requestCallerOf(input: {
+  readonly callerId: string
+  readonly request: { readonly idempotencyKey: string }
+}) {
+  return { callerId: input.callerId, idempotencyKey: input.request.idempotencyKey }
+}
+
 function isQueueMutation(operation: string) {
   return (
     operation === 'queue-withdraw' ||
@@ -185,12 +193,13 @@ function executeMutation(
         const startsNewRun =
           decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
         const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
+        const requestCaller = requestCallerOf(input)
         // This mutation starts the wake; any other one landing while a wake starts is ordinary.
         const startsWake = startsNewRun && startsHiveWake(decision.state)
         const refusal = startsWake
           ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
           : startsNewRun
-            ? yield* newRunAdmissionRefusal(sql, decision.state, hostRunCeiling)
+            ? yield* newRunAdmissionRefusal(sql, decision.state, hostRunCeiling, requestCaller)
             : undefined
         const admittedDecision = refusal
           ? ({
@@ -202,6 +211,7 @@ function executeMutation(
               operation,
               nextRunId: input.nextRunId,
               hostRunCeiling,
+              requestCaller,
             })
         if (admittedDecision.accepted) {
           yield* persistAndRecordStop(sql, state, admittedDecision.state, input.callerId, now)

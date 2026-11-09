@@ -20,7 +20,7 @@ import { releaseDeliveredSteerAttachments } from './session-control-attachment-r
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
-import { isPersonStartedRun } from './sqlite-worker-run-admission'
+import { isPersonCaller } from './sqlite-worker-run-admission'
 
 const QUEUE_REVISION_INCREMENT = 1
 
@@ -160,7 +160,7 @@ export function planRunSettlementWithinParentLimit(
     const planned = planRunSettlement(state, input, false)
     if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
-    if (nextRun && isPersonStartedRun(nextRun.intent)) return planned
+    if (nextRun && (yield* isPersonCaller(sql, nextRun.intent))) return planned
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
     return parentAdmission.admitted ? planned : planRunSettlement(state, input, true)
   })

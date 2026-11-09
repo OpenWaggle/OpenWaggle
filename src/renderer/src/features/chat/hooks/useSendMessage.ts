@@ -29,9 +29,7 @@ import {
 } from '@/features/project-actions'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
-
-const logger = createRendererLogger('use-send-message')
+import { forgetUndeliveredFirstSend } from './first-send-undelivered'
 
 interface SendMessageDeps {
   readonly activeSessionId: SessionId | null
@@ -277,20 +275,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     } catch (error) {
       useFirstSendPendingStore.getState().clear(sessionId)
       if (config) useWaggleStore.getState().stopCollaboration(sessionId)
-      if (error instanceof MessageNotDelivered && error.outcome === 'cancelled') {
-        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
-      }
-      if (error instanceof MessageNotDelivered && error.outcome === 'refused') {
-        // Refused before any Run: the message goes back to the composer, so it leaves the
-        // transcript, and there is no launch to recover.
-        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
-        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
-        useOptimisticUserMessageStore.getState().remove(sessionId, optimisticUserMessage.id)
-      }
-      logger.error('First message send failed', {
-        sessionId: String(sessionId),
-        error: error instanceof Error ? error.message : String(error),
-      })
+      forgetUndeliveredFirstSend(sessionId, optimisticUserMessage.id, error)
       /*
        * Rethrown so the caller can react - a submitted review has to be restored, not silently lost - and
        * named with the session just created, because that is where the caller's work now belongs and it

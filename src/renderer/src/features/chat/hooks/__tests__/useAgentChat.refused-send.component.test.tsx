@@ -7,6 +7,8 @@ import { useOptimisticUserMessageStore } from '../../state/optimistic-user-messa
 import {
   apiMock,
   createSession,
+  createSessionWithIdAndMessages,
+  firstSendRecoveryCalls,
   installUseAgentChatTestLifecycle,
   SEND_PAYLOAD,
   useAgentChat,
@@ -54,5 +56,24 @@ describe('useAgentChat send the Session Host refused', () => {
     expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
     const optimistic = useOptimisticUserMessageStore.getState().messagesBySessionId.get(SESSION_ID)
     expect(visibleUserTexts(optimistic ?? [])).not.toContain(SEND_PAYLOAD.text)
+  })
+
+  it('leaves no first-send recovery behind for a refused first message', async () => {
+    apiMock.sendMessage.mockResolvedValueOnce({
+      outcome: 'refused',
+      message: 'host_run_ceiling_reached',
+      code: 'host_run_ceiling_reached',
+    })
+    const emptySession = createSessionWithIdAndMessages(SESSION_ID, 1, [])
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, emptySession, MODEL))
+
+    await act(async () => {
+      await result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
+    })
+
+    // Recorded before the send, then cleared: a restart must not offer Retry for this message.
+    const recoveries = firstSendRecoveryCalls.filter(([id]) => id === SESSION_ID)
+    expect(recoveries.at(0)?.[1]).toMatchObject({ payload: SEND_PAYLOAD })
+    expect(recoveries.at(-1)?.[1]).toBeNull()
   })
 })

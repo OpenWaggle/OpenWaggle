@@ -13,6 +13,24 @@ import {
 
 let temporaryRoot = ''
 
+/** A second launch of `first`, as its own Session and request. */
+function secondLaunch<Input extends ReturnType<typeof rootLifecycleInput>>(first: Input) {
+  return {
+    ...first,
+    request: {
+      ...first.request,
+      requestId: 'request-launch-second',
+      idempotencyKey: 'idempotency-launch-second',
+    },
+    session: {
+      sessionId: 'session-launch-second',
+      piSessionId: 'pi-launch-second',
+      piSessionFile: '/sessions/launch-second.jsonl',
+    },
+    runId: 'run-launch-second',
+  }
+}
+
 /*
  * The Host's run ceiling limits Worker Runs only (ADR 0030, amended 2026-11-09): a launched root
  * never meets it, and a spawn counts only the Worker Runs already active.
@@ -59,20 +77,7 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       Effect.gen(function* () {
         const repository = yield* SessionLifecycleRepository
         const first = rootLifecycleInput('launch')
-        const second = {
-          ...first,
-          request: {
-            ...first.request,
-            requestId: 'request-launch-second',
-            idempotencyKey: 'idempotency-launch-second',
-          },
-          session: {
-            sessionId: 'session-launch-second',
-            piSessionId: 'pi-launch-second',
-            piSessionFile: '/sessions/launch-second.jsonl',
-          },
-          runId: 'run-launch-second',
-        }
+        const second = secondLaunch(first)
         return yield* Effect.all(
           [
             repository.execute({ ...first, hostRunCeiling: 1 }),
@@ -130,5 +135,72 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       hostActiveRuns: 1,
     })
     expect(result.secondChildCount).toBe(0)
+  })
+
+  it('holds an agent’s launch to the Worker ceiling, counting the roots agents launched', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'agent-launch.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        const agent = 'transient-mcp:digest-agent'
+        // The parent is the person's: its Run uses no slot, so the first launch has one.
+        const first = yield* repository.execute({
+          ...rootLifecycleInput('launch'),
+          callerId: agent,
+          hostRunCeiling: 1,
+        })
+        const second = secondLaunch(rootLifecycleInput('launch'))
+        const refused = yield* repository.execute({ ...second, callerId: agent, hostRunCeiling: 1 })
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM sessions WHERE id = ${'session-launch-second'}
+        `
+        return { first, refused, secondCount: rows[0]?.count }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.first.outcome).toMatchObject({ effect: 'launched-root' })
+    expect(result.refused.outcome).toMatchObject({
+      operation: 'launch',
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+      hostRunCeiling: 1,
+      hostActiveRuns: 1,
+    })
+    expect(result.secondCount).toBe(0)
+  })
+
+  it('admits only one of two concurrent spawns into the last Worker slot', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'spawn-race.sqlite'))
+    const responses = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        const first = { ...spawnLifecycleInput(), hostRunCeiling: 1 }
+        const base = spawnLifecycleInput(4, 'A second Worker.')
+        const second = {
+          ...base,
+          request: {
+            ...base.request,
+            requestId: 'request-spawn-race',
+            idempotencyKey: 'idempotency-spawn-race',
+          },
+          session: {
+            sessionId: 'session-worker-race',
+            piSessionId: 'pi-worker-race',
+            piSessionFile: '/sessions/worker-race.jsonl',
+          },
+          runId: 'run-worker-race',
+          delegationId: 'delegation-worker-race',
+          derivedGrantId: 'grant-worker-race',
+          hostRunCeiling: 1,
+        }
+        return yield* Effect.all([repository.execute(first), repository.execute(second)], {
+          concurrency: 'unbounded',
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+
+    const effects = responses.map((response) => response.outcome.effect).sort()
+    expect(effects).toEqual(['rejected', 'spawned-worker'])
   })
 })

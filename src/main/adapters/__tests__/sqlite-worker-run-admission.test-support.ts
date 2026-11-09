@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
+import { SCHEDULED_TASK_MIGRATION } from '../../services/scheduled-task-migration'
 
 /** A caller that is not the person: an MCP client holding a transient authority. */
 export const AGENT_CALLER = 'transient-mcp:digest-agent'
@@ -86,4 +87,45 @@ export function targetRunCount(sql: SqlClient.SqlClient) {
     `,
     (rows) => rows[0]?.count ?? 0,
   )
+}
+
+/** A finished first Run in `session-target` that `callerId` started, which decides who made it. */
+export function seedFirstRun(sql: SqlClient.SqlClient, callerId: string) {
+  const intent = { text: 'First.', attachmentIds: [], callerId, acceptedAt: 1, idempotencyKey: 'k' }
+  return sql`
+    INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+    VALUES (
+      ${'run-first'}, ${'session-target'}, ${'completed'}, ${JSON.stringify(intent)}, ${1}, ${1}
+    )
+  `
+}
+
+/** A Scheduled task that `creatorKind` created, firing now with request key `key`. */
+export function seedScheduledFiring(
+  sql: SqlClient.SqlClient,
+  key: string,
+  creatorKind: 'local-user' | 'profile' | 'session-agent',
+) {
+  return Effect.gen(function* () {
+    for (const statement of SCHEDULED_TASK_MIGRATION.statements) yield* sql.unsafe(statement)
+    yield* sql`
+      INSERT INTO scheduled_tasks (
+        id, owner_key, creator_caller_id, creator_kind, creator_label, kind, name, prompt,
+        enabled, schedule_json, time_zone, anchor_at, target_session_id, target_json,
+        notification_policy, created_at, updated_at
+      ) VALUES (
+        ${'task'}, ${'local-user'}, ${'local-user'}, ${creatorKind}, ${'creator'}, ${'heartbeat'},
+        ${'Heartbeat'}, ${'Check in.'}, ${1}, ${'{}'}, ${'UTC'}, ${1}, ${'session-target'},
+        ${'{}'}, ${'every-run'}, ${1}, ${1}
+      )
+    `
+    yield* sql`
+      INSERT INTO scheduled_task_runs (
+        id, task_id, task_name, trigger, nominal_at, fired_at, status, idempotency_key, caller_id
+      ) VALUES (
+        ${'task-run'}, ${'task'}, ${'Heartbeat'}, ${'schedule'}, ${1}, ${1}, ${'dispatching'},
+        ${key}, ${'local-user'}
+      )
+    `
+  })
 }

@@ -13,7 +13,7 @@ import { PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX } from '../ports/pi-session-dis
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { loadSessionControlState } from './sqlite-session-control-state'
 import { lifecycleResponse, storeLifecycleOutcome } from './sqlite-session-lifecycle-support'
-import { countActiveWorkerRuns } from './sqlite-worker-run-admission'
+import { countActiveWorkerRuns, isPersonCaller } from './sqlite-worker-run-admission'
 
 const DEFAULT_PARENT_CONCURRENCY_LIMIT = 4
 const DEFAULT_HOST_RUN_CEILING = 16
@@ -138,6 +138,44 @@ function forkTarget(
   })
 }
 
+/**
+ * A launch starts a root Session's first Run. The person's launch is always admitted. An agent's
+ * or a client profile's makes an agent-made Session, which the Active Workers ceiling counts, so
+ * it waits for that ceiling like a spawn does (ADR 0030, amended 2026-11-09).
+ */
+function launchTarget(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  scope: string,
+  requestJson: string,
+  command: Extract<ExecuteInput['request']['command'], { readonly operation: 'launch' }>,
+) {
+  return Effect.gen(function* () {
+    const accepted = {
+      kind: 'accepted',
+      target: { projectPath: command.projectPath },
+    } satisfies LifecycleTargetResolution
+    const launcher = { callerId: input.callerId, idempotencyKey: input.request.idempotencyKey }
+    if (yield* isPersonCaller(sql, launcher)) return accepted
+    const hostActiveRuns = yield* countActiveWorkerRuns(sql)
+    const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING
+    if (hostActiveRuns < hostRunCeiling) return accepted
+    const outcome: SessionLifecycleOutcome = {
+      operation: 'launch',
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+      retryable: true,
+      hostRunCeiling,
+      hostActiveRuns,
+    }
+    yield* storeLifecycleOutcome(sql, input, scope, requestJson, outcome)
+    return {
+      kind: 'rejected',
+      response: lifecycleResponse(input, false, outcome),
+    } satisfies LifecycleTargetResolution
+  })
+}
+
 function spawnTarget(
   sql: SqlClient.SqlClient,
   input: ExecuteInput,
@@ -174,7 +212,7 @@ function spawnTarget(
           : { state: parentState.run.state, runId: parentState.run.runId },
       parentRunningChildren: runningChildRows[0]?.count ?? 0,
       parentConcurrencyLimit: input.parentConcurrencyLimit ?? DEFAULT_PARENT_CONCURRENCY_LIMIT,
-      // The Host's ceiling counts Worker Runs only; the person's Sessions never use a slot.
+      // The Active Workers ceiling counts agent-made Sessions' Runs; the person's never use a slot.
       hostActiveRuns: yield* countActiveWorkerRuns(sql),
       hostRunCeiling: input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING,
     })
@@ -232,9 +270,10 @@ function admittedSpawnTarget(
   return (
     matchBy(input.request.command, 'operation')
       .with('fork', (command) => forkTarget(sql, command))
+      .with('launch', (command) => launchTarget(sql, input, scope, requestJson, command))
       .with('spawn', (command) => spawnTarget(sql, input, scope, requestJson, command))
-      // A new root Session, created or launched, is the person's to have: no capacity limit applies.
-      .with('create', 'launch', (command) =>
+      // A created Session starts no Run, so no capacity limit applies to it.
+      .with('create', (command) =>
         Effect.succeed<LifecycleTargetResolution>({
           kind: 'accepted',
           target: { projectPath: command.projectPath },

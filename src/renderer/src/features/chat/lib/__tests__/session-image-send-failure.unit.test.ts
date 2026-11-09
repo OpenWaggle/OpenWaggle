@@ -145,6 +145,20 @@ describe('Session image send failure ownership', () => {
     ).toEqual({ kind: 'restore', contextKey: 'session:created-session:pending', notice })
   })
 
+  it('prefers the Host’s own words to its code', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'A steered message is still being delivered to the running agent.',
+      'follow_up_reserved',
+    )
+
+    expect(disposition({ cause: refusal })).toEqual({
+      kind: 'restore',
+      notice:
+        'Not sent: A steered message is still being delivered to the running agent. Your message is back in the composer.',
+    })
+  })
+
   it('says a code-less refusal’s own reason', () => {
     expect(
       disposition({ cause: new MessageNotDelivered('refused', 'Branch source is unavailable.') }),

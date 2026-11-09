@@ -27,6 +27,9 @@ function layer(name: string) {
   return followUpEditLayer(tmpRoot, name)
 }
 
+/** A caller that is not the person: an MCP client holding a transient authority. */
+const AGENT = 'transient-mcp:digest-agent'
+
 /** Fills a Run ceiling of one with a root Session's Run, which no longer counts. */
 const busyRoot = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
@@ -44,7 +47,7 @@ const busyRoot = Effect.gen(function* () {
 
 /**
  * Makes the target a Worker of the busy root and gives it an active sibling, so a Worker ceiling
- * of one is full, and has an agent author the Follow-up `agent-next`.
+ * of one is full, and has an agent author every queued Follow-up but `mine`.
  */
 const busyWorkerHive = Effect.gen(function* () {
   yield* busyRoot
@@ -71,8 +74,8 @@ const busyWorkerHive = Effect.gen(function* () {
   `
   yield* sql`
     UPDATE session_follow_ups
-    SET intent_json = json_set(intent_json, '$.callerId', ${'transient-mcp:digest-agent'})
-    WHERE session_id = ${SESSION} AND id = ${'agent-next'}
+    SET intent_json = json_set(intent_json, '$.callerId', ${AGENT})
+    WHERE session_id = ${SESSION} AND id <> ${'mine'}
   `
 })
 
@@ -172,18 +175,18 @@ describe('Follow-up edit holds do not strand a queue', () => {
     })
   })
 
-  it('pauses a Worker’s agent Follow-up instead of starting it at the Worker ceiling', async () => {
+  it('pauses a Worker’s agent Follow-up that an agent’s queue change would start at the ceiling', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* idleQueue([{ id: 'mine' }, { id: 'agent-next' }])
+        yield* idleQueue([{ id: 'agent-first' }, { id: 'agent-next' }])
         yield* busyWorkerHive
         const withdrawn = yield* mutateSessionQueue({
-          callerId: USER,
+          callerId: AGENT,
           hostRunCeiling: 1,
           request: request({
             operation: 'queue-withdraw',
             sessionId: SESSION,
-            followUpIds: ['mine'],
+            followUpIds: ['agent-first'],
           }),
         })
         return { withdrawn, after: yield* loadState() }
@@ -194,7 +197,7 @@ describe('Follow-up edit holds do not strand a queue', () => {
       operation: 'queue-withdraw',
       effect: 'queue-updated',
       queueState: 'paused',
-      withdrawnFollowUpIds: ['mine'],
+      withdrawnFollowUpIds: ['agent-first'],
     })
     // No pause reason: older binaries decode a missing reason, and none names the Host ceiling.
     expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
@@ -202,7 +205,7 @@ describe('Follow-up edit holds do not strand a queue', () => {
     expect(result.after.run).toEqual({ state: 'idle' })
   })
 
-  it('refuses to resume a Worker’s agent Follow-up at the Worker ceiling', async () => {
+  it('starts a Worker’s agent Follow-up when the person resumes it at the ceiling', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         yield* idleQueue([{ id: 'agent-next' }], 'paused')
@@ -221,13 +224,13 @@ describe('Follow-up edit holds do not strand a queue', () => {
       }).pipe(Effect.provide(layer('worker-ceiling-resume.sqlite'))),
     )
 
+    // The person's own queue action is never held back by the Worker limits.
     expect(result.resumed.outcome).toMatchObject({
       operation: 'queue-resume',
-      effect: 'rejected',
-      code: 'host_run_ceiling_reached',
+      effect: 'started-run',
+      followUpId: 'agent-next',
     })
-    expect(result.after.followUpQueue).toMatchObject({ state: 'paused' })
-    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.run).toMatchObject({ state: 'starting' })
   })
 
   it('starts a failed Run’s retry that waited behind a hold once the hold is released', async () => {

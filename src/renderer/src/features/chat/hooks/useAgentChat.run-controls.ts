@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
-import { MessageDeliveredRunFailed } from '../lib/message-delivery'
+import { MessageDeliveredRunFailed, MessageNotDelivered } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
@@ -76,6 +76,10 @@ interface AgentRunControlParams {
   readonly addOptimisticUserMessage: (sessionId: SessionId, message: UIMessage) => void
   readonly removeOptimisticUserMessage: (sessionId: SessionId, messageId: UIMessage['id']) => void
   readonly upsertSession: (session: SessionDetail) => void
+}
+
+function isRefusal(error: unknown) {
+  return error instanceof MessageNotDelivered && error.outcome === 'refused'
 }
 
 function resetRunUiState(params: AgentRunControlParams) {
@@ -238,7 +242,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * The caller is told, so work it submitted is not lost - a review is restored - but whether this is
      * worth showing the user is its decision, and a cancellation is not.
      */
-    const notDelivered = settleSendWithoutRun(sent, reportWithoutRun)
+    const notDelivered = reportWithoutRun && settleSendWithoutRun(sent, reportWithoutRun)
     if (notDelivered) throw notDelivered
   }
 
@@ -274,7 +278,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     )
     await withForegroundSend(sessionId, () =>
       dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
-    )
+    ).catch((error: unknown) => {
+      // Refused before any Run: the message goes back to the composer, so nothing is to recover.
+      if (params.isFirstMessage && isRefusal(error)) params.setFirstSendRecovery(sessionId, null)
+      throw error
+    })
     if (params.isFirstMessage) {
       params.setFirstSendRecovery(sessionId, null)
     }

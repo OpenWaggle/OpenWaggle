@@ -16,7 +16,7 @@ function repositoryError(operation: string, cause: unknown) {
 
 /**
  * An external Run (an explicit Waggle command's Run) follows the same capacity rule as any other:
- * only a Worker's Run that an agent starts can be refused, never the person's or a root Session's.
+ * only an agent's Run in an agent-made Session can be refused, never the person's.
  */
 export function externalRunAdmission(
   sql: SqlClient.SqlClient,
@@ -27,10 +27,10 @@ export function externalRunAdmission(
   },
 ) {
   return Effect.gen(function* () {
-    const { callerId, hiveWake } = input.intent
+    const { callerId, idempotencyKey, hiveWake } = input.intent
     const refusal = yield* workerRunAdmissionRefusal(sql, {
       sessionId: input.sessionId,
-      caller: hiveWake ? { callerId, hiveWake } : { callerId },
+      runCaller: hiveWake ? { callerId, idempotencyKey, hiveWake } : { callerId, idempotencyKey },
       hostRunCeiling: input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling,
     })
     return refusal ? ({ accepted: false, code: refusal } as const) : undefined

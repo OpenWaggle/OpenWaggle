@@ -8,13 +8,14 @@ import {
   queueSessionFollowUp,
   submitSessionMessage,
 } from '../../application/session-control-service'
-import { countActiveWorkerRuns, isPersonStartedRun } from '../sqlite-worker-run-admission'
+import { countActiveWorkerRuns } from '../sqlite-worker-run-admission'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 import {
   AGENT_CALLER,
   makeTargetAWorker,
   messageRequest,
   seedActiveSessions,
+  seedFirstRun,
   seedHive,
   targetRunCount,
 } from './sqlite-worker-run-admission.test-support'
@@ -73,21 +74,64 @@ describe('Worker Run admission', () => {
     expect(result.outcome).toMatchObject({ operation: 'follow-up', effect: 'started-run' })
   })
 
-  it('starts a root Session’s Run for any caller: only Worker Runs are limited', async () => {
-    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-root.sqlite'))
+  it('starts an agent’s Run in a root Session the person made, however busy the Hive', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-person-root.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHive(sql, 3)
+        yield* seedFirstRun(sql, 'gui:local-user')
         return yield* submitSessionMessage({
           callerId: AGENT_CALLER,
           hostRunCeiling: 3,
-          request: messageRequest('session-target', 'agent-root'),
+          request: messageRequest('session-target', 'agent-person-root'),
         })
       }).pipe(Effect.provide(layer)),
     )
 
     expect(result.outcome).toMatchObject({ effect: 'started-run' })
+  })
+
+  it('refuses an agent’s first Run in a root it made when the Worker ceiling is full', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-made-root.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHive(sql, 3)
+        // Created with no Run, then messaged by the agent: `create` and a message make a root
+        // the same way `launch` does, so the agent's Run is held to the ceiling.
+        const response = yield* submitSessionMessage({
+          callerId: AGENT_CALLER,
+          hostRunCeiling: 3,
+          request: messageRequest('session-target', 'agent-made-root'),
+        })
+        return { response, runs: yield* targetRunCount(sql) }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+    })
+    expect(result.runs).toBe(0)
+  })
+
+  it('counts an agent-made root’s active Run toward the Worker ceiling', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-root-count.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHive(sql, 1)
+        yield* seedFirstRun(sql, AGENT_CALLER)
+        yield* sql`
+          UPDATE session_control_states SET active_run_id = ${'run-first'}
+          WHERE session_id = ${'session-target'}
+        `
+        return yield* countActiveWorkerRuns(sql)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toBe(2)
   })
 
   it('refuses an agent’s Worker Run when the Worker ceiling is full', async () => {
@@ -154,20 +198,5 @@ describe('Worker Run admission', () => {
     )
 
     expect(result.outcome).toMatchObject({ effect: 'started-run' })
-  })
-})
-
-describe('isPersonStartedRun', () => {
-  it('is the person from the app, the CLI or another local-user client', () => {
-    expect(isPersonStartedRun({ callerId: 'gui:local-user' })).toBe(true)
-    expect(isPersonStartedRun({ callerId: 'local-user' })).toBe(true)
-    expect(isPersonStartedRun({ callerId: 'local-user:machine' })).toBe(true)
-  })
-
-  it('is not an agent, a client profile, or the Host waking a parent for the person', () => {
-    expect(isPersonStartedRun({ callerId: 'session-agent:queen:run-queen' })).toBe(false)
-    expect(isPersonStartedRun({ callerId: 'profile:ci' })).toBe(false)
-    expect(isPersonStartedRun({ callerId: AGENT_CALLER })).toBe(false)
-    expect(isPersonStartedRun({ callerId: 'gui:local-user', hiveWake: true })).toBe(false)
   })
 })

@@ -41,6 +41,16 @@ describe('Scheduled task run settlement', () => {
     expect(
       settlementOfDispatch(launchRejection('host_run_ceiling_reached')).attention,
     ).toBeUndefined()
+    // A Heartbeat on a Worker whose parent is at Workers per parent is skipped the same way.
+    expect(
+      settlementOfDispatch(controlRejection('parent_concurrency_limit_reached')),
+    ).toMatchObject({
+      run: {
+        status: 'skipped',
+        reason: 'host-capacity-reached',
+        message: 'The Hive was running as many Workers as it may.',
+      },
+    })
   })
 
   it('stops the task for problems the user must fix', () => {

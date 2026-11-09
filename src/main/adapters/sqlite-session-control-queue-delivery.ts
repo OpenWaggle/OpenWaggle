@@ -12,7 +12,7 @@ import {
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
-import { type StartingRunCaller, workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
+import { type RunCaller, workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 /**
  * Queue changes whose outcome can report the Run they start. After any of them the queue delivers
@@ -43,27 +43,30 @@ function isDeliveringOperation(
 }
 
 /**
- * The capacity rule for the Run `state` is starting: only a Worker's Run that an agent or the Host
- * starts can be refused (`sqlite-worker-run-admission.ts`). The person's Runs, and every root
- * Session's Run, are always admitted.
+ * The capacity rule for the Run `state` is starting (`sqlite-worker-run-admission.ts`): only an
+ * agent's Run in an agent-made Session can be refused. A Run the person's request starts, a Run
+ * that acts for the person, and any Run in a root Session the person made are always admitted.
+ * `requestCaller` is who sent the request that starts it; a Hive wake has none of its own.
  */
 export function newRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
   state: SessionControlSessionState,
   hostRunCeiling: number,
+  requestCaller?: RunCaller,
 ) {
   return workerRunAdmissionRefusal(sql, {
     sessionId: state.sessionId,
-    caller: startingRunCaller(state),
+    runCaller: startingRunCaller(state),
+    ...(requestCaller ? { requestCaller } : {}),
     hostRunCeiling,
   })
 }
 
-/** Who the starting Run acts for; a state with no starting Run is held to the Worker rule. */
-function startingRunCaller(state: SessionControlSessionState): StartingRunCaller {
+/** Who the starting Run acts for; a state with no starting Run is held to the agents' rule. */
+function startingRunCaller(state: SessionControlSessionState): RunCaller {
   if (state.run.state !== 'starting') return { callerId: '' }
-  const { callerId, hiveWake } = state.run.intent
-  return hiveWake ? { callerId, hiveWake } : { callerId }
+  const { callerId, idempotencyKey, hiveWake } = state.run.intent
+  return hiveWake ? { callerId, idempotencyKey, hiveWake } : { callerId, idempotencyKey }
 }
 
 function queueUpdated(
@@ -104,6 +107,8 @@ export function deliverAfterQueueDecision(
     readonly operation: SessionControlMutationCommand['operation']
     readonly nextRunId: RunId | undefined
     readonly hostRunCeiling: number
+    /** Who sent the queue change; the person's own change always delivers. */
+    readonly requestCaller: RunCaller
   },
 ): Effect.Effect<SessionControlMutationDecision, unknown> {
   const { decision, operation, nextRunId } = input
@@ -134,7 +139,12 @@ export function deliverAfterQueueDecision(
         outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
-    const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling)
+    const refusal = yield* newRunAdmissionRefusal(
+      sql,
+      delivery.state,
+      input.hostRunCeiling,
+      input.requestCaller,
+    )
     if (refusal) {
       const paused = pauseUndeliveredQueue(
         authorized,
