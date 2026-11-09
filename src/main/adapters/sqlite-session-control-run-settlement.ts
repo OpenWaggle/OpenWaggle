@@ -20,7 +20,12 @@ import { releaseDeliveredSteerAttachments } from './session-control-attachment-r
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
-import { holdsPersonFollowUp, isPersonCaller } from './sqlite-worker-run-admission'
+import {
+  countActiveWorkerRuns,
+  holdsPersonFollowUp,
+  isPersonCaller,
+  storedHostRunCeiling,
+} from './sqlite-worker-run-admission'
 
 const QUEUE_REVISION_INCREMENT = 1
 
@@ -147,26 +152,55 @@ export function planRunSettlement(
 }
 
 /**
- * Plans the settlement, deferring the next Run for the parent's Worker limit. A Follow-up the
- * person sent runs next whatever the limit (ADR 0030, amended 2026-11-09), and so does one an
- * agent queued ahead of the person's; anything else waits for it as before.
+ * Plans the settlement, deferring the next Run when it is agents' work and a Worker limit is full
+ * (ADR 0030, amended 2026-11-09). The person's Follow-up runs next whatever the limits, and so
+ * does one an agent queued ahead of the person's: a queue delivers in order. A queue that waits
+ * on capacity (`parent-limit`) with the person's Follow-up in it is delivered again for the
+ * same reason, so the person's message never waits on agents' work.
  */
 export function planRunSettlementWithinParentLimit(
   sql: SqlClient.SqlClient,
-  state: SessionControlSessionState,
+  loaded: SessionControlSessionState,
   input: SettleInput,
 ) {
   return Effect.gen(function* () {
+    if (input.suppressFollowUpScheduling) return planRunSettlement(loaded, input, false)
+    const state = (yield* waitsOnCapacityForPerson(sql, loaded)) ? resumedQueue(loaded) : loaded
     const planned = planRunSettlement(state, input, false)
-    if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
     if (nextRun && (yield* isPersonCaller(sql, nextRun.intent))) return planned
     if (nextRun && (yield* holdsPersonFollowUp(sql, planned.state.followUpQueue.items))) {
       return planned
     }
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
-    return parentAdmission.admitted ? planned : planRunSettlement(state, input, true)
+    if (!parentAdmission.admitted) return planRunSettlement(state, input, true)
+    // The settling Run's own slot passes to the next one, so only other Sessions' Runs count.
+    if (nextRun) {
+      const ceiling = yield* storedHostRunCeiling(sql)
+      if ((yield* countActiveWorkerRuns(sql, input.sessionId)) >= ceiling) {
+        return planRunSettlement(state, input, true)
+      }
+    }
+    return planned
   })
+}
+
+function waitsOnCapacityForPerson(sql: SqlClient.SqlClient, state: SessionControlSessionState) {
+  const queue = state.followUpQueue
+  if (queue.state !== 'paused' || queue.pauseReason !== 'parent-limit') return Effect.succeed(false)
+  return holdsPersonFollowUp(sql, queue.items)
+}
+
+function resumedQueue(state: SessionControlSessionState): SessionControlSessionState {
+  const { pauseReason: _pauseReason, ...queue } = state.followUpQueue
+  return {
+    ...state,
+    followUpQueue: {
+      ...queue,
+      state: 'running',
+      revision: queue.revision + QUEUE_REVISION_INCREMENT,
+    },
+  }
 }
 
 /**

@@ -1,5 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
@@ -12,6 +13,7 @@ import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
+import { workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 interface SessionOperationRow {
   readonly request_json: string
@@ -71,6 +73,31 @@ function pendingPromotionReplaceRejection(
   )
 }
 
+/** A claimed replacement whose Run would be agents' work past a full Worker limit. */
+function replacementCapacityRejection(
+  sql: SqlClient.SqlClient,
+  input: Parameters<SessionControlOperationJournalShape['claim']>[0],
+  sessionId: string,
+) {
+  return Effect.gen(function* () {
+    if (!input.replacementRun) return undefined
+    const { caller, hostRunCeiling } = input.replacementRun
+    const code = yield* workerRunAdmissionRefusal(sql, {
+      sessionId,
+      runCaller: caller,
+      requestCaller: caller,
+      hostRunCeiling,
+    })
+    if (!code) return undefined
+    return {
+      operation: input.request.command.operation,
+      effect: 'rejected',
+      sessionId,
+      code,
+    } satisfies SessionControlMutationOutcome
+  })
+}
+
 function claimExternalOperation(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlOperationJournalShape['claim']>[0],
@@ -123,8 +150,12 @@ function claimExternalOperation(
 
         const replaceRejection = yield* pendingPromotionReplaceRejection(sql, input)
         const state = yield* loadSessionControlState(sql, targetScope)
-        const decision = replaceRejection
-          ? ({ accepted: false, outcome: replaceRejection } as const)
+        const capacityRejection = replaceRejection
+          ? undefined
+          : yield* replacementCapacityRejection(sql, input, targetScope)
+        const rejection = replaceRejection ?? capacityRejection
+        const decision = rejection
+          ? ({ accepted: false, outcome: rejection } as const)
           : input.decide(state)
         const now = Date.now()
         if (decision.accepted) {

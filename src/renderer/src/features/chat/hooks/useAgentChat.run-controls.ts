@@ -6,13 +6,14 @@ import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
-import { MessageDeliveredRunFailed, MessageNotDelivered } from '../lib/message-delivery'
+import { MessageDeliveredRunFailed } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { useRunFinishingStore } from '../state/run-finishing-store'
 import { settledSessionSettingWrites } from '../state/session-setting-writes'
+import { isRefusalWithoutLaunch } from './first-send-undelivered'
 import {
   beginForegroundRun,
   clearRunPointers,
@@ -76,10 +77,6 @@ interface AgentRunControlParams {
   readonly addOptimisticUserMessage: (sessionId: SessionId, message: UIMessage) => void
   readonly removeOptimisticUserMessage: (sessionId: SessionId, messageId: UIMessage['id']) => void
   readonly upsertSession: (session: SessionDetail) => void
-}
-
-function isRefusal(error: unknown) {
-  return error instanceof MessageNotDelivered && error.outcome === 'refused'
 }
 
 function resetRunUiState(params: AgentRunControlParams) {
@@ -280,7 +277,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
     ).catch((error: unknown) => {
       // Refused before any Run: the message goes back to the composer, so nothing is to recover.
-      if (params.isFirstMessage && isRefusal(error)) params.setFirstSendRecovery(sessionId, null)
+      if (params.isFirstMessage && isRefusalWithoutLaunch(error, sessionId)) {
+        params.setFirstSendRecovery(sessionId, null)
+      }
       throw error
     })
     if (params.isFirstMessage) {

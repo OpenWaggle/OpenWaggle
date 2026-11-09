@@ -8,8 +8,10 @@ const logger = createRendererLogger('use-send-message')
 
 /**
  * Clears what a first send that reached no agent left: a cancellation's render snapshot, and for
- * a refusal the message too, which goes back to the composer, and its launch recovery, as there
- * is no launch to recover. A refusal is expected and the composer says why, so it is a warning.
+ * a refusal the message too, which goes back to the composer, and its first-send recovery. A
+ * worktree launch keeps all of it: its row owns the message then (Retry, Work locally, Cancel),
+ * and the composer does not take the draft back. A refusal is expected and the composer says why,
+ * so it is a warning.
  */
 export function forgetUndeliveredFirstSend(
   sessionId: SessionId,
@@ -17,9 +19,11 @@ export function forgetUndeliveredFirstSend(
   error: unknown,
 ) {
   const undelivered = error instanceof MessageNotDelivered ? error.outcome : undefined
-  if (undelivered) useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
-  if (undelivered === 'refused') {
-    useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+  const runs = useBackgroundRunStore.getState()
+  if (undelivered === 'cancelled') runs.clearRunRenderSnapshot(sessionId)
+  if (undelivered === 'refused' && runs.getWorktreeLaunch(sessionId) === null) {
+    runs.clearRunRenderSnapshot(sessionId)
+    runs.setFirstSendRecovery(sessionId, null)
     useOptimisticUserMessageStore.getState().remove(sessionId, optimisticId)
   }
   const log = undelivered === 'refused' ? logger.warn : logger.error
@@ -27,4 +31,13 @@ export function forgetUndeliveredFirstSend(
     sessionId: String(sessionId),
     error: error instanceof Error ? error.message : String(error),
   })
+}
+
+/** A refusal whose draft the composer takes back; a worktree launch's row keeps it instead. */
+export function isRefusalWithoutLaunch(error: unknown, sessionId: SessionId) {
+  return (
+    error instanceof MessageNotDelivered &&
+    error.outcome === 'refused' &&
+    useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === null
+  )
 }

@@ -89,7 +89,7 @@ export function targetRunCount(sql: SqlClient.SqlClient) {
   )
 }
 
-/** A finished first Run in `session-target` that `callerId` started, which decides who made it. */
+/** A finished earlier Run in `session-target` that `callerId` started. */
 export function seedFirstRun(sql: SqlClient.SqlClient, callerId: string) {
   const intent = { text: 'First.', attachmentIds: [], callerId, acceptedAt: 1, idempotencyKey: 'k' }
   return sql`
@@ -105,7 +105,9 @@ export function seedScheduledFiring(
   sql: SqlClient.SqlClient,
   key: string,
   creatorKind: 'local-user' | 'profile' | 'session-agent',
+  targetSessionId = 'session-target',
 ) {
+  const taskId = `task-${key}`
   return Effect.gen(function* () {
     for (const statement of SCHEDULED_TASK_MIGRATION.statements) yield* sql.unsafe(statement)
     yield* sql`
@@ -114,8 +116,8 @@ export function seedScheduledFiring(
         enabled, schedule_json, time_zone, anchor_at, target_session_id, target_json,
         notification_policy, created_at, updated_at
       ) VALUES (
-        ${'task'}, ${'local-user'}, ${'local-user'}, ${creatorKind}, ${'creator'}, ${'heartbeat'},
-        ${'Heartbeat'}, ${'Check in.'}, ${1}, ${'{}'}, ${'UTC'}, ${1}, ${'session-target'},
+        ${taskId}, ${'local-user'}, ${'local-user'}, ${creatorKind}, ${'creator'}, ${'heartbeat'},
+        ${'Heartbeat'}, ${'Check in.'}, ${1}, ${'{}'}, ${'UTC'}, ${1}, ${targetSessionId},
         ${'{}'}, ${'every-run'}, ${1}, ${1}
       )
     `
@@ -123,9 +125,18 @@ export function seedScheduledFiring(
       INSERT INTO scheduled_task_runs (
         id, task_id, task_name, trigger, nominal_at, fired_at, status, idempotency_key, caller_id
       ) VALUES (
-        ${'task-run'}, ${'task'}, ${'Heartbeat'}, ${'schedule'}, ${1}, ${1}, ${'dispatching'},
+        ${`run-${key}`}, ${taskId}, ${'Heartbeat'}, ${'schedule'}, ${1}, ${1}, ${'dispatching'},
         ${key}, ${'local-user'}
       )
     `
   })
+}
+
+/** Sets the Active Workers ceiling the app settings store, as settlement reads it. */
+export function storeHostRunCeiling(sql: SqlClient.SqlClient, ceiling: number) {
+  return sql`
+    INSERT INTO settings_store (key, value_json, updated_at)
+    VALUES (${'sessionHostRunCeiling'}, ${String(ceiling)}, ${1})
+    ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json
+  `
 }

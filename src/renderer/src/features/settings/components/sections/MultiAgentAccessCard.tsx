@@ -135,8 +135,8 @@ export function MultiAgentAccessCard() {
       <div className="flex flex-col gap-0.5">
         <h2 className="text-sm font-semibold text-text-primary">Hive controls</h2>
         <p className="text-xs text-text-tertiary">
-          Control agent-created Workers and how many run at once. Your own Sessions are never
-          limited.
+          Control agent-created Workers and how much agents' work runs at once. Runs you start are
+          never limited.
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
@@ -167,7 +167,7 @@ export function MultiAgentAccessCard() {
         </SettingRow>
         <SettingRow
           label="Active Workers"
-          description="Most runs of agents' work at once: Workers, and Sessions agents start."
+          description="Most runs of agents' work at once: every Worker's run, and any run an agent or client starts."
           last
         >
           <NumberStepper
@@ -180,10 +180,10 @@ export function MultiAgentAccessCard() {
         </SettingRow>
       </div>
       <p className="text-xs text-text-tertiary">
-        At either limit an agent's new Worker run is rejected with a retryable error; it is not
-        queued. Your own Sessions and the messages you send are never held back by them. Higher
-        values may strain your machine or model provider. Project configuration files can override
-        these app-wide defaults.
+        At either limit a new run of agents' work, or a new Worker, is refused with a retryable
+        error; it is not queued. Messages you send are never held back by them. Higher values may
+        strain your machine or model provider. Project configuration files can override these
+        app-wide defaults.
       </p>
       <SavedProjectOverrides
         settings={settings}

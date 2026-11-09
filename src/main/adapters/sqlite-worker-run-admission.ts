@@ -1,4 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { parseJsonUnknown } from '@shared/schema'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { isScheduledTaskRunKey } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
@@ -48,9 +50,50 @@ export function isPersonCaller(sql: SqlClient.SqlClient, caller: RunCaller) {
  * agent, a client profile or an agent's task starts is agents' work wherever it runs (ADR 0030,
  * amended 2026-11-09).
  */
-export function isPersonRun(sql: SqlClient.SqlClient, caller: RunCaller, inWorker: boolean) {
-  if (caller.hiveWake) return Effect.succeed(!inWorker && isLocalUserCallerId(caller.callerId))
-  return isPersonCaller(sql, caller)
+export function isPersonRun(
+  sql: SqlClient.SqlClient,
+  caller: RunCaller,
+  session: { readonly sessionId: string; readonly inWorker: boolean },
+) {
+  if (!caller.hiveWake) return isPersonCaller(sql, caller)
+  if (session.inWorker || !isLocalUserCallerId(caller.callerId)) return Effect.succeed(false)
+  // A wake acts for the caller of the Run it continues and carries a key of its own, so whose
+  // work it is comes from that Run: an agent's Scheduled task fires as its local-user owner.
+  return Effect.gen(function* () {
+    const continued = yield* latestRunCallerBeforeWakes(sql, session.sessionId)
+    return continued ? yield* isPersonCaller(sql, continued) : true
+  })
+}
+
+/** How many of a Session's latest Runs a wake looks through for the one it continues. */
+const WAKE_ORIGIN_LOOKBACK = 32
+
+/** The caller of the Session's latest Run that was not a Hive wake, by its stored intent. */
+function latestRunCallerBeforeWakes(sql: SqlClient.SqlClient, sessionId: string) {
+  return Effect.gen(function* () {
+    const rows = yield* sql<{
+      readonly caller_id: string | null
+      readonly idempotency_key: string | null
+      readonly hive_wake: number | null
+    }>`
+      SELECT
+        CASE WHEN json_valid(intent_json)
+          THEN json_extract(intent_json, '$.callerId') END AS caller_id,
+        CASE WHEN json_valid(intent_json)
+          THEN json_extract(intent_json, '$.idempotencyKey') END AS idempotency_key,
+        CASE WHEN json_valid(intent_json)
+          THEN json_extract(intent_json, '$.hiveWake') END AS hive_wake
+      FROM session_runs
+      WHERE session_id = ${sessionId}
+      ORDER BY updated_at DESC, id DESC
+      LIMIT ${WAKE_ORIGIN_LOOKBACK}
+    `
+    const continued = rows.find((row) => !row.hive_wake)
+    if (typeof continued?.caller_id !== 'string') return undefined
+    return typeof continued.idempotency_key === 'string'
+      ? { callerId: continued.caller_id, idempotencyKey: continued.idempotency_key }
+      : { callerId: continued.caller_id }
+  })
 }
 
 /**
@@ -79,6 +122,7 @@ function isWorkerSession(sql: SqlClient.SqlClient, sessionId: string) {
 }
 
 interface ActiveRunRow {
+  readonly session_id: string
   readonly caller_id: string | null
   readonly idempotency_key: string | null
   readonly hive_wake: number | null
@@ -95,6 +139,7 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
   return Effect.gen(function* () {
     const rows = yield* sql<ActiveRunRow>`
       SELECT
+        states.session_id AS session_id,
         CASE WHEN json_valid(runs.intent_json)
           THEN json_extract(runs.intent_json, '$.callerId') END AS caller_id,
         CASE WHEN json_valid(runs.intent_json)
@@ -122,7 +167,8 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
         ...(typeof row.idempotency_key === 'string' ? { idempotencyKey: row.idempotency_key } : {}),
         ...(row.hive_wake ? { hiveWake: true as const } : {}),
       }
-      if (!(yield* isPersonRun(sql, caller, false))) count += 1
+      const session = { sessionId: row.session_id, inWorker: false }
+      if (!(yield* isPersonRun(sql, caller, session))) count += 1
     }
     return count
   })
@@ -147,7 +193,8 @@ export function workerRunAdmissionRefusal(
   return Effect.gen(function* () {
     if (input.requestCaller && (yield* isPersonCaller(sql, input.requestCaller))) return undefined
     const inWorker = yield* isWorkerSession(sql, input.sessionId)
-    if (yield* isPersonRun(sql, input.runCaller, inWorker)) return undefined
+    const session = { sessionId: input.sessionId, inWorker }
+    if (yield* isPersonRun(sql, input.runCaller, session)) return undefined
     if (inWorker && !(yield* directWorkerRunAdmission(sql, input.sessionId)).admitted) {
       return 'parent_concurrency_limit_reached' as const
     }
@@ -155,5 +202,21 @@ export function workerRunAdmissionRefusal(
     return activeWorkerRuns >= input.hostRunCeiling
       ? ('host_run_ceiling_reached' as const)
       : undefined
+  })
+}
+
+/**
+ * The Active Workers ceiling as the app settings store it. Settlement reads it here because no
+ * command carries it: the next Run starts when the last one ends.
+ */
+export function storedHostRunCeiling(sql: SqlClient.SqlClient) {
+  return Effect.gen(function* () {
+    const rows = yield* sql<{ readonly value_json: string }>`
+      SELECT value_json FROM settings_store WHERE key = ${'sessionHostRunCeiling'} LIMIT 1
+    `
+    const value = rows[0] ? parseJsonUnknown(rows[0].value_json) : undefined
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+      ? value
+      : DEFAULT_SETTINGS.sessionHostRunCeiling
   })
 }

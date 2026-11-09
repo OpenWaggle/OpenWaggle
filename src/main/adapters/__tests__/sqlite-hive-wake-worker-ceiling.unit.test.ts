@@ -5,19 +5,30 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { RunId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
 import { hiveWakeRefusal } from '../sqlite-hive-wake-admission'
 import { loadSessionControlState } from '../sqlite-session-control-state'
 import { runHiveWakeTest, settleParentRun, submit } from './sqlite-hive-parent-wake-test-support'
+import { seedScheduledFiring } from './sqlite-worker-run-admission.test-support'
 
 /**
  * The in-transaction check of a Hive wake (`hiveWakeRefusal`), as the repository runs it when the
  * Host starts one: the idle parent's Worker has reported, the wake acts for the person who ran
  * the parent last, and that Worker's own active Run fills a Worker ceiling of 1.
  */
-function wakeAtFullCeiling(parentIsWorker: boolean) {
+function wakeAtFullCeiling(parentIsWorker: boolean, latestRunFiredByAgentTask = false) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    yield* settleParentRun(sql, { callerId: 'gui:local-user' })
+    yield* settleParentRun(sql, { callerId: 'local-user' })
+    if (latestRunFiredByAgentTask) {
+      // An agent's Launch schedule made this Queen: its Run fired as the local-user owner.
+      const key = scheduledTaskRunKey('agent-launch')
+      yield* seedScheduledFiring(sql, key, 'session-agent', 'session-parent')
+      yield* sql`
+        UPDATE session_runs SET intent_json = json_set(intent_json, '$.idempotencyKey', ${key})
+        WHERE id = ${'run-parent'}
+      `
+    }
     yield* submit(3000)
     if (parentIsWorker) {
       // A Worker's admission reads its parent's Worker limit from the app settings.
@@ -48,14 +59,14 @@ function wakeAtFullCeiling(parentIsWorker: boolean) {
         intent: {
           text: 'Worker updates arrived while this Session was idle.',
           attachmentIds: [],
-          callerId: 'gui:local-user',
+          callerId: 'local-user',
           acceptedAt: 3100,
           idempotencyKey: 'hive-wake:session-parent:1',
           hiveWake: true as const,
         },
       },
     }
-    return yield* hiveWakeRefusal(sql, waking, 'gui:local-user', 1)
+    return yield* hiveWakeRefusal(sql, waking, 'local-user', 1)
   })
 }
 
@@ -76,5 +87,11 @@ describe('Hive wake and the Worker ceiling', () => {
 
   it('holds a nested Queen’s wake to the Worker ceiling, though it acts for the person', async () => {
     expect(await runHiveWakeTest(root, wakeAtFullCeiling(true))).toBe('host_run_ceiling_reached')
+  })
+
+  it('holds the wake of a Queen an agent’s Launch schedule made, though it fired as the owner', async () => {
+    expect(await runHiveWakeTest(root, wakeAtFullCeiling(false, true))).toBe(
+      'host_run_ceiling_reached',
+    )
   })
 })

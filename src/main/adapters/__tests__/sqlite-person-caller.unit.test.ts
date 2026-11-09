@@ -6,7 +6,7 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { submitSessionMessage } from '../../application/session-control-service'
 import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
-import { isPersonCaller } from '../sqlite-worker-run-admission'
+import { countActiveWorkerRuns, isPersonCaller } from '../sqlite-worker-run-admission'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 import {
   AGENT_CALLER,
@@ -95,5 +95,39 @@ describe('isPersonCaller', () => {
     )
 
     expect(result.outcome).toMatchObject({ effect: 'started-run' })
+  })
+
+  it('counts a root’s active Run that an agent’s task fired, and not one the person’s did', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const count = (key: string, creatorKind: 'local-user' | 'session-agent') =>
+          Effect.gen(function* () {
+            yield* seedScheduledFiring(sql, key, creatorKind)
+            const intent = {
+              text: 'Fired.',
+              attachmentIds: [],
+              callerId: 'local-user',
+              acceptedAt: 1,
+              idempotencyKey: key,
+            }
+            yield* sql`
+              INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+              VALUES (${`run-${key}`}, ${'session-target'}, ${'active'}, ${JSON.stringify(intent)}, ${1}, ${1})
+            `
+            yield* sql`
+              UPDATE session_control_states SET active_run_id = ${`run-${key}`}
+              WHERE session_id = ${'session-target'}
+            `
+            return yield* countActiveWorkerRuns(sql)
+          })
+        return {
+          person: yield* count(scheduledTaskRunKey('person'), 'local-user'),
+          agent: yield* count(scheduledTaskRunKey('agent'), 'session-agent'),
+        }
+      }).pipe(Effect.provide(layer('task-count.sqlite'))),
+    )
+
+    expect(result).toEqual({ person: 0, agent: 1 })
   })
 })

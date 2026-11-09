@@ -4,12 +4,14 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
 import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
 import {
   makeSessionLifecycleTestLayer,
   rootLifecycleInput,
   spawnLifecycleInput,
 } from './sqlite-session-lifecycle-test-support'
+import { seedScheduledFiring } from './sqlite-worker-run-admission.test-support'
 
 let temporaryRoot = ''
 
@@ -32,8 +34,8 @@ function secondLaunch<Input extends ReturnType<typeof rootLifecycleInput>>(first
 }
 
 /*
- * The Host's run ceiling limits Worker Runs only (ADR 0030, amended 2026-11-09): a launched root
- * never meets it, and a spawn counts only the Worker Runs already active.
+ * The Host's run ceiling limits agents' work only (ADR 0030, amended 2026-11-09): the person's
+ * launch never meets it, an agent's does, and a spawn counts only agents' work already active.
  */
 describe('SQLite Session lifecycle and the Worker ceiling', () => {
   beforeEach(async () => {
@@ -235,5 +237,37 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       { code: 'host_run_ceiling_reached' },
     ])
     expect(result.sessions).toBe(1)
+  })
+
+  it('holds a Launch schedule an agent created to the ceiling, and never one the person did', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'scheduled-launch.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const repository = yield* SessionLifecycleRepository
+        // An active Worker fills a ceiling of 1.
+        yield* repository.execute(spawnLifecycleInput())
+        const agentKey = scheduledTaskRunKey('agent-task-run')
+        const personKey = scheduledTaskRunKey('person-task-run')
+        yield* seedScheduledFiring(sql, agentKey, 'session-agent', 'session-parent')
+        yield* seedScheduledFiring(sql, personKey, 'local-user', 'session-parent')
+        const fire = (key: string, base: ReturnType<typeof rootLifecycleInput>) =>
+          repository.execute({
+            ...base,
+            hostRunCeiling: 1,
+            request: { ...base.request, requestId: key, idempotencyKey: key },
+          })
+        const agentFiring = yield* fire(agentKey, rootLifecycleInput('launch'))
+        const personFiring = yield* fire(personKey, secondLaunch(rootLifecycleInput('launch')))
+        return { agentFiring, personFiring }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    // Both fire as the local-user owner; only the task's creator tells them apart.
+    expect(result.agentFiring.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+    })
+    expect(result.personFiring.outcome).toMatchObject({ effect: 'launched-root' })
   })
 })

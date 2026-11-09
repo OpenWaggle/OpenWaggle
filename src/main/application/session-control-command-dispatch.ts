@@ -156,7 +156,7 @@ function executeActiveRunCommand(
     | 'replace'
   >,
 ) {
-  const { authority, callerId, request } = input
+  const { authority, callerId, request, hostRunCeiling } = input
   return matchBy(command, 'operation')
     .with('steer', (command) =>
       steerSessionRun({
@@ -201,6 +201,7 @@ function executeActiveRunCommand(
     .with('replace', (command) =>
       replaceSessionRun({
         callerId,
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
         ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
         request: { ...request, command } satisfies SessionControlReplaceMutationRequest,
       }),

@@ -120,7 +120,7 @@ export function deliverIdleQueueHead(
 /**
  * When the Host cannot admit the Run a delivery would start, the queue pauses instead, so it never
  * sits idle and runnable. Without a reason the pause is stored without one, which every binary
- * decodes; the Host has no pause reason for its own Run ceiling.
+ * decodes. Both Worker limits pause as `parent-limit` (ADR 0030, amended 2026-11-09).
  */
 export function pauseUndeliveredQueue(
   state: SessionControlSessionState,

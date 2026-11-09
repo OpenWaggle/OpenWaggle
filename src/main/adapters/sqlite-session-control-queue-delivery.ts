@@ -102,7 +102,7 @@ function withdrawnFollowUps(outcome: SessionControlMutationOutcome): WithdrawnFo
 /**
  * Applies the delivery rule to an accepted queue decision. The head's current authorization is
  * checked before it starts, and a Run the Host cannot admit pauses the queue instead (with
- * `parent-limit`, or with no reason for the Host's own ceiling).
+ * `parent-limit` for either Worker limit).
  */
 export function deliverAfterQueueDecision(
   sql: SqlClient.SqlClient,
@@ -152,10 +152,9 @@ export function deliverAfterQueueDecision(
           input.requestCaller,
         )
     if (refusal) {
-      const paused = pauseUndeliveredQueue(
-        authorized,
-        refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : undefined,
-      )
+      // Both Worker limits pause as `parent-limit`, a reason every binary decodes: it marks a
+      // queue that waits on capacity, which the person's next Follow-up delivers again.
+      const paused = pauseUndeliveredQueue(authorized, 'parent-limit')
       return { ...decision, state: paused, outcome: queueUpdated(operation, paused, withdrawn) }
     }
     return {

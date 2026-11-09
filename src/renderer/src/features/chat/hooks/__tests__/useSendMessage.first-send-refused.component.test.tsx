@@ -34,55 +34,83 @@ const { useSendMessage } = await import('../useSendMessage')
 
 const PAYLOAD: AgentSendPayload = { text: 'review body', attachments: [] }
 
+const SESSION_ID = SessionId('created-session')
+const MODEL = SupportedModelId('openai/gpt-5.4')
+
+/** Sends the draft's first message into `created-session`; the Host refuses it. */
+async function sendRefusedFirstMessage() {
+  useChatStore.setState({
+    sessionById: new Map([
+      [
+        SESSION_ID,
+        {
+          id: SESSION_ID,
+          title: 'Created',
+          projectPath: '/repo',
+          messages: [],
+          createdAt: 1,
+          updatedAt: 1,
+          executionModel: MODEL,
+        },
+      ],
+    ]),
+  })
+  const { result } = renderHook(() =>
+    useSendMessage({
+      activeSessionId: null,
+      model: MODEL,
+      projectPath: '/repo',
+      createSession: vi.fn(async () => SESSION_ID),
+      sendMessage: vi.fn(async () => {}),
+      sendWaggleMessage: vi.fn(async () => {}),
+    }),
+  )
+  let failure: unknown
+  await act(async () => {
+    await result.current.handleSend(PAYLOAD).catch((error: unknown) => {
+      failure = error
+    })
+  })
+  return failure
+}
+
 /*
  * The Host refused a new Session's first message before any Run started. The message goes back to
  * the composer, so it must leave the new Session's transcript, and there is no launch to recover.
  */
 describe("a session's refused first send", () => {
   it('takes a refused first message out of the new Session, with no launch to recover', async () => {
-    const sessionId = SessionId('created-session')
-    const model = SupportedModelId('openai/gpt-5.4')
-    useChatStore.setState({
-      sessionById: new Map([
-        [
-          sessionId,
-          {
-            id: sessionId,
-            title: 'Created',
-            projectPath: '/repo',
-            messages: [],
-            createdAt: 1,
-            updatedAt: 1,
-            executionModel: model,
-          },
-        ],
-      ]),
-    })
-    const { result } = renderHook(() =>
-      useSendMessage({
-        activeSessionId: null,
-        model,
-        projectPath: '/repo',
-        createSession: vi.fn(async () => sessionId),
-        sendMessage: vi.fn(async () => {}),
-        sendWaggleMessage: vi.fn(async () => {}),
-      }),
-    )
-
-    let failure: unknown
-    await act(async () => {
-      await result.current.handleSend(PAYLOAD).catch((error: unknown) => {
-        failure = error
-      })
-    })
+    const failure = await sendRefusedFirstMessage()
 
     expect(failure).toBeInstanceOf(FirstSendFailed)
     const cause = failure instanceof FirstSendFailed ? failure.cause : undefined
     expect(cause).toBeInstanceOf(MessageNotDelivered)
     expect(cause).toMatchObject({ outcome: 'refused', code: 'host_run_ceiling_reached' })
     expect(
-      useOptimisticUserMessageStore.getState().messagesBySessionId.get(sessionId) ?? [],
+      useOptimisticUserMessageStore.getState().messagesBySessionId.get(SESSION_ID) ?? [],
     ).toEqual([])
-    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.has(sessionId)).toBe(false)
+    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.has(SESSION_ID)).toBe(
+      false,
+    )
+  })
+
+  it('keeps a refused first message for its worktree launch row, which owns it', async () => {
+    useBackgroundRunStore.getState().setWorktreeLaunch(SESSION_ID, {
+      status: 'failed',
+      stage: 'preparing-workspace',
+      startedAt: 1,
+      updatedAt: 2,
+      details: ['git worktree add failed'],
+    })
+
+    await sendRefusedFirstMessage()
+
+    // Retry and Work locally rebuild the send from this; the composer does not take it back.
+    expect(
+      useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(SESSION_ID),
+    ).toMatchObject({ payload: PAYLOAD })
+    expect(
+      useOptimisticUserMessageStore.getState().messagesBySessionId.get(SESSION_ID)?.length,
+    ).toBe(1)
   })
 })

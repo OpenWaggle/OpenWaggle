@@ -20,6 +20,14 @@ export interface ClaimSessionControlOperationInput {
   readonly callerId: string
   readonly request: SessionControlMutationRequest
   readonly decide: (state: SessionControlSessionState) => SessionControlExternalMutationDecision
+  /**
+   * The Run an accepted claim will start for `caller` (a `replace`). The claim is refused, in its
+   * transaction, when that Run is agents' work and the Worker limits are full (ADR 0030).
+   */
+  readonly replacementRun?: {
+    readonly caller: { readonly callerId: string; readonly idempotencyKey: string }
+    readonly hostRunCeiling: number
+  }
 }
 
 export type ClaimSessionControlOperationResult =

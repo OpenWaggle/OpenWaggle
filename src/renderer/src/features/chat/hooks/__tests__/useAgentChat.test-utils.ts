@@ -74,6 +74,9 @@ const {
         setFirstSendRecovery: setFirstSendRecoveryMock,
       }),
   )
+  // Read outside React by the refused-send path: no Session here has a worktree launch.
+  const backgroundRunStoreState = { getWorktreeLaunch: (_id: SessionId) => null }
+  Object.assign(useBackgroundRunStoreMock, { getState: () => backgroundRunStoreState })
   const upsertSessionMock = vi.fn()
   const useChatStoreMock = vi.fn(
     (selector: (state: { upsertSession: (value: unknown) => void }) => unknown) =>

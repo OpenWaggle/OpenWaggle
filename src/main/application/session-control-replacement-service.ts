@@ -5,6 +5,7 @@ import type {
   SessionControlMutationResponse,
   SessionControlReplaceMutationRequest,
 } from '@shared/types/session-control'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import {
   applyRunInterruption,
@@ -21,6 +22,8 @@ import { toSessionControlIntentMessage } from './session-control-message-input'
 
 export interface ReplaceSessionRunInput {
   readonly callerId: string
+  /** The Active Workers ceiling an agent's replacement Run waits for. */
+  readonly hostRunCeiling?: number
   readonly callerAuthorizationCeiling?: AgentAuthorizationMode
   readonly request: SessionControlReplaceMutationRequest
 }
@@ -59,6 +62,12 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
     const claim = yield* journal.claim({
       callerId: input.callerId,
       request: input.request,
+      // The replacement starts a Run for the caller, so it meets the capacity rule as a start
+      // does: replacing the person's Run with an agent's must not pass a full ceiling.
+      replacementRun: {
+        caller: { callerId: input.callerId, idempotencyKey: input.request.idempotencyKey },
+        hostRunCeiling: input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling,
+      },
       decide: (state) => {
         const interruption = applyRunInterruption({
           state,
