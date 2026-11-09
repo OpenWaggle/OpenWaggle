@@ -43,7 +43,7 @@
     },
     "sessionCapabilities": {
       "type": "array",
-      "maxItems": 19,
+      "maxItems": 21,
       "items": {
         "enum": [
           "sessions:discover",
@@ -64,7 +64,9 @@
           "delegations:read",
           "delegations:contribute",
           "delegations:review",
-          "access:profiles"
+          "access:profiles",
+          "schedules:read",
+          "schedules:manage"
         ]
       }
     },

@@ -1,4 +1,8 @@
 import { readFile } from 'node:fs/promises'
+import {
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_SUPPORTED_REVISIONS,
+} from '@shared/types/local-session-protocol-revisions'
 import { describe, expect, it } from 'vitest'
 import { CLI_ERROR_KINDS, cliExitCodeForKind } from '../cli-error'
 
@@ -39,5 +43,20 @@ describe('Hive CLI documentation contract', () => {
     )
 
     expect(rows).toEqual(CLI_ERROR_KINDS.map((kind) => [kind, cliExitCodeForKind(kind)]))
+  })
+
+  it('names the protocol revision the Session Host accepts, and lists it first', async () => {
+    const documentation = await readFile(documentationPath, 'utf8')
+    const [accepted] = LOCAL_SESSION_SUPPORTED_REVISIONS
+    const revisionRows = [...documentation.matchAll(/^\| (\d+) \| /gm)].map(([, revision]) =>
+      Number(revision),
+    )
+
+    expect(LOCAL_SESSION_SUPPORTED_REVISIONS).toEqual([LOCAL_SESSION_CURRENT_REVISION])
+    expect(documentation).toContain(
+      `The current local session protocol revision is ${LOCAL_SESSION_CURRENT_REVISION}, and the Session Host accepts only revision ${accepted}.`,
+    )
+    expect(revisionRows[0]).toBe(LOCAL_SESSION_CURRENT_REVISION)
+    expect(documentation).toContain(`Revision ${LOCAL_SESSION_CURRENT_REVISION} added`)
   })
 })
