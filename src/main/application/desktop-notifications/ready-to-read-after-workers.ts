@@ -1,12 +1,16 @@
 import * as Effect from 'effect/Effect'
 import {
   type DesktopNotificationCandidate,
+  type DesktopNotificationRunOrigin,
+  desktopNotificationOriginOfCaller,
+  desktopNotificationOriginPermits,
   readyToReadHiveSettled,
   readyToReadTiming,
 } from '../../domain/desktop-notifications/desktop-notification-policy'
 import type {
   DesktopNotificationFactsShape,
   DesktopNotificationHiveActivity,
+  DesktopNotificationRunFacts,
   DesktopNotificationSessionFacts,
 } from '../../ports/desktop-notification-facts'
 import {
@@ -16,6 +20,15 @@ import {
 
 /** How long a Hive may wait for an expected wake to start before its Ready to read shows. */
 const HIVE_WAKE_START_GRACE_MS = 30_000
+
+/** Who a Run acts for, as notifications judge it. */
+export function originOfRun(run: DesktopNotificationRunFacts | null): DesktopNotificationRunOrigin {
+  if (!run) return { kind: 'person' }
+  if (run.scheduledTaskPolicy !== null) {
+    return { kind: 'scheduled-task', policy: run.scheduledTaskPolicy }
+  }
+  return desktopNotificationOriginOfCaller(run.originCallerId)
+}
 
 export const READY_TO_READ: DesktopNotificationCandidate = {
   category: 'ready-to-read',
@@ -53,6 +66,8 @@ export class ReadyToReadAfterWorkers {
   private readonly held = new Map<string, HeldReadyToRead>()
   /** When a settled-but-for-a-wake Hive was first seen, per root. */
   private readonly wakeExpectedSince = new Map<string, number>()
+  /** Roots whose held Ready to read showed because their expected wake never started. */
+  private readonly shownWithoutWake = new Set<string>()
 
   constructor(private readonly dependencies: ReadyToReadAfterWorkersDependencies) {}
 
@@ -60,6 +75,25 @@ export class ReadyToReadAfterWorkers {
   drop(rootSessionId: string) {
     this.held.delete(rootSessionId)
     this.wakeExpectedSince.delete(rootSessionId)
+    this.shownWithoutWake.delete(rootSessionId)
+  }
+
+  /**
+   * A root Run that did not complete ends the request it served when the person stopped it, or
+   * when Failed or interrupted tells them, which a held Ready to read would only replace. A Run an
+   * agent started or stopped tells the person nothing, so their held request keeps waiting.
+   */
+  ended(sessionId: string, runId: string, candidate: DesktopNotificationCandidate | null) {
+    return Effect.gen(this, function* () {
+      if (!this.held.has(sessionId)) return
+      const run = yield* this.dependencies.facts.run(sessionId, runId)
+      const stoppedBy = run?.interruptedByCallerId ?? null
+      const personKnows =
+        candidate === null
+          ? stoppedBy === null || desktopNotificationOriginOfCaller(stoppedBy).kind === 'person'
+          : desktopNotificationOriginPermits(originOfRun(run), candidate)
+      if (personKnows) this.drop(sessionId)
+    })
   }
 
   /** The origin and settings checks passed for `run`, a completed Run of the root `session`. */
@@ -67,6 +101,9 @@ export class ReadyToReadAfterWorkers {
     return Effect.gen(this, function* () {
       const work = yield* this.dependencies.facts.hiveActivity(run.sessionId, run.runId)
       const timing = readyToReadTiming(work, { hiveWake: run.hiveWake })
+      // The wake that was given up on came after all: its request was already announced.
+      const announced = this.shownWithoutWake.delete(run.sessionId)
+      if (announced && run.hiveWake && timing === 'now') return
       if (timing === 'after-workers') {
         this.held.set(run.sessionId, {
           runId: run.runId,
@@ -91,14 +128,15 @@ export class ReadyToReadAfterWorkers {
     })
   }
 
-  /** Re-checks every held Ready to read, for a Hive that settled without a Run settling. */
-  settleHeld(at: number) {
+  /**
+   * Re-checks every held Ready to read, for a Hive that settled without a Run settling. While the
+   * Host's Run limit is full an expected wake is only deferred, so it is never given up on then.
+   */
+  settleHeld(at: number, runLimitFull: boolean) {
     return Effect.forEach(
       [...this.held.keys()],
-      (rootSessionId) => this.settleRoot(rootSessionId, at),
-      {
-        discard: true,
-      },
+      (rootSessionId) => this.settleRoot(rootSessionId, at, { runLimitFull }),
+      { discard: true },
     )
   }
 
@@ -107,17 +145,26 @@ export class ReadyToReadAfterWorkers {
    * once: it is forgotten as it is shown. It carries the time the Hive settled, so a visit while
    * Workers still ran does not count as having read it.
    */
-  settleRoot(rootSessionId: string, occurredAt: number) {
+  settleRoot(
+    rootSessionId: string,
+    occurredAt: number,
+    wakeCheck?: { readonly runLimitFull: boolean },
+  ) {
     return Effect.gen(this, function* () {
       const held = this.held.get(rootSessionId)
       if (!held) return
       const { facts } = this.dependencies
       const work = yield* facts.hiveActivity(rootSessionId, null)
       if (this.held.get(rootSessionId) !== held) return
-      if (!readyToReadHiveSettled(work) && !this.wakeOverdue(rootSessionId, work, occurredAt))
-        return
+      const settled = readyToReadHiveSettled(work)
+      const overdue =
+        !settled &&
+        wakeCheck !== undefined &&
+        this.wakeOverdue(rootSessionId, work, occurredAt, wakeCheck.runLimitFull)
+      if (!settled && !overdue) return
       this.held.delete(rootSessionId)
       this.wakeExpectedSince.delete(rootSessionId)
+      if (overdue) this.shownWithoutWake.add(rootSessionId)
       const session = yield* facts.session(rootSessionId)
       if (!session || session.archived || session.parentSessionId !== null) return
       yield* this.show(session, held.preview, Math.max(occurredAt, held.occurredAt))
@@ -129,8 +176,13 @@ export class ReadyToReadAfterWorkers {
    * wake the Host refused for a reason the facts do not repeat leaves its update pending, so the
    * Hive would look as if a wake were still coming forever.
    */
-  private wakeOverdue(rootSessionId: string, work: DesktopNotificationHiveActivity, at: number) {
-    if (work.rootRunning || work.workersRunning || !work.wakeComing) {
+  private wakeOverdue(
+    rootSessionId: string,
+    work: DesktopNotificationHiveActivity,
+    at: number,
+    runLimitFull: boolean,
+  ) {
+    if (runLimitFull || work.rootRunning || work.workersRunning || !work.wakeComing) {
       this.wakeExpectedSince.delete(rootSessionId)
       return false
     }

@@ -219,9 +219,63 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     expect(published).toEqual([])
 
     // The wake is refused; its update stays pending, so a wake still looks as if it were coming.
-    await Effect.runPromise(observer.settleHeldReadyToRead(10_000))
+    await Effect.runPromise(observer.settleHeldReadyToRead(10_000, false))
     expect(published).toEqual([])
-    await Effect.runPromise(observer.settleHeldReadyToRead(40_110))
+    await Effect.runPromise(observer.settleHeldReadyToRead(40_110, false))
     expect(shownKinds(published)).toEqual(['shown:completed'])
+
+    // The wake starts after all: its request was already announced.
+    fixture.wakeComing.clear()
+    await emit(settled('wake-1', 'completed', { hiveWake: true }), 50_000)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  it('never gives up on a wake that a full Run limit only defers', async () => {
+    const { emit, published, fixture, observer } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    fixture.running.clear()
+    fixture.wakeComing.add('root')
+    await emit(workerSettled('w1'), 110)
+    await Effect.runPromise(observer.settleHeldReadyToRead(10_000, true))
+    await Effect.runPromise(observer.settleHeldReadyToRead(90_000, true))
+    expect(published).toEqual([])
+
+    fixture.wakeComing.clear()
+    await emit(settled('wake-1', 'completed', { hiveWake: true }), 95_000)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  it('keeps the person waiting on their request when an agent-started Run fails', async () => {
+    const { emit, published, fixture } = hive({
+      runs: {
+        'run-1': person,
+        'run-agent': { originCallerId: AGENT, scheduledTaskPolicy: null },
+        'w1-run': { originCallerId: AGENT, scheduledTaskPolicy: null },
+      },
+    })
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    await emit(settled('run-agent', 'failed'), 105)
+    expect(published).toEqual([])
+    fixture.running.clear()
+    await emit(workerSettled('w1'), 110)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  it('drops the held request when the person stops the Queen', async () => {
+    const { emit, published, fixture } = hive({
+      runs: {
+        'run-1': person,
+        'run-2': { ...person, interruptedByCallerId: PERSON },
+        'w1-run': { originCallerId: AGENT, scheduledTaskPolicy: null },
+      },
+    })
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    await emit(settled('run-2', 'interrupted'), 105)
+    fixture.running.clear()
+    await emit(workerSettled('w1'), 110)
+    expect(published).toEqual([])
   })
 })

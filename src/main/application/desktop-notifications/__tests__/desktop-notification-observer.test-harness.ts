@@ -94,6 +94,7 @@ export function setup(overrides: Partial<Fixture> = {}) {
           runStartedWhileWorkersRan: runId !== null && fixture.midWorkRuns.has(runId),
         }
       }),
+    hostActiveRunCount: () => Effect.succeed(fixture.running.size),
     lastVisitedAt: (id) => Effect.succeed(fixture.visits[id] ?? null),
     stuckWorkerIds: () => Effect.succeed([...fixture.stuck]),
     runsInterruptedByHostLossSince: () => Effect.succeed([{ sessionId: 'root', runId: 'run-1' }]),

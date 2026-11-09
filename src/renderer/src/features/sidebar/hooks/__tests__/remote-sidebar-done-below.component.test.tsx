@@ -62,6 +62,20 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
     expect(result.current.get('queen')).toBe('idle')
   })
 
+  it('shows the loaded catalog entry, which follows Worker Runs, over a search copy', () => {
+    const searched = { ...queen(), lineage: { ...queen().lineage, runningWorkerCount: 2 } }
+    const loaded = { ...queen(), lineage: { ...queen().lineage, runningWorkerCount: 0 } }
+    const merged = mergeVisibleSidebarSessions({
+      loadedSessions: [loaded],
+      remoteSessions: [searched],
+      filterState: null,
+      stateBySessionId: new Map(),
+      normalizedQuery: 'zzz',
+      projectDisplayNames: {},
+    })
+    expect(merged).toEqual([loaded])
+  })
+
   it('keeps a hydrated id the row shows even when its raw status differs', () => {
     const hydrated = { completed: new Set(['queen', 'seen', 'gone']), error: new Set<string>() }
     pruneHydratedTerminalIds(

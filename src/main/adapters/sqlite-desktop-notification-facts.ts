@@ -27,6 +27,7 @@ interface RunRow {
   readonly caller_id: string | null
   readonly author_caller_id: string | null
   readonly notification_policy: string | null
+  readonly interrupted_by_caller_id: string | null
 }
 
 interface HiveActivityRow {
@@ -180,17 +181,39 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
       ),
     run: (sessionId, runId) =>
       sql<RunRow>`
+        WITH target AS (
+          SELECT id, session_id, created_at, intent_json, interrupted_by_caller_id
+          FROM session_runs
+          WHERE id = ${durableSessionRunId(runId)} AND session_id = ${sessionId}
+        ),
+        origin AS (
+          SELECT COALESCE(
+            (
+              SELECT prior.id FROM session_runs AS prior, target
+              WHERE json_extract(target.intent_json, '$.hiveWake') = 1
+                AND prior.session_id = target.session_id
+                AND json_extract(prior.intent_json, '$.hiveWake') IS NULL
+                AND (
+                  prior.created_at < target.created_at
+                  OR (prior.created_at = target.created_at AND prior.id < target.id)
+                )
+              ORDER BY prior.created_at DESC, prior.id DESC
+              LIMIT 1
+            ),
+            (SELECT id FROM target)
+          ) AS id
+        )
         SELECT json_extract(session_runs.intent_json, '$.callerId') AS caller_id,
           json_extract(session_runs.intent_json, '$.authorCallerId') AS author_caller_id,
-          scheduled_tasks.notification_policy
+          scheduled_tasks.notification_policy,
+          (SELECT interrupted_by_caller_id FROM target) AS interrupted_by_caller_id
         FROM session_runs
         LEFT JOIN scheduled_task_runs
           ON scheduled_task_runs.run_id = session_runs.id
             OR scheduled_task_runs.idempotency_key =
               json_extract(session_runs.intent_json, '$.idempotencyKey')
         LEFT JOIN scheduled_tasks ON scheduled_tasks.id = scheduled_task_runs.task_id
-        WHERE session_runs.id = ${durableSessionRunId(runId)}
-          AND session_runs.session_id = ${sessionId}
+        WHERE session_runs.id = (SELECT id FROM origin)
         LIMIT 1
       `.pipe(
         Effect.map((rows) => {
@@ -200,6 +223,7 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
             // A Run whose intent names no caller was started by the desktop app.
             originCallerId: row.author_caller_id ?? row.caller_id ?? 'gui:local-user',
             scheduledTaskPolicy: decodePolicy(row.notification_policy),
+            interruptedByCallerId: row.interrupted_by_caller_id,
           }
         }),
         Effect.mapError(factsError('run')),
@@ -209,6 +233,13 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
     hiveActivity: (rootSessionId, runId) =>
       selectHiveActivity(sql, rootSessionId, runId).pipe(
         Effect.mapError(factsError('hive-activity')),
+      ),
+    hostActiveRunCount: () =>
+      sql<{ readonly count: number }>`
+        SELECT COUNT(*) AS count FROM session_control_states WHERE active_run_id IS NOT NULL
+      `.pipe(
+        Effect.map((rows) => rows[0]?.count ?? 0),
+        Effect.mapError(factsError('host-active-runs')),
       ),
     lastVisitedAt: (sessionId) =>
       sql<{ readonly last_visited_at: number | null }>`

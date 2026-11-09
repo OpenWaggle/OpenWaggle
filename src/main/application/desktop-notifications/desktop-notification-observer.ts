@@ -11,14 +11,11 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import {
   type DesktopNotificationCandidate,
-  type DesktopNotificationRunOrigin,
-  desktopNotificationOriginOfCaller,
   desktopNotificationOriginPermits,
   runSettlementCandidate,
 } from '../../domain/desktop-notifications/desktop-notification-policy'
 import type {
   DesktopNotificationFactsShape,
-  DesktopNotificationRunFacts,
   DesktopNotificationSessionFacts,
 } from '../../ports/desktop-notification-facts'
 import {
@@ -27,6 +24,7 @@ import {
 } from './desktop-notification-ledger'
 import {
   type CompletedRootRun,
+  originOfRun,
   READY_TO_READ,
   ReadyToReadAfterWorkers,
 } from './ready-to-read-after-workers'
@@ -55,14 +53,6 @@ function interactionPreview(interaction: AgentLoopInteraction) {
 
 function needsYouReason(request: HivePendingRequest): DesktopNotificationReason {
   return request === 'approval' ? 'awaiting-approval' : 'awaiting-answer'
-}
-
-export function originOfRun(run: DesktopNotificationRunFacts | null): DesktopNotificationRunOrigin {
-  if (!run) return { kind: 'person' }
-  if (run.scheduledTaskPolicy !== null) {
-    return { kind: 'scheduled-task', policy: run.scheduledTaskPolicy }
-  }
-  return desktopNotificationOriginOfCaller(run.originCallerId)
 }
 
 /**
@@ -214,9 +204,25 @@ export class DesktopNotificationObserver {
     // A Session that went straight on to a queued Follow-up is not ready to read yet.
     const continuing =
       payload.operation === 'follow-up-started' && candidate?.category === 'ready-to-read'
-    // A root Run that did not complete ends the request it served: the person stopped it, or
-    // Failed or interrupted tells them, which a held Ready to read would only replace.
-    if (terminalStatus !== 'completed') this.readyToRead.drop(sessionId)
+    const ended =
+      terminalStatus === 'completed'
+        ? Effect.void
+        : this.readyToRead.ended(sessionId, runId, candidate)
+    return ended.pipe(
+      Effect.zipRight(
+        Effect.suspend(() => this.afterSettlement(payload, candidate, continuing, occurredAt)),
+      ),
+    )
+  }
+
+  private afterSettlement(
+    payload: StateChanged,
+    candidate: DesktopNotificationCandidate | null,
+    continuing: boolean,
+    occurredAt: number,
+  ): Effect.Effect<void, unknown> {
+    const { runId, sessionId } = payload
+    if (!runId) return Effect.void
     if (!candidate || continuing || !this.claimRun(runId)) {
       return this.readyToRead.settle(sessionId, occurredAt)
     }
@@ -271,8 +277,8 @@ export class DesktopNotificationObserver {
    * Re-checks every held Ready to read. A Hive wake that was expected but never started (refused,
    * deferred and dropped, or the Host draining) settles no Run, so nothing else would show it.
    */
-  settleHeldReadyToRead(at: number) {
-    return this.readyToRead.settleHeld(at)
+  settleHeldReadyToRead(at: number, runLimitFull: boolean) {
+    return this.readyToRead.settleHeld(at, runLimitFull)
   }
 
   private onListChanged(payload: ListChanged) {

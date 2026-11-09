@@ -12,10 +12,15 @@ export interface DesktopNotificationSessionFacts {
   readonly parentTitle: string | null
 }
 
-/** Who started a Run: its originating caller, and its Scheduled task when one fired it. */
+/**
+ * Who started a Run: its originating caller, and its Scheduled task when one fired it. A Hive wake
+ * acts for the Session's latest Run before it, so a wake reads that Run's origin.
+ */
 export interface DesktopNotificationRunFacts {
   readonly originCallerId: string
   readonly scheduledTaskPolicy: ScheduledTaskNotificationPolicy | null
+  /** Who stopped the Run, when it was interrupted by a caller. */
+  readonly interruptedByCallerId?: string | null
 }
 
 /**
@@ -60,6 +65,8 @@ export interface DesktopNotificationFactsShape {
     rootSessionId: string,
     runId: string | null,
   ) => Effect.Effect<DesktopNotificationHiveActivity, Error>
+  /** How many Sessions hold an active Run, as the Host's Run limit counts them. */
+  readonly hostActiveRunCount: () => Effect.Effect<number, Error>
   /** When the person last opened the Session, or null if never. */
   readonly lastVisitedAt: (sessionId: string) => Effect.Effect<number | null, Error>
   /** Live Workers whose Delegation needs attention while no agent will pick them up. */

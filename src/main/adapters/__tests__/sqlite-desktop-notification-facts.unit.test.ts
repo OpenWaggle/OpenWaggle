@@ -62,6 +62,7 @@ describe('SqliteDesktopNotificationFactsLive', () => {
           lost: facts.runsInterruptedByHostLossSince(0),
           hiveRoot: facts.hiveRootSessionId('missing'),
           hive: facts.hiveActivity('missing', 'run'),
+          active: facts.hostActiveRunCount(),
         }),
     )
     expect(result).toEqual({
@@ -71,6 +72,7 @@ describe('SqliteDesktopNotificationFactsLive', () => {
       stuck: [],
       lost: [],
       hiveRoot: 'missing',
+      active: 0,
       hive: {
         rootRunning: false,
         workersRunning: false,
@@ -118,10 +120,45 @@ describe('SqliteDesktopNotificationFactsLive', () => {
         archived: false,
         parentSessionId: null,
       }),
-      person: { originCallerId: 'gui:local-user', scheduledTaskPolicy: null },
-      agent: { originCallerId: 'session-agent:queen:run-1', scheduledTaskPolicy: null },
+      person: {
+        originCallerId: 'gui:local-user',
+        scheduledTaskPolicy: null,
+        interruptedByCallerId: null,
+      },
+      agent: {
+        originCallerId: 'session-agent:queen:run-1',
+        scheduledTaskPolicy: null,
+        interruptedByCallerId: null,
+      },
       visit: 42,
       lost: [{ sessionId: 'root', runId: 'run-agent' }],
+    })
+  })
+
+  it('reads a Hive wake by the origin of the Run it acts for, and who stopped it', async () => {
+    const result = await withFacts(
+      (sql) =>
+        Effect.gen(function* () {
+          yield* insertSession(sql, 'root')
+          yield* sql`
+            INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+            VALUES
+              (${'run-ask'}, ${'root'}, ${'completed'},
+                ${JSON.stringify({ callerId: 'session-agent:other:run-1' })}, ${5000}, ${5000}),
+              (${'run-wake'}, ${'root'}, ${'interrupted'},
+                ${JSON.stringify({ callerId: 'local-user', hiveWake: true })}, ${5100}, ${5100})
+          `
+          yield* sql`
+            UPDATE session_runs SET interrupted_by_caller_id = ${'profile:mcp'}
+            WHERE id = ${'run-wake'}
+          `
+        }),
+      (facts) => facts.run('root', 'run-wake'),
+    )
+    expect(result).toEqual({
+      originCallerId: 'session-agent:other:run-1',
+      scheduledTaskPolicy: null,
+      interruptedByCallerId: 'profile:mcp',
     })
   })
 })
