@@ -27,10 +27,10 @@ export function externalRunAdmission(
   },
 ) {
   return Effect.gen(function* () {
-    const { callerId, hiveWake } = input.intent
+    const { callerId, idempotencyKey, hiveWake } = input.intent
     const refusal = yield* workerRunAdmissionRefusal(sql, {
       sessionId: input.sessionId,
-      caller: hiveWake ? { callerId, hiveWake } : { callerId },
+      caller: { callerId, idempotencyKey, ...(hiveWake ? { hiveWake } : {}) },
       hostRunCeiling: input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling,
     })
     return refusal ? ({ accepted: false, code: refusal } as const) : undefined

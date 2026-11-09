@@ -15,15 +15,17 @@ export const PI_SESSION_FILE_REFUSAL_NOTICE =
 
 /**
  * The toast for any other send the Session Host refused. Without it the message came back to the
- * composer with no word of why, which read as the app ignoring the person.
+ * composer with no word of why, which read as the app ignoring the person. The Host's own words
+ * come first when it wrote some; its code is kept for support.
  */
 export function refusedSendNotice(refusal: MessageNotDelivered) {
-  if (refusal.code) {
-    return `Not sent: the Session Host refused it (${refusal.code}). Your message is back in the composer.`
-  }
-  return refusal.message === DEFAULT_NOT_DELIVERED_MESSAGE
-    ? 'Not sent. Your message is back in the composer.'
-    : `Not sent: ${refusal.message} Your message is back in the composer.`
+  const { code, message } = refusal
+  const readable = message !== DEFAULT_NOT_DELIVERED_MESSAGE && message !== code
+  const reason = readable ? (message.endsWith('.') ? message.slice(0, -1) : message) : undefined
+  const suffix = 'Your message is back in the composer.'
+  if (reason)
+    return code ? `Not sent: ${reason} (${code}). ${suffix}` : `Not sent: ${reason}. ${suffix}`
+  return code ? `Not sent: the Session Host refused it (${code}). ${suffix}` : `Not sent. ${suffix}`
 }
 
 function refusalOf(cause: unknown) {

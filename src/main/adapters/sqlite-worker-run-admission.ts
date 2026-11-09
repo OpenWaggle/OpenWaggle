@@ -1,56 +1,116 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import {
+  AGENT_SCHEDULED_RUN_KEY_PATTERN,
+  isAgentScheduledRunKey,
+} from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
-/** Why the Host would not start a Worker's Run now. Both are retryable. */
+/** Why the Host would not start an agent-made Session's Run now. Both are retryable. */
 export type WorkerRunAdmissionRefusal =
   | 'parent_concurrency_limit_reached'
   | 'host_run_ceiling_reached'
 
-/** Who a starting Run acts for, as its intent records it. */
+/** Who a starting Run acts for, as its intent and the request that starts it record it. */
 export interface StartingRunCaller {
   readonly callerId: string
+  /** The request's key: a Session agent's Scheduled task's firing is known by it. */
+  readonly idempotencyKey?: string
   /** A Host-authored Hive wake: the Host acts, even when it acts for the person. */
   readonly hiveWake?: true
+  /** The person's own queue action (Resume, Withdraw, an edit) delivers this Run. */
+  readonly personActed?: true
 }
 
 /**
- * Whether the person started this Run: from the app, the CLI or another local-user client. The
- * Host never refuses such a Run for capacity, so a busy Hive can never stop the person working in
- * any Session (ADR 0030, amended). A Hive wake is the Host acting, so it is not one.
+ * Whether the person started this Run: from the app, the CLI or another local-user client, or by
+ * a queue action of their own. The Host never refuses such a Run for capacity, so a busy Hive can
+ * never stop the person working in any Session (ADR 0030, amended 2026-11-09). A Hive wake is the
+ * Host acting, and a Scheduled task a Session agent created fires as its owner but is the agent's
+ * work: neither is the person's.
  */
 export function isPersonStartedRun(caller: StartingRunCaller) {
-  return caller.hiveWake !== true && isLocalUserCallerId(caller.callerId)
+  if (caller.personActed) return true
+  if (caller.hiveWake || isAgentScheduledRunKey(caller.idempotencyKey)) return false
+  return isLocalUserCallerId(caller.callerId)
 }
 
 /**
- * Active Worker Runs across the Host: Runs of Sessions some parent spawned. The person's own
- * Sessions never count. `exceptSessionId` leaves out the Session whose Run is being admitted.
+ * SQL for the Sessions agents made: Workers some parent spawned, and roots an agent, a client
+ * profile or a Session agent's Scheduled task created, launched or forked. The person's own Sessions are
+ * never among them.
+ */
+const AGENT_MADE_SESSION = `(
+  EXISTS (
+    SELECT 1 FROM session_spawn_lineage AS lineage
+    WHERE lineage.child_session_id = states.session_id
+  )
+  OR EXISTS (
+    SELECT 1 FROM session_operations AS operations
+    WHERE operations.operation IN ('create', 'launch', 'fork')
+      AND operations.status = 'completed'
+      AND json_extract(operations.outcome_json, '$.effect')
+        IN ('created-root', 'launched-root', 'forked-session')
+      AND json_extract(operations.outcome_json, '$.sessionId') = states.session_id
+      AND (
+        NOT (
+          operations.caller_id IN ('local-user', 'gui:local-user')
+          OR operations.caller_id LIKE 'local-user:%'
+        )
+        OR operations.idempotency_key LIKE '${AGENT_SCHEDULED_RUN_KEY_PATTERN}'
+      )
+  )
+)`
+
+/**
+ * Active Runs of agent-made Sessions across the Host: the Runs the Active Workers ceiling counts.
+ * `exceptSessionId` leaves out the Session whose Run is being admitted.
  */
 export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?: string) {
   return Effect.gen(function* () {
-    const rows = exceptSessionId
-      ? yield* sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count
-          FROM session_control_states AS states
-          JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = states.session_id
-          WHERE states.active_run_id IS NOT NULL AND states.session_id <> ${exceptSessionId}
-        `
-      : yield* sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count
-          FROM session_control_states AS states
-          JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = states.session_id
-          WHERE states.active_run_id IS NOT NULL
-        `
+    const rows = yield* sql<{ readonly count: number }>`
+      SELECT COUNT(*) AS count
+      FROM session_control_states AS states
+      WHERE states.active_run_id IS NOT NULL
+        AND states.session_id <> ${exceptSessionId ?? ''}
+        AND ${sql.unsafe(AGENT_MADE_SESSION)}
+    `
     return rows[0]?.count ?? 0
+  })
+}
+
+/** Whether an agent made `sessionId` (see `AGENT_MADE_SESSION`). */
+function isAgentMadeSession(sql: SqlClient.SqlClient, sessionId: string) {
+  return Effect.gen(function* () {
+    const rows = yield* sql<{ readonly agentMade: number }>`
+      SELECT EXISTS (
+        SELECT 1 FROM (SELECT ${sessionId} AS session_id) AS states
+        WHERE ${sql.unsafe(AGENT_MADE_SESSION)}
+      ) AS agentMade
+    `
+    return rows[0]?.agentMade === 1
+  })
+}
+
+/** The Active Workers ceiling for one more agent-made Run, or undefined when there is room. */
+export function hostWorkerCeilingRefusal(
+  sql: SqlClient.SqlClient,
+  input: { readonly exceptSessionId?: string; readonly hostRunCeiling: number },
+) {
+  return Effect.gen(function* () {
+    const hostActiveRuns = yield* countActiveWorkerRuns(sql, input.exceptSessionId)
+    return hostActiveRuns >= input.hostRunCeiling
+      ? { code: 'host_run_ceiling_reached' as const, hostActiveRuns }
+      : undefined
   })
 }
 
 /**
  * The capacity rule for a Run about to start in `sessionId`. Only an agent- or Host-started Run
- * of a Worker Session is limited: by its parent's Worker limit, then by the Host's Worker ceiling.
- * A root Session's Run, and any Run the person starts, is always admitted.
+ * of an agent-made Session is limited: a Worker's by its parent's Worker limit, then any by the
+ * Host's Active Workers ceiling. The person's Sessions' Runs, and any Run the person starts, are
+ * always admitted.
  */
 export function workerRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
@@ -63,12 +123,14 @@ export function workerRunAdmissionRefusal(
   if (isPersonStartedRun(input.caller)) return Effect.succeed(undefined)
   return Effect.gen(function* () {
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
-    // No parent: a root Session, which no capacity limit applies to.
-    if (!('parentSessionId' in parentAdmission)) return undefined
-    if (!parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
-    const activeWorkerRuns = yield* countActiveWorkerRuns(sql, input.sessionId)
-    return activeWorkerRuns >= input.hostRunCeiling
-      ? ('host_run_ceiling_reached' as const)
-      : undefined
+    const isWorker = 'parentSessionId' in parentAdmission
+    if (isWorker && !parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
+    // A root Session the person made: no capacity limit applies.
+    if (!isWorker && !(yield* isAgentMadeSession(sql, input.sessionId))) return undefined
+    const ceiling = yield* hostWorkerCeilingRefusal(sql, {
+      exceptSessionId: input.sessionId,
+      hostRunCeiling: input.hostRunCeiling,
+    })
+    return ceiling?.code
   })
 }

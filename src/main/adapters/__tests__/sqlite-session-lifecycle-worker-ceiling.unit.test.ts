@@ -13,9 +13,33 @@ import {
 
 let temporaryRoot = ''
 
+/** A launch by `callerId` of a root named `name`, with its own request and Run. */
+function launchBy(callerId: string, name: string) {
+  const base = rootLifecycleInput('launch')
+  return {
+    ...base,
+    callerId,
+    request: {
+      ...base.request,
+      requestId: `request-launch-${name}`,
+      idempotencyKey: `idempotency-launch-${name}`,
+    },
+    session: {
+      sessionId: `session-launch-${name}`,
+      piSessionId: `pi-launch-${name}`,
+      piSessionFile: `/sessions/launch-${name}.jsonl`,
+    },
+    runId: `run-launch-${name}`,
+    hostRunCeiling: 1,
+  }
+}
+
+/** A caller that is not the person: an MCP client holding a transient authority. */
+const AGENT = 'transient-mcp:digest-agent'
+
 /*
- * The Host's run ceiling limits Worker Runs only (ADR 0030, amended 2026-11-09): a launched root
- * never meets it, and a spawn counts only the Worker Runs already active.
+ * The Host's run ceiling limits what agents start (ADR 0030, amended 2026-11-09): the person's
+ * launch never meets it, and a spawn or an agent's launch counts only agent-made Sessions' Runs.
  */
 describe('SQLite Session lifecycle and the Worker ceiling', () => {
   beforeEach(async () => {
@@ -26,7 +50,7 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('launches an independent root whatever the Worker ceiling', async () => {
+  it('launches the person’s root whatever the Worker ceiling', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'launch-ceiling.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -51,7 +75,7 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
     expect(result.sessionCount).toBe(1)
   })
 
-  it('launches concurrent roots past the Worker ceiling', async () => {
+  it('launches the person’s concurrent roots past the Worker ceiling', async () => {
     const layer = makeSessionLifecycleTestLayer(
       path.join(temporaryRoot, 'launch-ceiling-race.sqlite'),
     )
@@ -87,6 +111,54 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       'launched-root',
       'launched-root',
     ])
+  })
+
+  it('refuses an agent’s launch once agent-made Sessions fill the ceiling, not the person’s', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'agent-launch.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        const first = yield* repository.execute(launchBy(AGENT, 'agent-first'))
+        const second = yield* repository.execute(launchBy(AGENT, 'agent-second'))
+        const person = yield* repository.execute(launchBy('gui:local-user', 'person'))
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM sessions WHERE id = ${'session-launch-agent-second'}
+        `
+        return { first, second, person, secondSessions: rows[0]?.count }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    // The parent's root Run does not count; the agent's first launched root does.
+    expect(result.first.outcome).toMatchObject({ effect: 'launched-root' })
+    expect(result.second.outcome).toMatchObject({
+      operation: 'launch',
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+      hostRunCeiling: 1,
+      hostActiveRuns: 1,
+    })
+    expect(result.secondSessions).toBe(0)
+    expect(result.person.outcome).toMatchObject({ effect: 'launched-root' })
+  })
+
+  it('admits only one of two concurrent agent launches into the last Worker slot', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'agent-race.sqlite'))
+    const responses = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        return yield* Effect.all(
+          [
+            repository.execute(launchBy(AGENT, 'race-a')),
+            repository.execute(launchBy(AGENT, 'race-b')),
+          ],
+          { concurrency: 'unbounded' },
+        )
+      }).pipe(Effect.provide(layer)),
+    )
+
+    const effects = responses.map((response) => response.outcome.effect).sort()
+    expect(effects).toEqual(['launched-root', 'rejected'])
   })
 
   it('refuses a spawn at the Worker ceiling, counting Worker Runs only', async () => {

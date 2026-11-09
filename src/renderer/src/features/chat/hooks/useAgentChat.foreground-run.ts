@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
@@ -144,13 +145,16 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
     const completedMeanwhile = settled !== null || held.length > 0
     if (settled) forwardToPrevious(settled.error ? { error: settled.error } : {})
     for (const completion of held.splice(0)) forwardToPrevious(completion)
-    if (refs.pendingRunWaiterRef.current === tracked) {
+    const ownsForeground = refs.pendingRunWaiterRef.current === tracked
+    if (ownsForeground) {
       refs.pendingRunWaiterRef.current = previous.waiter
       refs.foregroundStreamActiveRef.current = previous.foregroundStreamActive
       refs.foregroundSessionIdRef.current = previous.foregroundSessionId
       refs.terminalRunErrorRef.current ??= previous.terminalRunError
     }
-    if (refs.currentSessionIdRef.current !== targetSessionId) return
+    // A later send that owns the foreground owns the status too: its `submitted` is not ours.
+    const laterSendOwnsForeground = !ownsForeground && refs.pendingRunWaiterRef.current !== null
+    if (laterSendOwnsForeground || refs.currentSessionIdRef.current !== targetSessionId) return
     restoreVisibleRunState(refs, previous, completedMeanwhile, setters)
   }
 
@@ -224,6 +228,14 @@ export function forgetSendWithoutRun(input: {
   dropOptimisticSend(input)
 }
 
+/** A send's report that started no Run. */
+export type ReportWithoutRun = {
+  readonly [Outcome in Exclude<AgentSendReport['outcome'], 'delivered'>]: Omit<
+    AgentSendReport,
+    'outcome'
+  > & { readonly outcome: Outcome }
+}[Exclude<AgentSendReport['outcome'], 'delivered'>]
+
 /**
  * Ends a send whose report started no Run and says what the caller is owed. Queued: nothing, the
  * message is in the queue now. Refused: the reason, and the send ends here, since no Run will
@@ -231,15 +243,22 @@ export function forgetSendWithoutRun(input: {
  */
 export function settleSendWithoutRun(
   sent: Parameters<typeof forgetSendWithoutRun>[0],
-  report: AgentSendReport | undefined,
+  report: ReportWithoutRun,
 ) {
-  if (!report || report.outcome === 'delivered') return undefined
-  if (report.outcome === 'queued') {
-    forgetSendWithoutRun(sent)
-    return undefined
-  }
-  if (report.outcome === 'refused') forgetSendWithoutRun(sent)
-  return new MessageNotDelivered(report.outcome, report.message, report.code)
+  return matchBy(report, 'outcome')
+    .with('queued', () => {
+      forgetSendWithoutRun(sent)
+      return undefined
+    })
+    .with('refused', (refused) => {
+      forgetSendWithoutRun(sent)
+      return new MessageNotDelivered(refused.outcome, refused.message, refused.code)
+    })
+    .with(
+      'cancelled',
+      (cancelled) => new MessageNotDelivered(cancelled.outcome, cancelled.message, cancelled.code),
+    )
+    .exhaustive()
 }
 
 /**

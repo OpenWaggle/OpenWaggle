@@ -127,7 +127,7 @@ When workers share a checkout, it is harder to tell who changed what. Workers ca
 
 - **Agent-created Workers** lets agents create workers in this app, and start new top-level sessions with `launch`.
 - **Workers per parent** is how many workers can run at once under one parent. The default is 4.
-- **Active Workers** is how many worker runs can go at once across the whole app, in every Hive. The default is 16.
+- **Active Workers** is how many worker runs can go at once across the whole app, in every Hive. Sessions that agents launch count as workers too. The default is 16.
 
 Both limits are for workers only. However busy your Hives are, you can always reply to a Queen, keep working in your other sessions and start new ones. Neither limit has a fixed maximum, but high values can strain your machine or your provider. A worker run that would go past a limit fails with an error the agent can retry later. It does not wait in a queue. A run OpenWaggle starts for a parent whose workers reported is the exception, as the [Hive reference](/docs/reference/hive#run-limits) describes. Saved sessions do not count toward either limit. A project's `.openwaggle/settings.json` can set its own **Agent-created Workers** and **Workers per parent**, as [App settings](/docs/configuration/app-settings#let-agents-share-work) describes.
 

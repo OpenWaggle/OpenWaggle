@@ -202,7 +202,7 @@ OpenWaggle starts that run only when all of these hold:
 - Whoever started the parent's last run may still send it a message. A revoked CLI client profile, or one without `sessions:message`, gets no run.
 - A CLI client profile or MCP client behind the update is also behind the parent's last run. That covers a result or request for help a profile sets for a worker, and everything in a worker run that a profile started, including a run OpenWaggle started for worker updates on a profile's behalf. Otherwise the update starts no run, even if it arrived while the parent wrote its last answer, and the parent reads it at its next run. A Hive that a profile started still wakes its parent. A worker run counts as whoever started it, even when a client steered it or answered its questions. A run that a client stopped counts as that client's, unless the run still completed. A run the Session Host stopped to shut down still counts as whoever started it.
 
-The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run was started with **Ask for approval** for that run only, or when that caller's ceiling is **Ask for approval** now. When an `openwaggle mcp serve --owner` server started that last run, the run always uses **Ask for approval**, because OpenWaggle cannot check that server's grants after it exits. It is always a standard run, even when the last run was a Waggle. When the parent is itself a worker, the run counts toward **Active Workers** and **Workers per parent**, and when a limit is full, OpenWaggle tries again when another run ends. A top-level parent, such as a Queen, is never held back by the limits.
+The run acts for whoever started the parent's last run, in the parent's own access mode. It runs in **Ask for approval** instead when that last run was started with **Ask for approval** for that run only, or when that caller's ceiling is **Ask for approval** now. When an `openwaggle mcp serve --owner` server started that last run, the run always uses **Ask for approval**, because OpenWaggle cannot check that server's grants after it exits. It is always a standard run, even when the last run was a Waggle. When the parent is itself a worker, or a session an agent launched, the run counts toward **Active Workers** (and a worker's toward **Workers per parent**), and when a limit is full, OpenWaggle tries again when another run ends. A top-level parent you started, such as your Queen, is never held back by the limits.
 
 OpenWaggle checks these rules again just before the run starts, so a parent that got a run, a follow-up or was archived in the meantime is left alone, and so is one whose last caller lost the right to message it. When the parent is itself a worker that asked its own parent for help, the run does not count as that parent's answer, and its reply does not count as the worker's result. The request stays open. When the parent is itself a worker whose result waits for review, a result the run submits replaces that result, and its own parent hears about it. The run's reply replaces it only when that result was a reply too, not one the worker submitted. A run that fails, is stopped or ends without a reply leaves that result for its parent to review.
 
@@ -294,11 +294,13 @@ Two settings in **Settings > Agents > Hive controls** cap how many worker runs g
 
 The limits never hold back the person or a top-level session:
 
-- Runs of top-level sessions, such as a Queen or any session you started, never count toward the limits and are never refused by them, whoever starts them.
-- A run you start yourself, from the app, the command line or another client running as you, is never refused, even in a worker. A follow-up you queued in a worker runs next even when its parent is at **Workers per parent**.
-- `launch` starts a top-level session, so it has no run limit.
+- Runs of sessions you started, such as your Queen, never count toward the limits and are never refused by them, whoever starts them.
+- A run you start yourself, from the app, the command line or another client running as you, is never refused, even in a worker. So is a run that your own **Resume**, withdraw, reorder or edit of a queue starts, whoever wrote the follow-up. A follow-up you queued in a worker runs next even when its parent is at **Workers per parent**.
+- A `launch` of yours has no run limit.
 
-The limits count active worker runs, not saved sessions, queues, searches, exports, waits or watchers.
+Sessions agents make count as workers for **Active Workers**: a top-level session that an agent or an access profile launched, created or forked, or that a task a session agent scheduled launched. An agent's `launch` fails with `host_run_ceiling_reached` when **Active Workers** is full, so launching instead of spawning does not get around the limit.
+
+The limits count active runs of sessions agents made, not saved sessions, queues, searches, exports, waits or watchers.
 
 ## Worker cleanup timing
 

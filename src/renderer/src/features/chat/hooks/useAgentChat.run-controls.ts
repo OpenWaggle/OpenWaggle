@@ -1,4 +1,4 @@
-import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
-import { MessageDeliveredRunFailed } from '../lib/message-delivery'
+import { isRefusal, MessageDeliveredRunFailed } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
@@ -19,6 +19,7 @@ import {
   forgetIfRefusedForPiSessionFile,
   normalizeError,
   offerRunCompletion,
+  type ReportWithoutRun,
   settleSendWithoutRun,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
@@ -178,7 +179,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * being torn down may already have been *replaced* - stopping settles the run, a queued follow-up send
      * begins immediately, and the superseded send's reply arrives after that replacement has started.
      */
-    let reportWithoutRun: AgentSendReport | undefined
+    let reportWithoutRun: ReportWithoutRun
     let delivered = false
     try {
       /*
@@ -196,7 +197,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       }
       // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
       void runPromise.catch(() => undefined)
-      reportWithoutRun = report
+      reportWithoutRun = { ...report, outcome: report.outcome }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
       const refused = forgetIfRefusedForPiSessionFile(sent, normalizedError)
@@ -272,9 +273,15 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       (currentMessages) => [...currentMessages, optimisticUserMessage],
       { cacheRunSnapshot: true },
     )
-    await withForegroundSend(sessionId, () =>
-      dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
-    )
+    try {
+      await withForegroundSend(sessionId, () =>
+        dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
+      )
+    } catch (error) {
+      // Refused before any Run: the message goes back to the composer, with no send to recover.
+      if (params.isFirstMessage && isRefusal(error)) params.setFirstSendRecovery(sessionId, null)
+      throw error
+    }
     if (params.isFirstMessage) {
       params.setFirstSendRecovery(sessionId, null)
     }

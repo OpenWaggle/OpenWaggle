@@ -61,6 +61,10 @@ describe('a Scheduled task a Session agent created', () => {
       callerId: 'local-user',
       workingDirectory: fixture.project,
     })
+    // It runs as the person, but its key says it is the agent's work: the Worker limits apply.
+    expect(dispatched.at(-1)?.payload).toMatchObject({
+      request: { idempotencyKey: expect.stringMatching(/^scheduled-task-run:session-agent:/) },
+    })
   })
 
   it('keeps a narrower agent authority as limits after its Session is gone', async () => {

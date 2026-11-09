@@ -8,7 +8,7 @@ import {
   queueSessionFollowUp,
   submitSessionMessage,
 } from '../../application/session-control-service'
-import { countActiveWorkerRuns, isPersonStartedRun } from '../sqlite-worker-run-admission'
+import { countActiveWorkerRuns } from '../sqlite-worker-run-admission'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 import {
   AGENT_CALLER,
@@ -73,7 +73,7 @@ describe('Worker Run admission', () => {
     expect(result.outcome).toMatchObject({ operation: 'follow-up', effect: 'started-run' })
   })
 
-  it('starts a root Session’s Run for any caller: only Worker Runs are limited', async () => {
+  it('starts an agent’s Run in a root Session the person made: no limit applies', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-root.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -154,20 +154,5 @@ describe('Worker Run admission', () => {
     )
 
     expect(result.outcome).toMatchObject({ effect: 'started-run' })
-  })
-})
-
-describe('isPersonStartedRun', () => {
-  it('is the person from the app, the CLI or another local-user client', () => {
-    expect(isPersonStartedRun({ callerId: 'gui:local-user' })).toBe(true)
-    expect(isPersonStartedRun({ callerId: 'local-user' })).toBe(true)
-    expect(isPersonStartedRun({ callerId: 'local-user:machine' })).toBe(true)
-  })
-
-  it('is not an agent, a client profile, or the Host waking a parent for the person', () => {
-    expect(isPersonStartedRun({ callerId: 'session-agent:queen:run-queen' })).toBe(false)
-    expect(isPersonStartedRun({ callerId: 'profile:ci' })).toBe(false)
-    expect(isPersonStartedRun({ callerId: AGENT_CALLER })).toBe(false)
-    expect(isPersonStartedRun({ callerId: 'gui:local-user', hiveWake: true })).toBe(false)
   })
 })

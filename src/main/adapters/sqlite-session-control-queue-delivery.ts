@@ -10,6 +10,7 @@ import {
   pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
+import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { type StartingRunCaller, workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
@@ -42,28 +43,48 @@ function isDeliveringOperation(
   return DELIVERING_QUEUE_OPERATIONS.has(operation)
 }
 
+/** Who acts in a mutation: its caller and operation. */
+interface MutationActor {
+  readonly callerId: string
+  readonly operation: SessionControlMutationCommand['operation']
+}
+
 /**
- * The capacity rule for the Run `state` is starting: only a Worker's Run that an agent or the Host
- * starts can be refused (`sqlite-worker-run-admission.ts`). The person's Runs, and every root
- * Session's Run, are always admitted.
+ * The capacity rule for the Run `state` is starting: only an agent-made Session's Run that an
+ * agent or the Host starts can be refused (`sqlite-worker-run-admission.ts`). The person's Runs,
+ * a Run the person's own queue action delivers, and the Runs of the person's Sessions are always
+ * admitted.
  */
 export function newRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
   state: SessionControlSessionState,
   hostRunCeiling: number,
+  actor?: MutationActor,
 ) {
   return workerRunAdmissionRefusal(sql, {
     sessionId: state.sessionId,
-    caller: startingRunCaller(state),
+    caller: startingRunCaller(state, actor),
     hostRunCeiling,
   })
 }
 
 /** Who the starting Run acts for; a state with no starting Run is held to the Worker rule. */
-function startingRunCaller(state: SessionControlSessionState): StartingRunCaller {
+function startingRunCaller(
+  state: SessionControlSessionState,
+  actor: MutationActor | undefined,
+): StartingRunCaller {
   if (state.run.state !== 'starting') return { callerId: '' }
-  const { callerId, hiveWake } = state.run.intent
-  return hiveWake ? { callerId, hiveWake } : { callerId }
+  const { callerId, idempotencyKey, hiveWake } = state.run.intent
+  const personActed =
+    actor !== undefined &&
+    isDeliveringOperation(actor.operation) &&
+    isLocalUserCallerId(actor.callerId)
+  return {
+    callerId,
+    idempotencyKey,
+    ...(hiveWake ? { hiveWake } : {}),
+    ...(personActed ? { personActed } : {}),
+  }
 }
 
 function queueUpdated(
@@ -104,6 +125,8 @@ export function deliverAfterQueueDecision(
     readonly operation: SessionControlMutationCommand['operation']
     readonly nextRunId: RunId | undefined
     readonly hostRunCeiling: number
+    /** The mutation's caller: the person's own queue action delivers its Run whatever the limits. */
+    readonly callerId: string
   },
 ): Effect.Effect<SessionControlMutationDecision, unknown> {
   const { decision, operation, nextRunId } = input
@@ -134,7 +157,10 @@ export function deliverAfterQueueDecision(
         outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
-    const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling)
+    const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
+      callerId: input.callerId,
+      operation,
+    })
     if (refusal) {
       const paused = pauseUndeliveredQueue(
         authorized,

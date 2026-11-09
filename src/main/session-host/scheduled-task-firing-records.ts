@@ -10,6 +10,7 @@ import {
   markScheduledTaskWaiting,
 } from '../application/scheduled-task-bookkeeping'
 import { scheduledTaskHooks } from '../application/scheduled-task-hooks'
+import { scheduledTaskRunKey } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import {
   type ScheduledTaskRecord,
   ScheduledTaskRepository,
@@ -45,7 +46,7 @@ export function newRunStart(
     nominalAt: timing.nominalAt,
     firedAt: now,
     missedCount: timing.missedCount,
-    idempotencyKey: `scheduled-task-run:${id}`,
+    idempotencyKey: scheduledTaskRunKey(id, record.creator.kind),
     callerId: record.creatorCallerId,
     previousSessionId: previous?.sessionId ?? null,
     previousFiredAt: previous?.firedAt ?? null,

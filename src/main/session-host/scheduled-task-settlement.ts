@@ -40,7 +40,13 @@ function refusalSettlement(code: string, kind: 'heartbeat' | 'launch') {
     return skipped('session-busy', 'The Session started a Run before this one could.')
   }
   if (code === 'host_run_ceiling_reached' || code === 'host_capacity_reached') {
-    return skipped('host-capacity-reached', 'The Session Host was running as many Runs as it may.')
+    return skipped('host-capacity-reached', 'Agents were running as many Workers as they may.')
+  }
+  if (code === 'parent_concurrency_limit_reached') {
+    return skipped(
+      'host-capacity-reached',
+      "The Worker's parent was running as many Workers as it may.",
+    )
   }
   if (code.includes('model')) {
     return failed(

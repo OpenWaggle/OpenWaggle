@@ -167,7 +167,7 @@ export function MultiAgentAccessCard() {
         </SettingRow>
         <SettingRow
           label="Active Workers"
-          description="Most Worker runs active at once across every Hive."
+          description="Most Worker runs active at once across every Hive, counting Sessions agents launch."
           last
         >
           <NumberStepper
@@ -181,9 +181,9 @@ export function MultiAgentAccessCard() {
       </div>
       <p className="text-xs text-text-tertiary">
         At either limit a new Worker run is rejected with a retryable error; it is not queued.
-        Messages you send, new Sessions and Queens are never held back by these limits. Higher
-        values may strain your machine or model provider. Project configuration files can override
-        these app-wide defaults.
+        Messages you send, your new Sessions and your top-level Sessions are never held back by
+        these limits. Higher values may strain your machine or model provider. Project configuration
+        files can override these app-wide defaults.
       </p>
       <SavedProjectOverrides
         settings={settings}

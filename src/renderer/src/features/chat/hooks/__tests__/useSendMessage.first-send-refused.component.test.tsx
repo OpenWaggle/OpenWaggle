@@ -10,8 +10,8 @@ import { useOptimisticUserMessageStore } from '../../state/optimistic-user-messa
 const { sendMessageMock } = vi.hoisted(() => ({
   sendMessageMock: vi.fn(async () => ({
     outcome: 'refused' as const,
-    message: 'host_run_ceiling_reached',
-    code: 'host_run_ceiling_reached',
+    message: 'queue_capacity_reached',
+    code: 'queue_capacity_reached',
   })),
 }))
 
@@ -79,7 +79,7 @@ describe("a session's refused first send", () => {
     expect(failure).toBeInstanceOf(FirstSendFailed)
     const cause = failure instanceof FirstSendFailed ? failure.cause : undefined
     expect(cause).toBeInstanceOf(MessageNotDelivered)
-    expect(cause).toMatchObject({ outcome: 'refused', code: 'host_run_ceiling_reached' })
+    expect(cause).toMatchObject({ outcome: 'refused', code: 'queue_capacity_reached' })
     expect(
       useOptimisticUserMessageStore.getState().messagesBySessionId.get(sessionId) ?? [],
     ).toEqual([])

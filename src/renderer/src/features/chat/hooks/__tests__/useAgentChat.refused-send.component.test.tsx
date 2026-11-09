@@ -7,6 +7,8 @@ import { useOptimisticUserMessageStore } from '../../state/optimistic-user-messa
 import {
   apiMock,
   createSession,
+  createSessionWithMessages,
+  firstSendRecoveryCalls,
   installUseAgentChatTestLifecycle,
   SEND_PAYLOAD,
   useAgentChat,
@@ -34,8 +36,8 @@ describe('useAgentChat send the Session Host refused', () => {
   it('returns the Session to ready, drops the message, and reports the refusal code', async () => {
     apiMock.sendMessage.mockResolvedValueOnce({
       outcome: 'refused',
-      message: 'host_run_ceiling_reached',
-      code: 'host_run_ceiling_reached',
+      message: 'queue_capacity_reached',
+      code: 'queue_capacity_reached',
     })
     const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
 
@@ -47,12 +49,60 @@ describe('useAgentChat send the Session Host refused', () => {
     })
 
     expect(outcome).toBeInstanceOf(MessageNotDelivered)
-    expect(outcome).toMatchObject({ outcome: 'refused', code: 'host_run_ceiling_reached' })
+    expect(outcome).toMatchObject({ outcome: 'refused', code: 'queue_capacity_reached' })
     expect(result.current.status).toBe('ready')
     expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBeUndefined()
     expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
     const optimistic = useOptimisticUserMessageStore.getState().messagesBySessionId.get(SESSION_ID)
     expect(visibleUserTexts(optimistic ?? [])).not.toContain(SEND_PAYLOAD.text)
+  })
+
+  it('drops the recovery of a refused first message in a Session that has none yet', async () => {
+    apiMock.sendMessage.mockResolvedValueOnce({
+      outcome: 'refused',
+      message: 'queue_capacity_reached',
+      code: 'queue_capacity_reached',
+    })
+    const emptySession = createSessionWithMessages(1, [])
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, emptySession, MODEL))
+
+    await act(async () => {
+      await result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
+    })
+
+    // Kept, a restart would offer to retry a message that is already back in the composer.
+    expect(firstSendRecoveryCalls.at(-1)).toEqual([SESSION_ID, null])
+  })
+
+  it('leaves a later send’s Thinking alone when an earlier send is refused', async () => {
+    let refuse: (report: { outcome: 'refused'; message: string; code: string }) => void = () => {}
+    apiMock.sendMessage
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            refuse = resolve
+          }),
+      )
+      .mockImplementationOnce(() => new Promise(() => {}))
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+
+    let first: Promise<unknown> = Promise.resolve()
+    await act(async () => {
+      first = result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => error)
+      void result.current.sendMessage({ ...SEND_PAYLOAD, text: 'A later message' })
+    })
+    await act(async () => {
+      refuse({
+        outcome: 'refused',
+        message: 'queue_capacity_reached',
+        code: 'queue_capacity_reached',
+      })
+      await first
+    })
+
+    expect(await first).toBeInstanceOf(MessageNotDelivered)
+    expect(result.current.status).toBe('submitted')
+    expect(visibleUserTexts(result.current.messages)).toContain('A later message')
   })
 })
