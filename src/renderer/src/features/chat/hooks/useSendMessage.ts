@@ -273,12 +273,19 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        * A cancellation is reported too, so work the user may still want is not discarded - but it carries its
        * outcome, because a caller must not tell the user their turn "could not start" when they stopped it.
        */
-      throw new MessageNotDelivered(report.outcome, report.message)
+      throw new MessageNotDelivered(report.outcome, report.message, report.code)
     } catch (error) {
       useFirstSendPendingStore.getState().clear(sessionId)
       if (config) useWaggleStore.getState().stopCollaboration(sessionId)
       if (error instanceof MessageNotDelivered && error.outcome === 'cancelled') {
         useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+      }
+      if (error instanceof MessageNotDelivered && error.outcome === 'refused') {
+        // Refused before any Run: the message goes back to the composer, so it leaves the
+        // transcript, and there is no launch to recover.
+        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+        useOptimisticUserMessageStore.getState().remove(sessionId, optimisticUserMessage.id)
       }
       logger.error('First message send failed', {
         sessionId: String(sessionId),

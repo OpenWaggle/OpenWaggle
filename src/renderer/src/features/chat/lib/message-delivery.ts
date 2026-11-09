@@ -42,15 +42,18 @@ export function wasMessageDelivered(error: unknown) {
  */
 export class MessageNotDelivered extends Error {
   readonly outcome: 'refused' | 'cancelled'
+  /** The Host's refusal code, when it gave one (`host_run_ceiling_reached`, ...). */
+  readonly code: string | undefined
 
-  constructor(outcome: 'refused' | 'cancelled', message?: string) {
+  constructor(outcome: 'refused' | 'cancelled', message?: string, code?: string) {
     super(message ?? DEFAULT_NOT_DELIVERED_MESSAGE)
     this.name = 'MessageNotDelivered'
     this.outcome = outcome
+    this.code = code
   }
 }
 
-const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
+export const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
 
 /** Whether this failure is worth showing the user, as opposed to one they caused by stopping the run. */
 export function isReportableSendFailure(error: unknown) {

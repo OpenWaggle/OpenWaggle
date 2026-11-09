@@ -2,35 +2,38 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
 import { replaceWithExternalSessionRun } from '../domain/session-control/run-lifecycle'
 import { SessionControlRepositoryError } from '../errors'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
-import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
+import { workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
+/**
+ * An external Run (an explicit Waggle command's Run) follows the same capacity rule as any other:
+ * only a Worker's Run that an agent starts can be refused, never the person's or a root Session's.
+ */
 export function externalRunAdmission(
   sql: SqlClient.SqlClient,
-  input: { readonly sessionId: SessionId; readonly hostRunCeiling?: number },
+  input: {
+    readonly sessionId: SessionId
+    readonly intent: SessionControlRunIntent
+    readonly hostRunCeiling?: number
+  },
 ) {
   return Effect.gen(function* () {
-    const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
-    if (!parentAdmission.admitted) {
-      return { accepted: false, code: 'parent_concurrency_limit_reached' } as const
-    }
-    const rows = yield* sql<{ readonly count: number }>`
-      SELECT COUNT(*) AS count
-      FROM session_control_states
-      WHERE active_run_id IS NOT NULL
-    `
-    const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
-    return (rows[0]?.count ?? 0) >= hostRunCeiling
-      ? ({ accepted: false, code: 'host_run_ceiling_reached' } as const)
-      : undefined
+    const { callerId, hiveWake } = input.intent
+    const refusal = yield* workerRunAdmissionRefusal(sql, {
+      sessionId: input.sessionId,
+      caller: hiveWake ? { callerId, hiveWake } : { callerId },
+      hostRunCeiling: input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling,
+    })
+    return refusal ? ({ accepted: false, code: refusal } as const) : undefined
   })
 }
 

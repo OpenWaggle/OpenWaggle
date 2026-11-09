@@ -13,6 +13,7 @@ import { PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX } from '../ports/pi-session-dis
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { loadSessionControlState } from './sqlite-session-control-state'
 import { lifecycleResponse, storeLifecycleOutcome } from './sqlite-session-lifecycle-support'
+import { countActiveWorkerRuns } from './sqlite-worker-run-admission'
 
 const DEFAULT_PARENT_CONCURRENCY_LIMIT = 4
 const DEFAULT_HOST_RUN_CEILING = 16
@@ -137,43 +138,6 @@ function forkTarget(
   })
 }
 
-function launchTarget(
-  sql: SqlClient.SqlClient,
-  input: ExecuteInput,
-  scope: string,
-  requestJson: string,
-  command: Extract<ExecuteInput['request']['command'], { readonly operation: 'launch' }>,
-) {
-  return Effect.gen(function* () {
-    const hostRunRows = yield* sql<{ readonly count: number }>`
-      SELECT COUNT(*) AS count
-      FROM session_control_states
-      WHERE active_run_id IS NOT NULL
-    `
-    const hostActiveRuns = hostRunRows[0]?.count ?? 0
-    const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING
-    if (hostActiveRuns >= hostRunCeiling) {
-      const outcome: SessionLifecycleOutcome = {
-        operation: 'launch',
-        effect: 'rejected',
-        code: 'host_run_ceiling_reached',
-        retryable: true,
-        hostRunCeiling,
-        hostActiveRuns,
-      }
-      yield* storeLifecycleOutcome(sql, input, scope, requestJson, outcome)
-      return {
-        kind: 'rejected',
-        response: lifecycleResponse(input, false, outcome),
-      } satisfies LifecycleTargetResolution
-    }
-    return {
-      kind: 'accepted',
-      target: { projectPath: command.projectPath },
-    } satisfies LifecycleTargetResolution
-  })
-}
-
 function spawnTarget(
   sql: SqlClient.SqlClient,
   input: ExecuteInput,
@@ -201,9 +165,6 @@ function spawnTarget(
       WHERE session_spawn_lineage.parent_session_id = ${parentSessionId}
         AND session_control_states.active_run_id IS NOT NULL
     `
-    const hostRunRows = yield* sql<{ readonly count: number }>`
-      SELECT COUNT(*) AS count FROM session_control_states WHERE active_run_id IS NOT NULL
-    `
     const admission = decideSpawnAdmission({
       parentSessionId: SessionId(parentSessionId),
       expectedParentRunId: RunId(parentRunId),
@@ -213,7 +174,8 @@ function spawnTarget(
           : { state: parentState.run.state, runId: parentState.run.runId },
       parentRunningChildren: runningChildRows[0]?.count ?? 0,
       parentConcurrencyLimit: input.parentConcurrencyLimit ?? DEFAULT_PARENT_CONCURRENCY_LIMIT,
-      hostActiveRuns: hostRunRows[0]?.count ?? 0,
+      // The Host's ceiling counts Worker Runs only; the person's Sessions never use a slot.
+      hostActiveRuns: yield* countActiveWorkerRuns(sql),
       hostRunCeiling: input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING,
     })
     if (!admission.accepted) {
@@ -267,17 +229,19 @@ function admittedSpawnTarget(
   scope: string,
   requestJson: string,
 ) {
-  return matchBy(input.request.command, 'operation')
-    .with('fork', (command) => forkTarget(sql, command))
-    .with('launch', (command) => launchTarget(sql, input, scope, requestJson, command))
-    .with('spawn', (command) => spawnTarget(sql, input, scope, requestJson, command))
-    .with('create', (command) =>
-      Effect.succeed<LifecycleTargetResolution>({
-        kind: 'accepted',
-        target: { projectPath: command.projectPath },
-      }),
-    )
-    .exhaustive()
+  return (
+    matchBy(input.request.command, 'operation')
+      .with('fork', (command) => forkTarget(sql, command))
+      .with('spawn', (command) => spawnTarget(sql, input, scope, requestJson, command))
+      // A new root Session, created or launched, is the person's to have: no capacity limit applies.
+      .with('create', 'launch', (command) =>
+        Effect.succeed<LifecycleTargetResolution>({
+          kind: 'accepted',
+          target: { projectPath: command.projectPath },
+        }),
+      )
+      .exhaustive()
+  )
 }
 
 export function resolveLifecycleTarget(

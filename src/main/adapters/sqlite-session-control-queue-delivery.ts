@@ -12,7 +12,7 @@ import {
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
-import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
+import { type StartingRunCaller, workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 /**
  * Queue changes whose outcome can report the Run they start. After any of them the queue delivers
@@ -42,22 +42,28 @@ function isDeliveringOperation(
   return DELIVERING_QUEUE_OPERATIONS.has(operation)
 }
 
+/**
+ * The capacity rule for the Run `state` is starting: only a Worker's Run that an agent or the Host
+ * starts can be refused (`sqlite-worker-run-admission.ts`). The person's Runs, and every root
+ * Session's Run, are always admitted.
+ */
 export function newRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
-  sessionId: string,
+  state: SessionControlSessionState,
   hostRunCeiling: number,
 ) {
-  return Effect.gen(function* () {
-    const parentAdmission = yield* directWorkerRunAdmission(sql, sessionId)
-    if (!parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
-    const rows = yield* sql<{ readonly count: number }>`
-      SELECT COUNT(*) AS count
-      FROM session_control_states
-      WHERE active_run_id IS NOT NULL
-    `
-    const hostActiveRuns = rows[0]?.count ?? 0
-    return hostActiveRuns >= hostRunCeiling ? ('host_run_ceiling_reached' as const) : undefined
+  return workerRunAdmissionRefusal(sql, {
+    sessionId: state.sessionId,
+    caller: startingRunCaller(state),
+    hostRunCeiling,
   })
+}
+
+/** Who the starting Run acts for; a state with no starting Run is held to the Worker rule. */
+function startingRunCaller(state: SessionControlSessionState): StartingRunCaller {
+  if (state.run.state !== 'starting') return { callerId: '' }
+  const { callerId, hiveWake } = state.run.intent
+  return hiveWake ? { callerId, hiveWake } : { callerId }
 }
 
 function queueUpdated(
@@ -128,11 +134,7 @@ export function deliverAfterQueueDecision(
         outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
-    const refusal = yield* newRunAdmissionRefusal(
-      sql,
-      decision.state.sessionId,
-      input.hostRunCeiling,
-    )
+    const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling)
     if (refusal) {
       const paused = pauseUndeliveredQueue(
         authorized,

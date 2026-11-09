@@ -2,6 +2,7 @@ import type { SessionId as SessionIdType } from '@shared/types/brand'
 import { SessionId } from '@shared/types/brand'
 import type { SendFailureDisposition } from '@/features/composer/hooks'
 import {
+  DEFAULT_NOT_DELIVERED_MESSAGE,
   FirstSendFailed,
   isPiSessionFileRefusal,
   MessageDeliveredRunFailed,
@@ -12,6 +13,26 @@ import {
 export const PI_SESSION_FILE_REFUSAL_NOTICE =
   'Not sent: this Session cannot be continued. Your message is back in the composer.'
 
+/**
+ * The toast for any other send the Session Host refused. Without it the message came back to the
+ * composer with no word of why, which read as the app ignoring the person.
+ */
+export function refusedSendNotice(refusal: MessageNotDelivered) {
+  if (refusal.code) {
+    return `Not sent: the Session Host refused it (${refusal.code}). Your message is back in the composer.`
+  }
+  return refusal.message === DEFAULT_NOT_DELIVERED_MESSAGE
+    ? 'Not sent. Your message is back in the composer.'
+    : `Not sent: ${refusal.message} Your message is back in the composer.`
+}
+
+function refusalOf(cause: unknown) {
+  const refusal = cause instanceof FirstSendFailed ? cause.cause : cause
+  return refusal instanceof MessageNotDelivered && refusal.outcome === 'refused'
+    ? refusal
+    : undefined
+}
+
 interface SendFailureOwnershipInput {
   readonly cause: unknown
   readonly activeSessionId: SessionIdType | null
@@ -21,26 +42,37 @@ interface SendFailureOwnershipInput {
   readonly hasWorktreeLaunch: (sessionId: SessionIdType) => boolean
 }
 
+/** A failed first send: its draft belongs to the Session it created, unless the agent got it. */
+function firstSendFailureDisposition(
+  cause: FirstSendFailed,
+  input: SendFailureOwnershipInput,
+): SendFailureDisposition {
+  if (cause.cause instanceof MessageDeliveredRunFailed) return { kind: 'retain' }
+  const createdSessionId = SessionId(cause.createdSessionId)
+  if (input.disposedSessions.has(createdSessionId)) return { kind: 'discard' }
+  if (input.hasWorktreeLaunch(createdSessionId)) return { kind: 'retain' }
+  const sessionContextToken = `:session:${String(createdSessionId)}:`
+  const savedOwnedContextKey =
+    input.savedDraftContextKeys.find(
+      (key) => key.includes(sessionContextToken) && key.endsWith(':main'),
+    ) ?? input.savedDraftContextKeys.find((key) => key.includes(sessionContextToken))
+  const activeOwnedContextKey = input.activeDraftContextKey?.includes(sessionContextToken)
+    ? input.activeDraftContextKey
+    : null
+  const ownedContextKey =
+    activeOwnedContextKey ?? savedOwnedContextKey ?? `session:${String(createdSessionId)}:pending`
+  const refusal = refusalOf(cause)
+  return {
+    kind: 'restore',
+    contextKey: ownedContextKey,
+    ...(refusal ? { notice: refusedSendNotice(refusal) } : {}),
+  }
+}
+
 export function sessionImageSendFailureDisposition(
   input: SendFailureOwnershipInput,
 ): SendFailureDisposition {
-  if (input.cause instanceof FirstSendFailed) {
-    if (input.cause.cause instanceof MessageDeliveredRunFailed) return { kind: 'retain' }
-    const createdSessionId = SessionId(input.cause.createdSessionId)
-    if (input.disposedSessions.has(createdSessionId)) return { kind: 'discard' }
-    if (input.hasWorktreeLaunch(createdSessionId)) return { kind: 'retain' }
-    const sessionContextToken = `:session:${String(createdSessionId)}:`
-    const savedOwnedContextKey =
-      input.savedDraftContextKeys.find(
-        (key) => key.includes(sessionContextToken) && key.endsWith(':main'),
-      ) ?? input.savedDraftContextKeys.find((key) => key.includes(sessionContextToken))
-    const activeOwnedContextKey = input.activeDraftContextKey?.includes(sessionContextToken)
-      ? input.activeDraftContextKey
-      : null
-    const ownedContextKey =
-      activeOwnedContextKey ?? savedOwnedContextKey ?? `session:${String(createdSessionId)}:pending`
-    return { kind: 'restore', contextKey: ownedContextKey }
-  }
+  if (input.cause instanceof FirstSendFailed) return firstSendFailureDisposition(input.cause, input)
   if (input.cause instanceof MessageDeliveredRunFailed) return { kind: 'retain' }
   // The Session's notice says why; the text goes back to the composer, and a toast says so.
   if (input.cause instanceof MessageNotDelivered && isPiSessionFileRefusal(input.cause)) {
@@ -49,5 +81,6 @@ export function sessionImageSendFailureDisposition(
   if (input.activeSessionId && input.disposedSessions.has(input.activeSessionId)) {
     return { kind: 'discard' }
   }
-  return { kind: 'restore' }
+  const refusal = refusalOf(input.cause)
+  return refusal ? { kind: 'restore', notice: refusedSendNotice(refusal) } : { kind: 'restore' }
 }

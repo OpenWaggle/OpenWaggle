@@ -190,7 +190,7 @@ function executeMutation(
         const refusal = startsWake
           ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
           : startsNewRun
-            ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
+            ? yield* newRunAdmissionRefusal(sql, decision.state, hostRunCeiling)
             : undefined
         const admittedDecision = refusal
           ? ({

@@ -169,7 +169,9 @@ export type SessionLifecycleOutcome =
       readonly retryable: boolean
       readonly parentConcurrencyLimit?: number
       readonly parentRunningChildren?: number
+      /** The Host's ceiling on active Worker Runs; root Sessions' Runs never count toward it. */
       readonly hostRunCeiling?: number
+      /** Active Worker Runs across the Host when the spawn was refused. */
       readonly hostActiveRuns?: number
     }
 

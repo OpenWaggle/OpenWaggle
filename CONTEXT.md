@@ -241,8 +241,8 @@ The user-configurable maximum number of child sessions that one parent session m
 _Avoid_: hard-coded worker count, host-wide limit, queued spawn count
 
 **Host run ceiling**:
-The app-global user-configurable maximum number of active Pi agent runs owned by one Session Host across root and descendant sessions.
-_Avoid_: workspace limit, provider rate limit, session count, hidden run queue
+The app-global user-configurable maximum number of active Worker runs (runs of spawned sessions) owned by one Session Host. Root sessions' runs never count toward it, and a run the person starts is never refused by it. Settings calls it **Active Workers**.
+_Avoid_: workspace limit, provider rate limit, session count, hidden run queue, limit on the person's sessions
 
 **Live orchestration smoke suite**:
 The mandatory pre-release QA workflow that uses a real configured model provider to prove multi-session spawning, control, event projection, and completion across the OpenWaggle agent, GUI, CLI, and external MCP boundaries.
@@ -1758,9 +1758,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The effective **Parent concurrency limit** resolves from project `.openwaggle/settings.json`, then app-global SQLite settings, then the product default, with the first defined value winning.
 - Settings UI and CLI configuration commands update those existing OpenWaggle stores; OpenWaggle does not introduce Codex TOML as its configuration format.
 - A **Session spawn** that would exceed the **Parent concurrency limit** fails with a structured capacity result and is never silently queued.
-- The **Host run ceiling** defaults to sixteen active Pi runs and may be configured by the user to a higher or lower positive value in app-global SQLite settings.
-- The **Host run ceiling** counts active root and descendant runs across every session owned by the Session Host; idle sessions, completed runs, waits, watches, indexing, and exports do not consume a run slot.
-- A run-creating operation must satisfy both its parent-specific allowance and the remaining **Host run ceiling**; exhaustion returns structured retryable `host_capacity_reached` state and never creates a hidden run queue.
+- The **Host run ceiling** defaults to sixteen active Worker runs and may be configured by the user to a higher or lower positive value in app-global SQLite settings.
+- The **Host run ceiling** counts active Worker runs across every Hive owned by the Session Host; root sessions' runs, idle sessions, completed runs, waits, watches, indexing, and exports do not consume a slot.
+- Only a Worker's run can be refused for capacity. A spawn must satisfy its parent's allowance and the remaining **Host run ceiling** (`host_capacity_reached`); a message, Follow-up, queue delivery, Waggle run or Hive wake that starts a Worker's run must satisfy the **Parent concurrency limit** and the ceiling (`parent_concurrency_limit_reached`, `host_run_ceiling_reached`). Exhaustion is structured and retryable and never creates a hidden run queue.
+- A root session's run is always admitted, whoever starts it, and so is any run the person starts (app, CLI, or another local-user client), even a Worker's. Agents' work never stops the person working in another session, replying to a Queen, or starting a new session (ADR 0030, amended 2026-11-09).
 - The **Host run ceiling** is resource admission only: it introduces no Workspace lock, session-count limit, lineage-depth limit, or restriction on reading and organizing sessions.
 - Settings and capacity responses show the effective parent allowance and remaining host slots so a raised **Parent concurrency limit** is not mistaken for immediately available host capacity.
 - CI uses a deterministic controllable Pi provider to cover Session Host ownership, spawn lineage, shared and isolated Workspaces, steering, Follow-up delivery, waits, interruption, authorization, event resynchronization, exports, crashes, and all boundary adapters without network or paid-provider variability.
@@ -2722,7 +2723,7 @@ _Avoid_: auto-disable, expiry, stop (the user's own pause)
 - The **Session Host** schedules every **Scheduled task**, and does not idle-exit while at least one is enabled; nothing fires while the Host is not running or the machine is asleep.
 - Firings missed while the **Session Host** was down or the machine was asleep produce at most one catch-up **Scheduled task run**, never one per missed firing.
 - A **Heartbeat** fires only into an idle Session: no active Run, nothing in its **Follow-up queue**, and no parked request. It never steers or queues; it waits, and a firing still waiting at the next fire time is recorded as skipped.
-- A **Scheduled task** has at most one **Scheduled task run** in progress. A **Launch schedule** whose previous Session still has an active Run, or that meets the Host's active-run ceiling, records a skipped run instead of waiting in a hidden queue.
+- A **Scheduled task** has at most one **Scheduled task run** in progress. A **Launch schedule** whose previous Session still has an active Run records a skipped run instead of waiting in a hidden queue. A Heartbeat on a Worker session that a client profile scheduled may also be skipped at the **Host run ceiling**; a root session's scheduled run, and any task the person created, never is.
 - Archiving a **Heartbeat**'s target Session pauses the **Heartbeat**; deleting the Session deletes it.
 - A **Scheduled task** records the caller that created it, and every **Scheduled task run** revalidates that authority as automatic Follow-up delivery does; **CLI client profile revocation** disables the profile's **Scheduled tasks** and marks them as needing attention rather than deleting them.
 - A **Scheduled task run** uses its target's **Effective authorization mode** and carries no **Run authorization override**; an **Authorization request** it raises parks for the user like any other.

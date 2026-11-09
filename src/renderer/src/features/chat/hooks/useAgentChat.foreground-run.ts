@@ -1,3 +1,4 @@
+import type { AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
@@ -204,13 +205,15 @@ export function beginForegroundRun(
 }
 
 /**
- * The Host kept the message as a Follow-up rather than starting a Run - the Session still had a Run
- * settling, or Follow-ups waiting in a queue a failed Run paused. Nothing will complete for this
- * send, so the Session goes back to what it was showing, and the message leaves the transcript: it
- * is a queued Follow-up now, shown in the queue with a way to resume it. If the Host has already
- * started it as the next Run, its row is that Run's incorporated user message and stays.
+ * A send that started no Run, so nothing will complete for it. The Host either kept the message as
+ * a Follow-up - the Session still had a Run settling, or Follow-ups waiting in a queue a failed Run
+ * paused - and it is shown in the queue with a way to resume it; or the Host refused it, and the
+ * caller puts it back in the composer and says why. Either way the Session goes back to what it
+ * was showing and the message leaves the transcript; left there, a refused send showed "Thinking"
+ * and Stop over a message the agent never got. If the Host has already started a queued one as
+ * the next Run, its row is that Run's incorporated user message and stays.
  */
-export function forgetQueuedSend(input: {
+export function forgetSendWithoutRun(input: {
   readonly refs: ForegroundRunRefs
   readonly setters: ForegroundRunSetters
   readonly targetSessionId: SessionId
@@ -219,6 +222,24 @@ export function forgetQueuedSend(input: {
 }) {
   input.run.handBack(input.refs, input.targetSessionId, input.setters)
   dropOptimisticSend(input)
+}
+
+/**
+ * Ends a send whose report started no Run and says what the caller is owed. Queued: nothing, the
+ * message is in the queue now. Refused: the reason, and the send ends here, since no Run will
+ * report back. Cancelled: the reason only, as the user's Stop already reset the Session.
+ */
+export function settleSendWithoutRun(
+  sent: Parameters<typeof forgetSendWithoutRun>[0],
+  report: AgentSendReport | undefined,
+) {
+  if (!report || report.outcome === 'delivered') return undefined
+  if (report.outcome === 'queued') {
+    forgetSendWithoutRun(sent)
+    return undefined
+  }
+  if (report.outcome === 'refused') forgetSendWithoutRun(sent)
+  return new MessageNotDelivered(report.outcome, report.message, report.code)
 }
 
 /**

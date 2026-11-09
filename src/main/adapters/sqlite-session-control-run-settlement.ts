@@ -19,6 +19,8 @@ import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session
 import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
+import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
+import { isPersonStartedRun } from './sqlite-worker-run-admission'
 
 const QUEUE_REVISION_INCREMENT = 1
 
@@ -142,6 +144,26 @@ export function planRunSettlement(
   return delivery.delivered
     ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }
     : { ...result, state: delivery.state }
+}
+
+/**
+ * Plans the settlement, deferring the next Run for the parent's Worker limit. A Follow-up the
+ * person sent runs next whatever the limit (ADR 0030, amended 2026-11-09); anything else waits
+ * for it as before.
+ */
+export function planRunSettlementWithinParentLimit(
+  sql: SqlClient.SqlClient,
+  state: SessionControlSessionState,
+  input: SettleInput,
+) {
+  return Effect.gen(function* () {
+    const planned = planRunSettlement(state, input, false)
+    if (input.suppressFollowUpScheduling) return planned
+    const nextRun = planned.accepted ? planned.scheduled : undefined
+    if (nextRun && isPersonStartedRun(nextRun.intent)) return planned
+    const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
+    return parentAdmission.admitted ? planned : planRunSettlement(state, input, true)
+  })
 }
 
 /**

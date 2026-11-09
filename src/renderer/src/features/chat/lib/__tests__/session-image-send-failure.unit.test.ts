@@ -7,8 +7,11 @@ import {
 } from '../message-delivery'
 import {
   PI_SESSION_FILE_REFUSAL_NOTICE,
+  refusedSendNotice,
   sessionImageSendFailureDisposition,
 } from '../session-image-send-failure'
+
+const REFUSED_NOTICE = refusedSendNotice(new MessageNotDelivered('refused'))
 
 const sessionId = SessionId('existing-session')
 const createdSessionId = SessionId('created-session')
@@ -34,7 +37,7 @@ function disposition(input: {
 describe('Session image send failure ownership', () => {
   it('restores an undelivered existing-session draft unless deletion committed', () => {
     const cause = new MessageNotDelivered('refused')
-    expect(disposition({ cause })).toEqual({ kind: 'restore' })
+    expect(disposition({ cause })).toEqual({ kind: 'restore', notice: REFUSED_NOTICE })
     expect(disposition({ cause, disposedSessions: new Set([sessionId]) })).toEqual({
       kind: 'discard',
     })
@@ -52,6 +55,7 @@ describe('Session image send failure ownership', () => {
     expect(disposition({ cause, activeSessionId: null })).toEqual({
       kind: 'restore',
       contextKey: 'session:created-session:pending',
+      notice: REFUSED_NOTICE,
     })
   })
 
@@ -63,7 +67,11 @@ describe('Session image send failure ownership', () => {
         activeSessionId: null,
         activeDraftContextKey: 'session:created-session:pending',
       }),
-    ).toEqual({ kind: 'restore', contextKey: 'session:created-session:pending' })
+    ).toEqual({
+      kind: 'restore',
+      contextKey: 'session:created-session:pending',
+      notice: REFUSED_NOTICE,
+    })
   })
 
   it('merges into a saved created-Session draft after switching away', () => {
@@ -75,7 +83,11 @@ describe('Session image send failure ownership', () => {
         activeDraftContextKey: 'session:other-session:pending',
         savedDraftContextKeys: ['project:/repo:session:created-session:main'],
       }),
-    ).toEqual({ kind: 'restore', contextKey: 'project:/repo:session:created-session:main' })
+    ).toEqual({
+      kind: 'restore',
+      contextKey: 'project:/repo:session:created-session:main',
+      notice: REFUSED_NOTICE,
+    })
   })
 
   it('leaves worktree first-send recovery alone and discards deleted Sessions', () => {
@@ -113,5 +125,45 @@ describe('Session image send failure ownership', () => {
       kind: 'restore',
       notice: PI_SESSION_FILE_REFUSAL_NOTICE,
     })
+  })
+
+  it('says why the Host refused a send, naming its code', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'host_run_ceiling_reached',
+      'host_run_ceiling_reached',
+    )
+    const notice =
+      'Not sent: the Session Host refused it (host_run_ceiling_reached). Your message is back in the composer.'
+
+    expect(disposition({ cause: refusal })).toEqual({ kind: 'restore', notice })
+    expect(
+      disposition({
+        cause: new FirstSendFailed(refusal, createdSessionId),
+        activeSessionId: null,
+      }),
+    ).toEqual({ kind: 'restore', contextKey: 'session:created-session:pending', notice })
+  })
+
+  it('says a code-less refusal’s own reason', () => {
+    expect(
+      disposition({ cause: new MessageNotDelivered('refused', 'Branch source is unavailable.') }),
+    ).toEqual({
+      kind: 'restore',
+      notice: 'Not sent: Branch source is unavailable. Your message is back in the composer.',
+    })
+    expect(REFUSED_NOTICE).toBe('Not sent. Your message is back in the composer.')
+  })
+
+  it('restores a failure that was not a refusal without a notice', () => {
+    expect(disposition({ cause: new MessageNotDelivered('cancelled') })).toEqual({
+      kind: 'restore',
+    })
+    expect(
+      disposition({
+        cause: new FirstSendFailed(new Error('Create failed'), createdSessionId),
+        activeSessionId: null,
+      }),
+    ).toEqual({ kind: 'restore', contextKey: 'session:created-session:pending' })
   })
 })

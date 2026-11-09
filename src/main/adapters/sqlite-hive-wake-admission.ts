@@ -37,6 +37,6 @@ export function hiveWakeRefusal(
     const callerBlock = yield* messageCallerBlockReason(sql, sessionId, callerId)
     if (callerBlock) return callerBlock
     if (!(yield* wakeCandidateMayWake(sql, candidate))) return HIVE_WAKE_NOT_NEEDED
-    return yield* newRunAdmissionRefusal(sql, sessionId, hostRunCeiling)
+    return yield* newRunAdmissionRefusal(sql, state, hostRunCeiling)
   })
 }

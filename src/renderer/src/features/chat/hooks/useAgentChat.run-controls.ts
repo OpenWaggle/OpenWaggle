@@ -1,4 +1,4 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
-import { MessageDeliveredRunFailed, MessageNotDelivered } from '../lib/message-delivery'
+import { MessageDeliveredRunFailed } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
@@ -17,9 +17,9 @@ import {
   beginForegroundRun,
   clearRunPointers,
   forgetIfRefusedForPiSessionFile,
-  forgetQueuedSend,
   normalizeError,
   offerRunCompletion,
+  settleSendWithoutRun,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import { createSessionSnapshotRefresh } from './useAgentChat.session-snapshot'
@@ -178,8 +178,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * being torn down may already have been *replaced* - stopping settles the run, a queued follow-up send
      * begins immediately, and the superseded send's reply arrives after that replacement has started.
      */
-    let notDelivered: MessageNotDelivered | null = null
-    let queued: boolean
+    let reportWithoutRun: AgentSendReport | undefined
     let delivered = false
     try {
       /*
@@ -197,10 +196,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       }
       // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
       void runPromise.catch(() => undefined)
-      queued = report.outcome === 'queued'
-      if (report.outcome !== 'queued') {
-        notDelivered = new MessageNotDelivered(report.outcome, report.message)
-      }
+      reportWithoutRun = report
     } catch (runError) {
       const normalizedError = normalizeError(runError)
       const refused = forgetIfRefusedForPiSessionFile(sent, normalizedError)
@@ -238,14 +234,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        */
       throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
     }
-    if (queued) {
-      forgetQueuedSend(sent)
-      return
-    }
     /*
-     * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
-     * alone. Whether this is worth showing the user is the caller's decision, and a cancellation is not.
+     * The caller is told, so work it submitted is not lost - a review is restored - but whether this is
+     * worth showing the user is its decision, and a cancellation is not.
      */
+    const notDelivered = settleSendWithoutRun(sent, reportWithoutRun)
     if (notDelivered) throw notDelivered
   }
 

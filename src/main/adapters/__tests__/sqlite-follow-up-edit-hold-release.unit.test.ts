@@ -27,8 +27,8 @@ function layer(name: string) {
   return followUpEditLayer(tmpRoot, name)
 }
 
-/** Fills the Host's Run ceiling of one with a Run in another Session. */
-const busyHost = Effect.gen(function* () {
+/** Fills a Run ceiling of one with a root Session's Run, which no longer counts. */
+const busyRoot = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'session-busy'}, ${'/project'})`
   yield* sql`
@@ -39,6 +39,40 @@ const busyHost = Effect.gen(function* () {
     INSERT INTO session_control_states (
       session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
     ) VALUES (${'session-busy'}, ${1}, ${'run-busy'}, ${'running'}, ${0}, ${1})
+  `
+})
+
+/**
+ * Makes the target a Worker of the busy root and gives it an active sibling, so a Worker ceiling
+ * of one is full, and has an agent author the Follow-up `agent-next`.
+ */
+const busyWorkerHive = Effect.gen(function* () {
+  yield* busyRoot
+  const sql = yield* SqlClient.SqlClient
+  yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS settings_store (
+    key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL
+  )`)
+  yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'worker-busy'}, ${'/project'})`
+  yield* sql`
+    INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+    VALUES (${'run-worker-busy'}, ${'worker-busy'}, ${'active'}, ${null}, ${1}, ${1})
+  `
+  yield* sql`
+    INSERT INTO session_control_states (
+      session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+    ) VALUES (${'worker-busy'}, ${1}, ${'run-worker-busy'}, ${'running'}, ${0}, ${1})
+  `
+  yield* sql`
+    INSERT INTO session_spawn_lineage (
+      child_session_id, parent_session_id, parent_run_id, hive_root_session_id, depth, created_at
+    ) VALUES
+      (${'worker-busy'}, ${'session-busy'}, ${'run-busy'}, ${'session-busy'}, ${1}, ${1}),
+      (${SESSION}, ${'session-busy'}, ${'run-busy'}, ${'session-busy'}, ${1}, ${2})
+  `
+  yield* sql`
+    UPDATE session_follow_ups
+    SET intent_json = json_set(intent_json, '$.callerId', ${'transient-mcp:digest-agent'})
+    WHERE session_id = ${SESSION} AND id = ${'agent-next'}
   `
 })
 
@@ -103,13 +137,13 @@ describe('Follow-up edit holds do not strand a queue', () => {
     ])
   })
 
-  it('pauses instead of starting when the Host cannot admit the next Run, and keeps the edit', async () => {
+  it('starts the person’s edited Follow-up however many root Runs are active', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         yield* idleQueue([{ id: 'held' }])
         const begun = yield* beginEdit('held')
         if (begun.outcome.effect !== 'follow-up-edit-held') throw new Error('expected a hold')
-        yield* busyHost
+        yield* busyRoot
         const saved = yield* editSessionFollowUp({
           callerId: USER,
           desktopUser: true,
@@ -124,21 +158,76 @@ describe('Follow-up edit holds do not strand a queue', () => {
           }),
         })
         return { saved, after: yield* loadState() }
-      }).pipe(Effect.provide(layer('ceiling.sqlite'))),
+      }).pipe(Effect.provide(layer('person-edit-busy.sqlite'))),
     )
 
     expect(result.saved.outcome).toMatchObject({
       operation: 'queue-edit-save',
+      effect: 'started-run',
+      followUpId: 'held',
+    })
+    expect(result.after.run).toMatchObject({
+      state: 'starting',
+      intent: { text: 'Edited while busy' },
+    })
+  })
+
+  it('pauses a Worker’s agent Follow-up instead of starting it at the Worker ceiling', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue([{ id: 'mine' }, { id: 'agent-next' }])
+        yield* busyWorkerHive
+        const withdrawn = yield* mutateSessionQueue({
+          callerId: USER,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-withdraw',
+            sessionId: SESSION,
+            followUpIds: ['mine'],
+          }),
+        })
+        return { withdrawn, after: yield* loadState() }
+      }).pipe(Effect.provide(layer('worker-ceiling-pause.sqlite'))),
+    )
+
+    expect(result.withdrawn.outcome).toMatchObject({
+      operation: 'queue-withdraw',
       effect: 'queue-updated',
       queueState: 'paused',
+      withdrawnFollowUpIds: ['mine'],
     })
     // No pause reason: older binaries decode a missing reason, and none names the Host ceiling.
     expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
-    expect(result.after.followUpQueue).toMatchObject({
-      state: 'paused',
-      items: [{ id: 'held', intent: { text: 'Edited while busy' } }],
+    expect(result.after.followUpQueue.items).toMatchObject([{ id: 'agent-next' }])
+    expect(result.after.run).toEqual({ state: 'idle' })
+  })
+
+  it('refuses to resume a Worker’s agent Follow-up at the Worker ceiling', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue([{ id: 'agent-next' }], 'paused')
+        yield* busyWorkerHive
+        const before = yield* loadState()
+        const resumed = yield* mutateSessionQueue({
+          callerId: USER,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-resume',
+            sessionId: SESSION,
+            expectedQueueRevision: before.followUpQueue.revision,
+          }),
+        })
+        return { resumed, after: yield* loadState() }
+      }).pipe(Effect.provide(layer('worker-ceiling-resume.sqlite'))),
+    )
+
+    expect(result.resumed.outcome).toMatchObject({
+      operation: 'queue-resume',
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
     })
-    expect(result.after.followUpQueue.items[0]?.editHold).toBeUndefined()
+    expect(result.after.followUpQueue).toMatchObject({ state: 'paused' })
+    expect(result.after.run).toEqual({ state: 'idle' })
   })
 
   it('starts a failed Run’s retry that waited behind a hold once the hold is released', async () => {
