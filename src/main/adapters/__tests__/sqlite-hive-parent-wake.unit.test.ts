@@ -263,10 +263,15 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
     expect(result.unwoken).toMatchObject({
       effect: 'rejected',
       code: 'delegation_not_contributable',
+      kind: 'conflict',
     })
     // One result per wake: the same Run's classic agent cannot submit over its Waggle's.
     for (const refused of [result.otherCaller, result.earlierRun, result.again]) {
-      expect(refused).toMatchObject({ effect: 'rejected', code: 'delegation_not_contributable' })
+      expect(refused).toMatchObject({
+        effect: 'rejected',
+        code: 'delegation_not_contributable',
+        kind: 'conflict',
+      })
     }
     expect(result.woken).toMatchObject({ effect: 'delegation-updated', submissionRevision: 2 })
     expect(result.updates.map((update) => update.summary)).toContain('All sub-tasks are done.')

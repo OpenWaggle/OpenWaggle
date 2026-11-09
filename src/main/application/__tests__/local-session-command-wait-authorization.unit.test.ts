@@ -137,7 +137,11 @@ function testLayer(input: {
             ...response,
             outcome: {
               operation: 'exports-wait' as const,
-              error: { code: 'export_not_found' as const, message: 'irrelevant' },
+              error: {
+                code: 'export_not_found' as const,
+                kind: 'not_found' as const,
+                message: 'irrelevant',
+              },
             },
           })),
         ),

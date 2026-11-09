@@ -27,7 +27,11 @@ describe('SQLite Session export selection', () => {
 
     expect(response.outcome).toMatchObject({
       operation: 'export',
-      error: { code: 'branch_not_found', message: expect.stringContaining('active-branch') },
+      error: {
+        code: 'branch_not_found',
+        kind: 'not_found',
+        message: expect.stringContaining('active-branch'),
+      },
     })
   })
 })

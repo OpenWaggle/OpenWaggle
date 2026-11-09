@@ -117,6 +117,7 @@ describe('Scheduled task commands', () => {
     expect(await scheduledTasks({ operation: 'read', taskId: task.id })).toMatchObject({
       effect: 'rejected',
       code: 'task_not_found',
+      kind: 'not_found',
     })
   })
 
@@ -128,10 +129,10 @@ describe('Scheduled task commands', () => {
         operation: 'create',
         input: heartbeatInput(sessionId, { schedule: { kind: 'interval', everyMinutes: 2 } }),
       }),
-    ).toMatchObject({ effect: 'rejected', code: 'invalid_schedule' })
+    ).toMatchObject({ effect: 'rejected', code: 'invalid_schedule', kind: 'usage' })
     expect(
       await scheduledTasks({ operation: 'create', input: heartbeatInput('missing-session') }),
-    ).toMatchObject({ effect: 'rejected', code: 'target_not_found' })
+    ).toMatchObject({ effect: 'rejected', code: 'target_not_found', kind: 'not_found' })
     const task = await createHeartbeat(sessionId)
     expect(
       await scheduledTasks({
@@ -146,7 +147,7 @@ describe('Scheduled task commands', () => {
           },
         },
       }),
-    ).toMatchObject({ effect: 'rejected', code: 'kind_change_not_allowed' })
+    ).toMatchObject({ effect: 'rejected', code: 'kind_change_not_allowed', kind: 'conflict' })
   })
 
   it('replays a create with the same idempotency key', async () => {
@@ -176,7 +177,7 @@ describe('Scheduled task commands', () => {
           profileAuthority: { ...authority, capabilities: ['sessions:read'] },
         },
       ),
-    ).toMatchObject({ effect: 'rejected', code: 'capability_denied' })
+    ).toMatchObject({ effect: 'rejected', code: 'capability_denied', kind: 'authorization' })
     expect(
       await scheduledTasks(
         { operation: 'list' },
@@ -185,7 +186,7 @@ describe('Scheduled task commands', () => {
           profileAuthority: { ...authority, capabilities: ['schedules:read'] },
         },
       ),
-    ).toMatchObject({ effect: 'rejected', code: 'creator_identity_unsupported' })
+    ).toMatchObject({ effect: 'rejected', code: 'creator_identity_unsupported', kind: 'conflict' })
   })
 })
 

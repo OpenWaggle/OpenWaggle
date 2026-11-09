@@ -26,7 +26,7 @@ describe('Local Session Desktop notifications protocol revision', () => {
   })
 
   it('sends desktop-notifications:list only to a revision-31 Host', () => {
-    expect(supportedRevisionsForCommand(LIST)).toEqual([31])
+    expect(supportedRevisionsForCommand(LIST)).toEqual([32])
     expect(() => decodeLocalSessionCommandPayloadForRevision(LIST, 30)).toThrow(/revision 31/)
     expect(decodeLocalSessionCommandPayloadForRevision(LIST, 31)).toEqual(LIST)
   })

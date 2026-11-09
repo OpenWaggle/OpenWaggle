@@ -64,6 +64,7 @@ const [
   sessionDataCapability,
   worktreeInventoryCapability,
   desktopNotificationsCapability,
+  refusalKindsCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -109,6 +110,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(sessionDataCapability),
   Schema.Literal(worktreeInventoryCapability),
   Schema.Literal(desktopNotificationsCapability),
+  Schema.Literal(refusalKindsCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

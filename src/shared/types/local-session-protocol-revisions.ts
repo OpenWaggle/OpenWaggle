@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 31 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 32 as const
+export const LOCAL_SESSION_REFUSAL_KINDS_REVISION = 32 as const
 export const LOCAL_SESSION_DESKTOP_NOTIFICATIONS_REVISION = 31 as const
 export const LOCAL_SESSION_WORKTREE_INVENTORY_REVISION = 30 as const
 export const LOCAL_SESSION_SESSION_DATA_REVISION = 29 as const
@@ -97,6 +98,9 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
  * and `desktop-notification-withdrawn` events, which a revision-30 client decodes exactly and would
  * reject, the `desktopNotifications` setting, and `desktop-notifications:list`, the notifications
  * still outstanding, which the desktop app reads for its Notification badge when it connects.
+ * Revision 32 settles machine output for 1.0 (ADR 0063): every refusal names its error `kind`
+ * (`kind` on rejected outcomes and query errors, `errorKind` on error frames), which a
+ * revision-31 client decodes exactly and would reject.
  */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [LOCAL_SESSION_CURRENT_REVISION] as const
 
@@ -257,4 +261,9 @@ export const LOCAL_SESSION_REVISION_31_CAPABILITIES = [
   'host-ui:desktop-notifications-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_31_CAPABILITIES
+export const LOCAL_SESSION_REVISION_32_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_31_CAPABILITIES,
+  'sessions:refusal-kinds-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = LOCAL_SESSION_REVISION_32_CAPABILITIES

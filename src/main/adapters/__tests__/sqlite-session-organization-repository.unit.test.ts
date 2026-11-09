@@ -136,7 +136,11 @@ describe('SQLite Session organization repository', () => {
       workspaceState: 'pending',
     })
     expect(result.replay).toEqual({ ...result.handoff, replayed: true })
-    expect(result.rejected.outcome).toMatchObject({ effect: 'rejected', code: 'session_not_idle' })
+    expect(result.rejected.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'session_not_idle',
+      kind: 'conflict',
+    })
     expect(result.row).toMatchObject({
       environment_mode: 'worktree',
       lifecycle_state: 'pending',
@@ -194,7 +198,10 @@ describe('SQLite Session organization repository', () => {
         const replay = yield* repository.prepareArchive(input)
         expect(first).toMatchObject({
           status: 'completed',
-          response: { replayed: false, outcome: { effect: 'rejected', code: 'session_not_found' } },
+          response: {
+            replayed: false,
+            outcome: { effect: 'rejected', code: 'session_not_found', kind: 'not_found' },
+          },
         })
         expect(replay).toMatchObject({ status: 'completed', response: { replayed: true } })
       }).pipe(Effect.provide(layer)),

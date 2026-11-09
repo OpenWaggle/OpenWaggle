@@ -1,3 +1,4 @@
+import type { SessionHostRefusalCode } from '@shared/domain/session-host-refusals'
 import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
@@ -36,7 +37,7 @@ export interface SessionOrganizationRepositoryShape {
     readonly callerId: string
     readonly request: SessionOrganizationRequest
     readonly preparedHandoff?: PreparedWorkspaceHandoff
-    readonly preparationRejectionCode?: string
+    readonly preparationRejectionCode?: SessionHostRefusalCode
   }) => Effect.Effect<SessionControlMutationResponse, SessionControlRepositoryError>
   readonly admitExistingHandoff: (input: {
     readonly callerId: string

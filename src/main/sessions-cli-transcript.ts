@@ -3,6 +3,7 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { isRecord } from '@shared/utils/validation'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
+import { pageQueryRefusal } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { writeSessionsCliStreamRecord } from './sessions-cli-output'
 import { FULL_TRANSCRIPT_PAGE_LIMIT } from './sessions-cli-payload'
@@ -32,11 +33,7 @@ function optionalNullableString(record: Record<string, unknown>, key: string) {
 function transcriptPage(value: unknown) {
   const outcome = transcriptOutcome(value)
   if (!outcome) return
-  if (isRecord(outcome.error)) {
-    const code = 'code' in outcome.error ? String(outcome.error.code) : 'query_failed'
-    const message = 'message' in outcome.error ? String(outcome.error.message) : 'Query failed.'
-    throw new Error(`${code}: ${message}`)
-  }
+  if (isRecord(outcome.error)) throw pageQueryRefusal(outcome.error)
   if (!Array.isArray(outcome.items)) return
   return {
     items: outcome.items.map((item: unknown) => item),

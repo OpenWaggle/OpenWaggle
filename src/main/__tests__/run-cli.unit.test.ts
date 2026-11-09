@@ -85,7 +85,13 @@ describe('openwaggle run', () => {
       launchResult: fromPartial({
         contract: 'session-lifecycle-v2',
         response: {
-          outcome: { operation: 'launch', effect: 'rejected', code: 'not_found', retryable: false },
+          outcome: {
+            operation: 'launch',
+            effect: 'rejected',
+            code: 'not_found',
+            kind: 'not_found',
+            retryable: false,
+          },
         },
       }),
     })
@@ -100,7 +106,13 @@ describe('openwaggle run', () => {
       launchResult: fromPartial({
         contract: 'session-lifecycle-v2',
         response: {
-          outcome: { operation: 'launch', effect: 'rejected', code: 'not_found', retryable: false },
+          outcome: {
+            operation: 'launch',
+            effect: 'rejected',
+            code: 'not_found',
+            kind: 'not_found',
+            retryable: false,
+          },
         },
       }),
     })
@@ -225,6 +237,13 @@ describe('openwaggle run', () => {
     expect(records.every((record) => record.schemaVersion === 1 && record.type === 'record')).toBe(
       true,
     )
+    // Session Host events use the same `event` record as `hive watch --jsonl` (ADR 0063).
+    expect(records.map((line) => line.record.kind)).toEqual(['event', 'event', 'run-settled'])
+    expect(records[0]?.record).toMatchObject({
+      cursor: expect.any(Object),
+      timestamp: expect.any(Number),
+      event: { kind: 'session-transport', sessionId: SESSION },
+    })
     expect(records.at(-1)?.record).toEqual({
       kind: 'run-settled',
       sessionId: SESSION,

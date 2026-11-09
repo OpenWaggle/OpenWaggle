@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { FollowUpId } from '@shared/types/brand'
 import type {
@@ -120,7 +121,7 @@ export function submitSessionMessage(input: SubmitSessionMessageInput) {
                 operation: 'message',
                 effect: 'rejected',
                 sessionId: input.request.command.sessionId,
-                code: result.code,
+                ...sessionHostRefusal(result.code),
               },
             }
       },
@@ -179,7 +180,7 @@ export function startSessionRun(input: StartSessionRunInput) {
                 operation: 'start',
                 effect: 'rejected',
                 sessionId: input.request.command.sessionId,
-                code: result.code,
+                ...sessionHostRefusal(result.code),
               },
             }
       },
@@ -232,7 +233,7 @@ export function queueSessionFollowUp(input: QueueSessionFollowUpInput) {
                 operation: 'follow-up',
                 effect: 'rejected',
                 sessionId: input.request.command.sessionId,
-                code: result.code,
+                ...sessionHostRefusal(result.code),
               },
             }
       },
@@ -279,7 +280,7 @@ export function mutateSessionQueue(input: MutateSessionQueueInput) {
                 operation: input.request.command.operation,
                 effect: 'rejected',
                 sessionId: input.request.command.sessionId,
-                code: result.code,
+                ...sessionHostRefusal(result.code),
               },
             }
       },

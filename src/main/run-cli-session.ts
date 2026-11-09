@@ -27,6 +27,7 @@ import type {
   LocalSessionWatchResult,
 } from './session-host/local-session-event-client'
 import { sessionsCliStreamRecordLine } from './sessions-cli-output'
+import { watchEventRecord } from './sessions-cli-watch-records'
 
 export { RUN_CLI_INTERRUPTED_EXIT } from './run-cli-settlement'
 
@@ -226,7 +227,7 @@ export class RunCliSession {
     if (payloadSessionId(event) !== target.sessionId) return
     const payload = event.payload
     if (!this.belongsToOtherRun(payload, target)) {
-      if (this.jsonl) this.output.stdout(sessionsCliStreamRecordLine(event))
+      if (this.jsonl) this.output.stdout(sessionsCliStreamRecordLine(watchEventRecord(event)))
       else this.presenter.present(payload)
     }
     if (payload.kind === 'session-transport') {

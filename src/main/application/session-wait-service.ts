@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import {
   isSessionlessHostEvent,
@@ -114,7 +115,7 @@ function sessionNotFound(request: WaitRequest) {
   return response(request, {
     operation: 'wait',
     error: {
-      code: 'session_not_found',
+      ...sessionHostRefusal('session_not_found'),
       message: 'One or more target Sessions were not found.',
     },
   })
@@ -155,7 +156,10 @@ async function wait(
     if (observation.status === 'host-stopped') {
       return response(input.request, {
         operation: 'wait',
-        error: { code: 'host_stopped', message: 'The Session Host stopped while waiting.' },
+        error: {
+          ...sessionHostRefusal('host_stopped'),
+          message: 'The Session Host stopped while waiting.',
+        },
       })
     }
     return waitResponse(input.request, observation.value)

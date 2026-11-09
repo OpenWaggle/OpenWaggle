@@ -162,13 +162,13 @@ describe('SQLite Session Host recovery repository', () => {
       recoveredOperationIds: [String(result.operation?.id)],
     })
     expect(result.operation?.status).toBe('completed')
-    expect([...result.reservedBefore]).toEqual(['follow-up-1'])
-    expect([...result.reservedAfter]).toEqual([])
+    expect([[...result.reservedBefore], [...result.reservedAfter]]).toEqual([['follow-up-1'], []])
     expect(JSON.parse(result.operation?.outcome_json ?? '{}')).toEqual({
       operation: 'promote',
       effect: 'rejected',
       sessionId: 'session-1',
       code: 'host_lost',
+      kind: 'host_unavailable',
     })
   })
 

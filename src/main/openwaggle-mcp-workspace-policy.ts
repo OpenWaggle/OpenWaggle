@@ -1,6 +1,7 @@
 import { lstatSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import type { SessionDetail } from '@shared/types/session'
+import { mcpLocalRefusal } from './openwaggle-mcp-refusal-message'
 
 interface WorkspaceGrantScope {
   readonly workspaceRoots: readonly string[]
@@ -24,7 +25,10 @@ function assertCanonicalGrantRoot(root: string) {
   const absolute = path.resolve(root)
   const canonical = canonicalExistingPath(absolute)
   if (canonical !== absolute) {
-    throw new Error(`Workspace grant changed after this server started: ${JSON.stringify(root)}.`)
+    throw mcpLocalRefusal(
+      'target_scope_denied',
+      `Workspace grant changed after this server started: ${JSON.stringify(root)}.`,
+    )
   }
   return canonical
 }
@@ -61,7 +65,8 @@ export function assertProjectAllowed(options: WorkspaceGrantScope, projectPath: 
       isWithinRoot(candidate.path, assertCanonicalGrantRoot(root)),
     )
   ) {
-    throw new Error(
+    throw mcpLocalRefusal(
+      'target_scope_denied',
       `Project ${JSON.stringify(candidate.path)} is outside this server profile's workspace grants.`,
     )
   }

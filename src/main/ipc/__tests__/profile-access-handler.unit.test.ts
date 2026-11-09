@@ -76,7 +76,12 @@ describe('profile access IPC', () => {
           requestId: input.payload.request.requestId,
           idempotencyKey: input.payload.request.idempotencyKey,
           replayed: false,
-          outcome: { operation: 'create', effect: 'rejected', code: 'profile-name-exists' },
+          outcome: {
+            operation: 'create',
+            effect: 'rejected',
+            code: 'profile-name-exists',
+            kind: 'conflict',
+          },
         },
       }),
     )
@@ -156,7 +161,12 @@ describe('profile access IPC', () => {
       requestId: 'request',
       idempotencyKey: 'key',
       replayed: false,
-      outcome: { operation: 'rotate', effect: 'rejected', code: 'profile-not-found' },
+      outcome: {
+        operation: 'rotate',
+        effect: 'rejected',
+        code: 'profile-not-found',
+        kind: 'conflict',
+      },
     }
     mocks.dispatch.mockReturnValue(Effect.succeed({ contract: 'local-access-v1', response }))
     registerProfileAccessHandlers()

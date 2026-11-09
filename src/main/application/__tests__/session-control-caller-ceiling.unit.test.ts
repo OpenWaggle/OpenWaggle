@@ -214,6 +214,7 @@ describe('Session Control caller authorization ceiling', () => {
         effect: 'rejected',
         sessionId: 'session-target',
         code,
+        kind: 'conflict',
       })
       expect(state.followUpQueue.items).toEqual([])
     },

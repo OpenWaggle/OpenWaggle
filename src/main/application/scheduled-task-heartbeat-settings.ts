@@ -2,6 +2,7 @@ import {
   HEARTBEAT_STOP_CONDITION_REQUIRED_MESSAGE,
   heartbeatHasStopCondition,
 } from '@shared/domain/scheduled-tasks/heartbeat-rules'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import {
   HEARTBEAT_IDLE_PAUSE_DEFAULT,
   type HeartbeatSettingsInput,
@@ -18,7 +19,11 @@ import { scheduledTaskHooks } from './scheduled-task-hooks'
 import type { ScheduledTaskPrincipal } from './scheduled-task-principal'
 
 export function rejectedOutcome(code: ScheduledTaskRejectionCode, message: string) {
-  return { effect: 'rejected', code, message } satisfies ScheduledTasksOutcome
+  return {
+    effect: 'rejected',
+    ...sessionHostRefusal(code),
+    message,
+  } satisfies ScheduledTasksOutcome
 }
 
 export type HeartbeatRecordFields = Pick<

@@ -28,15 +28,15 @@ describe('Hive CLI output contract', () => {
       response: { outcome: { operation: 'start', effect: 'started-run', sessionId: 'session-1' } },
     }
 
-    await writeSessionsCliResponse('start', result, false)
+    await writeSessionsCliResponse('hive start', result, false)
     expect(write.mock.calls.at(-1)?.[0]).toBe('Started Run\nSessionId: session-1\n')
 
-    await writeSessionsCliResponse('start', result, true)
+    await writeSessionsCliResponse('hive start', result, true)
     const machine = String(write.mock.calls.at(-1)?.[0])
     expect(JSON.parse(machine)).toMatchObject({
       schemaVersion: 1,
       type: 'response',
-      command: 'start',
+      command: 'hive start',
       result,
     })
   })
@@ -78,7 +78,9 @@ describe('Hive CLI output contract', () => {
     expect(classifySessionsCliError(new LocalSessionClientTimeoutError('slow'))).toBe('timeout')
     expect(
       classifySessionsCliError(
-        new LocalSessionClientProtocolError('authentication_throttled', 'Throttled.'),
+        new LocalSessionClientProtocolError('authentication_throttled', 'Throttled.', {
+          errorKind: 'authentication',
+        }),
       ),
     ).toBe('authentication')
     expect(classifySessionsCliError(new LocalSessionHostUnavailableError('gone'))).toBe(
@@ -92,48 +94,26 @@ describe('Hive CLI output contract', () => {
     ).toThrow('Single-response commands use --json')
   })
 
-  it('prefers typed Host protocol codes over generic messages', () => {
+  it('copies the kind the Session Host gave a failure and never reads the code (ADR 0063)', () => {
     expect(
       classifySessionsCliError(
-        new LocalSessionClientProtocolError('capability_denied', 'An error has occurred'),
+        new LocalSessionClientProtocolError('capability_denied', 'An error has occurred', {
+          errorKind: 'authorization',
+        }),
       ),
     ).toBe('authorization')
+    // A frame without a kind, as an older Session Host sends during an upgrade, takes its code's
+    // kind from the refusal table; nothing is guessed from the words in an unlisted code.
     expect(
-      classifySessionsCliError(
-        new LocalSessionClientProtocolError('credential_rejected', 'An error has occurred'),
+      [
+        'credential_rejected',
+        'capability_denied',
+        'session_not_found',
+        'request_timeout',
+        'x_failed',
+      ].map((code) =>
+        classifySessionsCliError(new LocalSessionClientProtocolError(code, 'Failed')),
       ),
-    ).toBe('authentication')
-  })
-
-  it('reports a Session whose Pi file cannot be used as a conflict, whatever it says', () => {
-    for (const message of [
-      "This Session's Pi session file was deleted (/p/s.jsonl). Send a message to start a new transcript before forking it.",
-      "This Session's Pi session file is unavailable (/p/s.jsonl): its folder is missing. Reconnect or restore it to continue the Session.",
-    ]) {
-      expect(
-        classifySessionsCliError(
-          new LocalSessionClientProtocolError('pi_session_file_unusable', message),
-        ),
-      ).toBe('conflict')
-    }
-  })
-
-  it('maps no code to a kind by an object property name', () => {
-    for (const code of ['constructor', 'tostring', '__proto__', 'hasownproperty']) {
-      expect(classifySessionsCliError(new LocalSessionClientProtocolError(code, 'Failed'))).toBe(
-        'internal',
-      )
-    }
-  })
-
-  it('reports a Session whose worktree is gone as a conflict', () => {
-    expect(
-      classifySessionsCliError(
-        new LocalSessionClientProtocolError(
-          'session_worktree_missing',
-          "This session's worktree no longer exists. Recreate it, or switch this session to the current checkout.",
-        ),
-      ),
-    ).toBe('conflict')
+    ).toEqual(['authentication', 'authorization', 'not_found', 'internal', 'internal'])
   })
 })

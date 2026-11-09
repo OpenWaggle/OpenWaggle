@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -57,7 +58,7 @@ export function recoverSessionControlHostLoss(sql: SqlClient.SqlClient) {
                   operation: operation.operation,
                   effect: 'rejected',
                   sessionId: operation.target_scope,
-                  code: 'host_lost',
+                  ...sessionHostRefusal('host_lost'),
                 },
           )
           yield* sql`

@@ -259,6 +259,7 @@ export async function readStatusReport(
 export async function runStatusCli(
   args: readonly string[],
   dependencies: StatusCliDependencies = defaultStatusCliDependencies,
+  envelopeCommand: 'status' | 'host status' = 'status',
 ) {
   const parsed = parseMcpCliArguments(args)
   const json = hasFlag(parsed, 'json')
@@ -277,7 +278,7 @@ export async function runStatusCli(
     })
     validateSessionsCliCombinations('status', parsed)
     const report = await readStatusReport(parsed, dependencies)
-    if (json) await dependencies.writeStdout(sessionsCliResponseText('status', report, true))
+    if (json) await dependencies.writeStdout(sessionsCliResponseText(envelopeCommand, report, true))
     else await dependencies.writeStdout(`${formatStatusReport(report, dependencies.now())}\n`)
     return SESSION_CLI_EXIT.SUCCESS
   } catch (error) {

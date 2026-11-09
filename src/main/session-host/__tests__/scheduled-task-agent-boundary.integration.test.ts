@@ -74,7 +74,7 @@ describe('what an agent may schedule within its own access', () => {
     await fs.mkdir(unknown, { recursive: true })
     expect(
       await scheduledTasks({ operation: 'create', input: launchInput(unknown) }, caller),
-    ).toMatchObject({ effect: 'rejected', code: 'target_not_found' })
+    ).toMatchObject({ effect: 'rejected', code: 'target_not_found', kind: 'not_found' })
 
     const task = await createLaunch(caller)
     await runSql((sql) =>
@@ -95,7 +95,7 @@ describe('what an agent may schedule within its own access', () => {
     await setSessionModel(target)
     expect(
       await scheduledTasks({ operation: 'create', input: heartbeatInput(target) }, caller),
-    ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied' })
+    ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied', kind: 'authorization' })
     await limitToProject(target)
     expect(
       await scheduledTasks({ operation: 'create', input: heartbeatInput(target) }, caller),
@@ -113,7 +113,7 @@ describe('what an agent may schedule within its own access', () => {
     for (const patch of [{ prompt: 'Do something else.' }, { heartbeat: { stopWhen: 'Never.' } }]) {
       expect(
         await scheduledTasks({ operation: 'update', taskId: created.task.id, patch }, caller),
-      ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied' })
+      ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied', kind: 'authorization' })
     }
     expect((await storedRunsAs(created.task.id))?.authority_limits_json).toBeNull()
   })
@@ -125,7 +125,7 @@ describe('what an agent may schedule within its own access', () => {
     await setCeiling(target, 'yolo')
     expect(
       await scheduledTasks({ operation: 'create', input: heartbeatInput(target) }, caller),
-    ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied' })
+    ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied', kind: 'authorization' })
 
     await setCeiling(target, 'ask-for-approval')
     const created = await scheduledTasks(

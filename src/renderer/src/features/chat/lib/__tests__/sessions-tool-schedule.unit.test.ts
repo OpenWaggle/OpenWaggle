@@ -56,7 +56,12 @@ describe('sessionsToolScheduledTask', () => {
     expect(
       sessionsToolScheduledTask(
         { action: 'schedule_create', name: 'Too often' },
-        piResult({ effect: 'rejected', code: 'invalid_schedule', message: 'Too often.' }),
+        piResult({
+          effect: 'rejected',
+          code: 'invalid_schedule',
+          kind: 'usage',
+          message: 'Too often.',
+        }),
       ),
     ).toMatchObject({ taskId: null, name: 'Too often', refusal: 'Too often.' })
   })
