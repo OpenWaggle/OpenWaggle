@@ -53,7 +53,7 @@ describe('NotificationsSection', () => {
     // The badge counts every kind that is on, not only Needs you and Ready to read.
     expect(
       screen.getByText(
-        'Count your notifications on the app icon, for every kind turned on. Windows shows a dot.',
+        'Count your notifications on the app icon, for each type turned on above. Windows shows a dot.',
       ),
     ).toBeInTheDocument()
   })

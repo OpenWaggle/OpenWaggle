@@ -25,8 +25,8 @@ import {
 } from './desktop-ui'
 import {
   desktopNotificationBadgeCount,
-  desktopNotificationBadgeLabel,
   desktopNotificationPresentation,
+  windowsBadgeOverlayUpdate,
 } from './domain/desktop-notifications/desktop-notification-presentation'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
@@ -221,17 +221,16 @@ export function refreshDesktopNotificationBadge() {
   setApplicationBadgeCount(count)
 }
 
-/** Windows shows a dot; its description carries the count, so it is set again when that changes. */
 function applyWindowsOverlay(window: BrowserWindow, count: number) {
-  if (count === state.overlayCount) return
+  const update = windowsBadgeOverlayUpdate(state.overlayCount, count)
+  if (!update) return
   state.overlayCount = count
-  const show = count > 0
   setWindowOverlayIcon(
     window,
-    show
+    update.show
       ? nativeImageFromBitmap(badgeOverlayPixels(), BADGE_OVERLAY_SIZE, BADGE_OVERLAY_SIZE)
       : null,
-    show ? desktopNotificationBadgeLabel(count) : '',
+    update.description,
   )
 }
 

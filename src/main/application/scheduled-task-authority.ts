@@ -127,9 +127,10 @@ function changesWakeCheck(
 }
 
 /**
- * Whether a patch changes what the task runs. Each field is compared with the stored value, as
- * `heartbeatFieldsFor` would store it, because the app's editor sends the prompt, target and stop
- * condition with every save; sending them unchanged must not count as changing them.
+ * Whether a patch changes what the task runs. The app's editor sends the prompt, target and stop
+ * condition with every save, so each field is compared with the stored value: the stop condition
+ * and Wake check normalised as `heartbeatFieldsFor` stores them, the prompt and target as given,
+ * which is how `mergedRecord` stores them (the target in any key order).
  */
 function changesWork(current: TaskWork, patch: ScheduledTaskPatch) {
   const stopWhen = patch.heartbeat?.stopWhen
