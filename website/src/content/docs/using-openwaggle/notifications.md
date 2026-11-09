@@ -15,7 +15,7 @@ The Session Host decides when to notify, so notifications keep coming after you 
 | --- | --- |
 | **Needs you** | A session waits for your approval or your answer, or a worker is stuck and no agent will pick it up. This includes workers. |
 | **Ready to read** | A run you started, or a scheduled task started, finished. |
-| **Failed or interrupted** | A run failed, stopped waiting for your answer, or was cut off when the Session Host stopped. A scheduled task that OpenWaggle turned off because it needs your attention notifies here too. |
+| **Failed or interrupted** | A run failed, stopped waiting for your answer, or was cut off when the Session Host stopped. A scheduled task that OpenWaggle turned off because it needs your attention notifies here too, unless it is a heartbeat whose session you archived. |
 | **Agent errors** | An agent or an extension reported an error, at most once per run. |
 
 Some things never notify:
@@ -37,7 +37,7 @@ Open **Settings** > **Notifications**.
 - **Show badge** counts your notifications on the Dock icon, for every kind you have turned on. On Windows the taskbar icon shows a red dot instead.
 - **Show previews** adds the start of the reply, question or error. It is off, so message text stays off your lock screen.
 
-When no OpenWaggle window is open, the Session Host shows the notification itself with the system sound, or none if you picked **None**. There is no badge then. Clicking the notification opens OpenWaggle on that session.
+When OpenWaggle isn't running, the Session Host shows the notification itself with the system sound, or none if you picked **None**. There is no badge then. Clicking the notification opens OpenWaggle on that session.
 
 ## Mute a session or a project
 
