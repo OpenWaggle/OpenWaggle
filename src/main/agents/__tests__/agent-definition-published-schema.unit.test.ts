@@ -4,11 +4,7 @@ import { SESSION_CAPABILITIES } from '@shared/types/session-capability'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import {
-  AGENT_DEFINITION_NAME_PATTERN,
-  isAgentDefinitionName,
-  WINDOWS_RESERVED_BASENAME,
-} from '../agent-definition-name'
+import { AGENT_DEFINITION_NAME_PATTERN, isAgentDefinitionName } from '../agent-definition-name'
 import { agentDefinitionFrontmatterSchema, parseAgentDefinition } from '../agent-definition-parser'
 
 function record(value: unknown): Record<string, unknown> {
@@ -48,15 +44,12 @@ const IGNORED_KEYWORDS = new Set([
 const SUBSCHEMA_KEYWORDS = new Set(['items', 'not', 'anyOf', 'oneOf', 'allOf'])
 /**
  * Published patterns the parser enforces in code rather than with a Zod regex, and the exact pattern
- * each must be: the portable name (a negative lookahead for reserved Windows names, then the name
- * pattern) and the non-whitespace strings. The behavioral tests above also sample each of them.
+ * each must be: the portable name, which `isAgentDefinitionName` tests with exactly this regex, and
+ * the non-whitespace strings. The behavioral tests above also sample each of them.
  */
 const NON_WHITESPACE_PATTERN = '\\S'
 const CODE_ENFORCED_PATTERNS = new Map([
-  [
-    '#/properties/name',
-    `^(?!${WINDOWS_RESERVED_BASENAME.source.slice(1)})${AGENT_DEFINITION_NAME_PATTERN.source.slice(1)}`,
-  ],
+  ['#/properties/name', AGENT_DEFINITION_NAME_PATTERN.source],
   ['#/properties/description', NON_WHITESPACE_PATTERN],
   ['#/properties/model', NON_WHITESPACE_PATTERN],
   ['#/properties/tools/items', NON_WHITESPACE_PATTERN],
@@ -143,11 +136,18 @@ function patternsOf(
 ): Array<[string, unknown]> {
   const node = resolveLocalReference(root, record(value))
   const own: Array<[string, unknown]> = node.pattern === undefined ? [] : [[path, node.pattern]]
-  const items = node.items === undefined ? [] : patternsOf(root, node.items, `${path}/items`)
+  const subschemas = [...SUBSCHEMA_KEYWORDS].flatMap((keyword) => {
+    const subschema = node[keyword]
+    if (subschema === undefined) return []
+    if (!Array.isArray(subschema)) return patternsOf(root, subschema, `${path}/${keyword}`)
+    return subschema.flatMap((entry, index) =>
+      patternsOf(root, entry, `${path}/${keyword}/${index}`),
+    )
+  })
   const properties = Object.entries(record(node.properties ?? {})).flatMap(([key, property]) =>
     patternsOf(root, property, `${path}/properties/${key}`),
   )
-  return [...own, ...items, ...properties]
+  return [...own, ...subschemas, ...properties]
 }
 
 describe('published Agent definition schema', () => {
@@ -183,6 +183,11 @@ describe('published Agent definition schema', () => {
       'Reviewer',
       'revieweR',
       'a~b',
+      'a..b',
+      'a.-_b',
+      'a__b',
+      '0.1.2',
+      'a\n-',
       'a'.repeat(80),
       'a'.repeat(81),
       `r${'-'.repeat(78)}r`,
@@ -191,6 +196,9 @@ describe('published Agent definition schema', () => {
     }
     expect(isAgentDefinitionName('a'.repeat(80))).toBe(true)
     expect(isAgentDefinitionName('a'.repeat(81))).toBe(false)
+    // The pattern is published without flags, so the runtime regex must not have any either.
+    expect(AGENT_DEFINITION_NAME_PATTERN.flags).toBe('')
+    expect(isAgentDefinitionName('a\n-')).toBe(false)
   })
 
   it('matches runtime non-whitespace requirements for user-authored strings', async () => {
