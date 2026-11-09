@@ -41,17 +41,19 @@ export function terminalStateRefreshKey(stateBySessionId: ReadonlyMap<string, Si
 /**
  * Forgets Host-discovered terminal rows that no longer hold that state. A row keeps its id while
  * its raw status still holds it, so a visit and Mark as unread do not rewind paging, or while the
- * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0063). A row
- * with no shown state yet was loaded after the states were resolved, so it is kept too.
+ * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0063). Only
+ * a row in `resolvedIds` (loaded, or listed by the Host) has a shown state resolved with its
+ * lineage; any other was loaded after the states were resolved, so it is kept too.
  */
 export function pruneHydratedTerminalIds(
   hydratedTerminalIds: HydratedTerminalIds,
   rawStatuses: ReadonlyMap<SessionId, SessionStatus>,
   stateBySessionId: ReadonlyMap<string, SidebarRowState>,
+  resolvedIds: ReadonlySet<string>,
 ) {
   for (const state of ['completed', 'error'] as const) {
     for (const id of hydratedTerminalIds[state]) {
-      const shown = stateBySessionId.get(id)
+      const shown = resolvedIds.has(id) ? stateBySessionId.get(id) : undefined
       if (shown === undefined || shown === state || rawStatuses.get(SessionId(id)) === state) {
         continue
       }

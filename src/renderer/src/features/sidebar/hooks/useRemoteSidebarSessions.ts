@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
-import { usePruneHydratedTerminalIds, useRemoteSidebarRowStates } from './remote-sidebar-row-states'
+import { useRemoteSidebarRowStates } from './remote-sidebar-row-states'
 import {
   hydrateSidebarSessions,
   queryInterruptedSidebarSessions,
@@ -49,6 +49,7 @@ export function useRemoteSidebarSessions(input: {
   )
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([])
   const stateBySessionId = useRemoteSidebarRowStates({
+    hydratedTerminalIds: hydratedTerminalIds.current,
     stateBySessionId: input.stateBySessionId,
     loadedSessions: input.loadedSessions,
     remoteSessions: sessions,
@@ -63,7 +64,6 @@ export function useRemoteSidebarSessions(input: {
     () => (statusIdsKey === '' ? [] : statusIdsKey.split('\u0000').map(SessionId)),
     [statusIdsKey],
   )
-  usePruneHydratedTerminalIds(hydratedTerminalIds.current, stateBySessionId)
   const [hasMore, setHasMore] = useState(false)
   const { terminalCounts, setTerminalCounts } = useSidebarTerminalCounts(input.stateBySessionId)
   const mode = useRef<SidebarRemoteMode>({ kind: 'none' })

@@ -33,6 +33,7 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
     const shared = new Map<string, SidebarRowState>([['queen', 'idle']])
     const { result } = renderHook(() =>
       useRemoteSidebarRowStates({
+        hydratedTerminalIds: { completed: new Set(), error: new Set() },
         stateBySessionId: shared,
         loadedSessions: [],
         remoteSessions: [queen()],
@@ -54,6 +55,7 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
     useSessionStatusStore.setState({ lastVisitedAt: new Map([[SessionId('queen'), 4]]) })
     const { result } = renderHook(() =>
       useRemoteSidebarRowStates({
+        hydratedTerminalIds: { completed: new Set(), error: new Set() },
         stateBySessionId: new Map(),
         loadedSessions: [],
         remoteSessions: [queen()],
@@ -77,7 +79,10 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
   })
 
   it('keeps a hydrated id the row shows even when its raw status differs', () => {
-    const hydrated = { completed: new Set(['queen', 'seen', 'gone']), error: new Set<string>() }
+    const hydrated = {
+      completed: new Set(['queen', 'seen', 'gone', 'later']),
+      error: new Set<string>(),
+    }
     pruneHydratedTerminalIds(
       hydrated,
       new Map([
@@ -88,8 +93,11 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
         ['queen', 'completed'],
         ['seen', 'idle'],
         ['gone', 'idle'],
+        ['later', 'idle'],
       ]),
+      new Set(['queen', 'seen', 'gone']),
     )
-    expect([...hydrated.completed]).toEqual(['queen', 'seen'])
+    // `later` was loaded after the states were resolved, so its idle state is not trusted yet.
+    expect([...hydrated.completed]).toEqual(['queen', 'seen', 'later'])
   })
 })

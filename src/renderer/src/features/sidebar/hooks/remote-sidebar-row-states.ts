@@ -19,6 +19,8 @@ import {
  * quiet there. A remote summary carries its lineage, so it is resolved by the same rule a row uses.
  */
 export function useRemoteSidebarRowStates(input: {
+  /** Host-discovered terminal rows, pruned here once they no longer hold their state. */
+  readonly hydratedTerminalIds: HydratedTerminalIds
   readonly stateBySessionId: ReadonlyMap<string, SidebarRowState>
   readonly loadedSessions: readonly SessionSummary[]
   readonly remoteSessions: readonly SessionSummary[]
@@ -28,7 +30,7 @@ export function useRemoteSidebarRowStates(input: {
   const lastVisitedAt = useSessionStatusStore((s) => s.lastVisitedAt)
   const { stateBySessionId, loadedSessions, remoteSessions } = input
 
-  return useMemo(() => {
+  const states = useMemo(() => {
     const loaded = new Set(loadedSessions.map((session) => String(session.id)))
     const parents = remoteSessions.filter(
       (session) => session.lineage !== undefined && !loaded.has(String(session.id)),
@@ -50,23 +52,33 @@ export function useRemoteSidebarRowStates(input: {
     }
     return states
   }, [stateBySessionId, loadedSessions, remoteSessions, statuses, completedAt, lastVisitedAt])
+  usePruneHydratedTerminalIds({ ...input, stateBySessionId: states })
+  return states
 }
 
 /**
  * Forgets Host-discovered terminal rows once they no longer hold their state. The ids are live (a
  * ref a page load fills), so the raw statuses are read live too; the shown states come from the
- * render, so an id that render has not resolved yet was loaded after it and is left alone.
+ * render, and only loaded and Host-listed rows are resolved with their lineage there, so any other
+ * id was loaded after that render and is left alone.
  */
-export function usePruneHydratedTerminalIds(
-  hydratedTerminalIds: HydratedTerminalIds,
-  stateBySessionId: ReadonlyMap<string, SidebarRowState>,
-) {
+function usePruneHydratedTerminalIds(input: {
+  readonly hydratedTerminalIds: HydratedTerminalIds
+  readonly stateBySessionId: ReadonlyMap<string, SidebarRowState>
+  readonly loadedSessions: readonly SessionSummary[]
+  readonly remoteSessions: readonly SessionSummary[]
+}) {
+  const { hydratedTerminalIds, stateBySessionId, loadedSessions, remoteSessions } = input
   // The shown states change with every raw status change, so they alone say when to run.
   useEffect(() => {
+    const resolvedIds = new Set(
+      [...loadedSessions, ...remoteSessions].map((session) => String(session.id)),
+    )
     pruneHydratedTerminalIds(
       hydratedTerminalIds,
       useSessionStatusStore.getState().statuses,
       stateBySessionId,
+      resolvedIds,
     )
-  }, [hydratedTerminalIds, stateBySessionId])
+  }, [hydratedTerminalIds, stateBySessionId, loadedSessions, remoteSessions])
 }
