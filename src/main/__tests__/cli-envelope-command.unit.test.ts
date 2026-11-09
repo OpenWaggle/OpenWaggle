@@ -167,7 +167,7 @@ describe('CLI envelope command names (ADR 0063)', () => {
     ])
   })
 
-  it('names status, update, access, agents, mcp and recovery commands with their group', async () => {
+  it('names status and update whole, and access, agents, mcp and recovery commands with their group', async () => {
     const status: string[] = []
     await expect(runStatusCli(['--json'], statusDependencies(status))).resolves.toBe(0)
     const agents: string[] = []
