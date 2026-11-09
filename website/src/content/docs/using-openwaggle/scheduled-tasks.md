@@ -117,12 +117,12 @@ A Heartbeat with a wake check leads with its last check, such as **Last check 07
 
 A scheduled task can never do more than the person or agent who created it could do by hand. Each run checks that access again, so revoking a command-line access profile stops that profile's tasks.
 
-A task an agent created for you runs as you, within what that agent could do when it created the task. A Launch schedule, or a Heartbeat in another session, does not depend on the agent's session, so you can archive or delete that session and the task keeps running. A Heartbeat in the agent's own session pauses when you archive that session, and deleting that session deletes it, as for any Heartbeat. If the agent could do less than you, for example because its session asks for approval, **Created by** says the task runs with limited access. It keeps those limits until you change its prompt, a Launch schedule's project, its model or another run setting, its stop condition or its wake check. From then on it runs with your full access. Any other change, such as pausing, resuming, renaming or rescheduling it, keeps the limits.
+A task an agent created for you runs as you, within what that agent could do when it created the task. A Launch schedule, or a Heartbeat in another session, does not depend on the agent's session, so you can archive or delete that session and the task keeps running. A Heartbeat in the agent's own session pauses when you archive that session, and deleting that session deletes it, as for any Heartbeat. If the agent could do less than you, for example because it has to ask for approval, **Created by** says the task runs with limited access. It keeps those limits until you change its prompt, a Launch schedule's project, its model or another run setting, its stop condition or its wake check. From then on it runs with your full access. Any other change, such as pausing, resuming, renaming or rescheduling it, keeps the limits.
 
 An agent cannot use a task to get around its own limits:
 
 - A Launch schedule an agent creates must use a project that already has a session or workspace in OpenWaggle.
-- An agent that must ask for approval cannot schedule a Heartbeat into a YOLO session.
+- An agent that must ask for approval cannot schedule a Heartbeat into a session that can run in YOLO mode.
 - An agent limited to one project cannot schedule a Heartbeat into a session that reaches every project.
 - When an agent changes the prompt of one of your tasks, the task keeps only what both you and that agent may do.
 
