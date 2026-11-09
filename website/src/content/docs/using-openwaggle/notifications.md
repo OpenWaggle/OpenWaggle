@@ -25,7 +25,7 @@ Some things never notify:
 - A run that another agent started, for example through the `hive` tool, the CLI with an agent's access profile, or MCP. Only its **Needs you** notifies.
 - A scheduled task set to notify on failures only, when its run finishes. Its failures still notify.
 
-A session has at most one notification. A newer one replaces it, except that nothing replaces **Needs you** until you answer. The notification goes away when you open the session, answer the request, or archive the session.
+A session has at most one notification. A newer one replaces it, except that nothing replaces **Needs you** until you answer. Opening the session clears its notification, except **Needs you**, which stays until you answer the request or the worker is no longer stuck. Archiving the session clears it too.
 
 ## Change what notifies
 
@@ -34,7 +34,7 @@ Open **Settings** > **Notifications**.
 - **Desktop notifications** turns all of them on or off.
 - Each kind has its own switch and its own sound. Pick one of six sounds, **System default** or **None**. The play button previews the sound.
 - **While OpenWaggle is focused** decides what happens for a session other than the one on screen: **Sound only**, **Show notifications too** or **Nothing**. The session on screen never notifies while OpenWaggle has focus.
-- **Show badge** counts the sessions that need you or are ready to read on the Dock icon. On Windows the taskbar icon shows a red dot instead.
+- **Show badge** counts the sessions with a notification on the Dock icon, for every kind you have turned on. On Windows the taskbar icon shows a red dot instead.
 - **Show previews** adds the start of the reply, question or error. It is off, so message text stays off your lock screen.
 
 When no OpenWaggle window is open, the Session Host shows the notification itself with the system sound, or none if you picked **None**. There is no badge then. Clicking the notification opens OpenWaggle on that session.
