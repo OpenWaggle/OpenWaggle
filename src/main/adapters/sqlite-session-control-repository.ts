@@ -189,6 +189,7 @@ function executeMutation(
           startsWake,
           callerId: input.callerId,
           operation,
+          idempotencyKey: input.request.idempotencyKey,
           targetScope,
           nextRunId: input.nextRunId,
           hostRunCeiling: input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling,

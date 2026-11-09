@@ -16,13 +16,15 @@ import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import {
   beginForegroundRun,
   clearRunPointers,
-  forgetIfRefusedForPiSessionFile,
   normalizeError,
   offerRunCompletion,
-  type ReportWithoutRun,
-  settleSendWithoutRun,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
+import {
+  forgetIfRefusedForPiSessionFile,
+  type ReportWithoutRun,
+  settleSendWithoutRun,
+} from './useAgentChat.send-without-run'
 import { createSessionSnapshotRefresh } from './useAgentChat.session-snapshot'
 import type {
   AgentChatStatus,
@@ -282,9 +284,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       if (params.isFirstMessage && isRefusal(error)) params.setFirstSendRecovery(sessionId, null)
       throw error
     }
-    if (params.isFirstMessage) {
-      params.setFirstSendRecovery(sessionId, null)
-    }
+    if (params.isFirstMessage) params.setFirstSendRecovery(sessionId, null)
   }
 
   function stop() {

@@ -26,6 +26,7 @@ import {
   storeLifecycleOutcome,
 } from './sqlite-session-lifecycle-support'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
+import { recordAgentMadeSession } from './sqlite-worker-run-admission'
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionLifecycleRepositoryError({ operation, cause })
@@ -157,6 +158,13 @@ function execute(
           parentRunId: target.parentRunId,
           hiveRootSessionId: target.hiveRootSessionId,
           depth: target.depth,
+        })
+        yield* recordAgentMadeSession(sql, {
+          operation: outcome.operation,
+          sessionId: input.session.sessionId,
+          callerId: input.callerId,
+          idempotencyKey: input.request.idempotencyKey,
+          now: input.now,
         })
         yield* storeLifecycleOutcome(sql, input, scope, requestJson, outcome)
         return lifecycleResponse(input, false, outcome)

@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
 import {
+  forkLifecycleInput,
   makeSessionLifecycleTestLayer,
   rootLifecycleInput,
   spawnLifecycleInput,
@@ -159,6 +160,31 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
 
     const effects = responses.map((response) => response.outcome.effect).sort()
     expect(effects).toEqual(['launched-root', 'rejected'])
+  })
+
+  it('records the roots an agent creates, launches or forks as agent-made, and none of the person’s', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'agent-origins.sqlite'))
+    const origins = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        const create = rootLifecycleInput('create')
+        yield* repository.execute({ ...create, callerId: AGENT })
+        yield* repository.execute({ ...forkLifecycleInput(), callerId: AGENT })
+        yield* repository.execute(launchBy(AGENT, 'agent'))
+        yield* repository.execute(launchBy('gui:local-user', 'person'))
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly session_id: string; readonly caller_id: string }>`
+          SELECT session_id, caller_id FROM session_agent_origins ORDER BY session_id
+        `
+        return rows.map((row) => [row.session_id, row.caller_id])
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(origins).toEqual([
+      ['session-create', AGENT],
+      ['session-fork', AGENT],
+      ['session-launch-agent', AGENT],
+    ])
   })
 
   it('refuses a spawn at the Worker ceiling, counting Worker Runs only', async () => {

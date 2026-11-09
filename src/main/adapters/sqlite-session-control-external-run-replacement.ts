@@ -16,7 +16,7 @@ function repositoryError(operation: string, cause: unknown) {
 
 /**
  * An external Run (an explicit Waggle command's Run) follows the same capacity rule as any other:
- * only a Worker's Run that an agent starts can be refused, never the person's or a root Session's.
+ * only an agent-made Session's Run that an agent starts can be refused, never the person's.
  */
 export function externalRunAdmission(
   sql: SqlClient.SqlClient,

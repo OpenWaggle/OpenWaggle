@@ -1,9 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
-import {
-  AGENT_SCHEDULED_RUN_KEY_PATTERN,
-  isAgentScheduledRunKey,
-} from '../domain/scheduled-tasks/scheduled-task-run-key'
+import { isAgentScheduledRunKey } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
@@ -37,9 +34,9 @@ export function isPersonStartedRun(caller: StartingRunCaller) {
 }
 
 /**
- * SQL for the Sessions agents made: Workers some parent spawned, and roots an agent, a client
- * profile or a Session agent's Scheduled task created, launched or forked. The person's own Sessions are
- * never among them.
+ * SQL for the Sessions agents made: Workers some parent spawned, and roots recorded in
+ * `session_agent_origins` (`recordAgentMadeSession`). The person's own Sessions are never among
+ * them. Both are primary-key lookups.
  */
 const AGENT_MADE_SESSION = `(
   EXISTS (
@@ -47,21 +44,32 @@ const AGENT_MADE_SESSION = `(
     WHERE lineage.child_session_id = states.session_id
   )
   OR EXISTS (
-    SELECT 1 FROM session_operations AS operations
-    WHERE operations.operation IN ('create', 'launch', 'fork')
-      AND operations.status = 'completed'
-      AND json_extract(operations.outcome_json, '$.effect')
-        IN ('created-root', 'launched-root', 'forked-session')
-      AND json_extract(operations.outcome_json, '$.sessionId') = states.session_id
-      AND (
-        NOT (
-          operations.caller_id IN ('local-user', 'gui:local-user')
-          OR operations.caller_id LIKE 'local-user:%'
-        )
-        OR operations.idempotency_key LIKE '${AGENT_SCHEDULED_RUN_KEY_PATTERN}'
-      )
+    SELECT 1 FROM session_agent_origins AS origins WHERE origins.session_id = states.session_id
   )
 )`
+
+/**
+ * Records a root that an agent, a client profile or a Session agent's Scheduled task created,
+ * launched or forked, in the transaction that makes it: its Runs then count toward Active Workers.
+ * The person's root is not recorded, and a spawned Worker is known by its lineage.
+ */
+export function recordAgentMadeSession(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly operation: string
+    readonly sessionId: string
+    readonly callerId: string
+    readonly idempotencyKey: string
+    readonly now: number
+  },
+) {
+  const makesRoot = ['create', 'launch', 'fork'].includes(input.operation)
+  if (!makesRoot || isPersonStartedRun(input)) return Effect.void
+  return sql`
+    INSERT OR IGNORE INTO session_agent_origins (session_id, caller_id, created_at)
+    VALUES (${input.sessionId}, ${input.callerId}, ${input.now})
+  `.pipe(Effect.asVoid)
+}
 
 /**
  * Active Runs of agent-made Sessions across the Host: the Runs the Active Workers ceiling counts.

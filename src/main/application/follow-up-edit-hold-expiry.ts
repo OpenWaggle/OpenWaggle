@@ -2,6 +2,7 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Schedule from 'effect/Schedule'
+import { expiredFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-expiry-key'
 import { FOLLOW_UP_EDIT_HOLD_SWEEP_INTERVAL_MS } from '../domain/session-control/follow-up-edit-lease'
 import { createLogger } from '../logger'
 import {
@@ -20,7 +21,7 @@ const logger = createLogger('follow-up-edit-hold-expiry')
  * cancel that fails (for example while the Host drains) is retried on the next sweep.
  */
 function releaseExpiredHold(hold: ExpiredFollowUpEditHold) {
-  const key = `follow-up-edit-hold-expired:${hold.holdId}`
+  const key = expiredFollowUpEditHoldKey(hold.holdId)
   return dispatchAdmittedSessionControlCommand({
     caller: { callerId: hold.holderCallerId },
     payload: {

@@ -167,7 +167,7 @@ export function MultiAgentAccessCard() {
         </SettingRow>
         <SettingRow
           label="Active Workers"
-          description="Most Worker runs active at once across every Hive, counting Sessions agents launch."
+          description="Most Worker runs active at once across every Hive, counting Sessions agents make."
           last
         >
           <NumberStepper

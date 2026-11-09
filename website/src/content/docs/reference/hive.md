@@ -296,7 +296,7 @@ The limits never hold back the person or a top-level session:
 
 - Runs of sessions you started, such as your Queen, never count toward the limits and are never refused by them, whoever starts them.
 - A run you start yourself, from the app, the command line or another client running as you, is never refused, even in a worker. So is a run that your own **Resume**, withdraw, reorder or edit of a queue starts, whoever wrote the follow-up. A follow-up you queued in a worker runs next even when its parent is at **Workers per parent**.
-- A `launch` of yours has no run limit.
+- A `launch` of yours has no run limit. A `spawn` always makes a worker, so it is held to the limits whoever asks for it.
 
 Sessions agents make count as workers for **Active Workers**: a top-level session that an agent or an access profile launched, created or forked, or that a task a session agent scheduled launched. An agent's `launch` fails with `host_run_ceiling_reached` when **Active Workers** is full, so launching instead of spawning does not get around the limit.
 

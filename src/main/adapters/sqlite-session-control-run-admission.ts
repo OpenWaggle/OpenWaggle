@@ -21,6 +21,7 @@ export function admittedMutationDecision(
     readonly startsWake: boolean
     readonly callerId: string
     readonly operation: SessionControlMutationCommand['operation']
+    readonly idempotencyKey: string
     readonly targetScope: string
     readonly nextRunId: Parameters<typeof deliverAfterQueueDecision>[1]['nextRunId']
     readonly hostRunCeiling: number
@@ -45,6 +46,7 @@ export function admittedMutationDecision(
       nextRunId: input.nextRunId,
       hostRunCeiling,
       callerId: input.callerId,
+      idempotencyKey: input.idempotencyKey,
     })
   })
 }

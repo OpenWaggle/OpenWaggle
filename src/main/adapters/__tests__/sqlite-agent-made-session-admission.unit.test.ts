@@ -7,9 +7,14 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { submitSessionMessage } from '../../application/session-control-service'
 import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
+import { expiredFollowUpEditHoldKey } from '../../domain/session-control/follow-up-edit-hold-expiry-key'
 import { newRunAdmissionRefusal } from '../sqlite-session-control-queue-delivery'
 import { loadSessionControlState } from '../sqlite-session-control-state'
-import { countActiveWorkerRuns, isPersonStartedRun } from '../sqlite-worker-run-admission'
+import {
+  countActiveWorkerRuns,
+  isPersonStartedRun,
+  recordAgentMadeSession,
+} from '../sqlite-worker-run-admission'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 import {
   AGENT_CALLER,
@@ -21,38 +26,44 @@ import {
 
 let temporaryRoot = ''
 
-/** Records that `callerId` launched `session-target` with a request keyed `idempotencyKey`. */
-function targetLaunchedBy(
+/** Records that `callerId` made `session-target` with `operation`, as the lifecycle does. */
+function targetMadeBy(
   sql: SqlClient.SqlClient,
   callerId: string,
-  idempotencyKey = 'idempotency-launch-target',
+  idempotencyKey = 'idempotency-make-target',
+  operation: 'create' | 'launch' | 'fork' = 'launch',
 ) {
-  return sql`
-    INSERT INTO session_operations (
-      caller_id, operation, target_scope, idempotency_key, request_json,
-      status, outcome_json, created_at, updated_at
-    ) VALUES (
-      ${callerId}, ${'launch'}, ${'/project'}, ${idempotencyKey}, ${'{}'}, ${'completed'},
-      ${JSON.stringify({ operation: 'launch', effect: 'launched-root', sessionId: 'session-target' })},
-      ${1}, ${1}
-    )
-  `
+  return recordAgentMadeSession(sql, {
+    operation,
+    sessionId: 'session-target',
+    callerId,
+    idempotencyKey,
+    now: 1,
+  })
 }
 
 /** `sessionId`'s state as if a Host-authored Hive wake were starting its next Run. */
 function wakeStarting(sql: SqlClient.SqlClient, sessionId: string) {
+  return runStarting(sql, sessionId, { callerId: 'gui:local-user', hiveWake: true })
+}
+
+/** `sessionId`'s state as if a Run for `caller` were starting. */
+function runStarting(
+  sql: SqlClient.SqlClient,
+  sessionId: string,
+  caller: { readonly callerId: string; readonly hiveWake?: true },
+) {
   return Effect.map(loadSessionControlState(sql, sessionId), (state) => ({
     ...state,
     run: {
       state: 'starting' as const,
-      runId: RunId(`run-wake-${sessionId}`),
+      runId: RunId(`run-next-${sessionId}`),
       intent: {
         text: 'A Worker reported.',
         attachmentIds: [],
-        callerId: 'gui:local-user',
         acceptedAt: 1,
-        idempotencyKey: `wake-${sessionId}`,
-        hiveWake: true as const,
+        idempotencyKey: `run-key-${sessionId}`,
+        ...caller,
       },
     },
   }))
@@ -67,36 +78,41 @@ describe('Admission for Sessions agents made', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('holds a root an agent launched to the Worker ceiling, and counts its Run', async () => {
-    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-root.sqlite'))
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* seedHive(sql, 2)
-        yield* targetLaunchedBy(sql, 'session-agent:queen:run-queen')
-        const agent = yield* submitSessionMessage({
-          callerId: AGENT_CALLER,
-          hostRunCeiling: 2,
-          request: messageRequest('session-target', 'agent'),
-        })
-        const agentRuns = yield* targetRunCount(sql)
-        const person = yield* submitSessionMessage({
-          callerId: 'gui:local-user',
-          hostRunCeiling: 2,
-          request: messageRequest('session-target', 'person'),
-        })
-        return { agent, agentRuns, person, counted: yield* countActiveWorkerRuns(sql) }
-      }).pipe(Effect.provide(layer)),
-    )
+  it.each(['create', 'launch', 'fork'] as const)(
+    'holds a root an agent made by %s to the Worker ceiling, and counts its Run',
+    async (operation) => {
+      const layer = makeSessionControlTestLayer(
+        path.join(temporaryRoot, `agent-${operation}.sqlite`),
+      )
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* seedHive(sql, 2)
+          yield* targetMadeBy(sql, 'session-agent:queen:run-queen', 'key', operation)
+          const agent = yield* submitSessionMessage({
+            callerId: AGENT_CALLER,
+            hostRunCeiling: 2,
+            request: messageRequest('session-target', 'agent'),
+          })
+          const agentRuns = yield* targetRunCount(sql)
+          const person = yield* submitSessionMessage({
+            callerId: 'gui:local-user',
+            hostRunCeiling: 2,
+            request: messageRequest('session-target', 'person'),
+          })
+          return { agent, agentRuns, person, counted: yield* countActiveWorkerRuns(sql) }
+        }).pipe(Effect.provide(layer)),
+      )
 
-    expect(result.agent.outcome).toMatchObject({
-      effect: 'rejected',
-      code: 'host_run_ceiling_reached',
-    })
-    expect(result.agentRuns).toBe(0)
-    expect(result.person.outcome).toMatchObject({ effect: 'started-run' })
-    expect(result.counted).toBe(3)
-  })
+      expect(result.agent.outcome).toMatchObject({
+        effect: 'rejected',
+        code: 'host_run_ceiling_reached',
+      })
+      expect(result.agentRuns).toBe(0)
+      expect(result.person.outcome).toMatchObject({ effect: 'started-run' })
+      expect(result.counted).toBe(3)
+    },
+  )
 
   it('does not count a root the person launched, from the app, the CLI or their own task', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'person-roots.sqlite'))
@@ -104,7 +120,7 @@ describe('Admission for Sessions agents made', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHive(sql, 1)
-        yield* targetLaunchedBy(sql, 'local-user', scheduledTaskRunKey('run-1', 'local-user'))
+        yield* targetMadeBy(sql, 'local-user', scheduledTaskRunKey('run-1', 'local-user'))
         yield* submitSessionMessage({
           callerId: 'gui:local-user',
           request: messageRequest('session-target', 'person'),
@@ -122,7 +138,7 @@ describe('Admission for Sessions agents made', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHive(sql, 1)
-        yield* targetLaunchedBy(sql, 'local-user', scheduledTaskRunKey('run-1', 'session-agent'))
+        yield* targetMadeBy(sql, 'local-user', scheduledTaskRunKey('run-1', 'session-agent'))
         yield* submitSessionMessage({
           callerId: 'gui:local-user',
           request: messageRequest('session-target', 'person'),
@@ -159,6 +175,30 @@ describe('Admission for Sessions agents made', () => {
     )
 
     expect(refusal).toBe('host_run_ceiling_reached')
+  })
+  it('holds an agent’s Follow-up an expired edit hold delivers, though the person’s queue action would not be', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'expired-hold.sqlite'))
+    const refusals = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHive(sql, 2)
+        yield* makeTargetAWorker(sql)
+        const agentNext = yield* runStarting(sql, 'session-target', { callerId: AGENT_CALLER })
+        const cancel = { callerId: 'gui:local-user', operation: 'queue-edit-cancel' } as const
+        return {
+          byPerson: yield* newRunAdmissionRefusal(sql, agentNext, 2, {
+            ...cancel,
+            idempotencyKey: 'person-cancel',
+          }),
+          byExpiry: yield* newRunAdmissionRefusal(sql, agentNext, 2, {
+            ...cancel,
+            idempotencyKey: expiredFollowUpEditHoldKey('hold-1'),
+          }),
+        }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(refusals).toEqual({ byPerson: undefined, byExpiry: 'host_run_ceiling_reached' })
   })
 })
 

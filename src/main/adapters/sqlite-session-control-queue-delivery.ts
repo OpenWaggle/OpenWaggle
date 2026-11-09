@@ -9,6 +9,7 @@ import {
   deliverIdleQueueHead,
   pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
+import { isExpiredFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-expiry-key'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
@@ -43,10 +44,11 @@ function isDeliveringOperation(
   return DELIVERING_QUEUE_OPERATIONS.has(operation)
 }
 
-/** Who acts in a mutation: its caller and operation. */
+/** Who acts in a mutation: its caller, operation and request key. */
 interface MutationActor {
   readonly callerId: string
   readonly operation: SessionControlMutationCommand['operation']
+  readonly idempotencyKey: string
 }
 
 /**
@@ -75,10 +77,12 @@ function startingRunCaller(
 ): StartingRunCaller {
   if (state.run.state !== 'starting') return { callerId: '' }
   const { callerId, idempotencyKey, hiveWake } = state.run.intent
+  // An expired edit hold's cancel is the Host's, though it is sent as the person who held it.
   const personActed =
     actor !== undefined &&
     isDeliveringOperation(actor.operation) &&
-    isLocalUserCallerId(actor.callerId)
+    isLocalUserCallerId(actor.callerId) &&
+    !isExpiredFollowUpEditHoldKey(actor.idempotencyKey)
   return {
     callerId,
     idempotencyKey,
@@ -127,6 +131,7 @@ export function deliverAfterQueueDecision(
     readonly hostRunCeiling: number
     /** The mutation's caller: the person's own queue action delivers its Run whatever the limits. */
     readonly callerId: string
+    readonly idempotencyKey: string
   },
 ): Effect.Effect<SessionControlMutationDecision, unknown> {
   const { decision, operation, nextRunId } = input
@@ -160,6 +165,7 @@ export function deliverAfterQueueDecision(
     const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
       callerId: input.callerId,
       operation,
+      idempotencyKey: input.idempotencyKey,
     })
     if (refusal) {
       const paused = pauseUndeliveredQueue(

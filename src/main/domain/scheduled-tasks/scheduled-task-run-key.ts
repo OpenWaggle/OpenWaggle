@@ -20,6 +20,3 @@ export function scheduledTaskRunKey(
 export function isAgentScheduledRunKey(idempotencyKey: string | undefined) {
   return idempotencyKey?.startsWith(AGENT_RUN_KEY_PREFIX) === true
 }
-
-/** SQL `LIKE` pattern for `isAgentScheduledRunKey`; the prefix has no `%` or `_`. */
-export const AGENT_SCHEDULED_RUN_KEY_PATTERN = `${AGENT_RUN_KEY_PREFIX}%`

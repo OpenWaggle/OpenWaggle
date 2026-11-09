@@ -1,3 +1,4 @@
+import type { AgentSendReport } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
@@ -16,6 +17,11 @@ import {
 
 const SESSION_ID = SessionId('session-refused')
 const MODEL = SupportedModelId('openrouter/anthropic/claude-haiku-4.5')
+const REFUSED = {
+  outcome: 'refused',
+  message: 'queue_capacity_reached',
+  code: 'queue_capacity_reached',
+} as const satisfies AgentSendReport
 
 function visibleUserTexts(messages: readonly UIMessage[]) {
   return messages
@@ -75,34 +81,54 @@ describe('useAgentChat send the Session Host refused', () => {
     expect(firstSendRecoveryCalls.at(-1)).toEqual([SESSION_ID, null])
   })
 
-  it('leaves a later send’s Thinking alone when an earlier send is refused', async () => {
-    let refuse: (report: { outcome: 'refused'; message: string; code: string }) => void = () => {}
-    apiMock.sendMessage
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            refuse = resolve
-          }),
+  /** Two sends in a row, each answered by `reports` in turn, the earlier one's report first. */
+  async function twoSendsAnsweredInOrder(reports: readonly [AgentSendReport, AgentSendReport]) {
+    const answers: ((report: AgentSendReport) => void)[] = []
+    apiMock.sendMessage.mockImplementation(
+      () =>
+        new Promise<AgentSendReport>((resolve) => {
+          answers.push(resolve)
+        }),
+    )
+    const rendered = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+    const sends: Promise<unknown>[] = []
+    // Separate acts, as in the app: the later send begins after the earlier one's render.
+    await act(async () => {
+      sends.push(rendered.result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => error))
+    })
+    await act(async () => {
+      sends.push(
+        rendered.result.current
+          .sendMessage({ ...SEND_PAYLOAD, text: 'A later message' })
+          .catch((error: unknown) => error),
       )
-      .mockImplementationOnce(() => new Promise(() => {}))
-    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
-
-    let first: Promise<unknown> = Promise.resolve()
-    await act(async () => {
-      first = result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => error)
-      void result.current.sendMessage({ ...SEND_PAYLOAD, text: 'A later message' })
     })
     await act(async () => {
-      refuse({
-        outcome: 'refused',
-        message: 'queue_capacity_reached',
-        code: 'queue_capacity_reached',
-      })
-      await first
+      answers[0]?.(reports[0])
+      await sends[0]
     })
+    const betweenStatus = rendered.result.current.status
+    await act(async () => {
+      answers[1]?.(reports[1])
+      await sends[1]
+    })
+    return { result: rendered.result, betweenStatus, sends }
+  }
 
-    expect(await first).toBeInstanceOf(MessageNotDelivered)
-    expect(result.current.status).toBe('submitted')
-    expect(visibleUserTexts(result.current.messages)).toContain('A later message')
+  it('leaves a later send’s Thinking alone when an earlier send is refused', async () => {
+    const { betweenStatus } = await twoSendsAnsweredInOrder([REFUSED, REFUSED])
+
+    expect(betweenStatus).toBe('submitted')
+  })
+
+  it.each([
+    ['refused', REFUSED],
+    ['queued', { outcome: 'queued' } as const],
+  ])('returns to ready once two %s sends have both ended', async (_label, report) => {
+    const { result } = await twoSendsAnsweredInOrder([report, report])
+
+    expect(result.current.status).toBe('ready')
+    expect(result.current.isLoading).toBe(false)
+    expect(visibleUserTexts(result.current.messages)).not.toContain('A later message')
   })
 })
