@@ -122,6 +122,7 @@ Alpha  -> alpha, beta, rc, stable
 
 - The app selects the newest eligible non-downgrade release itself (`src/main/update-feed.ts`) and points a generic feed at that release; release packaging writes the metadata aliases each eligible channel reads.
 - Channel changes affect future updates only and never permit a downgrade.
+- `install.sh` and `openwaggle update --version` refuse a version older than the installed one with exit 2, before anything is downloaded, quit, or stopped; the installed version reinstalls.
 - The desktop app, `openwaggle update`, and `install.sh` share one saved Update channel. Exact versions are one-time installs.
 - A build with no saved choice defaults to its own prerelease stream; an RC build defaults to Beta.
 - Switching into Alpha requires confirmation every time.

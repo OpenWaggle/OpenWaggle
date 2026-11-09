@@ -203,7 +203,12 @@ the downloaded artifact's version. With no Stable release yet it selects Beta, s
 Beta or RC never saves Alpha. A channel with no eligible release, such as Stable before `1.0.0`, is
 reported as up to date rather than as a failed check. `openwaggle update --check` never changes
 the saved channel, and `openwaggle update --version` refuses a version older than the installed
-one.
+one. `install.sh` refuses one too, whether it comes from a channel or from
+`OPENWAGGLE_RELEASE_TAG`: it reads the installed version (`Info.plist`, or the `version` file or
+desktop entry of the AppImage) and exits with status 2 before it downloads anything, quits the
+app, or stops the Session Host, because the older Session Host refuses a database a newer one has
+migrated and the app would not open. The installed version reinstalls, and an install whose
+version is unknown proceeds as before.
 
 ### Supported platform minimums
 

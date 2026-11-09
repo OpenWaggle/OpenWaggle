@@ -69,7 +69,9 @@ When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH,
 
 ### Update an existing install
 
-Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. If the installed version is too old to ask, the script tells its Session Host to stop, waits up to 20 seconds for running work, then installs even if that work is still finishing. A version without the `host` command is not stopped, so run `openwaggle host stop --update` after the install.
+Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. The script never installs a version older than the one you have, because an older version may not be able to open data a newer one has already updated. If the newest release it finds is older, for example a Stable release while you run a newer Beta, it stops with status 2 before it downloads anything, and the installed app keeps running. Run it again with `OPENWAGGLE_CHANNEL` set to the channel you are on. The version you already have reinstalls.
+
+Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. If the installed version is too old to ask, the script tells its Session Host to stop, waits up to 20 seconds for running work, then installs even if that work is still finishing. A version without the `host` command is not stopped, so run `openwaggle host stop --update` after the install.
 
 On macOS, if the copy being replaced is open, the script quits it and opens the new version. A copy opened from somewhere else stays open. All installed copies share one Session Host, so if another copy is open when the script updates an existing install, the script stops and asks you to quit that copy first.
 
@@ -113,7 +115,7 @@ Set `OPENWAGGLE_RELEASE_TAG` to install one version without changing your saved 
 curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
 ```
 
-Don't install a version older than the one you have. OpenWaggle doesn't support downgrades, because an older version may not be able to open data a newer one has already updated.
+OpenWaggle doesn't support downgrades, so the script refuses a version older than the one installed. It exits with status 2 before it changes anything, as `openwaggle update --version` does. The version you already have reinstalls.
 
 ## Use the openwaggle command
 

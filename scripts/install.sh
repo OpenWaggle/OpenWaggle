@@ -523,6 +523,51 @@ stop_session_host_for_update() {
 }
 # END TESTABLE SESSION HOST STOP
 
+# BEGIN TESTABLE DOWNGRADE GUARD
+# The exit status of a refused downgrade, the status `openwaggle update --version` uses for it.
+DOWNGRADE_REFUSED_EXIT_CODE=2
+MAC_APP_BUNDLE_NAME="OpenWaggle.app"
+
+# The version of the macOS app at a bundle path, or nothing when none is installed there.
+mac_app_version() {
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist" \
+    2>/dev/null || true
+}
+
+# The version of the AppImage in an install directory: the version file a previous install wrote
+# beside it, or the AppImage's own desktop entry when it predates that file.
+installed_appimage_version() {
+  local app_dir="$1" version
+  version="$(cat "${app_dir}/version" 2>/dev/null || true)"
+  [ -n "${version}" ] || version="$(appimage_version "${app_dir}/OpenWaggle.AppImage")"
+  printf '%s\n' "${version}"
+}
+
+# Prints why the target must not replace the installed version, or nothing when it may. Downgrades
+# are unsupported (docs/release-and-versioning.md): the older Session Host refuses a database a
+# newer one has migrated, so the app would not open. The installed version reinstalls, and an
+# unknown installed version, such as a build from before the version file, installs as before.
+downgrade_refusal() {
+  local installed="${1#v}" target="$2"
+  release_tag_is_supported "${installed}" || return 0
+  if ! release_tag_is_supported "${target}"; then
+    printf '%s\n' "OpenWaggle cannot compare ${target} with the installed version ${installed}, so it does not install it."
+  elif release_is_newer "${installed}" "${target}"; then
+    printf '%s\n' "OpenWaggle ${target} is older than the installed ${installed}. Downgrades are unsupported: an older version may not open the data this version has already migrated."
+  fi
+}
+
+# Exits before anything is quit, stopped or replaced when the target would be a downgrade.
+refuse_downgrade() {
+  local refusal
+  refusal="$(downgrade_refusal "$1" "$2")"
+  [ -n "${refusal}" ] || return 0
+  restore_installed_app
+  printf '\033[1;31merror:\033[0m %s OpenWaggle was not changed.\n' "${refusal}" >&2
+  exit "${DOWNGRADE_REFUSED_EXIT_CODE}"
+}
+# END TESTABLE DOWNGRADE GUARD
+
 launch_installed_app() {
   local skip_reason
   skip_reason="$(launch_skip_reason "${PLATFORM}")"
@@ -621,6 +666,16 @@ VERSION="$(printf '%s' "${RELEASE_JSON}" | grep '"tag_name"' | head -1 | sed 's/
 [ -z "${VERSION:-}" ] && error "Release metadata did not include a version."
 info "Resolved version: ${VERSION}"
 
+# --- Refuse a downgrade, before the download ---
+if [ "${PLATFORM}" = "mac" ]; then
+  APPLICATIONS_DIR="${OPENWAGGLE_APPLICATIONS_DIR:-/Applications}"
+  INSTALLED_VERSION="$(mac_app_version "${APPLICATIONS_DIR}/${MAC_APP_BUNDLE_NAME}")"
+else
+  APP_DIR="${HOME}/.local/lib/openwaggle"
+  INSTALLED_VERSION="$(installed_appimage_version "${APP_DIR}")"
+fi
+refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}"
+
 # --- Determine asset name ---
 if [ "${PLATFORM}" = "mac" ]; then
   ASSET_PATTERN="openwaggle-.*-${ARCH_LABEL}\\.dmg"
@@ -672,11 +727,13 @@ if [ "${PLATFORM}" = "mac" ]; then
   APP_PATH="$(find "${MOUNT_POINT}" -maxdepth 1 -name '*.app' | head -1)"
   [ -z "${APP_PATH}" ] && error "No .app bundle found in DMG"
   INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
+  # The image decides the bundle name, so check the app it really replaces before quitting it.
+  INSTALLED_VERSION="$(mac_app_version "${INSTALLED_APP_PATH}")"
+  refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}"
   # Quit the window first: stopping the Host under an open app would only make it start another.
   quit_running_mac_app "${INSTALLED_APP_PATH}"
   stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle" \
-    "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
-      "${INSTALLED_APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+    "${INSTALLED_VERSION}"
   rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
@@ -705,7 +762,6 @@ if [ "${PLATFORM}" = "mac" ]; then
 
 elif [ "${PLATFORM}" = "linux" ]; then
   INSTALL_DIR="${HOME}/.local/bin"
-  APP_DIR="${HOME}/.local/lib/openwaggle"
   mkdir -p "${INSTALL_DIR}"
   mkdir -p "${APP_DIR}"
   INSTALL_PATH="${INSTALL_DIR}/openwaggle"
@@ -715,9 +771,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   DESKTOP_DIR="${HOME}/.local/share/applications"
   DESKTOP_PATH="${DESKTOP_DIR}/openwaggle.desktop"
   # An open app keeps running, and keeps its Host, until the user quits it and stops the Host.
-  INSTALLED_APPIMAGE_VERSION="$(cat "${APPIMAGE_VERSION_PATH}" 2>/dev/null || true)"
-  [ -n "${INSTALLED_APPIMAGE_VERSION}" ] || INSTALLED_APPIMAGE_VERSION="$(appimage_version "${APPIMAGE_PATH}")"
-  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_APPIMAGE_VERSION}"
+  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_VERSION}"
   install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
   printf '%s\n' "${VERSION#v}" > "${APPIMAGE_VERSION_PATH}"
   ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"
