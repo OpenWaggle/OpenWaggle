@@ -181,9 +181,9 @@ export function MultiAgentAccessCard() {
       </div>
       <p className="text-xs text-text-tertiary">
         At either limit a new Worker run is rejected with a retryable error; it is not queued.
-        Messages you send, your new Sessions and your top-level Sessions are never held back by
-        these limits. Higher values may strain your machine or model provider. Project configuration
-        files can override these app-wide defaults.
+        Messages you send, your new Sessions and your top-level Sessions are never refused because
+        of these limits. Higher values may strain your machine or model provider. Project
+        configuration files can override these app-wide defaults.
       </p>
       <SavedProjectOverrides
         settings={settings}

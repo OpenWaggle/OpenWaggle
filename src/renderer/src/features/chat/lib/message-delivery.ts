@@ -127,8 +127,8 @@ export function sendRefusalOf(error: unknown) {
 }
 
 /**
- * A send failure in words for a toast: a refusal says why under `lead`, anything else gives its
- * own message after `failedLead` when there is one.
+ * A send failure in words for a toast: a refusal says why after `leads.refused`, anything else
+ * gives its own message after `leads.failed` when there is one.
  */
 export function sendFailureText(
   error: unknown,

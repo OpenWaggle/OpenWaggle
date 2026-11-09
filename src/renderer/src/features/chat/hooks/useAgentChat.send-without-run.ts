@@ -32,6 +32,19 @@ export function forgetSendWithoutRun(input: {
   dropOptimisticSend(input)
 }
 
+/**
+ * A send whose invoke failed before any Run while a later send owns the foreground and its status.
+ * It leaves the chain, or that send hands back its Thinking, and the transcript. No error of the
+ * Session's will show it, so it goes back undelivered, for the caller's toast to say why.
+ */
+export function forgetSendFailedBehind(
+  sent: Parameters<typeof forgetSendWithoutRun>[0],
+  error: Error,
+) {
+  forgetSendWithoutRun(sent)
+  return new MessageNotDelivered('refused', error.message)
+}
+
 /** A send's report that started no Run. */
 export type ReportWithoutRun = {
   readonly [Outcome in Exclude<AgentSendReport['outcome'], 'delivered'>]: Omit<

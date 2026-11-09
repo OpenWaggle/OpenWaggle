@@ -62,7 +62,7 @@ describe('SqliteDesktopNotificationFactsLive', () => {
           lost: facts.runsInterruptedByHostLossSince(0),
           hiveRoot: facts.hiveRootSessionId('missing'),
           hive: facts.hiveActivity('missing', 'run'),
-          active: facts.hostActiveRunCount(),
+          active: facts.activeWorkerRunCount(),
         }),
     )
     expect(result).toEqual({
@@ -80,6 +80,33 @@ describe('SqliteDesktopNotificationFactsLive', () => {
         runStartedWhileWorkersRan: false,
       },
     })
+  })
+
+  it("counts only agent-made Sessions toward Active Workers, never the person's running Sessions", async () => {
+    const active = await withFacts(
+      (sql) =>
+        Effect.gen(function* () {
+          for (const id of ['person-root', 'agent-launched']) {
+            yield* insertSession(sql, id)
+            yield* insertRun(sql, {
+              id: `run-${id}`,
+              sessionId: id,
+              status: 'active',
+              intent: { callerId: 'gui:local-user', idempotencyKey: id },
+              updatedAt: 1,
+            })
+            yield* sql`
+              INSERT INTO session_control_states (
+                session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+              ) VALUES (${id}, ${1}, ${`run-${id}`}, ${'running'}, ${0}, ${1})
+            `
+          }
+          yield* sql`INSERT INTO session_agent_origins (session_id, caller_id, created_at)
+            VALUES ('agent-launched', 'session-agent:queen:run-1', 1)`
+        }),
+      (facts) => facts.activeWorkerRunCount(),
+    )
+    expect(active).toBe(1)
   })
 
   it("reads a root Session, its Run's caller, the visit receipt and Runs lost with the Host", async () => {

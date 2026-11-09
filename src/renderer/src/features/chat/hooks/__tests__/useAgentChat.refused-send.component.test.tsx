@@ -169,4 +169,39 @@ describe('useAgentChat send the Session Host refused', () => {
     expect(result.current.status).not.toBe('submitted')
     expect(result.current.isLoading).toBe(false)
   })
+
+  // A later send owns the status, so no error of the Session's shows this failure: the message
+  // leaves the transcript and goes back undelivered, for the composer's toast to say why.
+  it('drops an earlier send whose invoke fails behind a later one, and reports it undelivered', async () => {
+    let failEarlier: (error: Error) => void = () => {}
+    const earlier = new Promise<AgentSendReport>((_resolve, reject) => {
+      failEarlier = reject
+    })
+    const later = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockReturnValueOnce(earlier).mockReturnValueOnce(later.promise)
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+    const sends: Promise<unknown>[] = []
+    await act(async () => {
+      sends.push(result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => error))
+    })
+    await act(async () => {
+      sends.push(
+        result.current
+          .sendMessage({ ...SEND_PAYLOAD, text: 'A later message' })
+          .catch((error: unknown) => error),
+      )
+    })
+    let earlierError: unknown
+    await act(async () => {
+      failEarlier(new Error('handler died'))
+      earlierError = await sends[0]
+    })
+
+    expect(earlierError).toBeInstanceOf(MessageNotDelivered)
+    expect(earlierError).toMatchObject({ outcome: 'refused', message: 'handler died' })
+    expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
+    expect(visibleUserTexts(result.current.messages)).toContain('A later message')
+    expect(result.current.status).toBe('submitted')
+    expect(result.current.error).toBeUndefined()
+  })
 })

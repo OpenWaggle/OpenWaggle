@@ -99,7 +99,7 @@ export function setup(overrides: Partial<Fixture> = {}) {
         }
       }),
     latestRun: (id) => Effect.succeed(fixture.latestRuns[id] ?? null),
-    hostActiveRunCount: () => Effect.succeed(fixture.running.size),
+    activeWorkerRunCount: () => Effect.succeed(fixture.running.size),
     lastVisitedAt: (id) => Effect.succeed(fixture.visits[id] ?? null),
     stuckWorkerIds: () => Effect.succeed([...fixture.stuck]),
     runsInterruptedByHostLossSince: () => Effect.succeed([{ sessionId: 'root', runId: 'run-1' }]),

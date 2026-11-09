@@ -13,6 +13,7 @@ import { selectLatestRun, selectRunFacts } from './sqlite-desktop-notification-r
 import { parentWillActSql } from './sqlite-hive-next-actor-facts'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
+import { countActiveWorkerRuns } from './sqlite-worker-run-admission'
 
 interface SessionRow {
   readonly id: string
@@ -178,13 +179,8 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
       ),
     latestRun: (sessionId) =>
       selectLatestRun(sql, sessionId).pipe(Effect.mapError(factsError('latest-run'))),
-    hostActiveRunCount: () =>
-      sql<{ readonly count: number }>`
-        SELECT COUNT(*) AS count FROM session_control_states WHERE active_run_id IS NOT NULL
-      `.pipe(
-        Effect.map((rows) => rows[0]?.count ?? 0),
-        Effect.mapError(factsError('host-active-runs')),
-      ),
+    activeWorkerRunCount: () =>
+      countActiveWorkerRuns(sql).pipe(Effect.mapError(factsError('active-worker-runs'))),
     lastVisitedAt: (sessionId) =>
       sql<{ readonly last_visited_at: number | null }>`
         SELECT last_visited_at FROM session_visit_receipts WHERE session_id = ${sessionId} LIMIT 1

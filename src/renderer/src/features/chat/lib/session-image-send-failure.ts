@@ -7,6 +7,7 @@ import {
   MessageDeliveredRunFailed,
   MessageNotDelivered,
   refusalSummary,
+  sendRefusalOf,
 } from './message-delivery'
 
 /** The toast for a send refused because the Session's Pi file cannot be used. */
@@ -19,13 +20,6 @@ export const PI_SESSION_FILE_REFUSAL_NOTICE =
  */
 export function refusedSendNotice(refusal: MessageNotDelivered) {
   return `${refusalSummary(refusal)} Your message is back in the composer.`
-}
-
-function refusalOf(cause: unknown) {
-  const refusal = cause instanceof FirstSendFailed ? cause.cause : cause
-  return refusal instanceof MessageNotDelivered && refusal.outcome === 'refused'
-    ? refusal
-    : undefined
 }
 
 interface SendFailureOwnershipInput {
@@ -56,7 +50,7 @@ function firstSendFailureDisposition(
     : null
   const ownedContextKey =
     activeOwnedContextKey ?? savedOwnedContextKey ?? `session:${String(createdSessionId)}:pending`
-  const refusal = refusalOf(cause)
+  const refusal = sendRefusalOf(cause)
   return {
     kind: 'restore',
     contextKey: ownedContextKey,
@@ -76,6 +70,6 @@ export function sessionImageSendFailureDisposition(
   if (input.activeSessionId && input.disposedSessions.has(input.activeSessionId)) {
     return { kind: 'discard' }
   }
-  const refusal = refusalOf(input.cause)
+  const refusal = sendRefusalOf(input.cause)
   return refusal ? { kind: 'restore', notice: refusedSendNotice(refusal) } : { kind: 'restore' }
 }

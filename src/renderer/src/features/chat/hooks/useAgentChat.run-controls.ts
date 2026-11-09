@@ -23,6 +23,7 @@ import { updateMessagesForSession } from './useAgentChat.message-cache'
 import {
   forgetIfRefusedForPiSessionFile,
   forgetRefusedFirstSend,
+  forgetSendFailedBehind,
   type ReportWithoutRun,
   settleSendWithoutRun,
 } from './useAgentChat.send-without-run'
@@ -207,11 +208,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         void refreshSessionSnapshot(targetSessionId)
         throw refused
       }
-      // A later send may already own the foreground; its state is not this send's to clear or mark
-      // failed. Without a Run, this send leaves the chain, or that send hands back its Thinking.
+      // A later send may already own the foreground; its state is not this send's to clear or mark failed.
       const ownsForeground =
         refs.pendingRunWaiterRef.current === null || refs.pendingRunWaiterRef.current === run.waiter
-      if (!ownsForeground && !delivered) run.handBack(refs, targetSessionId, params)
+      if (!ownsForeground && !delivered) throw forgetSendFailedBehind(sent, normalizedError)
       if (ownsForeground && refs.foregroundSessionIdRef.current === targetSessionId) {
         refs.pendingRunWaiterRef.current = null
         clearRunPointers(refs)

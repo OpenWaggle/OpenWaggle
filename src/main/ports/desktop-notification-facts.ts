@@ -79,8 +79,8 @@ export interface DesktopNotificationFactsShape {
   readonly latestRun: (
     sessionId: string,
   ) => Effect.Effect<DesktopNotificationLatestRun | null, Error>
-  /** How many Sessions hold an active Run, as the Host's Run limit counts them. */
-  readonly hostActiveRunCount: () => Effect.Effect<number, Error>
+  /** How many agent-made Sessions hold an active Run, as the Active Workers limit counts them. */
+  readonly activeWorkerRunCount: () => Effect.Effect<number, Error>
   /** When the person last opened the Session, or null if never. */
   readonly lastVisitedAt: (sessionId: string) => Effect.Effect<number | null, Error>
   /** Live Workers whose Delegation needs attention while no agent will pick them up. */

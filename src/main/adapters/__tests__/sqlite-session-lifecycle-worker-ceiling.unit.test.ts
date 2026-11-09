@@ -101,6 +101,7 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
     expect(result.second.outcome).toMatchObject({
       effect: 'rejected',
       code: 'host_run_ceiling_reached',
+      kind: 'conflict',
     })
     expect(result.origins).toEqual(['session-launch-task-first'])
   })
@@ -165,6 +166,7 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       operation: 'launch',
       effect: 'rejected',
       code: 'host_run_ceiling_reached',
+      kind: 'conflict',
       hostRunCeiling: 1,
       hostActiveRuns: 1,
     })

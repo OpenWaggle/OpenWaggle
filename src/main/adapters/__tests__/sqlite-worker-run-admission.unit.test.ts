@@ -109,6 +109,7 @@ describe('Worker Run admission', () => {
     expect(result.response.outcome).toMatchObject({
       effect: 'rejected',
       code: 'host_run_ceiling_reached',
+      kind: 'conflict',
     })
     expect(result.runs).toBe(0)
   })
