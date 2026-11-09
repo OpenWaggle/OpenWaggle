@@ -1,4 +1,5 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
+import { SESSION_HOST_ERROR_KINDS } from '@shared/domain/session-host-refusals'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import {
   hasUniqueCollaborationItemsBy,
@@ -189,6 +190,7 @@ const rejectedSchema = Schema.Struct({
   operation: Schema.Literal('create', 'fork', 'launch', 'spawn'),
   effect: Schema.Literal('rejected'),
   code: Schema.String,
+  kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
   retryable: Schema.Boolean,
   parentConcurrencyLimit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.positive())),
   parentRunningChildren: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),

@@ -1,7 +1,7 @@
 import { TIME_UNIT } from '@shared/constants/time'
-import { formatElapsed } from '@/features/chat/hooks/useStreamingPhase'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
+import { formatElapsed } from '@/shared/lib/format'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 

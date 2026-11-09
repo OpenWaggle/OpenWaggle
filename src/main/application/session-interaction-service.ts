@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { SessionId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
@@ -71,7 +72,7 @@ export function respondToSessionInteraction(input: {
           operation: command.operation,
           effect: 'rejected',
           sessionId: command.sessionId,
-          code: submission.error.code,
+          ...sessionHostRefusal(submission.error.code),
         }
     yield* journal.complete({ callerId: input.callerId, request: input.request, outcome })
     return response(input.request, false, outcome)

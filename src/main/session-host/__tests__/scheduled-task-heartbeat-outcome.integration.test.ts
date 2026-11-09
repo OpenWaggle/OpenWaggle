@@ -104,6 +104,7 @@ describe('Every Heartbeat has a way to finish (#388)', () => {
     expect(await scheduledTasks({ operation: 'create', input: openEnded })).toMatchObject({
       effect: 'rejected',
       code: 'stop_condition_required',
+      kind: 'conflict',
     })
     for (const end of [
       { heartbeat: { indefinite: true } },
@@ -131,7 +132,7 @@ describe('Every Heartbeat has a way to finish (#388)', () => {
           heartbeat: { stopWhen: 'never' },
         },
       }),
-    ).toMatchObject({ effect: 'rejected', code: 'heartbeat_only' })
+    ).toMatchObject({ effect: 'rejected', code: 'heartbeat_only', kind: 'conflict' })
     const { task } = await heartbeat()
     expect(
       await scheduledTasks({
@@ -139,7 +140,7 @@ describe('Every Heartbeat has a way to finish (#388)', () => {
         taskId: task.id,
         patch: { heartbeat: { stopWhen: null } },
       }),
-    ).toMatchObject({ effect: 'rejected', code: 'stop_condition_required' })
+    ).toMatchObject({ effect: 'rejected', code: 'stop_condition_required', kind: 'conflict' })
   })
 })
 
@@ -166,7 +167,7 @@ describe('Heartbeat Run outcomes and Auto-pause (#388)', () => {
     })
     expect(
       await scheduledTasks({ operation: 'report-outcome', runId: 'run-unknown', outcome: 'idle' }),
-    ).toMatchObject({ effect: 'rejected', code: 'run_not_scheduled' })
+    ).toMatchObject({ effect: 'rejected', code: 'run_not_scheduled', kind: 'conflict' })
   })
 
   it('keeps a Resume the user gave while the Run that reported done was still running', async () => {

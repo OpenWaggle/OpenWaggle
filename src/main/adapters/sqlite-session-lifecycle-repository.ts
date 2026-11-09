@@ -1,5 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionLifecycleRepositoryError } from '../errors'
@@ -97,7 +98,7 @@ function execute(
           const outcome = {
             operation: input.request.command.operation,
             effect: 'rejected' as const,
-            code: authorityBlock,
+            ...sessionHostRefusal(authorityBlock),
             retryable: false,
           }
           yield* storeLifecycleOutcome(sql, input, scope, requestJson, outcome)

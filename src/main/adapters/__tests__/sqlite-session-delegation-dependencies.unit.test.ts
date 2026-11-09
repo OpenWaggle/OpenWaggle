@@ -172,6 +172,7 @@ describe('SQLite Delegation dependencies', () => {
     expect(result.cycle.outcome).toMatchObject({
       effect: 'rejected',
       code: 'delegation_dependency_invalid',
+      kind: 'usage',
     })
     expect(result.removed.outcome).toMatchObject({
       specificationRevision: 3,

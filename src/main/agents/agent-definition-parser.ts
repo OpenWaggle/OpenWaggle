@@ -17,7 +17,8 @@ const MAX_LIST_ITEMS = 128
 const MAX_DESCRIPTION_CHARACTERS = 500
 const MAX_MODEL_ID_CHARACTERS = 200
 
-const frontmatterSchema = z
+/** Agent definition v1 frontmatter. The published JSON Schema is checked against it in tests. */
+export const agentDefinitionFrontmatterSchema = z
   .object({
     schemaVersion: z.literal(1),
     $schema: z.url().optional(),
@@ -66,7 +67,7 @@ const piFrontmatterSchema = z
   })
   .strict()
 
-const resolvedSnapshotSchema = frontmatterSchema.extend({
+const resolvedSnapshotSchema = agentDefinitionFrontmatterSchema.extend({
   instructions: z.string().trim().min(1).max(MAX_INSTRUCTION_BYTES),
   scope: z.enum(['project', 'portable-project', 'user']),
   sourcePath: z.string().min(1),
@@ -145,7 +146,7 @@ export function parseAgentDefinition(markdown: string): AgentDefinitionDocument 
   assertJsonCompatibleYaml(document.contents)
   const raw: unknown = document.toJS({ maxAliasCount: 0 })
   if (raw && typeof raw === 'object' && 'schemaVersion' in raw) {
-    const parsed = frontmatterSchema.parse(raw)
+    const parsed = agentDefinitionFrontmatterSchema.parse(raw)
     return { ...parsed, instructions }
   }
 

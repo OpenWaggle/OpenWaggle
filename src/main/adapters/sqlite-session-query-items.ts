@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import {
   SESSION_QUERY_MAX_RESPONSE_BYTES,
   type SessionQueryRequest,
@@ -204,13 +205,16 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
     if (snapshot.status === 'session-not-found') {
       return sessionQueryResponse(request, {
         operation: 'items',
-        error: { code: 'session_not_found', message: 'Session not found.' },
+        error: { ...sessionHostRefusal('session_not_found'), message: 'Session not found.' },
       })
     }
     if (snapshot.status === 'branch-not-found') {
       return sessionQueryResponse(request, {
         operation: 'items',
-        error: { code: 'branch_not_found', message: 'Session transcript branch not found.' },
+        error: {
+          ...sessionHostRefusal('branch_not_found'),
+          message: 'Session transcript branch not found.',
+        },
       })
     }
     const highWaterMark = snapshot.highWaterMark
@@ -236,7 +240,7 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
       return sessionQueryResponse(request, {
         operation: 'items',
         error: {
-          code: 'record_too_large',
+          ...sessionHostRefusal('record_too_large'),
           message: 'A transcript item exceeds the maximum Session query response size.',
         },
       })
@@ -267,7 +271,7 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
       return sessionQueryResponse(request, {
         operation: 'items',
         error: {
-          code: 'record_too_large',
+          ...sessionHostRefusal('record_too_large'),
           message: 'A transcript item exceeds the maximum Session query response size.',
         },
       })

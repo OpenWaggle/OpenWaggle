@@ -1,3 +1,4 @@
+import { runningWorkersLabel } from '@shared/domain/running-workers'
 import type { SessionId } from '@shared/types/brand'
 import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
 import {
@@ -5,6 +6,7 @@ import {
   ChevronDown,
   ChevronUp,
   GitCommitHorizontal,
+  GitCompareArrows,
   Hash,
   LayoutList,
   PanelLeft,
@@ -14,6 +16,7 @@ import {
 import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { projectName } from '@/shared/lib/format'
+import { showRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import {
   formatAriaShortcutBinding,
   formatShortcutBinding,
@@ -34,6 +37,8 @@ interface HeaderLeftProps {
   readonly sessionIdentity?: {
     readonly role?: 'queen' | 'worker'
     readonly agentDefinitionName?: string
+    /** Workers below this Session with a live Run (ADR 0063); absent or zero hides the line. */
+    readonly runningWorkerCount?: number
   }
   readonly onToggleSidebar: () => void
 }
@@ -96,7 +101,38 @@ function HeaderSessionIdentity({
           <span className="truncate">{sessionIdentity.agentDefinitionName}</span>
         </>
       ) : null}
+      <HeaderRunningWorkers count={sessionIdentity.runningWorkerCount ?? 0} />
     </div>
+  )
+}
+
+/**
+ * Why a parent looks idle while its sidebar row reads Working (ADR 0063): its Workers still run.
+ * It opens the Hive panel, where they are listed, and offers no stop control: interrupting
+ * descendants is a deliberate act, not a status line's.
+ */
+function HeaderRunningWorkers({ count }: { readonly count: number }) {
+  if (count === 0) return null
+  const label = runningWorkersLabel(count)
+  return (
+    <>
+      <span className="text-border-strong">·</span>
+      <Button
+        variant="unstyled"
+        type="button"
+        data-qa="header-running-workers"
+        aria-label={`${label}, open Hive panel`}
+        title="Open Hive panel"
+        onClick={() => showRightPanelSurface('hive')}
+        className="inline-flex shrink-0 items-center gap-1 rounded px-0.5 text-progress hover:bg-bg-hover"
+      >
+        {/* The pulse runs on an HTML box, not the SVG, so it stays on the compositor. */}
+        <span className="grid size-3 place-items-center animate-pulse motion-reduce:animate-none">
+          <GitCompareArrows aria-hidden="true" className="size-3" />
+        </span>
+        <span className="tabular-nums">{label}</span>
+      </Button>
+    </>
   )
 }
 

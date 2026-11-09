@@ -39,7 +39,7 @@ export async function runHostStart(args: readonly string[], dependencies: HostSt
         : probe
     await dependencies.writeStdout(
       json
-        ? sessionsCliResponseText('host-start', report, true)
+        ? sessionsCliResponseText('host start', report, true)
         : `Session Host: ${report.state === 'running' ? 'running' : report.state}\n`,
     )
     return report.state === 'running' ? SESSION_CLI_EXIT.SUCCESS : SESSION_CLI_EXIT.HOST_UNAVAILABLE

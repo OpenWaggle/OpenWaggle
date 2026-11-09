@@ -73,7 +73,11 @@ describe('Local Session profile management', () => {
       }).pipe(Effect.provide(localSessionProfileManagementTestLayer(executeManagement))),
     )
 
-    expect(response.outcome).toMatchObject({ effect: 'rejected', code: 'missing_access_profiles' })
+    expect(response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'missing_access_profiles',
+      kind: 'authorization',
+    })
     expect(realpath).not.toHaveBeenCalled()
     expect(executeManagement).not.toHaveBeenCalled()
   })
@@ -173,10 +177,15 @@ describe('Local Session profile management', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(selfEdit.outcome).toMatchObject({ effect: 'rejected', code: 'cannot_edit_own_policy' })
+    expect(selfEdit.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'cannot_edit_own_policy',
+      kind: 'authorization',
+    })
     expect(redelegation.outcome).toMatchObject({
       effect: 'rejected',
       code: 'profile_redelegation_requires_local_user',
+      kind: 'authorization',
     })
     expect(executeManagement).not.toHaveBeenCalled()
   })
@@ -265,10 +274,12 @@ describe('Local Session profile management', () => {
     expect(rotate.outcome).toMatchObject({
       effect: 'rejected',
       code: 'profile_credential_control_requires_local_user',
+      kind: 'authorization',
     })
     expect(revoke.outcome).toMatchObject({
       effect: 'rejected',
       code: 'profile_credential_control_requires_local_user',
+      kind: 'authorization',
     })
     expect(executeManagement).not.toHaveBeenCalled()
   })

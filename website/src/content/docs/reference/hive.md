@@ -57,7 +57,7 @@ A run is one turn of the agent working in a session, from your message to its fi
 
 `steer`, `replace`, `promote` and `interrupt` need the ID of the run they act on (`expectedRunId`, or `--expected-run` in the CLI). If that run has already ended, the call fails instead of reaching the wrong run. Steering does not cancel a tool that is already running.
 
-`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run, unless a run limit holds it back (see [Run limits](#run-limits)).
+`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run, unless a run limit holds it back (see [run limits](#run-limits)).
 
 When you stop or interrupt a run before the agent wrote anything, the transcript gets no empty reply. Whatever the agent had already written stays.
 
@@ -250,7 +250,7 @@ The `hive` tool's `schedule_list`, `schedule_read` and `schedule_runs` need `sch
 
 OpenWaggle keeps the follow-up queue when the app restarts, the window disconnects, or the Session Host recovers. It is separate from Pi's own internal steering queue.
 
-A failed, interrupted or timed-out run pauses the queue, but only for follow-ups queued before the run ended. A follow-up queued after that starts when the run settles. A run limit can also pause it when a run ends, as [Run limits](#run-limits) describes. Pausing never stops a run.
+A failed, interrupted or timed-out run pauses the queue, but only for follow-ups queued before the run ended. A follow-up queued after that starts when the run settles. A run limit can also pause it when a run ends, as [run limits](#run-limits) describes. Pausing never stops a run.
 
 If the access that queued a follow-up is revoked or no longer covers the session, the follow-up waits in the queue, marked as needing attention. In the app, **Send as me** sends it with your own access instead. The queue keeps who first queued it, and you can no longer edit the message. You can also dismiss it.
 

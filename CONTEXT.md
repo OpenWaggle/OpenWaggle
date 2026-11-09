@@ -152,6 +152,14 @@ _Avoid_: needs attention (in user-facing UI), You, Needs input
 A Worker whose last Run failed or was interrupted, or that asked its parent for help, while its parent has no active Run and nothing queued to deliver, so no agent will pick it up.
 _Avoid_: blocked, failed Worker, dead Worker
 
+**Running Workers**:
+The Workers below a Session, at any depth and pinned or not, that have an active or connecting Run right now. Every parent Session has them, a Queen and a Worker that spawned Workers alike; for a Queen they are the whole Hive apart from herself. They describe Runs, not **Delegation state**: a Worker whose Delegation is still `working` but has no active Run is not running, and queued Follow-ups do not count until their Run starts. User-facing text says "running" for this, never "working", which names the **Next actor** group.
+_Avoid_: Workers working, active Workers, busy Hive
+
+**Done below**:
+A parent Session's finished-while-away state: the last Run in that Session or anywhere below it ended after the person last visited that Session. Visiting the Session clears it; visiting one of its Workers does not. A failed last Worker Run still reads as done on the parent, because that Worker reaches the person through **Needs you** or waits for its parent.
+_Avoid_: Hive completed, all Workers accepted
+
 **Delegation submission**:
 An immutable revisioned result and evidence set offered by a child or captured by the Session Host for review against one Delegation Contract.
 _Avoid_: final message, mutable result, acceptance
@@ -2779,7 +2787,7 @@ _Avoid_: Desktop notification (that one stays on this computer)
 
 - A **Desktop notification** belongs to exactly one Session; a newer one for the same Session replaces the older one rather than stacking.
 - **Needs you** notifies for any Session, Workers included: a Run that parked an approval or a question for the person, or a Worker that became **Stuck**. A Stuck Worker notifies once, and again only after it stops being Stuck and becomes Stuck again.
-- Ready to read notifies when a root Session's Run completes, once per Run.
+- Ready to read notifies when the work the person asked a root Session for is finished, once per request. A message sent while nothing below the Session is running is answered when the Session's Run has completed and no **Running Workers** remain, whichever ends last: the Session's own Run or the last Worker Run, the moment its row becomes **Done below**. A message sent while Workers are already running is a question about work in progress, so its reply notifies as soon as that Run completes. A Hive wake Run, or a Run whose Workers are still running, does not notify on its own. Needs you and Failed or interrupted never wait for Workers.
 - Failed or interrupted notifies when a root Session's Run fails, stops waiting for an answer that never came, or is interrupted by losing the **Session Host**, except when the Host was stopped to install an update. A Run the person interrupted never notifies.
 - A Worker's completion, failure, review request or request for help never notifies the person, because its **Next actor** is its parent; pinning a Worker to the sidebar does not change that.
 - Agent errors notifies for an error-severity **Agent notification**; informational and warning ones never produce a **Desktop notification**.

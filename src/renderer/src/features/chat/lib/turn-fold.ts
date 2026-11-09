@@ -1,5 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import { formatElapsed } from '../hooks/useStreamingPhase'
+import { formatElapsed } from '@/shared/lib/format'
 import { activeTurnStartIndex } from './active-turn'
 import { isShownToolCallPart } from './sessions-tool-visibility'
 import type { ChatRow, MessageChatRow, TurnFoldChatRow, WaggleTurnChatRow } from './types-chat-row'

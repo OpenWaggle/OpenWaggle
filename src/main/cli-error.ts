@@ -1,20 +1,17 @@
+import {
+  SESSION_HOST_ERROR_KINDS,
+  type SessionHostErrorKind,
+} from '@shared/domain/session-host-refusals'
+
 /**
  * Every OpenWaggle CLI error has one of these kinds, each with its own exit code (#351). The
- * kind comes from the error's type or from the phase that raised it, never from its message, so
- * rewording a message cannot change an exit code. `docs` and `--json` envelopes name the kind.
+ * kind comes from the error's type, from the phase that raised it, or from the Session Host's
+ * refusal (ADR 0063), never from its message, so rewording a message cannot change an exit code.
+ * `docs` and `--json` envelopes name the kind.
  */
-export const CLI_ERROR_KINDS = [
-  'usage',
-  'authentication',
-  'authorization',
-  'not_found',
-  'conflict',
-  'timeout',
-  'host_unavailable',
-  'internal',
-] as const
+export const CLI_ERROR_KINDS = SESSION_HOST_ERROR_KINDS
 
-export type CliErrorKind = (typeof CLI_ERROR_KINDS)[number]
+export type CliErrorKind = SessionHostErrorKind
 
 export const CLI_EXIT = {
   SUCCESS: 0,
@@ -26,6 +23,7 @@ export const CLI_EXIT = {
   CONFLICT: 6,
   TIMEOUT: 7,
   HOST_UNAVAILABLE: 8,
+  RESYNC_REQUIRED: 9,
 } as const
 
 const EXIT_CODE_OF_KIND: Readonly<Record<CliErrorKind, number>> = {
@@ -36,6 +34,7 @@ const EXIT_CODE_OF_KIND: Readonly<Record<CliErrorKind, number>> = {
   conflict: CLI_EXIT.CONFLICT,
   timeout: CLI_EXIT.TIMEOUT,
   host_unavailable: CLI_EXIT.HOST_UNAVAILABLE,
+  resync_required: CLI_EXIT.RESYNC_REQUIRED,
   internal: CLI_EXIT.FAILURE,
 }
 

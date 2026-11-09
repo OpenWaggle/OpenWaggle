@@ -91,6 +91,7 @@ describe('SQLite pending promotion recovery', () => {
         effect: 'rejected',
         sessionId: 'session-target',
         code: 'host_lost',
+        kind: 'host_unavailable',
       }),
     })
   })

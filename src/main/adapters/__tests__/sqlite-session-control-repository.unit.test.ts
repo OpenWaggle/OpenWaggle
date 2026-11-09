@@ -147,6 +147,7 @@ describe('SqliteSessionControlRepositoryLive', () => {
     expect(result.response.outcome).toMatchObject({
       effect: 'rejected',
       code: 'profile_revoked',
+      kind: 'authentication',
     })
     expect(result.runCount).toBe(0)
   })

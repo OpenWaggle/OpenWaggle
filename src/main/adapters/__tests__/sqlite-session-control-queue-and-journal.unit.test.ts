@@ -113,6 +113,7 @@ describe('SQLite Session Control queue and operation journal', () => {
           effect: 'rejected',
           sessionId: 'session-target',
           code: 'steering_failed',
+          kind: 'internal',
         } as const
         yield* journal.complete({ callerId: 'local-user', request, outcome })
         const reservedAfter = yield* reservedFollowUpIds(sql, 'session-target')
@@ -138,6 +139,7 @@ describe('SQLite Session Control queue and operation journal', () => {
           effect: 'rejected',
           sessionId: 'session-target',
           code: 'steering_failed',
+          kind: 'internal',
         },
       },
       reservedBefore: new Set(['follow-up-reserved']),
@@ -245,7 +247,9 @@ describe('SQLite Session Control queue and operation journal', () => {
           },
         }),
       ),
-    ).resolves.toMatchObject({ outcome: { effect: 'rejected', code: 'follow_up_reserved' } })
+    ).resolves.toMatchObject({
+      outcome: { effect: 'rejected', code: 'follow_up_reserved', kind: 'conflict' },
+    })
 
     let settlementCompleted = false
     const settlement = runtime

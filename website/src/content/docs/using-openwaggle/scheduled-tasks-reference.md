@@ -85,60 +85,68 @@ All of these follow `openwaggle schedules`, for example `openwaggle schedules li
 
 ## Export format
 
-`openwaggle schedules export` prints a JSON array with one object per task. `--project <path>` limits it to one project, and `--session <session>` to one session's Heartbeats. This export holds a Heartbeat and a Launch schedule:
+`openwaggle schedules export` prints a JSON object with `schemaVersion`, `type` and a `tasks` array with one object per task. It always prints JSON, so `--json` changes nothing. When the Session Host refuses the list, `export` prints the refusal instead and exits with its error code, so `export > tasks.json` never saves an empty export by mistake. `--project <path>` limits it to one project, and `--session <session>` to one session's Heartbeats. This export holds a Heartbeat and a Launch schedule:
 
 ```json
-[
-  {
-    "name": "Watch CI",
-    "prompt": "Fix the failing checks.",
-    "enabled": true,
-    "schedule": { "kind": "interval", "everyMinutes": 30 },
-    "timeZone": "Europe/Madrid",
-    "endsAt": null,
-    "maxRuns": null,
-    "target": {
-      "kind": "heartbeat",
-      "sessionId": "3f6c1b9e-2d4a-4c8e-9b71-5a0e6d2f8c13"
-    },
-    "notificationPolicy": "failures-only",
-    "heartbeat": {
-      "stopWhen": "CI is green",
-      "indefinite": false,
-      "idlePauseAfter": 3,
-      "wakeCheck": {
-        "command": "gh pr checks 42 | grep -i fail || true",
-        "onFailure": "wake"
+{
+  "schemaVersion": 1,
+  "type": "scheduled-tasks",
+  "tasks": [
+    {
+      "name": "Watch CI",
+      "prompt": "Fix the failing checks.",
+      "enabled": true,
+      "schedule": { "kind": "interval", "everyMinutes": 30 },
+      "timeZone": "Europe/Madrid",
+      "endsAt": null,
+      "maxRuns": null,
+      "target": {
+        "kind": "heartbeat",
+        "sessionId": "3f6c1b9e-2d4a-4c8e-9b71-5a0e6d2f8c13"
+      },
+      "notificationPolicy": "failures-only",
+      "heartbeat": {
+        "stopWhen": "CI is green",
+        "indefinite": false,
+        "idlePauseAfter": 3,
+        "wakeCheck": {
+          "command": "gh pr checks 42 | grep -i fail || true",
+          "onFailure": "wake"
+        }
       }
-    }
-  },
-  {
-    "name": "Morning triage",
-    "prompt": "Triage the issues opened since yesterday.",
-    "enabled": true,
-    "schedule": { "kind": "daily", "at": "09:00", "weekdays": [1, 2, 3, 4, 5] },
-    "timeZone": "Europe/Madrid",
-    "endsAt": null,
-    "maxRuns": null,
-    "target": {
-      "kind": "launch",
-      "projectPath": "/Users/you/code/shop",
-      "workspace": "new-worktree",
-      "archiveFinishedSessions": true
     },
-    "notificationPolicy": "every-run"
-  }
-]
+    {
+      "name": "Morning triage",
+      "prompt": "Triage the issues opened since yesterday.",
+      "enabled": true,
+      "schedule": { "kind": "daily", "at": "09:00", "weekdays": [1, 2, 3, 4, 5] },
+      "timeZone": "Europe/Madrid",
+      "endsAt": null,
+      "maxRuns": null,
+      "target": {
+        "kind": "launch",
+        "projectPath": "/Users/you/code/shop",
+        "workspace": "new-worktree",
+        "archiveFinishedSessions": true
+      },
+      "notificationPolicy": "every-run"
+    }
+  ]
+}
 ```
 
 | Key | Value |
 | --- | --- |
+| `schemaVersion` | `1`. Any change to this format, even an added key, raises it. `import` reads every version up to its own, and refuses a newer one with a message to update OpenWaggle. |
+| `type` | `scheduled-tasks`. |
 | `schedule` | `{ "kind": "interval", "everyMinutes" }`, `{ "kind": "daily", "at", "weekdays" }` with ISO weekdays (1 is Monday), or `{ "kind": "rrule", "rule" }`. |
 | `endsAt` | A time in milliseconds since 1970, or `null`. |
 | `maxRuns` | A number of runs, or `null`. |
 | `target` | For a Heartbeat, the `sessionId` it wakes. For a Launch schedule, the `projectPath`, `workspace`, `archiveFinishedSessions`, and `agentDefinitionName` when it has one. A task with its own model or thinking level also has `modelId` or `thinkingLevel` here. |
 | `notificationPolicy` | `every-run` or `failures-only`. |
 | `heartbeat` | Only on a Heartbeat: `stopWhen`, `indefinite`, `idlePauseAfter`, and `wakeCheck` with `command` and `onFailure`. |
+
+`import` also reads the plain array of tasks that `export` printed before 1.0. Every 1.x release reads both forms. With `--json`, `import` prints one response envelope whose `result` is an array with one response per task in the file, also when the file holds one task.
 
 The export leaves out task IDs, run history and status. A Heartbeat's `sessionId` names a session on the computer that exported it. Importing that Heartbeat where no session has that ID fails with `That Session was not found.`
 

@@ -20,7 +20,7 @@ flowchart TD
   W3 -.->|sends its result| W2
 ```
 
-The session's header shows **Queen** or **Worker** under its title, followed by the agent definition's name when it has one.
+The session's header shows **Queen** or **Worker** under its title, followed by the agent definition's name when it has one. While workers below the session are running, the line adds how many, such as **3 Workers running**. Click it to open the Hive panel.
 
 A worker is a full session. It has its own transcript, model and queue of messages, and it is saved like any other session. It keeps running when you switch to another session, and it can keep going after the Queen's own turn ends. Being the Queen gives a session no extra permissions over other sessions.
 
@@ -81,7 +81,9 @@ The **Hive** row in the Session Summary counts the open session's direct workers
 
 The labels clear when the situation ends. **Run failed, ‹parent› notified** clears as soon as a new run starts on the worker, whoever starts it. **Asked ‹parent› for help** clears when the parent sends the worker anything, or when the worker says it is working again. The failure stays in the worker's transcript and its delegation history, and the parent agent still hears about every change.
 
-Only **Needs you** reaches you outside the panel. It shows as a dot on the panel rail icon, a line under the Queen in the sidebar such as "1 needs you", and a count in the Session Summary. The Queen's sidebar line also shows a muted count of the workers waiting on it, with its title and no dot, such as "2 waiting for Prepare the 1.0 release".
+Two things reach you outside the panel. **Needs you** shows as an orange dot on the panel rail icon, a line under the Queen in the sidebar such as "1 needs you", and a count in the Session Summary. The Queen's sidebar line also shows a muted count of the workers waiting on it, with its title and no dot, such as "2 waiting for Prepare the 1.0 release".
+
+The other is whether the Hive is still running. While any worker below a session runs, that session's sidebar row shows **Working**, even if the session itself is idle. If the session itself needs your input, failed or was interrupted, the row shows that instead. Its header says how many workers are running, and the panel rail icon shows a green dot. When the last of them finishes while you are away, the row shows **Done** until you open the session. A worker that failed still counts as finished here. It reaches you through **Needs you** or waits for its parent. An orange **Needs you** dot replaces the green one.
 
 ## Give workers a role
 

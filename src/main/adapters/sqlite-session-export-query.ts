@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
@@ -123,7 +124,10 @@ function exportErrorResponse(
   code: 'record_too_large' | 'resync_required',
   message: string,
 ) {
-  return sessionQueryResponse(request, { operation: 'export', error: { code, message } })
+  return sessionQueryResponse(request, {
+    operation: 'export',
+    error: { ...sessionHostRefusal(code), message },
+  })
 }
 
 function renderExportNodePage(
@@ -176,7 +180,7 @@ function resolveExportSelectionOutcome(
           )
         : sessionQueryResponse(request, {
             operation: 'export',
-            error: { code: 'branch_not_found', message: error.message },
+            error: { ...sessionHostRefusal('branch_not_found'), message: error.message },
           }),
     ),
     Effect.either,
@@ -218,7 +222,7 @@ function readSessionExportPage(
     if (!snapshot) {
       return sessionQueryResponse(request, {
         operation: 'export',
-        error: { code: 'session_not_found', message: 'Session not found.' },
+        error: { ...sessionHostRefusal('session_not_found'), message: 'Session not found.' },
       })
     }
     const selection = yield* resolveExportSelectionOutcome(

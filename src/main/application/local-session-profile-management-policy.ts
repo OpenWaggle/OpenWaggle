@@ -1,3 +1,7 @@
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import type {
   LocalSessionCallerIdentity,
   LocalSessionProfileManagementEnvelope,
@@ -91,13 +95,13 @@ export function profileManagementEligibilityRejectionReason(
 
 export function profileManagementRejection(
   request: LocalSessionProfileManagementRequest,
-  code: string,
+  code: SessionHostRefusalCode,
   profileName?: string,
 ) {
   const outcome: LocalSessionProfileManagementOutcome = {
     operation: request.command.operation,
     effect: 'rejected',
-    code,
+    ...sessionHostRefusal(code),
     ...(profileName ? { profileName } : {}),
   }
   return {

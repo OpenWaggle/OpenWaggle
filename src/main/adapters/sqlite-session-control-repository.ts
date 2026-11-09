@@ -1,5 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -40,6 +44,18 @@ function isQueueMutation(operation: string) {
   )
 }
 
+/** A mutation the Session Host refused before deciding it, with the refusal's kind. */
+function refusedMutation<Operation extends string>(
+  operation: Operation,
+  sessionId: string,
+  code: SessionHostRefusalCode,
+) {
+  return {
+    accepted: false,
+    outcome: { operation, effect: 'rejected', sessionId, ...sessionHostRefusal(code) },
+  } as const
+}
+
 function reservedQueueMutationRejection(
   sql: SqlClient.SqlClient,
   operation: string,
@@ -50,15 +66,7 @@ function reservedQueueMutationRejection(
     Effect.map((reservedIds) =>
       reservedIds.size === 0
         ? undefined
-        : ({
-            accepted: false,
-            outcome: {
-              operation,
-              effect: 'rejected',
-              sessionId,
-              code: 'follow_up_reserved',
-            },
-          } as const),
+        : refusedMutation(operation, sessionId, 'follow_up_reserved'),
     ),
   )
 }
@@ -168,15 +176,7 @@ function executeMutation(
         const decision = reservationBlock
           ? reservationBlock
           : authorityBlock
-            ? ({
-                accepted: false,
-                outcome: {
-                  operation,
-                  effect: 'rejected',
-                  sessionId: targetScope,
-                  code: authorityBlock,
-                },
-              } as const)
+            ? refusedMutation(operation, targetScope, authorityBlock)
             : input.decide(state)
         const now = Date.now()
         const startsNewRun =

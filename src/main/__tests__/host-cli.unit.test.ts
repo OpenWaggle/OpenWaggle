@@ -262,7 +262,7 @@ describe('host stop --update', () => {
 
     await expect(runHostCli(['stop', '--update', '--json'], value)).resolves.toBe(0)
     expect(JSON.parse(output.join(''))).toMatchObject({
-      command: 'host-stop',
+      command: 'host stop',
       result: { state: 'stopped', activeRuns: 0 },
     })
   })

@@ -1,5 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
@@ -222,7 +223,7 @@ export function abortExistingHandoff(sql: SqlClient.SqlClient, input: AbortInput
           operation: 'handoff',
           effect: 'rejected',
           sessionId: input.request.command.sessionId,
-          code: 'workspace_target_transfer_failed',
+          ...sessionHostRefusal('workspace_target_transfer_failed'),
         } satisfies SessionControlMutationOutcome
         yield* sql`
           UPDATE session_operations

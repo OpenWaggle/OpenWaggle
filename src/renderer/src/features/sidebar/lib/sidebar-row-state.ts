@@ -1,4 +1,5 @@
-import type { SessionSummary } from '@shared/types/session'
+import { runningWorkerCount } from '@shared/domain/running-workers'
+import type { SessionLineageSummary, SessionSummary } from '@shared/types/session'
 import {
   IDLE_ROW_COLOR_VAR,
   INTERRUPTED_RUN_PILL,
@@ -232,6 +233,8 @@ export function resolveVisibleSessionStatus(input: {
   readonly status: SessionStatus
   readonly completedAt: number | undefined
   readonly lastVisitedAt: number | undefined
+  /** A parent's Workers, from its Host summary (ADR 0063); absent for a Session without any. */
+  readonly lineage?: SessionLineageSummary | undefined
 }): SessionStatus {
   const seen =
     TERMINAL_STATUSES.has(input.status) &&
@@ -239,5 +242,26 @@ export function resolveVisibleSessionStatus(input: {
     input.lastVisitedAt !== undefined &&
     input.completedAt <= input.lastVisitedAt
 
-  return seen ? 'idle' : input.status
+  return resolveParentStatus(seen ? 'idle' : input.status, input.lineage, input.lastVisitedAt)
+}
+
+/**
+ * A parent's row follows its Workers (ADR 0063). Its own attention or in-flight status wins,
+ * because it describes the Session the person would open. Otherwise it reads Working while any
+ * Worker below it runs, and Done below once the last Run there ended after the person last
+ * visited it. A failed last Worker Run still reads Done: that Worker reaches the person through
+ * Needs you or waits for its parent, and turning the parent red would say the parent failed.
+ */
+function resolveParentStatus(
+  own: SessionStatus,
+  lineage: SessionLineageSummary | undefined,
+  lastVisitedAt: number | undefined,
+): SessionStatus {
+  if (lineage === undefined || ROW_STATE_META[own].tier !== 'quiet') return own
+  if (runningWorkerCount(lineage) > 0) return 'working'
+  const endedAt = lineage.workersLastRunEndedAt
+  if (endedAt !== undefined && endedAt > (lastVisitedAt ?? Number.NEGATIVE_INFINITY)) {
+    return 'completed'
+  }
+  return own
 }

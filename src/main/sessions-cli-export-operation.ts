@@ -3,6 +3,11 @@ import { hasFlag, type ParsedArguments } from './mcp-cli-arguments'
 import { watchLocalSessionEvents } from './session-host/local-session-client'
 import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { writeSessionsCliStreamRecord } from './sessions-cli-output'
+import {
+  watchCursorRecord,
+  watchEventRecord,
+  watchResyncRecord,
+} from './sessions-cli-watch-records'
 
 const EXPORT_OPERATION_ID_POSITION = 1
 
@@ -20,7 +25,7 @@ export async function watchSessionExportOperations(
     const after = watchCursor(arguments_)
     const jsonl = hasFlag(arguments_, 'jsonl')
     const writeCursor = (cursor: { readonly hostInstanceId: string; readonly sequence: number }) =>
-      writeSessionsCliStreamRecord({ kind: 'cursor', cursor }, jsonl)
+      writeSessionsCliStreamRecord(watchCursorRecord(cursor), jsonl)
     const result = await watchLocalSessionEvents({
       ...clientInput,
       sessionIds: [sessionId],
@@ -37,10 +42,12 @@ export async function watchSessionExportOperations(
           await writeCursor(event.cursor)
           return
         }
-        await writeSessionsCliStreamRecord(event, jsonl)
+        await writeSessionsCliStreamRecord(watchEventRecord(event), jsonl)
       },
     })
-    if (result.status === 'resync-required') await writeSessionsCliStreamRecord(result, jsonl)
+    if (result.status === 'resync-required') {
+      await writeSessionsCliStreamRecord(watchResyncRecord(result), jsonl)
+    }
     return result
   } finally {
     process.off('SIGINT', interrupt)

@@ -99,6 +99,7 @@ describe('stopping the Session Host while it drains', () => {
       kind: 'error',
       requestId: 'request-1',
       code: 'host_draining',
+      errorKind: 'host_unavailable',
       message: expect.stringContaining('The Session Host is stopping'),
       retryable: true,
     })

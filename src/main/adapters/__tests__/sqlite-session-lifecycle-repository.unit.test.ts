@@ -128,6 +128,7 @@ describe('SQLite Session lifecycle repository', () => {
     expect(result.response.outcome).toMatchObject({
       effect: 'rejected',
       code: 'parent_capacity_reached',
+      kind: 'conflict',
     })
     expect(result.childCount).toBe(0)
   })

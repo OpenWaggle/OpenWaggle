@@ -1,11 +1,10 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
 import type { SessionControlMutationResponse } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
 import type { SessionOrganizationRepositoryShape } from '../ports/session-organization-repository'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 
 interface OperationRow {
   readonly request_json: string
@@ -44,7 +43,7 @@ export function prepareSessionArchive(
           requestId: input.request.requestId,
           idempotencyKey: input.request.idempotencyKey,
           replayed: true,
-          outcome: decodeSessionControlMutationOutcome(parseJsonUnknown(existing.outcome_json)),
+          outcome: decodeStoredSessionControlMutationOutcome(existing.outcome_json),
         },
       } as const
     }

@@ -178,7 +178,8 @@ export async function authenticateLocalSessionServer(input: {
     throw new LocalSessionClientProtocolError(
       'authentication_failed',
       cause instanceof Error ? cause.message : 'Local Session authentication failed.',
-      { cause },
+      // The client refused the Session Host's identity proof itself.
+      { cause, errorKind: 'authentication' },
     )
   }
 }

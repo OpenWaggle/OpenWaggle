@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
@@ -36,7 +37,12 @@ export function admittedMutationDecision(
       if (refusal) {
         return {
           accepted: false,
-          outcome: { operation, effect: 'rejected', sessionId: input.targetScope, code: refusal },
+          outcome: {
+            operation,
+            effect: 'rejected',
+            sessionId: input.targetScope,
+            ...sessionHostRefusal(refusal),
+          },
         } as const
       }
     }

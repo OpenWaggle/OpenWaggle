@@ -92,7 +92,7 @@ describe('Follow-up edit holds across replays, Workers, and attachments', () => 
     expect(result.live).toEqual({ ...result.first, replayed: true })
     expect(result.dead).toMatchObject({
       replayed: true,
-      outcome: { effect: 'rejected', code: 'follow_up_edit_not_held' },
+      outcome: { effect: 'rejected', code: 'follow_up_edit_not_held', kind: 'conflict' },
     })
   })
 
