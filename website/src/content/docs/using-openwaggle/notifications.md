@@ -25,7 +25,7 @@ Some things never notify:
 - A run that another agent started, for example through the `hive` tool, the CLI with an agent's access profile, or MCP. Only its **Needs you** notifies.
 - A scheduled task set to notify on failures only, when its run finishes. Its failures still notify.
 
-A session has at most one notification. A newer one replaces it, except that nothing replaces **Needs you** until you answer. Opening the session clears its notification, except **Needs you**, which stays until you answer the request or the worker is no longer stuck. Archiving the session clears it too.
+A session has at most one notification. A newer one replaces it, except that only another **Needs you** replaces a **Needs you**. Opening the session clears its notification, except **Needs you**, which stays until you answer the request or the worker is no longer stuck. Archiving the session clears it too.
 
 ## Change what notifies
 
