@@ -1,8 +1,9 @@
 // The one-line installer, defined once. `website/public/_redirects` sends `INSTALL_SCRIPT_URL` to
 // `RAW_INSTALL_SCRIPT_URL`. Docs pages write the placeholders below instead of the values;
-// `remarkInstallCommand` fills them in on the website and `scripts/installed-docs-generator.ts` in
-// the docs bundled into the app. README.md and scripts/install.sh cannot read this file, so
-// `installer-url.unit.test.ts` fails when they drift from it.
+// `remarkInstallCommand` fills them in on the website, `scripts/installed-docs-generator.ts` in the
+// docs bundled into the app, and `scripts/package-documentation.ts` in the npm package READMEs.
+// README.md and scripts/install.sh cannot read this file, so `installer-url.unit.test.ts` fails
+// when they drift from it.
 
 /** The short address of `scripts/install.sh` on `main`, the one the docs tell people to use. */
 export const INSTALL_SCRIPT_URL = 'https://openwaggle.ai/install';
