@@ -70,9 +70,10 @@ type CliEnvelopeGroup = 'hive' | 'schedules' | 'host' | 'access' | 'agents' | 'm
 /**
  * A `--json` envelope's `command`: the command path after `openwaggle`, space-separated, such as
  * `hive list`, `host stop` or `access profiles list` (ADR 0063). The type rejects a bare
- * subcommand, which is what `hive` and `schedules` printed before 1.0.
+ * subcommand, which is what `hive` and `schedules` printed before 1.0. `status` and `update` are
+ * whole commands; `update` prints an envelope only for `update --check --json`.
  */
-export type CliEnvelopeCommand = 'status' | `${CliEnvelopeGroup} ${string}`
+export type CliEnvelopeCommand = 'status' | 'update' | `${CliEnvelopeGroup} ${string}`
 
 export function writeSessionsCliResponse(
   command: CliEnvelopeCommand,

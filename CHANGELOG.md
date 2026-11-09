@@ -11,7 +11,7 @@ This file lists OpenWaggle's Stable releases, starting with 1.0.0. Earlier 0.x b
 From 1.0.0 on, version numbers follow semver for a defined set of covered surfaces. A change that breaks one of them ships only in a new major version, such as 2.0.0.
 
 - Your data: sessions, settings, projects, credentials and the Session Host database. Every later 1.x release opens data written by an earlier 1.x release and migrates it forward. Downgrades are not supported.
-- The `openwaggle hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` commands, including their JSON and JSONL output. New fields can appear. Existing commands, flags and fields are not removed or renamed.
+- The `openwaggle hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` commands, including their JSON and JSONL output, and the JSON output of `openwaggle update --check --json`. New fields can appear. Existing commands, flags and fields are not removed or renamed.
 - The error kinds and exit codes of every `openwaggle` command. A refusal code keeps its kind. New kinds can appear.
 - The `cursor`, `event` and `resync-required` records of `hive watch --jsonl`, `hive exports-watch --jsonl` and `run --jsonl`'s events. The bodies of `session-transport` and `session-waggle-transport` events follow Pi and are not covered.
 - Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool. An existing contract version keeps its meaning.
@@ -47,7 +47,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 
 ### Machine output changes before 1.0.0
 
-From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` commands is covered by semver, and so are the error kinds, exit codes and watch records. A few parts of it change once now, so scripts written against the betas may need an update.
+From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` commands, and of `update --check --json`, is covered by semver, and so are the error kinds, exit codes and watch records. A few parts of it change once now, so scripts written against the betas may need an update.
 
 - The envelope's `command` is the whole command after `openwaggle`, for example `"command":"hive list"`, `"schedules list"`, `"host stop"` or `"access profiles list"`. Before, `hive` and `schedules` printed only the action, such as `"list"`, `host` printed `"host-stop"` and `"host-start"`, `host status` printed `"status"`, and `mcp registry search`, `get` and `add` printed `"mcp registry"`.
 - `openwaggle schedules export` prints `{"schemaVersion":1,"type":"scheduled-tasks","tasks":[…]}` instead of a bare array, with or without `--json`. `schedules import` reads both, for all of 1.x, and refuses an export from a newer OpenWaggle with a message to update. `schedules import --json` always answers with an array, also for one task.
@@ -67,6 +67,8 @@ From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`,
 - macOS builds are signed and notarized. The Dock icon now fits macOS's rounded-square shape instead of sitting on a grey tile.
 - The install script (`curl … | bash`) opens OpenWaggle when it finishes, unless you are on SSH, in CI, without a display, or pass `--no-launch`. Before it replaces an installed app, it asks about running agent work the same way Restart to update does.
 - `openwaggle update` never installs under an open app. With the app open, it tells you to use Restart to update instead.
+- `openwaggle update --check --json` prints the check as JSON, `{"schemaVersion":1,"type":"response","command":"update","result":{…}}`, with your saved update channel in `savedChannel`.
+- The install script is `curl -fsSL https://openwaggle.ai/install | bash`. Running it again keeps your update channel; set `OPENWAGGLE_CHANNEL` to switch. It no longer installs a version older than the one you have, and stops with status 2 before it downloads anything, as `openwaggle update --version` does.
 - The background Session Host now exits a few minutes after its last work ends, unless a Scheduled task is enabled. Before, it kept running.
 
 ### Sessions and chat

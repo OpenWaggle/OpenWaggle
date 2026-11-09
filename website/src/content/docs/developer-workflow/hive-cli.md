@@ -201,7 +201,7 @@ A search for several words matches sessions that contain all of them, anywhere i
 
 ## JSON output
 
-With `--json`, a command that returns one response prints a `type: "response"` envelope with a schema version on stdout, and puts the command's result in `result`. Its `command` is the command as you typed it after `openwaggle`, without operands, such as `hive list`, `hive delegation-accept`, `schedules list` or `host stop`. When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error. It does not also print an error on stderr. Streams such as `read --full`, `watch` and `exports-watch` use `--jsonl`. Every stdout line then has `type: "record"` and puts the streamed value in `record`.
+With `--json`, a command that returns one response prints a `type: "response"` envelope with a schema version on stdout, and puts the command's result in `result`. Its `command` is the command as you typed it after `openwaggle`, without operands, such as `hive list`, `hive delegation-accept`, `schedules list`, `host stop` or `update` (for `update --check --json`). When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error. It does not also print an error on stderr. Streams such as `read --full`, `watch` and `exports-watch` use `--jsonl`. Every stdout line then has `type: "record"` and puts the streamed value in `record`.
 
 A failure that stops the command before it has a result prints a `type: "error"` envelope on stderr. That covers invalid usage, failed authentication or authorization, connection failures and internal errors.
 

@@ -147,7 +147,7 @@ From a terminal, check what is available without downloading anything or changin
 openwaggle update --check
 ```
 
-Add `--json` to `--check` to get the result as JSON, including the saved channel in `savedChannel`. If the check itself fails, the error is JSON too, and still includes `savedChannel` once OpenWaggle has read it.
+Add `--json` to `--check` to get the result as JSON, including the saved channel in `savedChannel`. The result comes in the [CLI response envelope](/docs/developer-workflow/hive-cli#json-output) with `"command":"update"`, and its fields stay compatible within a major version. If the check itself fails, the error is JSON too, and still includes `savedChannel` once OpenWaggle has read it.
 
 To switch channel and install its newest release, run this with `alpha`, `beta` or `stable`. Add `--check` to look at a channel without saving it.
 
