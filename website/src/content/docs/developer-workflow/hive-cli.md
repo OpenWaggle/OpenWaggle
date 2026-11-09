@@ -425,10 +425,11 @@ On Windows, starting a detached Session Host uses the built-in Windows PowerShel
 
 The installed Windows command adds Electron's `--` argument separator for you. If you run the executable directly, include it: `OpenWaggle.exe -- access profiles create ...`. For a development build, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read`, or URL arguments, before OpenWaggle starts.
 
-The current local session protocol revision is 30, and the Session Host accepts only revision 30. It refuses an older client when it connects, and that client must upgrade. `nextActor` is an added field of query outcomes, which clients do not decode strictly, so it needed no new revision.
+The current local session protocol revision is 31, and the Session Host accepts only revision 31. It refuses an older client when it connects, and that client must upgrade. `nextActor` is an added field of query outcomes, which clients do not decode strictly, so it needed no new revision.
 
 | Revision | What it added |
 | --- | --- |
+| 31 | Desktop notifications |
 | 30 | **Settings > Worktrees** across every project |
 | 29 | Limits on what the desktop app reads of a session |
 | 28 | Cheap heartbeats that finish |
@@ -453,6 +454,8 @@ The current local session protocol revision is 30, and the Session Host accepts 
 | 9 | Workspace authorization and preparing visualization sources. |
 | 8 | Steering receipts. |
 | 7 | MCP authorization. |
+
+Revision 31 added [desktop notifications](/docs/using-openwaggle/notifications) and their settings. The Session Host sends an event when it shows or withdraws a notification. When the app connects, it reads the notifications that are still waiting and sets its badge from them.
 
 Revision 30 added the worktree list in **Settings > Worktrees**, measuring the space a worktree frees, **Archive & remove**, and the record of automatic worktree removal.
 

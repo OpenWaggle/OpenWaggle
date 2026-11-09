@@ -50,7 +50,7 @@ A mistake never opens the app. `openwaggle` prints the error, a suggestion when 
 ```text
 openwaggle: unknown command 'hvie'. Did you mean 'hive'?
 
-OpenWaggle 0.4.0
+OpenWaggle 1.0.0
 
 Usage:
   openwaggle                    Open the desktop app, or focus it if it is already open
@@ -161,7 +161,7 @@ openwaggle status
 `status` never starts the Session Host. It says whether the Session Host is running and lists each active run with its session, run ID, model, how long it has run, and whether it is waiting for an answer. Add `--json` for machine-readable output.
 
 ```text
-OpenWaggle 0.4.0
+OpenWaggle 1.0.0
 Session Host: running
 Active runs: 1
   6f1c2a9e-4b7d-4f0e-9c1a-2d3e4f5a6b7c  Fix tests  (anthropic/claude-sonnet-4-5, 3m, waiting for an answer)
