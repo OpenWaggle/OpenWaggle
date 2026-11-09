@@ -81,6 +81,14 @@ export const runDesktopNotificationsBackground = Effect.gen(function* () {
           stuckScanDue = false
           yield* hostState.scanStuckWorkers()
         }
+        // A held Ready to read whose expected Hive wake never started (ADR 0063).
+        yield* observer
+          .settleHeldReadyToRead(Date.now())
+          .pipe(
+            Effect.catchAllCause((cause) =>
+              Effect.logWarning('Held Ready to read could not be re-checked', cause),
+            ),
+          )
         yield* Effect.sleep(STUCK_SCAN_DEBOUNCE_MS)
       }
     }),

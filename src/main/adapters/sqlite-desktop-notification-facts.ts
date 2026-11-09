@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import { parseJsonUnknown } from '@shared/schema'
 import { SCHEDULED_TASK_NOTIFICATION_POLICIES } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
@@ -34,9 +35,6 @@ interface HiveActivityRow {
   readonly run_started_while_workers_ran: number
   readonly waking_parent_ids: string
 }
-
-/** The Run statuses that count as running (ADR 0063): starting, active or stopping. */
-const RUNNING_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
 
 function decodeSessionIds(value: string): readonly string[] {
   const decoded: unknown = parseJsonUnknown(value)
@@ -88,7 +86,7 @@ function selectHiveRootSessionId(sql: SqlClient.SqlClient, sessionId: string) {
 function selectHiveActivity(sql: SqlClient.SqlClient, rootSessionId: string, runId: string | null) {
   return Effect.gen(function* () {
     const askedRunId = runId === null ? null : durableSessionRunId(runId)
-    const running = sql.in([...RUNNING_RUN_STATUSES])
+    const running = sql.in([...LIVE_RUN_STATUSES])
     const [row] = yield* sql<HiveActivityRow>`
       WITH RECURSIVE subtree(session_id) AS (
         SELECT ${rootSessionId}

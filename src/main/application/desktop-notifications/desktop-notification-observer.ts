@@ -253,17 +253,26 @@ export class DesktopNotificationObserver {
     return Effect.gen(this, function* () {
       const { facts } = this.dependencies
       const session = yield* facts.session(sessionId)
-      if (!session || session.archived) return
-      // A Worker's Run reaches its parent; it may still be the last Run its Hive waited for.
-      if (session.parentSessionId !== null) {
+      // A Worker's Run reaches its parent; it may still be the last Run its Hive waited for,
+      // even when the Worker was archived while it ran.
+      if (!session || session.parentSessionId !== null) {
         return yield* this.readyToRead.settle(sessionId, occurredAt)
       }
+      if (session.archived) return
       const run = yield* facts.run(sessionId, runId)
       if (!desktopNotificationOriginPermits(originOfRun(run), READY_TO_READ)) {
         return yield* this.readyToRead.settleRoot(sessionId, occurredAt)
       }
       yield* this.readyToRead.completed(session, completed)
     })
+  }
+
+  /**
+   * Re-checks every held Ready to read. A Hive wake that was expected but never started (refused,
+   * deferred and dropped, or the Host draining) settles no Run, so nothing else would show it.
+   */
+  settleHeldReadyToRead(at: number) {
+    return this.readyToRead.settleHeld(at)
   }
 
   private onListChanged(payload: ListChanged) {

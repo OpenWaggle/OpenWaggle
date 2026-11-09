@@ -1,6 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionStatus } from '@shared/types/session-status'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
+import type { SidebarTerminalState } from './remote-sidebar-session-query'
+
+export function isTerminalState(state: SidebarRowState | null): state is SidebarTerminalState {
+  return state === 'completed' || state === 'error'
+}
 
 export type HydratedTerminalIds = {
   completed: Set<string>
@@ -33,13 +38,20 @@ export function terminalStateRefreshKey(stateBySessionId: ReadonlyMap<string, Si
     .join('\u0000')
 }
 
+/**
+ * Forgets Host-discovered terminal rows that no longer hold that state. A row keeps its id while
+ * its raw status still holds it, so a visit and Mark as unread do not rewind paging, or while the
+ * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0063).
+ */
 export function pruneHydratedTerminalIds(
   hydratedTerminalIds: HydratedTerminalIds,
   rawStatuses: ReadonlyMap<SessionId, SessionStatus>,
+  stateBySessionId: ReadonlyMap<string, SidebarRowState>,
 ) {
   for (const state of ['completed', 'error'] as const) {
     for (const id of hydratedTerminalIds[state]) {
-      if (rawStatuses.get(SessionId(id)) !== state) hydratedTerminalIds[state].delete(id)
+      if (rawStatuses.get(SessionId(id)) === state || stateBySessionId.get(id) === state) continue
+      hydratedTerminalIds[state].delete(id)
     }
   }
 }

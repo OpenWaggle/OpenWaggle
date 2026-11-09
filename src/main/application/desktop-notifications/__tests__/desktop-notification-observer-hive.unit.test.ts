@@ -1,6 +1,7 @@
 import { DEFAULT_DESKTOP_NOTIFICATION_SETTINGS } from '@shared/types/desktop-notification'
 import type { SessionHostEventPayload } from '@shared/types/session-host-event'
 import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import {
   AGENT,
@@ -194,5 +195,33 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     fixture.running.clear()
     await emit(workerSettled('w1'), 110)
     expect(published).toEqual([])
+  })
+
+  it('shows a held Ready to read when an archived Worker completes last', async () => {
+    const { emit, published, fixture } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    const w1 = fixture.sessions.w1
+    if (!w1) throw new Error('Expected the Worker fixture.')
+    fixture.sessions.w1 = { ...w1, archived: true }
+    fixture.running.clear()
+    await emit(workerSettled('w1'), 110)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  it('shows a held Ready to read once an expected Hive wake never starts', async () => {
+    const { emit, published, fixture, observer } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    fixture.running.clear()
+    fixture.wakeComing.add('root')
+    await emit(workerSettled('w1'), 110)
+    expect(published).toEqual([])
+
+    // The wake is refused; its update stays pending, so a wake still looks as if it were coming.
+    await Effect.runPromise(observer.settleHeldReadyToRead(10_000))
+    expect(published).toEqual([])
+    await Effect.runPromise(observer.settleHeldReadyToRead(40_110))
+    expect(shownKinds(published)).toEqual(['shown:completed'])
   })
 })

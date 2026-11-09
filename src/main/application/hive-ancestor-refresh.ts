@@ -6,11 +6,15 @@ import { HiveAncestry } from '../ports/hive-ancestry'
  * Whether a Host event may have started or settled a Run, which changes the Running Workers and
  * the Done-below time of every ancestor of that Session (ADR 0063). A Run is created by a Session
  * Control mutation and settles with `run-settled` or `follow-up-started`, each published as
- * `session-state-changed`; `agent_start` also covers a Run that began outside those paths.
+ * `session-state-changed`; `agent_start` and `agent_end` also cover a Run that began or ended
+ * outside those paths.
  */
 export function mayChangeWorkerRuns(payload: SessionHostEventPayload) {
   if (payload.kind === 'session-state-changed') return true
-  return payload.kind === 'session-transport' && payload.event.type === 'agent_start'
+  return (
+    payload.kind === 'session-transport' &&
+    (payload.event.type === 'agent_start' || payload.event.type === 'agent_end')
+  )
 }
 
 /**

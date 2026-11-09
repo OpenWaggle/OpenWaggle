@@ -10,6 +10,7 @@ import { useSessionStore } from '@/features/sessions/state/session-store'
 import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { useActiveParentWorkerVisit } from './useActiveParentWorkerVisit'
 
 const RUNTIME_HYDRATION_CONCURRENCY = 8
 const logger = createRendererLogger('session-status-monitor')
@@ -41,6 +42,9 @@ async function hydrateLiveSessionStatuses(input: {
     if (waggle) input.registerWaggleRun(run.sessionId)
     input.setStatus(run.sessionId, waggle ? 'waggle-running' : 'working', run.startedAt)
   }
+  void loadRunningWorkerParents(runs.map((run) => run.sessionId)).catch((error: unknown) => {
+    logger.warn('Failed to load the parents of running Workers', { error: String(error) })
+  })
   if (typeof api.querySessionControl !== 'function') return
 
   for (let offset = 0; offset < runs.length; offset += RUNTIME_HYDRATION_CONCURRENCY) {
@@ -75,6 +79,24 @@ async function hydrateLiveSessionStatuses(input: {
 }
 
 /**
+ * A parent whose Workers already run when the window opens reads Working only once its catalog
+ * entry is loaded (ADR 0063). The first catalog page may not hold it, so the parent and the Hive
+ * root of every running Worker are read in; a deeper ancestor arrives with its next Worker change.
+ */
+async function loadRunningWorkerParents(runningSessionIds: readonly SessionId[]) {
+  if (runningSessionIds.length === 0 || typeof api.listSessionsByIds !== 'function') return
+  const running = await api.listSessionsByIds([...new Set(runningSessionIds)])
+  const loaded = new Set(useSessionStore.getState().sessions.map((session) => String(session.id)))
+  const parents = new Set<SessionId>()
+  for (const session of running) {
+    for (const id of [session.lineage?.parentSessionId, session.lineage?.hiveRootSessionId]) {
+      if (id !== undefined && !loaded.has(String(id))) parents.add(id)
+    }
+  }
+  if (parents.size > 0) await useSessionStore.getState().refreshCatalogSessions([...parents])
+}
+
+/**
  * Subscribes to agent lifecycle events and maintains per-session status
  * in the session-status store. Mounted once at workspace level.
  *
@@ -89,6 +111,7 @@ export function useSessionStatusMonitor(): void {
   const markVisited = useSessionStatusStore((s) => s.markVisited)
   const hydratePersistedStatuses = useSessionStatusStore((s) => s.hydratePersistedStatuses)
   const catalogSessions = useSessionStore((s) => s.sessions)
+  useActiveParentWorkerVisit()
 
   useEffect(() => {
     hydratePersistedStatuses(catalogSessions)

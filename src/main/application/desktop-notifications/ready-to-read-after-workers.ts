@@ -6,12 +6,16 @@ import {
 } from '../../domain/desktop-notifications/desktop-notification-policy'
 import type {
   DesktopNotificationFactsShape,
+  DesktopNotificationHiveActivity,
   DesktopNotificationSessionFacts,
 } from '../../ports/desktop-notification-facts'
 import {
   type DesktopNotificationLedger,
   sessionNotificationTarget,
 } from './desktop-notification-ledger'
+
+/** How long a Hive may wait for an expected wake to start before its Ready to read shows. */
+const HIVE_WAKE_START_GRACE_MS = 30_000
 
 export const READY_TO_READ: DesktopNotificationCandidate = {
   category: 'ready-to-read',
@@ -47,12 +51,15 @@ interface ReadyToReadAfterWorkersDependencies {
  */
 export class ReadyToReadAfterWorkers {
   private readonly held = new Map<string, HeldReadyToRead>()
+  /** When a settled-but-for-a-wake Hive was first seen, per root. */
+  private readonly wakeExpectedSince = new Map<string, number>()
 
   constructor(private readonly dependencies: ReadyToReadAfterWorkersDependencies) {}
 
   /** The root Session's request ended another way (stopped, failed, archived or deleted). */
   drop(rootSessionId: string) {
     this.held.delete(rootSessionId)
+    this.wakeExpectedSince.delete(rootSessionId)
   }
 
   /** The origin and settings checks passed for `run`, a completed Run of the root `session`. */
@@ -84,6 +91,17 @@ export class ReadyToReadAfterWorkers {
     })
   }
 
+  /** Re-checks every held Ready to read, for a Hive that settled without a Run settling. */
+  settleHeld(at: number) {
+    return Effect.forEach(
+      [...this.held.keys()],
+      (rootSessionId) => this.settleRoot(rootSessionId, at),
+      {
+        discard: true,
+      },
+    )
+  }
+
   /**
    * Shows the root's held Ready to read once nothing runs in its Hive and no Hive wake is coming,
    * once: it is forgotten as it is shown. It carries the time the Hive settled, so a visit while
@@ -95,12 +113,33 @@ export class ReadyToReadAfterWorkers {
       if (!held) return
       const { facts } = this.dependencies
       const work = yield* facts.hiveActivity(rootSessionId, null)
-      if (!readyToReadHiveSettled(work) || this.held.get(rootSessionId) !== held) return
+      if (this.held.get(rootSessionId) !== held) return
+      if (!readyToReadHiveSettled(work) && !this.wakeOverdue(rootSessionId, work, occurredAt))
+        return
       this.held.delete(rootSessionId)
+      this.wakeExpectedSince.delete(rootSessionId)
       const session = yield* facts.session(rootSessionId)
       if (!session || session.archived || session.parentSessionId !== null) return
       yield* this.show(session, held.preview, Math.max(occurredAt, held.occurredAt))
     })
+  }
+
+  /**
+   * Whether a Hive wake was expected for longer than any wake takes to start while nothing ran. A
+   * wake the Host refused for a reason the facts do not repeat leaves its update pending, so the
+   * Hive would look as if a wake were still coming forever.
+   */
+  private wakeOverdue(rootSessionId: string, work: DesktopNotificationHiveActivity, at: number) {
+    if (work.rootRunning || work.workersRunning || !work.wakeComing) {
+      this.wakeExpectedSince.delete(rootSessionId)
+      return false
+    }
+    const since = this.wakeExpectedSince.get(rootSessionId)
+    if (since === undefined) {
+      this.wakeExpectedSince.set(rootSessionId, at)
+      return false
+    }
+    return at - since >= HIVE_WAKE_START_GRACE_MS
   }
 
   private show(session: DesktopNotificationSessionFacts, preview: string | null, at: number) {

@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
@@ -63,9 +64,6 @@ function interruptedFilter(sql: SqlClient.SqlClient, value: boolean | undefined)
   return value ? membership : sql`NOT (${membership})`
 }
 
-/** A Run that has not settled: starting (connecting), active, or stopping. */
-const LIVE_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
-
 /** Every Spawn-lineage ancestor paired with each Session below it, at any depth (ADR 0063). */
 function workersBelowCte(sql: SqlClient.SqlClient) {
   return sql`WITH RECURSIVE workers_below(ancestor_id, session_id) AS (
@@ -91,7 +89,8 @@ function runningWorkersFilter(sql: SqlClient.SqlClient) {
 /**
  * Done below (ADR 0063): nothing below the parent runs and the last Run there ended after the
  * person last visited the parent. The parent's own latest Run must be one its row would not
- * outrank: completed, or a failure the person has already seen.
+ * outrank: none, completed, or a failure the person has already seen. An interrupted one makes
+ * the row read Interrupted, which outranks Done.
  */
 function doneBelowFilter(sql: SqlClient.SqlClient) {
   return sql`sessions.id IN (
@@ -104,7 +103,9 @@ function doneBelowFilter(sql: SqlClient.SqlClient) {
     GROUP BY workers_below.ancestor_id
     HAVING SUM(worker_runs.status IN ${sql.in([...LIVE_RUN_STATUSES])}) = 0
       AND MAX(worker_runs.updated_at) > COALESCE(MAX(parent_visits.last_visited_at), -1)
-  ) AND EXISTS (
+  ) AND (NOT EXISTS (
+    SELECT 1 FROM session_runs AS any_own_run WHERE any_own_run.session_id = sessions.id
+  ) OR EXISTS (
     SELECT 1 FROM session_runs AS own_runs
     LEFT JOIN session_visit_receipts AS own_visits ON own_visits.session_id = own_runs.session_id
     WHERE own_runs.session_id = sessions.id
@@ -119,7 +120,7 @@ function doneBelowFilter(sql: SqlClient.SqlClient) {
             OR (newer_runs.updated_at = own_runs.updated_at AND newer_runs.id > own_runs.id)
           )
       )
-  )`
+  ))`
 }
 
 function unreadTerminalFilter(

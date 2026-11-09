@@ -71,5 +71,17 @@ describe('SQLite Session catalog Done below (ADR 0063)', () => {
       `,
     )
     expect(await completedIds()).toEqual([])
+
+    // Her row reads Interrupted, which outranks Done below, once her own last Run was stopped.
+    await run(
+      (sql) => sql`
+        UPDATE session_runs SET status = ${'completed'}, updated_at = ${8} WHERE id = ${'run-worker-3'}
+      `,
+    )
+    expect(await completedIds()).toEqual(['queen'])
+    await run(
+      (sql) => sql`UPDATE session_runs SET status = ${'interrupted'} WHERE id = ${'run-queen-2'}`,
+    )
+    expect(await completedIds()).toEqual([])
   })
 })

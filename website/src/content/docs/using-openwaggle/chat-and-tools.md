@@ -91,13 +91,15 @@ The sidebar groups sessions by project. Each row shows a title, the session's st
 | State | Meaning |
 |-------|---------|
 | Input | The agent needs an answer from you. |
-| Working or Connecting | Work is in progress. The row may also name the activity, such as Testing. A session with workers also shows **Working** while any worker below it is running. |
+| Working or Connecting | Work is in progress. The row may also name the activity, such as Testing. |
 | Interrupted | Work stopped before it finished. Open the session to decide how to continue. |
 | Error | A request or action failed. Open the session for details. |
 | Waggle | A Waggle review with two agents is running. |
-| Done | Work finished while you were away. A session with workers shows **Done** once every worker below it has finished. |
+| Done | Work finished while you were away. |
 
 An idle session has no state label. Sessions that need you also have a colored marker on their edge, but the label alone tells you the state.
+
+A session with [workers](/docs/using-openwaggle/hives-and-sessions) also shows **Working** while any worker below it is running, and **Done** once every one of them has finished while you were away.
 
 ### What the icons mean
 

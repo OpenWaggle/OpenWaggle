@@ -1,4 +1,3 @@
-import { runningWorkerCount } from '@shared/domain/running-workers'
 import { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionIconView } from '@shared/types/extensions'
 import type { SessionLineageSummary } from '@shared/types/session'
@@ -17,6 +16,7 @@ import { hiveTreeNeedsYou, sessionHiveTreeQueryOptions } from '@/queries/session
 import { BUILT_IN_RIGHT_PANEL_SURFACES } from '@/shared/lib/right-panel-catalog'
 import type { RightPanelSurfaceId } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { useActiveSessionRunningWorkerCount } from '../active-session-running-workers'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 import {
   installedExtensionPanelIds,
@@ -159,7 +159,8 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const sessionInHive = lineageInHive(activeLineage)
   const hiveAttention = useHiveAttention(sessionId, sessionInHive)
   // Workers below the open Session still run (ADR 0063); the header line says the same.
-  const hiveRunning = sessionInHive && runningWorkerCount(activeLineage) > 0
+  const runningWorkers = useActiveSessionRunningWorkerCount()
+  const hiveRunning = sessionInHive && runningWorkers > 0
   const scheduledAttention = useProjectScheduledTasksNeedAttention(sessionProjectPath)
   const sidePanels = useExtensionSidePanelContributions({
     enabled,

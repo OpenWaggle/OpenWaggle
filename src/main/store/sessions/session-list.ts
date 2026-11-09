@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import type { SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { attentionCauseSql, parentWillActSql } from '../../adapters/sqlite-hive-next-actor-facts'
@@ -87,9 +88,6 @@ function loadLatestRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string
     WHERE latest_position = 1
   `
 }
-
-/** A Run that has not settled: starting (connecting), active, or stopping (ADR 0063). */
-const LIVE_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
 
 /**
  * Each requested Session's Running Workers and when the last Run below it ended (ADR 0063): the

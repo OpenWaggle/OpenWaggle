@@ -1,5 +1,8 @@
 import type { WorkerRunLineageFacts } from '../types/session-worker-runs'
 
+/** A Run that has not settled: starting (connecting), active or stopping (ADR 0063). */
+export const LIVE_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
+
 /**
  * A parent's Running Workers (ADR 0063): the Workers below it, at any depth, with an active or
  * connecting Run, as the Host counted them. Zero for a Session with no Workers.
