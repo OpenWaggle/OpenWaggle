@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { SESSION_HOST_REFUSAL_KINDS } from '@shared/domain/session-host-refusals'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { delegationSpecificationSchema } from '@shared/schemas/session-lifecycle'
 import type {
@@ -168,7 +167,7 @@ function storedSpecification(value: unknown): DelegationSpecificationInput {
  * one at the revision the command names. Starting from the revision named, not whatever is
  * current when the CLI reads, keeps an amendment from undoing a change made in between, and lets
  * a retry with the same `--idempotency-key` send the command it sent the first time, so the
- * Session Host replays it. The Host refuses a revision that is no longer current. It reads the
+ * Session Host replays it. The Host refuses a revision that is not current. It reads the
  * Delegation's history page by page until it has found it.
  */
 async function baseSpecification(input: {
@@ -185,19 +184,14 @@ async function baseSpecification(input: {
     const refusal = refusedRead(`Delegation ${delegationId}`, result)
     if (refusal) throw refusal
     const page: DelegationReadQueryOutcome = delegationReadOutcome(result)
-    if (revision > page.delegation.currentSpecificationRevision) {
-      const code = 'specification_revision_stale'
-      throw new CliError(
-        SESSION_HOST_REFUSAL_KINDS[code],
-        `Delegation ${delegationId} is at specification revision ${String(page.delegation.currentSpecificationRevision)}, not ${String(revision)}. Read it again and pass the current revision.`,
-        { code },
-      )
-    }
+    // A revision ahead of the current one has no specification yet. The Session Host refuses
+    // the command anyway, so build on the current one and let it say why.
+    const target = Math.min(revision, page.delegation.currentSpecificationRevision)
     const proposal = proposalId
       ? page.amendmentProposals.find((candidate) => candidate.proposalId === proposalId)
       : undefined
     if (proposal) return proposal.specification
-    base ??= page.specifications.find((entry) => entry.revision === revision)?.specification
+    base ??= page.specifications.find((entry) => entry.revision === target)?.specification
     const done = base !== undefined && proposalId === undefined
     if (done || !page.nextCursor || page.nextCursor === cursor) break
     cursor = page.nextCursor

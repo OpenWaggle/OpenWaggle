@@ -233,16 +233,20 @@ describe('hive delegation amendments change only the fields they name', () => {
     expect(commands[1]).toMatchObject({ expectedSpecificationRevision: 1, specification: amended })
   })
 
-  it('refuses a revision ahead of the current one before sending it', async () => {
-    mocks.executeCommand.mockResolvedValueOnce(
-      delegationPage({ specifications: [{ revision: 2, specification: SPECIFICATION }] }),
-    )
+  it('sends a revision ahead of the current one so the Session Host says why', async () => {
+    mocks.executeCommand
+      .mockResolvedValueOnce(
+        delegationPage({ specifications: [{ revision: 2, specification: SPECIFICATION }] }),
+      )
+      .mockResolvedValueOnce(accepted())
 
     await expect(
       runSessionsCli(['delegation-amend', 'queen', 'delegation-1', '3', 'Why', '--objective', 'x']),
-    ).resolves.toBe(6)
-    expect(mocks.executeCommand).toHaveBeenCalledTimes(1)
-    expect(stderr()).toContain('is at specification revision 2, not 3')
+    ).resolves.toBe(0)
+    expect(sent()[1]).toMatchObject({
+      expectedSpecificationRevision: 3,
+      specification: { ...SPECIFICATION, objective: 'x' },
+    })
   })
 
   it('fails with the error kind of a refused Delegation read', async () => {

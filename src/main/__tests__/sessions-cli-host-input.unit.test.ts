@@ -177,7 +177,13 @@ describe('hive request-respond reads the pending request before it answers', () 
       runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm', '--json']),
     ).resolves.toBe(4)
     expect(JSON.parse(stderr())).toMatchObject({
-      error: { kind: 'authorization', code: 'capability_denied' },
+      error: {
+        kind: 'authorization',
+        code: 'capability_denied',
+        message: expect.stringContaining(
+          `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
+        ),
+      },
     })
   })
 

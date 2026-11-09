@@ -1,4 +1,7 @@
-import { SESSION_HOST_REFUSAL_KINDS } from '@shared/domain/session-host-refusals'
+import {
+  SESSION_HOST_REFUSAL_KINDS,
+  sessionHostErrorKindForThrownCode,
+} from '@shared/domain/session-host-refusals'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
@@ -7,6 +10,7 @@ import { CliError } from './cli-error'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
 import { sessionControlPayload } from './run-cli-interactions'
 import { sessionCliResultErrorKind } from './session-cli-exit-status'
+import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 import {
   type InteractionAnswer,
@@ -98,11 +102,17 @@ export async function approvalRequestError(
 ): Promise<CliError> {
   const approve = `openwaggle hive approval-respond ${input.sessionId} ${input.runId} ${input.interactionId} allow|deny`
   const missing = `Run ${input.runId} of Session ${input.sessionId} has no pending request ${input.interactionId} that this caller may answer.`
-  const refusal = await whyUnlisted(
-    input,
-    missing,
-    `Request ${input.interactionId} is an approval request. Answer it with '${approve}'.`,
-  )
+  const hint = `Request ${input.interactionId} is an approval request. Answer it with '${approve}'.`
+  const refusal = await whyUnlisted(input, missing, hint).catch((error: unknown) => {
+    // A refusal sent as an error, such as capability_denied: keep its kind and code, and name
+    // the command this caller should use.
+    if (!(error instanceof LocalSessionClientProtocolError)) throw error
+    return new CliError(
+      error.errorKind ?? sessionHostErrorKindForThrownCode(error.code),
+      `${hint} The Session Host refused request-respond (${error.code}): ${error.message}`,
+      { cause: error, code: error.code },
+    )
+  })
   if (refusal) return refusal
   // Answered between the read and the probe.
   const code = 'interaction-not-found'
