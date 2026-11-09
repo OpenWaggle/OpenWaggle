@@ -230,6 +230,24 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     expect(shownKinds(published)).toEqual(['shown:completed'])
   })
 
+  it('leaves a settled Hive to the wake settlement it is still handling', async () => {
+    const { emit, published, fixture, observer } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    fixture.running.clear()
+    fixture.wakeComing.add('root')
+    await emit(workerSettled('w1'), 110)
+    // The wake Run completed in the database; its settlement event is still queued.
+    fixture.wakeComing.clear()
+    await Effect.runPromise(observer.settleHeldReadyToRead(1_000, false))
+    await Effect.runPromise(observer.settleHeldReadyToRead(2_000, false))
+    expect(published).toEqual([])
+    await emit(settled('wake-1', 'completed', { hiveWake: true }), 2_500)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+    await Effect.runPromise(observer.settleHeldReadyToRead(60_000, false))
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
   it('never gives up on a wake that a full Run limit only defers', async () => {
     const { emit, published, fixture, observer } = hive()
     fixture.running = new Set(['w1'])

@@ -281,6 +281,11 @@ export class DesktopNotificationObserver {
     return this.readyToRead.settleHeld(at, runLimitFull)
   }
 
+  /** Whether a Ready to read is held for any root, waiting for its Hive to settle. */
+  get holdingReadyToRead() {
+    return this.readyToRead.holding
+  }
+
   private onListChanged(payload: ListChanged) {
     if (payload.change === 'archived' || payload.change === 'deleted') {
       this.readyToRead.drop(payload.sessionId)
