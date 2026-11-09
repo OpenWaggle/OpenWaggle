@@ -202,28 +202,30 @@ downloads pass through the explicit, authoritative restart action.
 The shell installer (`curl -fsSL https://openwaggle.ai/install | bash`; `/install`, `/install/` and
 `/install.sh` are `302` redirects in `website/public/_redirects` to `scripts/install.sh` on `main`)
 changes the saved channel only when `OPENWAGGLE_CHANNEL` is set, the same rule as
-`openwaggle update --channel`. On a re-run without it, the script asks the installed app for its
-saved channel with `openwaggle update --check --json` (the `savedChannel` field of the result,
-or of the error envelope when only the release check failed), installs the newest release on that
-channel, and writes no channel intent. The check reads the channel from the Session Host first, so
-it may start the installed version's Host; the script stops waiting after 60 seconds. A kept
-channel with no release yet (Stable before `1.0.0`) reports up to date and exits 0 without
-changes. A fresh install, an installed version up to `1.0.0-beta.37` (which has no `--json`
-check), or a failed or timed-out read uses the default channel and saves it. On Linux the installed
-version is the newer of the `version` file and the AppImage's `X-AppImage-Version`, because an
-in-app update replaces the AppImage in place and leaves the file behind. A saved channel is a one-time Session Host intent, the selected
+`openwaggle update --channel`. On a re-run without it, the script asks the installed app for its saved channel with
+`openwaggle update --check --json` (the `savedChannel` field of the result, or of the error envelope
+when only the release check failed or passed its 30 second limit), installs the newest release on
+that channel, and writes no channel intent. The check reads the channel from the Session Host first,
+so it may start the installed version's Host; the script stops waiting after 60 seconds, and Ctrl-C
+stops the check too. A kept channel with no release yet (Stable before `1.0.0`) reports up to date
+and exits 0 without changes. A fresh install, an installed version up to `1.0.0-beta.37` (which has
+no `--json` check), or a failed or timed-out read uses the default channel and saves it, and for an
+existing install the script says so. A saved channel is a one-time Session Host intent, the selected
 policy channel rather than one inferred from the downloaded artifact's version. With no Stable
 release yet the default is Beta, so an install during Beta or RC never saves Alpha.
 `OPENWAGGLE_RELEASE_TAG` is a one-time install that never reads or changes the channel. A channel
-with no eligible release, such as Stable before `1.0.0`, is reported as up to date rather than as
-a failed check. `openwaggle update --check` never changes the saved channel, with or without
-`--json`, and `openwaggle update --version` refuses a version older than the installed
-one. `install.sh` refuses one too, after it resolves the channel or from
-`OPENWAGGLE_RELEASE_TAG`: it reads the installed version (`Info.plist`, or the `version` file or
-desktop entry of the AppImage) and exits with status 2 before it downloads anything, quits the
-app, or stops the Session Host, because the older Session Host refuses a database a newer one has
-migrated and the app would not open. The installed version reinstalls, and an install whose
-version is unknown proceeds as before.
+with no eligible release, such as Stable before `1.0.0`, is reported as up to date rather than as a
+failed check. `openwaggle update --check` never changes the saved channel, with or without `--json`,
+and `openwaggle update --version` refuses a version older than the installed one.
+
+`install.sh` refuses an older version too, after it resolves the channel or from
+`OPENWAGGLE_RELEASE_TAG`, and exits with status 2 before it downloads anything, quits the app, or
+stops the Session Host, because the older Session Host refuses a database a newer one has migrated
+and the app would not open. It reads the installed version from `Info.plist` on macOS. On Linux it
+takes the newer of the `version` file beside the AppImage and the AppImage's own
+`X-AppImage-Version`, because an in-app update replaces the AppImage in place and leaves the file
+behind. The installed version reinstalls, and an install whose version is unknown proceeds as
+before.
 
 ### Supported platform minimums
 

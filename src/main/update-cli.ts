@@ -15,6 +15,7 @@ import { writeSessionsCliError } from './sessions-cli-output'
 import { parseChannel, usage, validateArguments } from './update-cli-arguments'
 import {
   type UpdateCheckMachineOutput,
+  withinUpdateCheckDeadline,
   writeUpdateCheckError,
   writeUpdateCheckResult,
 } from './update-cli-check-output'
@@ -227,6 +228,32 @@ async function readAndUpdateChannel(
   return result.response.updateChannel
 }
 
+async function dispatchUpdate(input: {
+  readonly parsed: ParsedArguments
+  readonly checkOnly: boolean
+  readonly savedChannel: UpdateChannel | undefined
+  readonly machine: UpdateCheckMachineOutput | null
+}) {
+  const { parsed, checkOnly, machine } = input
+  const version = option(parsed, 'version')
+  if (version) {
+    return installExactVersion(parsed, normalizeVersion(version), checkOnly, { machine })
+  }
+  const requested = parseChannel(option(parsed, 'channel'))
+  // --check is read-only: it checks a requested channel without saving it.
+  if (checkOnly && requested) {
+    return updateFromChannel({
+      parsed,
+      channel: requested,
+      checkOnly,
+      unsavedChannel: true,
+      machine,
+    })
+  }
+  const channel = input.savedChannel ?? (await readAndUpdateChannel(parsed, requested))
+  return updateFromChannel({ parsed, channel, checkOnly, unsavedChannel: false, machine })
+}
+
 export async function runUpdateCli(args: readonly string[]) {
   let json = false
   let savedChannel: UpdateChannel | undefined
@@ -245,23 +272,8 @@ export async function runUpdateCli(args: readonly string[]) {
     // failed release check still reports it, so install.sh never mistakes a feed error for no channel.
     if (json) savedChannel = await readAndUpdateChannel(parsed, undefined)
     const machine = savedChannel ? { savedChannel } : null
-    const version = option(parsed, 'version')
-    if (version) {
-      return await installExactVersion(parsed, normalizeVersion(version), checkOnly, { machine })
-    }
-    const requested = parseChannel(option(parsed, 'channel'))
-    // --check is read-only: it checks a requested channel without saving it.
-    if (checkOnly && requested) {
-      return await updateFromChannel({
-        parsed,
-        channel: requested,
-        checkOnly,
-        unsavedChannel: true,
-        machine,
-      })
-    }
-    const channel = savedChannel ?? (await readAndUpdateChannel(parsed, requested))
-    return await updateFromChannel({ parsed, channel, checkOnly, unsavedChannel: false, machine })
+    const update = dispatchUpdate({ parsed, checkOnly, savedChannel, machine })
+    return await (machine ? withinUpdateCheckDeadline(update) : update)
   } catch (error) {
     // Every CLI reports a failure with its kind, as an error envelope with --json (#351).
     const kind =

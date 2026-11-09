@@ -70,6 +70,7 @@ describe('update CLI --check --json', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -213,6 +214,24 @@ describe('update CLI --check --json', () => {
       savedChannel: 'beta',
     })
     expectChannelOnlyRead()
+  })
+
+  it('gives up on a stalled release check in time to report the saved channel', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    savedChannel('alpha')
+    checkForUpdatesMock.mockReturnValue(new Promise(() => undefined))
+
+    const result = runUpdateCli(['--check', '--json'])
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await expect(result).resolves.toEqual({ exitCode: 7, updaterOwnsExit: false })
+    expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'timeout', message: 'The release check did not finish within 30 seconds.' },
+      savedChannel: 'alpha',
+    })
   })
 
   it('reports no channel when the Session Host cannot read it', async () => {

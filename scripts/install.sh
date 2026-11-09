@@ -585,6 +585,27 @@ refuse_downgrade() {
 LAST_VERSION_WITHOUT_CHANNEL_CHECK="1.0.0-beta.37"
 # The check may start the installed version's Session Host and asks GitHub for releases.
 INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS=60
+# How long a stopped check may take to quit before it is killed.
+CHANNEL_READ_STOP_GRACE_SECONDS=3
+
+# Whether the installed app can report its saved channel: it exists and is newer than the last
+# version without `update --check --json`. Older and unknown versions are never run.
+installed_reports_update_channel() {
+  local executable="$1" version="$2"
+  [ -x "${executable}" ] && release_tag_is_supported "${version}" && \
+    release_is_newer "${version}" "${LAST_VERSION_WITHOUT_CHANNEL_CHECK}"
+}
+
+# Stops a channel read that is still running: a normal quit first, then a kill.
+stop_channel_read() {
+  local pid="$1" waited
+  kill -TERM "${pid}" 2>/dev/null || return 0
+  for ((waited = 0; waited < CHANNEL_READ_STOP_GRACE_SECONDS; waited++)); do
+    kill -0 "${pid}" 2>/dev/null || return 0
+    sleep 1
+  done
+  kill -KILL "${pid}" 2>/dev/null || true
+}
 
 # Prints the update channel the installed app has saved, or nothing when it cannot tell: nothing is
 # installed, its version is unknown or too old to report it, or the Session Host cannot read it in
@@ -593,9 +614,7 @@ INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS=60
 # not a pipe, so a CLI that is still running at the deadline cannot keep the installer waiting.
 installed_update_channel() {
   local platform="$1" executable="$2" version="$3" output pid waited
-  [ -x "${executable}" ] || return 0
-  release_tag_is_supported "${version}" || return 0
-  release_is_newer "${version}" "${LAST_VERSION_WITHOUT_CHANNEL_CHECK}" || return 0
+  installed_reports_update_channel "${executable}" "${version}" || return 0
   output="$(mktemp "${TMPDIR:-/tmp}/openwaggle-channel.XXXXXX")" || return 0
   info "Reading the update channel of the installed OpenWaggle…" >&2
   # As run_installed_cli: stdin closed, and the AppImage's CLI output on descriptor 3.
@@ -606,12 +625,16 @@ installed_update_channel() {
     "${executable}" update --check --json >"${output}" 2>&1 </dev/null &
   fi
   pid=$!
+  # A background command ignores Ctrl-C, so the installer stops it and removes its file itself.
+  trap 'stop_channel_read "${pid}"; rm -f "${output}"; exit 130' INT
+  trap 'stop_channel_read "${pid}"; rm -f "${output}"; exit 143' TERM
   for ((waited = 0; waited < INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS; waited++)); do
     kill -0 "${pid}" 2>/dev/null || break
     sleep 1
   done
-  kill -KILL "${pid}" 2>/dev/null || true
+  stop_channel_read "${pid}"
   wait "${pid}" 2>/dev/null || true
+  trap - INT TERM
   sed -En 's/.*"savedChannel":[[:space:]]*"(stable|beta|alpha)".*/\1/p' "${output}" | head -1
   rm -f "${output}"
 }
@@ -717,9 +740,16 @@ else
   # Only OPENWAGGLE_CHANNEL changes the channel, as `openwaggle update --channel` does. Without it a
   # re-run keeps the installed app's channel, and a first install saves the default.
   CHANNEL="${REQUESTED_CHANNEL}"
+  DEFAULT_CHANNEL_REASON=""
   if [ -z "${CHANNEL}" ] && [ -n "${INSTALLED_VERSION}" ]; then
     CHANNEL="$(installed_update_channel "${PLATFORM}" "${INSTALLED_EXECUTABLE}" "${INSTALLED_VERSION}")"
-    [ -z "${CHANNEL}" ] || KEEP_INSTALLED_CHANNEL="1"
+    if [ -n "${CHANNEL}" ]; then
+      KEEP_INSTALLED_CHANNEL="1"
+    elif installed_reports_update_channel "${INSTALLED_EXECUTABLE}" "${INSTALLED_VERSION}"; then
+      DEFAULT_CHANNEL_REASON="Could not read the update channel of the installed OpenWaggle"
+    elif [ -x "${INSTALLED_EXECUTABLE}" ]; then
+      DEFAULT_CHANNEL_REASON="OpenWaggle ${INSTALLED_VERSION} cannot report its update channel"
+    fi
   fi
   info "Fetching release metadata…"
   RELEASES_JSON="$(fetch_release_pages "${RELEASES_API_URL}")" || \
@@ -735,6 +765,9 @@ else
   fi
   if [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ]; then
     info "Update channel: ${CHANNEL}, kept from the installed OpenWaggle"
+  elif [ -n "${DEFAULT_CHANNEL_REASON}" ]; then
+    # Saving the default changes the channel of an existing install, so say so.
+    info "${DEFAULT_CHANNEL_REASON}, so the installer saves the default channel, ${CHANNEL}. Set OPENWAGGLE_CHANNEL to choose another."
   else
     info "Update channel: ${CHANNEL}"
   fi

@@ -117,6 +117,9 @@ describe('quick installer update channel on a re-run', () => {
     await expect(harness.installedVersion()).resolves.toBe('1.0.0-rc.1')
     await expect(harness.savedChannelIntent()).resolves.toBe('beta\n')
     expect(await harness.calls()).not.toContain('appimage update --check --json')
+    expect(result.stdout).toContain(
+      'OpenWaggle 1.0.0-beta.37 cannot report its update channel, so the installer saves the default channel, beta.',
+    )
   })
 
   it('saves the default channel when the installed app cannot report one', async () => {
@@ -129,5 +132,35 @@ describe('quick installer update channel on a re-run', () => {
     expect(await harness.calls()).toContain('appimage update --check --json')
     await expect(harness.installedVersion()).resolves.toBe('1.0.0-rc.2')
     await expect(harness.savedChannelIntent()).resolves.toBe('beta\n')
+    expect(result.stdout).toContain(
+      'Could not read the update channel of the installed OpenWaggle, so the installer saves the default channel, beta. Set OPENWAGGLE_CHANNEL to choose another.',
+    )
   })
+
+  // PlistBuddy, which reads the installed version from Info.plist, exists only on macOS.
+  it.runIf(process.platform === 'darwin')(
+    'asks the installed macOS app for its channel before it refuses a downgrade',
+    async () => {
+      const applications = path.join(harness.directory(), 'Applications')
+      await harness.installMacApp(applications, INSTALLED_VERSION)
+      const executable = path.join(applications, 'OpenWaggle.app', 'Contents', 'MacOS', 'OpenWaggle')
+      await fs.mkdir(path.dirname(executable), { recursive: true })
+      await fs.writeFile(
+        executable,
+        `#!/bin/sh\nprintf 'mac-cli %s\\n' "$*" >> "${path.join(harness.directory(), 'calls')}"\nprintf '{"schemaVersion":1,"type":"response","command":"update","result":{"savedChannel":"alpha"}}\\n'\n`,
+        { mode: 0o755 },
+      )
+      await harness.publish(['v1.0.0-beta.37'])
+
+      const result = await harness.runInstaller({
+        FAKE_OS: 'Darwin',
+        OPENWAGGLE_APPLICATIONS_DIR: applications,
+      })
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stdout).toContain('Update channel: alpha, kept from the installed OpenWaggle')
+      expect(result.stderr).toContain('OpenWaggle v1.0.0-beta.37 is older than the installed 1.0.0-rc.1.')
+      expect(await harness.calls()).toContain('mac-cli update --check --json')
+    },
+  )
 })
