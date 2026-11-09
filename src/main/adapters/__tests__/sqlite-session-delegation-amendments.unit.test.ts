@@ -129,6 +129,7 @@ describe('SQLite Delegation amendments', () => {
     expect(result.mismatch.outcome).toMatchObject({
       effect: 'rejected',
       code: 'delegation_amendment_proposal_mismatch',
+      kind: 'conflict',
     })
     expect(result.applied.outcome).toMatchObject({
       effect: 'delegation-specification-amended',

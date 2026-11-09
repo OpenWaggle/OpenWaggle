@@ -116,6 +116,7 @@ describe('Local Session handshake deadline under a Host event-loop stall', () =>
     await expect(reader.next()).resolves.toMatchObject({
       kind: 'error',
       code: 'handshake_timeout',
+      errorKind: 'timeout',
       retryable: true,
     })
   })
@@ -152,6 +153,7 @@ describe('Local Session handshake deadline under a Host event-loop stall', () =>
       {
         kind: 'error',
         code: 'handshake_timeout',
+        errorKind: 'timeout',
         message: 'Local Session handshake timed out.',
         retryable: true,
       },
@@ -168,6 +170,7 @@ describe('Local Session handshake deadline under a Host event-loop stall', () =>
     await expect(reader.next()).resolves.toEqual({
       kind: 'error',
       code: 'handshake_timeout',
+      errorKind: 'timeout',
       message: 'Local Session handshake timed out.',
       retryable: true,
     })

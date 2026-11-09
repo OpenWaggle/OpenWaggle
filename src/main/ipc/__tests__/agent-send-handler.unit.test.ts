@@ -123,6 +123,7 @@ describe('agent:send-message report', () => {
       effect: 'rejected',
       sessionId: SESSION_ID,
       code: 'queue_capacity_reached',
+      kind: 'conflict',
     })
 
     const report = await Effect.runPromise(getSendHandler()({}, SESSION_ID, PAYLOAD, MODEL))

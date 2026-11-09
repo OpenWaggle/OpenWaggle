@@ -109,6 +109,7 @@ describe('SqliteSessionControlRepositoryLive', () => {
       operation: 'message',
       effect: 'rejected',
       code: 'host_run_ceiling_reached',
+      kind: 'conflict',
     })
     expect(result.targetRunCount).toBe(0)
   })
@@ -150,6 +151,7 @@ describe('SqliteSessionControlRepositoryLive', () => {
     expect(result.response.outcome).toMatchObject({
       effect: 'rejected',
       code: 'profile_revoked',
+      kind: 'authentication',
     })
     expect(result.runCount).toBe(0)
   })

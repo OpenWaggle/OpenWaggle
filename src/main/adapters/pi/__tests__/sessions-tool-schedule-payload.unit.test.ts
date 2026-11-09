@@ -233,7 +233,12 @@ describe('Hive tool Scheduled task payloads', () => {
 
   it('returns a refused read instead of updating a Launch target it could not see', async () => {
     const refused = result(
-      { effect: 'rejected', code: 'task_not_found', message: 'No such Scheduled task.' },
+      {
+        effect: 'rejected',
+        code: 'task_not_found',
+        kind: 'not_found',
+        message: 'No such Scheduled task.',
+      },
       'read',
     )
     const execute = vi.fn(async () => refused)

@@ -79,6 +79,7 @@ describe('SQLite Session Control replacement during a pending promotion', () => 
             effect: 'rejected',
             sessionId: 'session-target',
             code: 'run_not_live',
+            kind: 'conflict',
           },
         })
         const admitted = yield* journal.claim({
@@ -99,6 +100,7 @@ describe('SQLite Session Control replacement during a pending promotion', () => 
         effect: 'rejected',
         sessionId: 'session-target',
         code: 'follow_up_reserved',
+        kind: 'conflict',
       },
     })
     expect(result.admitted.status).toBe('claimed')

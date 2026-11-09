@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import { FollowUpId, RunId } from '@shared/types/brand'
 import type {
@@ -154,7 +155,7 @@ function completeClaimedPromotion(input: {
           operation: 'promote',
           effect: 'rejected',
           sessionId: input.operation.request.command.sessionId,
-          code: steering.code,
+          ...sessionHostRefusal(steering.code),
         }
     const recorded = yield* journal.complete({
       callerId: input.operation.callerId,
@@ -235,7 +236,7 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
               operation: 'promote',
               effect: 'rejected',
               sessionId: state.sessionId,
-              code: plan.code,
+              ...sessionHostRefusal(plan.code),
             },
           }
         }

@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { ScheduledTasksCommand, ScheduledTasksResponse } from '@shared/types/scheduled-task'
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions, validateImplicitCliHelp } from './command-cli-option-contract'
@@ -185,7 +186,7 @@ async function approveWakeCheckCommands(client: SchedulesCliClient, taskId: stri
         ...read,
         outcome: {
           effect: 'rejected',
-          code: 'wake_check_changed',
+          ...sessionHostRefusal('wake_check_changed'),
           message: 'This task has no Wake check to approve.',
         },
       } satisfies ScheduledTasksResponse,

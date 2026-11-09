@@ -1,3 +1,4 @@
+import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   LocalSessionProfileManagementEnvelope,
@@ -84,6 +85,8 @@ export type LocalSessionProfileManagementOutcome =
       readonly operation: LocalSessionProfileManagementCommand['operation']
       readonly effect: 'rejected'
       readonly code: string
+      /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
+      readonly kind: SessionHostErrorKind
       readonly profileName?: string
     }
 

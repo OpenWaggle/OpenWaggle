@@ -264,6 +264,7 @@ describe('Access CLI credential recovery', () => {
           operation: 'list',
           effect: 'rejected',
           code: 'missing_access_profiles',
+          kind: 'authorization',
         },
       },
     })
@@ -276,7 +277,7 @@ describe('Access CLI credential recovery', () => {
       .join('')
     expect(JSON.parse(output).result).toMatchObject({
       contractVersion: 1,
-      outcome: { effect: 'rejected', code: 'missing_access_profiles' },
+      outcome: { effect: 'rejected', code: 'missing_access_profiles', kind: 'authorization' },
     })
   })
 

@@ -17,11 +17,11 @@ describe('OpenWaggle MCP Session Control v2 adapter', () => {
           requestId: 'missing',
           outcome: {
             operation: 'read',
-            error: { code: 'session_not_found', message: 'Session not found.' },
+            error: { code: 'session_not_found', kind: 'not_found', message: 'Session not found.' },
           },
         },
       }),
-    ).toThrow('session_not_found')
+    ).toThrow('session_not_found (not_found): Session not found.')
     expect(() =>
       assertSuccessfulMcpSessionResult({
         contract: 'session-control-v2',
@@ -35,10 +35,11 @@ describe('OpenWaggle MCP Session Control v2 adapter', () => {
             effect: 'rejected',
             sessionId: 'session-1',
             code: 'run_changed',
+            kind: 'conflict',
           },
         },
       }),
-    ).toThrow('run_changed')
+    ).toThrow('run_changed (conflict): steer was rejected.')
   })
 
   it('exposes the canonical lifecycle, control, query, queue, and wait vocabulary', () => {

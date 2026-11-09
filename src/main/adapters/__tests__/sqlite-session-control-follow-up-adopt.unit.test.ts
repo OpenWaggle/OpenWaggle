@@ -60,6 +60,7 @@ describe('SQLite Session control: adopting a needs-attention Follow-up', () => {
     expect(result.stale.outcome).toMatchObject({
       effect: 'rejected',
       code: 'queue_revision_changed',
+      kind: 'conflict',
     })
     expect(result.adopted.outcome).toMatchObject({
       operation: 'queue-adopt',
@@ -93,6 +94,7 @@ describe('SQLite Session control: adopting a needs-attention Follow-up', () => {
     expect(result.refused.outcome).toMatchObject({
       effect: 'rejected',
       code: 'follow_up_adopt_requires_desktop_user',
+      kind: 'authorization',
     })
     expect(result.state.followUpQueue.items[0]).toMatchObject({
       deliveryState: 'needs_attention',

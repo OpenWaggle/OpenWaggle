@@ -176,8 +176,8 @@ async function runServeCommand(arguments_: ParsedArguments) {
   })
 }
 
-function writeOutput(value: unknown, json: boolean) {
-  return writeCliStdout(`${formatMcpCliOutput(value, json)}\n`)
+function writeOutput(value: unknown) {
+  return writeCliStdout(`${formatMcpCliOutput(value)}\n`)
 }
 
 /** The usage text a help request asks for, after validating it, or undefined to run serve. */
@@ -217,7 +217,7 @@ export async function runMcpCli(args: readonly string[]) {
     const end = rest.indexOf('--')
     const options = end < 0 ? rest : rest.slice(0, end)
     if (options.includes('--help') || options.includes('-h')) {
-      await writeOutput(usage(), false)
+      await writeOutput(usage())
       return EXIT.SUCCESS
     }
     return runMcpManagementCommand(first, rest, {
@@ -237,7 +237,7 @@ export async function runMcpCli(args: readonly string[]) {
   try {
     const help = asUsageErrorsSync(() => helpText(command, parsed, commandArguments))
     if (help !== undefined) {
-      await writeOutput(help, false)
+      await writeOutput(help)
       return EXIT.SUCCESS
     }
     await runServeCommand(commandArguments)

@@ -5,6 +5,7 @@ import type {
   ScheduledTaskRunOutcome,
   ScheduledTaskRunWakeCheck,
 } from './scheduled-task-heartbeat'
+import type { ScheduledTasksRejectedOutcome } from './scheduled-task-rejection'
 import type { ThinkingLevel } from './settings'
 
 export * from './scheduled-task-heartbeat'
@@ -256,28 +257,6 @@ export interface ScheduledTasksRequest {
   readonly command: ScheduledTasksCommand
 }
 
-export const SCHEDULED_TASK_REJECTION_CODES = [
-  'task_not_found',
-  'invalid_schedule',
-  'invalid_time_zone',
-  'invalid_target',
-  'target_not_found',
-  'kind_change_not_allowed',
-  'target_session_change_not_allowed',
-  'creator_identity_unsupported',
-  'capability_denied',
-  'target_scope_denied',
-  'task_limit_reached',
-  'run_already_in_progress',
-  'scheduler_unavailable',
-  'schedule_ended',
-  'stop_condition_required',
-  'heartbeat_only',
-  'wake_check_changed',
-  'run_not_scheduled',
-] as const
-export type ScheduledTaskRejectionCode = (typeof SCHEDULED_TASK_REJECTION_CODES)[number]
-
 export type ScheduledTasksOutcome =
   | { readonly effect: 'listed'; readonly tasks: readonly ScheduledTask[] }
   | {
@@ -295,11 +274,13 @@ export type ScheduledTasksOutcome =
       readonly task: ScheduledTask
       readonly run: ScheduledTaskRun
     }
-  | {
-      readonly effect: 'rejected'
-      readonly code: ScheduledTaskRejectionCode
-      readonly message: string
-    }
+  | ScheduledTasksRejectedOutcome
+
+export {
+  SCHEDULED_TASK_REJECTION_CODES,
+  type ScheduledTaskRejectionCode,
+  type ScheduledTasksRejectedOutcome,
+} from './scheduled-task-rejection'
 
 export interface ScheduledTasksResponse {
   readonly contractVersion: typeof SCHEDULED_TASKS_CONTRACT_VERSION

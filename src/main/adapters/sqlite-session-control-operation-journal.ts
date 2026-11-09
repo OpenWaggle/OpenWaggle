@@ -1,5 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
+import { parseJsonUnknown } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
@@ -12,6 +14,7 @@ import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
+import { withStoredRefusalKind } from './sqlite-stored-refusal-kind'
 
 interface SessionOperationRow {
   readonly request_json: string
@@ -21,6 +24,22 @@ interface SessionOperationRow {
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
+}
+
+/**
+ * Whether a stored outcome is the one a repeated completion reports. A refusal stored before
+ * revision 32 has no `kind`, so it is compared as its replay reads it (ADR 0063). A stored
+ * outcome that does not parse is never the same, so it stays an `operation-outcome-conflict`.
+ */
+function sameStoredOutcome(storedJson: string | null, outcome: unknown) {
+  if (storedJson === null) return false
+  let stored: unknown
+  try {
+    stored = parseJsonUnknown(storedJson)
+  } catch {
+    return false
+  }
+  return canonicalJson(withStoredRefusalKind(stored)) === canonicalJson(outcome)
 }
 
 function decodeCompletedOutcome(outcomeJson: string | null) {
@@ -65,7 +84,7 @@ function pendingPromotionReplaceRejection(
             operation: 'replace',
             effect: 'rejected',
             sessionId: command.sessionId,
-            code: 'follow_up_reserved',
+            ...sessionHostRefusal('follow_up_reserved'),
           } as const),
     ),
   )
@@ -199,7 +218,11 @@ function completeExternalOperation(
         }
         if (existing.status === 'completed') {
           // An outcome derived from the final state cannot be rebuilt; the stored one stands.
-          if (!input.outcomeForFinalState && existing.outcome_json !== outcomeJson) {
+          if (
+            !input.outcomeForFinalState &&
+            existing.outcome_json !== outcomeJson &&
+            !sameStoredOutcome(existing.outcome_json, input.outcome)
+          ) {
             return yield* Effect.fail(repositoryError('operation-outcome-conflict', { operation }))
           }
           return yield* decodeCompletedOutcome(existing.outcome_json)

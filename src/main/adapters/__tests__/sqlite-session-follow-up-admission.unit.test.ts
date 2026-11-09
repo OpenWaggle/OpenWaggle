@@ -69,6 +69,7 @@ describe('SQLite Session Follow-up admission', () => {
       operation: 'follow-up',
       effect: 'rejected',
       code: 'host_run_ceiling_reached',
+      kind: 'conflict',
     })
     expect(result.runCount).toBe(0)
     expect(result.followUpCount).toBe(0)

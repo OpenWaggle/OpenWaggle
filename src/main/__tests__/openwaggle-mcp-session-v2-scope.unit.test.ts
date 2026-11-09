@@ -244,10 +244,13 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
     await expect(
       prepareMcpSessionTargetScope(
         scopedOptions(),
-        answer({ operation: 'read', error: { code: 'session_not_found', message: 'Not found.' } }),
+        answer({
+          operation: 'read',
+          error: { code: 'session_not_found', kind: 'not_found', message: 'Not found.' },
+        }),
         payload,
       ),
-    ).rejects.toThrow('session_not_found: Session "session-target" was not found.')
+    ).rejects.toThrow('session_not_found (not_found): Session "session-target" was not found.')
     await expect(
       prepareMcpSessionTargetScope(
         scopedOptions(),
@@ -255,7 +258,18 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
         payload,
       ),
     ).rejects.toThrow(
-      'target_scope_denied: Session "session-target" is outside this server\'s --workspace and --session scope.',
+      'target_scope_denied (authorization): Session "session-target" is outside this server\'s --workspace and --session scope.',
     )
+    // Any other refusal of the scope read is the answer, never a missing Session (ADR 0063).
+    await expect(
+      prepareMcpSessionTargetScope(
+        scopedOptions(),
+        answer({
+          operation: 'read',
+          error: { code: 'host_stopped', kind: 'host_unavailable', message: 'Stopping.' },
+        }),
+        payload,
+      ),
+    ).rejects.toThrow('host_stopped (host_unavailable): Stopping.')
   })
 })

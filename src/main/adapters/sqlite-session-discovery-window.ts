@@ -1,4 +1,5 @@
 import { canonicalJson } from '@shared/canonical-json'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type {
   SemanticDiscoveryReadiness,
@@ -97,7 +98,10 @@ export function discoveryCursorError(
   code: 'cursor_expired' | 'cursor_mismatch',
   message: string,
 ) {
-  return sessionQueryResponse(request, { operation: 'search', error: { code, message } })
+  return sessionQueryResponse(request, {
+    operation: 'search',
+    error: { ...sessionHostRefusal(code), message },
+  })
 }
 
 export function semanticDiscoveryNotReady(
@@ -109,7 +113,7 @@ export function semanticDiscoveryNotReady(
     operation: 'search',
     semanticReadiness: readiness,
     error: {
-      code: 'semantic_not_ready',
+      ...sessionHostRefusal('semantic_not_ready'),
       message,
     },
   })

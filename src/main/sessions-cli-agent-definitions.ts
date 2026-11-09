@@ -71,9 +71,9 @@ export async function runAgentDefinitionDiscoveryCommand(
     items.filter((item) => enabledByName[item.name] !== false),
   )
   if (hasFlag(arguments_, 'json')) {
-    await stdout(sessionsCliResponseText(command, { definitions }, true))
+    await stdout(sessionsCliResponseText(`hive ${command}`, { definitions }, true))
   } else {
-    await writeAgentsCliCatalog(definitions, false, stdout)
+    await writeAgentsCliCatalog(definitions, stdout)
   }
   return EXIT.SUCCESS
 }

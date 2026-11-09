@@ -62,6 +62,7 @@ describe('Local Session client', () => {
               effect: 'rejected',
               sessionId: 'session-target',
               code: 'test-response',
+              kind: 'conflict',
             },
           },
         }
