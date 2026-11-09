@@ -35,7 +35,11 @@ interface UnlistedRequest {
  * a pending approval the caller may not answer. It returns the error for a request the caller may not answer, or
  * `undefined` for one that is not pending.
  */
-async function whyUnlisted(input: UnlistedRequest, missing: string) {
+async function whyUnlisted(
+  input: Omit<UnlistedRequest, 'answer' | 'arguments'>,
+  missing: string,
+  mismatch = `Request ${input.interactionId} is pending, but this caller may not answer it. An approval request needs approval-respond and sessions:approve.`,
+) {
   const result = await input.execute(
     sessionControlPayload({
       operation: 'request-respond',
@@ -55,11 +59,7 @@ async function whyUnlisted(input: UnlistedRequest, missing: string) {
   if (code === 'interaction-not-found') return undefined
   // Every kind comes from the Session Host's table (ADR 0063), so the CLI never assigns one.
   if (code === 'interaction-mismatch') {
-    return new CliError(
-      SESSION_HOST_REFUSAL_KINDS[code],
-      `Request ${input.interactionId} is pending, but this caller may not answer it. An approval request needs approval-respond and sessions:approve.`,
-      { code },
-    )
+    return new CliError(SESSION_HOST_REFUSAL_KINDS[code], mismatch, { code })
   }
   const kind = sessionCliResultErrorKind(result) ?? 'conflict'
   return new CliError(kind, `${missing} (${code})`, { code })
@@ -85,4 +85,26 @@ export async function unlistedRequestResponse(
     : ''
   const code = 'interaction-not-found'
   throw new CliError(SESSION_HOST_REFUSAL_KINDS[code], `${missing}${hint}`, { code })
+}
+
+/**
+ * An approval request answered with `request-respond`. The Session Host refuses that, with
+ * `capability_denied` for a caller without `sessions:respond` and `interaction-mismatch` for one
+ * with it, so the CLI asks it with the same probe it uses for an unlisted request. The caller
+ * then gets the same exit whether or not `requests-list` showed it the approval.
+ */
+export async function approvalRequestError(
+  input: Omit<UnlistedRequest, 'answer' | 'arguments'>,
+): Promise<CliError> {
+  const approve = `openwaggle hive approval-respond ${input.sessionId} ${input.runId} ${input.interactionId} allow|deny`
+  const missing = `Run ${input.runId} of Session ${input.sessionId} has no pending request ${input.interactionId} that this caller may answer.`
+  const refusal = await whyUnlisted(
+    input,
+    missing,
+    `Request ${input.interactionId} is an approval request. Answer it with '${approve}'.`,
+  )
+  if (refusal) return refusal
+  // Answered between the read and the probe.
+  const code = 'interaction-not-found'
+  return new CliError(SESSION_HOST_REFUSAL_KINDS[code], missing, { code })
 }

@@ -148,8 +148,8 @@ function confirmResponse(
   answer: InteractionAnswer,
 ): AgentLoopInteractionResponse {
   if (interaction.purpose === 'authorization') {
-    // The Session Host refuses it with interaction-mismatch, so the CLI does too, with that
-    // code's kind, as when the caller cannot see the approval (sessions-cli-unlisted-request).
+    // request-respond asks the Session Host first (approvalRequestError); this is the Host's
+    // answer to a caller that may answer it, should one get here without asking.
     const code = 'interaction-mismatch'
     throw new CliError(
       SESSION_HOST_REFUSAL_KINDS[code],

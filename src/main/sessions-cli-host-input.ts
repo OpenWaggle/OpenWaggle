@@ -12,6 +12,7 @@ import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { CliError } from './cli-error'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
+import { isAuthorizationConfirmation } from './run-cli-interactions'
 import { sessionCliResultErrorKind } from './session-cli-exit-status'
 import { positiveInteger, required, requiredSessionId } from './sessions-cli-arguments'
 import {
@@ -26,7 +27,11 @@ import {
   interactionResponseFor,
   readInteractionAnswer,
 } from './sessions-cli-interaction-response'
-import { type ExecuteHostCommand, unlistedRequestResponse } from './sessions-cli-unlisted-request'
+import {
+  approvalRequestError,
+  type ExecuteHostCommand,
+  unlistedRequestResponse,
+} from './sessions-cli-unlisted-request'
 
 const RUN_POSITIONAL = 1
 const INTERACTION_POSITIONAL = 2
@@ -139,6 +144,9 @@ async function resolveInteractionResponse(
       runId,
       interactionId,
     })
+  }
+  if (isAuthorizationConfirmation(interaction)) {
+    throw await approvalRequestError({ execute, sessionId, runId, interactionId })
   }
   return { interactionResponse: interactionResponseFor(interaction, answer) }
 }

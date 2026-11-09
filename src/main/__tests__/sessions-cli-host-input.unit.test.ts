@@ -27,11 +27,19 @@ import {
   captureCliOutput,
   interaction,
   RUN,
+  rejected,
   requestsList,
   SESSION,
   sentCommands,
   stderr,
 } from './sessions-cli-host-input.test-utils'
+
+const APPROVAL = interaction({
+  kind: 'confirm',
+  purpose: 'authorization',
+  title: 'Run?',
+  message: 'ls',
+})
 
 function sent() {
   return sentCommands(mocks.executeCommand.mock.calls)
@@ -138,16 +146,15 @@ describe('hive request-respond reads the pending request before it answers', () 
   })
 
   it('points an approval request answered with request-respond at approval-respond', async () => {
-    mocks.executeCommand.mockResolvedValueOnce(
-      requestsList([
-        interaction({ kind: 'confirm', purpose: 'authorization', title: 'Run?', message: 'ls' }),
-      ]),
-    )
+    mocks.executeCommand
+      .mockResolvedValueOnce(requestsList([APPROVAL]))
+      .mockResolvedValueOnce(rejected('interaction-mismatch'))
 
     await expect(
       runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm', '--json']),
     ).resolves.toBe(6)
-    // The Session Host's answer, and the probe's for a caller that cannot see the approval.
+    // The Session Host's answer, asked with an answer that settles nothing.
+    expect(sent()[1]).toMatchObject({ kind: 'notify', response: { kind: 'notify' } })
     expect(JSON.parse(stderr())).toMatchObject({
       error: {
         kind: 'conflict',
@@ -156,6 +163,21 @@ describe('hive request-respond reads the pending request before it answers', () 
           `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
         ),
       },
+    })
+  })
+
+  it('refuses a visible approval as the Session Host does for a caller without sessions:respond', async () => {
+    mocks.executeCommand
+      .mockResolvedValueOnce(requestsList([APPROVAL]))
+      .mockRejectedValueOnce(
+        new LocalSessionClientProtocolError('capability_denied', 'sessions:respond is required.'),
+      )
+
+    await expect(
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm', '--json']),
+    ).resolves.toBe(4)
+    expect(JSON.parse(stderr())).toMatchObject({
+      error: { kind: 'authorization', code: 'capability_denied' },
     })
   })
 
