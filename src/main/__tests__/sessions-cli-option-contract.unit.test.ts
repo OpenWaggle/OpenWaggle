@@ -45,7 +45,7 @@ describe('Hive CLI option contract', () => {
     [['exports-list', 'session', '--overwrite'], 'hive exports-list'],
     // An approval is `approval-respond`, never a flag on `request-respond`.
     [
-      ['request-respond', 's', 'r', 'i', '--response-json', '{}', '--approve'],
+      ['request-respond', 's', 'r', 'i', '--dismiss', '--approve'],
       'Unknown option for OpenWaggle Hive: --approve',
     ],
     [['steer', 'session', '--text', 'turn', '--expected-run', 'run', '--yolo'], 'hive steer'],
@@ -70,7 +70,7 @@ describe('Hive CLI option contract', () => {
     ).toThrow('Choose either --credential-stdin or --profile-credential-file')
   })
 
-  it.each([['--stdin'], ['--request-json', '-']])(
+  it.each([['--stdin'], ['--request-file', '-']])(
     'rejects credential input that competes with message input on stdin: %s',
     (...messageInput) => {
       expect(
@@ -82,7 +82,9 @@ describe('Hive CLI option contract', () => {
           '--credential-stdin',
           ...messageInput,
         ]),
-      ).toThrow('--credential-stdin cannot share stdin with --stdin or --request-json -')
+      ).toThrow(
+        '--credential-stdin cannot share stdin with --stdin, --request-file - or --value-file -',
+      )
     },
   )
 
@@ -121,12 +123,12 @@ describe('Hive CLI option contract', () => {
       validate([
         'message',
         'session',
-        '--request-json',
+        '--request-file',
         '/tmp/request.json',
         '--attach',
         'ignored.txt',
       ]),
-    ).toThrow('--request-json contains the complete message request')
+    ).toThrow('--request-file contains the complete message request')
   })
 
   it('rejects destructive-command extras and passthrough before dispatch', () => {
@@ -188,8 +190,9 @@ describe('Hive CLI option contract', () => {
         'job',
         '1',
         'reason',
-        '--specification-json',
-        '{}',
+        '--objective',
+        'Narrower task',
+        '--no-handoff',
         '--proposal',
         'proposal-1',
       ]),
@@ -232,12 +235,42 @@ describe('Hive CLI option contract', () => {
     },
   )
 
+  it.each([
+    [['request-respond', 's', 'r', 'i', '--response-json', '{}'], '--choice <item>'],
+    [['approval-respond', 's', 'r', 'i', '--response-json', '{}'], 'allow|deny'],
+    [['delegation-claim', 'w', 'd', 'why', '--claim-json', '{}'], '--read <path>'],
+    [['delegation-submit', 'w', 'd', 'done', '--evidence-json', '{}'], '--evidence-command'],
+    [
+      ['delegation-verify', 'q', 'd', '1', 'passed', 'ok', '--evidence-json', '{}'],
+      '--evidence-note',
+    ],
+    [
+      ['delegation-amend', 'q', 'd', '1', 'why', '--specification-json', '{}'],
+      '--objective <text>',
+    ],
+    [['message', 'session', '--request-json', 'request.json'], '--request-file <path|->'],
+  ] as const)('refuses the inline-JSON option in %j and names what replaced it', (values, hint) => {
+    const run = validate(values)
+    expect(run).toThrow('was replaced before 1.0.')
+    expect(run).toThrow(hint)
+  })
+
+  it('refuses a request-respond answer flag on another command', () => {
+    expect(validate(['approval-respond', 's', 'r', 'i', 'allow', '--choice', 'x'])).toThrow(
+      'Unsupported option for hive approval-respond: --choice',
+    )
+    expect(validate(['delegation-submit', 'w', 'd', 'done', '--read', 'src/a.ts'])).toThrow(
+      'Unsupported option for hive delegation-submit: --read',
+    )
+  })
+
   it('accepts every Hive tool action as the subcommand of the same name', () => {
     expect(validate(['delegations-list', '--all', '--state', 'working'])).not.toThrow()
     expect(validate(['delegations-read', 'delegation-1', '--limit', '5'])).not.toThrow()
     expect(validate(['delegations-conflicts', '--kind', 'merge-overlap'])).not.toThrow()
     expect(validate(['delegation-conflict-acknowledge', 'q', 'd', 'c', 'reason'])).not.toThrow()
-    expect(validate(['approval-respond', 's', 'r', 'i', '--response-json', '{}'])).not.toThrow()
+    expect(validate(['approval-respond', 's', 'r', 'i', 'allow', '--for', 'session'])).not.toThrow()
+    expect(validate(['request-respond', 's', 'r', 'i', '--choice', 'Ship it'])).not.toThrow()
     expect(validate(['authorization-set', 'session', 'inherit'])).not.toThrow()
     expect(validate(['exports-watch', 'session', 'operation'])).not.toThrow()
     expect(validate(['agent-definitions-search', 'code', 'review', '--json'])).not.toThrow()

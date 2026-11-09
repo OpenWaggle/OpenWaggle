@@ -62,10 +62,24 @@ In these tables, `<session>` is a session ID or a session link copied from the d
 | `queue-withdraw` | `hive queue-withdraw <session> <follow-up-id>...` | Removes follow-ups before they are sent. |
 | `promote` | `hive promote <session> <follow-up-id> --expected-run <run-id>` | Sends a queued follow-up into the current run. |
 | `requests-list` | `hive requests-list <session>` | Lists questions and approvals a run is waiting on. |
-| `request-respond` | `hive request-respond <session> <run-id> <request-id> --response-json <json>` | Answers a question. |
-| `approval-respond` | `hive approval-respond <session> <run-id> <request-id> --response-json <json>` | Answers an approval request. |
+| `request-respond` | `hive request-respond <session> <run-id> <request-id> <answer>` | Answers a question. See [Answer a request](#answer-a-request). |
+| `approval-respond` | `hive approval-respond <session> <run-id> <request-id> allow\|deny [--for once\|session\|project]` | Answers an approval request. |
 
-To allow an approval request, pass `--response-json '{"kind":"confirm","accepted":true}'`.
+`approval-respond` takes `allow` or `deny`. With `allow`, `--for session` keeps the approval for the rest of the session and `--for project` keeps it for the project. Without `--for`, or with `--for once`, it covers this one request. `--for` does not go with `deny`.
+
+#### Answer a request
+
+`request-respond` first reads the run's pending requests to learn what kind of answer the request wants. The profile you use therefore needs `sessions:read` as well as `sessions:respond`. Give exactly one answer option:
+
+| Request | Answer options |
+| --- | --- |
+| Pick one of several choices (`select`) | `--choice <item>`, or `--dismiss` to pick none |
+| Type an answer or edit text (`input`, `editor`) | `--text <text>`, `--stdin` or `--input-file <path>`, or `--dismiss` for no answer |
+| Yes or no (`confirm`) | `--confirm` or `--decline` |
+| A notice (`notify`) | `--acknowledge` |
+| An extension's own request (`custom`) | `--value-file <path>` or `--value-file -` with one JSON value, or `--dismiss` for no value |
+
+`--dismiss` on a yes-or-no request declines it, as closing the dialog does. `--value-file -` reads the JSON value from stdin. An option that does not fit the request's kind fails as a usage error (exit 2) and names the options that fit. A request that is no longer pending fails with `not_found` (exit 5). An approval request needs `approval-respond`, and `request-respond` refuses it with that command in the message.
 
 ### Delegations and agent definitions
 
@@ -74,20 +88,58 @@ To allow an approval request, pass `--response-json '{"kind":"confirm","accepted
 | `delegations-list` | `hive delegations-list [--parent <session>] [--worker <session>] [--state <state>]...` | Lists delegations, newest first. |
 | `delegations-read` | `hive delegations-read <delegation-id> [--limit <n>] [--cursor <cursor>]` | Pages through one delegation's history. |
 | `delegations-conflicts` | `hive delegations-conflicts [--delegation <id>] [--kind live-overlap\|merge-overlap] [--status <status>]` | Lists overlaps between workers' claims. `--status` is `unacknowledged`, `acknowledged` or `resolved`. |
-| `delegation-submit` | `hive delegation-submit <worker> <delegation-id> <summary> [--evidence-json <json>]...` | A worker submits its result as a new revision. |
+| `delegation-submit` | `hive delegation-submit <worker> <delegation-id> <summary> [<evidence>]` | A worker submits its result as a new revision. |
 | `delegation-state` | `hive delegation-state <worker> <delegation-id> working\|waiting\|needs_attention <reason>` | A worker sets its own state, with a reason. |
-| `delegation-claim` | `hive delegation-claim <worker> <delegation-id> <reason> [--claim-json <json>]...` | A worker records the files or areas it plans to change. Claims lock nothing. |
-| `delegation-propose-amendment` | `hive delegation-propose-amendment <worker> <delegation-id> <base-revision> <reason> --specification-json <json>` | A worker proposes a change to its task. |
-| `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> --specification-json <json> [--proposal <proposal-id>]` | Changes the task, or accepts a proposed change. |
+| `delegation-claim` | `hive delegation-claim <worker> <delegation-id> <reason> [<claims>]` | A worker records the files or areas it plans to change. Claims lock nothing. |
+| `delegation-propose-amendment` | `hive delegation-propose-amendment <worker> <delegation-id> <base-revision> <reason> <changes>` | A worker proposes a change to its task. |
+| `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> [<changes>] [--proposal <proposal-id>]` | Changes the task, or accepts a proposed change. |
 | `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. |
 | `delegation-accept` | `hive delegation-accept <parent> <delegation-id> <revision> [note]` | Accepts one submitted revision. |
-| `delegation-verify` | `hive delegation-verify <parent> <delegation-id> <revision> passed\|failed\|inconclusive <summary>` | Records a check of a submitted revision. |
+| `delegation-verify` | `hive delegation-verify <parent> <delegation-id> <revision> passed\|failed\|inconclusive <summary> [<evidence>]` | Records a check of a submitted revision. |
 | `delegation-reopen` | `hive delegation-reopen <parent> <delegation-id> <reason>` | Reopens an accepted delegation. |
 | `delegation-cancel` | `hive delegation-cancel <parent> <delegation-id> <reason>` | Cancels an open delegation. |
 | `delegation-dependency` | `hive delegation-dependency <parent> <delegation-id> add\|remove <dependency-id> ready_for_review\|accepted <reason>` | Makes a delegation wait for another to reach a state, or stops it waiting. |
 | `delegation-conflict-acknowledge` | `hive delegation-conflict-acknowledge <parent> <delegation-id> <conflict-id> <reason>` | Marks a conflict between claims as seen. |
 | `agent-definitions-list` | `hive agent-definitions-list [--project <path>]` | Lists the project's enabled agent definitions. |
 | `agent-definitions-search` | `hive agent-definitions-search <query> [--project <path>]` | Searches them by name and description. |
+
+#### Evidence, claims and task changes
+
+`<evidence>` on `delegation-submit` and `delegation-verify` is any number of these options, each repeatable:
+
+| Option | Evidence |
+| --- | --- |
+| `--evidence-command <summary>` | A command that ran, and what it showed |
+| `--evidence-diff <summary>` | A change in the workspace |
+| `--evidence-note <summary>` | Something the agent states |
+| `--evidence-artifact <path-or-url>` | A file or link |
+| `--evidence-source <reference>` | A place in the source, such as `src/main/a.ts:12` |
+
+For an artifact or a source, the value is both the reference and the summary.
+
+`<claims>` on `delegation-claim` is any number of these options, each repeatable. Each `delegation-claim` replaces the worker's earlier claims, so one with no claim options clears them.
+
+| Option | Claims |
+| --- | --- |
+| `--read <path>`, `--write <path>` | One file in the workspace |
+| `--read-tree <dir>`, `--write-tree <dir>` | A folder and everything in it |
+| `--read-resource <scope>:<namespace>/<name>`, `--write-resource ...` | A named resource, such as `project:ports/5173` |
+
+`<scope>` is `project` or `repository`.
+
+`<changes>` on `delegation-propose-amendment` and `delegation-amend` uses the options `spawn` uses for a worker's task. A field you leave out keeps its current value, so pass only what changes:
+
+| Option | Changes |
+| --- | --- |
+| `--objective <text>` | The task |
+| `--deliverable <text>`... | The deliverables |
+| `--accept <criterion>`... | The acceptance criteria |
+| `--resource <reference>`... | The resource references |
+| `--depends-on <delegation-id>[:accepted]`... | The delegations it waits for |
+| `--handoff <text>` | The handoff context |
+| `--no-deliverables`, `--no-acceptance-criteria`, `--no-resources`, `--no-dependencies`, `--no-handoff` | Empties that field |
+
+A dependency waits for `ready_for_review` unless you add `:accepted`. A list option replaces the whole list, so repeat it for every item you want to keep. These commands read the delegation first, so the profile you use also needs `delegations:read`. With `--proposal`, `delegation-amend` starts from the proposed task instead of the current one, so `--proposal <proposal-id>` alone applies the proposal as proposed. `delegation-propose-amendment` needs at least one change.
 
 ### Export
 
@@ -111,7 +163,7 @@ To allow an approval request, pass `--response-json '{"kind":"confirm","accepted
 | `profiles rotate` | `access profiles rotate <name> --credential-store` | Gives a profile a new credential. |
 | `profiles revoke` | `access profiles revoke <name>` | Revokes a profile. |
 
-`<scope>` is `--all`, or one or more of `--project <path>`, `--session <session>` and `--hive <root-session>`. `--authorization ask-for-approval|yolo` sets the profile's access limit. `--credential-file <path>` writes the credential to a file instead of the credential store, and `--replace` overwrites an existing credential at the destination.
+`<scope>` is `--all`, or one or more of `--project <path>`, `--session <session>` and `--hive <root-session>`. `--authorization ask-for-approval|yolo` sets the profile's access limit, `ask-for-approval` by default. A profile that gets `access:profiles` can also take the `--manage-*` options described in [Profiles that manage other profiles](#profiles-that-manage-other-profiles). `--credential-file <path>` writes the credential to a file instead of the credential store, and `--replace` overwrites an existing credential at the destination.
 
 Run `openwaggle hive help`, `openwaggle access profiles help` or `openwaggle agents help` for every operation and flag.
 
@@ -211,7 +263,7 @@ Full-transcript search covers visible user and assistant text, attachment names,
 
 ## Messages and runs
 
-Give message input with exactly one of `--text`, `--stdin`, `--input-file` or `--request-json`. Attach files with `--attach`, repeated for each file. `create`, `launch`, `fork` and `spawn` accept `--title`. `create`, `launch` and `spawn` accept `--agent`, `--model` and `--thinking`. `--thinking` sets the new session's starting thinking level. `launch` and `spawn` also accept `--yolo` when your access limit allows it. Workspace choices depend on the command, and `hive help` lists them. `spawn` takes `share-parent` for the parent's checkout (the default, unless the agent definition sets `workspace`), `local`, or `new-worktree` for a checkout of its own.
+Give message input with exactly one of `--text`, `--stdin`, `--input-file` or `--request-file <path>`. `--request-file` reads the complete typed request from a JSON file, or from stdin with `--request-file -`. Attach files with `--attach`, repeated for each file. `create`, `launch`, `fork` and `spawn` accept `--title`. `create`, `launch` and `spawn` accept `--agent`, `--model` and `--thinking`. `--thinking` sets the new session's starting thinking level. `launch` and `spawn` also accept `--yolo` when your access limit allows it. Workspace choices depend on the command, and `hive help` lists them. `spawn` takes `share-parent` for the parent's checkout (the default, unless the agent definition sets `workspace`), `local`, or `new-worktree` for a checkout of its own.
 
 The thinking level is a session setting, like its model. `message` and `start` accept `--thinking` only when the session is idle and the command starts a run. The level then stays the session's thinking level for that run and later ones, but it never changes the desktop default for new sessions. In the same way, `message` and `start` accept `--authorization` or `--yolo` only when they start a run on an idle session. That override applies to the one run, stays within your access limit, and is never saved as the session's mode. An `--authorization ask-for-approval` override also applies to the runs OpenWaggle starts after it for worker updates, as the [Hive reference](/docs/reference/hive#when-a-worker-reports-to-an-idle-parent) describes. While a run is active, the Session Host refuses a `message` that would be queued with `thinking_level_requires_idle_session` or `run_authorization_override_requires_idle_session`. `follow-up`, `steer` and `replace` never accept these options, so a queued follow-up always runs with the session's settings when it starts.
 
@@ -326,6 +378,38 @@ A named profile does not contain a process that can also run the CLI as the same
 OpenWaggle stores the generated credential apart from the profile's policy. Profiles sign in, have a scope, can be revoked, and never quietly take on a broader `YOLO` preference. `access` commands use the [error kinds and exit codes](#error-kinds-and-exit-codes) above. With `--json`, a result is `{"schemaVersion":1,"type":"response","command":"access profiles list","result":...}` on stdout, and a failure is `{"schemaVersion":1,"type":"error","error":{"kind":"...","message":"..."}}` on stderr. Without `--json`, they print readable lines. When the Session Host refuses a profile change, the response still goes to stdout and the command exits with the matching nonzero code, as refused session commands do.
 
 `access profiles list` leaves out revoked profiles. Add `--include-revoked` to show them. A revoked profile keeps its record, for its audit history, and its name. Revoking a profile also removes, on this machine, its credential-store copy, its installation receipts, and the markers of its used staged credentials. A staged `.pending` credential stays, as a recovery file. When `create` or `rotate` writes the credential to `--credential-file`, the command removes an older credential-store copy, so `--profile` does not keep using an old credential. A profile with no stored credential fails with `No stored credential for access profile "<name>"`, and a credential the Session Host refuses names the profile and suggests rotating it.
+
+### Profiles that manage other profiles
+
+A profile with the `access:profiles` capability can create and update other restricted profiles, but only inside its Profile-management envelope. The envelope is the most capabilities, scope and access limit it may hand out. Only the desktop user, signed in without a named profile, can create such a profile. Set the envelope with these options on `access profiles create` or `update`:
+
+| Option | What it sets |
+| --- | --- |
+| `--manage-capability <capability>`... | Capabilities it may grant, at least one |
+| `--manage-all` | Every target |
+| `--manage-project <path>`... | Projects it may grant, resolved from the current folder |
+| `--manage-session <session>`... | Sessions it may grant, by ID or session link |
+| `--manage-hive <root-session>`... | Hives it may grant, by their Queen's ID or link |
+| `--manage-export-root <path>`... | Export folders it may grant |
+| `--manage-attachment-root <path>`... | Attachment folders it may grant |
+| `--manage-authorization ask-for-approval\|yolo` | The highest access limit it may grant, `ask-for-approval` by default |
+
+The envelope needs `--manage-all`, or one or more of `--manage-project`, `--manage-session` and `--manage-hive`. The `--manage-*` options fail as a usage error on a profile that does not also get `--capability access:profiles`. `update` replaces the whole policy, so an `update` without them removes the profile's envelope.
+
+When the managing profile creates or updates a profile, the Session Host checks the new policy against the envelope. Every capability must be in `--manage-capability`. Every project, session and Hive must be in the matching `--manage-*` list, unless the envelope has `--manage-all`. An envelope with only projects does not cover a session inside one of them. Export and attachment folders must each be listed, even with `--manage-all`. A `yolo` access limit needs `--manage-authorization yolo`.
+
+The Session Host refuses the change with one of these codes:
+
+| Code | Why |
+| --- | --- |
+| `missing_access_profiles` | The caller's profile does not have `access:profiles`. |
+| `management_envelope_missing` | The caller's profile has `access:profiles` but no envelope. |
+| `management_envelope_exceeded` | The new policy asks for more than the envelope allows. |
+| `cannot_edit_own_policy` | The caller tried to change its own profile. |
+| `profile_redelegation_requires_local_user` | The new profile would get `access:profiles` or an envelope of its own. Only the desktop user can create a profile that manages others. |
+| `profile_credential_control_requires_local_user` | The caller tried to rotate or revoke another profile. A profile rotates or revokes only its own credential. |
+
+A managing profile can also list profiles.
 
 ### Recover a lost credential
 

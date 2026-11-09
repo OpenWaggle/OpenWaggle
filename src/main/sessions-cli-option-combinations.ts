@@ -9,7 +9,7 @@ export function validateSessionsCliCombinations(command: string, arguments_: Par
   validateCredentialSource(arguments_)
   validateWorkspaceOptions(arguments_)
   validateReadOptions(command, arguments_)
-  validateRequestJson(command, arguments_)
+  validateRequestFile(command, arguments_)
 }
 
 function validateCatalogScope(arguments_: ParsedArguments) {
@@ -29,10 +29,12 @@ function validateCredentialSource(arguments_: ParsedArguments) {
   }
   if (
     arguments_.options.has('credential-stdin') &&
-    (arguments_.options.has('stdin') || arguments_.options.get('request-json')?.at(-1) === '-')
+    (arguments_.options.has('stdin') ||
+      arguments_.options.get('request-file')?.at(-1) === '-' ||
+      arguments_.options.get('value-file')?.at(-1) === '-')
   ) {
     throw new CommandCliUsageError(
-      '--credential-stdin cannot share stdin with --stdin or --request-json -.',
+      '--credential-stdin cannot share stdin with --stdin, --request-file - or --value-file -.',
     )
   }
 }
@@ -62,15 +64,15 @@ function validateReadOptions(command: string, arguments_: ParsedArguments) {
   }
 }
 
-function validateRequestJson(command: string, arguments_: ParsedArguments) {
-  if (!arguments_.options.has('request-json')) return
+function validateRequestFile(command: string, arguments_: ParsedArguments) {
+  if (!arguments_.options.has('request-file')) return
   const payloadOptions = [...arguments_.options.keys()].filter(
     (name) =>
-      name !== 'request-json' && !CLIENT_OPTION_NAMES.has(name) && !OUTPUT_OPTION_NAMES.has(name),
+      name !== 'request-file' && !CLIENT_OPTION_NAMES.has(name) && !OUTPUT_OPTION_NAMES.has(name),
   )
   if (payloadOptions.length > 0) {
     throw new CommandCliUsageError(
-      `--request-json contains the complete ${command} request and cannot be combined with ${payloadOptions
+      `--request-file contains the complete ${command} request and cannot be combined with ${payloadOptions
         .sort()
         .map((name) => `--${name}`)
         .join(', ')}.`,

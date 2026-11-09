@@ -44,7 +44,8 @@ const ACTIONS: Readonly<Record<string, CommandCliArgumentContract>> = {
   'queue-resume': { minimum: 1, maximum: 1 },
   'requests-list': { minimum: 1, maximum: 1 },
   'request-respond': { minimum: 3, maximum: 3 },
-  'approval-respond': { minimum: 3, maximum: 3 },
+  // The CLI also takes allow|deny; an MCP caller passes its answer as structured input.
+  'approval-respond': { minimum: 3, maximum: 4 },
   'delegation-submit': { minimum: 3 },
   'delegation-state': { minimum: 4 },
   'delegation-claim': { minimum: 3 },

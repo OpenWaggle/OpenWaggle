@@ -177,7 +177,7 @@ describe('Hive CLI explicit message input', () => {
     }
     const resolved = await resolveSessionsCliMessageInput(
       'message',
-      argumentsFor(['session-1', '--request-json', '/tmp/request.json']),
+      argumentsFor(['session-1', '--request-file', '/tmp/request.json']),
       { readFile: async () => JSON.stringify(request) },
     )
     expect(resolved.payload).toEqual(request)
@@ -185,7 +185,7 @@ describe('Hive CLI explicit message input', () => {
     await expect(
       resolveSessionsCliMessageInput(
         'steer',
-        argumentsFor(['session-1', '--request-json', '/tmp/request.json']),
+        argumentsFor(['session-1', '--request-file', '/tmp/request.json']),
         { readFile: async () => JSON.stringify(request) },
       ),
     ).rejects.toThrow('operation must be steer')
@@ -196,7 +196,7 @@ describe('Hive CLI explicit message input', () => {
     async ({ command, positionalTarget, request }) => {
       const resolved = await resolveSessionsCliMessageInput(
         command,
-        argumentsFor([positionalTarget, '--request-json', '/tmp/request.json']),
+        argumentsFor([positionalTarget, '--request-file', '/tmp/request.json']),
         {
           readFile: async () => JSON.stringify(request),
           workingDirectory: '/workspace/project',
@@ -220,7 +220,7 @@ describe('Hive CLI explicit message input', () => {
       await expect(
         resolveSessionsCliMessageInput(
           command,
-          argumentsFor(['different-target', '--request-json', '/tmp/request.json']),
+          argumentsFor(['different-target', '--request-file', '/tmp/request.json']),
           {
             readFile: async () => JSON.stringify(request),
             workingDirectory: '/workspace/project',
@@ -235,7 +235,7 @@ describe('Hive CLI explicit message input', () => {
     await expect(
       resolveSessionsCliMessageInput(
         'report',
-        argumentsFor(['session-destination', '--request-json', '/tmp/request.json']),
+        argumentsFor(['session-destination', '--request-file', '/tmp/request.json']),
         { readFile: async () => JSON.stringify(reportCase?.request) },
       ),
     ).rejects.toThrow('target must be the same as the positional')

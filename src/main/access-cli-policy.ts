@@ -1,4 +1,3 @@
-import { decodeLocalSessionProfileManagementEnvelope } from '@shared/schemas/local-session-profile'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
@@ -12,25 +11,61 @@ import { CommandCliUsageError } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { hasFlag, option } from './mcp-cli-arguments'
 
+/**
+ * The options that set a Profile-management envelope: what a profile holding `access:profiles`
+ * may hand to the profiles it creates or updates.
+ */
+export const MANAGEMENT_ENVELOPE_OPTIONS = [
+  'manage-capability',
+  'manage-all',
+  'manage-project',
+  'manage-session',
+  'manage-hive',
+  'manage-export-root',
+  'manage-attachment-root',
+  'manage-authorization',
+] as const
+
+const MANAGEMENT_TARGET_OPTIONS = [
+  'manage-all',
+  'manage-project',
+  'manage-session',
+  'manage-hive',
+] as const
+
 export function parseProfileCapabilities(
   values: readonly string[] | undefined,
+  label = 'capability',
 ): readonly SessionCapability[] {
   const requested = values ?? []
   const invalid = requested.filter(
     (value) => !SESSION_CAPABILITIES.some((capability) => capability === value),
   )
-  if (invalid.length > 0)
-    throw new CommandCliUsageError(`Unknown capability: ${invalid.join(', ')}.`)
+  if (invalid.length > 0) throw new CommandCliUsageError(`Unknown ${label}: ${invalid.join(', ')}.`)
   return SESSION_CAPABILITIES.filter((capability) => requested.includes(capability))
 }
 
-/** `--session` and `--hive` take Session identities or Session links (ADR 0056). */
-function sessionScopes(arguments_: ParsedArguments) {
-  const sessions = arguments_.options.get('session')
-  const hives = arguments_.options.get('hive')
+/**
+ * The scope the options with this prefix name: `--project`, or `--manage-project` for an
+ * envelope. Paths resolve against the working directory, and `--session` and `--hive` take
+ * Session identities or Session links (ADR 0056).
+ */
+function scopeFromOptions(
+  arguments_: ParsedArguments,
+  prefix: '' | 'manage-',
+  workingDirectory: string,
+): LocalSessionProfileScope {
+  const values = (name: string) => arguments_.options.get(`${prefix}${name}`)
+  const paths = (name: string) => resolveCliProjectPaths(values(name), workingDirectory)
+  const sessions = values('session')
+  const hives = values('hive')
   return {
-    ...(sessions ? { sessionIds: sessionIdsFromReferences(sessions, '--session') } : {}),
-    ...(hives ? { hiveRootSessionIds: sessionIdsFromReferences(hives, '--hive') } : {}),
+    ...(hasFlag(arguments_, `${prefix}all`) ? { all: true } : {}),
+    ...(values('project') ? { projectPaths: paths('project') } : {}),
+    ...(values('export-root') ? { exportRoots: paths('export-root') } : {}),
+    ...(values('attachment-root') ? { attachmentRoots: paths('attachment-root') } : {}),
+    ...(sessions ? { sessionIds: sessionIdsFromReferences(sessions, `--${prefix}session`) } : {}),
+    ...(hives ? { hiveRootSessionIds: sessionIdsFromReferences(hives, `--${prefix}hive`) } : {}),
   }
 }
 
@@ -38,31 +73,7 @@ export function parseProfileScope(
   arguments_: ParsedArguments,
   workingDirectory = process.cwd(),
 ): LocalSessionProfileScope {
-  const selected = {
-    ...(hasFlag(arguments_, 'all') ? { all: true } : {}),
-    ...(arguments_.options.get('project')
-      ? {
-          projectPaths: resolveCliProjectPaths(arguments_.options.get('project'), workingDirectory),
-        }
-      : {}),
-    ...(arguments_.options.get('export-root')
-      ? {
-          exportRoots: resolveCliProjectPaths(
-            arguments_.options.get('export-root'),
-            workingDirectory,
-          ),
-        }
-      : {}),
-    ...(arguments_.options.get('attachment-root')
-      ? {
-          attachmentRoots: resolveCliProjectPaths(
-            arguments_.options.get('attachment-root'),
-            workingDirectory,
-          ),
-        }
-      : {}),
-    ...sessionScopes(arguments_),
-  }
+  const selected = scopeFromOptions(arguments_, '', workingDirectory)
   if (
     !selected.all &&
     !selected.projectPaths?.length &&
@@ -74,52 +85,65 @@ export function parseProfileScope(
   return selected
 }
 
-export function parseProfileAuthorization(arguments_: ParsedArguments): AgentAuthorizationMode {
-  const value = option(arguments_, 'authorization') ?? 'ask-for-approval'
+function authorizationMode(arguments_: ParsedArguments, name: string): AgentAuthorizationMode {
+  const value = option(arguments_, name) ?? 'ask-for-approval'
   if (!isAgentAuthorizationMode(value)) {
-    throw new CommandCliUsageError('--authorization must be ask-for-approval or yolo.')
+    throw new CommandCliUsageError(`--${name} must be ask-for-approval or yolo.`)
   }
   return value
 }
 
-function managementScope(
-  value: LocalSessionProfileScope,
-  workingDirectory: string,
-): LocalSessionProfileScope {
-  return {
-    ...(value.all === undefined ? {} : { all: value.all }),
-    ...(value.projectPaths
-      ? { projectPaths: resolveCliProjectPaths(value.projectPaths, workingDirectory) }
-      : {}),
-    ...(value.exportRoots
-      ? { exportRoots: resolveCliProjectPaths(value.exportRoots, workingDirectory) }
-      : {}),
-    ...(value.attachmentRoots
-      ? { attachmentRoots: resolveCliProjectPaths(value.attachmentRoots, workingDirectory) }
-      : {}),
-    ...(value.sessionIds ? { sessionIds: value.sessionIds } : {}),
-    ...(value.hiveRootSessionIds ? { hiveRootSessionIds: value.hiveRootSessionIds } : {}),
-  }
+export function parseProfileAuthorization(arguments_: ParsedArguments): AgentAuthorizationMode {
+  return authorizationMode(arguments_, 'authorization')
 }
 
+/**
+ * The Profile-management envelope the `--manage-*` options describe, or none when no such option
+ * is given. It needs at least one `--manage-capability`, and `--manage-all` alone or any mix of
+ * `--manage-project`, `--manage-session` and `--manage-hive`, like the ordinary scope options.
+ */
 export function parseManagementEnvelope(
   arguments_: ParsedArguments,
   workingDirectory = process.cwd(),
 ): LocalSessionProfileManagementEnvelope | undefined {
-  const value = option(arguments_, 'management-envelope-json')
-  if (!value) return undefined
-  const parsed = decodeLocalSessionProfileManagementEnvelope(JSON.parse(value))
+  if (!MANAGEMENT_ENVELOPE_OPTIONS.some((name) => arguments_.options.has(name))) return undefined
+  const capabilities = parseProfileCapabilities(
+    arguments_.options.get('manage-capability'),
+    '--manage-capability',
+  )
+  if (capabilities.length === 0) {
+    throw new CommandCliUsageError(
+      'A Profile-management envelope needs at least one --manage-capability.',
+    )
+  }
+  const targets = MANAGEMENT_TARGET_OPTIONS.filter((name) => arguments_.options.has(name))
+  if (targets.length === 0) {
+    throw new CommandCliUsageError(
+      'A Profile-management envelope needs --manage-all, or one or more of --manage-project, --manage-session and --manage-hive.',
+    )
+  }
+  if (targets.includes('manage-all') && targets.length > 1) {
+    throw new CommandCliUsageError(
+      '--manage-all already covers every target; leave out --manage-project, --manage-session and --manage-hive.',
+    )
+  }
   return {
-    capabilities: parsed.capabilities,
-    scope: managementScope(parsed.scope, workingDirectory),
-    authorizationCeiling: parsed.authorizationCeiling,
+    capabilities,
+    scope: scopeFromOptions(arguments_, 'manage-', workingDirectory),
+    authorizationCeiling: authorizationMode(arguments_, 'manage-authorization'),
   }
 }
 
 export function parseProfilePolicy(arguments_: ParsedArguments, workingDirectory = process.cwd()) {
   const managementEnvelope = parseManagementEnvelope(arguments_, workingDirectory)
+  const capabilities = parseProfileCapabilities(arguments_.options.get('capability'))
+  if (managementEnvelope && !capabilities.includes('access:profiles')) {
+    throw new CommandCliUsageError(
+      'The --manage-* options apply only to a profile with --capability access:profiles.',
+    )
+  }
   return {
-    capabilities: parseProfileCapabilities(arguments_.options.get('capability')),
+    capabilities,
     scope: parseProfileScope(arguments_, workingDirectory),
     authorizationCeiling: parseProfileAuthorization(arguments_),
     ...(managementEnvelope ? { managementEnvelope } : {}),

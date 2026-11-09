@@ -63,7 +63,7 @@ export interface ResolvedSessionsCliInput {
   readonly payload?: LocalSessionCommandPayload
 }
 
-function readStdin(): Promise<string> {
+export function readCliStdin(): Promise<string> {
   process.stdin.setEncoding('utf8')
   return new Promise((resolve, reject) => {
     let text = ''
@@ -179,11 +179,11 @@ function assertRequestMatchesCommand(input: {
   const binding = requestTargetBinding(payload, input.workingDirectory)
   if (!binding) {
     throw new Error(
-      `--request-json contract must be ${expectedRequestContract(command)} for ${command}.`,
+      `--request-file contract must be ${expectedRequestContract(command)} for ${command}.`,
     )
   }
   if (binding.operation !== command) {
-    throw new Error(`--request-json operation must be ${command}.`)
+    throw new Error(`--request-file operation must be ${command}.`)
   }
   const positionalTarget = input.arguments.positionals[0] ?? ''
   const resolvedPositionalTarget =
@@ -191,7 +191,7 @@ function assertRequestMatchesCommand(input: {
       ? resolveCliProjectPath(positionalTarget, input.workingDirectory)
       : sessionIdFromReference(positionalTarget, 'Session ID')
   if (binding.target !== resolvedPositionalTarget) {
-    throw new Error(`--request-json target must be the same as the positional ${command} target.`)
+    throw new Error(`--request-file target must be the same as the positional ${command} target.`)
   }
   return binding.payload
 }
@@ -201,7 +201,7 @@ function inputSources(arguments_: ParsedArguments) {
     option(arguments_, 'text') === undefined ? null : 'text',
     hasFlag(arguments_, 'stdin') ? 'stdin' : null,
     option(arguments_, 'input-file') === undefined ? null : 'input-file',
-    option(arguments_, 'request-json') === undefined ? null : 'request-json',
+    option(arguments_, 'request-file') === undefined ? null : 'request-file',
   ].filter((source): source is string => source !== null)
 }
 
@@ -212,7 +212,7 @@ async function resolveRequestPayload(input: {
   readonly consumeFile: (filePath: string) => Promise<string>
   readonly workingDirectory: string
 }) {
-  const requestPath = option(input.arguments, 'request-json') ?? ''
+  const requestPath = option(input.arguments, 'request-file') ?? ''
   const json =
     requestPath === '-' ? await input.consumeStdin() : await input.consumeFile(requestPath)
   let value: unknown
@@ -251,22 +251,24 @@ export async function resolveSessionsCliMessageInput(
   } = {},
 ): Promise<ResolvedSessionsCliInput> {
   const sources = inputSources(arguments_)
+  // request-respond takes --text, --stdin and --input-file as an answer, read with the request.
+  if (command === 'request-respond') return { arguments: arguments_ }
   if (!MESSAGE_INPUT_COMMANDS.has(command)) {
     if (sources.length > 0) throw new Error(`${command} does not accept message input.`)
     return { arguments: arguments_ }
   }
   if (sources.length !== 1) {
     throw new Error(
-      'Exactly one message input is required: --text, --stdin, --input-file, or --request-json.',
+      'Exactly one message input is required: --text, --stdin, --input-file, or --request-file.',
     )
   }
   if (arguments_.positionals.length !== 1) {
     throw new Error(`${command} accepts one target positional; provide message content explicitly.`)
   }
   const source = sources[0]
-  const consumeStdin = dependencies.readStdin ?? readStdin
+  const consumeStdin = dependencies.readStdin ?? readCliStdin
   const consumeFile = dependencies.readFile ?? readUtf8File
-  if (source === 'request-json') {
+  if (source === 'request-file') {
     const payload = await resolveRequestPayload({
       command,
       arguments: arguments_,

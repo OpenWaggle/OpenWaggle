@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
+import type { SessionsCliStructuredInput } from '../sessions-cli-delegation-input'
 import { buildSessionsCliPayload } from '../sessions-cli-payload'
 
-function payload(args: readonly string[]) {
+function payload(args: readonly string[], structured: SessionsCliStructuredInput = {}) {
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
   if (!command) throw new Error('Missing command.')
   return buildSessionsCliPayload(
     command,
     { ...parsed, positionals: parsed.positionals.slice(1) },
-    { workingDirectory: '/repo/worktree' },
+    { workingDirectory: '/repo/worktree', structured },
   )
 }
 
@@ -41,8 +42,16 @@ describe('Hive CLI Delegation mutation payloads', () => {
         'Fresh',
         'tests',
         'passed',
-        '--evidence-json',
-        '{"kind":"observed-command","summary":"pnpm test passed"}',
+        '--evidence-command',
+        'pnpm test passed',
+        '--evidence-diff',
+        'Two files changed',
+        '--evidence-note',
+        'Checked by hand',
+        '--evidence-artifact',
+        'https://ci.example.test/run/1',
+        '--evidence-source',
+        'src/main/a.ts:12',
       ]),
     ).toMatchObject({
       request: {
@@ -53,7 +62,21 @@ describe('Hive CLI Delegation mutation payloads', () => {
           submissionRevision: 2,
           outcome: 'passed',
           summary: 'Fresh tests passed',
-          evidence: [{ kind: 'observed-command', summary: 'pnpm test passed' }],
+          evidence: [
+            { kind: 'observed-command', summary: 'pnpm test passed' },
+            { kind: 'workspace-diff', summary: 'Two files changed' },
+            { kind: 'asserted-note', summary: 'Checked by hand' },
+            {
+              kind: 'artifact',
+              summary: 'https://ci.example.test/run/1',
+              reference: 'https://ci.example.test/run/1',
+            },
+            {
+              kind: 'source-reference',
+              summary: 'src/main/a.ts:12',
+              reference: 'src/main/a.ts:12',
+            },
+          ],
         },
       },
     })
@@ -75,7 +98,7 @@ describe('Hive CLI Delegation mutation payloads', () => {
     })
   })
 
-  it('records exact Worker scope claims through structured JSON', () => {
+  it('records exact Worker scope claims from the claim options', () => {
     expect(
       payload([
         'delegation-claim',
@@ -84,8 +107,18 @@ describe('Hive CLI Delegation mutation payloads', () => {
         'Editing',
         'the',
         'renderer',
-        '--claim-json',
-        '{"access":"write","target":{"type":"workspace-tree","path":"src/renderer"}}',
+        '--write-tree',
+        'src/renderer',
+        '--read',
+        'package.json',
+        '--write',
+        'src/main/a.ts',
+        '--read-tree',
+        'docs',
+        '--read-resource',
+        'project:ports/5173',
+        '--write-resource',
+        'repository:branches/feat/x',
       ]),
     ).toMatchObject({
       request: {
@@ -95,9 +128,27 @@ describe('Hive CLI Delegation mutation payloads', () => {
           delegationId: 'delegation-1',
           reason: 'Editing the renderer',
           claims: [
+            { access: 'read', target: { type: 'workspace-file', path: 'package.json' } },
+            { access: 'write', target: { type: 'workspace-file', path: 'src/main/a.ts' } },
+            { access: 'read', target: { type: 'workspace-tree', path: 'docs' } },
+            { access: 'write', target: { type: 'workspace-tree', path: 'src/renderer' } },
+            {
+              access: 'read',
+              target: {
+                type: 'named-resource',
+                scope: 'project',
+                namespace: 'ports',
+                name: '5173',
+              },
+            },
             {
               access: 'write',
-              target: { type: 'workspace-tree', path: 'src/renderer' },
+              target: {
+                type: 'named-resource',
+                scope: 'repository',
+                namespace: 'branches',
+                name: 'feat/x',
+              },
             },
           ],
         },
@@ -156,42 +207,41 @@ describe('Hive CLI Delegation mutation payloads', () => {
   })
 
   it('keeps Worker amendment proposals separate from parent application', () => {
-    const specification = JSON.stringify({
+    const specification = {
       objective: 'Document the verifier.',
       deliverables: ['Documentation'],
       acceptanceCriteria: ['Usage is documented'],
       dependencies: [],
       resourceReferences: [],
-    })
+    }
     expect(
-      payload([
-        'delegation-propose-amendment',
-        'worker',
-        'delegation-1',
-        '1',
-        'Add',
-        'documentation',
-        '--specification-json',
-        specification,
-      ]),
+      payload(
+        ['delegation-propose-amendment', 'worker', 'delegation-1', '1', 'Add', 'documentation'],
+        { specification },
+      ),
     ).toMatchObject({
       request: {
-        command: { operation: 'delegation-propose-amendment', reason: 'Add documentation' },
+        command: {
+          operation: 'delegation-propose-amendment',
+          reason: 'Add documentation',
+          specification,
+        },
       },
     })
     expect(
-      payload([
-        'delegation-amend',
-        'queen',
-        'delegation-1',
-        '1',
-        'Apply',
-        'proposal',
-        '--specification-json',
-        specification,
-        '--proposal',
-        'proposal-1',
-      ]),
+      payload(
+        [
+          'delegation-amend',
+          'queen',
+          'delegation-1',
+          '1',
+          'Apply',
+          'proposal',
+          '--proposal',
+          'proposal-1',
+        ],
+        { specification },
+      ),
     ).toMatchObject({
       request: {
         command: {
@@ -226,5 +276,34 @@ describe('Hive CLI Delegation mutation payloads', () => {
         },
       },
     })
+  })
+
+  it('refuses a malformed named-resource claim', () => {
+    expect(() =>
+      payload([
+        'delegation-claim',
+        'worker',
+        'delegation-1',
+        'Ports',
+        '--read-resource',
+        'ports/5173',
+      ]),
+    ).toThrow('--read-resource takes <project|repository>:<namespace>/<name>')
+    expect(() =>
+      payload([
+        'delegation-claim',
+        'worker',
+        'delegation-1',
+        'Ports',
+        '--write-resource',
+        'workspace:ports/5173',
+      ]),
+    ).toThrow('--write-resource takes')
+  })
+
+  it('requires the specification an amendment applies', () => {
+    expect(() =>
+      payload(['delegation-amend', 'queen', 'delegation-1', '1', 'Narrow', '--objective', 'x']),
+    ).toThrow('Delegation amendment requires a Delegation specification.')
   })
 })

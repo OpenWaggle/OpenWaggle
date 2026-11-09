@@ -1,3 +1,22 @@
+/** How the commands that once took inline JSON take their input as ordinary options. */
+const STRUCTURED_INPUT_NOTES = `Message input: exactly one of --text <text>, --stdin, --input-file <path>, --request-file <path|->
+Answer (request-respond reads the pending request, so it also needs sessions:read):
+  --choice <item> (select) | --text <text>, --stdin, --input-file <path> (input, editor) |
+  --confirm or --decline (confirm) | --acknowledge (notify) | --value-file <path|-> (custom,
+  one JSON value) | --dismiss (no answer; a confirm is declined). Approvals take approval-respond
+Evidence (delegation-submit, delegation-verify), each repeatable: --evidence-command <summary>
+  --evidence-diff <summary> --evidence-note <summary> --evidence-artifact <path-or-url>
+  --evidence-source <reference>
+Claims (delegation-claim), each repeatable: --read <path> --write <path> --read-tree <dir>
+  --write-tree <dir> --read-resource <project|repository>:<namespace>/<name> --write-resource <...>
+Specification changes (delegation-propose-amendment, delegation-amend): --objective <text>
+  --deliverable <text>... --accept <criterion>... --resource <reference>...
+  --depends-on <delegation-id>[:accepted]... (default ready_for_review) --handoff <text>;
+  --no-deliverables, --no-acceptance-criteria, --no-resources, --no-dependencies and
+  --no-handoff empty a field. A field left out keeps its current value, or the proposal's with
+  --proposal (which alone applies the proposed change). These commands read the Delegation first,
+  so they also need delegations:read`
+
 /**
  * `openwaggle hive` help. Every subcommand is the Hive tool action of the same name with `_`
  * written as `-` (ADR 0053), so `follow_up` is `hive follow-up` and `delegation_accept` is
@@ -43,24 +62,24 @@ Usage:
   openwaggle hive delegations-read <delegation-id> [--limit <n>] [--cursor <cursor>]
   openwaggle hive delegations-conflicts [--delegation <id>] [--kind live-overlap|merge-overlap]
     [--status unacknowledged|acknowledged|resolved]
-  openwaggle hive delegation-submit <worker-id> <delegation-id> <summary> [--evidence-json <json>]...
+  openwaggle hive delegation-submit <worker-id> <delegation-id> <summary> [evidence]
   openwaggle hive delegation-state <worker-id> <delegation-id>
     working|waiting|needs_attention <reason>
-  openwaggle hive delegation-claim <worker-id> <delegation-id> <reason> [--claim-json <json>]...
+  openwaggle hive delegation-claim <worker-id> <delegation-id> <reason> [claims]
   openwaggle hive delegation-conflict-acknowledge <parent-id> <delegation-id>
     <conflict-id> <reason>
   openwaggle hive delegation-dependency <parent-id> <delegation-id> add|remove
     <dependency-id> ready_for_review|accepted <reason>
   openwaggle hive delegation-propose-amendment <worker-id> <delegation-id>
-    <base-revision> <reason> --specification-json <json>
+    <base-revision> <reason> [specification changes]
   openwaggle hive delegation-amend <parent-id> <delegation-id> <expected-revision>
-    <reason> --specification-json <json> [--proposal <proposal-id>]
+    <reason> [specification changes] [--proposal <proposal-id>]
   openwaggle hive delegation-request-revision <parent-id> <delegation-id> <revision>
     <feedback> [--revised-objective <text> --deliverable <text>... --accept <criterion>...
     --resource <reference>...]
   openwaggle hive delegation-accept <parent-id> <delegation-id> <revision> [note]
   openwaggle hive delegation-verify <parent-id> <delegation-id> <revision>
-    passed|failed|inconclusive <summary> [--evidence-json <json>]...
+    passed|failed|inconclusive <summary> [evidence]
   openwaggle hive delegation-reopen|delegation-cancel <parent-id> <delegation-id> <reason>
   openwaggle hive queue-list <session-id> [--include-bodies]
   openwaggle hive queue-withdraw <session-id> <follow-up-id>...
@@ -91,8 +110,8 @@ Usage:
   openwaggle hive exports-watch <session-id> [export-operation-id]
     [--after-host <id> --after-sequence <n>]
   openwaggle hive requests-list <session-id>
-  openwaggle hive request-respond <session-id> <run-id> <interaction-id> --response-json <json>
-  openwaggle hive approval-respond <session-id> <run-id> <interaction-id> --response-json <json>
+  openwaggle hive request-respond <session-id> <run-id> <interaction-id> <answer>
+  openwaggle hive approval-respond <session-id> <run-id> <interaction-id> allow|deny [--for once|session|project]
   openwaggle hive authorization-set <session-id> inherit|ask-for-approval|yolo
   openwaggle hive agent-definitions-list [--project <path>] [--json]
   openwaggle hive agent-definitions-search <query> [--project <path>] [--json]
@@ -103,7 +122,7 @@ Usage:
 
 Session identities: every Session ID operand, --parent, --worker, and --target also accept a
   Session link (openwaggle://sessions/<session-id>), as the desktop app copies it
-Message input: exactly one of --text <text>, --stdin, --input-file <path>, --request-json <path|->
+${STRUCTURED_INPUT_NOTES}
 Output: human-readable by default; --json for one response; --jsonl for streams
 Authentication: --profile <name> [--credential-stdin|--profile-credential-file <path>]
 Mutation replay: --idempotency-key <key> on mutation commands

@@ -82,7 +82,7 @@ describe('Hive CLI structured failure exit status', () => {
       )
 
       await expect(
-        runSessionsCli(['message', 'session-positional', '--request-json', requestPath, '--json']),
+        runSessionsCli(['message', 'session-positional', '--request-file', requestPath, '--json']),
       ).resolves.toBe(2)
 
       expect(mocks.createClientInput).not.toHaveBeenCalled()
