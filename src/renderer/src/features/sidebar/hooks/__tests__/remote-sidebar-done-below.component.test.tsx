@@ -100,4 +100,21 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
     // `later` was loaded after the states were resolved, so its idle state is not trusted yet.
     expect([...hydrated.completed]).toEqual(['queen', 'seen', 'later'])
   })
+
+  it('forgets a hydrated id that left the pages once it starts a new Run', () => {
+    const hydrated = { completed: new Set(['rerun', 'resting']), error: new Set<string>() }
+    pruneHydratedTerminalIds(
+      hydrated,
+      new Map([
+        [SessionId('rerun'), 'working' as const],
+        [SessionId('resting'), 'error' as const],
+      ]),
+      new Map<string, SidebarRowState>([
+        ['rerun', 'working'],
+        ['resting', 'idle'],
+      ]),
+      new Set(),
+    )
+    expect([...hydrated.completed]).toEqual(['resting'])
+  })
 })

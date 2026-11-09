@@ -224,7 +224,7 @@ export class DesktopNotificationObserver {
     const { runId, sessionId } = payload
     if (!runId) return Effect.void
     if (!candidate || continuing || !this.claimRun(runId)) {
-      return this.readyToRead.settle(sessionId, occurredAt)
+      return this.readyToRead.settle(sessionId, occurredAt, runId)
     }
     const preview =
       (candidate.category === 'ready-to-read'
@@ -250,7 +250,7 @@ export class DesktopNotificationObserver {
         preview,
         occurredAt,
       }),
-    ).pipe(Effect.zipRight(this.readyToRead.settle(sessionId, occurredAt)))
+    ).pipe(Effect.zipRight(this.readyToRead.settle(sessionId, occurredAt, runId)))
   }
 
   /** A root Session's Run completed: Ready to read now, or once its Hive settles (ADR 0063). */
@@ -262,14 +262,17 @@ export class DesktopNotificationObserver {
       // A Worker's Run reaches its parent; it may still be the last Run its Hive waited for,
       // even when the Worker was archived while it ran.
       if (!session || session.parentSessionId !== null) {
-        return yield* this.readyToRead.settle(sessionId, occurredAt)
+        return yield* this.readyToRead.settle(sessionId, occurredAt, runId)
       }
       if (session.archived) return
       const run = yield* facts.run(sessionId, runId)
       if (!desktopNotificationOriginPermits(originOfRun(run), READY_TO_READ)) {
-        return yield* this.readyToRead.settleRoot(sessionId, occurredAt)
+        return yield* this.readyToRead.settleRoot(sessionId, occurredAt, runId)
       }
-      yield* this.readyToRead.completed(session, completed)
+      yield* this.readyToRead.completed(session, {
+        ...completed,
+        startedAt: run?.startedAt ?? null,
+      })
     })
   }
 

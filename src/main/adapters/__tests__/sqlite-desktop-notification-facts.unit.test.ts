@@ -124,11 +124,13 @@ describe('SqliteDesktopNotificationFactsLive', () => {
         originCallerId: 'gui:local-user',
         scheduledTaskPolicy: null,
         interruptedByCallerId: null,
+        startedAt: 1,
       },
       agent: {
         originCallerId: 'session-agent:queen:run-1',
         scheduledTaskPolicy: null,
         interruptedByCallerId: null,
+        startedAt: 1,
       },
       visit: 42,
       lost: [{ sessionId: 'root', runId: 'run-agent' }],
@@ -153,12 +155,22 @@ describe('SqliteDesktopNotificationFactsLive', () => {
             WHERE id = ${'run-wake'}
           `
         }),
-      (facts) => facts.run('root', 'run-wake'),
+      (facts) =>
+        Effect.all({
+          wake: facts.run('root', 'run-wake'),
+          latest: facts.latestRun('root'),
+          none: facts.latestRun('missing'),
+        }),
     )
     expect(result).toEqual({
-      originCallerId: 'session-agent:other:run-1',
-      scheduledTaskPolicy: null,
-      interruptedByCallerId: 'profile:mcp',
+      wake: {
+        originCallerId: 'session-agent:other:run-1',
+        scheduledTaskPolicy: null,
+        interruptedByCallerId: 'profile:mcp',
+        startedAt: 5100,
+      },
+      latest: { runId: 'run-wake', status: 'interrupted', hiveWake: true },
+      none: null,
     })
   })
 })

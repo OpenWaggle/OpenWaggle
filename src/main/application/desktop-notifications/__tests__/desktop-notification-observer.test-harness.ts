@@ -13,6 +13,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import type {
   DesktopNotificationFactsShape,
+  DesktopNotificationLatestRun,
   DesktopNotificationRunFacts,
   DesktopNotificationSessionFacts,
 } from '../../../ports/desktop-notification-facts'
@@ -23,7 +24,7 @@ import { HostStateDesktopNotifications } from '../host-state-desktop-notificatio
 export const PERSON = 'gui:local-user'
 export const AGENT = 'session-agent:queen:run-1'
 
-interface Fixture {
+export interface Fixture {
   sessions: Record<string, DesktopNotificationSessionFacts>
   runs: Record<string, DesktopNotificationRunFacts>
   visits: Record<string, number>
@@ -39,6 +40,8 @@ interface Fixture {
   wakeComing: Set<string>
   /** Root Runs the person started while Workers below were running. */
   midWorkRuns: Set<string>
+  /** Each Session's latest Run as stored, when a test needs one. */
+  latestRuns: Record<string, DesktopNotificationLatestRun>
 }
 
 export function session(
@@ -69,6 +72,7 @@ export function setup(overrides: Partial<Fixture> = {}) {
     running: new Set(),
     wakeComing: new Set(),
     midWorkRuns: new Set(),
+    latestRuns: {},
     ...overrides,
   }
   const published: SessionHostEventPayload[] = []
@@ -94,6 +98,7 @@ export function setup(overrides: Partial<Fixture> = {}) {
           runStartedWhileWorkersRan: runId !== null && fixture.midWorkRuns.has(runId),
         }
       }),
+    latestRun: (id) => Effect.succeed(fixture.latestRuns[id] ?? null),
     hostActiveRunCount: () => Effect.succeed(fixture.running.size),
     lastVisitedAt: (id) => Effect.succeed(fixture.visits[id] ?? null),
     stuckWorkerIds: () => Effect.succeed([...fixture.stuck]),

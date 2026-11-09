@@ -21,6 +21,15 @@ export interface DesktopNotificationRunFacts {
   readonly scheduledTaskPolicy: ScheduledTaskNotificationPolicy | null
   /** Who stopped the Run, when it was interrupted by a caller. */
   readonly interruptedByCallerId?: string | null
+  /** When the Run itself was created. */
+  readonly startedAt?: number | null
+}
+
+/** A Session's latest Run by creation, as the Host stored it. */
+export interface DesktopNotificationLatestRun {
+  readonly runId: string
+  readonly status: string
+  readonly hiveWake: boolean
 }
 
 /**
@@ -65,6 +74,10 @@ export interface DesktopNotificationFactsShape {
     rootSessionId: string,
     runId: string | null,
   ) => Effect.Effect<DesktopNotificationHiveActivity, Error>
+  /** The Session's latest Run, or null when it has none. */
+  readonly latestRun: (
+    sessionId: string,
+  ) => Effect.Effect<DesktopNotificationLatestRun | null, Error>
   /** How many Sessions hold an active Run, as the Host's Run limit counts them. */
   readonly hostActiveRunCount: () => Effect.Effect<number, Error>
   /** When the person last opened the Session, or null if never. */

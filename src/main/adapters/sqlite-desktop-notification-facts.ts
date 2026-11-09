@@ -1,7 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import { parseJsonUnknown } from '@shared/schema'
-import { SCHEDULED_TASK_NOTIFICATION_POLICIES } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
@@ -10,6 +9,7 @@ import {
   type DesktopNotificationFactsShape,
 } from '../ports/desktop-notification-facts'
 import { messageCallerBlockReason } from './session-follow-up-authorization'
+import { selectLatestRun, selectRunFacts } from './sqlite-desktop-notification-run-facts'
 import { parentWillActSql } from './sqlite-hive-next-actor-facts'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
@@ -21,13 +21,6 @@ interface SessionRow {
   readonly archived: number
   readonly parent_session_id: string | null
   readonly parent_title: string | null
-}
-
-interface RunRow {
-  readonly caller_id: string | null
-  readonly author_caller_id: string | null
-  readonly notification_policy: string | null
-  readonly interrupted_by_caller_id: string | null
 }
 
 interface HiveActivityRow {
@@ -148,10 +141,6 @@ function factsError(operation: string) {
     new Error(`Desktop notification facts could not be read (${operation}).`, { cause })
 }
 
-function decodePolicy(value: string | null) {
-  return SCHEDULED_TASK_NOTIFICATION_POLICIES.find((policy) => policy === value) ?? null
-}
-
 function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
   return {
     session: (sessionId) =>
@@ -180,60 +169,15 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
         Effect.mapError(factsError('session')),
       ),
     run: (sessionId, runId) =>
-      sql<RunRow>`
-        WITH target AS (
-          SELECT id, session_id, created_at, intent_json, interrupted_by_caller_id
-          FROM session_runs
-          WHERE id = ${durableSessionRunId(runId)} AND session_id = ${sessionId}
-        ),
-        origin AS (
-          SELECT COALESCE(
-            (
-              SELECT prior.id FROM session_runs AS prior, target
-              WHERE json_extract(target.intent_json, '$.hiveWake') = 1
-                AND prior.session_id = target.session_id
-                AND json_extract(prior.intent_json, '$.hiveWake') IS NULL
-                AND (
-                  prior.created_at < target.created_at
-                  OR (prior.created_at = target.created_at AND prior.id < target.id)
-                )
-              ORDER BY prior.created_at DESC, prior.id DESC
-              LIMIT 1
-            ),
-            (SELECT id FROM target)
-          ) AS id
-        )
-        SELECT json_extract(session_runs.intent_json, '$.callerId') AS caller_id,
-          json_extract(session_runs.intent_json, '$.authorCallerId') AS author_caller_id,
-          scheduled_tasks.notification_policy,
-          (SELECT interrupted_by_caller_id FROM target) AS interrupted_by_caller_id
-        FROM session_runs
-        LEFT JOIN scheduled_task_runs
-          ON scheduled_task_runs.run_id = session_runs.id
-            OR scheduled_task_runs.idempotency_key =
-              json_extract(session_runs.intent_json, '$.idempotencyKey')
-        LEFT JOIN scheduled_tasks ON scheduled_tasks.id = scheduled_task_runs.task_id
-        WHERE session_runs.id = (SELECT id FROM origin)
-        LIMIT 1
-      `.pipe(
-        Effect.map((rows) => {
-          const row = rows[0]
-          if (!row) return null
-          return {
-            // A Run whose intent names no caller was started by the desktop app.
-            originCallerId: row.author_caller_id ?? row.caller_id ?? 'gui:local-user',
-            scheduledTaskPolicy: decodePolicy(row.notification_policy),
-            interruptedByCallerId: row.interrupted_by_caller_id,
-          }
-        }),
-        Effect.mapError(factsError('run')),
-      ),
+      selectRunFacts(sql, sessionId, runId).pipe(Effect.mapError(factsError('run'))),
     hiveRootSessionId: (sessionId) =>
       selectHiveRootSessionId(sql, sessionId).pipe(Effect.mapError(factsError('hive-root'))),
     hiveActivity: (rootSessionId, runId) =>
       selectHiveActivity(sql, rootSessionId, runId).pipe(
         Effect.mapError(factsError('hive-activity')),
       ),
+    latestRun: (sessionId) =>
+      selectLatestRun(sql, sessionId).pipe(Effect.mapError(factsError('latest-run'))),
     hostActiveRunCount: () =>
       sql<{ readonly count: number }>`
         SELECT COUNT(*) AS count FROM session_control_states WHERE active_run_id IS NOT NULL
