@@ -79,7 +79,7 @@ export function NotificationsSection() {
         <div className="overflow-hidden rounded-lg border border-border bg-bg">
           <Row
             label="Desktop notifications"
-            description="Hear about Sessions that need you or are ready to read, even when OpenWaggle is in the background."
+            description="Hear about the types turned on below, even when OpenWaggle is in the background."
           >
             <ToggleSwitch
               checked={settings.enabled}

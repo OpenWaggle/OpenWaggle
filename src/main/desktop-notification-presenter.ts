@@ -245,7 +245,7 @@ export function requestDesktopNotificationPermission(): DesktopNotificationPermi
       id: 'openwaggle:notifications-on',
       groupId: 'openwaggle:notifications-on',
       title: 'Notifications are on',
-      body: 'OpenWaggle tells you when a Session needs you or is ready to read. Change this in Settings → Notifications.',
+      body: 'OpenWaggle will tell you about your Sessions and Scheduled tasks. Choose what notifies in Settings → Notifications.',
       silent: true,
     },
     {

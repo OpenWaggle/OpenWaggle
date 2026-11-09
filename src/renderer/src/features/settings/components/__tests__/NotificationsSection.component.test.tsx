@@ -50,10 +50,15 @@ describe('NotificationsSection', () => {
       'sound-only',
     )
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
-    // The badge counts every kind that is on, not only Needs you and Ready to read.
+    // Both name every type that is on, not only Needs you and Ready to read.
     expect(
       screen.getByText(
         'Count your notifications on the app icon, for each type turned on above. Windows shows a dot.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Hear about the types turned on below, even when OpenWaggle is in the background.',
       ),
     ).toBeInTheDocument()
   })
