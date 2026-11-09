@@ -7,6 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { editSessionFollowUp } from '../../application/session-control-queue-edit-service'
 import { mutateSessionQueue } from '../../application/session-control-service'
 import {
+  closedWindowFollowUpEditHoldKey,
+  expiredFollowUpEditHoldKey,
+} from '../../domain/session-control/follow-up-edit-hold-release-key'
+import {
   beginEdit,
   followUpEditLayer,
   HOLD,
@@ -233,4 +237,44 @@ describe('Queue delivery and the Worker ceiling', () => {
     expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
     expect(result.after.run).toEqual({ state: 'idle' })
   })
+
+  /*
+   * The Host releases a hold the person's window left (expired, or the window gone) with a
+   * cancel sent as the person. What it delivers is held to the limits, like an agent's resume.
+   */
+  it.each([
+    ['the person cancels it', 'person-cancel', 'starting'],
+    ['it expires', expiredFollowUpEditHoldKey(HOLD), 'idle'],
+    ['its window closes', closedWindowFollowUpEditHoldKey(HOLD), 'idle'],
+  ])(
+    'releases an edit of an agent’s Worker Follow-up at the ceiling when %s',
+    async (_, key, run) => {
+      const after = await Effect.runPromise(
+        Effect.gen(function* () {
+          yield* idleQueue([{ id: 'agent-held' }])
+          const begun = yield* beginEdit('agent-held')
+          if (begun.outcome.effect !== 'follow-up-edit-held') throw new Error('expected a hold')
+          yield* busyWorkerHive
+          yield* editSessionFollowUp({
+            callerId: USER,
+            desktopUser: true,
+            hostRunCeiling: 1,
+            request: {
+              ...request({
+                operation: 'queue-edit-cancel',
+                sessionId: SESSION,
+                followUpId: 'agent-held',
+                holdId: HOLD,
+              }),
+              idempotencyKey: key,
+            },
+          })
+          return yield* loadState()
+        }).pipe(Effect.provide(layer(`release-${run}-${key.length}.sqlite`))),
+      )
+
+      expect(after.run.state).toBe(run)
+      if (run === 'idle') expect(after.followUpQueue).toMatchObject({ state: 'paused' })
+    },
+  )
 })

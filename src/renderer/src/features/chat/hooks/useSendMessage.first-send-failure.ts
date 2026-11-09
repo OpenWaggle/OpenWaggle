@@ -7,6 +7,7 @@ import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pendi
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { useWaggleStore } from '@/features/waggle/state'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { refusalLeavesNothingToRecover } from './useAgentChat.send-without-run'
 
 const logger = createRendererLogger('use-send-message')
 
@@ -21,9 +22,8 @@ export function endFailedFirstSend(
   if (config) useWaggleStore.getState().stopCollaboration(sessionId)
   const outcome = error instanceof MessageNotDelivered ? error.outcome : undefined
   if (outcome === 'cancelled') useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
-  if (outcome === 'refused') {
-    // Refused before any Run: the message goes back to the composer, so it leaves the
-    // transcript, and there is no launch to recover. The composer logs the refusal.
+  // Back in the composer: it leaves the transcript too. The composer logs the refusal.
+  if (refusalLeavesNothingToRecover(sessionId, error)) {
     useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
     useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
     useOptimisticUserMessageStore.getState().remove(sessionId, optimisticMessageId)

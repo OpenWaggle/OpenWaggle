@@ -53,6 +53,12 @@ export interface ScheduledTaskRecord {
    * Session still existing.
    */
   readonly authorityLimits: LocalSessionAuthorityLimits | null
+  /**
+   * Whether an agent (a Session agent or a client profile) wrote the work it runs: it created
+   * the task, or last changed its prompt, target, stop condition or Wake check. Its firings are
+   * then an agent's, held to the Worker limits though they run as the person (ADR 0030 amendment).
+   */
+  readonly workByAgent: boolean
   readonly kind: ScheduledTaskKind
   readonly name: string
   readonly prompt: string
@@ -92,6 +98,7 @@ export type ScheduledTaskRecordChanges = Partial<
     ScheduledTaskRecord,
     | 'creatorCallerId'
     | 'authorityLimits'
+    | 'workByAgent'
     | 'name'
     | 'prompt'
     | 'enabled'

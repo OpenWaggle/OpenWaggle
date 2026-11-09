@@ -91,8 +91,3 @@ export class FirstSendFailed extends Error {
 export function createdSessionIdOf(error: unknown) {
   return error instanceof FirstSendFailed ? error.createdSessionId : null
 }
-
-/** Whether a send failed because the Host refused it before any Run started. */
-export function isRefusal(error: unknown): error is MessageNotDelivered {
-  return error instanceof MessageNotDelivered && error.outcome === 'refused'
-}

@@ -9,12 +9,13 @@ import {
   deliverIdleQueueHead,
   pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
-import { isExpiredFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-expiry-key'
+import { isHostFollowUpEditHoldReleaseKey } from '../domain/session-control/follow-up-edit-hold-release-key'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
+import type { StartingRunCaller } from '../domain/session-control/person-started-run'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
-import { type StartingRunCaller, workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
+import { workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 /**
  * Queue changes whose outcome can report the Run they start. After any of them the queue delivers
@@ -77,12 +78,13 @@ function startingRunCaller(
 ): StartingRunCaller {
   if (state.run.state !== 'starting') return { callerId: '' }
   const { callerId, idempotencyKey, hiveWake } = state.run.intent
-  // An expired edit hold's cancel is the Host's, though it is sent as the person who held it.
+  // The Host's release of an edit hold (expired, or its window gone) is sent as the person who
+  // held it, but it is not their action.
   const personActed =
     actor !== undefined &&
     isDeliveringOperation(actor.operation) &&
     isLocalUserCallerId(actor.callerId) &&
-    !isExpiredFollowUpEditHoldKey(actor.idempotencyKey)
+    !isHostFollowUpEditHoldReleaseKey(actor.idempotencyKey)
   return {
     callerId,
     idempotencyKey,

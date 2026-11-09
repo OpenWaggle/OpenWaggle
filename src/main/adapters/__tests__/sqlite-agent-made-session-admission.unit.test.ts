@@ -7,14 +7,11 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { submitSessionMessage } from '../../application/session-control-service'
 import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
-import { expiredFollowUpEditHoldKey } from '../../domain/session-control/follow-up-edit-hold-expiry-key'
+import { expiredFollowUpEditHoldKey } from '../../domain/session-control/follow-up-edit-hold-release-key'
+import { isPersonStartedRun } from '../../domain/session-control/person-started-run'
 import { newRunAdmissionRefusal } from '../sqlite-session-control-queue-delivery'
 import { loadSessionControlState } from '../sqlite-session-control-state'
-import {
-  countActiveWorkerRuns,
-  isPersonStartedRun,
-  recordAgentMadeSession,
-} from '../sqlite-worker-run-admission'
+import { countActiveWorkerRuns, recordAgentMadeSession } from '../sqlite-worker-run-admission'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 import {
   AGENT_CALLER,
@@ -120,7 +117,7 @@ describe('Admission for Sessions agents made', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHive(sql, 1)
-        yield* targetMadeBy(sql, 'local-user', scheduledTaskRunKey('run-1', 'local-user'))
+        yield* targetMadeBy(sql, 'local-user', scheduledTaskRunKey('run-1', false))
         yield* submitSessionMessage({
           callerId: 'gui:local-user',
           request: messageRequest('session-target', 'person'),
@@ -138,7 +135,7 @@ describe('Admission for Sessions agents made', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHive(sql, 1)
-        yield* targetMadeBy(sql, 'local-user', scheduledTaskRunKey('run-1', 'session-agent'))
+        yield* targetMadeBy(sql, 'local-user', scheduledTaskRunKey('run-1', true))
         yield* submitSessionMessage({
           callerId: 'gui:local-user',
           request: messageRequest('session-target', 'person'),
@@ -149,6 +146,36 @@ describe('Admission for Sessions agents made', () => {
 
     expect(counted).toBe(2)
   })
+
+  // A Heartbeat runs as the person, so only its key tells the agent's work from theirs.
+  it.each([
+    ['refuses', 'an agent’s', true, 'rejected'],
+    ['starts', 'the person’s', false, 'started-run'],
+  ] as const)(
+    '%s %s Heartbeat in a Worker at the Worker ceiling',
+    async (_, __, byAgent, effect) => {
+      const layer = makeSessionControlTestLayer(
+        path.join(temporaryRoot, `heartbeat-${String(byAgent)}.sqlite`),
+      )
+      const response = await Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* seedHive(sql, 2)
+          yield* makeTargetAWorker(sql)
+          return yield* submitSessionMessage({
+            callerId: 'local-user',
+            hostRunCeiling: 2,
+            request: {
+              ...messageRequest('session-target', 'heartbeat'),
+              idempotencyKey: scheduledTaskRunKey('run-1', byAgent),
+            },
+          })
+        }).pipe(Effect.provide(layer)),
+      )
+
+      expect(response.outcome).toMatchObject({ effect })
+    },
+  )
 
   it('starts a Hive wake of a top-level Queen while every Worker slot is taken', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'wake-root.sqlite'))
@@ -176,6 +203,7 @@ describe('Admission for Sessions agents made', () => {
 
     expect(refusal).toBe('host_run_ceiling_reached')
   })
+
   it('holds an agent’s Follow-up an expired edit hold delivers, though the person’s queue action would not be', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'expired-hold.sqlite'))
     const refusals = await Effect.runPromise(
@@ -207,7 +235,7 @@ describe('isPersonStartedRun', () => {
     expect(isPersonStartedRun({ callerId: 'gui:local-user' })).toBe(true)
     expect(isPersonStartedRun({ callerId: 'local-user' })).toBe(true)
     expect(isPersonStartedRun({ callerId: 'local-user:machine' })).toBe(true)
-    const ownTask = scheduledTaskRunKey('run-1', 'local-user')
+    const ownTask = scheduledTaskRunKey('run-1', false)
     expect(isPersonStartedRun({ callerId: 'local-user', idempotencyKey: ownTask })).toBe(true)
   })
 
@@ -220,7 +248,7 @@ describe('isPersonStartedRun', () => {
     expect(isPersonStartedRun({ callerId: 'profile:ci' })).toBe(false)
     expect(isPersonStartedRun({ callerId: AGENT_CALLER })).toBe(false)
     expect(isPersonStartedRun({ callerId: 'gui:local-user', hiveWake: true })).toBe(false)
-    const agentTask = scheduledTaskRunKey('run-1', 'session-agent')
+    const agentTask = scheduledTaskRunKey('run-1', true)
     expect(isPersonStartedRun({ callerId: 'local-user', idempotencyKey: agentTask })).toBe(false)
   })
 })

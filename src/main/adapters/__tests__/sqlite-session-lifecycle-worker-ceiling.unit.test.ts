@@ -4,6 +4,7 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
 import { SessionLifecycleRepository } from '../../ports/session-lifecycle-repository'
 import {
   forkLifecycleInput,
@@ -15,7 +16,7 @@ import {
 let temporaryRoot = ''
 
 /** A launch by `callerId` of a root named `name`, with its own request and Run. */
-function launchBy(callerId: string, name: string) {
+function launchBy(callerId: string, name: string, idempotencyKey = `idempotency-launch-${name}`) {
   const base = rootLifecycleInput('launch')
   return {
     ...base,
@@ -23,7 +24,7 @@ function launchBy(callerId: string, name: string) {
     request: {
       ...base.request,
       requestId: `request-launch-${name}`,
-      idempotencyKey: `idempotency-launch-${name}`,
+      idempotencyKey,
     },
     session: {
       sessionId: `session-launch-${name}`,
@@ -74,6 +75,34 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       effect: 'launched-root',
     })
     expect(result.sessionCount).toBe(1)
+  })
+
+  // A Session agent's Launch schedule runs as the person; only its key says it is the agent's.
+  it('holds a Session agent’s Launch schedule, run as the person, to the Worker ceiling', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'agent-task.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        const first = yield* repository.execute(
+          launchBy('local-user', 'task-first', scheduledTaskRunKey('run-1', true)),
+        )
+        const second = yield* repository.execute(
+          launchBy('local-user', 'task-second', scheduledTaskRunKey('run-2', true)),
+        )
+        const sql = yield* SqlClient.SqlClient
+        const origins = yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_agent_origins
+        `
+        return { first, second, origins: origins.map((row) => row.session_id) }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.first.outcome).toMatchObject({ effect: 'launched-root' })
+    expect(result.second.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+    })
+    expect(result.origins).toEqual(['session-launch-task-first'])
   })
 
   it('launches the person’s concurrent roots past the Worker ceiling', async () => {

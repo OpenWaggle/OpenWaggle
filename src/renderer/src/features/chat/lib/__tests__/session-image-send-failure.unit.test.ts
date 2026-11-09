@@ -127,14 +127,14 @@ describe('Session image send failure ownership', () => {
     })
   })
 
-  it('says why the Host refused a send, naming its code', () => {
+  it('says in plain words why the Host refused a send, naming its code', () => {
     const refusal = new MessageNotDelivered(
       'refused',
       'queue_capacity_reached',
       'queue_capacity_reached',
     )
     const notice =
-      'Not sent: the Session Host refused it (queue_capacity_reached). Your message is back in the composer.'
+      'Not sent: this Session already has as many queued messages as it can hold (queue_capacity_reached). Your message is back in the composer.'
 
     expect(disposition({ cause: refusal })).toEqual({ kind: 'restore', notice })
     expect(
@@ -143,6 +143,16 @@ describe('Session image send failure ownership', () => {
         activeSessionId: null,
       }),
     ).toEqual({ kind: 'restore', contextKey: 'session:created-session:pending', notice })
+  })
+
+  it('names the code of a refusal it has no words for', () => {
+    const refusal = new MessageNotDelivered('refused', 'session_archived', 'session_archived')
+
+    expect(disposition({ cause: refusal })).toEqual({
+      kind: 'restore',
+      notice:
+        'Not sent: the Session Host refused it (session_archived). Your message is back in the composer.',
+    })
   })
 
   it('puts the Host’s own words first when it wrote some, keeping the code', () => {

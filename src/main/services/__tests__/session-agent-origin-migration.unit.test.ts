@@ -19,6 +19,26 @@ function recordOperation(
     .run(callerId, operation, key, JSON.stringify({ operation, ...outcome }))
 }
 
+/** The tables the migration reads, with only the columns it uses. */
+function legacyDatabase() {
+  const database = new Database(':memory:')
+  database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
+  database.exec(`CREATE TABLE session_operations (
+    caller_id TEXT, operation TEXT, idempotency_key TEXT, status TEXT,
+    outcome_json TEXT, created_at INTEGER
+  )`)
+  database.exec('CREATE TABLE scheduled_tasks (id TEXT PRIMARY KEY, kind TEXT, creator_kind TEXT)')
+  database.exec(`CREATE TABLE scheduled_task_runs (
+    id TEXT PRIMARY KEY, task_id TEXT, status TEXT, caller_id TEXT, session_id TEXT,
+    fired_at INTEGER
+  )`)
+  return database
+}
+
+function migrate(database: Database.Database) {
+  for (const statement of SESSION_AGENT_ORIGIN_MIGRATION.statements) database.exec(statement)
+}
+
 describe('Session agent origin migration', () => {
   it('is the newest migration this binary supports, after 87', () => {
     expect(SESSION_AGENT_ORIGIN_MIGRATION.id).toBe(88)
@@ -27,13 +47,8 @@ describe('Session agent origin migration', () => {
   })
 
   it('records the roots agents made before, and none the person made', () => {
-    const database = new Database(':memory:')
+    const database = legacyDatabase()
     try {
-      database.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
-      database.exec(`CREATE TABLE session_operations (
-        caller_id TEXT, operation TEXT, idempotency_key TEXT, status TEXT,
-        outcome_json TEXT, created_at INTEGER
-      )`)
       for (const id of ['agent-launch', 'agent-create', 'profile-fork', 'app', 'cli', 'machine']) {
         database.prepare('INSERT INTO sessions (id) VALUES (?)').run(id)
       }
@@ -90,8 +105,7 @@ describe('Session agent origin migration', () => {
         'h',
       )
 
-      for (const statement of SESSION_AGENT_ORIGIN_MIGRATION.statements) database.exec(statement)
-      for (const statement of SESSION_AGENT_ORIGIN_MIGRATION.statements) database.exec(statement)
+      migrate(database)
 
       const rows = database
         .prepare('SELECT session_id, caller_id FROM session_agent_origins ORDER BY session_id')
@@ -100,6 +114,45 @@ describe('Session agent origin migration', () => {
         { session_id: 'agent-create', caller_id: agent },
         { session_id: 'agent-launch', caller_id: agent },
         { session_id: 'profile-fork', caller_id: 'profile:ci' },
+      ])
+    } finally {
+      database.close()
+    }
+  })
+
+  // A Session agent's Launch schedule runs as the person, so its launches are journaled as theirs.
+  it('records the roots a Session agent’s Launch schedule launched, and marks its tasks', () => {
+    const database = legacyDatabase()
+    try {
+      for (const id of ['agent-launched', 'person-launched', 'heartbeat-target']) {
+        database.prepare('INSERT INTO sessions (id) VALUES (?)').run(id)
+      }
+      const task = database.prepare(
+        'INSERT INTO scheduled_tasks (id, kind, creator_kind) VALUES (?, ?, ?)',
+      )
+      task.run('agent-launch', 'launch', 'session-agent')
+      task.run('person-launch', 'launch', 'local-user')
+      task.run('agent-heartbeat', 'heartbeat', 'session-agent')
+      const run = database.prepare(
+        `INSERT INTO scheduled_task_runs (id, task_id, status, caller_id, session_id, fired_at)
+         VALUES (?, ?, ?, 'local-user', ?, 1)`,
+      )
+      run.run('r1', 'agent-launch', 'started', 'agent-launched')
+      run.run('r2', 'person-launch', 'started', 'person-launched')
+      run.run('r3', 'agent-heartbeat', 'started', 'heartbeat-target')
+      run.run('r4', 'agent-launch', 'skipped', null)
+
+      migrate(database)
+
+      expect(database.prepare('SELECT session_id FROM session_agent_origins').all()).toEqual([
+        { session_id: 'agent-launched' },
+      ])
+      expect(
+        database.prepare('SELECT id, work_by_agent FROM scheduled_tasks ORDER BY id').all(),
+      ).toEqual([
+        { id: 'agent-heartbeat', work_by_agent: 1 },
+        { id: 'agent-launch', work_by_agent: 1 },
+        { id: 'person-launch', work_by_agent: 0 },
       ])
     } finally {
       database.close()

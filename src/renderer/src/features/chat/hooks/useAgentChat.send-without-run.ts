@@ -3,6 +3,7 @@ import type { AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
+import { useBackgroundRunStore } from '../state/background-run-store'
 import {
   clearRunPointers,
   type ForegroundRun,
@@ -120,4 +121,23 @@ function dropOptimisticSend(input: {
       ),
     { cacheRunSnapshot: true },
   )
+}
+
+/**
+ * Whether a failed first send leaves nothing to recover: the Host refused it before any Run, so
+ * the message goes back to the composer. A worktree launch that failed is reported refused too,
+ * but its row offers Retry and keeps the draft, so its recovery stays.
+ */
+export function refusalLeavesNothingToRecover(sessionId: SessionId, error: unknown) {
+  if (!(error instanceof MessageNotDelivered && error.outcome === 'refused')) return false
+  return useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === null
+}
+
+/** Forgets a refused first send's recovery: its message is back in the composer. */
+export function forgetRefusedFirstSend(
+  sessionId: SessionId,
+  error: unknown,
+  params: { readonly setFirstSendRecovery: (sessionId: SessionId, recovery: null) => void },
+) {
+  if (refusalLeavesNothingToRecover(sessionId, error)) params.setFirstSendRecovery(sessionId, null)
 }

@@ -34,7 +34,11 @@ export interface ScheduledTaskHooks {
   readonly newId: () => string
   readonly defaultTimeZone: () => string
   readonly tasksChanged: () => void
-  readonly requestRunNow: (taskId: string) => Effect.Effect<'accepted' | 'busy' | 'unavailable'>
+  /** Fires the task now; an agent's request fires as an agent's work, whoever wrote it. */
+  readonly requestRunNow: (
+    taskId: string,
+    requestedByAgent: boolean,
+  ) => Effect.Effect<'accepted' | 'busy' | 'unavailable'>
   /** The Authorization mode a Run of this Session would use for this caller, read now. */
   readonly sessionAuthorizationMode: (
     sessionId: string,

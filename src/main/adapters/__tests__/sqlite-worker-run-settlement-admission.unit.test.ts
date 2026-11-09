@@ -18,9 +18,9 @@ let temporaryRoot = ''
 
 /**
  * `session-target` as a Worker at its parent's limit of one: its own Run ends while a sibling
- * still runs, with one Follow-up from `callerId` queued behind it.
+ * still runs, with one Follow-up from `callerId` queued behind it, or none.
  */
-function workerEndingAtParentLimit(callerId: string) {
+function workerEndingAtParentLimit(callerId: string, queued = true) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* seedHive(sql, 1)
@@ -54,7 +54,8 @@ function workerEndingAtParentLimit(callerId: string) {
       acceptedAt: 1,
       idempotencyKey: 'key-next',
     }
-    yield* sql`
+    if (queued)
+      yield* sql`
       INSERT INTO session_follow_ups (
         id, session_id, position, delivery_state, intent_json, created_at, updated_at
       ) VALUES (
@@ -62,6 +63,7 @@ function workerEndingAtParentLimit(callerId: string) {
       )
     `
     const lifecycle = yield* SessionControlRunLifecycleRepository
+
     const settled = yield* lifecycle.settle({
       sessionId: SessionId('session-target'),
       runId: RunId('run-target'),
@@ -105,5 +107,18 @@ describe('Worker Run admission when a Run settles', () => {
       pauseReason: 'parent-limit',
       items: [{ id: 'next' }],
     })
+  })
+
+  // Nothing would start, so nothing waits: a pause here would outlast the limit and hold back
+  // the Follow-ups the person queues later.
+  it('leaves an empty Worker queue running at its parent’s limit', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'empty-settle.sqlite'))
+    const result = await Effect.runPromise(
+      workerEndingAtParentLimit(AGENT_CALLER, false).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.settled).toMatchObject({ accepted: true })
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue).toMatchObject({ state: 'running', items: [] })
   })
 })

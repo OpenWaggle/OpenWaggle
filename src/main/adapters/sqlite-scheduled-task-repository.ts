@@ -66,7 +66,8 @@ function writeRecord(sql: SqlClient.SqlClient, record: NewScheduledTaskRecord) {
   return sql`
     INSERT INTO scheduled_tasks (
       id, owner_key, creator_caller_id, creator_kind, creator_label, creator_session_id,
-      creator_working_directory, authority_limits_json, create_idempotency_key, kind, name,
+      creator_working_directory, authority_limits_json, work_by_agent, create_idempotency_key,
+      kind, name,
       prompt, enabled,
       schedule_json, time_zone, anchor_at, ends_at, max_runs, target_session_id, target_json,
       project_path, notification_policy, attention_reason, attention_message, attention_since,
@@ -75,7 +76,7 @@ function writeRecord(sql: SqlClient.SqlClient, record: NewScheduledTaskRecord) {
       ${record.id}, ${record.ownerKey}, ${record.creatorCallerId}, ${record.creator.kind},
       ${record.creator.label}, ${record.creator.sessionId ?? null},
       ${record.creatorWorkingDirectory}, ${authorityLimitsJson(record)},
-      ${record.createIdempotencyKey}, ${record.kind},
+      ${record.workByAgent ? 1 : 0}, ${record.createIdempotencyKey}, ${record.kind},
       ${record.name}, ${record.prompt}, ${record.enabled ? 1 : 0},
       ${JSON.stringify(record.schedule)}, ${record.timeZone}, ${record.anchorAt},
       ${record.endsAt}, ${record.maxRuns}, ${targetSessionId(record)},
@@ -102,6 +103,7 @@ function rewriteRecord(
     UPDATE scheduled_tasks SET
       creator_caller_id = ${record.creatorCallerId},
       authority_limits_json = ${authorityLimitsJson(record)},
+      work_by_agent = ${record.workByAgent ? 1 : 0},
       name = ${record.name}, prompt = ${record.prompt}, enabled = ${record.enabled ? 1 : 0},
       schedule_json = ${JSON.stringify(record.schedule)}, time_zone = ${record.timeZone},
       anchor_at = ${record.anchorAt}, ends_at = ${record.endsAt}, max_runs = ${record.maxRuns},

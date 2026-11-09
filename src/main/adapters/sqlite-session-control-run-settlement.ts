@@ -9,6 +9,7 @@ import type {
   SessionControlFollowUp,
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
+import { isPersonStartedRun } from '../domain/session-control/person-started-run'
 import { applyQueueMutation } from '../domain/session-control/queue-aggregate'
 import {
   settleAndScheduleNextFollowUp,
@@ -20,7 +21,6 @@ import { releaseDeliveredSteerAttachments } from './session-control-attachment-r
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
-import { isPersonStartedRun } from './sqlite-worker-run-admission'
 
 const QUEUE_REVISION_INCREMENT = 1
 
@@ -149,7 +149,9 @@ export function planRunSettlement(
 /**
  * Plans the settlement, deferring the next Run for the parent's Worker limit. A Follow-up the
  * person sent runs next whatever the limit (ADR 0030, amended 2026-11-09); anything else waits
- * for it as before.
+ * for it as before. With no Run to start (an empty queue, or a head held for the person's edit)
+ * nothing waits, so the queue is not paused: a pause there outlived the limit, and held back the
+ * person's edited or later Follow-ups, which are admitted when they are delivered.
  */
 export function planRunSettlementWithinParentLimit(
   sql: SqlClient.SqlClient,
@@ -160,7 +162,7 @@ export function planRunSettlementWithinParentLimit(
     const planned = planRunSettlement(state, input, false)
     if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
-    if (nextRun && isPersonStartedRun(nextRun.intent)) return planned
+    if (!nextRun || isPersonStartedRun(nextRun.intent)) return planned
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
     return parentAdmission.admitted ? planned : planRunSettlement(state, input, true)
   })

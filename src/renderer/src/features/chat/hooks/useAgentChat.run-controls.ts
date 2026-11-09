@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
-import { isRefusal, MessageDeliveredRunFailed } from '../lib/message-delivery'
+import { MessageDeliveredRunFailed } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
@@ -22,6 +22,7 @@ import {
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import {
   forgetIfRefusedForPiSessionFile,
+  forgetRefusedFirstSend,
   type ReportWithoutRun,
   settleSendWithoutRun,
 } from './useAgentChat.send-without-run'
@@ -280,8 +281,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
       )
     } catch (error) {
-      // Refused before any Run: the message goes back to the composer, with no send to recover.
-      if (params.isFirstMessage && isRefusal(error)) params.setFirstSendRecovery(sessionId, null)
+      if (params.isFirstMessage) forgetRefusedFirstSend(sessionId, error, params)
       throw error
     }
     if (params.isFirstMessage) params.setFirstSendRecovery(sessionId, null)

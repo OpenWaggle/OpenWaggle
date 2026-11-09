@@ -166,7 +166,13 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
    * its spent waiter, and the Session kept showing "Thinking" over nothing.
    */
   function spliceOut() {
-    displacedBy.get(tracked)?.replacePrevious(previous)
+    const later = displacedBy.get(tracked)
+    if (later) {
+      later.replacePrevious(previous)
+      // The later send now displaces what this one did, so a send this one displaced, ending
+      // without a Run in turn, hands its own state on to it.
+      if (previous.waiter) displacedBy.set(previous.waiter, later)
+    }
     displacedBy.delete(tracked)
   }
 

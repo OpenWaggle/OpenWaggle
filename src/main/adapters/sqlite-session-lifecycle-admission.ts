@@ -5,6 +5,7 @@ import { decodeSessionLifecycleOutcome } from '@shared/schemas/session-lifecycle
 import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionLifecycleOutcome } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
+import { isPersonStartedRun } from '../domain/session-control/person-started-run'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 import { decideSpawnAdmission } from '../domain/session-control/spawn-admission'
 import { planChildLineage } from '../domain/session-control/spawn-lineage'
@@ -13,11 +14,7 @@ import { PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX } from '../ports/pi-session-dis
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { loadSessionControlState } from './sqlite-session-control-state'
 import { lifecycleResponse, storeLifecycleOutcome } from './sqlite-session-lifecycle-support'
-import {
-  countActiveWorkerRuns,
-  hostWorkerCeilingRefusal,
-  isPersonStartedRun,
-} from './sqlite-worker-run-admission'
+import { countActiveWorkerRuns, hostWorkerCeilingRefusal } from './sqlite-worker-run-admission'
 
 const DEFAULT_PARENT_CONCURRENCY_LIMIT = 4
 const DEFAULT_HOST_RUN_CEILING = 16

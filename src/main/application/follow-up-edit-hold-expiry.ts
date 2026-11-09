@@ -2,7 +2,7 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Schedule from 'effect/Schedule'
-import { expiredFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-expiry-key'
+import { expiredFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-release-key'
 import { FOLLOW_UP_EDIT_HOLD_SWEEP_INTERVAL_MS } from '../domain/session-control/follow-up-edit-lease'
 import { createLogger } from '../logger'
 import {

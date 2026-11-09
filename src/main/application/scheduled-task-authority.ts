@@ -132,7 +132,7 @@ export function runsAsAfterUpdate(
   principal: ScheduledTaskPrincipal,
   current: Pick<
     ScheduledTaskRecord,
-    'ownerKey' | 'creatorCallerId' | 'authorityLimits' | 'prompt' | 'target'
+    'ownerKey' | 'creatorCallerId' | 'authorityLimits' | 'workByAgent' | 'prompt' | 'target'
   >,
   patch: ScheduledTaskPatch,
 ) {
@@ -140,19 +140,22 @@ export function runsAsAfterUpdate(
     const kept = {
       creatorCallerId: current.creatorCallerId,
       authorityLimits: current.authorityLimits,
+      workByAgent: current.workByAgent,
     }
     if (!changesWork(current, patch)) return kept
+    // Whoever changes its work now wrote what it runs.
+    const workByAgent = !principal.localUser
     if (principal.localUser) {
       return current.ownerKey === LOCAL_USER_TASK_OWNER
-        ? { creatorCallerId: principal.creatorCallerId, authorityLimits: null }
-        : kept
+        ? { creatorCallerId: principal.creatorCallerId, authorityLimits: null, workByAgent }
+        : { ...kept, workByAgent }
     }
     if (!principal.authorityLimits) {
       // Only the owning profile itself: an unrestricted Session agent also has no limits, and its
       // edit must not lift the limits another agent's prompt runs within.
       return principal.creator.kind === 'profile' && principal.creatorCallerId === current.ownerKey
-        ? { creatorCallerId: principal.creatorCallerId, authorityLimits: null }
-        : kept
+        ? { creatorCallerId: principal.creatorCallerId, authorityLimits: null, workByAgent }
+        : { ...kept, workByAgent }
     }
     return {
       creatorCallerId: current.creatorCallerId,
@@ -160,6 +163,7 @@ export function runsAsAfterUpdate(
         current.authorityLimits,
         principal.authorityLimits,
       ),
+      workByAgent,
     }
   })
 }
