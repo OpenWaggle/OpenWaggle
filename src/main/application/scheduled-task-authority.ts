@@ -16,9 +16,15 @@ import { rejectedOutcome } from './scheduled-task-heartbeat-settings'
 import { LOCAL_USER_TASK_OWNER, type ScheduledTaskPrincipal } from './scheduled-task-principal'
 import { authorizeScheduledTaskTarget } from './scheduled-task-target-authorization'
 
-/** A Heartbeat keeps its Session, so the remedy names what its owner can change in the app and CLI. */
-const HEARTBEAT_REMEDY =
-  'Its owner can change its prompt, stop condition or Wake check to run it with their own access'
+/**
+ * What the owner of a Heartbeat stopped at firing can do. A Heartbeat keeps its Session, so this
+ * names what the app editor and `openwaggle schedules update` both let them change.
+ */
+export const HEARTBEAT_OWNER_REMEDY =
+  'Its owner can change its prompt, stop condition or Wake check, then turn it on again, to run it with their own access.'
+
+/** What an agent refused when it creates or edits such a Heartbeat can do. */
+const HEARTBEAT_AGENT_REMEDY = 'Only its owner can schedule it, with their own access.'
 
 /**
  * Why a Heartbeat held to `limits` may not wake its Session, or null. Its Run starts as the
@@ -31,6 +37,8 @@ export function heartbeatBoundaryRefusal(input: {
   readonly ownerCallerId: string
   readonly limits: LocalSessionAuthorityLimits | null
   readonly sessionId: string
+  /** What the caller who reads the refusal can do about it. */
+  readonly remedy: string
 }) {
   return Effect.gen(function* () {
     const { limits } = input
@@ -40,14 +48,14 @@ export function heartbeatBoundaryRefusal(input: {
     if (!target) return null
     const owner = yield* repository.callerAuthorityBoundary(input.ownerCallerId)
     if (limits.scope.all !== true && owner.reachesEveryProject && target.reachesEveryProject) {
-      return `This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. ${HEARTBEAT_REMEDY}.`
+      return `This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. ${input.remedy}`
     }
     if (
       limits.authorizationCeiling === 'ask-for-approval' &&
       owner.authorizationCeiling === 'yolo' &&
       target.authorizationCeiling === 'yolo'
     ) {
-      return `This Heartbeat runs within an agent's access, which has to ask for approval, but its Session runs in YOLO mode. ${HEARTBEAT_REMEDY}, or switch its Session to Ask for approval.`
+      return `This Heartbeat runs within an agent's access, which has to ask for approval, but its Session can run in YOLO mode. ${input.remedy}`
     }
     return null
   })
@@ -71,6 +79,8 @@ export function changedHeartbeatBoundaryRefusal(
     ownerCallerId: next.creatorCallerId,
     limits: next.authorityLimits,
     sessionId: next.target.sessionId,
+    // The owner's own change of work lifts the limits, so only another caller's edit gets here.
+    remedy: HEARTBEAT_AGENT_REMEDY,
   })
 }
 
@@ -107,6 +117,7 @@ function agentTargetRefusal(principal: ScheduledTaskPrincipal, target: Scheduled
       ownerCallerId: principal.creatorCallerId,
       limits: principal.authorityLimits,
       sessionId: target.sessionId,
+      remedy: HEARTBEAT_AGENT_REMEDY,
     })
     return message ? ({ code: 'target_scope_denied', message } as const) : null
   })

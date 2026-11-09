@@ -126,7 +126,7 @@ An agent cannot use a task to get around its own limits:
 - An agent limited to one project cannot schedule a Heartbeat into a session that reaches every project.
 - When an agent changes the prompt of one of your tasks, the task keeps only what both you and that agent may do.
 
-If a Heartbeat stops because its session now has more access than the task, for example because you switched the session to YOLO, change its prompt, stop condition or wake check yourself to run it with your access. A Heartbeat keeps its session, so you cannot move it to another one. If the session runs in YOLO mode, you can instead switch it back to **Ask for approval** and turn the Heartbeat on again. The same goes for tasks owned by a command-line access profile.
+If a Heartbeat stops because its session can do more than the task's limits allow, change its prompt, stop condition or wake check yourself, then turn it on again. From then on it runs with your access. A Heartbeat keeps its session, so you cannot move it to another one. The same goes for tasks owned by a command-line access profile.
 
 A run uses the agent access setting of its target: the session's for a Heartbeat, the project's for a Launch schedule. With **YOLO (Full Access)** it works in its workspace without asking. With **Ask for Approval**, a request waits for you like any other, and the session shows that it needs your attention. There is no unattended mode that skips approvals.
 

@@ -5,6 +5,7 @@ import { ScheduledTaskRepository } from '../../ports/scheduled-task-repository'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
 import {
   changedHeartbeatBoundaryRefusal,
+  HEARTBEAT_OWNER_REMEDY,
   heartbeatBoundaryRefusal,
   runsAsAfterUpdate,
 } from '../scheduled-task-authority'
@@ -229,6 +230,7 @@ describe('changedHeartbeatBoundaryRefusal', () => {
 describe('heartbeatBoundaryRefusal', () => {
   function refusal(
     limits: typeof LIMITS | { readonly scope: { readonly projectPaths: string[] } },
+    remedy = HEARTBEAT_OWNER_REMEDY,
   ) {
     const everywhere = { reachesEveryProject: true, authorizationCeiling: 'yolo' as const }
     return Effect.runPromise(
@@ -236,6 +238,7 @@ describe('heartbeatBoundaryRefusal', () => {
         ownerCallerId: 'local-user',
         limits: fromPartial({ authorizationCeiling: 'yolo', ...limits }),
         sessionId: 'session-1',
+        remedy,
       }).pipe(
         Effect.provideService(
           ScheduledTaskRepository,
@@ -248,13 +251,13 @@ describe('heartbeatBoundaryRefusal', () => {
     )
   }
 
-  // A Heartbeat keeps its Session, so the message names only what its owner can change.
-  it('tells the owner how to run a Heartbeat beyond an agent’s access with their own', async () => {
+  // A Heartbeat keeps its Session, so the owner is told only what they can change.
+  it('tells the owner of a stopped Heartbeat how to run it with their own access', async () => {
     expect(await refusal(LIMITS)).toBe(
-      "This Heartbeat runs within an agent's access, which has to ask for approval, but its Session runs in YOLO mode. Its owner can change its prompt, stop condition or Wake check to run it with their own access, or switch its Session to Ask for approval.",
+      "This Heartbeat runs within an agent's access, which has to ask for approval, but its Session can run in YOLO mode. Its owner can change its prompt, stop condition or Wake check, then turn it on again, to run it with their own access.",
     )
-    expect(await refusal({ scope: { projectPaths: ['/work/app'] } })).toBe(
-      "This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. Its owner can change its prompt, stop condition or Wake check to run it with their own access.",
+    expect(await refusal({ scope: { projectPaths: ['/work/app'] } }, 'Ask its owner.')).toBe(
+      "This Heartbeat runs within an agent's access, which does not reach every project, but its Session does. Ask its owner.",
     )
   })
 })
