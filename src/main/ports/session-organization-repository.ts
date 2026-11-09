@@ -32,6 +32,8 @@ export interface SessionSelfArchiveState {
   readonly laterRunCount: number
   /** Worker updates for this Session as a parent that no Run has taken yet. */
   readonly pendingWorkerUpdateCount: number
+  /** Delegations of this Session as a parent whose Worker is still working on them. */
+  readonly workingDelegationCount: number
   /** Whether someone pinned the Session, which keeps it out of every automatic archive. */
   readonly pinned: boolean
 }

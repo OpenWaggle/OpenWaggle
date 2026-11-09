@@ -34,6 +34,7 @@ interface SelfArchiveStateRow {
   readonly later_run_count: number
   readonly pending_worker_update_count: number
   readonly pinned: number
+  readonly working_delegation_count: number
 }
 
 export function readSessionSelfArchiveState(
@@ -55,7 +56,11 @@ export function readSessionSelfArchiveState(
         WHERE later.session_id = sessions.id AND later.rowid > asking.rowid) AS later_run_count,
       (SELECT COUNT(*) FROM session_orchestration_updates AS updates
         WHERE updates.parent_session_id = sessions.id AND updates.status = ${'pending'})
-        AS pending_worker_update_count
+        AS pending_worker_update_count,
+      (SELECT COUNT(*) FROM delegation_contracts AS delegations
+        WHERE delegations.parent_session_id = sessions.id
+          AND delegations.state IN (${'working'}, ${'waiting'}, ${'revision_requested'}))
+        AS working_delegation_count
     FROM sessions
     LEFT JOIN session_control_states ON session_control_states.session_id = sessions.id
     WHERE sessions.id = ${input.sessionId}
@@ -73,6 +78,7 @@ export function readSessionSelfArchiveState(
           runStatus: decodeRunStatus(row.run_status),
           laterRunCount: row.later_run_count,
           pendingWorkerUpdateCount: row.pending_worker_update_count,
+          workingDelegationCount: row.working_delegation_count,
         }
       }),
     ),

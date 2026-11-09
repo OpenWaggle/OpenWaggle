@@ -63,6 +63,8 @@ interface Scenario {
    * instead of a Queen the user started.
    */
   readonly acceptedWorker?: boolean
+  /** The Queen's Worker is still working, instead of waiting for the Queen's review. */
+  readonly workerStillWorking?: boolean
 }
 
 /**
@@ -144,7 +146,13 @@ function runScenario(databasePath: string, scenario: Scenario) {
     Effect.gen(function* () {
       hostRuntime = yield* Effect.runtime<HostContext>()
       const sql = yield* SqlClient.SqlClient
-      yield* seedHiveWorker(sql, { state: scenario.acceptedWorker ? 'accepted' : 'working' })
+      yield* seedHiveWorker(sql, {
+        state: scenario.acceptedWorker
+          ? 'accepted'
+          : scenario.workerStillWorking
+            ? 'working'
+            : 'ready_for_review',
+      })
       yield* seedQueenAuthority(sql, path.dirname(databasePath))
       const target = scenario.acceptedWorker ? 'worker' : 'queen'
       const started = yield* controlCommandAs(
@@ -236,6 +244,14 @@ describe('a Session agent archiving its own Session', () => {
     expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId, 'worker')])
     expect(result.archivedAfterRun).toBe(true)
     expect(result.journal).toEqual([{ caller_id: QUEEN_CALLER_ID, operation: 'archive' }])
+  }, 45_000)
+
+  it('keeps a Queen whose Worker is still working, so its report has a reader', async () => {
+    const result = await runScenario(database('working-worker'), { workerStillWorking: true })
+
+    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
+    expect(result.archivedAfterRun).toBe(false)
+    expect(result.journal).toEqual([])
   }, 45_000)
 
   it('archives once when the agent asks twice', async () => {

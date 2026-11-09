@@ -60,7 +60,7 @@ export function withdrawSelfArchives(sessionId: SessionId) {
 /**
  * Why the archive the Run asked for no longer applies, or undefined when it still does. A Run
  * that did not complete (the user stopped it, it failed, a drain interrupted it), a Run,
- * Follow-up, Worker update or other Session work that came after it, an unarchive or pin since, or
+ * Follow-up, Worker update or other Session work that came after it, a Worker still working, an unarchive or pin since, or
  * an archive that already happened all mean someone else decided what happens to the Session since
  * the agent asked. A Run without a `session_runs` row has no status to check, so it is skipped too.
  */
@@ -76,6 +76,8 @@ export function selfArchiveSkipReason(
   if (state.queuedFollowUpCount > 0) return 'follow-up-queued'
   // An unread Worker update keeps the Session visible, for a later Run or the user to read.
   if (state.pendingWorkerUpdateCount > 0) return 'worker-updates-pending'
+  // A Worker still working reports later, and a wake skips an archived parent.
+  if (state.workingDelegationCount > 0) return 'workers-working'
   if (live.sessionBusy) return 'session-busy'
   if (state.runStatus === null) return 'run-missing'
   if (state.runStatus !== 'completed') return 'run-not-completed'
@@ -176,7 +178,7 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
     )
   return Effect.uninterruptible(
     Effect.gen(function* () {
-      // A repeat from the same Run waits on the archive it already asked for.
+      // A repeat from the same Run gets the same answer, without forking a second daemon.
       if (!isSelfArchivePending(sessionId, runId)) {
         const releaseLiveness = yield* Effect.try({
           try: acquireArchiveLiveness,

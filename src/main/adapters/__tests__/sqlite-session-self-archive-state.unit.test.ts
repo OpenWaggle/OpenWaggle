@@ -74,6 +74,19 @@ describe('SQLite self-archive state', () => {
           INSERT INTO pinned_sessions (session_id, pinned_at, sort_key)
           VALUES (${'session-target'}, ${1}, ${'a'})
         `
+        for (const [id, state] of [
+          ['delegation-working', 'working'],
+          ['delegation-review', 'ready_for_review'],
+          ['delegation-accepted', 'accepted'],
+        ] as const) {
+          yield* sql`INSERT INTO sessions (id, project_path) VALUES (${`child-${id}`}, ${'/p'})`
+          yield* sql`
+            INSERT INTO delegation_contracts (
+              id, parent_session_id, child_session_id, state, current_specification_revision,
+              created_at, updated_at
+            ) VALUES (${id}, ${'session-target'}, ${`child-${id}`}, ${state}, ${1}, ${1}, ${1})
+          `
+        }
         const busy = yield* read('run-asking')
         const gone = yield* repository.readSelfArchiveState({
           sessionId: 'session-gone',
@@ -88,6 +101,7 @@ describe('SQLite self-archive state', () => {
       activeRunId: null,
       queuedFollowUpCount: 0,
       pendingWorkerUpdateCount: 0,
+      workingDelegationCount: 0,
       pinned: false,
     }
     expect(result.idle).toEqual({ ...base, runStatus: 'completed', laterRunCount: 0 })
@@ -101,6 +115,7 @@ describe('SQLite self-archive state', () => {
       runStatus: 'completed',
       laterRunCount: 0,
       pendingWorkerUpdateCount: 1,
+      workingDelegationCount: 1,
       pinned: true,
     })
     expect(result.gone).toBe(null)
