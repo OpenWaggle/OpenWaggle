@@ -52,6 +52,11 @@ describe('formatDuration', () => {
     expect(formatDuration(3_600_000)).toBe('1h 0m 0s')
     expect(formatDuration(3_723_000)).toBe('1h 2m 3s')
   })
+
+  it('clamps negative durations to zero', () => {
+    expect(formatDuration(-5)).toBe('0ms')
+    expect(formatDuration(-5_000)).toBe('0ms')
+  })
 })
 
 describe('formatRelativeTime', () => {
