@@ -45,7 +45,7 @@ const SUBSCHEMA_KEYWORDS = new Set(['items', 'not', 'anyOf', 'oneOf', 'allOf'])
 /**
  * Published patterns the parser enforces in code rather than with a Zod regex, and the exact pattern
  * each must be: the portable name, which `isAgentDefinitionName` tests with exactly this regex, and
- * the non-whitespace strings. The behavioral tests above also sample each of them.
+ * the non-whitespace strings. The behavioral tests below also sample each of them.
  */
 const NON_WHITESPACE_PATTERN = '\\S'
 const CODE_ENFORCED_PATTERNS = new Map([
@@ -58,12 +58,18 @@ const CODE_ENFORCED_PATTERNS = new Map([
 ])
 
 /**
- * Replaces a local `$ref` with its definition. Sibling keywords still apply in draft 2020-12, and both
- * apply when the definition has the same keyword, so a sibling that differs from it is refused here.
+ * Replaces a local `$ref` with its definition, following a definition that is itself a `$ref`.
+ * Sibling keywords still apply in draft 2020-12, and both apply when the definition has the same
+ * keyword, so a sibling that differs from it is refused here.
  */
-function resolveLocalReference(root: Record<string, unknown>, node: Record<string, unknown>) {
+function resolveLocalReference(
+  root: Record<string, unknown>,
+  node: Record<string, unknown>,
+  visited: ReadonlySet<string> = new Set(),
+): Record<string, unknown> {
   const reference = node.$ref
   if (typeof reference !== 'string') return node
+  if (visited.has(reference)) throw new Error(`${reference} refers to itself.`)
   const name = reference.replace(/^#\/\$defs\//u, '')
   const definition = record(record(root.$defs)[name])
   const siblings = Object.entries(node).filter(([keyword]) => keyword !== '$ref')
@@ -72,7 +78,11 @@ function resolveLocalReference(root: Record<string, unknown>, node: Record<strin
       throw new Error(`${reference} and the keyword "${keyword}" beside it disagree.`)
     }
   }
-  return { ...definition, ...Object.fromEntries(siblings) }
+  return resolveLocalReference(
+    root,
+    { ...definition, ...Object.fromEntries(siblings) },
+    new Set([...visited, reference]),
+  )
 }
 
 function jsonTypeOf(value: unknown) {
