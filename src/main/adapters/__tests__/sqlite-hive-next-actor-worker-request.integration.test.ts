@@ -206,14 +206,22 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
       }),
     )
     const woken = await wakeWorker('session-agent:queen:run-q', 'profile-caused-wake')
-    expect(woken.outcome).toMatchObject({ effect: 'rejected', code: 'hive_wake_not_needed' })
+    expect(woken.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'hive_wake_not_needed',
+      kind: 'conflict',
+    })
   })
 
   it('refuses a wake whose caller is no longer the caller of the latest Run', async () => {
     await prepareWorkerWithUnreadUpdate()
     // The Host resolved its authority for another Run's caller than the one its start finds.
     const woken = await wakeWorker('local-user', 'stale-caller-wake')
-    expect(woken.outcome).toMatchObject({ effect: 'rejected', code: 'hive_wake_not_needed' })
+    expect(woken.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'hive_wake_not_needed',
+      kind: 'conflict',
+    })
   })
 
   it('refuses a wake whose Session no longer needs it when its start runs', async () => {
@@ -226,7 +234,11 @@ describe("Hive next actor: a Worker's request for help (#380)", () => {
     )
     // No update waits: someone else's Run read it after the Host checked, for one.
     const woken = await wakeWorker('session-agent:queen:run-q', 'stale-wake')
-    expect(woken.outcome).toMatchObject({ effect: 'rejected', code: 'hive_wake_not_needed' })
+    expect(woken.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'hive_wake_not_needed',
+      kind: 'conflict',
+    })
   })
 
   it('clears a Worker’s request for help when it sets itself back to working', async () => {

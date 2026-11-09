@@ -161,7 +161,7 @@ function compactOutcome(outcome: ScheduledTasksOutcome) {
         run: compactRun(run, task.timeZone),
       }))
       .with('deleted', ({ effect, taskId }) => ({ effect, taskId }))
-      .with('rejected', ({ effect, code, message }) => ({ effect, code, message }))
+      .with('rejected', ({ effect, code, kind, message }) => ({ effect, code, kind, message }))
       .exhaustive()
   )
 }

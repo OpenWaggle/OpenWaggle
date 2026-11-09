@@ -216,6 +216,7 @@ describe('SQLite Delegation scope claims', () => {
     expect(result.invalid.outcome).toMatchObject({
       effect: 'rejected',
       code: 'claim_target_invalid',
+      kind: 'usage',
     })
     expect(result.cleared.outcome).toMatchObject({ claimRevision: 3, conflictIds: [] })
     expect(result.claims).toHaveLength(4)

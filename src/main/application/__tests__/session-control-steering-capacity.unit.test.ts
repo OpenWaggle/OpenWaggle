@@ -96,7 +96,12 @@ describe('direct steer capacity', () => {
   it('refuses a direct steer the full queue could not take back', async () => {
     const setup = steerWithQueue(MAX_FOLLOW_UP_QUEUE_ITEMS, queuedReceipt)
     await expect(setup.response).resolves.toMatchObject({
-      outcome: { operation: 'steer', effect: 'rejected', code: 'queue_capacity_reached' },
+      outcome: {
+        operation: 'steer',
+        effect: 'rejected',
+        code: 'queue_capacity_reached',
+        kind: 'conflict',
+      },
     })
     expect(setup.steer).not.toHaveBeenCalled()
   })
@@ -104,7 +109,7 @@ describe('direct steer capacity', () => {
   it('reports a Run that already holds as many returnable steers as it may', async () => {
     const setup = steerWithQueue(0, { accepted: false, code: 'steering_capacity_reached' })
     await expect(setup.response).resolves.toMatchObject({
-      outcome: { effect: 'rejected', code: 'steering_capacity_reached' },
+      outcome: { effect: 'rejected', code: 'steering_capacity_reached', kind: 'conflict' },
     })
   })
 

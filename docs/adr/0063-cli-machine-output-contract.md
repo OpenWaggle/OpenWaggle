@@ -1,0 +1,28 @@
+---
+status: accepted
+---
+
+# The CLI machine-output contract is settled before 1.0
+
+Date: 2026-11-09
+
+From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` CLIs is covered by semver (see the v1 compatibility promise in `docs/release-and-versioning.md`). `run` and `update` report failures with the same covered error kinds and exit codes, and `run --jsonl` prints the same covered `event` records; their other output is outside this decision. Scripts and agents parse that output, so four parts of it had to be fixed before the promise starts. Each one was an accident of how the betas grew, and none can change in place after 1.0.
+
+## Decision
+
+- **The envelope `command` is the full command path.** Every CLI's envelope names the command as typed after `openwaggle`, space-separated and without operands: `hive list`, `schedules list`, `host stop`, `access profiles list`, `agents validate`, `mcp list`, `recovery status`, `status`. The Hive CLI printed a bare `list` while `agents` and `recovery` already printed their group, so a reader seeing several CLIs in one log could not tell `list` apart. The type `CliEnvelopeCommand` rejects a name without its group, and one test checks the envelope of every CLI, through each one's entry point or the output function it prints with.
+- **`schedules export` prints a versioned envelope.** It always prints `{"schemaVersion":1,"type":"scheduled-tasks","tasks":[...]}`, and `--json` changes nothing. `schedules import` reads that envelope and, for all of 1.x, the bare array that earlier betas exported. `import` decodes the file exactly, so any change to the export's shape, even an added field, raises `schemaVersion`. Each release imports every version up to its own, with one schema per version, and refuses a newer one with a message that says to update OpenWaggle. A refused list prints the refusal, never an empty export. `schedules import --json` always answers with an array of responses, also for a file with one task.
+- **Watch records have three kinds.** `hive watch --jsonl` and `hive exports-watch --jsonl` keep the `{"type":"record","record":...}` envelope. `record.kind` is `cursor` (`{kind, cursor}`), `event` (`{kind, cursor, timestamp, event}`) or `resync-required` (`{kind, reason, cursor}`), and consumers skip a kind they do not know. `openwaggle run --jsonl` prints its events as the same `event` records. Covered from 1.0 are the kinds, cursor and resume behavior, `timestamp`, `event.kind`, `event.sessionId`, and the resync reasons. The bodies of `session-transport` and `session-waggle-transport` events follow Pi's agent events and are not covered, so a stable reader uses `read` or `status`. A watch that ends on a resync exits with the new `resync_required` kind, exit 9, instead of 1.
+- **The Session Host assigns every refusal's kind.** One table, `SESSION_HOST_REFUSAL_KINDS` in `src/shared/domain/session-host-refusals.ts`, gives each refusal code its error kind. Every rejected outcome, query error and error frame carries that `kind` next to its `code`, and the CLI copies it. A refusal without a kind is a `conflict`, and a failure whose code the table does not list is `internal`; an error frame without a kind, from a Session Host older than revision 32, takes its code's kind from the table. A thrown failure cannot claim a kind of its own. A code keeps its kind for the whole major version, and new kinds may be added. So a code means one thing: `profile_revoked` and `profile_not_found` are the caller's own profile (authentication), and `access profiles` names a missing or revoked target with `target_profile_not_found` and `target_profile_revoked`. The kind is additive on the Session Control wire, so the MCP `openwaggle_hive` tool reports it too. Local Session protocol revision 32 adds it.
+
+## Considered Options
+
+- **Keep the bare `command` and document it per CLI.** It costs nothing now, but a field whose meaning depends on which binary printed it is a trap, and fixing it after 1.0 would need a major.
+- **Make `schedules export --json` print the response envelope**, like every other command. Then the file a person saves and the file `import` reads would depend on a flag. An export is a document, not a response, so it always has its own versioned shape.
+- **Drop the bare array on import.** Exports from betas would stop importing the day 1.0 ships. Reading both forms costs a branch in one function.
+- **Cover the transport event bodies.** They are Pi's `AgentTransportEvent`s, which change whenever Pi changes. Covering them would freeze Pi's event shapes into OpenWaggle's semver.
+- **Keep the CLI guessing kinds from code names.** The CLI looked for words such as `not_found`, `missing` or `denied` in the code. That made `delegation_workspace_missing` a `not_found` and `run_authorization_override_requires_idle_session` an `authorization`, and sent `parent_required` and the missing-reason codes to `conflict`. `access` and `schedules` each kept a second, hand-written mapping beside it. A guess cannot be part of a promise, and the MCP tool had no kind at all. The Session Host knows why it refused, so it says.
+
+## Consequences
+
+Some refusals exit with a different code than in the betas. `hive-cli.md` lists them under "Exit codes that changed before 1.0". Stored refusals written before revision 32 have no kind, so the SQLite replay paths add the kind their code has now, or `conflict` for a code the table no longer has. A test fails when a Session Host producer writes a rejected outcome without `sessionHostRefusal(code)`, and another pins the kind of every code released in 1.0.

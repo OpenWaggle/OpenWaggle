@@ -13,7 +13,7 @@ import {
   writeAccessCliError,
 } from './access-cli-output'
 import { accessCliUsage } from './access-cli-usage'
-import { asUsageErrorsSync } from './cli-error'
+import { asUsageErrorsSync, CliError } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
@@ -118,8 +118,12 @@ async function finalizeProfileResponse(input: {
     )
   if (input.response.outcome.effect === 'rejected') {
     if (input.staged?.recoveredPending) {
+      // The refusal keeps the kind the Session Host gave it (ADR 0063).
       throw preservedProfileCredentialError(
-        new Error(`The profile operation was rejected (${input.response.outcome.code}).`),
+        new CliError(
+          accessCliRejectedOutcomeKind(input.response.outcome),
+          `The profile operation was rejected (${input.response.outcome.code}).`,
+        ),
         input.staged.recoveryLocation,
       )
     }

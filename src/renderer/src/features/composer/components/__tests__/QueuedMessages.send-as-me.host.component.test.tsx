@@ -165,7 +165,11 @@ describe('"Send as me" from a queue paused for a message that needs attention', 
         api.querySessionControl.mockResolvedValue(
           queueList({ ...PAUSED_FOR_ATTENTION, revision: 8 }),
         )
-        return adoptResponse(request, { effect: 'rejected', code: 'queue_revision_changed' })
+        return adoptResponse(request, {
+          effect: 'rejected',
+          code: 'queue_revision_changed',
+          kind: 'conflict',
+        })
       })
       .mockImplementationOnce(async (request) =>
         adoptResponse(request, {
@@ -195,7 +199,11 @@ describe('"Send as me" from a queue paused for a message that needs attention', 
           headNeedsAttention: false,
         }),
       )
-      return adoptResponse(request, { effect: 'rejected', code: 'queue_revision_changed' })
+      return adoptResponse(request, {
+        effect: 'rejected',
+        code: 'queue_revision_changed',
+        kind: 'conflict',
+      })
     })
     renderQueue()
 
@@ -211,7 +219,11 @@ describe('"Send as me" from a queue paused for a message that needs attention', 
   it('tells the user in words when the message left the queue', async () => {
     api.mutateSessionControl.mockImplementationOnce(async (request) => {
       api.querySessionControl.mockResolvedValue(queueList(null))
-      return adoptResponse(request, { effect: 'rejected', code: 'queue_revision_changed' })
+      return adoptResponse(request, {
+        effect: 'rejected',
+        code: 'queue_revision_changed',
+        kind: 'conflict',
+      })
     })
     renderQueue()
 

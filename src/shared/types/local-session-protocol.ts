@@ -190,6 +190,8 @@ export type LocalSessionServerFrame =
       readonly kind: 'error'
       readonly requestId?: string
       readonly code: string
+      /** What kind of failure it is, which the CLI exits with (ADR 0063). */
+      readonly errorKind: SessionHostErrorKind
       readonly message: string
       readonly retryable: boolean
     }
@@ -263,6 +265,7 @@ export type LocalSessionNegotiationResult =
       }[]
     }
 
+import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AttachmentOrigin, PreparedAttachment } from './agent'
 import type { BackgroundRunSnapshot } from './background-run'
 import type { DesktopServiceRequest, DesktopServiceResponse } from './desktop-service'

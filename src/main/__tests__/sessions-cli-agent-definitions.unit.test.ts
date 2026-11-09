@@ -106,7 +106,7 @@ describe('Hive CLI Agent-definition discovery', () => {
     expect(await listed(project)).toMatchObject({
       schemaVersion: 1,
       type: 'response',
-      command: 'agent-definitions-list',
+      command: 'hive agent-definitions-list',
       result: { definitions: [{ name: 'security-reviewer', scope: 'project', valid: true }] },
     })
     stdout = []

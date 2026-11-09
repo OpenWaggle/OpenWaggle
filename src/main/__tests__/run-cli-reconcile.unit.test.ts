@@ -23,7 +23,9 @@ beforeEach(() => resetSequence())
 
 const missingSession = fromPartial<LocalSessionCommandResult>({
   contract: 'session-query-v2',
-  response: { outcome: { operation: 'turns', error: { code: 'session_not_found' } } },
+  response: {
+    outcome: { operation: 'turns', error: { code: 'session_not_found', kind: 'not_found' } },
+  },
 })
 
 describe('openwaggle run reconciliation', () => {
@@ -82,7 +84,9 @@ describe('openwaggle run reconciliation', () => {
       ...test.dependencies,
       execute: async (input: Parameters<typeof test.dependencies.execute>[0]) => {
         if (input.payload.contract !== 'session-query-v2') return test.dependencies.execute(input)
-        throw new LocalSessionClientProtocolError('capability_denied', 'Session command refused.')
+        throw new LocalSessionClientProtocolError('capability_denied', 'Session command refused.', {
+          errorKind: 'authorization',
+        })
       },
     }
 

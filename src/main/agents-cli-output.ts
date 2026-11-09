@@ -35,12 +35,11 @@ export function writeAgentsCliError(
   return writeSessionsCliError(error, json, stderr)
 }
 
+/** The human catalog of `hive agent-definitions-list`; its `--json` uses the Hive envelope. */
 export function writeAgentsCliCatalog(
   value: readonly CompactAgentCatalogItem[],
-  json: boolean,
   stdout: (value: string) => void | Promise<void>,
 ) {
-  if (json) return writeAgentsCliResult('list', value, true, stdout)
   if (value.length === 0) return stdout('No Agent definitions found.\n')
   return stdout(
     `${value

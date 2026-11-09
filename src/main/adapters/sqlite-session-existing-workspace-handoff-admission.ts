@@ -1,12 +1,15 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
 import type { SessionOrganizationRepositoryShape } from '../ports/session-organization-repository'
 import { assertBoundSessionAuthoritySnapshot } from './sqlite-session-authority-snapshot-refresh'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 
 type AdmissionInput = Parameters<SessionOrganizationRepositoryShape['admitExistingHandoff']>[0]
 
@@ -149,12 +152,12 @@ function rejectionCode(session: SessionRow | undefined) {
   return session.active_run_id ? 'session_not_idle' : 'workspace_unavailable'
 }
 
-function rejectionOutcome(input: AdmissionInput, code: string) {
+function rejectionOutcome(input: AdmissionInput, code: SessionHostRefusalCode) {
   return {
     operation: 'handoff',
     effect: 'rejected',
     sessionId: input.request.command.sessionId,
-    code,
+    ...sessionHostRefusal(code),
   } satisfies SessionControlMutationOutcome
 }
 
@@ -186,9 +189,7 @@ export function admitExistingHandoff(sql: SqlClient.SqlClient, input: AdmissionI
           )
         }
         if (operation?.status === 'completed' && operation.outcome_json) {
-          const outcome = decodeSessionControlMutationOutcome(
-            parseJsonUnknown(operation.outcome_json),
-          )
+          const outcome = decodeStoredSessionControlMutationOutcome(operation.outcome_json)
           return { status: 'completed', response: response(input, outcome, true) } as const
         }
 

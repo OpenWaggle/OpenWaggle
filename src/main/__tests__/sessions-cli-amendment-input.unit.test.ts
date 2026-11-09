@@ -196,7 +196,11 @@ describe('hive delegation amendments change only the fields they name', () => {
         requestId: 'request-read',
         outcome: {
           operation: 'delegations-read',
-          error: { code: 'delegation_not_found', message: 'Delegation not found.' },
+          error: {
+            code: 'delegation_not_found',
+            kind: 'not_found',
+            message: 'Delegation not found.',
+          },
         },
       },
     })

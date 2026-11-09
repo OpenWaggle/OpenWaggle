@@ -288,8 +288,16 @@ describe('SQLite Delegation repository', () => {
     )
 
     expect(outcomes).toEqual([
-      expect.objectContaining({ effect: 'rejected', code: 'parent_required' }),
-      expect.objectContaining({ effect: 'rejected', code: 'submission_revision_stale' }),
+      expect.objectContaining({
+        effect: 'rejected',
+        code: 'parent_required',
+        kind: 'authorization',
+      }),
+      expect.objectContaining({
+        effect: 'rejected',
+        code: 'submission_revision_stale',
+        kind: 'conflict',
+      }),
     ])
   })
 })

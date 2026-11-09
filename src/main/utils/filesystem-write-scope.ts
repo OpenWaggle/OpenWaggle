@@ -26,6 +26,14 @@ function pathInside(root: string, candidate: string) {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
+/** A destination outside every granted root, which callers may report as their own refusal. */
+export class FilesystemWriteScopeError extends Error {
+  constructor() {
+    super('The export destination is outside the granted filesystem scope.')
+    this.name = 'FilesystemWriteScopeError'
+  }
+}
+
 export async function assertFilesystemWriteScope(input: {
   readonly roots: readonly string[]
   readonly destinationPath: string
@@ -43,5 +51,5 @@ export async function assertFilesystemWriteScope(input: {
       destinationPath: path.resolve(destinationAncestor.canonicalPath, unresolved),
     }
   }
-  throw new Error('The export destination is outside the granted filesystem scope.')
+  throw new FilesystemWriteScopeError()
 }

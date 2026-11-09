@@ -50,7 +50,7 @@ A mistake never opens the app. `openwaggle` prints the error, a suggestion when 
 ```text
 openwaggle: unknown command 'hvie'. Did you mean 'hive'?
 
-OpenWaggle 0.4.0
+OpenWaggle 1.0.0
 
 Usage:
   openwaggle                    Open the desktop app, or focus it if it is already open
@@ -118,7 +118,7 @@ Give the prompt as words after `run` or with one of `--text`, `--stdin` or `--in
 
 ### Output
 
-The agent's reply streams to stdout, so you can pipe it. Progress lines, tool calls, and questions go to stderr. With `--jsonl`, stdout gets the session's events instead, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
+The agent's reply streams to stdout, so you can pipe it. Progress lines, tool calls, and questions go to stderr. With `--jsonl`, stdout gets the session's events instead, each as an `event` record like [`hive watch`](/docs/developer-workflow/hive-cli#wait-and-watch) prints, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
 
 Text the agent controls, such as tool arguments and approval messages, can contain characters that change what a terminal shows. `run` prints control characters, text-direction overrides, and invisible characters (zero-width spaces, byte-order marks, variation selectors, tag characters, line separators) as escapes such as `\x1b` or `\u202e`. That way they cannot rewrite, reorder, or hide part of the line you are about to approve. Emoji, including joined sequences and subdivision flags, print normally. The reply on stdout gets the same treatment when stdout is a terminal. `run` leaves it untouched when you pipe it.
 
@@ -161,7 +161,7 @@ openwaggle status
 `status` never starts the Session Host. It says whether the Session Host is running and lists each active run with its session, run ID, model, how long it has run, and whether it is waiting for an answer. Add `--json` for machine-readable output.
 
 ```text
-OpenWaggle 0.4.0
+OpenWaggle 1.0.0
 Session Host: running
 Active runs: 1
   6f1c2a9e-4b7d-4f0e-9c1a-2d3e4f5a6b7c  Fix tests  (anthropic/claude-sonnet-4-5, 3m, waiting for an answer)

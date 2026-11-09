@@ -19,15 +19,23 @@ export async function readSecretFromStdin() {
     .replace(/[\r\n]+$/, '')
 }
 
-export function formatMcpCliOutput(value: unknown, json: boolean) {
-  return json
-    ? JSON.stringify({ schemaVersion: 1, data: value }, null, MCP_CONFIG.JSON_INDENT_SPACES)
-    : typeof value === 'string'
-      ? value
-      : JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)
+/** Human-readable `openwaggle mcp` output. `--json` output goes through `mcpCliJsonResponse`. */
+export function formatMcpCliOutput(value: unknown) {
+  return typeof value === 'string'
+    ? value
+    : JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)
 }
 
+/** The `openwaggle mcp` commands that answer `--json`, by their path after `mcp` (ADR 0063). */
+export type McpCliJsonCommand =
+  | 'list'
+  | 'doctor'
+  | 'import'
+  | 'registry search'
+  | 'registry get'
+  | 'registry add'
+
 /** `openwaggle mcp … --json` answers in the Hive CLI envelope, like every other command (#351). */
-export function mcpCliJsonResponse(command: string, value: unknown) {
+export function mcpCliJsonResponse(command: McpCliJsonCommand, value: unknown) {
   return sessionsCliResponseText(`mcp ${command}`, value, true).trimEnd()
 }

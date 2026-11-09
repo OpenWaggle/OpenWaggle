@@ -12,7 +12,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import JsonSchema from 'typebox/schema'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseMcpCliArguments } from '../../src/main/mcp-cli-arguments'
-import { exportedTasks } from '../../src/main/schedules-cli-output'
+import { scheduledTasksExport as printedScheduledTasksExport } from '../../src/main/schedules-cli-output'
 import { buildSchedulesCliCommands } from '../../src/main/schedules-cli-payload'
 import { PUBLISHED_JSON_SCHEMAS } from '../published-json-schemas'
 import {
@@ -157,10 +157,10 @@ const piModelsFile: ExampleKind = {
   },
 }
 
-/** What `openwaggle schedules export` prints, and what `import` reads back. */
+/** What `openwaggle schedules export` prints, and what `import` reads back (ADR 0063). */
 const scheduledTasksExport: ExampleKind = {
   name: 'openwaggle schedules export',
-  matches: Array.isArray,
+  matches: (value) => record(value).type === 'scheduled-tasks',
   check: async (value) => {
     const filePath = path.join(scratchDirectory('ow-schedules-example-'), 'tasks.json')
     writeFileSync(filePath, JSON.stringify(value))
@@ -180,7 +180,9 @@ const scheduledTasksExport: ExampleKind = {
       }),
     )
     expect(
-      exportedTasks(fromPartial<ScheduledTasksResponse>({ outcome: { effect: 'listed', tasks } })),
+      printedScheduledTasksExport([
+        fromPartial<ScheduledTasksResponse>({ outcome: { effect: 'listed', tasks } }),
+      ]),
     ).toEqual(value)
   },
 }

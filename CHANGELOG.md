@@ -11,7 +11,9 @@ This file lists OpenWaggle's Stable releases, starting with 1.0.0. Earlier 0.x b
 From 1.0.0 on, version numbers follow semver for a defined set of covered surfaces. A change that breaks one of them ships only in a new major version, such as 2.0.0.
 
 - Your data: sessions, settings, projects, credentials and the Session Host database. Every later 1.x release opens data written by an earlier 1.x release and migrates it forward. Downgrades are not supported.
-- The `openwaggle hive` and `openwaggle access` commands, including their JSON and JSONL output. New fields can appear. Existing commands, flags and fields are not removed or renamed.
+- The `openwaggle hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` commands, including their JSON and JSONL output. New fields can appear. Existing commands, flags and fields are not removed or renamed.
+- The error kinds and exit codes of every `openwaggle` command. A refusal code keeps its kind. New kinds can appear.
+- The `cursor`, `event` and `resync-required` records of `hive watch --jsonl`, `hive exports-watch --jsonl` and `run --jsonl`'s events. The bodies of `session-transport` and `session-waggle-transport` events follow Pi and are not covered.
 - Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool. An existing contract version keeps its meaning.
 - The Agent-definition schema. A definition that is valid in 1.0.0 stays valid in 1.x.
 - Scheduled tasks: the `openwaggle schedules` command, the `schedules:read` and `schedules:manage` capabilities, the `schedule_*` actions of the agent's `hive` tool, and Background start.
@@ -27,7 +29,7 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - `openwaggle agents list` and `openwaggle agents search` are now `openwaggle hive agent-definitions-list` and `openwaggle hive agent-definitions-search`. The other `openwaggle agents` commands keep their names.
 - The OpenWaggle MCP server's tool is now `openwaggle_hive`. An MCP client that calls `openwaggle_sessions` gets a tool-not-found error, so update its config. The tool's existing operations and their JSON are unchanged, and it adds `agent-definitions-list` and `agent-definitions-search`, which return the names and descriptions of the Agent definitions in a project the client is allowed to read.
 - The agent's coordination tool is now `hive`. An Agent definition file that lists `sessions` under `tools` must list `hive` instead. Until it does, OpenWaggle reports `sessions` in it as an unknown reference. Sessions already created from such a definition are updated once, the first time you start the new version, so they keep the `hive` tool. Older conversations still show their `sessions` calls, as an unrecognized tool.
-- Some outputs change. `openwaggle hive agent-definitions-list --json` and `openwaggle hive agent-definitions-search --json`, formerly `openwaggle agents list --json` and `search --json`, answer in the Hive response envelope, for example `{"schemaVersion":1,"type":"response","command":"agent-definitions-list","result":{"definitions":[…]}}`, instead of `{"schemaVersion":1,"result":[…]}`. Their errors use the Hive error envelope, `{"schemaVersion":1,"type":"error","error":{"kind":…,"message":…}}`, instead of `{"schemaVersion":1,"error":{"message":…}}`. The human-readable output of the delegation commands now uses the Hive CLI format, which titles a result after its operation or effect. The separate Delegations format is gone.
+- Some outputs change. `openwaggle hive agent-definitions-list --json` and `openwaggle hive agent-definitions-search --json`, formerly `openwaggle agents list --json` and `search --json`, answer in the Hive response envelope, for example `{"schemaVersion":1,"type":"response","command":"hive agent-definitions-list","result":{"definitions":[…]}}`, instead of `{"schemaVersion":1,"result":[…]}`. Their errors use the Hive error envelope, `{"schemaVersion":1,"type":"error","error":{"kind":…,"message":…}}`, instead of `{"schemaVersion":1,"error":{"message":…}}`. The human-readable output of the delegation commands now uses the Hive CLI format, which titles a result after its operation or effect. The separate Delegations format is gone.
 - `openwaggle schedules` and `openwaggle access` keep their names. The CLI guide moved to [Hive CLI](https://openwaggle.ai/docs/developer-workflow/hive-cli), and the old page redirects there.
 
 ### Ordinary flags instead of inline JSON before 1.0.0
@@ -42,6 +44,17 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 - `--request-json <path|->` on the message commands is now `--request-file <path|->`.
 - `access profiles create` and `update` replace `--management-envelope-json` with `--manage-capability`, `--manage-all` or any of `--manage-project`, `--manage-session` and `--manage-hive`, and `--manage-export-root`, `--manage-attachment-root` and `--manage-authorization`. They apply only to a profile that gets `access:profiles`.
 - `openwaggle run` prints these flags when it shows how to answer a question from another terminal.
+
+### Machine output changes before 1.0.0
+
+From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` commands is covered by semver, and so are the error kinds, exit codes and watch records. A few parts of it change once now, so scripts written against the betas may need an update.
+
+- The envelope's `command` is the whole command after `openwaggle`, for example `"command":"hive list"`, `"schedules list"`, `"host stop"` or `"access profiles list"`. Before, `hive` and `schedules` printed only the action, such as `"list"`, `host` printed `"host-stop"` and `"host-start"`, `host status` printed `"status"`, and `mcp registry search`, `get` and `add` printed `"mcp registry"`.
+- `openwaggle schedules export` prints `{"schemaVersion":1,"type":"scheduled-tasks","tasks":[…]}` instead of a bare array, with or without `--json`. `schedules import` reads both, for all of 1.x, and refuses an export from a newer OpenWaggle with a message to update. `schedules import --json` always answers with an array, also for one task.
+- A `hive watch --jsonl` or `hive exports-watch --jsonl` event record is now `{"kind":"event","cursor":…,"timestamp":…,"event":{"kind":…,"sessionId":…}}`, beside the `cursor` and `resync-required` records. Before, an event record had no `kind` and carried the event in `payload`, and a resync record named itself in `status` instead of `kind`. `openwaggle run --jsonl` prints its events as the same `event` records. Skip record kinds you do not know. The bodies of `session-transport` and `session-waggle-transport` events follow Pi and can change in any release, so read stable state with `hive read` or `hive status`.
+- A watch that ends with a `resync-required` record exits with 9, the new `resync_required` error kind, instead of 1.
+- The Session Host now names the kind of every refusal. Rejected outcomes and query errors carry `kind` beside `code`, the CLI exits with that kind's code, and every `openwaggle_hive` MCP tool error for a refusal, by the Session Host or by the server's own grants and scope, starts with the code and its kind, such as `target_scope_denied (authorization): …`. Some refusals exit differently than in the betas. For example, a missing delegation `reason` or an empty report is now a usage error (exit 2) instead of a conflict (6), and `parent_required` and `worker_required` are authorization errors (4). The full list is in [Hive CLI](https://openwaggle.ai/docs/developer-workflow/hive-cli#exit-codes-that-changed-before-10).
+- `openwaggle access profiles` answers `target_profile_revoked` for a change to a revoked profile and `target_profile_not_found` for a name that does not exist, instead of `profile_revoked` and `profile_not_found`. Their exit codes stay 6 and 5. `profile_revoked` and `profile_not_found` now mean only that your own profile was revoked or deleted.
 
 ### Updates and installation
 
@@ -69,10 +82,28 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 - Line breaks you type or paste into a message are kept.
 - While a run is finishing, the chat shows what an extension is still doing, and offers Stop if that takes more than a second.
 - Screenshots and images that agents embed by file path now show in the chat and under Sources. Inline visualizations load reliably and keep the choices you made in them.
+- A long paste that becomes a `Pasted Text` attachment shows once in the transcript, with its attachment. Before, it showed a second time, without the attachment.
+- The command palette, Go to file and Search project contents take typing, the arrow keys and Enter as soon as they open. Closing one puts the focus back where it was.
+- OpenWaggle shortens paths with `~` only for your own home folder. Before, it guessed the home folder from the path, so another user's folder could show as `~`.
+
+### Notifications
+
+[Desktop notifications](https://openwaggle.ai/docs/using-openwaggle/notifications) are new. OpenWaggle shows a notification and plays a sound when a session needs you or has finished, so you can work in another app while it runs.
+
+- Four kinds notify. Needs you is for a session that waits for your approval or your answer, Workers included, and for a stuck Worker. The other three are Ready to read, Failed or interrupted, and Agent errors. They notify for a top-level session's run that you or a Scheduled task started, not for runs that another agent started. Failed or interrupted also covers a Scheduled task that OpenWaggle turned off because it needs your attention, unless it is a Heartbeat whose session you archived. A run you stopped never notifies.
+- The Session Host sends them, so they keep coming with every window closed. Clicking one about a session opens OpenWaggle on that session.
+- A session has at most one notification. Opening the session clears it, except Needs you, which stays until you answer the request or the Worker is no longer stuck. Archiving the session clears it too.
+- Settings > Notifications turns each kind on or off, picks its sound, and sets what happens while OpenWaggle is focused. Show badge counts your notifications on the Dock icon, or shows a red dot on Windows. Show previews is off by default, so message text stays off your lock screen.
+- Mute a session or a project from its menu in the sidebar. A muted session still notifies when it needs you.
+- macOS asks whether OpenWaggle may show notifications the first time you start a run.
 
 ### Hives
 
-- The new Hive panel on the right lists every Worker of a Hive at any depth, grouped into Needs you, Review, Active and Done. The sidebar no longer lists Workers unless you pin them or search for them.
+- The new Hive panel on the right lists every Worker of a Hive at any depth, each under the session that created it. The tree hides archived Workers until you turn on Show archived. Turn on By next actor to group them into Needs you, a Waiting for group for each parent, Working and Closed, with archived Workers in a collapsed Archived group. The sidebar no longer lists Workers unless you pin them or search for them.
+- When a Worker finishes, fails or asks for help after its parent has finished its turn, OpenWaggle starts a new run on the parent. A Queen that said it would report back when its Workers finish now gets a run to do it. The run starts with a Hive · Worker updates arrived line instead of a message from you. A parent whose last run was stopped or cut off waits until you send it something.
+- OpenWaggle gives an agent that can create Workers the names and descriptions of its project's enabled Agent definitions, and asks it to use one when it fits a Worker's job. In the Hive panel, a Worker created from a definition shows an agent icon and a line such as `reviewer · High · <model>`, and the toolbar counts the sessions that run each definition.
+- The `agent_definitions_list` and `agent_definitions_search` actions of the agent's `hive` tool read another project's definitions when the agent passes `projectPath`. Before, they ignored it and listed the caller's own project. Reading another project needs `sessions:create` and `sessions:discover`, so Workers can't.
+- The agent's `hive` tool can search archived sessions with `includeArchived`, as `openwaggle hive search --include-archived` does. Archived sessions stay out of a search unless you ask for them.
 - An agent in a top-level session you started from the app can now find, read, message, steer, interrupt, archive and start sessions in your other OpenWaggle projects. Workers, and runs started by a project-scoped CLI profile or MCP client, stay in their own project.
 - Each session gets its own scratch folder, so agents in two sessions no longer overwrite each other's temporary files.
 - Agents can look up and read the OpenWaggle documentation installed with the app.
@@ -87,6 +118,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 - Every Heartbeat needs a way to finish: a "Stop when…" outcome, an end date, a run limit, or Runs indefinitely. Heartbeats you created during the Beta run indefinitely and say they have no end.
 - A Heartbeat can run a cheap Wake check command before each firing. When it finds nothing to do, the firing is recorded as skipped and no agent turn or model call happens. A Heartbeat pauses itself when its Run says it is done, or after 3 idle runs in a row, and tells you once, with Resume. It can also use its own, cheaper model for its Runs.
 - Manage tasks from a terminal with `openwaggle schedules`.
+- A task an agent set up runs as the task's owner, which is you or the CLI access profile it belongs to, within what that agent could do when it created the task. A Launch schedule, or a Heartbeat in another session, keeps running if you archive or delete the agent's session. A Heartbeat in the agent's own session still pauses when you archive that session. Deleting that session deletes the Heartbeat. When the agent could do less than the owner, the task says it runs with limited access, until the owner changes its prompt, its model or another run setting, its stop condition or its Wake check.
 
 ### Right panel and workspace
 
@@ -97,6 +129,9 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 - Worktree sessions keep working after a macOS restart. Before, a restart could stop every worktree session with "This worktree no longer matches its saved preparation".
 - A worktree created just before OpenWaggle stopped is recovered on the next run.
 - Removing a worktree from Settings > Worktrees no longer asks for Delete anyway when no cleanup was configured for it.
+- Settings > Worktrees shows how much space worktrees take, in every project, and sorts them into Safe to remove, Needs a decision and In use. One button frees every safe worktree after a single confirmation. A worktree whose sessions aren't archived yet offers Archive & remove, which archives the sessions it names and then removes the worktree. If the worktree has uncommitted changes, it offers Archive Sessions instead, which archives them and keeps the worktree. OpenWaggle offers neither while a run, a terminal or an action uses the worktree.
+- Automatic cleanup in Settings > Worktrees is off unless you turn on Remove worktrees of archived Sessions automatically. It then removes a worktree once every session in it has been archived for 7, 14, 30, 60 or 90 days. The default is 30. It never removes a worktree with uncommitted changes, commits that are not on a remote, a lock, a failed cleanup or a Git state it can't read, or one you made by hand. It keeps every branch, but it deletes the files Git ignores in the worktree, such as `.env` and `node_modules`.
+- Archiving a session still keeps its worktree. If you restore a session whose worktree was removed, OpenWaggle offers to recreate it from the kept branch or to continue in the current checkout.
 
 ### Pi, MCP and providers
 
@@ -115,11 +150,13 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 - Settings > Connections > Available Models has search, filters and a provider list.
 - If the provider list fails to load, Settings > Connections shows the error with a Retry button.
 - Pi renamed the Azure provider from `azure-openai-responses` to `azure`. OpenWaggle moves your saved Azure model choices, and each session's model, to the new name, and copies your Azure credential to it. Model settings you added under the old name in Pi's `models.json` need renaming by hand.
+- Amazon Bedrock picks up access keys that a login tool such as saml2aws rewrites in `~/.aws/credentials` while OpenWaggle runs, without a restart.
 
 ### Settings and usage
 
-- The new Usage & Cost view shows token use and spending across the Pi sessions on this machine, broken down by day, model and project. Open it from the sidebar footer or the command palette.
+- The new Usage & Cost view shows token use and spending across the Pi sessions on this machine, broken down by day, model and project. Open it from the chart button beside Settings at the bottom of the sidebar. When a session file has no recorded cost for a reply, the view estimates it from the prices in Pi's model catalog.
 - Settings > Archived items can search titles and transcripts, filter by project, date and type, and restore many items at once, with Undo.
+- The Browser, Shortcuts and Appearance tabs in Settings use the full width of Settings, like the other tabs.
 
 ### Command line
 

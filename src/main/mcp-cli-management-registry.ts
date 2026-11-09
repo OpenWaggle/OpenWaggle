@@ -5,7 +5,7 @@ import {
   type McpRegistryInstallResultView,
   type McpRegistryServerView,
 } from '@shared/types/mcp-registry'
-import { mcpCliJsonResponse } from './mcp-cli-io'
+import { type McpCliJsonCommand, mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError, type McpManagementArguments } from './mcp-cli-management-arguments'
 import {
   MCP_MANAGEMENT_EXIT,
@@ -37,8 +37,12 @@ function registryUrl(args: McpManagementArguments) {
   return url === undefined ? {} : { registryUrl: url }
 }
 
-function printJson(input: McpManagementCommandInput, value: unknown) {
-  input.context.output.log(mcpCliJsonResponse('registry', value))
+function printJson(
+  input: McpManagementCommandInput,
+  command: Extract<McpCliJsonCommand, `registry ${string}`>,
+  value: unknown,
+) {
+  input.context.output.log(mcpCliJsonResponse(command, value))
 }
 
 async function searchCommand(input: McpManagementCommandInput, query: readonly string[]) {
@@ -48,7 +52,7 @@ async function searchCommand(input: McpManagementCommandInput, query: readonly s
     ...registryUrl(args),
   })
   if (args.flags.has('json')) {
-    printJson(input, result)
+    printJson(input, 'registry search', result)
     return MCP_MANAGEMENT_EXIT.SUCCESS
   }
   if (result.servers.length === 0) {
@@ -74,7 +78,7 @@ async function getCommand(input: McpManagementCommandInput, rest: readonly strin
     ...(version ? { version } : {}),
     ...registryUrl(args),
   })
-  if (args.flags.has('json')) printJson(input, server)
+  if (args.flags.has('json')) printJson(input, 'registry get', server)
   else context.output.log(serverLines(server).join('\n'))
   return MCP_MANAGEMENT_EXIT.SUCCESS
 }
@@ -168,7 +172,7 @@ async function addCommand(input: McpManagementCommandInput, rest: readonly strin
   const request = installRequest(input, requireRegistryName(rest))
   const result = await context.host.invoke('mcp:install-registry-server', request)
   if (args.flags.has('json')) {
-    printJson(input, {
+    printJson(input, 'registry add', {
       name: result.name,
       filePath: result.filePath,
       secrets: result.secrets,

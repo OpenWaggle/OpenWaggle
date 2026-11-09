@@ -1,6 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
 import type { DelegationState } from '@shared/types/session-collaboration'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -9,6 +8,7 @@ import { parseSessionAgentCallerId } from '../domain/session-control/root-sessio
 import { SessionControlRepositoryError } from '../errors'
 import { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { updateDelegationCoordination } from './sqlite-session-delegation-coordination'
 import { reviewDelegation } from './sqlite-session-delegation-review'
 import { updateDelegationState } from './sqlite-session-delegation-state'
@@ -62,7 +62,7 @@ function findReplay(sql: SqlClient.SqlClient, input: ExecuteDelegationInput, req
     return delegationResponse(
       input,
       true,
-      decodeSessionControlMutationOutcome(JSON.parse(row.outcome_json)),
+      decodeStoredSessionControlMutationOutcome(row.outcome_json),
     )
   })
 }

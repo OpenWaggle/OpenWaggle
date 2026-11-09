@@ -1,4 +1,5 @@
 import type { Socket } from 'node:net'
+import type { SessionHostRefusalCode } from '@shared/domain/session-host-refusals'
 import {
   LocalSessionInboundCapacityError,
   type LocalSessionInboundRetention,
@@ -11,7 +12,7 @@ interface LocalSessionConnectionInputOptions {
   readonly inbound: LocalSessionInboundRetention
   readonly closed: () => boolean
   readonly handleValue: (value: unknown) => Promise<void>
-  readonly failed: (code: string, message: string) => Promise<void>
+  readonly failed: (code: SessionHostRefusalCode, message: string) => Promise<void>
 }
 
 export function bindLocalSessionConnectionInput(options: LocalSessionConnectionInputOptions): void {
