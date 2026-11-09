@@ -52,7 +52,9 @@ describe('NotificationsSection', () => {
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
     // The badge counts every kind that is on, not only Needs you and Ready to read.
     expect(
-      screen.getByText('Count your notifications on the app icon, for every kind turned on.'),
+      screen.getByText(
+        'Count your notifications on the app icon, for every kind turned on. Windows shows a dot.',
+      ),
     ).toBeInTheDocument()
   })
 

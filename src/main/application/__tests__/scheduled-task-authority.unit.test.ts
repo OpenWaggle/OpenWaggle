@@ -1,8 +1,9 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
+import { ScheduledTaskRepository } from '../../ports/scheduled-task-repository'
 import { SessionAuthorizationTargetRepository } from '../../ports/session-authorization-target-repository'
-import { runsAsAfterUpdate } from '../scheduled-task-authority'
+import { changedHeartbeatBoundaryRefusal, runsAsAfterUpdate } from '../scheduled-task-authority'
 import type { ScheduledTaskPrincipal } from '../scheduled-task-principal'
 
 const LIMITS = {
@@ -27,9 +28,13 @@ const PROFILE_TASK = {
   },
 }
 
-function runsAs(principal: ScheduledTaskPrincipal, patch: Parameters<typeof runsAsAfterUpdate>[2]) {
+function runsAs(
+  principal: ScheduledTaskPrincipal,
+  patch: Parameters<typeof runsAsAfterUpdate>[2],
+  task: Parameters<typeof runsAsAfterUpdate>[1] = PROFILE_TASK,
+) {
   return Effect.runPromise(
-    runsAsAfterUpdate(principal, PROFILE_TASK, patch).pipe(
+    runsAsAfterUpdate(principal, task, patch).pipe(
       // The branches under test read no Session catalog.
       Effect.provideService(SessionAuthorizationTargetRepository, fromPartial({})),
     ),
@@ -84,6 +89,20 @@ describe('runsAsAfterUpdate', () => {
         heartbeat: { wakeCheck: { command: 'gh pr checks', onFailure: 'skip' } },
       }),
     ).toEqual(kept)
+  })
+
+  it('keeps the limits when an edit clears a stop condition or Wake check the task never had', async () => {
+    const task = { ...PROFILE_TASK, stopWhen: null, wakeCheck: null }
+    for (const heartbeat of [{ stopWhen: null }, { stopWhen: '  ' }, { wakeCheck: null }]) {
+      expect(await runsAs(owner, { heartbeat }, task)).toEqual({
+        creatorCallerId: 'profile:ci',
+        authorityLimits: PROFILE_TASK.authorityLimits,
+      })
+    }
+    expect(await runsAs(owner, { heartbeat: { wakeCheck: { command: 'true' } } }, task)).toEqual({
+      creatorCallerId: 'profile:ci',
+      authorityLimits: null,
+    })
   })
 
   it('ends the limits when the owner changes the stop condition or the Wake check', async () => {
@@ -165,5 +184,22 @@ describe('runsAsAfterUpdate', () => {
     expect(await edit(person, { ...personTask, workByAgent: true })).toMatchObject({
       workByAgent: false,
     })
+  })
+})
+
+describe('changedHeartbeatBoundaryRefusal', () => {
+  it('does not check the boundary again when the target only differs in key order', async () => {
+    const reordered = {
+      ...PROFILE_TASK,
+      target: { thinkingLevel: 'low' as const, sessionId: 'session-1', kind: 'heartbeat' as const },
+    }
+    expect(
+      await Effect.runPromise(
+        changedHeartbeatBoundaryRefusal(PROFILE_TASK, reordered).pipe(
+          // Reading a boundary would throw: this repository has none.
+          Effect.provideService(ScheduledTaskRepository, fromPartial({})),
+        ),
+      ),
+    ).toBeNull()
   })
 })

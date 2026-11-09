@@ -49,7 +49,8 @@ interface PresenterState {
   readonly shown: Map<string, NativeNotification>
   viewingSessionId: string | null
   permission: DesktopNotificationPermissionStatus
-  overlayShown: boolean
+  /** The count the Windows overlay shows, 0 while it is hidden. */
+  overlayCount: number
 }
 
 const state: PresenterState = {
@@ -59,7 +60,7 @@ const state: PresenterState = {
   shown: new Map(),
   viewingSessionId: null,
   permission: 'not-asked',
-  overlayShown: false,
+  overlayCount: 0,
 }
 
 function settings(): DesktopNotificationSettings {
@@ -220,10 +221,11 @@ export function refreshDesktopNotificationBadge() {
   setApplicationBadgeCount(count)
 }
 
+/** Windows shows a dot; its description carries the count, so it is set again when that changes. */
 function applyWindowsOverlay(window: BrowserWindow, count: number) {
+  if (count === state.overlayCount) return
+  state.overlayCount = count
   const show = count > 0
-  if (show === state.overlayShown) return
-  state.overlayShown = show
   setWindowOverlayIcon(
     window,
     show
@@ -300,5 +302,5 @@ export function resetDesktopNotificationPresenterForTests() {
   state.shown.clear()
   state.viewingSessionId = null
   state.permission = 'not-asked'
-  state.overlayShown = false
+  state.overlayCount = 0
 }
