@@ -102,7 +102,7 @@ describe('app release promotion guard', () => {
     const includedPatterns = electronBuilderConfig.files.filter((pattern) => !pattern.startsWith('!'))
     const shippedPaths = [...electronBuilderConfig.extraResources.map((resource) => resource.from), ...includedPatterns]
 
-    expect(includedPatterns.filter((pattern) => pattern.startsWith('*'))).toEqual([])
+    expect(includedPatterns.filter((pattern) => /^[*?{[]/u.test(pattern))).toEqual([])
 
     expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
     expect(shippedPaths).toContain('package.json')
