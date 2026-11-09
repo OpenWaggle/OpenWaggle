@@ -97,11 +97,12 @@ describe('app release promotion guard', () => {
   })
 
   it('never ignores a file that electron-builder copies into the app', () => {
-    // Every extraResources source, plus every app.asar `files` pattern that adds files.
-    const shippedPaths = [
-      ...electronBuilderConfig.extraResources.map((resource) => resource.from),
-      ...electronBuilderConfig.files.filter((pattern) => !pattern.startsWith('!')),
-    ]
+    // Every extraResources source, plus every app.asar `files` pattern that adds files. The guard
+    // matches path prefixes, so a positive pattern must start with a literal directory or file.
+    const includedPatterns = electronBuilderConfig.files.filter((pattern) => !pattern.startsWith('!'))
+    const shippedPaths = [...electronBuilderConfig.extraResources.map((resource) => resource.from), ...includedPatterns]
+
+    expect(includedPatterns.filter((pattern) => pattern.startsWith('*'))).toEqual([])
 
     expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
     expect(shippedPaths).toContain('package.json')
