@@ -43,12 +43,15 @@ describe.concurrent('desktop app release candidate and Stable paths', () => {
     expect(result.stdout).toContain('Release PR ready for maintainer review')
   })
 
-  it('refuses an RC dispatch without macOS signing before any branch, PR, or tag exists', async ({ expect }) => {
+  it.for([
+    ['signing', { macosSigning: false }],
+    ['notarization', { macosNotarization: false }],
+  ] as const)('refuses an RC dispatch without macOS %s before any branch, PR, or tag exists', async ([, secrets], { expect }) => {
     const result = await runReleaseTrain({
       initialVersion: '1.0.0-beta.36',
       history: [BETA],
       run: { kind: 'dispatch', targetVersion: '1.0.0-rc.1' },
-      macosSigning: false,
+      ...secrets,
     })
 
     expect(result.succeeded).toBe(false)

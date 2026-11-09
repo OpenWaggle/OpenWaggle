@@ -13,7 +13,7 @@ Before changing release, versioning, updater, changelog, GitHub workflow, instal
 
 1. Read `docs/release-and-versioning.md` and ADR 0040. Read ADR 0032 for Build identity and Build channel.
 2. Use the `CONTEXT.md` terms **Build channel** (the installed artifact's stage), **Update channel** (the user's saved update selection), **Compatibility promise**, **Covered surface**, and **Release blocker**.
-3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
+3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `scripts/app-release-promotion.ts` (the promotion guard's pure decisions), `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
 4. Preserve `AGENTS.md` rules: no commits without approval, no unknown-work reverts, Electron QA for renderer/preload/IPC changes, and `grill-with-docs` for any new release decision.
 
 ## Release domains
@@ -160,7 +160,7 @@ Alpha  -> alpha, beta, rc, stable
 - Do not add release-intent files or a `release:none` classification.
 - Do not publish Beta or RC builds to Stable users, or Alpha builds to Beta users.
 - Do not support downgrades.
-- Do not promote Stable from content that differs from the last RC.
+- Do not promote Stable from content that differs from the last published RC.
 - Do not open a rolling Beta or maintenance branch without a new decision.
 - Do not create a side-by-side Canary app without a new decision.
 - Do not require scripts or manual downloads as the primary Beta/Alpha opt-in UX.

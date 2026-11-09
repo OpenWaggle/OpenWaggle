@@ -38,8 +38,10 @@ export interface ReleaseTrainOptions {
    * first), and `release-merge` the push of a maintainer-merged release PR for `version`.
    */
   readonly run: ReleaseTrainRun
-  /** Whether the macOS signing and notarization secrets are configured (default true). */
+  /** Whether the macOS signing secrets are configured (default true). */
   readonly macosSigning?: boolean
+  /** Whether the macOS notarization secrets are configured (default true). */
+  readonly macosNotarization?: boolean
   /** Makes the GitHub release list request fail. */
   readonly releasesUnreadable?: boolean
   /** Tags GitHub lists as published releases although the checkout has no such tag. */
@@ -205,15 +207,14 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
     const bump = options.run.kind === 'merge' ? await runBump(paths, stepEnv) : { shouldRelease: '', version: '' }
     const releaseVersion = releaseVersionOf(options.run, bump.version)
     const releaseBranch = `app-release-v${releaseVersion}`
-    const signing = String(options.macosSigning ?? true)
     const result = await runStep(await workflowStep(RELEASE_STEP), paths.runner, {
       ...stepEnv,
       BUMP_SHOULD_RELEASE: bump.shouldRelease,
       BUMP_VERSION: bump.version,
       RELEASE_TARGET_VERSION: options.run.kind === 'dispatch' ? options.run.targetVersion : '',
       GITHUB_OUTPUT: paths.outputs,
-      MACOS_SIGNING_CONFIGURED: signing,
-      MACOS_NOTARIZATION_CONFIGURED: signing,
+      MACOS_SIGNING_CONFIGURED: String(options.macosSigning ?? true),
+      MACOS_NOTARIZATION_CONFIGURED: String(options.macosNotarization ?? true),
       TEST_BRANCH: releaseBranch,
       TEST_VERSION: releaseVersion,
     })

@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import electronBuilderConfig from '../../electron-builder'
 import {
-  assertForwardAppVersionTransition,
-  expectedVersionOnlyManifest,
   isPromotionIgnoredPath,
   latestReleaseCandidateTag,
+  promotionBase,
   promotionGuardViolations,
   publishedReleaseTags,
   requiresReleaseCandidate,
+} from '../app-release-promotion'
+import {
+  assertForwardAppVersionTransition,
+  expectedVersionOnlyManifest,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
@@ -176,5 +179,61 @@ describe('app release state model', () => {
 
     expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
     expect(shippedPaths.filter((shippedPath) => isPromotionIgnoredPath(shippedPath))).toEqual([])
+  })
+
+  describe('promotion base', () => {
+    const releases = (...tags: readonly (readonly [string, boolean])[]) =>
+      [['waggle-core-v0.2.0', false] as const, ...tags]
+        .map(([tag, draft]) => JSON.stringify({ tag_name: tag, draft }))
+        .join('\n')
+
+    it('skips prereleases without reading the release list', () => {
+      expect(promotionBase({ targetVersion: '1.0.0-rc.2', gitHubReleaseLines: undefined, localTags: [] })).toEqual({
+        kind: 'skip',
+        reason: '1.0.0-rc.2 is a prerelease; the promotion guard applies to Stable only.',
+      })
+    })
+
+    it('rejects a malformed target', () => {
+      expect(() => promotionBase({ targetVersion: '1.0', gitHubReleaseLines: releases(), localTags: [] })).toThrow(
+        'Invalid desktop app version: 1.0.',
+      )
+    })
+
+    it('requires the release list for a Stable target', () => {
+      expect(() => promotionBase({ targetVersion: '1.0.0', gitHubReleaseLines: undefined, localTags: [] })).toThrow(
+        /needs --releases/u,
+      )
+    })
+
+    it('compares with the newest published RC and reports newer unpublished or draft tags', () => {
+      expect(
+        promotionBase({
+          targetVersion: '1.0.0',
+          gitHubReleaseLines: releases(['v1.0.0-rc.1', false], ['v1.0.0-rc.2', true]),
+          localTags: ['v1.0.0-rc.1', 'v1.0.0-rc.2', 'v1.0.0-rc.3', 'v1.0.0-rc.3.bak'],
+        }),
+      ).toEqual({ kind: 'compare', tag: 'v1.0.0-rc.1', ignoredTags: ['v1.0.0-rc.2', 'v1.0.0-rc.3'] })
+    })
+
+    it('requires a published RC before a new major', () => {
+      expect(() =>
+        promotionBase({ targetVersion: '1.0.0', gitHubReleaseLines: releases(), localTags: ['v1.0.0-rc.1'] }),
+      ).toThrow('Stable 1.0.0 needs a published 1.0.0-rc.N release first.')
+    })
+
+    it('lets a minor without RC tags skip the guard but fails one whose RCs never published', () => {
+      expect(promotionBase({ targetVersion: '1.1.0', gitHubReleaseLines: releases(), localTags: ['v1.1.0-rc.1.bak'] }))
+        .toEqual({ kind: 'skip', reason: 'No published release candidate precedes 1.1.0; promotion guard skipped.' })
+      expect(() =>
+        promotionBase({ targetVersion: '1.1.0', gitHubReleaseLines: releases(), localTags: ['v1.1.0-rc.1'] }),
+      ).toThrow(/has release candidate tags but no published release candidate[\s\S]*v1\.1\.0-rc\.1/u)
+    })
+
+    it('fails when the published RC has no tag in the checkout', () => {
+      expect(() =>
+        promotionBase({ targetVersion: '1.0.0', gitHubReleaseLines: releases(['v1.0.0-rc.1', false]), localTags: [] }),
+      ).toThrow('Published release candidate v1.0.0-rc.1 has no tag in this checkout.')
+    })
   })
 })
