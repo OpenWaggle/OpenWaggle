@@ -29,8 +29,7 @@ function stringPattern(value: unknown) {
 
 /**
  * Keywords left out of the comparison. Annotations and references change nothing a document may
- * contain (references are resolved before comparing), and patterns are compared on their own below:
- * the parser enforces names and non-whitespace strings in code, and the tests above check those.
+ * contain (references are resolved before comparing), and patterns are compared on their own below.
  */
 const IGNORED_KEYWORDS = new Set([
   '$schema',
@@ -43,12 +42,26 @@ const IGNORED_KEYWORDS = new Set([
 ])
 /** Keywords whose value is a schema, or a list of schemas, to compare the same way. */
 const SUBSCHEMA_KEYWORDS = new Set(['items', 'not', 'anyOf', 'oneOf', 'allOf'])
+/**
+ * Published patterns the parser enforces in code rather than with a Zod regex: the portable name
+ * and the non-whitespace strings. The behavioral tests above check each of them.
+ */
+const CODE_ENFORCED_PATTERNS = new Set([
+  '#/properties/name',
+  '#/properties/description',
+  '#/properties/model',
+  '#/properties/tools/items',
+  '#/properties/skills/items',
+  '#/properties/mcpServers/items',
+])
 
+/** Replaces a local `$ref` with its definition. Sibling keywords still apply in draft 2020-12. */
 function resolveLocalReference(root: Record<string, unknown>, node: Record<string, unknown>) {
   const reference = node.$ref
   if (typeof reference !== 'string') return node
   const name = reference.replace(/^#\/\$defs\//u, '')
-  return record(record(root.$defs)[name])
+  const siblings = Object.entries(node).filter(([keyword]) => keyword !== '$ref')
+  return { ...record(record(root.$defs)[name]), ...Object.fromEntries(siblings) }
 }
 
 function keywordContract(root: Record<string, unknown>, keyword: string, value: unknown): unknown {
@@ -66,10 +79,11 @@ function keywordContract(root: Record<string, unknown>, keyword: string, value: 
     : contractOf(root, value)
 }
 
-/**, so the hand-written published schema and the one
- * Zod generates from the parser compare keyword by keyword, in both directions: a keyword only one
- * of them has fails the comparison. An enum or const already fixes its type, so `type` is dropped
- * there. Zod's implicit `Number.MAX_SAFE_INTEGER` bound on integers is dropped too.
+/**
+ * Reduces a schema to the keywords that constrain a document, so the hand-written published schema
+ * and the one Zod generates from the parser compare keyword by keyword, in both directions: a
+ * keyword only one of them has fails the comparison. An enum or const already fixes its type, so
+ * `type` is dropped there.
  */
 function contractOf(root: Record<string, unknown>, value: unknown): Record<string, unknown> {
   const node = resolveLocalReference(root, record(value))
@@ -79,28 +93,21 @@ function contractOf(root: Record<string, unknown>, value: unknown): Record<strin
     contract[keyword] = keywordContract(root, keyword, keywordValue)
   }
   if (contract.enum !== undefined || contract.const !== undefined) delete contract.type
-  if (contract.type === 'integer' && contract.maximum === Number.MAX_SAFE_INTEGER) {
-    delete contract.maximum
-  }
   return contract
 }
 
-function patternsOf(value: unknown, path = '#'): Array<[string, unknown]> {
-  const node = record(value)
+function patternsOf(
+  root: Record<string, unknown>,
+  value: unknown,
+  path = '#',
+): Array<[string, unknown]> {
+  const node = resolveLocalReference(root, record(value))
   const own: Array<[string, unknown]> = node.pattern === undefined ? [] : [[path, node.pattern]]
-  const items = node.items === undefined ? [] : patternsOf(node.items, `${path}/items`)
+  const items = node.items === undefined ? [] : patternsOf(root, node.items, `${path}/items`)
   const properties = Object.entries(record(node.properties ?? {})).flatMap(([key, property]) =>
-    patternsOf(property, `${path}/properties/${key}`),
+    patternsOf(root, property, `${path}/properties/${key}`),
   )
   return [...own, ...items, ...properties]
-}
-
-function patternAt(root: Record<string, unknown>, path: string) {
-  let node = root
-  for (const segment of path.split('/').slice(1)) {
-    node = resolveLocalReference(root, record(node[segment]))
-  }
-  return node.pattern
 }
 
 describe('published Agent definition schema', () => {
@@ -124,6 +131,15 @@ describe('published Agent definition schema', () => {
       'lpt9.output',
       'COM1',
       '-invalid',
+      'a',
+      '_a',
+      'reView',
+      'reviewer.',
+      'reviewer-',
+      'prn',
+      'nul.x',
+      'lpt0',
+      'com0.notes',
       'a'.repeat(80),
       'a'.repeat(81),
       `r${'-'.repeat(78)}r`,
@@ -169,13 +185,21 @@ describe('published Agent definition schema', () => {
     expect(capabilities.maxItems).toBe(SESSION_CAPABILITIES.length)
   })
 
-  it('matches the parser field by field: names, required fields, types, enums and limits', async () => {
+  it('matches the parser keyword by keyword: names, required fields, types, enums and limits', async () => {
     const published = await publishedSchema()
-    const generated = record(z.toJSONSchema(agentDefinitionFrontmatterSchema))
+    // The published schema describes the documents people write, so compare the parser's input side.
+    const generated = record(z.toJSONSchema(agentDefinitionFrontmatterSchema, { io: 'input' }))
 
     expect(contractOf(published, published)).toEqual(contractOf(generated, generated))
-    for (const [path, pattern] of patternsOf(generated)) {
-      expect(patternAt(published, path), path).toBe(pattern)
+
+    const publishedPatterns = new Map(patternsOf(published, published))
+    const generatedPatterns = new Map(patternsOf(generated, generated))
+    for (const path of CODE_ENFORCED_PATTERNS) {
+      expect(publishedPatterns.has(path), path).toBe(true)
+    }
+    for (const path of new Set([...publishedPatterns.keys(), ...generatedPatterns.keys()])) {
+      if (CODE_ENFORCED_PATTERNS.has(path) && !generatedPatterns.has(path)) continue
+      expect(publishedPatterns.get(path), path).toBe(generatedPatterns.get(path))
     }
   })
 })

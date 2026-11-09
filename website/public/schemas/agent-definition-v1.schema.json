@@ -104,7 +104,7 @@
         "sourceDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "importerVersion": { "const": 1 },
         "baselineDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "importedAt": { "type": "integer", "minimum": 0 }
+        "importedAt": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
       }
     }
   },
