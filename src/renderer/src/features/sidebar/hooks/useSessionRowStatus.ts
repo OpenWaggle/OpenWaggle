@@ -33,12 +33,17 @@ export const SESSION_STATUS_ICON: Record<string, React.ComponentType<{ className
 }
 
 /** The status this row should show, resolved by the one rule the chips and roll-ups also use. */
-function useVisibleStatus(sessionId: SessionId) {
+function useVisibleStatus(sessionId: SessionId, session: SessionSummary) {
   const status = useSessionStatusStore((s) => s.statuses.get(sessionId) ?? 'idle')
   const completedAt = useSessionStatusStore((s) => s.completedAt.get(sessionId))
   const lastVisitedAt = useSessionStatusStore((s) => s.lastVisitedAt.get(sessionId))
 
-  return resolveVisibleSessionStatus({ status, completedAt, lastVisitedAt })
+  return resolveVisibleSessionStatus({
+    status,
+    completedAt,
+    lastVisitedAt,
+    lineage: session.lineage,
+  })
 }
 
 /**
@@ -48,7 +53,7 @@ function useVisibleStatus(sessionId: SessionId) {
  * project roll-ups read, so a row and its project heading cannot describe one session differently.
  */
 export function useSessionRowStatus(sessionId: SessionId, session: SessionSummary) {
-  const visibleStatus = useVisibleStatus(sessionId)
+  const visibleStatus = useVisibleStatus(sessionId, session)
   const phase = useSessionStatusStore((s) => s.phases.get(sessionId) ?? null)
   const pill = resolveSessionStatusPill(visibleStatus)
   const hasInterruptedRun = sessionHasInterruptedRun(session)

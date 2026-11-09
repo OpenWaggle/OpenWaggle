@@ -11,6 +11,10 @@ export interface SessionLineageRow {
   readonly hive_root_session_id: string | null
   readonly direct_worker_count: number
   readonly active_direct_worker_count: number
+  /** Workers below the Session, at any depth, with a live Run (ADR 0063). */
+  readonly running_worker_count: number
+  /** When the last settled Run below the Session ended; null when none has. */
+  readonly workers_last_run_ended_at: number | null
   readonly profile_json: string | null
   readonly legacy_agent_definition_name: string | null
   readonly historical_lineage: number
@@ -79,6 +83,17 @@ function agentDefinitionLineage(row: SessionLineageRow) {
   }
 }
 
+/** A parent's Running Workers and Done-below time (ADR 0063); nothing for a Session without any. */
+function workerRunLineage(row: SessionLineageRow) {
+  if (row.running_worker_count === 0 && row.workers_last_run_ended_at === null) return {}
+  return {
+    runningWorkerCount: row.running_worker_count,
+    ...(row.workers_last_run_ended_at === null
+      ? {}
+      : { workersLastRunEndedAt: row.workers_last_run_ended_at }),
+  }
+}
+
 export function attachSessionLineage(
   sessions: readonly SessionSummary[],
   rows: readonly SessionLineageRow[],
@@ -113,6 +128,7 @@ export function attachSessionLineage(
           : {}),
         directWorkerCount: row.direct_worker_count,
         activeDirectWorkerCount: row.active_direct_worker_count,
+        ...workerRunLineage(row),
         ...agentDefinitionLineage(row),
         ...(row.delegation_id ? { delegationId: row.delegation_id } : {}),
         ...(row.delegation_state ? { delegationState: row.delegation_state } : {}),
