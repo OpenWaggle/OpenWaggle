@@ -1,5 +1,39 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatBytes, formatDuration, formatRelativeTime, projectName, truncate } from '../format'
+import {
+  formatBytes,
+  formatDuration,
+  formatElapsed,
+  formatRelativeTime,
+  projectName,
+  truncate,
+} from '../format'
+
+describe('formatElapsed', () => {
+  it('formats seconds under 60', () => {
+    expect(formatElapsed(0)).toBe('0s')
+    expect(formatElapsed(3_000)).toBe('3s')
+    expect(formatElapsed(11_500)).toBe('11s')
+    expect(formatElapsed(59_999)).toBe('59s')
+  })
+
+  it('formats minutes and seconds at 60+', () => {
+    expect(formatElapsed(60_000)).toBe('1m 0s')
+    expect(formatElapsed(83_000)).toBe('1m 23s')
+    expect(formatElapsed(125_000)).toBe('2m 5s')
+    expect(formatElapsed(3_599_999)).toBe('59m 59s')
+  })
+
+  it('rolls minutes over into hours at 60m+', () => {
+    expect(formatElapsed(3_600_000)).toBe('1h 0m 0s')
+    expect(formatElapsed(3_723_000)).toBe('1h 2m 3s')
+    expect(formatElapsed(5_400_000)).toBe('1h 30m 0s')
+    expect(formatElapsed(90_061_000)).toBe('25h 1m 1s')
+  })
+
+  it('clamps negative durations to zero', () => {
+    expect(formatElapsed(-1_000)).toBe('0s')
+  })
+})
 
 describe('formatDuration', () => {
   it('formats milliseconds and seconds correctly', () => {
@@ -11,6 +45,12 @@ describe('formatDuration', () => {
   it('formats minute ranges correctly', () => {
     expect(formatDuration(60_000)).toBe('1m 0s')
     expect(formatDuration(125_000)).toBe('2m 5s')
+    expect(formatDuration(3_599_999)).toBe('59m 59s')
+  })
+
+  it('rolls minutes over into hours at 60m+', () => {
+    expect(formatDuration(3_600_000)).toBe('1h 0m 0s')
+    expect(formatDuration(3_723_000)).toBe('1h 2m 3s')
   })
 })
 

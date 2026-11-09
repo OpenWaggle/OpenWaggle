@@ -3,6 +3,7 @@
 // Base units — used to derive all values in TIME_UNIT without repetition.
 const MS_PER_SECOND = 1000
 const SECONDS_PER_MINUTE = 60
+const MINUTES_PER_HOUR = 60
 const HOURS_PER_DAY = 24
 
 /** Largest delay Node timers preserve without coercing to one millisecond. */
@@ -12,6 +13,7 @@ export const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 export const TIME_UNIT = {
   MILLISECONDS_PER_SECOND: MS_PER_SECOND,
   SECONDS_PER_MINUTE: SECONDS_PER_MINUTE,
+  MINUTES_PER_HOUR: MINUTES_PER_HOUR,
   HOURS_PER_DAY: HOURS_PER_DAY,
   /** Common durations in milliseconds — use these instead of raw numbers. */
   TWO_SECONDS_MS: 2 * MS_PER_SECOND,
