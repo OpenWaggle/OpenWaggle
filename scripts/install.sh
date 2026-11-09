@@ -784,7 +784,7 @@ else
     info "Update channel: ${CHANNEL}, kept from the installed OpenWaggle"
   elif [ -n "${DEFAULT_CHANNEL_REASON}" ]; then
     # Saving the default changes the channel of an existing install, so say so.
-    info "${DEFAULT_CHANNEL_REASON}, so the installer saves the default channel, ${CHANNEL}. Set OPENWAGGLE_CHANNEL to choose another."
+    info "${DEFAULT_CHANNEL_REASON}, so the installer will save the default channel, ${CHANNEL}. Set OPENWAGGLE_CHANNEL to choose another."
   else
     info "Update channel: ${CHANNEL}"
   fi
@@ -894,7 +894,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   DESKTOP_DIR="${HOME}/.local/share/applications"
   DESKTOP_PATH="${DESKTOP_DIR}/openwaggle.desktop"
   # An open app keeps running, and keeps its Host, until the user quits it and stops the Host.
-  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_VERSION}"
+  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_CLI_VERSION}"
   install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
   printf '%s\n' "${VERSION#v}" > "${APPIMAGE_VERSION_PATH}"
   ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"

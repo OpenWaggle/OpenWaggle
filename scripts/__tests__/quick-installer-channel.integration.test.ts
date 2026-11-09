@@ -136,7 +136,7 @@ describe('quick installer update channel on a re-run', () => {
     await expect(harness.savedChannelIntent()).resolves.toBe('beta\n')
     expect(await harness.calls()).not.toContain('appimage update --check --json')
     expect(result.stdout).toContain(
-      'OpenWaggle 1.0.0-beta.37 cannot report its update channel, so the installer saves the default channel, beta.',
+      'OpenWaggle 1.0.0-beta.37 cannot report its update channel, so the installer will save the default channel, beta.',
     )
   })
 
@@ -151,7 +151,7 @@ describe('quick installer update channel on a re-run', () => {
     await expect(harness.installedVersion()).resolves.toBe('1.0.0-rc.2')
     await expect(harness.savedChannelIntent()).resolves.toBe('beta\n')
     expect(result.stdout).toContain(
-      'Could not read the update channel of the installed OpenWaggle, so the installer saves the default channel, beta. Set OPENWAGGLE_CHANNEL to choose another.',
+      'Could not read the update channel of the installed OpenWaggle, so the installer will save the default channel, beta. Set OPENWAGGLE_CHANNEL to choose another.',
     )
   })
 

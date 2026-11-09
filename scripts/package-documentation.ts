@@ -22,6 +22,7 @@ import {
   packageManifestDocumentationViolations,
   withPackageDocumentationMetadata,
 } from './package-documentation-manifest'
+import { substituteInstallPlaceholders } from '../website/src/lib/install-command'
 import { parseFrontmatter } from './installed-docs-generator-model'
 import { renderApiReference } from './package-api-reference-renderer'
 import { renderPackageReadme } from './package-documentation-renderer'
@@ -142,7 +143,8 @@ async function generatedFilesForPackage(
   const generatedFiles: GeneratedFile[] = [
     {
       contents: renderPackageReadme({
-        canonicalBody: guideBody,
+        // As the website and the bundled docs do, so the npm README shows the real install command.
+        canonicalBody: substituteInstallPlaceholders(guideBody),
         description: definition.description,
         docsUrl,
         packageName: definition.packageName,
