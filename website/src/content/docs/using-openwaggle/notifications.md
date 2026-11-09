@@ -5,7 +5,7 @@ section: "Using OpenWaggle"
 kind: "guide"
 ---
 
-OpenWaggle tells you when a session needs you or has finished, so you can work in another app while it runs. You get a desktop notification with a sound, and the app icon counts the sessions waiting for you. Notifications are on when you install OpenWaggle. Change them in **Settings** > **Notifications**.
+OpenWaggle tells you when a session needs you or has finished, so you can work in another app while it runs. You get a desktop notification with a sound, and the app icon counts your notifications. Notifications are on when you install OpenWaggle. Change them in **Settings** > **Notifications**.
 
 The Session Host decides when to notify, so notifications keep coming after you close every window. A heartbeat that fails overnight still tells you.
 
