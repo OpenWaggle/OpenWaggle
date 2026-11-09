@@ -106,7 +106,13 @@ describe('Scheduled task runs a stopped Host left mid-send', () => {
       taskId,
       nominalAt,
       key: 'refused',
-      operationOutcome: { operation: 'start', effect: 'rejected', sessionId, code: 'busy' },
+      operationOutcome: {
+        operation: 'start',
+        effect: 'rejected',
+        sessionId,
+        code: 'busy',
+        kind: 'conflict',
+      },
     })
     await settle()
     const read = await readTask(taskId)

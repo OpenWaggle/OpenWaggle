@@ -12,6 +12,7 @@ import {
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
 import { bindLocalSessionConnectionInput } from './local-session-connection-input'
 import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
+import { localSessionErrorFrame, type SessionHostRefusalCode } from './local-session-error-frame'
 import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
 import { establishLocalSessionHandshake } from './local-session-handshake'
 import { LocalSessionHandshakeDeadline } from './local-session-handshake-deadline'
@@ -282,7 +283,7 @@ export class LocalSessionConnection {
   }
 
   /** Reports a connection-level failure, then ends the connection. */
-  private async fail(code: string, message: string, retryable = false) {
+  private async fail(code: SessionHostRefusalCode, message: string, retryable = false) {
     if (this.closed || this.failing) return
     this.failing = true
     try {
@@ -290,7 +291,7 @@ export class LocalSessionConnection {
       // and the inbound protocol paths, so a peer that went away mid-write must not turn the
       // report into an escaping rejection; the socket ends either way.
       await this.outbound
-        .sendHandshakeFrame({ kind: 'error', code, message, retryable })
+        .sendHandshakeFrame(localSessionErrorFrame(code, message, retryable))
         .catch(() => undefined)
     } finally {
       this.socket.end()

@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionHostRecoveryRepositoryError } from '../errors'
@@ -39,14 +40,14 @@ function hostLostOutcome(operation: PendingOperationRow) {
     ? {
         operation: operation.operation,
         effect: 'rejected',
-        code: 'host_lost',
+        ...sessionHostRefusal('host_lost'),
         retryable: true,
       }
     : {
         operation: operation.operation,
         effect: 'rejected',
         sessionId: operation.target_scope,
-        code: 'host_lost',
+        ...sessionHostRefusal('host_lost'),
       }
 }
 

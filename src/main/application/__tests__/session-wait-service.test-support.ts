@@ -73,7 +73,11 @@ export function createSessionWaitTestHarness(options: SessionWaitTestHarnessOpti
               }
             : {
                 operation: 'exports-read' as const,
-                error: { code: 'export_not_found' as const, message: 'missing' },
+                error: {
+                  code: 'export_not_found' as const,
+                  kind: 'not_found' as const,
+                  message: 'missing',
+                },
               },
         })
       }
@@ -97,7 +101,11 @@ export function createSessionWaitTestHarness(options: SessionWaitTestHarnessOpti
             }
           : {
               operation: 'status' as const,
-              error: { code: 'session_not_found' as const, message: 'missing' },
+              error: {
+                code: 'session_not_found' as const,
+                kind: 'not_found' as const,
+                message: 'missing',
+              },
             },
       })
     },

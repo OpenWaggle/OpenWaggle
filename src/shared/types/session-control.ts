@@ -1,3 +1,4 @@
+import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentSteerDeliveryReceipt } from './agent'
 import type {
   SessionAuthorizationSetCommand,
@@ -288,4 +289,6 @@ export type SessionControlMutationOutcome =
       readonly effect: 'rejected'
       readonly sessionId: string
       readonly code: string
+      /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
+      readonly kind: SessionHostErrorKind
     }

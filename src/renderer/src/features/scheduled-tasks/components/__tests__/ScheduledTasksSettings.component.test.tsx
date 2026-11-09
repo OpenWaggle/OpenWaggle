@@ -58,7 +58,12 @@ describe('Settings › Scheduled tasks', () => {
       if (command.operation === 'runs') return { effect: 'runs-listed', runs: [] }
       if (command.operation === 'create') return { effect: 'created', task: LAUNCH }
       if (command.operation === 'update') return { effect: 'updated', task: LAUNCH }
-      return { effect: 'rejected', code: 'task_not_found', message: 'No such task.' }
+      return {
+        effect: 'rejected',
+        code: 'task_not_found',
+        kind: 'not_found',
+        message: 'No such task.',
+      }
     })
     useScheduledTasksNavigationStore.setState({ settings: { kind: 'list' } })
     usePreferencesStore.setState((state) => ({

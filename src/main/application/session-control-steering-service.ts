@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { RunId } from '@shared/types/brand'
 import type {
   SessionControlMutationOutcome,
@@ -96,7 +97,12 @@ export function steerSessionRun(input: SteerSessionRunInput) {
           ? { accepted: true }
           : {
               accepted: false,
-              outcome: { operation: 'steer', effect: 'rejected', sessionId: state.sessionId, code },
+              outcome: {
+                operation: 'steer',
+                effect: 'rejected',
+                sessionId: state.sessionId,
+                ...sessionHostRefusal(code),
+              },
             }
       },
     })
@@ -157,7 +163,7 @@ export function steerSessionRun(input: SteerSessionRunInput) {
           operation: 'steer',
           effect: 'rejected',
           sessionId: input.request.command.sessionId,
-          code: steering.code,
+          ...sessionHostRefusal(steering.code),
         }
     yield* journal.complete({ callerId: input.callerId, request: input.request, outcome })
     // A queued steer keeps its attachments while its Run is live: if the Run stops before Pi

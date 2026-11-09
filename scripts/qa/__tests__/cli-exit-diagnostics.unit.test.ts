@@ -5,7 +5,7 @@ describe('QA CLI exit diagnostics', () => {
   it('reports a structured Host rejection without exposing the rest of stdout', () => {
     const credential = 'a'.repeat(43)
     const stdout = JSON.stringify({
-      outcome: { effect: 'rejected', code: 'management_envelope_exceeded' },
+      outcome: { effect: 'rejected', code: 'management_envelope_exceeded', kind: 'authorization' },
       credential,
       privateMessage: 'private conversation text',
     })
@@ -36,7 +36,7 @@ describe('QA CLI exit diagnostics', () => {
         command,
         result: {
           contract,
-          response: { outcome: { effect: 'rejected', code: 'not_authorized' } },
+          response: { outcome: { effect: 'rejected', code: 'not_authorized', kind: 'conflict' } },
           credential: 'a'.repeat(43),
         },
       })
@@ -51,7 +51,7 @@ describe('QA CLI exit diagnostics', () => {
     const error = Object.assign(new Error(`Command failed: executable --credential ${credential}`), {
       code: 4,
       signal: null,
-      stdout: JSON.stringify({ outcome: { effect: 'rejected', code: 'management_envelope_exceeded' } }),
+      stdout: JSON.stringify({ outcome: { effect: 'rejected', code: 'management_envelope_exceeded', kind: 'authorization' } }),
       stderr: '',
     })
     const diagnostic = cliProcessError(error)
@@ -72,7 +72,7 @@ describe('QA CLI exit diagnostics', () => {
     [
       'oversized output',
       JSON.stringify({
-        outcome: { effect: 'rejected', code: 'management_envelope_exceeded' },
+        outcome: { effect: 'rejected', code: 'management_envelope_exceeded', kind: 'authorization' },
         secret: 'private credential abc'.repeat(1_000),
       }),
     ],

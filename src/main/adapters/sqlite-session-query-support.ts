@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { DelegationState } from '@shared/types/session-collaboration'
 import type {
@@ -136,6 +137,9 @@ export function encodeSessionQueryCursor(value: unknown) {
 export function invalidSessionQueryCursor(request: SessionQueryRequest) {
   return sessionQueryResponse(request, {
     operation: request.query.operation,
-    error: { code: 'invalid_cursor', message: 'The Session query cursor is invalid.' },
+    error: {
+      ...sessionHostRefusal('invalid_cursor'),
+      message: 'The Session query cursor is invalid.',
+    },
   })
 }

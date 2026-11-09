@@ -1,3 +1,4 @@
+import { SESSION_HOST_ERROR_KINDS } from '@shared/domain/session-host-refusals'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import {
   ISO_WEEKDAYS,
@@ -265,6 +266,7 @@ const scheduledTasksResponseSchema: Schema.Schema<ScheduledTasksResponse> = Sche
     Schema.Struct({
       effect: Schema.Literal('rejected'),
       code: Schema.Literal(...SCHEDULED_TASK_REJECTION_CODES),
+      kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
       message: Schema.String,
     }),
   ),

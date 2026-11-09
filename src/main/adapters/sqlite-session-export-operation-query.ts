@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionExportOperationStatus } from '@shared/types/session-export-operation'
 import {
   SESSION_QUERY_MAX_RESPONSE_BYTES,
@@ -176,7 +177,7 @@ function exportOperationPage(
     return sessionQueryResponse(request, {
       operation: 'exports-list',
       error: {
-        code: 'record_too_large',
+        ...sessionHostRefusal('record_too_large'),
         message: 'An export operation exceeds the maximum Session query response size.',
       },
     })
@@ -218,7 +219,7 @@ export function listSessionExportOperations(sql: SqlClient.SqlClient, request: L
       return sessionQueryResponse(request, {
         operation: 'exports-list',
         error: {
-          code: 'record_too_large',
+          ...sessionHostRefusal('record_too_large'),
           message: 'An export operation exceeds the maximum Session query response size.',
         },
       })
@@ -236,7 +237,10 @@ export function readSessionExportOperation(sql: SqlClient.SqlClient, request: Re
     if (!row) {
       return sessionQueryResponse(request, {
         operation: 'exports-read',
-        error: { code: 'export_not_found', message: 'Session export operation not found.' },
+        error: {
+          ...sessionHostRefusal('export_not_found'),
+          message: 'Session export operation not found.',
+        },
       })
     }
     return sessionQueryResponse(request, {

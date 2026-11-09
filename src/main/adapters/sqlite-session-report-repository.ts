@@ -1,6 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import { SessionId } from '@shared/types/brand'
 import {
   SESSION_CONTROL_CONTRACT_VERSION,
@@ -14,6 +17,7 @@ import {
   type ExecuteSessionReportInput,
   SessionReportRepository,
 } from '../ports/session-report-repository'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import {
   listPendingReports,
   markReportsDelivered,
@@ -87,7 +91,7 @@ function findReplay(
     if (row.request_json !== requestJson || row.status !== 'completed' || !row.outcome_json) {
       return yield* Effect.fail(reportError('report-idempotency-conflict', { row }))
     }
-    return response(input, true, decodeSessionControlMutationOutcome(JSON.parse(row.outcome_json)))
+    return response(input, true, decodeStoredSessionControlMutationOutcome(row.outcome_json))
   })
 }
 
@@ -113,14 +117,14 @@ function rejectReport(
   input: ExecuteSessionReportInput,
   requestJson: string,
   sessionId: string,
-  code: string,
+  code: SessionHostRefusalCode,
 ) {
   return Effect.gen(function* () {
     const outcome = {
       operation: 'report',
       effect: 'rejected',
       sessionId,
-      code,
+      ...sessionHostRefusal(code),
     } as const
     yield* storeOutcome(sql, input, requestJson, outcome)
     return response(input, false, outcome)

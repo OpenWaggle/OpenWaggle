@@ -7,6 +7,7 @@ import {
   sessionHostEventJson,
 } from '../application/session-host-event-serialization'
 import type { LocalSessionAdmissionGate } from './local-session-admission-gate'
+import { localSessionErrorFrameCode } from './local-session-error-frame'
 import { createLocalSessionEventAdmissionFilter } from './local-session-event-admission'
 import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
 import { subscriptionLimitReached } from './local-session-resource-policy'
@@ -182,7 +183,7 @@ export class LocalSessionConnectionSubscriptions {
     return this.input.send({
       kind: 'error',
       requestId,
-      code: 'subscription_limit_exceeded',
+      ...localSessionErrorFrameCode('subscription_limit_exceeded'),
       message: 'The Local Session subscription limit was reached.',
       retryable: true,
     })

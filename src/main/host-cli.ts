@@ -247,7 +247,7 @@ async function runHostUpdateStop(
   const report = await stopHostForUpdate(parsed, dependencies)
   await dependencies.writeStdout(
     json
-      ? sessionsCliResponseText('host-stop', report, true)
+      ? sessionsCliResponseText('host stop', report, true)
       : `${formatHostUpdateStopReport(report)}\n`,
   )
   if (report.state === 'timed-out') return SESSION_CLI_EXIT.TIMEOUT
@@ -277,7 +277,7 @@ async function runHostStop(args: readonly string[], dependencies: HostCliDepende
     const report = await stopHost(parsed, dependencies)
     await dependencies.writeStdout(
       json
-        ? sessionsCliResponseText('host-stop', report, true)
+        ? sessionsCliResponseText('host stop', report, true)
         : `${formatHostStopReport(report)}\n`,
     )
     return report.state === 'timed-out' ? SESSION_CLI_EXIT.TIMEOUT : SESSION_CLI_EXIT.SUCCESS
@@ -292,7 +292,7 @@ export async function runHostCli(
 ) {
   const [command, ...rest] = args
   // `host status` is the status command, including its own --help.
-  if (command === 'status') return runStatusCli(rest, dependencies.status)
+  if (command === 'status') return runStatusCli(rest, dependencies.status, 'host status')
   const parsed = parseMcpCliArguments(args)
   if (command === undefined || isHelp(args, parsed)) {
     await dependencies.writeStdout(`${HOST_CLI_USAGE}\n`)

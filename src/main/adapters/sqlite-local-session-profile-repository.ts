@@ -18,6 +18,7 @@ import {
   profileRepositoryError as repositoryError,
   selectProfiles,
 } from './sqlite-local-session-profile-support'
+import { withStoredProfileRefusalKind } from './sqlite-stored-refusal-kind'
 
 interface OperationRow {
   readonly request_json: string
@@ -188,7 +189,7 @@ function executeManagement(sql: SqlClient.SqlClient, input: ExecuteManagementInp
           return {
             replayed: true,
             outcome: decodeLocalSessionProfileManagementOutcome(
-              parseJsonUnknown(replay.outcome_json),
+              withStoredProfileRefusalKind(parseJsonUnknown(replay.outcome_json)),
             ),
           }
         }

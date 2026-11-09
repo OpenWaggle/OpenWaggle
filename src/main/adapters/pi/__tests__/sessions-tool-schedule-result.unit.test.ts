@@ -108,7 +108,12 @@ describe('Hive tool Scheduled task results', () => {
       JSON.parse(
         renderScheduledTasksToolResult(
           result(
-            { effect: 'rejected', code: 'invalid_schedule', message: 'Too frequent.' },
+            {
+              effect: 'rejected',
+              code: 'invalid_schedule',
+              kind: 'usage',
+              message: 'Too frequent.',
+            },
             'create',
           ),
         ),
@@ -117,6 +122,7 @@ describe('Hive tool Scheduled task results', () => {
       operation: 'create',
       effect: 'rejected',
       code: 'invalid_schedule',
+      kind: 'usage',
       message: 'Too frequent.',
     })
   })

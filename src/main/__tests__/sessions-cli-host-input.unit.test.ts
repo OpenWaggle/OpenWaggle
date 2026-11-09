@@ -168,7 +168,11 @@ describe('hive request-respond reads the pending request before it answers', () 
         requestId: 'request-list',
         outcome: {
           operation: 'requests-list',
-          error: { code: 'capability_denied', message: 'sessions:read is required.' },
+          error: {
+            code: 'capability_denied',
+            kind: 'authorization',
+            message: 'sessions:read is required.',
+          },
         },
       },
     })
@@ -177,7 +181,7 @@ describe('hive request-respond reads the pending request before it answers', () 
       runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--dismiss', '--json']),
     ).resolves.toBe(4)
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
-      command: 'request-respond',
+      command: 'hive request-respond',
       result: { response: { outcome: { error: { code: 'capability_denied' } } } },
     })
   })

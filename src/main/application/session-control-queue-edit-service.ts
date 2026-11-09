@@ -1,4 +1,8 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import { toWaggleInvocation } from '@shared/schemas/waggle'
 import { FollowUpId } from '@shared/types/brand'
 import type {
@@ -101,7 +105,7 @@ function replayedBegin(
         operation: 'queue-edit-begin',
         effect: 'rejected',
         sessionId: outcome.sessionId,
-        code: 'follow_up_edit_not_held',
+        ...sessionHostRefusal('follow_up_edit_not_held'),
       }
 }
 
@@ -119,13 +123,13 @@ export function editSessionFollowUp(input: EditSessionFollowUpInput) {
     const holdId = `follow-up-edit-hold-${yield* identities.nextFollowUpId}`
     const acquiredAt = yield* Clock.currentTimeMillis
     const command = input.request.command
-    const rejected = (code: string): SessionControlMutationDecision => ({
+    const rejected = (code: SessionHostRefusalCode): SessionControlMutationDecision => ({
       accepted: false,
       outcome: {
         operation: command.operation,
         effect: 'rejected',
         sessionId: command.sessionId,
-        code,
+        ...sessionHostRefusal(code),
       },
     })
     const execution = yield* repository.executeMutation({

@@ -105,6 +105,7 @@ describe('SQLite direct Worker Run admission', () => {
       operation: 'message',
       effect: 'rejected',
       code: 'parent_concurrency_limit_reached',
+      kind: 'conflict',
     })
     expect(result.targetRuns).toBe(0)
   })
