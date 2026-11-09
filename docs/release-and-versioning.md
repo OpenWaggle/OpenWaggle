@@ -203,21 +203,21 @@ The shell installer (`curl -fsSL https://openwaggle.ai/install | bash`; `/instal
 `/install.sh` are `302` redirects in `website/public/_redirects` to `scripts/install.sh` on `main`)
 changes the saved channel only when `OPENWAGGLE_CHANNEL` is set, the same rule as
 `openwaggle update --channel`. On a re-run without it, the script asks the installed app for its
-saved channel with `openwaggle update --check --json` (the `savedChannel` field of the result, or of the error envelope
-when only the release check failed or passed its 30 second limit), installs the newest release on
-that channel, and writes no channel intent. The check reads the channel from the Session Host first,
-so it may start the installed version's Host; the script stops waiting after 60 seconds, and Ctrl-C
-stops the check too. A kept channel with no release yet (Stable before `1.0.0`) reports up to date
-and exits 0 without changes. A fresh install, an installed version up to `1.0.0-beta.37` (which has
-no `--json` check), an installed version the script cannot read, or a failed or timed-out read uses
-the default channel and saves it, and for an existing install the script says so. A saved channel
-is a one-time Session Host intent, the selected policy channel rather than one inferred from the
-downloaded artifact's version. With no Stable
-release yet the default is Beta, so an install during Beta or RC never saves Alpha.
-`OPENWAGGLE_RELEASE_TAG` is a one-time install that never reads or changes the channel. A channel
-with no eligible release, such as Stable before `1.0.0`, is reported as up to date rather than as a
-failed check. `openwaggle update --check` never changes the saved channel, with or without `--json`,
-and `openwaggle update --version` refuses a version older than the installed one.
+saved channel with `openwaggle update --check --json` (the `savedChannel` field of the result, or of
+the error envelope when only the release check failed or passed its 30 second limit), installs the
+newest release on that channel, and writes no channel intent. The check reads the channel from the
+Session Host first, so it may start the installed version's Host; the script stops waiting after 60
+seconds, and Ctrl-C stops the check too. A kept channel with no release yet (Stable before `1.0.0`)
+reports up to date and exits 0 without changes. A fresh install, an installed version up to
+`1.0.0-beta.37` (which has no `--json` check), an installed version the script cannot read, or a
+failed or timed-out read uses the default channel and saves it, and for an existing install the
+script says so. A saved channel is a one-time Session Host intent, the selected policy channel
+rather than one inferred from the downloaded artifact's version. With no Stable release yet the
+default is Beta, so an install during Beta or RC never saves Alpha. `OPENWAGGLE_RELEASE_TAG` is a
+one-time install that never reads or changes the channel. A channel with no eligible release, such
+as Stable before `1.0.0`, is reported as up to date rather than as a failed check.
+`openwaggle update --check` never changes the saved channel, with or without `--json`, and
+`openwaggle update --version` refuses a version older than the installed one.
 
 `install.sh` refuses an older version too, after it resolves the channel or from
 `OPENWAGGLE_RELEASE_TAG`, and exits with status 2 before it downloads anything, quits the app, or
