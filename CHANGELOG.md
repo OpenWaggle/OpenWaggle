@@ -65,10 +65,10 @@ From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`,
 - Updates download only the parts of the app that changed, after the first update following a manual install.
 - On Intel Macs, image processing, the clipboard and browser cookie import work. The 1.0.0 betas shipped only the Apple silicon builds of those components.
 - macOS builds are signed and notarized. The Dock icon now fits macOS's rounded-square shape instead of sitting on a grey tile.
-- The install script (`curl … | bash`) opens OpenWaggle when it finishes, unless you are on SSH, in CI, without a display, or pass `--no-launch`. Before it replaces an installed app, it asks about running agent work the same way Restart to update does.
+- The install script now runs from a short address, `curl -fsSL https://openwaggle.ai/install | bash`, instead of its `raw.githubusercontent.com` address, which still works. Running it again keeps your update channel; set `OPENWAGGLE_CHANNEL` to switch. Versions up to 1.0.0-beta.37 can't report their channel, so a re-run over one of them saves the default channel instead; set `OPENWAGGLE_CHANNEL` that one time to stay on another. The script no longer installs a version older than the one you have, and stops with status 2 before it downloads anything, as `openwaggle update --version` does.
+- The install script opens OpenWaggle when it finishes, unless you are on SSH, in CI, without a display, or pass `--no-launch`. Before it replaces an installed app, it asks about running agent work the same way Restart to update does.
 - `openwaggle update` never installs under an open app. With the app open, it tells you to use Restart to update instead.
 - `openwaggle update --check --json` prints the check as JSON, `{"schemaVersion":1,"type":"response","command":"update","result":{…}}`, with your saved update channel in `savedChannel`.
-- The install script is `curl -fsSL https://openwaggle.ai/install | bash`. Running it again keeps your update channel; set `OPENWAGGLE_CHANNEL` to switch. It no longer installs a version older than the one you have, and stops with status 2 before it downloads anything, as `openwaggle update --version` does.
 - The background Session Host now exits a few minutes after its last work ends, unless a Scheduled task is enabled. Before, it kept running.
 
 ### Sessions and chat
