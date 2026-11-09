@@ -14,9 +14,11 @@ The Session Host decides when to notify, so notifications keep coming after you 
 | Kind | When |
 | --- | --- |
 | **Needs you** | A session waits for your approval or your answer, or a worker is stuck and no agent will pick it up. This includes workers. |
-| **Ready to read** | A run you started, or a scheduled task started, finished. For a session with workers, it waits until no worker below the session is running, unless you sent your message while they were already running. |
+| **Ready to read** | A run you started, or a scheduled task started, finished. |
 | **Failed or interrupted** | A run failed, stopped waiting for your answer, or was cut off when the Session Host stopped. A scheduled task that OpenWaggle turned off because it needs your attention notifies here too. |
 | **Agent errors** | An agent or an extension reported an error, at most once per run. |
+
+For a session with [workers](/docs/using-openwaggle/hives-and-sessions), **Ready to read** waits until no worker below the session is running, unless you sent your message while they were already running.
 
 Some things never notify:
 

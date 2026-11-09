@@ -87,6 +87,7 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
       new Map<string, SidebarRowState>([
         ['queen', 'completed'],
         ['seen', 'idle'],
+        ['gone', 'idle'],
       ]),
     )
     expect([...hydrated.completed]).toEqual(['queen', 'seen'])

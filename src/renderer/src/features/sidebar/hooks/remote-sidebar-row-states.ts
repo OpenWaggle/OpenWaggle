@@ -52,13 +52,21 @@ export function useRemoteSidebarRowStates(input: {
   }, [stateBySessionId, loadedSessions, remoteSessions, statuses, completedAt, lastVisitedAt])
 }
 
-/** Forgets Host-discovered terminal rows once they no longer hold their state. */
+/**
+ * Forgets Host-discovered terminal rows once they no longer hold their state. The ids are live (a
+ * ref a page load fills), so the raw statuses are read live too; the shown states come from the
+ * render, so an id that render has not resolved yet was loaded after it and is left alone.
+ */
 export function usePruneHydratedTerminalIds(
   hydratedTerminalIds: HydratedTerminalIds,
   stateBySessionId: ReadonlyMap<string, SidebarRowState>,
 ) {
-  const rawStatuses = useSessionStatusStore((s) => s.statuses)
+  // The shown states change with every raw status change, so they alone say when to run.
   useEffect(() => {
-    pruneHydratedTerminalIds(hydratedTerminalIds, rawStatuses, stateBySessionId)
-  }, [hydratedTerminalIds, rawStatuses, stateBySessionId])
+    pruneHydratedTerminalIds(
+      hydratedTerminalIds,
+      useSessionStatusStore.getState().statuses,
+      stateBySessionId,
+    )
+  }, [hydratedTerminalIds, stateBySessionId])
 }
