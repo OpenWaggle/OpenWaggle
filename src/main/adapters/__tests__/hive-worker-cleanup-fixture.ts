@@ -19,14 +19,9 @@ type DelegationState =
 /** Real SQLite Session Host store with Session Control, organization, delegation, and cleanup. */
 export function makeHiveWorkerCleanupTestLayer(databasePath: string) {
   const base = makeSessionControlTestLayer(databasePath)
-  const pinnedSchema = Layer.effectDiscard(
+  const branchSchema = Layer.effectDiscard(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql.unsafe(`CREATE TABLE pinned_sessions (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-        pinned_at INTEGER NOT NULL,
-        sort_key TEXT NOT NULL
-      )`)
       yield* sql.unsafe(`CREATE TABLE session_branches (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -40,7 +35,7 @@ export function makeHiveWorkerCleanupTestLayer(databasePath: string) {
   )
   return Layer.mergeAll(
     base,
-    pinnedSchema.pipe(Layer.provide(base)),
+    branchSchema.pipe(Layer.provide(base)),
     SqliteHiveWorkerCleanupRepositoryLive.pipe(Layer.provide(base)),
     SqliteSessionDelegationRepositoryLive.pipe(Layer.provide(base)),
   )

@@ -138,7 +138,7 @@ Each session a Launch schedule starts gets a new worktree by default, so unatten
 
 Each session is titled with the task's name and the date, and its row in the sidebar has a calendar icon. Its Session Summary names the task that started it. Turn on **Archive finished runs** to archive a session once its one run has completed, with nothing queued or waiting for you, as long as nobody sent it another message and it isn't pinned. It archives only while the task is turned on. Pausing the task leaves its finished sessions in the sidebar.
 
-The agent can also archive its own session when it finds nothing to do, if your prompt asks it to. OpenWaggle archives the session once the run ends, so the agent's last message stays in the transcript. See [Manage sessions](/docs/reference/hive#manage-sessions) for when that archive is skipped. Ask this only of a Launch schedule. A Heartbeat keeps one session, so if the agent archives it, the Heartbeat pauses and asks for your attention. Restore the session, then turn the Heartbeat back on.
+The agent can also archive its own session when it finds nothing to do, if your prompt asks it to. OpenWaggle waits for the run to complete before it archives the session, so the agent can still write its last message. See [Manage sessions](/docs/reference/hive#manage-sessions) for when that archive is skipped. Ask this only of a Launch schedule. A Heartbeat keeps one session, so if the agent archives it, the Heartbeat pauses and asks for your attention. Restore the session, then turn the Heartbeat back on.
 
 ## Keep tasks running after a restart
 

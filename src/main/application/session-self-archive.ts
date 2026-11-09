@@ -60,8 +60,8 @@ export function withdrawSelfArchives(sessionId: SessionId) {
 /**
  * Why the archive the Run asked for no longer applies, or undefined when it still does. A Run
  * that did not complete (the user stopped it, it failed, a drain interrupted it), a Run,
- * Follow-up, Worker update or other Session work that came after it, an unarchive since, or an
- * archive that already happened all mean someone else decided what happens to the Session since
+ * Follow-up, Worker update or other Session work that came after it, an unarchive or pin since, or
+ * an archive that already happened all mean someone else decided what happens to the Session since
  * the agent asked. A Run without a `session_runs` row has no status to check, so it is skipped too.
  */
 export function selfArchiveSkipReason(
@@ -71,9 +71,10 @@ export function selfArchiveSkipReason(
   if (!live.pending) return 'withdrawn'
   if (state === null) return 'session-missing'
   if (state.archived) return 'already-archived'
+  if (state.pinned) return 'pinned'
   if (state.activeRunId !== null || state.laterRunCount > 0) return 'later-run'
   if (state.queuedFollowUpCount > 0) return 'follow-up-queued'
-  // A Worker reported after the Run's last model request; the parent wake would hand it on.
+  // An unread Worker update keeps the Session visible, for a later Run or the user to read.
   if (state.pendingWorkerUpdateCount > 0) return 'worker-updates-pending'
   if (live.sessionBusy) return 'session-busy'
   if (state.runStatus === null) return 'run-missing'
@@ -83,7 +84,7 @@ export function selfArchiveSkipReason(
 
 /**
  * Holds the Session Host open from the request until the archive is done, so a Host that drains
- * once the Run ends does not stop before it. A draining Host admits it: the asking Run holds the
+ * once the Run ends does not stop before it, unless a drain deadline ends the Host first. A draining Host admits it: the asking Run holds the
  * Host open anyway, and a Run a drain interrupts skips the archive as not completed.
  */
 function acquireArchiveLiveness() {
@@ -157,11 +158,14 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
       // finished Worker gets the cleanup pass it was kept from, outside the serialization that an
       // inline pass takes itself.
       Effect.flatMap((outcome) =>
-        outcome === 'archived' ? Effect.void : requestHiveWorkerCleanup(sessionId),
+        // Interruptible again, so the cleanup pass and its retries run as the coordinator's do.
+        outcome === 'archived'
+          ? Effect.void
+          : Effect.interruptible(requestHiveWorkerCleanup(sessionId)),
       ),
       Effect.catchAllCause((cause) =>
         Effect.sync(() => {
-          logger.warn('Hive cleanup after a skipped self-archive failed', {
+          logger.warn('A deferred self-archive failed', {
             sessionId,
             runId,
             cause: Cause.pretty(cause),

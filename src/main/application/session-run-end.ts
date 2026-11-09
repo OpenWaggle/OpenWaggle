@@ -23,7 +23,9 @@ export function isSessionRunLive(sessionId: SessionId, runId: string) {
  * Resolves once Run `runId` of `sessionId` has released its writer and Run registration, which
  * its coordinator does after the Run's terminal state is saved. Unlike `waitForSessionRuns`, it
  * neither cancels nor waits for any other Run of the Session, and it has no deadline: the Run
- * ends on its own.
+ * ends on its own. Only the current registry slots are read: a Session starts no Run until the
+ * previous one has settled (`assertSessionRunStartAllowed`), so a Run that moved to settling has
+ * ended for this purpose.
  */
 export async function waitForSessionRunEnd(sessionId: SessionId, runId: string) {
   while (true) {

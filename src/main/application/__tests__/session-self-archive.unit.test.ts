@@ -11,6 +11,7 @@ const idle: SessionSelfArchiveState = {
   runStatus: 'completed',
   laterRunCount: 0,
   pendingWorkerUpdateCount: 0,
+  pinned: false,
 }
 
 describe('a Session archiving itself', () => {
@@ -47,6 +48,7 @@ describe('a Session archiving itself', () => {
     expect(selfArchiveSkipReason({ ...idle, queuedFollowUpCount: 1 }, live)).toBe(
       'follow-up-queued',
     )
+    expect(selfArchiveSkipReason({ ...idle, pinned: true }, live)).toBe('pinned')
     expect(selfArchiveSkipReason({ ...idle, pendingWorkerUpdateCount: 2 }, live)).toBe(
       'worker-updates-pending',
     )

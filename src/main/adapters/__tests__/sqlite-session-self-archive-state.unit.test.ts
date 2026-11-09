@@ -70,6 +70,10 @@ describe('SQLite self-archive state', () => {
             )
           `
         }
+        yield* sql`
+          INSERT INTO pinned_sessions (session_id, pinned_at, sort_key)
+          VALUES (${'session-target'}, ${1}, ${'a'})
+        `
         const busy = yield* read('run-asking')
         const gone = yield* repository.readSelfArchiveState({
           sessionId: 'session-gone',
@@ -84,6 +88,7 @@ describe('SQLite self-archive state', () => {
       activeRunId: null,
       queuedFollowUpCount: 0,
       pendingWorkerUpdateCount: 0,
+      pinned: false,
     }
     expect(result.idle).toEqual({ ...base, runStatus: 'completed', laterRunCount: 0 })
     expect(result.fromEarlier).toEqual({ ...base, runStatus: 'completed', laterRunCount: 1 })
@@ -96,6 +101,7 @@ describe('SQLite self-archive state', () => {
       runStatus: 'completed',
       laterRunCount: 0,
       pendingWorkerUpdateCount: 1,
+      pinned: true,
     })
     expect(result.gone).toBe(null)
   })

@@ -227,6 +227,17 @@ describe('a Session agent archiving its own Session', () => {
     ])
   }, 45_000)
 
+  it('lets Hive cleanup archive the Worker when its own archive is skipped', async () => {
+    const result = await runScenario(database('worker-failed'), {
+      acceptedWorker: true,
+      terminalStatus: 'failed',
+    })
+
+    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId, 'worker')])
+    expect(result.archivedAfterRun).toBe(true)
+    expect(result.journal).toEqual([{ caller_id: QUEEN_CALLER_ID, operation: 'archive' }])
+  }, 45_000)
+
   it('archives once when the agent asks twice', async () => {
     const result = await runScenario(database('twice'), { archiveCalls: 2 })
 

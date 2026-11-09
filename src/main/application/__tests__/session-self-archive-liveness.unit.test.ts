@@ -29,6 +29,7 @@ const COMPLETED: SessionSelfArchiveState = {
   runStatus: 'completed',
   laterRunCount: 0,
   pendingWorkerUpdateCount: 0,
+  pinned: false,
 }
 
 const ARCHIVED: SessionControlMutationResponse = fromPartial({

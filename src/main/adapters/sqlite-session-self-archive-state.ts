@@ -4,19 +4,20 @@ import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
 import type { SessionSelfArchiveState } from '../ports/session-organization-repository'
 
-const RUN_STATUSES: ReadonlySet<string> = new Set<SessionLatestRunSummary['status']>([
-  'starting',
-  'active',
-  'stopping',
-  'completed',
-  'failed',
-  'interrupted',
-  'interrupted-by-host-loss',
-  'interrupted-by-interaction-timeout',
-])
+/** Every Run status, as an object so a status added to the union must be listed here too. */
+const RUN_STATUSES: Readonly<Record<SessionLatestRunSummary['status'], true>> = {
+  starting: true,
+  active: true,
+  stopping: true,
+  completed: true,
+  failed: true,
+  interrupted: true,
+  'interrupted-by-host-loss': true,
+  'interrupted-by-interaction-timeout': true,
+}
 
 function isRunStatus(value: string): value is SessionLatestRunSummary['status'] {
-  return RUN_STATUSES.has(value)
+  return Object.hasOwn(RUN_STATUSES, value)
 }
 
 function decodeRunStatus(value: string | null) {
@@ -32,6 +33,7 @@ interface SelfArchiveStateRow {
   readonly run_status: string | null
   readonly later_run_count: number
   readonly pending_worker_update_count: number
+  readonly pinned: number
 }
 
 export function readSessionSelfArchiveState(
@@ -40,6 +42,8 @@ export function readSessionSelfArchiveState(
 ) {
   return sql<SelfArchiveStateRow>`
     SELECT sessions.archived, session_control_states.active_run_id,
+      EXISTS (SELECT 1 FROM pinned_sessions WHERE pinned_sessions.session_id = sessions.id)
+        AS pinned,
       (SELECT COUNT(*) FROM session_follow_ups
         WHERE session_follow_ups.session_id = sessions.id) AS queued_follow_up_count,
       (SELECT status FROM session_runs
@@ -63,6 +67,7 @@ export function readSessionSelfArchiveState(
         if (!row) return null
         return {
           archived: row.archived === 1,
+          pinned: row.pinned === 1,
           activeRunId: row.active_run_id,
           queuedFollowUpCount: row.queued_follow_up_count,
           runStatus: decodeRunStatus(row.run_status),
