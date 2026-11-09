@@ -37,7 +37,7 @@ Open **Settings** > **Notifications**.
 - **Show badge** counts your notifications on the Dock icon, for every kind you have turned on. On Windows the taskbar icon shows a red dot instead.
 - **Show previews** adds the start of the reply, question or error. It is off, so message text stays off your lock screen.
 
-When OpenWaggle isn't running, the Session Host shows the notification itself with the system sound, or none if you picked **None**. There is no badge then. Clicking the notification opens OpenWaggle on that session.
+With no OpenWaggle window open, a notification plays the system sound instead of the sound you picked, or none if you picked **None**. When OpenWaggle isn't running, the Session Host shows the notification itself, and there is no badge. Clicking a notification about a session opens OpenWaggle on that session. Clicking one about a scheduled task opens that task, or only opens OpenWaggle when the Session Host showed it.
 
 ## Mute a session or a project
 
