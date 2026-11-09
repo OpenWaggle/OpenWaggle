@@ -13,8 +13,10 @@ import {
   type SessionSelfArchiveState,
 } from '../ports/session-organization-repository'
 import { tryGetSessionHostEventRuntime } from '../session-host/session-host-events'
+import { hasAnyActiveRun } from './active-session-runs'
 import { withSessionCommandSerialization } from './session-command-serialization'
 import { publishControlResponse } from './session-control-event-projection'
+import { SessionHostDrainingError } from './session-host-run-admission'
 import { isSessionRunLive, waitForSessionRunEnd } from './session-run-end'
 
 const logger = createLogger('session-self-archive')
@@ -31,27 +33,56 @@ export function liveCallerRunOfSession(callerId: string, sessionId: SessionId) {
   )
 }
 
+/** Runs of each Session with an archive waiting for them to end, until it runs or is withdrawn. */
+const pendingSelfArchives = new Map<SessionId, Set<string>>()
+
+function isSelfArchivePending(sessionId: SessionId, runId: string) {
+  return pendingSelfArchives.get(sessionId)?.has(runId) === true
+}
+
+function settleSelfArchive(sessionId: SessionId, runId: string) {
+  const runs = pendingSelfArchives.get(sessionId)
+  runs?.delete(runId)
+  if (runs?.size === 0) pendingSelfArchives.delete(sessionId)
+}
+
+/** An unarchive of the Session withdraws every archive its Runs asked for and still wait on. */
+export function withdrawSelfArchives(sessionId: SessionId) {
+  pendingSelfArchives.delete(sessionId)
+}
+
 /**
  * Why the archive the Run asked for no longer applies, or undefined when it still does. A Run
- * that did not complete (the user stopped it, it failed, a drain interrupted it), a Run or
- * Follow-up that came after it, or an archive that already happened all mean someone else
- * decided what happens to the Session since the agent asked.
+ * that did not complete (the user stopped it, it failed, a drain interrupted it), a Run,
+ * Follow-up or other Session work that came after it, an unarchive since, or an archive that
+ * already happened all mean someone else decided what happens to the Session since the agent
+ * asked. A Run without a `session_runs` row has no status to check, so it is skipped too.
  */
-export function selfArchiveSkipReason(state: SessionSelfArchiveState | null) {
+export function selfArchiveSkipReason(
+  state: SessionSelfArchiveState | null,
+  live: { readonly pending: boolean; readonly sessionBusy: boolean },
+) {
+  if (!live.pending) return 'withdrawn'
   if (state === null) return 'session-missing'
   if (state.archived) return 'already-archived'
   if (state.activeRunId !== null || state.laterRunCount > 0) return 'later-run'
   if (state.queuedFollowUpCount > 0) return 'follow-up-queued'
-  if (state.runStatus !== null && state.runStatus !== 'completed') return 'run-not-completed'
+  if (live.sessionBusy) return 'session-busy'
+  if (state.runStatus === null) return 'run-missing'
+  if (state.runStatus !== 'completed') return 'run-not-completed'
   return undefined
 }
 
 /**
  * Holds the Session Host open from the request until the archive is done, so a Host that drains
- * once the Run ends does not stop before it. A Host that is already stopping refuses it.
+ * once the Run ends does not stop before it. A draining Host admits it: the asking Run holds the
+ * Host open anyway, and a Run a drain interrupts skips the archive as not completed.
  */
 function acquireArchiveLiveness() {
-  return tryGetSessionHostEventRuntime()?.liveness.acquire('operation') ?? (() => undefined)
+  return (
+    tryGetSessionHostEventRuntime()?.liveness.acquire('operation', { whileDraining: true }) ??
+    (() => undefined)
+  )
 }
 
 /**
@@ -61,7 +92,8 @@ function acquireArchiveLiveness() {
  * call. The archive instead runs on a daemon fiber, outside the Run and its tool call, once the
  * Run has saved its terminal state. Under the Session's command serialization it re-reads the
  * Session first and archives only if nothing changed since (`selfArchiveSkipReason`), so it
- * never stops a Run or Follow-up that came after the request. The intent is kept in memory: a
+ * never stops a Run or Follow-up that came after the request. An unarchive withdraws it
+ * (`withdrawSelfArchives`). The intent is kept in memory: a
  * Host restart before the Run ends drops it.
  */
 export function deferArchiveUntilRunEnds<E, R>(input: {
@@ -69,7 +101,11 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
   readonly runId: string
   readonly request: SessionOrganizationRequest
   readonly archive: Effect.Effect<SessionControlMutationResponse, E, R>
-}): Effect.Effect<SessionControlMutationResponse, unknown, R | SessionOrganizationRepository> {
+}): Effect.Effect<
+  SessionControlMutationResponse,
+  SessionHostDrainingError,
+  R | SessionOrganizationRepository
+> {
   const { sessionId, runId } = input
   const archiveIfStillWanted = Effect.gen(function* () {
     const repository = yield* SessionOrganizationRepository
@@ -77,7 +113,10 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
       sessionId,
       runId: durableSessionRunId(runId),
     })
-    const skipReason = selfArchiveSkipReason(state)
+    const skipReason = selfArchiveSkipReason(state, {
+      pending: isSelfArchivePending(sessionId, runId),
+      sessionBusy: hasAnyActiveRun(sessionId),
+    })
     if (skipReason !== undefined) {
       logger.info('A Session did not archive itself after its Run ended', {
         sessionId,
@@ -101,15 +140,27 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
           })
         }),
       ),
-      Effect.ensuring(Effect.sync(releaseLiveness)),
+      Effect.ensuring(
+        Effect.sync(() => {
+          settleSelfArchive(sessionId, runId)
+          releaseLiveness()
+        }),
+      ),
     )
   return Effect.uninterruptible(
     Effect.gen(function* () {
-      const releaseLiveness = yield* Effect.try({
-        try: acquireArchiveLiveness,
-        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-      })
-      yield* Effect.forkDaemon(archiveAfterRun(releaseLiveness))
+      // A repeat from the same Run waits on the archive it already asked for.
+      if (!isSelfArchivePending(sessionId, runId)) {
+        const releaseLiveness = yield* Effect.try({
+          try: acquireArchiveLiveness,
+          catch: () => new SessionHostDrainingError(),
+        })
+        const runs = pendingSelfArchives.get(sessionId) ?? new Set<string>()
+        pendingSelfArchives.set(sessionId, runs.add(runId))
+        // The daemon inherits this uninterruptible region, as every archive dispatched through
+        // Session Control runs uninterruptibly; nothing interrupts it, and its waits end on their own.
+        yield* Effect.forkDaemon(archiveAfterRun(releaseLiveness))
+      }
       return {
         contractVersion: input.request.contractVersion,
         requestId: input.request.requestId,

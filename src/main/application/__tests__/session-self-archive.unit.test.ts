@@ -35,13 +35,20 @@ describe('a Session archiving itself', () => {
   })
 
   it('archives only when nothing changed since the Run asked', () => {
-    expect(selfArchiveSkipReason(idle)).toBe(undefined)
-    expect(selfArchiveSkipReason({ ...idle, runStatus: null })).toBe(undefined)
-    expect(selfArchiveSkipReason(null)).toBe('session-missing')
-    expect(selfArchiveSkipReason({ ...idle, archived: true })).toBe('already-archived')
-    expect(selfArchiveSkipReason({ ...idle, activeRunId: 'run-next' })).toBe('later-run')
-    expect(selfArchiveSkipReason({ ...idle, laterRunCount: 1 })).toBe('later-run')
-    expect(selfArchiveSkipReason({ ...idle, queuedFollowUpCount: 1 })).toBe('follow-up-queued')
-    expect(selfArchiveSkipReason({ ...idle, runStatus: 'interrupted' })).toBe('run-not-completed')
+    const live = { pending: true, sessionBusy: false }
+    expect(selfArchiveSkipReason(idle, live)).toBe(undefined)
+    expect(selfArchiveSkipReason(idle, { ...live, pending: false })).toBe('withdrawn')
+    expect(selfArchiveSkipReason(null, live)).toBe('session-missing')
+    expect(selfArchiveSkipReason({ ...idle, archived: true }, live)).toBe('already-archived')
+    expect(selfArchiveSkipReason({ ...idle, activeRunId: 'run-next' }, live)).toBe('later-run')
+    expect(selfArchiveSkipReason({ ...idle, laterRunCount: 1 }, live)).toBe('later-run')
+    expect(selfArchiveSkipReason({ ...idle, queuedFollowUpCount: 1 }, live)).toBe(
+      'follow-up-queued',
+    )
+    expect(selfArchiveSkipReason(idle, { ...live, sessionBusy: true })).toBe('session-busy')
+    expect(selfArchiveSkipReason({ ...idle, runStatus: null }, live)).toBe('run-missing')
+    expect(selfArchiveSkipReason({ ...idle, runStatus: 'interrupted' }, live)).toBe(
+      'run-not-completed',
+    )
   })
 })

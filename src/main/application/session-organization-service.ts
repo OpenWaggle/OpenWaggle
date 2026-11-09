@@ -18,7 +18,11 @@ import type { TerminalService } from '../ports/terminal-service'
 import { withSessionActionRelease } from './action-workspace-release'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { refuseRestoreWhileRemovalFenced } from './session-restore-fence'
-import { deferArchiveUntilRunEnds, liveCallerRunOfSession } from './session-self-archive'
+import {
+  deferArchiveUntilRunEnds,
+  liveCallerRunOfSession,
+  withdrawSelfArchives,
+} from './session-self-archive'
 import { recordUsageStatisticsObservation } from './usage-statistics-recording'
 
 const HANDOFF_RECOVERY_RETRY_COUNT = 2
@@ -124,6 +128,9 @@ export function organizeSession(input: {
         )
       : input.request.command.operation === 'unarchive'
         ? refuseRestoreWhileRemovalFenced(SessionId(input.request.command.sessionId)).pipe(
+            Effect.zipRight(
+              Effect.sync(() => withdrawSelfArchives(SessionId(input.request.command.sessionId))),
+            ),
             Effect.zipRight(organizeSessionWithoutArchive(input)),
           )
         : organizeSessionWithoutArchive(input)

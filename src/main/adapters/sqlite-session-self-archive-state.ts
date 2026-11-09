@@ -23,7 +23,8 @@ export function readSessionSelfArchiveState(
         WHERE session_runs.id = ${input.runId} AND session_runs.session_id = sessions.id)
         AS run_status,
       (SELECT COUNT(*) FROM session_runs AS later
-        JOIN session_runs AS asking ON asking.id = ${input.runId}
+        JOIN session_runs AS asking
+          ON asking.id = ${input.runId} AND asking.session_id = sessions.id
         WHERE later.session_id = sessions.id AND later.rowid > asking.rowid) AS later_run_count
     FROM sessions
     LEFT JOIN session_control_states ON session_control_states.session_id = sessions.id

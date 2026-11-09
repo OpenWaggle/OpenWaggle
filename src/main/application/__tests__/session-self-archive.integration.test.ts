@@ -238,7 +238,34 @@ describe('a Session agent archiving its own Session', () => {
     expect(result.journal).toEqual([])
   }, 45_000)
 
-  it('does not archive when the Run that asked does not complete', async () => {
+  it('withdraws the archive when the Session is unarchived before its Run ends', async () => {
+    const result = await runScenario(database('withdrawn'), {
+      afterArchive: (runtime) =>
+        Runtime.runPromise(runtime)(
+          controlCommandAs('session-agent:queen:run-generated-1', 'keep-it', {
+            operation: 'unarchive',
+            sessionId: 'queen',
+          }),
+        ),
+    })
+
+    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
+    expect(result.archivedAfterRun).toBe(false)
+    expect(result.journal).toEqual([
+      { caller_id: 'session-agent:queen:run-generated-1', operation: 'unarchive' },
+    ])
+  }, 45_000)
+
+  it('does not archive when the Run that asked is stopped', async () => {
+    const result = await runScenario(database('interrupted'), { terminalStatus: 'interrupted' })
+
+    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
+    expect(result.archivedAfterRun).toBe(false)
+    expect(result.runs).toEqual([{ id: result.runId, status: 'interrupted' }])
+    expect(result.journal).toEqual([])
+  }, 45_000)
+
+  it('does not archive when the Run that asked fails', async () => {
     const result = await runScenario(database('failed'), { terminalStatus: 'failed' })
 
     expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId)])
