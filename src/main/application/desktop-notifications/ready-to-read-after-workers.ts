@@ -223,6 +223,8 @@ export class ReadyToReadAfterWorkers {
 
   private showHeld(rootSessionId: string, held: HeldReadyToRead, at: number) {
     return Effect.gen(this, function* () {
+      // The sweep and the event observer run side by side; only one of them shows a held entry.
+      if (this.held.get(rootSessionId) !== held) return
       this.held.delete(rootSessionId)
       this.quietSince.delete(rootSessionId)
       const session = yield* this.dependencies.facts.session(rootSessionId)
