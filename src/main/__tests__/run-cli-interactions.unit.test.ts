@@ -16,33 +16,58 @@ function selectWithChoice(choice: string) {
   })
 }
 
+function confirmation(purpose: 'authorization' | 'user-input') {
+  return fromPartial<AgentLoopInteraction>({
+    kind: 'confirm',
+    title: 'Allow?',
+    message: 'Run a command',
+    purpose,
+    sessionId: 'session-1',
+    runId: 'run-1',
+    interactionId: 'interaction-1',
+  })
+}
+
+/** The single argument a POSIX shell hands the CLI for what follows `--choice `. */
+function shellArgument(quoted: string) {
+  return execFileSync('sh', ['-c', `printf %s ${quoted}`], { encoding: 'utf8' })
+}
+
 describe('respondCommandHint', () => {
   it('quotes an agent-chosen choice so pasting the command cannot run anything else', () => {
-    const hint = respondCommandHint(selectWithChoice("x'; touch /tmp/owned; echo '"), 'darwin')
-    expect(hint).toBeDefined()
-    const responseJson = hint?.split('--response-json ')[1] ?? ''
-
-    // The shell must hand the whole JSON back as one argument, unchanged.
-    const parsed = execFileSync('sh', ['-c', `printf %s ${responseJson}`], { encoding: 'utf8' })
-    expect(JSON.parse(parsed)).toEqual({
-      kind: 'select',
-      selected: "x'; touch /tmp/owned; echo '",
-    })
+    const choice = "x'; touch /tmp/owned; echo '"
+    const hint = respondCommandHint(selectWithChoice(choice), 'darwin')
+    expect(hint).toContain(
+      'openwaggle hive request-respond session-1 run-1 interaction-1 --choice ',
+    )
+    expect(shellArgument(hint?.split('--choice ')[1] ?? '')).toBe(choice)
   })
 
-  it('shows the response on its own line on Windows', () => {
+  it('attaches a choice that starts with -- so it is not read as an option', () => {
+    const hint = respondCommandHint(selectWithChoice('--force'), 'darwin') ?? ''
+    expect(hint).toContain("--choice='--force'")
+  })
+
+  it('shows the choice on its own line on Windows', () => {
     const hint = respondCommandHint(selectWithChoice('a & b'), 'win32')
 
-    expect(hint).toContain('--response-json <response>')
-    expect(hint).toContain('where <response> is {"kind":"select","selected":"a & b"}')
+    expect(hint).toContain('--choice CHOICE')
+    expect(hint).toContain('where CHOICE is a & b')
   })
 
-  it('keeps the example valid JSON when a choice holds control characters', () => {
+  it('does not print a choice that holds control characters', () => {
     const hint = respondCommandHint(selectWithChoice('a\u0085b\u007f\u202e'), 'darwin') ?? ''
-    const quoted = hint.split('--response-json ')[1] ?? ''
 
     expect(sanitizeTerminalText(hint)).toBe(hint)
-    const parsed = execFileSync('sh', ['-c', `printf %s ${quoted}`], { encoding: 'utf8' })
-    expect(JSON.parse(parsed)).toEqual({ kind: 'select', selected: 'a\u0085b\u007f\u202e' })
+    expect(hint).toContain('--choice CHOICE\n  where CHOICE is one of the choices listed above')
+  })
+
+  it('answers an approval with approval-respond and any other confirm with --confirm', () => {
+    expect(respondCommandHint(confirmation('authorization'))).toBe(
+      'openwaggle hive approval-respond session-1 run-1 interaction-1 allow',
+    )
+    expect(respondCommandHint(confirmation('user-input'))).toBe(
+      'openwaggle hive request-respond session-1 run-1 interaction-1 --confirm',
+    )
   })
 })

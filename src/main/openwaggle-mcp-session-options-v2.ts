@@ -1,4 +1,5 @@
 import type { SessionToolInputV2 } from './openwaggle-mcp-session-input-v2'
+import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 
 function add(options: Map<string, string[]>, name: string, value: unknown) {
   if (value === undefined || value === false) return
@@ -63,8 +64,6 @@ function addBaseOptions(options: Map<string, string[]>, input: SessionToolInputV
     ['delegation', input.operation === 'delegations-conflicts' ? input.delegationId : undefined],
   ] as const)
     add(options, name, value)
-  if (input.interactionResponse)
-    add(options, 'response-json', JSON.stringify(input.interactionResponse))
 }
 
 function addCollaborationOptions(options: Map<string, string[]>, input: SessionToolInputV2) {
@@ -77,25 +76,24 @@ function addCollaborationOptions(options: Map<string, string[]>, input: SessionT
   if (input.reportTarget === 'session' || input.reportTarget === 'sessions') {
     append(options, 'target', input.targetSessionIds ?? [])
   }
-  append(
-    options,
-    'evidence-json',
-    (input.evidence ?? []).map((item) => JSON.stringify(item)),
-  )
-  if (input.delegationSpecification) {
-    add(options, 'specification-json', JSON.stringify(input.delegationSpecification))
-  }
+  // Interaction responses, evidence, claims and specifications stay structured: see
+  // mcpSessionStructuredInputV2. The CLI options for them are for people.
   add(options, 'proposal', input.proposalId)
-  append(
-    options,
-    'claim-json',
-    (input.claims ?? []).map((item) => JSON.stringify(item)),
-  )
   if (!input.revisedSpecification) return
   add(options, 'revised-objective', input.revisedSpecification.objective)
   append(options, 'deliverable', input.revisedSpecification.deliverables)
   append(options, 'accept', input.revisedSpecification.acceptanceCriteria)
   append(options, 'resource', input.revisedSpecification.resourceReferences)
+}
+
+/** The tool parameters that reach the Hive command as structured values, not CLI options. */
+export function mcpSessionStructuredInputV2(input: SessionToolInputV2): SessionsCliStructuredInput {
+  return {
+    ...(input.interactionResponse ? { interactionResponse: input.interactionResponse } : {}),
+    ...(input.evidence ? { evidence: input.evidence } : {}),
+    ...(input.claims ? { claims: input.claims } : {}),
+    ...(input.delegationSpecification ? { specification: input.delegationSpecification } : {}),
+  }
 }
 
 export function mcpSessionCliOptionsV2(input: SessionToolInputV2, message?: string) {

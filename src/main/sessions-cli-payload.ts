@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { decodeUnknownExactOrThrow } from '@shared/schema'
-import { agentLoopResponseSchema } from '@shared/schemas/agent-loop-interaction'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import {
@@ -20,6 +18,7 @@ import {
   watchCursor,
 } from './sessions-cli-arguments'
 import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
+import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 import {
   buildDelegationQueryCliPayload,
   isDelegationQueryCliCommand,
@@ -29,6 +28,7 @@ import {
   isSessionExportOperationCliCommand,
 } from './sessions-cli-export-operation-payload'
 import { buildSessionsCliExportPayload } from './sessions-cli-export-payload'
+import { interactionResponseFromInput } from './sessions-cli-interaction-response'
 import { itemsPayload } from './sessions-cli-items-payload'
 import {
   forkLifecyclePayload,
@@ -212,7 +212,11 @@ function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPaylo
   }
 }
 
-function requestsPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
+function requestsPayload(
+  command: string,
+  arguments_: ParsedArguments,
+  structured: SessionsCliStructuredInput,
+): LocalSessionCommandPayload {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'requests-list') {
     return {
@@ -227,10 +231,7 @@ function requestsPayload(command: string, arguments_: ParsedArguments): LocalSes
   if (command !== 'request-respond' && command !== 'approval-respond') {
     throw new Error(`Unsupported requests command: ${command}.`)
   }
-  const response = decodeUnknownExactOrThrow(
-    agentLoopResponseSchema,
-    JSON.parse(required(option(arguments_, 'response-json'), '--response-json')),
-  )
+  const response = interactionResponseFromInput(command, arguments_, structured.interactionResponse)
   return {
     contract: 'session-control-v2',
     request: {
@@ -273,8 +274,12 @@ function directSessionsCliPayload(
 export function buildSessionsCliPayload(
   command: string,
   arguments_: ParsedArguments,
-  context: { readonly workingDirectory?: string } = {},
+  context: {
+    readonly workingDirectory?: string
+    readonly structured?: SessionsCliStructuredInput
+  } = {},
 ): LocalSessionCommandPayload {
+  const structured = context.structured ?? {}
   const workingDirectory = context.workingDirectory ?? process.cwd()
   const direct = directSessionsCliPayload(command, arguments_, workingDirectory)
   if (direct) return direct
@@ -287,7 +292,7 @@ export function buildSessionsCliPayload(
     command === 'request-respond' ||
     command === 'approval-respond'
   ) {
-    return requestsPayload(command, arguments_)
+    return requestsPayload(command, arguments_, structured)
   }
   if (isSessionExportOperationCliCommand(command)) {
     return buildSessionsCliExportOperationPayload(command, arguments_)
@@ -295,7 +300,7 @@ export function buildSessionsCliPayload(
   if (isDelegationQueryCliCommand(command)) {
     return buildDelegationQueryCliPayload(command, arguments_, { workingDirectory })
   }
-  return buildSessionsCliControlPayload(command, arguments_)
+  return buildSessionsCliControlPayload(command, arguments_, structured)
 }
 
 export const FULL_TRANSCRIPT_PAGE_LIMIT = SESSION_QUERY_TRANSCRIPT_LIMIT

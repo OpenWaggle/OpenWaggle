@@ -194,8 +194,8 @@ describe('Hive CLI command contract', () => {
       'delegation-1',
       'Implementation',
       'ready',
-      '--evidence-json',
-      '{"kind":"observed-command","summary":"Tests passed"}',
+      '--evidence-command',
+      'Tests passed',
     ])
     const accept = command([
       'delegation-accept',

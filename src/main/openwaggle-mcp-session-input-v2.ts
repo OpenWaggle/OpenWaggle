@@ -8,7 +8,10 @@ import { mcpSessionControlOperationSchemasV2 } from './openwaggle-mcp-session-in
 import { mcpSessionQueryLifecycleOperationSchemasV2 } from './openwaggle-mcp-session-input-query-schema-v2'
 import type { SessionToolInputV2 } from './openwaggle-mcp-session-input-types-v2'
 import { mcpSessionOperationGrantedV2 } from './openwaggle-mcp-session-operation-grants-v2'
-import { mcpSessionCliOptionsV2 } from './openwaggle-mcp-session-options-v2'
+import {
+  mcpSessionCliOptionsV2,
+  mcpSessionStructuredInputV2,
+} from './openwaggle-mcp-session-options-v2'
 import { mcpSessionPositionalsV2 } from './openwaggle-mcp-session-positionals-v2'
 import { buildSessionsCliPayload } from './sessions-cli'
 import { validateSessionsCliOptions } from './sessions-cli-option-contract'
@@ -113,12 +116,24 @@ function validateParsedInput(input: SessionToolInputV2, parsed: ReturnType<typeo
   validateSessionsCliOptions(parsed.command, parsed.arguments)
 }
 
+function validateInteractionResponseField(input: SessionToolInputV2) {
+  if (
+    (input.operation === 'request-respond' || input.operation === 'approval-respond') &&
+    input.interactionResponse === undefined
+  ) {
+    throw new Error(`interactionResponse is required for ${input.operation}.`)
+  }
+}
+
 export function buildMcpSessionPayloadV2(input: SessionToolInputV2) {
   const parsed = parsedInput(input)
+  validateInteractionResponseField(input)
   const payload =
     input.operation === 'export'
       ? buildMcpSessionExportPayloadV2(input)
-      : buildSessionsCliPayload(parsed.command, parsed.arguments)
+      : buildSessionsCliPayload(parsed.command, parsed.arguments, {
+          structured: mcpSessionStructuredInputV2(input),
+        })
   validateParsedInput(input, parsed)
   return payload
 }

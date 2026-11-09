@@ -1,3 +1,5 @@
+import { MANAGEMENT_ENVELOPE_OPTIONS } from './access-cli-policy'
+import { refuseFormerCliOptions } from './cli-former-options'
 import { validateCommandCliOptions } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
 
@@ -12,7 +14,7 @@ const POLICY_OPTIONS = [
   'session',
   'hive',
   'authorization',
-  'management-envelope-json',
+  ...MANAGEMENT_ENVELOPE_OPTIONS,
 ] as const
 const DESTINATION_OPTIONS = ['credential-store', 'credential-file', 'replace'] as const
 const OPTIONS_BY_OPERATION: Readonly<Record<string, readonly string[]>> = {
@@ -29,6 +31,7 @@ const BOOLEAN_OPTIONS = new Set([
   'credential-store',
   'include-revoked',
   'json',
+  'manage-all',
   'replace',
 ])
 const ARGUMENTS_BY_OPERATION = {
@@ -41,6 +44,7 @@ const ARGUMENTS_BY_OPERATION = {
 } as const
 
 export function validateAccessCliOptions(operation: string, arguments_: ParsedArguments) {
+  refuseFormerCliOptions(operation, arguments_)
   validateCommandCliOptions({
     surface: 'OpenWaggle Access profiles',
     route: operation,

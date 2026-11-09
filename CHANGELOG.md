@@ -30,6 +30,19 @@ If you script OpenWaggle or connect other agents to it, the coordination tool an
 - Some outputs change. `openwaggle hive agent-definitions-list --json` and `openwaggle hive agent-definitions-search --json`, formerly `openwaggle agents list --json` and `search --json`, answer in the Hive response envelope, for example `{"schemaVersion":1,"type":"response","command":"agent-definitions-list","result":{"definitions":[…]}}`, instead of `{"schemaVersion":1,"result":[…]}`. Their errors use the Hive error envelope, `{"schemaVersion":1,"type":"error","error":{"kind":…,"message":…}}`, instead of `{"schemaVersion":1,"error":{"message":…}}`. The human-readable output of the delegation commands now uses the Hive CLI format, which titles a result after its operation or effect. The separate Delegations format is gone.
 - `openwaggle schedules` and `openwaggle access` keep their names. The CLI guide moved to [Hive CLI](https://openwaggle.ai/docs/developer-workflow/hive-cli), and the old page redirects there.
 
+### Ordinary flags instead of inline JSON before 1.0.0
+
+No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The old flags are refused with no alias, and the error names the flags that replaced them. The `openwaggle_hive` MCP tool and the agent's `hive` tool keep their structured parameters.
+
+- `hive approval-respond <session> <run> <request>` takes `allow` or `deny`, and `--for once|session|project` to keep an approval. It replaces `--response-json`.
+- `hive request-respond` replaces `--response-json` with one answer flag: `--choice <item>`, `--text <text>`, `--stdin` or `--input-file <path>`, `--confirm` or `--decline`, `--acknowledge`, `--value-file <path|->` for an extension's JSON value, or `--dismiss`. It reads the pending request first and refuses a flag that does not fit its kind, so its profile also needs `sessions:read`. A request that is no longer pending exits with `not_found` (5).
+- `hive delegation-claim` replaces `--claim-json` with `--read`, `--write`, `--read-tree`, `--write-tree`, `--read-resource` and `--write-resource`, each repeatable.
+- `hive delegation-submit` and `hive delegation-verify` replace `--evidence-json` with `--evidence-command`, `--evidence-diff`, `--evidence-note`, `--evidence-artifact` and `--evidence-source`.
+- `hive delegation-propose-amendment` and `hive delegation-amend` replace `--specification-json` with the `spawn` task flags plus `--objective`, `--depends-on <delegation-id>[:accepted]` and `--handoff`, and `--no-*` flags that empty a field. A field you leave out keeps its current value, and `delegation-amend --proposal <id>` alone applies the proposal as proposed. These commands read the delegation first, so their profile also needs `delegations:read`.
+- `--request-json <path|->` on the message commands is now `--request-file <path|->`.
+- `access profiles create` and `update` replace `--management-envelope-json` with `--manage-capability`, `--manage-all` or any of `--manage-project`, `--manage-session` and `--manage-hive`, and `--manage-export-root`, `--manage-attachment-root` and `--manage-authorization`. They apply only to a profile that gets `access:profiles`.
+- `openwaggle run` prints these flags when it shows how to answer a question from another terminal.
+
 ### Updates and installation
 
 - Settings > General > About & Updates has three update channels: Stable, Beta and Alpha. Stable is the default. Beta and Alpha also receive release candidates, and Stable never does. Changing channel never downgrades you.

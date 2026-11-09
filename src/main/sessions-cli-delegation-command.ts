@@ -5,6 +5,7 @@ import {
   delegationClaims,
   delegationEvidence,
   delegationSpecification,
+  type SessionsCliStructuredInput,
 } from './sessions-cli-delegation-input'
 
 /** Operands after `hive delegation-<action>`: the acting Session, the Delegation, then the rest. */
@@ -41,6 +42,7 @@ function contributionCommand(
   arguments_: ParsedArguments,
   sessionId: string,
   delegationId: string,
+  structured: SessionsCliStructuredInput,
 ) {
   if (action === 'state') return stateCommand(arguments_, sessionId, delegationId)
   if (action !== 'claim') return undefined
@@ -48,7 +50,7 @@ function contributionCommand(
     operation: 'delegation-claim' as const,
     sessionId,
     delegationId,
-    claims: delegationClaims(arguments_),
+    claims: delegationClaims(arguments_, structured.claims),
     reason: required(arguments_.positionals.slice(REVISION_POSITION).join(' '), 'Claim reason'),
   }
 }
@@ -88,8 +90,9 @@ function nonReviewCommand(
   arguments_: ParsedArguments,
   sessionId: string,
   delegationId: string,
+  structured: SessionsCliStructuredInput,
 ) {
-  const contribution = contributionCommand(action, arguments_, sessionId, delegationId)
+  const contribution = contributionCommand(action, arguments_, sessionId, delegationId, structured)
   if (contribution) return contribution
   if (action === 'dependency') return dependencyCommand(arguments_, sessionId, delegationId)
   if (action === 'conflict-acknowledge') {
@@ -113,6 +116,7 @@ function revisionCommand(
   sessionId: string,
   delegationId: string,
   revision: number,
+  structured: SessionsCliStructuredInput,
 ): SessionControlMutationCommand {
   if (action === 'verify') {
     const outcome = arguments_.positionals[VERIFICATION_OUTCOME_POSITION]
@@ -129,7 +133,7 @@ function revisionCommand(
         arguments_.positionals.slice(VERIFICATION_SUMMARY_POSITION).join(' '),
         'Verification summary',
       ),
-      evidence: delegationEvidence(arguments_),
+      evidence: delegationEvidence(arguments_, structured.evidence),
     }
   }
   if (action === 'propose-amendment') {
@@ -138,7 +142,7 @@ function revisionCommand(
       sessionId,
       delegationId,
       baseSpecificationRevision: revision,
-      specification: delegationSpecification(arguments_),
+      specification: delegationSpecification(structured.specification),
       reason: required(arguments_.positionals.slice(CONTENT_START).join(' '), 'Amendment reason'),
     }
   }
@@ -148,7 +152,7 @@ function revisionCommand(
       sessionId,
       delegationId,
       expectedSpecificationRevision: revision,
-      specification: delegationSpecification(arguments_),
+      specification: delegationSpecification(structured.specification),
       reason: required(arguments_.positionals.slice(CONTENT_START).join(' '), 'Amendment reason'),
       ...(option(arguments_, 'proposal') ? { proposalId: option(arguments_, 'proposal') } : {}),
     }
@@ -194,6 +198,7 @@ function revisionCommand(
 export function delegationCommand(
   command: string,
   arguments_: ParsedArguments,
+  structured: SessionsCliStructuredInput = {},
 ): SessionControlMutationCommand {
   const action = command.slice('delegation-'.length)
   const sessionId = requiredSessionId(arguments_.positionals[SESSION_POSITION])
@@ -207,10 +212,10 @@ export function delegationCommand(
         arguments_.positionals.slice(REVISION_POSITION).join(' '),
         'Submission summary',
       ),
-      evidence: delegationEvidence(arguments_),
+      evidence: delegationEvidence(arguments_, structured.evidence),
     }
   }
-  const nonReview = nonReviewCommand(action, arguments_, sessionId, delegationId)
+  const nonReview = nonReviewCommand(action, arguments_, sessionId, delegationId, structured)
   if (nonReview) return nonReview
   if (action === 'reopen' || action === 'cancel') {
     return {
@@ -225,5 +230,5 @@ export function delegationCommand(
   }
   const revision = positiveInteger(arguments_.positionals[REVISION_POSITION], 'Submission revision')
   if (revision === 0) throw new Error('Submission revision must be positive.')
-  return revisionCommand(action, arguments_, sessionId, delegationId, revision)
+  return revisionCommand(action, arguments_, sessionId, delegationId, revision, structured)
 }

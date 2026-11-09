@@ -1,15 +1,22 @@
+import { refuseFormerCliOptions } from './cli-former-options'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
 import { formerGroupReplacement } from './sessions-cli-former-commands'
+import {
+  CLAIM_OPTIONS,
+  EVIDENCE_OPTIONS,
+  INPUT_BOOLEAN_OPTIONS,
+  INTERACTION_RESPONSE_OPTIONS,
+  SPECIFICATION_OPTIONS,
+} from './sessions-cli-input-options'
 import { validateSessionsCliCombinations } from './sessions-cli-option-combinations'
 import { validateSessionsCliPositionals } from './sessions-cli-positional-contract'
 
 const CLIENT_OPTIONS = ['profile', 'credential-stdin', 'profile-credential-file'] as const
 const OUTPUT_OPTIONS = ['json', 'jsonl'] as const
-const MESSAGE_INPUT_OPTIONS = ['text', 'stdin', 'input-file', 'request-json'] as const
+const MESSAGE_INPUT_OPTIONS = ['text', 'stdin', 'input-file', 'request-file'] as const
 const IDEMPOTENCY = ['idempotency-key'] as const
-
 const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   help: [],
   create: [
@@ -152,15 +159,15 @@ const ACTION_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   'queue-pause': ['queue-revision', ...IDEMPOTENCY],
   'queue-resume': ['queue-revision', ...IDEMPOTENCY],
   'requests-list': [],
-  'request-respond': ['response-json', ...IDEMPOTENCY],
-  'approval-respond': ['response-json', ...IDEMPOTENCY],
-  'delegation-submit': ['evidence-json', ...IDEMPOTENCY],
+  'request-respond': [...INTERACTION_RESPONSE_OPTIONS, ...IDEMPOTENCY],
+  'approval-respond': ['for', ...IDEMPOTENCY],
+  'delegation-submit': [...EVIDENCE_OPTIONS, ...IDEMPOTENCY],
   'delegation-state': [...IDEMPOTENCY],
-  'delegation-claim': ['claim-json', ...IDEMPOTENCY],
+  'delegation-claim': [...CLAIM_OPTIONS, ...IDEMPOTENCY],
   'delegation-conflict-acknowledge': [...IDEMPOTENCY],
   'delegation-dependency': [...IDEMPOTENCY],
-  'delegation-propose-amendment': ['specification-json', ...IDEMPOTENCY],
-  'delegation-amend': ['specification-json', 'proposal', ...IDEMPOTENCY],
+  'delegation-propose-amendment': [...SPECIFICATION_OPTIONS, ...IDEMPOTENCY],
+  'delegation-amend': [...SPECIFICATION_OPTIONS, 'proposal', ...IDEMPOTENCY],
   'delegation-request-revision': [
     'revised-objective',
     'deliverable',
@@ -171,7 +178,7 @@ const ACTION_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   'delegation-accept': [...IDEMPOTENCY],
   'delegation-reopen': [...IDEMPOTENCY],
   'delegation-cancel': [...IDEMPOTENCY],
-  'delegation-verify': ['evidence-json', ...IDEMPOTENCY],
+  'delegation-verify': [...EVIDENCE_OPTIONS, ...IDEMPOTENCY],
   'delegations-list': [...DELEGATION_CATALOG_OPTIONS, 'state'],
   'delegations-read': ['limit', 'cursor'],
   'delegations-conflicts': [...DELEGATION_CATALOG_OPTIONS, 'delegation', 'kind', 'status'],
@@ -210,6 +217,7 @@ const ALL_SESSION_OPTIONS: ReadonlySet<string> = new Set([
 ])
 
 const BOOLEAN_OPTIONS = new Set([
+  ...INPUT_BOOLEAN_OPTIONS,
   'all',
   'archived',
   'credential-stdin',
@@ -275,6 +283,7 @@ function validateOptionValues(arguments_: ParsedArguments) {
 
 export function validateSessionsCliOptions(command: string, arguments_: ParsedArguments) {
   const allowed = allowedOptions(command, arguments_)
+  refuseFormerCliOptions(command, arguments_)
   const unknown = [...arguments_.options.keys()]
     .filter((name) => !ALL_SESSION_OPTIONS.has(name))
     .sort()

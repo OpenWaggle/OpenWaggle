@@ -65,7 +65,7 @@ describe('application CLI argument routing', () => {
       '--no-sandbox',
       '--input-file',
       'access',
-      '--request-json',
+      '--request-file',
       'mcp',
       '--disable-logging',
       '--log-level=3',
@@ -127,8 +127,8 @@ describe('application CLI argument routing', () => {
       'worker',
       '--capability',
       'sessions:read',
-      '--management-envelope-json',
-      '{"capabilities":["sessions:read"]}',
+      '--manage-capability',
+      'sessions:read',
       '--json',
     ]
     expect(

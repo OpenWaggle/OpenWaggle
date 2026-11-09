@@ -13,8 +13,18 @@ export interface ParsedArguments {
 }
 
 const BOOLEAN_OPTIONS = new Set([
+  'acknowledge',
   'all',
   'approve',
+  'confirm',
+  'decline',
+  'dismiss',
+  'manage-all',
+  'no-acceptance-criteria',
+  'no-deliverables',
+  'no-dependencies',
+  'no-handoff',
+  'no-resources',
   'credential-stdin',
   'credential-store',
   'dry-run',

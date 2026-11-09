@@ -17,6 +17,7 @@ import {
   thinkingLevel,
 } from './sessions-cli-arguments'
 import { delegationCommand } from './sessions-cli-delegation-command'
+import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 
 const QUEUE_ITEM_POSITIONAL_START = 1
 const AUTHORIZATION_MODE_POSITIONAL = 1
@@ -250,6 +251,7 @@ function queueCommand(command: string, arguments_: ParsedArguments): SessionCont
 export function buildSessionsCliControlPayload(
   command: string,
   arguments_: ParsedArguments,
+  structured: SessionsCliStructuredInput = {},
 ): LocalSessionCommandPayload {
   const attachmentPaths = arguments_.options.get('attach') ?? []
   if (
@@ -275,7 +277,7 @@ export function buildSessionsCliControlPayload(
           : command.startsWith('queue-')
             ? queueCommand(command, arguments_)
             : command.startsWith('delegation-')
-              ? delegationCommand(command, arguments_)
+              ? delegationCommand(command, arguments_, structured)
               : controlCommand(command, arguments_),
     },
   }

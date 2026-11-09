@@ -18,7 +18,16 @@ import { runAgentDefinitionDiscoveryCommand } from './sessions-cli-agent-definit
 import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { streamSessionExport } from './sessions-cli-export'
 import { watchSessionExportOperations } from './sessions-cli-export-operation'
-import { resolveSessionsCliMessageInput } from './sessions-cli-message-input'
+import {
+  type PreparedHiveHostInput,
+  prepareHiveHostInput,
+  resolveHiveHostInput,
+} from './sessions-cli-host-input'
+import {
+  readCliStdin,
+  readUtf8File,
+  resolveSessionsCliMessageInput,
+} from './sessions-cli-message-input'
 import { isLocalHiveCliCommand, validateSessionsCliOptions } from './sessions-cli-option-contract'
 import {
   validateSessionsCliOutputMode,
@@ -120,6 +129,30 @@ async function runSessionCommand(
   return EXIT.SUCCESS
 }
 
+/**
+ * Reads what `request-respond` and the amendment commands build on, then builds their request. A
+ * refused read is the command's answer, with the exit code of its refusal.
+ */
+async function resolveHostPayload(
+  command: string,
+  arguments_: ReturnType<typeof parseMcpCliArguments>,
+  clientInput: ClientInput,
+  prepared: PreparedHiveHostInput,
+) {
+  const resolution = await resolveHiveHostInput(prepared, arguments_, (payload) =>
+    executeLocalSessionCommand({ ...clientInput, payload }),
+  )
+  if (resolution.status === 'refused') {
+    await writeSessionsCliResponse(command, resolution.result, hasFlag(arguments_, 'json'))
+    const kind = sessionCliResultErrorKind(resolution.result) ?? 'internal'
+    return { status: 'refused' as const, exitCode: sessionCliExitCodeForError(kind) }
+  }
+  const payload = asUsageErrorsSync(() =>
+    buildSessionsCliPayload(command, arguments_, { structured: resolution.structured }),
+  )
+  return { status: 'resolved' as const, payload }
+}
+
 function isStreamingCommand(command: string, arguments_: ReturnType<typeof parseMcpCliArguments>) {
   if (command === 'watch' || command === 'exports-watch' || command === 'export') return true
   return command === 'read' && hasFlag(arguments_, 'full')
@@ -129,7 +162,10 @@ function commandPayload(
   command: string,
   arguments_: ReturnType<typeof parseMcpCliArguments>,
   resolvedPayload: ReturnType<typeof buildSessionsCliPayload> | undefined,
+  prepared: PreparedHiveHostInput | undefined,
 ) {
+  // Built once the Session Host state it needs has been read (resolveHostPayload).
+  if (prepared) return undefined
   if (command === 'watch' || command === 'exports-watch') {
     // Streams build their requests later; read their arguments now, with the other usage checks.
     watchCursor(arguments_)
@@ -159,20 +195,28 @@ export async function runSessionsCli(args: readonly string[]) {
       return await runAgentDefinitionDiscoveryCommand(command, unresolvedArguments)
     }
     // Reading the command line: whatever it rejects is a usage error (exit 2).
-    const { arguments_, payload } = await asUsageErrors(async () => {
+    const { arguments_, payload, prepared } = await asUsageErrors(async () => {
       const resolvedInput = await resolveSessionsCliMessageInput(command, unresolvedArguments)
       validateSessionsCliOutputMode({
         json: hasFlag(resolvedInput.arguments, 'json'),
         jsonl: hasFlag(resolvedInput.arguments, 'jsonl'),
         stream: isStreamingCommand(command, resolvedInput.arguments),
       })
+      const hostInput = await prepareHiveHostInput(command, resolvedInput.arguments, {
+        stdin: readCliStdin,
+        file: (filePath) => readUtf8File(filePath),
+      })
       return {
         arguments_: resolvedInput.arguments,
-        payload: commandPayload(command, resolvedInput.arguments, resolvedInput.payload),
+        prepared: hostInput,
+        payload: commandPayload(command, resolvedInput.arguments, resolvedInput.payload, hostInput),
       }
     })
     const clientInput = await createLocalSessionCliClientInput(arguments_)
-    return await runSessionCommand(command, arguments_, clientInput, payload)
+    if (!prepared) return await runSessionCommand(command, arguments_, clientInput, payload)
+    const resolved = await resolveHostPayload(command, arguments_, clientInput, prepared)
+    if (resolved.status === 'refused') return resolved.exitCode
+    return await runSessionCommand(command, arguments_, clientInput, resolved.payload)
   } catch (error) {
     const kind = writeSessionsCliError(
       error,

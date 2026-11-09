@@ -11,30 +11,30 @@ function command(arguments_: readonly string[]) {
 }
 
 describe('Hive CLI authorization and wait commands', () => {
-  it('lists and responds to parked agent-loop interactions with separate approval authority', () => {
+  it('lists parked agent-loop interactions and answers approvals with allow or deny', () => {
     const list = command(['requests-list', 'session-1'])
-    const respond = command([
-      'request-respond',
-      'session-1',
-      'run-1',
-      'interaction-1',
-      '--response-json',
-      '{"kind":"input","value":"ship it"}',
-    ])
-    const approve = command([
+    const respond = command(['request-respond', 'session-1', 'run-1', 'interaction-1'])
+    const approve = command(['approval-respond', 'session-1', 'run-1', 'interaction-2', 'allow'])
+    const keep = command([
       'approval-respond',
       'session-1',
       'run-1',
       'interaction-2',
-      '--response-json',
-      '{"kind":"confirm","accepted":true}',
+      'allow',
+      '--for',
+      'project',
     ])
+    const deny = command(['approval-respond', 'session-1', 'run-1', 'interaction-2', 'deny'])
 
     expect(buildSessionsCliPayload(list.name, list.arguments)).toMatchObject({
       contract: 'session-query-v2',
       request: { query: { operation: 'requests-list', sessionId: 'session-1' } },
     })
-    expect(buildSessionsCliPayload(respond.name, respond.arguments)).toMatchObject({
+    expect(
+      buildSessionsCliPayload(respond.name, respond.arguments, {
+        structured: { interactionResponse: { kind: 'input', value: 'ship it' } },
+      }),
+    ).toMatchObject({
       contract: 'session-control-v2',
       request: {
         command: {
@@ -48,8 +48,30 @@ describe('Hive CLI authorization and wait commands', () => {
       },
     })
     expect(buildSessionsCliPayload(approve.name, approve.arguments)).toMatchObject({
-      request: { command: { operation: 'approval-respond', kind: 'confirm' } },
+      request: {
+        command: {
+          operation: 'approval-respond',
+          kind: 'confirm',
+          response: { kind: 'confirm', accepted: true },
+        },
+      },
     })
+    expect(buildSessionsCliPayload(keep.name, keep.arguments)).toMatchObject({
+      request: { command: { response: { kind: 'confirm', accepted: true, scope: 'project' } } },
+    })
+    expect(buildSessionsCliPayload(deny.name, deny.arguments)).toMatchObject({
+      request: { command: { response: { kind: 'confirm', accepted: false } } },
+    })
+  })
+
+  it.each([
+    [[], 'approval-respond takes allow or deny'],
+    [['yes'], 'approval-respond takes allow or deny'],
+    [['allow', '--for', 'forever'], '--for must be once, session or project'],
+    [['deny', '--for', 'session'], '--for applies only to allow'],
+  ] as const)('refuses the approval answer %j', (answer, message) => {
+    const approve = command(['approval-respond', 'session-1', 'run-1', 'interaction-2', ...answer])
+    expect(() => buildSessionsCliPayload(approve.name, approve.arguments)).toThrow(message)
   })
 
   it('sets or clears the persistent Session Authorization override explicitly', () => {
