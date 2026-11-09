@@ -68,7 +68,13 @@ export function DiffReviewBody({
        * they asked for. The review comes back either way.
        */
       if (isReportableSendFailure(error)) {
-        showToast(`Could not send this review. ${sendFailureText(error)}`, 'error')
+        showToast(
+          sendFailureText(error, {
+            refused: 'Review not sent',
+            failed: 'Could not send this review',
+          }),
+          'error',
+        )
       }
     },
   )

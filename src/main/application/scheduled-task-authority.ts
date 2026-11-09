@@ -146,9 +146,10 @@ export function runsAsAfterUpdate(
     // Whoever changes its work now wrote what it runs.
     const workByAgent = !principal.localUser
     if (principal.localUser) {
+      // A profile's task still runs as the profile, so it stays a profile's work.
       return current.ownerKey === LOCAL_USER_TASK_OWNER
         ? { creatorCallerId: principal.creatorCallerId, authorityLimits: null, workByAgent }
-        : { ...kept, workByAgent }
+        : kept
     }
     if (!principal.authorityLimits) {
       // Only the owning profile itself: an unrestricted Session agent also has no limits, and its

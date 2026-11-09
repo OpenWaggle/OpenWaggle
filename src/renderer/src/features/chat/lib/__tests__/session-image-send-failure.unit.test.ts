@@ -165,7 +165,7 @@ describe('Session image send failure ownership', () => {
     expect(disposition({ cause: refusal })).toEqual({
       kind: 'restore',
       notice:
-        'Not sent: A steered message is still being delivered to the running agent (follow_up_reserved). Your message is back in the composer.',
+        'Not sent: a steered message is still being delivered to the running agent (follow_up_reserved). Your message is back in the composer.',
     })
   })
 
@@ -174,7 +174,7 @@ describe('Session image send failure ownership', () => {
       disposition({ cause: new MessageNotDelivered('refused', 'Branch source is unavailable.') }),
     ).toEqual({
       kind: 'restore',
-      notice: 'Not sent: Branch source is unavailable. Your message is back in the composer.',
+      notice: 'Not sent: branch source is unavailable. Your message is back in the composer.',
     })
     expect(REFUSED_NOTICE).toBe('Not sent. Your message is back in the composer.')
   })

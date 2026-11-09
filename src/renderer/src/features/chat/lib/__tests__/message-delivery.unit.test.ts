@@ -62,6 +62,19 @@ describe('sendFailureText', () => {
     )
   })
 
+  it('says why a new Session’s first send was refused, under the caller’s lead', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'queue_capacity_reached',
+      'queue_capacity_reached',
+    )
+    expect(
+      sendFailureText(new FirstSendFailed(refusal, 'created'), { refused: 'Review not sent' }),
+    ).toBe(
+      'Review not sent: this Session already has as many queued messages as it can hold (queue_capacity_reached).',
+    )
+  })
+
   it('keeps any other failure’s own message', () => {
     expect(sendFailureText(new Error('Network down'))).toBe('Network down')
   })

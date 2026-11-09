@@ -70,6 +70,21 @@ describe('runsAsAfterUpdate', () => {
     })
   })
 
+  // It still runs as the profile, so its firings stay held to the Worker limits.
+  it('keeps a profile’s task the profile’s work when the person changes it', async () => {
+    const person = fromPartial<ScheduledTaskPrincipal>({
+      localUser: true,
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      creator: { kind: 'local-user', label: 'You' },
+    })
+    expect(await runsAs(person, { prompt: 'Mine now.' })).toEqual({
+      creatorCallerId: 'profile:ci',
+      authorityLimits: PROFILE_TASK.authorityLimits,
+      workByAgent: true,
+    })
+  })
+
   // Its firings are then the agent's, held to the Worker limits though they run as the person.
   it('marks the person’s task as an agent’s work once a Session agent changes it, and back', async () => {
     const personTask = {

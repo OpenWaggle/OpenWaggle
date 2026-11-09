@@ -103,19 +103,40 @@ const REFUSAL_REASONS = new Map([
  * What a refused send says: the Host's own words when it wrote some, else what its code means.
  * The code is kept for support.
  */
-export function refusalSummary(refusal: MessageNotDelivered) {
+export function refusalSummary(refusal: MessageNotDelivered, lead = 'Not sent') {
   const { code, message } = refusal
   const readable = message !== DEFAULT_NOT_DELIVERED_MESSAGE && message !== code
-  const written = readable ? (message.endsWith('.') ? message.slice(0, -1) : message) : undefined
+  const written = readable
+    ? midSentence(message.endsWith('.') ? message.slice(0, -1) : message)
+    : undefined
   const reason = written ?? (code ? REFUSAL_REASONS.get(code) : undefined)
-  if (reason) return code ? `Not sent: ${reason} (${code}).` : `Not sent: ${reason}.`
-  return code ? `Not sent: the Session Host refused it (${code}).` : 'Not sent.'
+  if (reason) return code ? `${lead}: ${reason} (${code}).` : `${lead}: ${reason}.`
+  return code ? `${lead}: the Session Host refused it (${code}).` : `${lead}.`
 }
 
-/** A send failure in words for a toast: a refusal says why, anything else its own message. */
-export function sendFailureText(error: unknown) {
-  if (error instanceof MessageNotDelivered && error.outcome === 'refused') {
-    return refusalSummary(error)
-  }
-  return error instanceof Error ? error.message : String(error)
+/** A sentence the Host wrote, to follow a colon: its capital goes, unless it starts an acronym. */
+function midSentence(sentence: string) {
+  const [first = '', second = ''] = sentence
+  return second === second.toLowerCase() ? first.toLowerCase() + sentence.slice(1) : sentence
+}
+
+/** The refusal behind a send that failed, a first send's too, or undefined. */
+export function sendRefusalOf(error: unknown) {
+  const cause = error instanceof FirstSendFailed ? error.cause : error
+  return cause instanceof MessageNotDelivered && cause.outcome === 'refused' ? cause : undefined
+}
+
+/**
+ * A send failure in words for a toast: a refusal says why under `lead`, anything else gives its
+ * own message after `failedLead` when there is one.
+ */
+export function sendFailureText(
+  error: unknown,
+  leads: { readonly refused?: string; readonly failed?: string } = {},
+) {
+  const refusal = sendRefusalOf(error)
+  if (refusal) return refusalSummary(refusal, leads.refused)
+  const cause = error instanceof FirstSendFailed ? error.cause : error
+  const message = cause instanceof Error ? cause.message : String(cause)
+  return leads.failed ? `${leads.failed}: ${message}` : message
 }
