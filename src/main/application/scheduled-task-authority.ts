@@ -23,8 +23,12 @@ import { authorizeScheduledTaskTarget } from './scheduled-task-target-authorizat
 export const HEARTBEAT_OWNER_REMEDY =
   'Its owner can change its prompt, stop condition or Wake check, then turn it on again, to run it with their own access.'
 
-/** What an agent refused when it creates or edits such a Heartbeat can do. */
-const HEARTBEAT_AGENT_REMEDY = 'Only its owner can schedule it, with their own access.'
+/**
+ * What a caller refused when it creates or edits such a Heartbeat can do: an agent, or the local
+ * user editing the target of a task a CLI client profile owns, whose edit keeps the limits.
+ */
+export const HEARTBEAT_AGENT_REMEDY =
+  'Only its owner can set it up this way, with their own access.'
 
 /**
  * Why a Heartbeat held to `limits` may not wake its Session, or null. Its Run starts as the
@@ -79,7 +83,7 @@ export function changedHeartbeatBoundaryRefusal(
     ownerCallerId: next.creatorCallerId,
     limits: next.authorityLimits,
     sessionId: next.target.sessionId,
-    // The owner's own change of work lifts the limits, so only another caller's edit gets here.
+    // The owner's own change of work lifts the limits, so only another caller's edit is refused.
     remedy: HEARTBEAT_AGENT_REMEDY,
   })
 }
