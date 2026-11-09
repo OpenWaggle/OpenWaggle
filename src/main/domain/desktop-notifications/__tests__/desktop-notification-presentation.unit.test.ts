@@ -5,6 +5,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import {
   desktopNotificationBadgeCount,
+  desktopNotificationBadgeLabel,
   desktopNotificationPresentation,
 } from '../desktop-notification-presentation'
 
@@ -115,5 +116,12 @@ describe('desktopNotificationBadgeCount', () => {
       }),
     ).toBe(1)
     expect(desktopNotificationBadgeCount([NOTIFICATION], { ...settings, showBadge: false })).toBe(0)
+  })
+})
+
+describe('desktopNotificationBadgeLabel', () => {
+  it('names what the Windows badge dot counts, of every kind', () => {
+    expect(desktopNotificationBadgeLabel(1)).toBe('1 notification')
+    expect(desktopNotificationBadgeLabel(3)).toBe('3 notifications')
   })
 })

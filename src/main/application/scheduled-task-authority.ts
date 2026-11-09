@@ -1,5 +1,10 @@
+import { canonicalJson } from '@shared/canonical-json'
 import type { LocalSessionAuthorityLimits } from '@shared/types/local-session-profile'
-import type { ScheduledTaskPatch, ScheduledTaskTarget } from '@shared/types/scheduled-task'
+import type {
+  HeartbeatSettingsInput,
+  ScheduledTaskPatch,
+  ScheduledTaskTarget,
+} from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
 import {
   type ScheduledTaskRecord,
@@ -57,9 +62,9 @@ export function changedHeartbeatBoundaryRefusal(
 ) {
   if (next.target.kind !== 'heartbeat') return Effect.succeed(null)
   const unchanged =
-    JSON.stringify(current.target) === JSON.stringify(next.target) &&
+    canonicalJson(current.target) === canonicalJson(next.target) &&
     current.creatorCallerId === next.creatorCallerId &&
-    JSON.stringify(current.authorityLimits) === JSON.stringify(next.authorityLimits)
+    canonicalJson(current.authorityLimits) === canonicalJson(next.authorityLimits)
   if (unchanged) return Effect.succeed(null)
   return heartbeatBoundaryRefusal({
     ownerCallerId: next.creatorCallerId,
@@ -106,17 +111,34 @@ function agentTargetRefusal(principal: ScheduledTaskPrincipal, target: Scheduled
   })
 }
 
-function changesWork(
-  current: Pick<ScheduledTaskRecord, 'prompt' | 'target'>,
-  patch: ScheduledTaskPatch,
+type TaskWork = Pick<ScheduledTaskRecord, 'prompt' | 'target' | 'stopWhen' | 'wakeCheck'>
+
+/** Whether `wakeCheck` sets a different command or failure policy than the task's own. */
+function changesWakeCheck(
+  current: TaskWork['wakeCheck'],
+  wakeCheck: HeartbeatSettingsInput['wakeCheck'],
 ) {
+  if (wakeCheck === undefined) return false
+  if (wakeCheck === null || current === null) return wakeCheck !== current
+  return (
+    wakeCheck.command.trim() !== current.command ||
+    (wakeCheck.onFailure ?? current.onFailure) !== current.onFailure
+  )
+}
+
+/**
+ * Whether a patch changes what the task runs. Each field is compared with the stored value, as
+ * `heartbeatFieldsFor` would store it, because the app's editor sends the prompt, target and stop
+ * condition with every save; sending them unchanged must not count as changing them.
+ */
+function changesWork(current: TaskWork, patch: ScheduledTaskPatch) {
+  const stopWhen = patch.heartbeat?.stopWhen
   return (
     (patch.prompt !== undefined && patch.prompt !== current.prompt) ||
-    (patch.target !== undefined &&
-      JSON.stringify(patch.target) !== JSON.stringify(current.target)) ||
-    patch.heartbeat?.wakeCheck !== undefined ||
+    (patch.target !== undefined && canonicalJson(patch.target) !== canonicalJson(current.target)) ||
+    changesWakeCheck(current.wakeCheck, patch.heartbeat?.wakeCheck) ||
     // The Heartbeat Run's agent reads its stop condition and acts on it.
-    patch.heartbeat?.stopWhen !== undefined
+    (stopWhen !== undefined && (stopWhen?.trim() || null) !== current.stopWhen)
   )
 }
 
@@ -132,7 +154,14 @@ export function runsAsAfterUpdate(
   principal: ScheduledTaskPrincipal,
   current: Pick<
     ScheduledTaskRecord,
-    'ownerKey' | 'creatorCallerId' | 'authorityLimits' | 'workByAgent' | 'prompt' | 'target'
+    | 'ownerKey'
+    | 'creatorCallerId'
+    | 'authorityLimits'
+    | 'workByAgent'
+    | 'prompt'
+    | 'target'
+    | 'stopWhen'
+    | 'wakeCheck'
   >,
   patch: ScheduledTaskPatch,
 ) {

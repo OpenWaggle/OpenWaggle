@@ -153,7 +153,7 @@ export function NotificationsSection() {
           </Row>
           <Row
             label="Show badge"
-            description="Count the Sessions that need you or are ready to read on the app icon."
+            description="Count your notifications on the app icon, for every kind turned on."
           >
             <ToggleSwitch
               checked={settings.showBadge}

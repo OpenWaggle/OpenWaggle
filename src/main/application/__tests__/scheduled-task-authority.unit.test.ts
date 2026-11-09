@@ -17,7 +17,14 @@ const PROFILE_TASK = {
   authorityLimits: { ...LIMITS, capabilities: [...LIMITS.capabilities] },
   workByAgent: true,
   prompt: 'Triage the new errors.',
-  target: { kind: 'heartbeat' as const, sessionId: 'session-1' },
+  target: { kind: 'heartbeat' as const, sessionId: 'session-1', thinkingLevel: 'low' as const },
+  stopWhen: 'CI is green.',
+  wakeCheck: {
+    command: 'gh pr checks',
+    onFailure: 'skip' as const,
+    approvedCommand: 'gh pr checks',
+    pendingSince: null,
+  },
 }
 
 function runsAs(principal: ScheduledTaskPrincipal, patch: Parameters<typeof runsAsAfterUpdate>[2]) {
@@ -43,7 +50,7 @@ describe('runsAsAfterUpdate', () => {
       authorityLimits: null,
       workByAgent: true,
     })
-    expect(await runsAs(owner, { heartbeat: { stopWhen: 'CI is green.' } })).toMatchObject({
+    expect(await runsAs(owner, { heartbeat: { stopWhen: 'The release is out.' } })).toMatchObject({
       authorityLimits: null,
     })
   })
@@ -54,6 +61,47 @@ describe('runsAsAfterUpdate', () => {
       authorityLimits: PROFILE_TASK.authorityLimits,
       workByAgent: true,
     })
+  })
+
+  it('keeps the limits when an edit sends the work it already has', async () => {
+    const kept = { creatorCallerId: 'profile:ci', authorityLimits: PROFILE_TASK.authorityLimits }
+    // What the app's editor sends when the owner only renames or reschedules a Heartbeat.
+    expect(
+      await runsAs(owner, {
+        name: 'Watch CI',
+        schedule: { kind: 'interval', everyMinutes: 15 },
+        prompt: PROFILE_TASK.prompt,
+        target: { thinkingLevel: 'low', sessionId: 'session-1', kind: 'heartbeat' },
+        heartbeat: { stopWhen: 'CI is green.', indefinite: false, idlePauseAfter: 3 },
+      }),
+    ).toEqual(kept)
+    expect(await runsAs(owner, { heartbeat: { stopWhen: '  CI is green.  ' } })).toEqual(kept)
+    expect(
+      await runsAs(owner, { heartbeat: { wakeCheck: { command: ' gh pr checks ' } } }),
+    ).toEqual(kept)
+    expect(
+      await runsAs(owner, {
+        heartbeat: { wakeCheck: { command: 'gh pr checks', onFailure: 'skip' } },
+      }),
+    ).toEqual(kept)
+  })
+
+  it('ends the limits when the owner changes the stop condition or the Wake check', async () => {
+    for (const heartbeat of [
+      { stopWhen: null },
+      { stopWhen: 'CI is red.' },
+      { wakeCheck: null },
+      { wakeCheck: { command: 'gh run list' } },
+      { wakeCheck: { command: 'gh pr checks', onFailure: 'wake' as const } },
+    ]) {
+      expect(await runsAs(owner, { heartbeat })).toEqual({
+        creatorCallerId: 'profile:ci',
+        authorityLimits: null,
+      })
+    }
+    expect(
+      await runsAs(owner, { target: { kind: 'heartbeat', sessionId: 'session-1' } }),
+    ).toMatchObject({ authorityLimits: null })
   })
 
   it('keeps the limits when an unrestricted Session agent changes the task’s work', async () => {

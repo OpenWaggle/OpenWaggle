@@ -68,3 +68,8 @@ export function desktopNotificationBadgeCount(
   }
   return count
 }
+
+/** What the Windows badge dot says to assistive technology: the count, as the Dock badge shows. */
+export function desktopNotificationBadgeLabel(count: number) {
+  return count === 1 ? '1 notification' : `${String(count)} notifications`
+}

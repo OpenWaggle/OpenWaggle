@@ -25,6 +25,7 @@ import {
 } from './desktop-ui'
 import {
   desktopNotificationBadgeCount,
+  desktopNotificationBadgeLabel,
   desktopNotificationPresentation,
 } from './domain/desktop-notifications/desktop-notification-presentation'
 import { describeError } from './error-description'
@@ -228,7 +229,7 @@ function applyWindowsOverlay(window: BrowserWindow, count: number) {
     show
       ? nativeImageFromBitmap(badgeOverlayPixels(), BADGE_OVERLAY_SIZE, BADGE_OVERLAY_SIZE)
       : null,
-    show ? `${count} Sessions need you or are ready to read` : '',
+    show ? desktopNotificationBadgeLabel(count) : '',
   )
 }
 

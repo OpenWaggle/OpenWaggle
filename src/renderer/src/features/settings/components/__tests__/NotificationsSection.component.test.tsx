@@ -50,6 +50,10 @@ describe('NotificationsSection', () => {
       'sound-only',
     )
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
+    // The badge counts every kind that is on, not only Needs you and Ready to read.
+    expect(
+      screen.getByText('Count your notifications on the app icon, for every kind turned on.'),
+    ).toBeInTheDocument()
   })
 
   it('saves a category switch and a sound with the rest of the settings', async () => {
