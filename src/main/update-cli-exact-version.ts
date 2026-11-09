@@ -81,7 +81,7 @@ export async function installExactVersion(
   const release = await releaseForTag(tag)
   if (checkOnly && output.machine) {
     return writeUpdateCheckResult({
-      savedChannel: await output.machine.savedChannel(),
+      savedChannel: output.machine.savedChannel,
       status: 'available',
       version: release.tag_name.replace(/^v/u, ''),
     })

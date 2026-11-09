@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { sessionsCliResponseText } from '../../src/main/sessions-cli-output'
+import { writeUpdateCheckError } from '../../src/main/update-cli-check-output'
 
 const execFileAsync = promisify(execFile)
 const SECTIONS = [
@@ -23,17 +25,26 @@ afterEach(async () => {
   await fs.rm(directory, { recursive: true, force: true })
 })
 
-/** A stand-in for the installed CLI that records its arguments and prints `output`. */
-async function fakeCli(output: string, exitCode = 0) {
+/**
+ * A stand-in for the installed CLI that records its arguments, prints `output` (to descriptor 3
+ * like the AppImage) and `errorOutput` to stderr, then waits `delaySeconds`.
+ */
+async function fakeCli(
+  output: string,
+  options: { readonly exitCode?: number; readonly errorOutput?: string; readonly delaySeconds?: number } = {},
+) {
   const executable = path.join(directory, 'OpenWaggle')
   await fs.writeFile(path.join(directory, 'output'), output)
+  await fs.writeFile(path.join(directory, 'error-output'), options.errorOutput ?? '')
   await fs.writeFile(
     executable,
     `#!/bin/sh
 printf '%s\\n' "$*" >> "${directory}/calls"
 if [ -n "\${OPENWAGGLE_CLI_OUTPUT_FD:-}" ]; then exec 1>&3; fi
+cat "${directory}/error-output" >&2
+sleep ${options.delaySeconds ?? 0}
 cat "${directory}/output"
-exit ${exitCode}
+exit ${options.exitCode ?? 0}
 `,
     { mode: 0o755 },
   )
@@ -53,7 +64,12 @@ function checkResponse(savedChannel: string) {
   )}\n`
 }
 
-async function installedChannel(platform: 'mac' | 'linux', executable: string, version: string) {
+async function installedChannel(
+  platform: 'mac' | 'linux',
+  executable: string,
+  version: string,
+  timeoutSeconds?: number,
+) {
   const source = await fs.readFile('scripts/install.sh', 'utf8')
   const sections = SECTIONS.map(([startMarker, endMarker]) => {
     const start = source.indexOf(startMarker)
@@ -65,15 +81,20 @@ async function installedChannel(platform: 'mac' | 'linux', executable: string, v
 info() { :; }
 error() { exit 1; }
 ${sections}
+${timeoutSeconds === undefined ? '' : `INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS=${timeoutSeconds}`}
 installed_update_channel "$@"`
-  const result = await execFileAsync('bash', [
+  const result = await execFileAsync(
+    'bash',
+    [
     '-c',
     script,
     'installer-installed-channel-test',
-    platform,
-    executable,
-    version,
-  ])
+      platform,
+      executable,
+      version,
+    ],
+    { env: { PATH: process.env.PATH ?? '', TMPDIR: directory } },
+  )
   return result.stdout.trim()
 }
 
@@ -108,11 +129,42 @@ describe('quick installer installed update channel', () => {
     expect(await calls()).toEqual([])
   })
 
-  it('reports nothing when the check fails or prints no channel', async () => {
-    const failing = await fakeCli(
-      '{"schemaVersion":1,"type":"error","error":{"kind":"internal","message":"offline"}}\n',
-      1,
-    )
+  it.each(['mac', 'linux'] as const)(
+    'reads what the real CLI output functions print on %s',
+    async (platform) => {
+      const response = sessionsCliResponseText(
+        'update',
+        { savedChannel: 'alpha', channel: 'alpha', status: 'up-to-date' },
+        true,
+      )
+      const executable = await fakeCli(response)
+      await expect(installedChannel(platform, executable, CHANNEL_CHECK_VERSION)).resolves.toBe(
+        'alpha',
+      )
+
+      // A failed release check still reports the channel, in the error envelope on stderr.
+      let envelope = ''
+      writeUpdateCheckError(new Error('feed unavailable'), 'beta', (value) => {
+        envelope = value
+      })
+      const failing = await fakeCli('', { exitCode: 1, errorOutput: envelope })
+      await expect(installedChannel(platform, failing, CHANNEL_CHECK_VERSION)).resolves.toBe('beta')
+    },
+  )
+
+  it('gives up on a CLI that is still running at the deadline', async () => {
+    const executable = await fakeCli(checkResponse('alpha'), { delaySeconds: 30 })
+    const started = Date.now()
+
+    await expect(installedChannel('mac', executable, CHANNEL_CHECK_VERSION, 1)).resolves.toBe('')
+    expect(Date.now() - started).toBeLessThan(10_000)
+  })
+
+  it('reports nothing when the Session Host cannot read the channel', async () => {
+    const failing = await fakeCli('', {
+      exitCode: 1,
+      errorOutput: '{"schemaVersion":1,"type":"error","error":{"kind":"internal","message":"offline"}}\n',
+    })
     await expect(installedChannel('mac', failing, CHANNEL_CHECK_VERSION)).resolves.toBe('')
 
     const unknown = await fakeCli(checkResponse('nightly'))

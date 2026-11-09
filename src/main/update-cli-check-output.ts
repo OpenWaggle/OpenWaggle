@@ -1,7 +1,8 @@
 import type { UpdateChannel } from '@shared/types/update-channel'
 import { CLI_EXIT } from './cli-error'
+import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './cli-output-schema'
 import { writeCliStdout } from './cli-stdout'
-import { sessionsCliResponseText } from './sessions-cli-output'
+import { classifySessionsCliError, sessionsCliResponseText } from './sessions-cli-output'
 
 /** What `openwaggle update --check --json` found. */
 export type UpdateCheckStatus = 'available' | 'up-to-date' | 'no-release'
@@ -18,12 +19,35 @@ export interface UpdateCheckResult {
   readonly version?: string
 }
 
-/** Set for `--check --json`: reads the saved channel only when a result is printed. */
+/** Set for `--check --json`, once the Session Host has reported the saved channel. */
 export interface UpdateCheckMachineOutput {
-  readonly savedChannel: () => Promise<UpdateChannel>
+  readonly savedChannel: UpdateChannel
 }
 
 export async function writeUpdateCheckResult(result: UpdateCheckResult) {
   await writeCliStdout(sessionsCliResponseText('update', result, true))
   return { exitCode: CLI_EXIT.SUCCESS, updaterOwnsExit: false }
+}
+
+/**
+ * The CLI error envelope, `{schemaVersion, type: "error", error: {kind, message}}`, with an
+ * additive `savedChannel` once the Session Host has reported it. A failed release check then still
+ * tells `install.sh` the channel to keep, instead of looking like an install with no channel.
+ */
+export function writeUpdateCheckError(
+  error: unknown,
+  savedChannel: UpdateChannel,
+  stderr: (value: string) => unknown = (value) => process.stderr.write(value),
+) {
+  const kind = classifySessionsCliError(error)
+  const message = error instanceof Error ? error.message : String(error)
+  stderr(
+    `${JSON.stringify({
+      schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
+      type: 'error',
+      error: { kind, message },
+      savedChannel,
+    })}\n`,
+  )
+  return kind
 }

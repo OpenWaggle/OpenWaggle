@@ -71,7 +71,7 @@ When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH,
 
 ### Update an existing install
 
-Run the same command again to update. The script asks the installed OpenWaggle which update channel it uses and installs the newest release on that channel, so a re-run keeps your channel and doesn't save a new one. Set `OPENWAGGLE_CHANNEL` only to switch channel. Versions up to `1.0.0-beta.37` can't report their channel, so over one of those, or when the installed app can't answer, the script uses the first-install default and saves it.
+Run the same command again to update. The script asks the installed OpenWaggle which update channel it uses and installs the newest release on that channel, so a re-run keeps your channel and doesn't save a new one. Set `OPENWAGGLE_CHANNEL` only to switch channel. Versions up to `1.0.0-beta.37` can't report their channel. If you have one of those, or the installed app doesn't answer within 60 seconds, the script uses the first-install default and saves it. If your channel has no release yet, as Stable before `1.0.0`, the script says OpenWaggle is up to date and changes nothing.
 
 The script never installs a version older than the one you have, because an older version may not be able to open data a newer one has already updated. If the newest release on the channel is older, it stops with status 2 before it downloads anything, and the installed app keeps running. The version you already have reinstalls.
 
@@ -145,7 +145,7 @@ From a terminal, check what is available without downloading anything or changin
 openwaggle update --check
 ```
 
-Add `--json` to `--check` to get the result as JSON, including the saved channel in `savedChannel`.
+Add `--json` to `--check` to get the result as JSON, including the saved channel in `savedChannel`. If the check itself fails, the error is JSON too, and still includes `savedChannel` once OpenWaggle has read it.
 
 To switch channel and install its newest release, run this with `alpha`, `beta` or `stable`. Add `--check` to look at a channel without saving it.
 

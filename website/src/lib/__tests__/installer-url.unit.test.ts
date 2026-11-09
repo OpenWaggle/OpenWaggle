@@ -47,6 +47,6 @@ describe('the openwaggle.ai/install shortcut', () => {
     const functions = readdirSync(new URL('../../../../functions/', import.meta.url), { encoding: 'utf8' });
     expect(functions.filter((entry) => !entry.startsWith('_'))).toEqual(['api']);
     const config = read('../../../astro.config.ts');
-    expect(config).not.toMatch(/['"/]install/u);
+    expect(config).not.toMatch(/['"]\/install(?:\.sh)?\/?['"]/u);
   });
 });

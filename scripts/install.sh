@@ -540,13 +540,19 @@ mac_app_version() {
     2>/dev/null || true
 }
 
-# The version of the AppImage in an install directory: the version file a previous install wrote
-# beside it, or the AppImage's own desktop entry when it predates that file.
+# The version of the AppImage in an install directory, the newer of the version file a previous
+# install wrote beside it and the AppImage's own desktop entry. An update from the app or from
+# `openwaggle update` replaces the AppImage in place and leaves the file behind, and an AppImage
+# from before the file has only its desktop entry.
 installed_appimage_version() {
-  local app_dir="$1" version
-  version="$(cat "${app_dir}/version" 2>/dev/null || true)"
-  [ -n "${version}" ] || version="$(appimage_version "${app_dir}/OpenWaggle.AppImage")"
-  printf '%s\n' "${version}"
+  local app_dir="$1" recorded embedded
+  recorded="$(cat "${app_dir}/version" 2>/dev/null || true)"
+  embedded="$(appimage_version "${app_dir}/OpenWaggle.AppImage")"
+  if [ -n "${embedded}" ] && { [ -z "${recorded}" ] || release_is_newer "${embedded}" "${recorded}"; }; then
+    printf '%s\n' "${embedded}"
+  else
+    printf '%s\n' "${recorded}"
+  fi
 }
 
 # Prints why the target must not replace the installed version, or nothing when it may. Downgrades
@@ -577,18 +583,37 @@ refuse_downgrade() {
 # BEGIN TESTABLE INSTALLED UPDATE CHANNEL
 # The newest release without `openwaggle update --check --json`, which reports the saved channel.
 LAST_VERSION_WITHOUT_CHANNEL_CHECK="1.0.0-beta.37"
+# The check may start the installed version's Session Host and asks GitHub for releases.
+INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS=60
 
 # Prints the update channel the installed app has saved, or nothing when it cannot tell: nothing is
-# installed, its version is unknown or too old to report it, or the check fails. `--check` only
-# reads, so asking never changes the channel.
+# installed, its version is unknown or too old to report it, or the Session Host cannot read it in
+# time. `--check` only reads, so asking never changes the channel. The saved channel is in the
+# response, or in the error envelope when only the release check failed. The output goes to a file,
+# not a pipe, so a CLI that is still running at the deadline cannot keep the installer waiting.
 installed_update_channel() {
-  local platform="$1" executable="$2" version="$3" output
+  local platform="$1" executable="$2" version="$3" output pid waited
   [ -x "${executable}" ] || return 0
   release_tag_is_supported "${version}" || return 0
   release_is_newer "${version}" "${LAST_VERSION_WITHOUT_CHANNEL_CHECK}" || return 0
-  output="$(run_installed_cli "${platform}" "${executable}" update --check --json 2>/dev/null || true)"
-  printf '%s\n' "${output}" | \
-    sed -En 's/^[[:space:]]*"savedChannel":[[:space:]]*"(stable|beta|alpha)".*/\1/p' | head -1
+  output="$(mktemp "${TMPDIR:-/tmp}/openwaggle-channel.XXXXXX")" || return 0
+  info "Reading the update channel of the installed OpenWaggle…" >&2
+  # As run_installed_cli: stdin closed, and the AppImage's CLI output on descriptor 3.
+  if [ "${platform}" = "linux" ]; then
+    env OPENWAGGLE_CLI_OUTPUT_FD=3 "${executable}" update --check --json \
+      3>"${output}" 1>/dev/null 2>&3 </dev/null &
+  else
+    "${executable}" update --check --json >"${output}" 2>&1 </dev/null &
+  fi
+  pid=$!
+  for ((waited = 0; waited < INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS; waited++)); do
+    kill -0 "${pid}" 2>/dev/null || break
+    sleep 1
+  done
+  kill -KILL "${pid}" 2>/dev/null || true
+  wait "${pid}" 2>/dev/null || true
+  sed -En 's/.*"savedChannel":[[:space:]]*"(stable|beta|alpha)".*/\1/p' "${output}" | head -1
+  rm -f "${output}"
 }
 # END TESTABLE INSTALLED UPDATE CHANNEL
 
@@ -693,7 +718,6 @@ else
   # re-run keeps the installed app's channel, and a first install saves the default.
   CHANNEL="${REQUESTED_CHANNEL}"
   if [ -z "${CHANNEL}" ] && [ -n "${INSTALLED_VERSION}" ]; then
-    info "Reading the update channel of the installed OpenWaggle…"
     CHANNEL="$(installed_update_channel "${PLATFORM}" "${INSTALLED_EXECUTABLE}" "${INSTALLED_VERSION}")"
     [ -z "${CHANNEL}" ] || KEEP_INSTALLED_CHANNEL="1"
   fi
@@ -702,8 +726,11 @@ else
     error "Failed to list releases. Is the repo public?"
   [ -n "${CHANNEL}" ] || CHANNEL="$(resolve_default_channel "${RELEASES_JSON}")"
   if ! RELEASE_TAG="$(resolve_release_tag "${RELEASES_JSON}" "${CHANNEL}")"; then
-    [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ] && \
-      error "No ${CHANNEL} release is available. OpenWaggle updates from the ${CHANNEL} channel; set OPENWAGGLE_CHANNEL to install from another one."
+    # As `openwaggle update` reports it: up to date, not a failure, and nothing changes.
+    if [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ]; then
+      info "OpenWaggle is up to date on the ${CHANNEL} channel: no release is available on it yet. Set OPENWAGGLE_CHANNEL to install from another channel."
+      exit 0
+    fi
     error "No ${CHANNEL} release is available."
   fi
   if [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ]; then

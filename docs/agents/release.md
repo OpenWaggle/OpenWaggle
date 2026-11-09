@@ -23,7 +23,8 @@ persisted channel. `openwaggle update --version` refuses a version older than th
 (exit 2); downgrades are unsupported.
 - `openwaggle update --check` is read-only: with `--channel` it checks that channel without saving it.
   `--check --json` prints `{schemaVersion, type: "response", command: "update", result}` with the
-  saved channel in `result.savedChannel`.
+  saved channel in `result.savedChannel`; a failed release check prints the error envelope with an
+  additive top-level `savedChannel`.
 - `install.sh` changes the saved channel only with `OPENWAGGLE_CHANNEL`. A re-run without it reads
   the installed app's `savedChannel`, installs from that channel, and writes no intent; a fresh
   install, an installed version up to `1.0.0-beta.37`, or a failed read saves the default.

@@ -195,20 +195,40 @@ describe('update CLI --check --json', () => {
     expectChannelOnlyRead()
   })
 
-  it('reports a failure as an error envelope', async () => {
+  it.each([
+    ['a failed release check', ['--check', '--json']],
+    ['a failed check of another channel', ['--channel', 'alpha', '--check', '--json']],
+  ])('keeps the saved channel in the error envelope after %s', async (_label, args) => {
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    savedChannel('beta')
     checkForUpdatesMock.mockRejectedValueOnce(new Error('feed unavailable'))
 
-    await expect(runUpdateCli(['--check', '--json'])).resolves.toEqual({
-      exitCode: 1,
-      updaterOwnsExit: false,
-    })
+    await expect(runUpdateCli(args)).resolves.toEqual({ exitCode: 1, updaterOwnsExit: false })
 
     expect(writeCliStdoutMock).not.toHaveBeenCalled()
     expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
       type: 'error',
       error: { kind: 'internal', message: 'feed unavailable' },
+      savedChannel: 'beta',
+    })
+    expectChannelOnlyRead()
+  })
+
+  it('reports no channel when the Session Host cannot read it', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    executeLocalSessionCommandMock.mockRejectedValue(new Error('Session Host unavailable'))
+
+    await expect(runUpdateCli(['--check', '--json'])).resolves.toEqual({
+      exitCode: 1,
+      updaterOwnsExit: false,
+    })
+
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'internal', message: 'Session Host unavailable' },
     })
   })
 

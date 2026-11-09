@@ -13,7 +13,11 @@ import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './m
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { writeSessionsCliError } from './sessions-cli-output'
 import { parseChannel, usage, validateArguments } from './update-cli-arguments'
-import { type UpdateCheckMachineOutput, writeUpdateCheckResult } from './update-cli-check-output'
+import {
+  type UpdateCheckMachineOutput,
+  writeUpdateCheckError,
+  writeUpdateCheckResult,
+} from './update-cli-check-output'
 import {
   EXIT,
   installExactVersion,
@@ -102,7 +106,7 @@ async function installAvailableUpdate(input: {
 }) {
   const { mode, version, channel } = input
   if (mode === 'check' && input.machine) {
-    const savedChannel = await input.machine.savedChannel()
+    const { savedChannel } = input.machine
     return writeUpdateCheckResult({ savedChannel, channel, status: 'available', version })
   }
   if (mode === 'check') {
@@ -145,7 +149,7 @@ async function updateFromChannel(input: {
   const reportOnly = mode !== 'updater'
   const selection = await configureUpdater(channel, reportOnly)
   if (selection.type === 'no-release' && machine) {
-    const savedChannel = await machine.savedChannel()
+    const { savedChannel } = machine
     return writeUpdateCheckResult({ savedChannel, channel, status: 'no-release' })
   }
   if (selection.type === 'no-release') {
@@ -164,7 +168,7 @@ async function updateFromChannel(input: {
   if (!result?.isUpdateAvailable) {
     abandonDownloadWaiter(downloaded)
     if (machine) {
-      const savedChannel = await machine.savedChannel()
+      const { savedChannel } = machine
       return writeUpdateCheckResult({ savedChannel, channel, status: 'up-to-date' })
     }
     await writeCliStdout(`OpenWaggle is up to date on the ${channel} channel.\n`)
@@ -225,6 +229,7 @@ async function readAndUpdateChannel(
 
 export async function runUpdateCli(args: readonly string[]) {
   let json = false
+  let savedChannel: UpdateChannel | undefined
   try {
     const parsed = parseMcpCliArguments(args)
     json = hasFlag(parsed, 'json')
@@ -236,13 +241,13 @@ export async function runUpdateCli(args: readonly string[]) {
     // Every path, the Host-free ones included: an agent Run neither checks nor installs (#351).
     assertCliAgentMayUseOwnerAuthority(UPDATE_AGENT_REFUSAL)
     const checkOnly = hasFlag(parsed, 'check')
-    // `get-channel` only reads, so --check --json stays read-only.
-    const readSavedChannel = () => readAndUpdateChannel(parsed, undefined)
+    // --check --json reads the saved channel first, with `get-channel`, which only reads: even a
+    // failed release check still reports it, so install.sh never mistakes a feed error for no channel.
+    if (json) savedChannel = await readAndUpdateChannel(parsed, undefined)
+    const machine = savedChannel ? { savedChannel } : null
     const version = option(parsed, 'version')
     if (version) {
-      return await installExactVersion(parsed, normalizeVersion(version), checkOnly, {
-        machine: json ? { savedChannel: readSavedChannel } : null,
-      })
+      return await installExactVersion(parsed, normalizeVersion(version), checkOnly, { machine })
     }
     const requested = parseChannel(option(parsed, 'channel'))
     // --check is read-only: it checks a requested channel without saving it.
@@ -252,22 +257,17 @@ export async function runUpdateCli(args: readonly string[]) {
         channel: requested,
         checkOnly,
         unsavedChannel: true,
-        machine: json ? { savedChannel: readSavedChannel } : null,
+        machine,
       })
     }
-    const channel = await readAndUpdateChannel(parsed, requested)
-    return await updateFromChannel({
-      parsed,
-      channel,
-      checkOnly,
-      unsavedChannel: false,
-      machine: json ? { savedChannel: () => Promise.resolve(channel) } : null,
-    })
+    const channel = savedChannel ?? (await readAndUpdateChannel(parsed, requested))
+    return await updateFromChannel({ parsed, channel, checkOnly, unsavedChannel: false, machine })
   } catch (error) {
     // Every CLI reports a failure with its kind, as an error envelope with --json (#351).
-    return {
-      exitCode: cliExitCodeForKind(writeSessionsCliError(error, json)),
-      updaterOwnsExit: false,
-    }
+    const kind =
+      json && savedChannel
+        ? writeUpdateCheckError(error, savedChannel)
+        : writeSessionsCliError(error, json)
+    return { exitCode: cliExitCodeForKind(kind), updaterOwnsExit: false }
   }
 }
