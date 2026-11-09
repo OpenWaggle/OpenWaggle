@@ -4,7 +4,10 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SessionOrganizationRepository } from '../../ports/session-organization-repository'
+import {
+  SessionOrganizationRepository,
+  type SessionOrganizationRepositoryShape,
+} from '../../ports/session-organization-repository'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 
 function insertRun(sql: SqlClient.SqlClient, id: string, sessionId: string, status: string) {
@@ -25,23 +28,69 @@ describe('SQLite self-archive state', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('reads the asking Run, the Runs after it in the same Session, and queued Follow-ups', async () => {
+  /** Runs `test` against a store whose target Session has an earlier and an asking Run. */
+  function withAskingRun<A>(
+    test: (input: {
+      readonly sql: SqlClient.SqlClient
+      readonly read: (
+        runId: string,
+      ) => ReturnType<SessionOrganizationRepositoryShape['readSelfArchiveState']>
+    }) => Effect.Effect<A, unknown, SqlClient.SqlClient | SessionOrganizationRepository>,
+  ) {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'host.sqlite'))
-    const result = await Effect.runPromise(
+    return Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         const repository = yield* SessionOrganizationRepository
-        const read = (runId: string) =>
-          repository.readSelfArchiveState({ sessionId: 'session-target', runId })
         yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'session-other'}, ${'/p'})`
         yield* insertRun(sql, 'run-earlier', 'session-target', 'completed')
         yield* insertRun(sql, 'run-asking', 'session-target', 'completed')
         // Another Session's later Run does not count for this one.
         yield* insertRun(sql, 'run-elsewhere', 'session-other', 'active')
-        const idle = yield* read('run-asking')
-        const fromEarlier = yield* read('run-earlier')
-        const missing = yield* read('run-missing')
-        const elsewhere = yield* read('run-elsewhere')
+        return yield* test({
+          sql,
+          read: (runId) => repository.readSelfArchiveState({ sessionId: 'session-target', runId }),
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+  }
+
+  const base = {
+    archived: false,
+    activeRunId: null,
+    queuedFollowUpCount: 0,
+    pendingWorkerUpdateCount: 0,
+    workingDelegationCount: 0,
+    pinned: false,
+  }
+
+  it('reads the asking Run and the Runs after it in the same Session', async () => {
+    const result = await withAskingRun(({ read }) =>
+      Effect.gen(function* () {
+        const repository = yield* SessionOrganizationRepository
+        return {
+          idle: yield* read('run-asking'),
+          fromEarlier: yield* read('run-earlier'),
+          missing: yield* read('run-missing'),
+          elsewhere: yield* read('run-elsewhere'),
+          gone: yield* repository.readSelfArchiveState({
+            sessionId: 'session-gone',
+            runId: 'run-asking',
+          }),
+        }
+      }),
+    )
+
+    expect(result.idle).toEqual({ ...base, runStatus: 'completed', laterRunCount: 0 })
+    expect(result.fromEarlier).toEqual({ ...base, runStatus: 'completed', laterRunCount: 1 })
+    expect(result.missing).toEqual({ ...base, runStatus: null, laterRunCount: 0 })
+    expect(result.elsewhere).toEqual({ ...base, runStatus: null, laterRunCount: 0 })
+    expect(result.gone).toBe(null)
+  })
+
+  it('reads the work, pins and Workers that keep the Session', async () => {
+    const busy = await withAskingRun(({ sql, read }) =>
+      Effect.gen(function* () {
         yield* sql`
           INSERT INTO session_follow_ups (
             id, session_id, position, delivery_state, intent_json, created_at, updated_at
@@ -98,28 +147,11 @@ describe('SQLite self-archive state', () => {
             ${'child-delegation-asking'}, ${1}, ${'run-worker-live'}, ${'running'}, ${0}, ${1}
           )
         `
-        const busy = yield* read('run-asking')
-        const gone = yield* repository.readSelfArchiveState({
-          sessionId: 'session-gone',
-          runId: 'run-asking',
-        })
-        return { idle, fromEarlier, missing, elsewhere, busy, gone }
-      }).pipe(Effect.provide(layer)),
+        return yield* read('run-asking')
+      }),
     )
 
-    const base = {
-      archived: false,
-      activeRunId: null,
-      queuedFollowUpCount: 0,
-      pendingWorkerUpdateCount: 0,
-      workingDelegationCount: 0,
-      pinned: false,
-    }
-    expect(result.idle).toEqual({ ...base, runStatus: 'completed', laterRunCount: 0 })
-    expect(result.fromEarlier).toEqual({ ...base, runStatus: 'completed', laterRunCount: 1 })
-    expect(result.missing).toEqual({ ...base, runStatus: null, laterRunCount: 0 })
-    expect(result.elsewhere).toEqual({ ...base, runStatus: null, laterRunCount: 0 })
-    expect(result.busy).toEqual({
+    expect(busy).toEqual({
       archived: true,
       activeRunId: 'run-earlier',
       queuedFollowUpCount: 1,
@@ -129,6 +161,5 @@ describe('SQLite self-archive state', () => {
       workingDelegationCount: 4,
       pinned: true,
     })
-    expect(result.gone).toBe(null)
   })
 })

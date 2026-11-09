@@ -91,8 +91,9 @@ export function selfArchiveSkipReason(
 
 /**
  * Holds the Session Host open from the request until the archive is done, so a Host that drains
- * once the Run ends does not stop before it, unless a drain deadline ends the Host first. A draining Host admits it: the asking Run holds the
- * Host open anyway, and a Run a drain interrupts skips the archive as not completed.
+ * once the Run ends does not stop before it, unless a drain deadline ends the Host first. A
+ * draining Host admits it: the asking Run holds the Host open anyway, and a Run a drain
+ * interrupts skips the archive as not completed.
  */
 function acquireArchiveLiveness() {
   return (

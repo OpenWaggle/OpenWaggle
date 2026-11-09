@@ -73,7 +73,7 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | `approval_respond` | `sessions:approve` | Answers an approval request a run is waiting on. |
 | `authorization_set` | `sessions:authorization` | Changes a session's access mode, within the caller's limit. |
 
-Archiving a session stops its runs and closes its terminals and browser previews. For an agent that archives its own session, see [When an agent archives its own session](#when-an-agent-archives-its-own-session).
+For an agent that archives its own session, see [When an agent archives its own session](#when-an-agent-archives-its-own-session).
 
 ## Manage the follow-up queue
 
@@ -316,11 +316,11 @@ Once that run ends, OpenWaggle archives the session unless one of these is true:
 - The session is pinned when the run ends.
 - Something else archived it first.
 
-A message you steer into the run that asked does not cancel the archive. A skipped archive is not retried, and OpenWaggle does not tell the agent. A worker that archives itself counts as archived on purpose, so new work does not bring it back. If its archive is skipped, worker cleanup can still archive it once its result is accepted or cancelled.
+A message you steer into the run that asked does not cancel the archive. OpenWaggle does not retry a skipped archive or tell the agent. A worker that archives itself counts as archived on purpose, so new work does not bring it back. If its archive is skipped, worker cleanup can still archive it once its result is accepted or cancelled.
 
 If the Session Host stops or restarts before the run ends, for example to install an update, the session stays unarchived.
 
-If the agent runs `openwaggle hive archive` in a shell, or calls the `openwaggle_hive` MCP tool, that archive is not deferred. It stops the run that asked right away, so the agent may not get to write its last message.
+If the agent runs `openwaggle hive archive` in a shell, or calls the `openwaggle_hive` MCP tool, OpenWaggle archives the session right away. That stops the run that asked, so the agent does not get to write its last message.
 
 ## Errors
 
