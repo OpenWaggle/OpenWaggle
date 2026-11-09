@@ -6,6 +6,8 @@ status: accepted
 
 Date: 2026-10-26
 
+Superseded in part by: [ADR 0063](0063-parents-show-their-running-workers.md). A parent's running Workers also reach the person outside the panel: its sidebar row, its header and the rail dot show them, never in the attention colour.
+
 Supersedes in part: [ADR 0051](0051-workers-live-in-a-hive-panel-not-the-sidebar.md), its grouping by Delegation state ("Needs you, Review, Active, Done") and the state names of its two amendments (#356, #377). The panel, the tree, paging, the row menu and everything else in ADR 0051 stand.
 
 The Hive panel grouped Workers by Delegation state, and its "Needs you" (later "Needs attention") group held `revision_requested`, where the Worker is revising for its parent, and `needs_attention`, which the Host sets when a Worker Run fails and which is aimed at the parent agent. It stayed set after the Worker resumed. A Worker really blocked on the person, with a parked approval or question, was not in the group at all, and the sidebar, rail dot and Session Summary used the same rule. The person was told to act on things only an agent could, and not told about the one thing only they could. The decision, made with the maintainer in #380, is to group by **who acts next**, and to let only what the person must unblock reach them.

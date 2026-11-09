@@ -63,11 +63,77 @@ function interruptedFilter(sql: SqlClient.SqlClient, value: boolean | undefined)
   return value ? membership : sql`NOT (${membership})`
 }
 
+/** A Run that has not settled: starting (connecting), active, or stopping. */
+const LIVE_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
+
+/** Every Spawn-lineage ancestor paired with each Session below it, at any depth (ADR 0063). */
+function workersBelowCte(sql: SqlClient.SqlClient) {
+  return sql`WITH RECURSIVE workers_below(ancestor_id, session_id) AS (
+    SELECT parent_session_id, child_session_id FROM session_spawn_lineage
+    UNION ALL
+    SELECT workers_below.ancestor_id, deeper.child_session_id
+    FROM session_spawn_lineage AS deeper
+    JOIN workers_below ON deeper.parent_session_id = workers_below.session_id
+  )`
+}
+
+/** Parents with a Running Worker below them, whose row reads Working (ADR 0063). */
+function runningWorkersFilter(sql: SqlClient.SqlClient) {
+  return sql`sessions.id IN (
+    ${workersBelowCte(sql)}
+    SELECT workers_below.ancestor_id
+    FROM workers_below
+    JOIN session_runs AS live_runs ON live_runs.session_id = workers_below.session_id
+    WHERE live_runs.status IN ${sql.in([...LIVE_RUN_STATUSES])}
+  )`
+}
+
+/**
+ * Done below (ADR 0063): nothing below the parent runs and the last Run there ended after the
+ * person last visited the parent. The parent's own latest Run must be one its row would not
+ * outrank: completed, or a failure the person has already seen.
+ */
+function doneBelowFilter(sql: SqlClient.SqlClient) {
+  return sql`sessions.id IN (
+    ${workersBelowCte(sql)}
+    SELECT workers_below.ancestor_id
+    FROM workers_below
+    JOIN session_runs AS worker_runs ON worker_runs.session_id = workers_below.session_id
+    LEFT JOIN session_visit_receipts AS parent_visits
+      ON parent_visits.session_id = workers_below.ancestor_id
+    GROUP BY workers_below.ancestor_id
+    HAVING SUM(worker_runs.status IN ${sql.in([...LIVE_RUN_STATUSES])}) = 0
+      AND MAX(worker_runs.updated_at) > COALESCE(MAX(parent_visits.last_visited_at), -1)
+  ) AND EXISTS (
+    SELECT 1 FROM session_runs AS own_runs
+    LEFT JOIN session_visit_receipts AS own_visits ON own_visits.session_id = own_runs.session_id
+    WHERE own_runs.session_id = sessions.id
+      AND (own_runs.status = ${'completed'}
+        OR (own_runs.status = ${'failed'}
+          AND own_runs.updated_at <= COALESCE(own_visits.last_visited_at, -1)))
+      AND NOT EXISTS (
+        SELECT 1 FROM session_runs AS newer_runs
+        WHERE newer_runs.session_id = own_runs.session_id
+          AND (
+            newer_runs.updated_at > own_runs.updated_at
+            OR (newer_runs.updated_at = own_runs.updated_at AND newer_runs.id > own_runs.id)
+          )
+      )
+  )`
+}
+
 function unreadTerminalFilter(
   sql: SqlClient.SqlClient,
   status: 'completed' | 'failed' | undefined,
 ) {
   if (status === undefined) return sql.literal('TRUE')
+  const ownUnread = unreadOwnTerminalFilter(sql, status)
+  if (status === 'failed') return ownUnread
+  // A parent reads Done for its own unread Run or for Done below, never while Workers run.
+  return sql`((${ownUnread}) OR (${doneBelowFilter(sql)})) AND NOT (${runningWorkersFilter(sql)})`
+}
+
+function unreadOwnTerminalFilter(sql: SqlClient.SqlClient, status: 'completed' | 'failed') {
   return sql`sessions.id IN (
     SELECT terminal_runs.session_id
     FROM session_runs AS terminal_runs

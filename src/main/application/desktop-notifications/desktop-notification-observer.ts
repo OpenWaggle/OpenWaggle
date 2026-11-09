@@ -25,6 +25,11 @@ import {
   type DesktopNotificationLedger,
   sessionNotificationTarget,
 } from './desktop-notification-ledger'
+import {
+  type CompletedRootRun,
+  READY_TO_READ,
+  ReadyToReadAfterWorkers,
+} from './ready-to-read-after-workers'
 
 /** Settled Runs remembered so a Run is never announced twice; old ones are forgotten. */
 const NOTIFIED_RUN_MEMORY = 512
@@ -63,14 +68,19 @@ export function originOfRun(run: DesktopNotificationRunFacts | null): DesktopNot
 /**
  * Reads the Session Host's own events and decides which Desktop notification each one is due
  * (ADR 0062, CONTEXT.md): Needs you for every Session, Ready to read, Failed or interrupted and
- * Agent errors for a root Session's Runs that the person or a Scheduled task started.
+ * Agent errors for a root Session's Runs that the person or a Scheduled task started. Ready to
+ * read waits for the root's Running Workers (ADR 0063): a reply that leaves Workers running, or a
+ * Hive wake still coming, is held per root Session and shown once its Hive settles.
  */
 export class DesktopNotificationObserver {
   private readonly lastReply = new Map<string, string>()
   private readonly lastError = new Map<string, string>()
   private readonly notifiedRuns = new Set<string>()
+  private readonly readyToRead: ReadyToReadAfterWorkers
 
-  constructor(private readonly dependencies: DesktopNotificationObserverDependencies) {}
+  constructor(private readonly dependencies: DesktopNotificationObserverDependencies) {
+    this.readyToRead = new ReadyToReadAfterWorkers(dependencies)
+  }
 
   handle(envelope: SessionHostEventEnvelope): Effect.Effect<void> {
     return this.decide(envelope).pipe(
@@ -204,27 +214,61 @@ export class DesktopNotificationObserver {
     // A Session that went straight on to a queued Follow-up is not ready to read yet.
     const continuing =
       payload.operation === 'follow-up-started' && candidate?.category === 'ready-to-read'
-    if (!candidate || continuing || !this.claimRun(runId)) return Effect.void
+    // A root Run that did not complete ends the request it served: the person stopped it, or
+    // Failed or interrupted tells them, which a held Ready to read would only replace.
+    if (terminalStatus !== 'completed') this.readyToRead.drop(sessionId)
+    if (!candidate || continuing || !this.claimRun(runId)) {
+      return this.readyToRead.settle(sessionId, occurredAt)
+    }
     const preview =
-      candidate.category === 'ready-to-read'
+      (candidate.category === 'ready-to-read'
         ? this.lastReply.get(sessionId)
-        : this.lastError.get(sessionId)
+        : this.lastError.get(sessionId)) ?? null
     this.lastReply.delete(sessionId)
     this.lastError.delete(sessionId)
+    if (candidate.category === 'ready-to-read') {
+      return this.onCompleted({
+        sessionId,
+        runId,
+        hiveWake: payload.hiveWake === true,
+        preview,
+        occurredAt,
+      })
+    }
     return this.forRootRun(sessionId, runId, candidate, (session) =>
       this.dependencies.ledger.show({
         target: sessionNotificationTarget(sessionId),
         candidate,
         subject: { sessionId, projectPath: session.projectPath },
         title: session,
-        preview: preview ?? null,
+        preview,
         occurredAt,
       }),
-    )
+    ).pipe(Effect.zipRight(this.readyToRead.settle(sessionId, occurredAt)))
+  }
+
+  /** A root Session's Run completed: Ready to read now, or once its Hive settles (ADR 0063). */
+  private onCompleted(completed: CompletedRootRun) {
+    const { sessionId, runId, occurredAt } = completed
+    return Effect.gen(this, function* () {
+      const { facts } = this.dependencies
+      const session = yield* facts.session(sessionId)
+      if (!session || session.archived) return
+      // A Worker's Run reaches its parent; it may still be the last Run its Hive waited for.
+      if (session.parentSessionId !== null) {
+        return yield* this.readyToRead.settle(sessionId, occurredAt)
+      }
+      const run = yield* facts.run(sessionId, runId)
+      if (!desktopNotificationOriginPermits(originOfRun(run), READY_TO_READ)) {
+        return yield* this.readyToRead.settleRoot(sessionId, occurredAt)
+      }
+      yield* this.readyToRead.completed(session, completed)
+    })
   }
 
   private onListChanged(payload: ListChanged) {
     if (payload.change === 'archived' || payload.change === 'deleted') {
+      this.readyToRead.drop(payload.sessionId)
       this.lastReply.delete(payload.sessionId)
       this.lastError.delete(payload.sessionId)
       return this.dependencies.ledger.withdraw(sessionNotificationTarget(payload.sessionId))

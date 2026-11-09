@@ -108,3 +108,69 @@ describe('mergeExactTerminalCounts', () => {
     ])
   })
 })
+
+describe('a parent row follows its Workers (ADR 0063)', () => {
+  const lineage = (facts: { runningWorkerCount?: number; workersLastRunEndedAt?: number }) => ({
+    role: 'queen' as const,
+    directWorkerCount: 3,
+    activeDirectWorkerCount: 3,
+    ...facts,
+  })
+
+  it('reads Working while the Queen is idle and a Worker below runs', () => {
+    expect(
+      resolveVisibleSessionStatus({
+        status: 'idle',
+        completedAt: undefined,
+        lastVisitedAt: SEEN_AT,
+        lineage: lineage({ runningWorkerCount: 2 }),
+      }),
+    ).toBe('working')
+  })
+
+  it('reads Working over her own unread Done while Workers run', () => {
+    expect(
+      resolveVisibleSessionStatus({
+        status: 'completed',
+        completedAt: SEEN_AT,
+        lastVisitedAt: FINISHED_AT,
+        lineage: lineage({ runningWorkerCount: 1 }),
+      }),
+    ).toBe('working')
+  })
+
+  it('keeps her own attention and in-flight states first', () => {
+    for (const status of ['awaiting-input', 'error', 'connecting', 'waggle-running'] as const) {
+      expect(
+        resolveVisibleSessionStatus({
+          status,
+          completedAt: undefined,
+          lastVisitedAt: undefined,
+          lineage: lineage({ runningWorkerCount: 1 }),
+        }),
+      ).toBe(status)
+    }
+  })
+
+  it('reads Done below once the last Worker Run ended after her last visit', () => {
+    expect(
+      resolveVisibleSessionStatus({
+        status: 'completed',
+        completedAt: FINISHED_AT,
+        lastVisitedAt: SEEN_AT,
+        lineage: lineage({ runningWorkerCount: 0, workersLastRunEndedAt: SEEN_AT + 1 }),
+      }),
+    ).toBe('completed')
+  })
+
+  it('clears Done below when she is visited after it', () => {
+    expect(
+      resolveVisibleSessionStatus({
+        status: 'idle',
+        completedAt: undefined,
+        lastVisitedAt: SEEN_AT,
+        lineage: lineage({ runningWorkerCount: 0, workersLastRunEndedAt: FINISHED_AT }),
+      }),
+    ).toBe('idle')
+  })
+})

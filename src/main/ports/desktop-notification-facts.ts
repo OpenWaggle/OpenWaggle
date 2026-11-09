@@ -18,6 +18,27 @@ export interface DesktopNotificationRunFacts {
   readonly scheduledTaskPolicy: ScheduledTaskNotificationPolicy | null
 }
 
+/**
+ * What is still running in a root Session's Hive (ADR 0063): its Workers are every Session below
+ * it by spawn, at any depth, archived or not. A Run is running while starting, active or stopping.
+ */
+export interface DesktopNotificationHiveActivity {
+  /** A Run of the root Session itself is running. */
+  readonly rootRunning: boolean
+  /** A Run of a Worker below the root is running. */
+  readonly workersRunning: boolean
+  /**
+   * A Hive wake is still coming for the root or a Worker below it: an idle parent holds a Worker
+   * update the Host would wake it for, by the same candidate and authority checks the wake uses.
+   */
+  readonly wakeComing: boolean
+  /**
+   * The Run asked about started while a Worker below the root was running: the person asked about
+   * work in progress. False when no Run was named.
+   */
+  readonly runStartedWhileWorkersRan: boolean
+}
+
 export interface DesktopNotificationInterruptedRun {
   readonly sessionId: string
   readonly runId: string
@@ -32,6 +53,13 @@ export interface DesktopNotificationFactsShape {
     sessionId: string,
     runId: string,
   ) => Effect.Effect<DesktopNotificationRunFacts | null, Error>
+  /** The root of the Hive the Session belongs to, by spawn: itself when it has no parent. */
+  readonly hiveRootSessionId: (sessionId: string) => Effect.Effect<string, Error>
+  /** What still runs below `rootSessionId`, and whether `runId` (its own Run) started mid-work. */
+  readonly hiveActivity: (
+    rootSessionId: string,
+    runId: string | null,
+  ) => Effect.Effect<DesktopNotificationHiveActivity, Error>
   /** When the person last opened the Session, or null if never. */
   readonly lastVisitedAt: (sessionId: string) => Effect.Effect<number | null, Error>
   /** Live Workers whose Delegation needs attention while no agent will pick them up. */

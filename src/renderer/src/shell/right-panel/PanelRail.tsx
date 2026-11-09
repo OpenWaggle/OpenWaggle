@@ -36,7 +36,8 @@ interface PanelRailActions {
 function surfaceTooltip(surface: RightPanelSurfaceEntry) {
   const parts = [surface.title]
   if (surface.extension !== null) parts.push(surface.extension.extensionName)
-  if (surface.running) parts.push('running')
+  // The Hive's running dot means Workers below the open Session still run (ADR 0063).
+  if (surface.running) parts.push(surface.id === 'hive' ? 'Workers running' : 'running')
   // The attention dot is aria-hidden, so the name carries it for screen readers.
   // The Hive's dot means only Needs you: something the person must unblock (ADR 0059).
   if (surface.attention) parts.push(surface.id === 'hive' ? 'needs you' : 'needs attention')
@@ -152,22 +153,24 @@ function RailButton({
 }
 
 /**
- * The rail's state dot: a running Project Action or a Hive Worker needing the user (ADR 0051).
+ * The rail's state dot: something needing the user (a Hive Worker's Needs you, ADR 0059) or
+ * something running (a Project Action, or Workers below the open Session, ADR 0063). Needs you
+ * wins: running asks nothing of the person.
  */
 function RailStateDot({ surface }: { readonly surface: RightPanelSurfaceEntry }) {
-  if (surface.running) {
-    return (
-      <span
-        aria-hidden="true"
-        className="absolute right-1 bottom-1 size-1.5 rounded-full bg-success ring-2 ring-bg-secondary"
-      />
-    )
-  }
   if (surface.attention) {
     return (
       <span
         aria-hidden="true"
         className="absolute right-1 bottom-1 size-1.5 rounded-full bg-warning ring-2 ring-bg-secondary"
+      />
+    )
+  }
+  if (surface.running) {
+    return (
+      <span
+        aria-hidden="true"
+        className="absolute right-1 bottom-1 size-1.5 rounded-full bg-success ring-2 ring-bg-secondary"
       />
     )
   }

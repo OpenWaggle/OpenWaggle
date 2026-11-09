@@ -1,3 +1,4 @@
+import { runningWorkerCount } from '@shared/domain/running-workers'
 import { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionIconView } from '@shared/types/extensions'
 import type { SessionLineageSummary } from '@shared/types/session'
@@ -154,8 +155,11 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const extensionsInitialized = useRightPanelRailStore((state) => state.extensionsInitialized)
   const sessionProjectPath = useSessionProjectPath()
   const running = useHasActiveProjectActionRun(sessionProjectPath, sessionId)
-  const sessionInHive = lineageInHive(activeSessionLineage(chatSessions, chatActiveSessionId))
+  const activeLineage = activeSessionLineage(chatSessions, chatActiveSessionId)
+  const sessionInHive = lineageInHive(activeLineage)
   const hiveAttention = useHiveAttention(sessionId, sessionInHive)
+  // Workers below the open Session still run (ADR 0063); the header line says the same.
+  const hiveRunning = sessionInHive && runningWorkerCount(activeLineage) > 0
   const scheduledAttention = useProjectScheduledTasksNeedAttention(sessionProjectPath)
   const sidePanels = useExtensionSidePanelContributions({
     enabled,
@@ -192,7 +196,8 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     extension: null,
     pinned: surface.id === 'all-panels' || !hiddenIds.has(surface.id),
     isNew: false,
-    running: surface.id === 'project-actions' && running,
+    running:
+      (surface.id === 'project-actions' && running) || (surface.id === 'hive' && hiveRunning),
     attention:
       (surface.id === 'hive' && hiveAttention) ||
       (surface.id === 'scheduled-tasks' && scheduledAttention),

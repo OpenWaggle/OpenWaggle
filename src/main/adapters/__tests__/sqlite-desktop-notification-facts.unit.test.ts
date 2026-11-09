@@ -60,9 +60,24 @@ describe('SqliteDesktopNotificationFactsLive', () => {
           visit: facts.lastVisitedAt('missing'),
           stuck: facts.stuckWorkerIds(),
           lost: facts.runsInterruptedByHostLossSince(0),
+          hiveRoot: facts.hiveRootSessionId('missing'),
+          hive: facts.hiveActivity('missing', 'run'),
         }),
     )
-    expect(result).toEqual({ session: null, run: null, visit: null, stuck: [], lost: [] })
+    expect(result).toEqual({
+      session: null,
+      run: null,
+      visit: null,
+      stuck: [],
+      lost: [],
+      hiveRoot: 'missing',
+      hive: {
+        rootRunning: false,
+        workersRunning: false,
+        wakeComing: false,
+        runStartedWhileWorkersRan: false,
+      },
+    })
   })
 
   it("reads a root Session, its Run's caller, the visit receipt and Runs lost with the Host", async () => {

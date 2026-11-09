@@ -1,4 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
+import { runningWorkerCount } from '@shared/domain/running-workers'
 import type { SessionId } from '@shared/types/brand'
 import type { GitCommitSuccess } from '@shared/types/git'
 import type { SessionSummary } from '@shared/types/session'
@@ -33,7 +34,11 @@ const LazyCommitDialog = lazy(() =>
   import('@/features/git/components').then((module) => ({ default: module.CommitDialog })),
 )
 
-function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: SessionId | null) {
+function sessionIdentity(
+  sessions: readonly SessionSummary[],
+  activeSessionId: SessionId | null,
+  catalogSessions: readonly SessionSummary[],
+) {
   const lineage = sessions.find((session) => session.id === activeSessionId)?.lineage
   if (!lineage) return undefined
   if (lineage.role === 'independent') {
@@ -41,9 +46,15 @@ function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: S
       ? { agentDefinitionName: lineage.agentDefinitionName }
       : undefined
   }
+  // The catalog entry is read again whenever a Worker below starts or settles a Run (ADR 0063);
+  // the open tree is not, so the count comes from the catalog when it has the Session.
+  const counted =
+    catalogSessions.find((session) => session.id === activeSessionId)?.lineage ?? lineage
+  const running = runningWorkerCount(counted)
   return {
     role: lineage.role,
     ...(lineage.agentDefinitionName ? { agentDefinitionName: lineage.agentDefinitionName } : {}),
+    ...(running > 0 ? { runningWorkerCount: running } : {}),
   }
 }
 
@@ -167,6 +178,7 @@ export function Header() {
   const currentSessionIdentity = sessionIdentity(
     [...(activeSessionTree ? [activeSessionTree.session] : []), ...sessions, ...archivedSessions],
     activeSessionId,
+    [...sessions, ...archivedSessions],
   )
 
   return (

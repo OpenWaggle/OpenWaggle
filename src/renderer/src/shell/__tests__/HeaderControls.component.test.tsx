@@ -1,6 +1,7 @@
 import type { GitStatusSummary } from '@shared/types/git'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
 import {
   CommitButton,
   DiffToggleButton,
@@ -66,6 +67,61 @@ describe('HeaderControls', () => {
     expect(identity).toHaveTextContent('Worker')
     expect(identity).toHaveTextContent('security-reviewer')
     expect(identity).not.toHaveClass('border')
+  })
+
+  it('says how many Workers below still run and opens the Hive panel from it (ADR 0063)', () => {
+    const showSurface = vi.fn()
+    const release = registerRightPanelController({
+      toggleSurface: vi.fn(),
+      showSurface,
+      togglePanel: vi.fn(),
+      closePanel: vi.fn(),
+    })
+    const { rerender } = render(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Release prep"
+        sessionIdentity={{ role: 'queen', runningWorkerCount: 3 }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+
+    const identity = document.querySelector('[data-qa="header-session-identity"]')
+    expect(identity).toHaveTextContent('Queen')
+    expect(identity).toHaveTextContent('3 Workers running')
+    expect(identity).not.toHaveTextContent('working')
+    fireEvent.click(screen.getByRole('button', { name: '3 Workers running, open Hive panel' }))
+    expect(showSurface).toHaveBeenCalledWith('hive')
+    release()
+
+    rerender(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Release prep"
+        sessionIdentity={{ role: 'worker', runningWorkerCount: 1 }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('1 Worker running')).toBeVisible()
+
+    rerender(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Release prep"
+        sessionIdentity={{ role: 'queen' }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+    expect(document.querySelector('[data-qa="header-running-workers"]')).toBeNull()
   })
 
   it('shows an Agent definition without inventing Hive lineage for an independent Session', () => {

@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { parseJsonUnknown } from '@shared/schema'
 import { SCHEDULED_TASK_NOTIFICATION_POLICIES } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -7,7 +8,10 @@ import {
   DesktopNotificationFacts,
   type DesktopNotificationFactsShape,
 } from '../ports/desktop-notification-facts'
+import { messageCallerBlockReason } from './session-follow-up-authorization'
 import { parentWillActSql } from './sqlite-hive-next-actor-facts'
+import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
+import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
 
 interface SessionRow {
   readonly id: string
@@ -22,6 +26,122 @@ interface RunRow {
   readonly caller_id: string | null
   readonly author_caller_id: string | null
   readonly notification_policy: string | null
+}
+
+interface HiveActivityRow {
+  readonly root_running: number
+  readonly workers_running: number
+  readonly run_started_while_workers_ran: number
+  readonly waking_parent_ids: string
+}
+
+/** The Run statuses that count as running (ADR 0063): starting, active or stopping. */
+const RUNNING_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
+
+function decodeSessionIds(value: string): readonly string[] {
+  const decoded: unknown = parseJsonUnknown(value)
+  if (!Array.isArray(decoded)) return []
+  const entries: readonly unknown[] = decoded
+  return entries.filter((entry): entry is string => typeof entry === 'string')
+}
+
+/**
+ * Whether the Host would still wake `parentSessionId` (`hive-parent-wake.ts`): the wake candidate
+ * SQL finds an unread update a wake acts on, the latest Run's caller may still message the
+ * parent, and a cause of that update may wake it. A full Run limit only defers a wake, so it
+ * still counts as coming; the pi CLI check is not repeated here.
+ */
+function wakeComingFor(sql: SqlClient.SqlClient, parentSessionId: string) {
+  return Effect.gen(function* () {
+    const candidate = yield* selectHiveParentWakeCandidate(sql, { parentSessionId })
+    if (!candidate) return false
+    const blocked = yield* messageCallerBlockReason(sql, parentSessionId, candidate.callerId)
+    if (blocked) return false
+    return yield* wakeCandidateMayWake(sql, candidate)
+  })
+}
+
+/** The topmost Session above `sessionId` by spawn lineage; a Session with no parent is its own. */
+function selectHiveRootSessionId(sql: SqlClient.SqlClient, sessionId: string) {
+  return sql<{ readonly session_id: string }>`
+    WITH RECURSIVE ancestors(session_id) AS (
+      SELECT ${sessionId}
+      UNION
+      SELECT lineage.parent_session_id
+      FROM session_spawn_lineage AS lineage
+      JOIN ancestors ON lineage.child_session_id = ancestors.session_id
+    )
+    SELECT ancestors.session_id FROM ancestors
+    WHERE NOT EXISTS (
+      SELECT 1 FROM session_spawn_lineage
+      WHERE session_spawn_lineage.child_session_id = ancestors.session_id
+    )
+    LIMIT 1
+  `.pipe(Effect.map((rows) => rows[0]?.session_id ?? sessionId))
+}
+
+/**
+ * What still runs in the spawn subtree of `rootSessionId` (ADR 0063), every depth and archived
+ * Workers included; historical `session_lineage` is not a Hive. `runId`, a Run of the root, started
+ * mid-work when a Worker Run below began at or before it and was still running when it began.
+ */
+function selectHiveActivity(sql: SqlClient.SqlClient, rootSessionId: string, runId: string | null) {
+  return Effect.gen(function* () {
+    const askedRunId = runId === null ? null : durableSessionRunId(runId)
+    const running = sql.in([...RUNNING_RUN_STATUSES])
+    const [row] = yield* sql<HiveActivityRow>`
+      WITH RECURSIVE subtree(session_id) AS (
+        SELECT ${rootSessionId}
+        UNION
+        SELECT lineage.child_session_id
+        FROM session_spawn_lineage AS lineage
+        JOIN subtree ON lineage.parent_session_id = subtree.session_id
+      ),
+      workers(session_id) AS (
+        SELECT session_id FROM subtree WHERE session_id <> ${rootSessionId}
+      ),
+      asked(created_at) AS (
+        SELECT created_at FROM session_runs
+        WHERE id = ${askedRunId} AND session_id = ${rootSessionId}
+      )
+      SELECT
+        EXISTS (
+          SELECT 1 FROM session_runs
+          WHERE session_runs.session_id = ${rootSessionId} AND session_runs.status IN ${running}
+        ) AS root_running,
+        EXISTS (
+          SELECT 1 FROM session_runs JOIN workers USING (session_id)
+          WHERE session_runs.status IN ${running}
+        ) AS workers_running,
+        EXISTS (
+          SELECT 1 FROM session_runs JOIN workers USING (session_id) JOIN asked
+          WHERE session_runs.created_at <= asked.created_at
+            AND (
+              session_runs.status IN ${running}
+              OR session_runs.updated_at > asked.created_at
+            )
+        ) AS run_started_while_workers_ran,
+        (
+          SELECT json_group_array(DISTINCT updates.parent_session_id)
+          FROM session_orchestration_updates AS updates
+          JOIN subtree ON subtree.session_id = updates.parent_session_id
+          WHERE updates.status = ${'pending'}
+        ) AS waking_parent_ids
+    `
+    let wakeComing = false
+    for (const parentSessionId of decodeSessionIds(row?.waking_parent_ids ?? '[]')) {
+      if (yield* wakeComingFor(sql, parentSessionId)) {
+        wakeComing = true
+        break
+      }
+    }
+    return {
+      rootRunning: row?.root_running === 1,
+      workersRunning: row?.workers_running === 1,
+      wakeComing,
+      runStartedWhileWorkersRan: row?.run_started_while_workers_ran === 1,
+    }
+  })
 }
 
 function factsError(operation: string) {
@@ -85,6 +205,12 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
           }
         }),
         Effect.mapError(factsError('run')),
+      ),
+    hiveRootSessionId: (sessionId) =>
+      selectHiveRootSessionId(sql, sessionId).pipe(Effect.mapError(factsError('hive-root'))),
+    hiveActivity: (rootSessionId, runId) =>
+      selectHiveActivity(sql, rootSessionId, runId).pipe(
+        Effect.mapError(factsError('hive-activity')),
       ),
     lastVisitedAt: (sessionId) =>
       sql<{ readonly last_visited_at: number | null }>`
