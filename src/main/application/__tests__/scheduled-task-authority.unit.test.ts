@@ -185,6 +185,24 @@ describe('runsAsAfterUpdate', () => {
       workByAgent: false,
     })
   })
+
+  it('keeps the limits as they are when a limited Session agent re-sends the task’s work', async () => {
+    const agent = fromPartial<ScheduledTaskPrincipal>({
+      localUser: false,
+      creatorCallerId: 'session-agent:session-2:run-1',
+      authorityLimits: { ...LIMITS, capabilities: [] },
+      creator: { kind: 'session-agent', label: 'Agent', sessionId: 'session-2' },
+    })
+    // Nothing new to run, so the limits are not narrowed to the agent's, and the result never
+    // reaches the Session catalog the fixture leaves empty.
+    expect(
+      await runsAs(agent, {
+        prompt: PROFILE_TASK.prompt,
+        target: PROFILE_TASK.target,
+        heartbeat: { stopWhen: ' CI is green. ', wakeCheck: { command: 'gh pr checks ' } },
+      }),
+    ).toEqual({ creatorCallerId: 'profile:ci', authorityLimits: PROFILE_TASK.authorityLimits })
+  })
 })
 
 describe('changedHeartbeatBoundaryRefusal', () => {

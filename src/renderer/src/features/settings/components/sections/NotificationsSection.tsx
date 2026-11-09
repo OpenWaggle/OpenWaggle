@@ -153,7 +153,7 @@ export function NotificationsSection() {
           </Row>
           <Row
             label="Show badge"
-            description="Count your notifications on the app icon, for each type turned on above. Windows shows a dot."
+            description="Show how many notifications are waiting on the app icon, for the types turned on above. Windows shows a dot."
           >
             <ToggleSwitch
               checked={settings.showBadge}

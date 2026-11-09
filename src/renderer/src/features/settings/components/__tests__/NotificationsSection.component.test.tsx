@@ -53,7 +53,7 @@ describe('NotificationsSection', () => {
     // Both name every type that is on, not only Needs you and Ready to read.
     expect(
       screen.getByText(
-        'Count your notifications on the app icon, for each type turned on above. Windows shows a dot.',
+        'Show how many notifications are waiting on the app icon, for the types turned on above. Windows shows a dot.',
       ),
     ).toBeInTheDocument()
     expect(
