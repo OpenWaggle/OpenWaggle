@@ -248,6 +248,35 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     expect(shownKinds(published)).toEqual(['shown:completed'])
   })
 
+  it('announces once when the wake completed before the last Worker event was handled', async () => {
+    const { emit, published, fixture } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    // Observer lag: the wake already ran and completed when w1's settlement is handled.
+    fixture.running.clear()
+    await emit(workerSettled('w1'), 110)
+    await emit(settled('wake-1', 'completed', { hiveWake: true }), 120)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  it('keeps the held request when Failed or interrupted is turned off', async () => {
+    const { emit, published, fixture } = hive({
+      preferences: {
+        ...DEFAULT_DESKTOP_NOTIFICATION_SETTINGS,
+        categories: {
+          ...DEFAULT_DESKTOP_NOTIFICATION_SETTINGS.categories,
+          'failed-or-interrupted': false,
+        },
+      },
+    })
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    await emit(settled('run-2', 'failed'), 105)
+    fixture.running.clear()
+    await emit(workerSettled('w1'), 110)
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
   it('never gives up on a wake that a full Run limit only defers', async () => {
     const { emit, published, fixture, observer } = hive()
     fixture.running = new Set(['w1'])

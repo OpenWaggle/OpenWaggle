@@ -67,8 +67,8 @@ export class ReadyToReadAfterWorkers {
   private readonly held = new Map<string, HeldReadyToRead>()
   /** When the sweep first saw nothing running in a held root's Hive. */
   private readonly quietSince = new Map<string, number>()
-  /** Roots whose held Ready to read the sweep showed, before any wake Run said so. */
-  private readonly shownBySweep = new Set<string>()
+  /** Roots whose held Ready to read was shown before a wake Run that served it said so. */
+  private readonly shownHeld = new Set<string>()
 
   constructor(private readonly dependencies: ReadyToReadAfterWorkersDependencies) {}
 
@@ -76,7 +76,7 @@ export class ReadyToReadAfterWorkers {
   drop(rootSessionId: string) {
     this.held.delete(rootSessionId)
     this.quietSince.delete(rootSessionId)
-    this.shownBySweep.delete(rootSessionId)
+    this.shownHeld.delete(rootSessionId)
   }
 
   /**
@@ -92,8 +92,21 @@ export class ReadyToReadAfterWorkers {
       const personKnows =
         candidate === null
           ? stoppedBy === null || desktopNotificationOriginOfCaller(stoppedBy).kind === 'person'
-          : desktopNotificationOriginPermits(originOfRun(run), candidate)
+          : desktopNotificationOriginPermits(originOfRun(run), candidate) &&
+            (yield* this.failureNotifies(sessionId, candidate))
       if (personKnows) this.drop(sessionId)
+    })
+  }
+
+  /** Whether the person's settings let the root's failure notify them. */
+  private failureNotifies(sessionId: string, candidate: DesktopNotificationCandidate) {
+    return Effect.gen(this, function* () {
+      const session = yield* this.dependencies.facts.session(sessionId)
+      if (!session) return true
+      return yield* this.dependencies.ledger.permits(candidate, {
+        sessionId,
+        projectPath: session.projectPath,
+      })
     })
   }
 
@@ -102,8 +115,8 @@ export class ReadyToReadAfterWorkers {
     return Effect.gen(this, function* () {
       const work = yield* this.dependencies.facts.hiveActivity(run.sessionId, run.runId)
       const timing = readyToReadTiming(work, { hiveWake: run.hiveWake })
-      // The sweep already announced this request; the wake that served it says nothing more.
-      const announced = this.shownBySweep.delete(run.sessionId)
+      // The held notification already announced this request; a wake serving it adds nothing.
+      const announced = this.shownHeld.delete(run.sessionId)
       if (announced && run.hiveWake && timing === 'now') return
       if (timing === 'after-workers') {
         this.quietSince.delete(run.sessionId)
@@ -182,8 +195,6 @@ export class ReadyToReadAfterWorkers {
       }
       const grace = work.wakeComing ? HIVE_WAKE_START_GRACE_MS : SETTLED_SWEEP_GRACE_MS
       if (at - since < grace) return
-      // A wake that completes after all was already announced by this notification.
-      this.shownBySweep.add(rootSessionId)
       yield* this.showHeld(rootSessionId, held, at)
     })
   }
@@ -192,6 +203,8 @@ export class ReadyToReadAfterWorkers {
     return Effect.gen(this, function* () {
       this.held.delete(rootSessionId)
       this.quietSince.delete(rootSessionId)
+      // A wake whose settlement is still queued was already announced by this notification.
+      this.shownHeld.add(rootSessionId)
       const session = yield* this.dependencies.facts.session(rootSessionId)
       if (!session || session.archived || session.parentSessionId !== null) return
       yield* this.show(session, held.preview, Math.max(at, held.occurredAt))
