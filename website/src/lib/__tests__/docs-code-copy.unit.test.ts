@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CODE_COPY_CLASS, enhanceDocsCodeCopy } from '../docs-code-copy';
+import { INSTALL_COMMAND } from '../install-command';
 
-const INSTALL = 'curl -fsSL https://openwaggle.ai/install | bash';
+const INSTALL = INSTALL_COMMAND;
 
 beforeEach(() => {
   document.body.innerHTML = `<article class="prose-docs"><pre><code>${INSTALL}\n</code></pre><p>Text</p><pre><code>openwaggle --help</code></pre></article>`;

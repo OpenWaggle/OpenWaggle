@@ -15,6 +15,7 @@ import {
   type WebDownloadTarget,
   type WebUtmParameter,
 } from '../../../functions/_lib/web-beacon-contract';
+import { INSTALL_SCRIPT_URL } from './install-command';
 
 /** Local development hosts, where `wrangler pages dev` serves the endpoint too. */
 const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
@@ -25,7 +26,12 @@ const RELEASES_PATH = /^\/OpenWaggle\/OpenWaggle\/releases(?:\/|$)/iu;
 const INSTALL_SCRIPT_PATH = /^\/OpenWaggle\/OpenWaggle\/(?:.+\/)?scripts\/install\.sh$/iu;
 const INSTALLATION_PAGE_PATH = /^\/docs\/getting-started\/installation\/?$/u;
 /** The site's own installer shortcuts, which `_redirects` sends to the raw script. */
-const INSTALL_SHORTCUT_PATH = /^\/install(?:\/|\.sh)?$/u;
+const INSTALL_SHORTCUT_PATH = new URL(INSTALL_SCRIPT_URL).pathname;
+const INSTALL_SHORTCUT_PATHS: ReadonlySet<string> = new Set([
+  INSTALL_SHORTCUT_PATH,
+  `${INSTALL_SHORTCUT_PATH}/`,
+  `${INSTALL_SHORTCUT_PATH}.sh`,
+]);
 const CONTROL_CHARACTERS = /\p{Cc}/gu;
 const MIDDLE_BUTTON = 1;
 
@@ -68,7 +74,7 @@ export function downloadTarget(href: string, pageUrl: string): WebDownloadTarget
   const scriptHost = isGitHub(url) || url.hostname === RAW_GITHUB_HOST;
   if (scriptHost && INSTALL_SCRIPT_PATH.test(url.pathname)) return 'install_script';
   const sameSite = url.origin === parsedUrl(pageUrl)?.origin;
-  if (sameSite && INSTALL_SHORTCUT_PATH.test(url.pathname)) return 'install_script';
+  if (sameSite && INSTALL_SHORTCUT_PATHS.has(url.pathname)) return 'install_script';
   return sameSite && INSTALLATION_PAGE_PATH.test(url.pathname) ? 'installation_page' : undefined;
 }
 
