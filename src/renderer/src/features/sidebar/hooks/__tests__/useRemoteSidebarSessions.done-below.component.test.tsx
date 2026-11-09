@@ -1,4 +1,4 @@
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
@@ -34,8 +34,20 @@ describe('remote Completed filter with a Done below parent (ADR 0063)', () => {
     const queen = {
       ...summary('queen', 'Queen'),
       latestRun: { status: 'failed' as const, updatedAt: 10 },
-      treeUiState: { lastVisitedAt: 20 },
-      lineage: { role: 'queen' as const, directWorkerCount: 1, workersLastRunEndedAt: 30 },
+      treeUiState: {
+        sessionId: SessionId('queen'),
+        expandedNodeIds: [],
+        expandedNodeIdsTouched: false,
+        branchesSidebarCollapsed: false,
+        lastVisitedAt: 20,
+        updatedAt: 20,
+      },
+      lineage: {
+        role: 'queen' as const,
+        directWorkerCount: 1,
+        activeDirectWorkerCount: 0,
+        workersLastRunEndedAt: 30,
+      },
     }
     const remote = [other, queen]
     apiMocks.querySessionControl.mockImplementation(async (request) => {

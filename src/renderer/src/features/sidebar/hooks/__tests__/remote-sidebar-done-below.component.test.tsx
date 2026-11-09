@@ -22,7 +22,12 @@ function queen(): SessionSummary {
     projectPath: '/repo',
     createdAt: 1,
     updatedAt: 3,
-    lineage: { role: 'queen', directWorkerCount: 1, workersLastRunEndedAt: 3 },
+    lineage: {
+      role: 'queen',
+      directWorkerCount: 1,
+      activeDirectWorkerCount: 0,
+      workersLastRunEndedAt: 3,
+    },
   }
 }
 
@@ -65,8 +70,13 @@ describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
   })
 
   it('shows the loaded catalog entry, which follows Worker Runs, over a search copy', () => {
-    const searched = { ...queen(), lineage: { ...queen().lineage, runningWorkerCount: 2 } }
-    const loaded = { ...queen(), lineage: { ...queen().lineage, runningWorkerCount: 0 } }
+    const withRunning = (runningWorkerCount: number): SessionSummary => {
+      const base = queen()
+      if (!base.lineage) throw new Error('Expected a Queen lineage.')
+      return { ...base, lineage: { ...base.lineage, runningWorkerCount } }
+    }
+    const searched = withRunning(2)
+    const loaded = withRunning(0)
     const merged = mergeVisibleSidebarSessions({
       loadedSessions: [loaded],
       remoteSessions: [searched],

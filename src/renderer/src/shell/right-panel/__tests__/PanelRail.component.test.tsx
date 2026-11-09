@@ -92,6 +92,7 @@ describe('PanelRail', () => {
         })}
         actions={{
           showSurface: vi.fn(),
+          toggleSurface: vi.fn(),
           move: vi.fn(),
           unpin: vi.fn(),
           reset: vi.fn(),
