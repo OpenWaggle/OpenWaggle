@@ -97,9 +97,14 @@ describe('app release promotion guard', () => {
   })
 
   it('never ignores a file that electron-builder copies into the app', () => {
-    const shippedPaths = electronBuilderConfig.extraResources.map((resource) => resource.from)
+    // Every extraResources source, plus every app.asar `files` pattern that adds files.
+    const shippedPaths = [
+      ...electronBuilderConfig.extraResources.map((resource) => resource.from),
+      ...electronBuilderConfig.files.filter((pattern) => !pattern.startsWith('!')),
+    ]
 
     expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
+    expect(shippedPaths).toContain('package.json')
     expect(shippedPaths.filter((shippedPath) => isPromotionIgnoredPath(shippedPath))).toEqual([])
   })
 
