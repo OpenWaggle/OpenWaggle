@@ -6,7 +6,7 @@ Amended 2026-10-24: Scheduled tasks are a Covered surface (see the Amendment bel
 
 Amended 2026-10-25: Supported platforms have stated minimums, and a vendor end of support can raise one in a minor version (see the Amendment below).
 
-Amended 2026-11-09: The covered CLIs are the Hive and Access CLIs, and the promotion guard compares Stable with the last published RC (see the Amendment below).
+Amended 2026-11-09: The Sessions/Delegations/Access CLIs are the Hive and Access CLIs (ADR 0063 later lists every covered CLI), and the promotion guard compares Stable with the last published RC (see the Amendment below).
 
 Refines ADR 0032 (Coexisting Build Identities and Channel-Keyed Updates). Supersedes the release-intent design in PRD issue #90.
 
@@ -52,7 +52,7 @@ Raising a stated minimum stays breaking, except when the OS vendor has ended sup
 
 ## Amendment (2026-11-09): Hive and Access CLIs, and the last published RC
 
-The Decision lists "the Sessions/Delegations/Access CLIs" as a Covered surface. Those commands now ship as `openwaggle hive` and `openwaggle access`, so the Covered surface is the Hive and Access CLIs and their machine output, as `docs/release-and-versioning.md` and `CONTEXT.md` already say. The promise did not change, only the command names.
+The Decision lists "the Sessions/Delegations/Access CLIs" as a Covered surface. Those commands now ship as `openwaggle hive` and `openwaggle access`, so that entry means the Hive and Access CLIs and their machine output, as `CONTEXT.md` says. This rename did not change the promise. [ADR 0063](0063-cli-machine-output-contract.md) later settled the machine-output contract and lists every covered CLI; `docs/release-and-versioning.md` holds the current list.
 
 "The last RC tag" in the promotion guard now means the last published RC: the newest `vX.Y.Z-rc.N` tag with a published GitHub release. The release workflow pushes the tag before the builds run, so a tag can exist for a build that never shipped (`v1.0.0-beta.33` through `beta.35`). Comparing Stable with such a tag would let it promote content that no RC user ran. The workflow reads the release list from the GitHub API and fails closed when it cannot. `THIRD_PARTY_NOTICES.md` also counts as app content although it is a top-level Markdown file, because the app ships it.
 
