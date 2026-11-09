@@ -64,6 +64,17 @@ export class DesktopNotificationLedger {
     return this.outstanding.get(desktopNotificationIdFor(target)) ?? null
   }
 
+  /** Whether the person's settings let `candidate` notify about `subject`. */
+  permits(candidate: DesktopNotificationCandidate, subject: DesktopNotificationSubject) {
+    return this.dependencies
+      .readSettings()
+      .pipe(
+        Effect.map((settings) =>
+          desktopNotificationPermitted(settings.desktopNotifications, candidate, subject),
+        ),
+      )
+  }
+
   show(input: DesktopNotificationShowInput) {
     return Effect.gen(this, function* () {
       const settings = yield* this.dependencies.readSettings()

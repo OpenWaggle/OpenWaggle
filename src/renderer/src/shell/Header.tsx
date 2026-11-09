@@ -18,6 +18,7 @@ import { toggleRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useUIStore } from '@/shell/ui-store'
+import { activeSessionRunningWorkerCount } from './active-session-running-workers'
 import {
   CommitButton,
   DiffToggleButton,
@@ -33,7 +34,11 @@ const LazyCommitDialog = lazy(() =>
   import('@/features/git/components').then((module) => ({ default: module.CommitDialog })),
 )
 
-function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: SessionId | null) {
+function sessionIdentity(
+  sessions: readonly SessionSummary[],
+  activeSessionId: SessionId | null,
+  running: number,
+) {
   const lineage = sessions.find((session) => session.id === activeSessionId)?.lineage
   if (!lineage) return undefined
   if (lineage.role === 'independent') {
@@ -44,6 +49,7 @@ function sessionIdentity(sessions: readonly SessionSummary[], activeSessionId: S
   return {
     role: lineage.role,
     ...(lineage.agentDefinitionName ? { agentDefinitionName: lineage.agentDefinitionName } : {}),
+    ...(running > 0 ? { runningWorkerCount: running } : {}),
   }
 }
 
@@ -167,6 +173,12 @@ export function Header() {
   const currentSessionIdentity = sessionIdentity(
     [...(activeSessionTree ? [activeSessionTree.session] : []), ...sessions, ...archivedSessions],
     activeSessionId,
+    activeSessionRunningWorkerCount({
+      activeSessionId,
+      sessions,
+      archivedSessions,
+      treeSession: activeSessionTree?.session,
+    }),
   )
 
   return (

@@ -1,11 +1,10 @@
 import type { SessionTitleSource } from '../session-title-source'
 import type { Message } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
-import type { AgentDefinitionLineageFacts } from './agent-definition'
 import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
-import type { HiveNextActorLineageFacts, HivePendingRequest } from './hive-next-actor'
+import type { HivePendingRequest } from './hive-next-actor'
 import type { SupportedModelId } from './llm'
 import type { DelegationState } from './session-collaboration'
 import type {
@@ -15,6 +14,7 @@ import type {
   SessionTreeNode,
 } from './session-node'
 import type { SessionDetailReadWindow, SessionTranscriptWindow } from './session-transcript-window'
+import type { SessionLineageFacts } from './session-worker-runs'
 import type { ThinkingLevel } from './settings'
 import type { WaggleConfig } from './waggle'
 
@@ -24,9 +24,7 @@ export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
 /** The lineage a Session summary carries; the next-actor facts come from the Host (ADR 0059). */
-export interface SessionLineageSummary
-  extends HiveNextActorLineageFacts,
-    AgentDefinitionLineageFacts {
+export interface SessionLineageSummary extends SessionLineageFacts {
   readonly role: 'queen' | 'worker' | 'independent'
   readonly parentSessionId?: SessionId
   readonly parentTitle?: string

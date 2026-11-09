@@ -1,8 +1,8 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSessionStatusStore } from '@/features/sessions/state'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
+import { useRemoteSidebarRowStates } from './remote-sidebar-row-states'
 import {
   hydrateSidebarSessions,
   queryInterruptedSidebarSessions,
@@ -18,16 +18,12 @@ import {
   mergeVisibleSidebarSessions,
   sidebarSessionMatchesText,
 } from './remote-sidebar-session-results'
-import { pruneHydratedTerminalIds, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
+import { isTerminalState, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
 import { useRemovedRemoteSessions } from './useRemovedRemoteSessions'
 import { useSidebarTerminalCounts } from './useSidebarTerminalCounts'
 
 const REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH = 3
 const REMOTE_SIDEBAR_SEARCH_DEBOUNCE_MS = 150
-
-function isTerminalState(state: SidebarRowState | null): state is SidebarTerminalState {
-  return state === 'completed' || state === 'error'
-}
 
 export function useRemoteSidebarSessions(input: {
   readonly query: string
@@ -41,7 +37,6 @@ export function useRemoteSidebarSessions(input: {
   // discovered rows from the request key, so their hydration cannot rewind the cursor.
   const hydratedTerminalIds = useRef({ completed: new Set<string>(), error: new Set<string>() })
   const requestTerminalIds = useRef(new Set<string>())
-  const rawStatuses = useSessionStatusStore((state) => state.statuses)
   const normalizedQuery = input.query.trim().toLowerCase()
   const matchingProjectPaths = [...new Set(input.projectPaths)].filter((projectPath) => {
     const custom = input.projectDisplayNames[projectPath] ?? ''
@@ -52,9 +47,16 @@ export function useRemoteSidebarSessions(input: {
     () => (matchingProjectPathsKey === '' ? [] : matchingProjectPathsKey.split('\u0000')),
     [matchingProjectPathsKey],
   )
+  const [sessions, setSessions] = useState<readonly SessionSummary[]>([])
+  const stateBySessionId = useRemoteSidebarRowStates({
+    hydratedTerminalIds: hydratedTerminalIds.current,
+    stateBySessionId: input.stateBySessionId,
+    loadedSessions: input.loadedSessions,
+    remoteSessions: sessions,
+  })
   const statusIds = sidebarRemoteStatusIds(
     input.filterState,
-    input.stateBySessionId,
+    stateBySessionId,
     hydratedTerminalIds.current,
   )
   const statusIdsKey = statusIds.join('\u0000')
@@ -62,10 +64,6 @@ export function useRemoteSidebarSessions(input: {
     () => (statusIdsKey === '' ? [] : statusIdsKey.split('\u0000').map(SessionId)),
     [statusIdsKey],
   )
-  useEffect(() => {
-    pruneHydratedTerminalIds(hydratedTerminalIds.current, rawStatuses)
-  }, [rawStatuses])
-  const [sessions, setSessions] = useState<readonly SessionSummary[]>([])
   const [hasMore, setHasMore] = useState(false)
   const { terminalCounts, setTerminalCounts } = useSidebarTerminalCounts(input.stateBySessionId)
   const mode = useRef<SidebarRemoteMode>({ kind: 'none' })
@@ -288,7 +286,7 @@ export function useRemoteSidebarSessions(input: {
       loadedSessions: input.loadedSessions,
       remoteSessions: sessions.filter((session) => !removal.removed.has(String(session.id))),
       filterState: input.filterState,
-      stateBySessionId: input.stateBySessionId,
+      stateBySessionId,
       normalizedQuery,
       projectDisplayNames: input.projectDisplayNames,
     })
@@ -296,7 +294,7 @@ export function useRemoteSidebarSessions(input: {
     input.filterState,
     input.loadedSessions,
     input.projectDisplayNames,
-    input.stateBySessionId,
+    stateBySessionId,
     normalizedQuery,
     removal.removed,
     sessions,
