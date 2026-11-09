@@ -48,7 +48,7 @@ describe('Scheduled task run settlement', () => {
       run: {
         status: 'skipped',
         reason: 'host-capacity-reached',
-        message: 'The Hive was running as many Workers as it may.',
+        message: 'Agents were running as many runs as they may.',
       },
     })
   })

@@ -12,7 +12,11 @@ import {
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
-import { type RunCaller, workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
+import {
+  holdsPersonFollowUp,
+  type RunCaller,
+  workerRunAdmissionRefusal,
+} from './sqlite-worker-run-admission'
 
 /**
  * Queue changes whose outcome can report the Run they start. After any of them the queue delivers
@@ -43,10 +47,10 @@ function isDeliveringOperation(
 }
 
 /**
- * The capacity rule for the Run `state` is starting (`sqlite-worker-run-admission.ts`): only an
- * agent's Run in an agent-made Session can be refused. A Run the person's request starts, a Run
- * that acts for the person, and any Run in a root Session the person made are always admitted.
- * `requestCaller` is who sent the request that starts it; a Hive wake has none of its own.
+ * The capacity rule for the Run `state` is starting (`sqlite-worker-run-admission.ts`): only
+ * agents' work can be refused. A Run the person's request starts, and a Run that acts for the
+ * person, are always admitted. `requestCaller` is who sent the request that starts it; a Hive
+ * wake has none of its own, so its caller never reads as a request from the person.
  */
 export function newRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
@@ -139,12 +143,14 @@ export function deliverAfterQueueDecision(
         outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
-    const refusal = yield* newRunAdmissionRefusal(
-      sql,
-      delivery.state,
-      input.hostRunCeiling,
-      input.requestCaller,
-    )
+    const refusal = (yield* holdsPersonFollowUp(sql, delivery.state.followUpQueue.items))
+      ? undefined
+      : yield* newRunAdmissionRefusal(
+          sql,
+          delivery.state,
+          input.hostRunCeiling,
+          input.requestCaller,
+        )
     if (refusal) {
       const paused = pauseUndeliveredQueue(
         authorized,

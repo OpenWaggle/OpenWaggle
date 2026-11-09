@@ -41,7 +41,7 @@ export const NOTIFICATION_POLICY_LABELS: Readonly<Record<ScheduledTaskNotificati
 const RUN_REASON_LABELS: Readonly<Record<ScheduledTaskRunReason, string>> = {
   'session-busy': 'The Session was busy until the next fire time',
   'previous-run-active': 'The previous run was still active',
-  'host-capacity-reached': 'The Hive was at its Worker limit',
+  'host-capacity-reached': 'Agents were at their run limits',
   'pi-cli-wrote-last': 'The pi CLI wrote to this Session last',
   'creator-authority-revoked': 'The task’s creator no longer has access',
   'target-session-archived': 'The target Session is archived',

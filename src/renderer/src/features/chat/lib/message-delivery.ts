@@ -44,12 +44,20 @@ export class MessageNotDelivered extends Error {
   readonly outcome: 'refused' | 'cancelled'
   /** The Host's refusal code, when it gave one (`host_run_ceiling_reached`, ...). */
   readonly code: string | undefined
+  /** Already explained to the person where they are, so no notice repeats it. */
+  readonly explained: boolean
 
-  constructor(outcome: 'refused' | 'cancelled', message?: string, code?: string) {
+  constructor(
+    outcome: 'refused' | 'cancelled',
+    message?: string,
+    code?: string,
+    options: { readonly explained?: boolean } = {},
+  ) {
     super(message ?? DEFAULT_NOT_DELIVERED_MESSAGE)
     this.name = 'MessageNotDelivered'
     this.outcome = outcome
     this.code = code
+    this.explained = options.explained === true
   }
 }
 

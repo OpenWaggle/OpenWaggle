@@ -159,6 +159,31 @@ describe('Session image send failure ownership', () => {
     })
   })
 
+  it('says what a known code means, and adds no notice to a refusal already explained', () => {
+    expect(
+      disposition({
+        cause: new MessageNotDelivered(
+          'refused',
+          'queue_capacity_reached',
+          'queue_capacity_reached',
+        ),
+      }),
+    ).toEqual({
+      kind: 'restore',
+      notice:
+        'Not sent: this Session already has as many queued messages as it can hold. Your message is back in the composer.',
+    })
+    const explained = new MessageNotDelivered(
+      'refused',
+      'Branch source is unavailable.',
+      undefined,
+      {
+        explained: true,
+      },
+    )
+    expect(disposition({ cause: explained })).toEqual({ kind: 'restore' })
+  })
+
   it('says a code-less refusal’s own reason', () => {
     expect(
       disposition({ cause: new MessageNotDelivered('refused', 'Branch source is unavailable.') }),

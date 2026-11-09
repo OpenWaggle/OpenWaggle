@@ -20,7 +20,7 @@ import { releaseDeliveredSteerAttachments } from './session-control-attachment-r
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
-import { isPersonCaller } from './sqlite-worker-run-admission'
+import { holdsPersonFollowUp, isPersonCaller } from './sqlite-worker-run-admission'
 
 const QUEUE_REVISION_INCREMENT = 1
 
@@ -148,8 +148,8 @@ export function planRunSettlement(
 
 /**
  * Plans the settlement, deferring the next Run for the parent's Worker limit. A Follow-up the
- * person sent runs next whatever the limit (ADR 0030, amended 2026-11-09); anything else waits
- * for it as before.
+ * person sent runs next whatever the limit (ADR 0030, amended 2026-11-09), and so does one an
+ * agent queued ahead of the person's; anything else waits for it as before.
  */
 export function planRunSettlementWithinParentLimit(
   sql: SqlClient.SqlClient,
@@ -161,6 +161,9 @@ export function planRunSettlementWithinParentLimit(
     if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
     if (nextRun && (yield* isPersonCaller(sql, nextRun.intent))) return planned
+    if (nextRun && (yield* holdsPersonFollowUp(sql, planned.state.followUpQueue.items))) {
+      return planned
+    }
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
     return parentAdmission.admitted ? planned : planRunSettlement(state, input, true)
   })

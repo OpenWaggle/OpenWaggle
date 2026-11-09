@@ -18,9 +18,9 @@ let temporaryRoot = ''
 
 /**
  * `session-target` as a Worker at its parent's limit of one: its own Run ends while a sibling
- * still runs, with one Follow-up from `callerId` queued behind it.
+ * still runs, with a Follow-up from each of `callerIds` queued behind it, in order.
  */
-function workerEndingAtParentLimit(callerId: string) {
+function workerEndingAtParentLimit(...callerIds: readonly string[]) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* seedHive(sql, 1)
@@ -36,7 +36,7 @@ function workerEndingAtParentLimit(callerId: string) {
         authorization_ceiling, created_at, updated_at
       ) VALUES (
         ${'session-target'}, ${'{"modelId":"provider/model","thinkingLevel":"medium"}'},
-        ${callerId}, ${'ask-for-approval'}, ${1}, ${1}
+        ${'gui:local-user'}, ${'ask-for-approval'}, ${1}, ${1}
       )
     `
     yield* sql`
@@ -47,20 +47,23 @@ function workerEndingAtParentLimit(callerId: string) {
       UPDATE session_control_states SET active_run_id = ${'run-target'}, state_revision = ${1}
       WHERE session_id = ${'session-target'}
     `
-    const intent = {
-      text: 'Next, please.',
-      attachmentIds: [],
-      callerId,
-      acceptedAt: 1,
-      idempotencyKey: 'key-next',
+    for (const [position, callerId] of callerIds.entries()) {
+      const id = position === 0 ? 'next' : `next-${position}`
+      const intent = {
+        text: 'Next, please.',
+        attachmentIds: [],
+        callerId,
+        acceptedAt: position + 1,
+        idempotencyKey: `key-${id}`,
+      }
+      yield* sql`
+        INSERT INTO session_follow_ups (
+          id, session_id, position, delivery_state, intent_json, created_at, updated_at
+        ) VALUES (
+          ${id}, ${'session-target'}, ${position}, ${'pending'}, ${JSON.stringify(intent)}, ${1}, ${1}
+        )
+      `
     }
-    yield* sql`
-      INSERT INTO session_follow_ups (
-        id, session_id, position, delivery_state, intent_json, created_at, updated_at
-      ) VALUES (
-        ${'next'}, ${'session-target'}, ${0}, ${'pending'}, ${JSON.stringify(intent)}, ${1}, ${1}
-      )
-    `
     const lifecycle = yield* SessionControlRunLifecycleRepository
     const settled = yield* lifecycle.settle({
       sessionId: SessionId('session-target'),
@@ -104,6 +107,20 @@ describe('Worker Run admission when a Run settles', () => {
       state: 'paused',
       pauseReason: 'parent-limit',
       items: [{ id: 'next' }],
+    })
+  })
+
+  it('runs an agent’s Follow-up next when the person’s waits behind it at the parent’s limit', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-then-person.sqlite'))
+    const result = await Effect.runPromise(
+      workerEndingAtParentLimit(AGENT_CALLER, 'gui:local-user').pipe(Effect.provide(layer)),
+    )
+
+    // Holding the agent's head back would hold back the person's message behind it.
+    expect(result.after.run).toMatchObject({ state: 'starting', runId: 'run-after' })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'running',
+      items: [{ id: 'next-1' }],
     })
   })
 })

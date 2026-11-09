@@ -140,8 +140,8 @@ function forkTarget(
 
 /**
  * A launch starts a root Session's first Run. The person's launch is always admitted. An agent's
- * or a client profile's makes an agent-made Session, which the Active Workers ceiling counts, so
- * it waits for that ceiling like a spawn does (ADR 0030, amended 2026-11-09).
+ * or a client profile's starts agents' work, which the Active Workers ceiling counts, so it waits
+ * for that ceiling like a spawn does (ADR 0030, amended 2026-11-09).
  */
 function launchTarget(
   sql: SqlClient.SqlClient,
@@ -212,7 +212,7 @@ function spawnTarget(
           : { state: parentState.run.state, runId: parentState.run.runId },
       parentRunningChildren: runningChildRows[0]?.count ?? 0,
       parentConcurrencyLimit: input.parentConcurrencyLimit ?? DEFAULT_PARENT_CONCURRENCY_LIMIT,
-      // The Active Workers ceiling counts agent-made Sessions' Runs; the person's never use a slot.
+      // The Active Workers ceiling counts agents' work; the person's Runs never use a slot.
       hostActiveRuns: yield* countActiveWorkerRuns(sql),
       hostRunCeiling: input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING,
     })

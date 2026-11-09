@@ -74,25 +74,52 @@ describe('Worker Run admission', () => {
     expect(result.outcome).toMatchObject({ operation: 'follow-up', effect: 'started-run' })
   })
 
-  it('starts an agent’s Run in a root Session the person made, however busy the Hive', async () => {
+  it('refuses an agent’s Run in a root the person made when the Worker ceiling is full', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-person-root.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* seedHive(sql, 3)
         yield* seedFirstRun(sql, 'gui:local-user')
-        return yield* submitSessionMessage({
+        // Agents' work is limited wherever it runs: fanning out over the person's Sessions
+        // must not escape the ceiling.
+        const response = yield* submitSessionMessage({
           callerId: AGENT_CALLER,
           hostRunCeiling: 3,
           request: messageRequest('session-target', 'agent-person-root'),
         })
+        return { response, runs: yield* targetRunCount(sql) }
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(result.outcome).toMatchObject({ effect: 'started-run' })
+    expect(result.response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+    })
+    expect(result.runs).toBe(1)
   })
 
-  it('refuses an agent’s first Run in a root it made when the Worker ceiling is full', async () => {
+  it('starts an agent’s Run in a root the person made while a slot is free, and counts it', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-root-slot.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* seedHive(sql, 2)
+        yield* seedFirstRun(sql, 'gui:local-user')
+        const response = yield* submitSessionMessage({
+          callerId: AGENT_CALLER,
+          hostRunCeiling: 3,
+          request: messageRequest('session-target', 'agent-root-slot'),
+        })
+        return { response, activeWorkerRuns: yield* countActiveWorkerRuns(sql) }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.response.outcome).toMatchObject({ effect: 'started-run' })
+    expect(result.activeWorkerRuns).toBe(3)
+  })
+
+  it('refuses an agent’s first Run in a root it created when the Worker ceiling is full', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-made-root.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -116,7 +143,7 @@ describe('Worker Run admission', () => {
     expect(result.runs).toBe(0)
   })
 
-  it('counts an agent-made root’s active Run toward the Worker ceiling', async () => {
+  it('counts an agent’s active Run in a root toward the Worker ceiling', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-root-count.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -157,7 +184,7 @@ describe('Worker Run admission', () => {
     expect(result.runs).toBe(0)
   })
 
-  it('does not count root Sessions’ Runs toward the Worker ceiling', async () => {
+  it('does not count the person’s Runs toward the Worker ceiling', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'roots-free.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {

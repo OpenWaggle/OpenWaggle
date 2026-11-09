@@ -13,6 +13,17 @@ import {
 export const PI_SESSION_FILE_REFUSAL_NOTICE =
   'Not sent: this Session cannot be continued. Your message is back in the composer.'
 
+/** What the codes a person can still meet mean, for a refusal that came with no words. */
+const REFUSAL_REASONS: Readonly<Record<string, string>> = {
+  queue_capacity_reached: 'this Session already has as many queued messages as it can hold.',
+  queue_byte_capacity_reached: 'this Session’s queued messages are already as large as allowed.',
+  follow_up_edit_held: 'a queued message is being edited.',
+  follow_up_reserved: 'a steered message is still being delivered.',
+  run_already_active: 'a Run started in this Session first.',
+  capability_denied: 'this client may not send messages to this Session.',
+  target_not_found: 'this Session no longer exists.',
+}
+
 /**
  * The toast for any other send the Session Host refused. Without it the message came back to the
  * composer with no word of why, which read as the app ignoring the person.
@@ -22,6 +33,8 @@ export function refusedSendNotice(refusal: MessageNotDelivered) {
     refusal.message !== DEFAULT_NOT_DELIVERED_MESSAGE && refusal.message !== refusal.code
   // The Host's own words when it wrote some, as for a Waggle it could not start; else its code.
   if (readable) return `Not sent: ${refusal.message} Your message is back in the composer.`
+  const reason = refusal.code ? REFUSAL_REASONS[refusal.code] : undefined
+  if (reason) return `Not sent: ${reason} Your message is back in the composer.`
   if (refusal.code) {
     return `Not sent: the Session Host refused it (${refusal.code}). Your message is back in the composer.`
   }
@@ -30,7 +43,9 @@ export function refusedSendNotice(refusal: MessageNotDelivered) {
 
 function refusalOf(cause: unknown) {
   const refusal = cause instanceof FirstSendFailed ? cause.cause : cause
-  return refusal instanceof MessageNotDelivered && refusal.outcome === 'refused'
+  return refusal instanceof MessageNotDelivered &&
+    refusal.outcome === 'refused' &&
+    !refusal.explained
     ? refusal
     : undefined
 }

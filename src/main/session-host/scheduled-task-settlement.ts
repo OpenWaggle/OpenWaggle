@@ -44,7 +44,7 @@ function refusalSettlement(code: string, kind: 'heartbeat' | 'launch') {
     code === 'host_capacity_reached' ||
     code === 'parent_concurrency_limit_reached'
   ) {
-    return skipped('host-capacity-reached', 'The Hive was running as many Workers as it may.')
+    return skipped('host-capacity-reached', 'Agents were running as many runs as they may.')
   }
   if (code.includes('model')) {
     return failed(

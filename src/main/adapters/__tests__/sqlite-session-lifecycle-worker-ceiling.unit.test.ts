@@ -200,7 +200,40 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    const effects = responses.map((response) => response.outcome.effect).sort()
-    expect(effects).toEqual(['rejected', 'spawned-worker'])
+    const outcomes = responses.map((response) => response.outcome)
+    expect(outcomes.filter((outcome) => outcome.effect === 'spawned-worker')).toHaveLength(1)
+    expect(outcomes.filter((outcome) => outcome.effect === 'rejected')).toMatchObject([
+      { code: 'host_capacity_reached' },
+    ])
+  })
+
+  it('admits only one of two concurrent agent launches into the last Worker slot', async () => {
+    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'launch-race.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionLifecycleRepository
+        const agent = 'transient-mcp:digest-agent'
+        const first = { ...rootLifecycleInput('launch'), callerId: agent, hostRunCeiling: 1 }
+        const second = { ...secondLaunch(first), callerId: agent, hostRunCeiling: 1 }
+        const responses = yield* Effect.all(
+          [repository.execute(first), repository.execute(second)],
+          {
+            concurrency: 'unbounded',
+          },
+        )
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM sessions
+          WHERE id IN (${'session-launch'}, ${'session-launch-second'})
+        `
+        return { outcomes: responses.map((response) => response.outcome), sessions: rows[0]?.count }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.outcomes.filter((outcome) => outcome.effect === 'launched-root')).toHaveLength(1)
+    expect(result.outcomes.filter((outcome) => outcome.effect === 'rejected')).toMatchObject([
+      { code: 'host_run_ceiling_reached' },
+    ])
+    expect(result.sessions).toBe(1)
   })
 })
