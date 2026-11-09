@@ -757,15 +757,18 @@ else
   # re-run keeps the installed app's channel, and a first install saves the default.
   CHANNEL="${REQUESTED_CHANNEL}"
   DEFAULT_CHANNEL_REASON=""
-  if [ -z "${CHANNEL}" ] && [ -n "${INSTALLED_CLI_VERSION}" ]; then
+  if [ -z "${CHANNEL}" ]; then
+    # Asks only an installed version that can answer, so a first install asks nothing.
     installed_update_channel "${PLATFORM}" "${INSTALLED_EXECUTABLE}" "${INSTALLED_CLI_VERSION}"
     CHANNEL="${INSTALLED_CHANNEL}"
     if [ -n "${CHANNEL}" ]; then
       KEEP_INSTALLED_CHANNEL="1"
     elif installed_reports_update_channel "${INSTALLED_EXECUTABLE}" "${INSTALLED_CLI_VERSION}"; then
       DEFAULT_CHANNEL_REASON="Could not read the update channel of the installed OpenWaggle"
-    elif [ -x "${INSTALLED_EXECUTABLE}" ]; then
+    elif [ -x "${INSTALLED_EXECUTABLE}" ] && [ -n "${INSTALLED_CLI_VERSION}" ]; then
       DEFAULT_CHANNEL_REASON="OpenWaggle ${INSTALLED_CLI_VERSION} cannot report its update channel"
+    elif [ -x "${INSTALLED_EXECUTABLE}" ]; then
+      DEFAULT_CHANNEL_REASON="OpenWaggle is installed, but its version is unknown"
     fi
   fi
   info "Fetching release metadata…"

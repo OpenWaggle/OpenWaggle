@@ -140,6 +140,22 @@ describe('quick installer update channel on a re-run', () => {
     )
   })
 
+  it('says it saves the default channel over an install of unknown version', async () => {
+    await harness.publish(['v1.0.0-rc.2'])
+    await harness.installLinuxApp(INSTALLED_VERSION)
+    await fs.rm(path.join(harness.appDirectory(), 'version'))
+    await harness.reportSavedChannel('alpha')
+
+    const result = await harness.runInstaller({})
+
+    expect(result.exitCode).toBe(0)
+    expect(await harness.calls()).not.toContain('appimage update --check --json')
+    expect(result.stdout).toContain(
+      'OpenWaggle is installed, but its version is unknown, so the installer will save the default channel, beta.',
+    )
+    await expect(harness.savedChannelIntent()).resolves.toBe('beta\n')
+  })
+
   it('saves the default channel when the installed app cannot report one', async () => {
     await harness.publish(['v1.0.0-rc.2'])
     await harness.installLinuxApp(INSTALLED_VERSION)
