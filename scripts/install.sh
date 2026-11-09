@@ -535,23 +535,24 @@ DOWNGRADE_REFUSED_EXIT_CODE=2
 MAC_APP_BUNDLE_NAME="OpenWaggle.app"
 
 # The version of the macOS app at a bundle path, or nothing when none is installed there.
+# PlistBuddy reports a missing file on stdout, so it is only asked about a file that exists.
 mac_app_version() {
+  [ -f "$1/Contents/Info.plist" ] || return 0
   /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist" \
     2>/dev/null || true
 }
 
-# The version of the AppImage in an install directory, the newer of the version file a previous
-# install wrote beside it and the AppImage's own desktop entry. An update from the app or from
-# `openwaggle update` replaces the AppImage in place and leaves the file behind, and an AppImage
-# from before the file has only its desktop entry.
-installed_appimage_version() {
-  local app_dir="$1" recorded embedded
-  recorded="$(cat "${app_dir}/version" 2>/dev/null || true)"
-  embedded="$(appimage_version "${app_dir}/OpenWaggle.AppImage")"
-  if [ -n "${embedded}" ] && { [ -z "${recorded}" ] || release_is_newer "${embedded}" "${recorded}"; }; then
-    printf '%s\n' "${embedded}"
+# The newer of two versions, either of which may be empty or unknown. On Linux the downgrade guard
+# compares with the newer of the version file a previous install wrote beside the AppImage and the
+# AppImage's own desktop entry: an update from the app or from `openwaggle update` replaces the
+# AppImage in place and leaves the file behind, and an AppImage from before the file has only its
+# desktop entry.
+newer_release_version() {
+  local first="$1" second="$2"
+  if [ -n "${first}" ] && { [ -z "${second}" ] || release_is_newer "${first}" "${second}"; }; then
+    printf '%s\n' "${first}"
   else
-    printf '%s\n' "${recorded}"
+    printf '%s\n' "${second}"
   fi
 }
 
@@ -569,13 +570,14 @@ downgrade_refusal() {
   fi
 }
 
-# Exits before anything is quit, stopped or replaced when the target would be a downgrade.
+# Exits before anything is quit, stopped or replaced when the target would be a downgrade. A third
+# argument, when given, says how to pick another release.
 refuse_downgrade() {
   local refusal
   refusal="$(downgrade_refusal "$1" "$2")"
   [ -n "${refusal}" ] || return 0
   restore_installed_app
-  printf '\033[1;31merror:\033[0m %s OpenWaggle was not changed.\n' "${refusal}" >&2
+  printf '\033[1;31merror:\033[0m %s OpenWaggle was not changed.%s\n' "${refusal}" "${3:+ $3}" >&2
   exit "${DOWNGRADE_REFUSED_EXIT_CODE}"
 }
 # END TESTABLE DOWNGRADE GUARD
@@ -607,16 +609,19 @@ stop_channel_read() {
   kill -KILL "${pid}" 2>/dev/null || true
 }
 
-# Prints the update channel the installed app has saved, or nothing when it cannot tell: nothing is
-# installed, its version is unknown or too old to report it, or the Session Host cannot read it in
-# time. `--check` only reads, so asking never changes the channel. The saved channel is in the
-# response, or in the error envelope when only the release check failed. The output goes to a file,
-# not a pipe, so a CLI that is still running at the deadline cannot keep the installer waiting.
+# Sets INSTALLED_CHANNEL to the update channel the installed app has saved, or to nothing when it
+# cannot tell: nothing is installed, the version of its executable is unknown or too old to report
+# it, or the Session Host cannot read it in time. `--check` only reads, so asking never changes the
+# channel. The saved channel is in the response, or in the error envelope when only the release
+# check failed. The output goes to a file, not a pipe, so a CLI that is still running at the
+# deadline cannot keep the installer waiting. It runs in the installer's own shell, not in a
+# command substitution, so its traps see every signal the installer gets.
 installed_update_channel() {
-  local platform="$1" executable="$2" version="$3" output pid waited
+  local platform="$1" executable="$2" version="$3" output pid waited finished=""
+  INSTALLED_CHANNEL=""
   installed_reports_update_channel "${executable}" "${version}" || return 0
   output="$(mktemp "${TMPDIR:-/tmp}/openwaggle-channel.XXXXXX")" || return 0
-  info "Reading the update channel of the installed OpenWaggle…" >&2
+  info "Reading the update channel of the installed OpenWaggle…"
   # As run_installed_cli: stdin closed, and the AppImage's CLI output on descriptor 3.
   if [ "${platform}" = "linux" ]; then
     env OPENWAGGLE_CLI_OUTPUT_FD=3 "${executable}" update --check --json \
@@ -629,13 +634,15 @@ installed_update_channel() {
   trap 'stop_channel_read "${pid}"; rm -f "${output}"; exit 130' INT
   trap 'stop_channel_read "${pid}"; rm -f "${output}"; exit 143' TERM
   for ((waited = 0; waited < INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS; waited++)); do
-    kill -0 "${pid}" 2>/dev/null || break
+    if ! kill -0 "${pid}" 2>/dev/null; then finished="1"; break; fi
     sleep 1
   done
-  stop_channel_read "${pid}"
+  # Only a CLI that is still ours: once it exited, its pid may belong to another process.
+  [ -n "${finished}" ] || stop_channel_read "${pid}"
   wait "${pid}" 2>/dev/null || true
   trap - INT TERM
-  sed -En 's/.*"savedChannel":[[:space:]]*"(stable|beta|alpha)".*/\1/p' "${output}" | head -1
+  INSTALLED_CHANNEL="$(sed -En 's/.*"savedChannel":[[:space:]]*"(stable|beta|alpha)".*/\1/p' \
+    "${output}" | head -1)"
   rm -f "${output}"
 }
 # END TESTABLE INSTALLED UPDATE CHANNEL
@@ -709,15 +716,24 @@ case "${ARCH}" in
 esac
 
 # --- Find the installed app ---
+# INSTALLED_VERSION is what the downgrade guard compares with. INSTALLED_CLI_VERSION is the version
+# of the executable itself, which decides whether it may be run.
 if [ "${PLATFORM}" = "mac" ]; then
   APPLICATIONS_DIR="${OPENWAGGLE_APPLICATIONS_DIR:-/Applications}"
   INSTALLED_EXECUTABLE="${APPLICATIONS_DIR}/${MAC_APP_BUNDLE_NAME}/Contents/MacOS/OpenWaggle"
   INSTALLED_VERSION="$(mac_app_version "${APPLICATIONS_DIR}/${MAC_APP_BUNDLE_NAME}")"
+  INSTALLED_CLI_VERSION="${INSTALLED_VERSION}"
 else
   APP_DIR="${HOME}/.local/lib/openwaggle"
   INSTALLED_EXECUTABLE="${APP_DIR}/OpenWaggle.AppImage"
-  INSTALLED_VERSION="$(installed_appimage_version "${APP_DIR}")"
+  RECORDED_APPIMAGE_VERSION="$(cat "${APP_DIR}/version" 2>/dev/null || true)"
+  EMBEDDED_APPIMAGE_VERSION="$(appimage_version "${INSTALLED_EXECUTABLE}")"
+  INSTALLED_VERSION="$(newer_release_version \
+    "${EMBEDDED_APPIMAGE_VERSION}" "${RECORDED_APPIMAGE_VERSION}")"
+  INSTALLED_CLI_VERSION="${EMBEDDED_APPIMAGE_VERSION:-${RECORDED_APPIMAGE_VERSION}}"
 fi
+# Set when the target comes from a channel, to say how to pick another one if it is a downgrade.
+DOWNGRADE_HINT=""
 
 # --- Resolve and fetch release info ---
 if [ -n "${RELEASE_API_URL}" ]; then
@@ -741,14 +757,15 @@ else
   # re-run keeps the installed app's channel, and a first install saves the default.
   CHANNEL="${REQUESTED_CHANNEL}"
   DEFAULT_CHANNEL_REASON=""
-  if [ -z "${CHANNEL}" ] && [ -n "${INSTALLED_VERSION}" ]; then
-    CHANNEL="$(installed_update_channel "${PLATFORM}" "${INSTALLED_EXECUTABLE}" "${INSTALLED_VERSION}")"
+  if [ -z "${CHANNEL}" ] && [ -n "${INSTALLED_CLI_VERSION}" ]; then
+    installed_update_channel "${PLATFORM}" "${INSTALLED_EXECUTABLE}" "${INSTALLED_CLI_VERSION}"
+    CHANNEL="${INSTALLED_CHANNEL}"
     if [ -n "${CHANNEL}" ]; then
       KEEP_INSTALLED_CHANNEL="1"
-    elif installed_reports_update_channel "${INSTALLED_EXECUTABLE}" "${INSTALLED_VERSION}"; then
+    elif installed_reports_update_channel "${INSTALLED_EXECUTABLE}" "${INSTALLED_CLI_VERSION}"; then
       DEFAULT_CHANNEL_REASON="Could not read the update channel of the installed OpenWaggle"
     elif [ -x "${INSTALLED_EXECUTABLE}" ]; then
-      DEFAULT_CHANNEL_REASON="OpenWaggle ${INSTALLED_VERSION} cannot report its update channel"
+      DEFAULT_CHANNEL_REASON="OpenWaggle ${INSTALLED_CLI_VERSION} cannot report its update channel"
     fi
   fi
   info "Fetching release metadata…"
@@ -771,6 +788,7 @@ else
   else
     info "Update channel: ${CHANNEL}"
   fi
+  DOWNGRADE_HINT="It is ahead of the ${CHANNEL} channel; set OPENWAGGLE_CHANNEL or OPENWAGGLE_RELEASE_TAG to install another release."
   RELEASE_JSON="$(curl_with_retry -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
     error "Failed to fetch release ${RELEASE_TAG}."
 fi
@@ -779,7 +797,7 @@ VERSION="$(printf '%s' "${RELEASE_JSON}" | grep '"tag_name"' | head -1 | sed 's/
 info "Resolved version: ${VERSION}"
 
 # --- Refuse a downgrade, before the download ---
-refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}"
+refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}" "${DOWNGRADE_HINT}"
 
 # --- Determine asset name ---
 if [ "${PLATFORM}" = "mac" ]; then
@@ -834,7 +852,7 @@ if [ "${PLATFORM}" = "mac" ]; then
   INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
   # The image decides the bundle name, so check the app it really replaces before quitting it.
   INSTALLED_VERSION="$(mac_app_version "${INSTALLED_APP_PATH}")"
-  refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}"
+  refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}" "${DOWNGRADE_HINT}"
   # Quit the window first: stopping the Host under an open app would only make it start another.
   quit_running_mac_app "${INSTALLED_APP_PATH}"
   stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle" \

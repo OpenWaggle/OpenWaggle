@@ -34,6 +34,9 @@ describe('quick installer update channel on a re-run', () => {
 
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain('OpenWaggle v1.0.0-rc.1 is older than the installed 1.0.0-rc.2.')
+    expect(result.stderr).toContain(
+      'OpenWaggle was not changed. It is ahead of the beta channel; set OPENWAGGLE_CHANNEL or OPENWAGGLE_RELEASE_TAG to install another release.',
+    )
     await expect(harness.installedVersion()).resolves.toBe('1.0.0-rc.2')
     await expect(harness.savedChannelIntent()).resolves.toBeNull()
   })
@@ -68,6 +71,21 @@ describe('quick installer update channel on a re-run', () => {
     // rc.2 can report its channel, so it was asked rather than treated as 1.0.0-beta.37.
     expect(await harness.calls()).toContain('appimage update --check --json')
     await expect(harness.savedChannelIntent()).resolves.toBeNull()
+  })
+
+  it('does not run an AppImage older than its version file', async () => {
+    // Someone put a 1.0.0-beta.37 AppImage back by hand; only the version file says 1.0.0-rc.1.
+    await harness.publish(['v1.0.0-rc.2'])
+    await harness.installLinuxApp(INSTALLED_VERSION)
+    await fs.writeFile(path.join(harness.directory(), 'embedded-version'), '1.0.0-beta.37\n')
+    await harness.reportSavedChannel('alpha')
+
+    const result = await harness.runInstaller({})
+
+    expect(result.exitCode).toBe(0)
+    expect(await harness.calls()).not.toContain('appimage update --check --json')
+    expect(result.stdout).toContain('OpenWaggle 1.0.0-beta.37 cannot report its update channel')
+    await expect(harness.installedVersion()).resolves.toBe('1.0.0-rc.2')
   })
 
   it('uses and saves OPENWAGGLE_CHANNEL without asking the installed app', async () => {

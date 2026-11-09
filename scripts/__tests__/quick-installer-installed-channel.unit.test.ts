@@ -65,7 +65,7 @@ function checkResponse(savedChannel: string) {
   )}\n`
 }
 
-/** The installer sections `installed_update_channel` needs, then a call to it with "$@". */
+/** The installer sections `installed_update_channel` needs, then a call to it with "$@" that prints its result. */
 async function channelReadScript(timeoutSeconds?: number) {
   const source = await fs.readFile('scripts/install.sh', 'utf8')
   const sections = SECTIONS.map(([startMarker, endMarker]) => {
@@ -79,7 +79,8 @@ info() { :; }
 error() { exit 1; }
 ${sections}
 ${timeoutSeconds === undefined ? '' : `INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS=${timeoutSeconds}`}
-installed_update_channel "$@"`
+installed_update_channel "$@"
+printf '%s\\n' "\${INSTALLED_CHANNEL}"`
 }
 
 async function installedChannel(

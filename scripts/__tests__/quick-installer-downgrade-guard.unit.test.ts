@@ -96,11 +96,62 @@ printf 'installed\\n'`
     expect(result.stderr).toContain('OpenWaggle was not changed.')
   })
 
+  it('says how to pick another release when it was given a hint', async () => {
+    const script = `set -euo pipefail
+${await guardSource()}
+restore_installed_app() { :; }
+refuse_downgrade "$1" "$2" "$3"`
+    const result = await execFileAsync('bash', [
+      '-c',
+      script,
+      'installer-downgrade-hint-test',
+      '1.0.1-beta.1',
+      'v1.0.0',
+      'It is ahead of the stable channel.',
+    ]).catch((error: { stderr: string; code: number }) => error)
+
+    expect(result.stderr).toContain('OpenWaggle was not changed. It is ahead of the stable channel.\n')
+  })
+
+  it('takes the newer of two versions, either of which may be missing', async () => {
+    const script = `set -euo pipefail
+${await guardSource()}
+while [ "$#" -gt 0 ]; do
+  printf '%s\\n' "$(newer_release_version "$1" "$2")"
+  shift 2
+done`
+    const pairs = [
+      ['1.0.0-rc.2', '1.0.0-rc.1'],
+      ['1.0.0-rc.1', '1.0.0-rc.2'],
+      ['', '1.0.0-rc.1'],
+      ['1.0.0-rc.1', ''],
+    ]
+    const result = await execFileAsync('bash', ['-c', script, 'installer-newer-test', ...pairs.flat()])
+
+    expect(result.stdout.split('\n').slice(0, pairs.length)).toEqual([
+      '1.0.0-rc.2',
+      '1.0.0-rc.2',
+      '1.0.0-rc.1',
+      '1.0.0-rc.1',
+    ])
+  })
+
+  // PlistBuddy prints "File Doesn't Exist, Will Create: …" on stdout for a missing Info.plist.
+  it('reports no macOS version for a bundle without an Info.plist', async () => {
+    const script = `set -euo pipefail
+${await guardSource()}
+printf '[%s]' "$(mac_app_version "$1")"`
+    const result = await execFileAsync('bash', ['-c', script, 'installer-mac-version-test', '/nonexistent/OpenWaggle.app'])
+
+    expect(result.stdout).toBe('[]')
+  })
+
   it('checks before the download, and on macOS before the app is quit or its Host stopped', async () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
-    const early = source.indexOf('refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}"\n')
+    const call = 'refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}" "${DOWNGRADE_HINT}"\n'
+    const early = source.indexOf(call)
     const download = source.indexOf('info "Downloading ${FILENAME}…"')
-    const macCheck = source.indexOf('  refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}"\n')
+    const macCheck = source.indexOf(`  ${call}`)
     const quit = source.indexOf('  quit_running_mac_app "${INSTALLED_APP_PATH}"\n')
     const stops = [...source.matchAll(/^ {2}stop_session_host_for_update /gmu)].map(
       (match) => match.index,
