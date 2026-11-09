@@ -209,8 +209,8 @@ that channel, and writes no channel intent. The check reads the channel from the
 so it may start the installed version's Host; the script stops waiting after 60 seconds, and Ctrl-C
 stops the check too. A kept channel with no release yet (Stable before `1.0.0`) reports up to date
 and exits 0 without changes. A fresh install, an installed version up to `1.0.0-beta.37` (which has
-no `--json` check), or a failed or timed-out read uses the default channel and saves it, and for an
-existing install the script says so. A saved channel is a one-time Session Host intent, the selected
+no `--json` check), an installed version the script cannot read, or a failed or timed-out read uses
+the default channel and saves it, and for an existing install the script says so. A saved channel is a one-time Session Host intent, the selected
 policy channel rather than one inferred from the downloaded artifact's version. With no Stable
 release yet the default is Beta, so an install during Beta or RC never saves Alpha.
 `OPENWAGGLE_RELEASE_TAG` is a one-time install that never reads or changes the channel. A channel

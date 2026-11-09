@@ -73,7 +73,7 @@ When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH,
 
 Run the same command again to update. The script asks the installed OpenWaggle which update channel it uses and installs the newest release on that channel, so a re-run keeps your channel and doesn't save a new one. Asking may start the installed version's Session Host, which the script stops anyway before it replaces the app. Set `OPENWAGGLE_CHANNEL` to switch channel.
 
-Versions up to `1.0.0-beta.37` can't report their channel. If you have one of those, or the installed app doesn't answer within 60 seconds, the script says so, uses the first-install default and saves it. To stay on another channel, such as Alpha, set `OPENWAGGLE_CHANNEL` that one time. If your channel has no release yet, as Stable before `1.0.0`, the script says OpenWaggle is up to date and changes nothing.
+Versions up to `1.0.0-beta.37` can't report their channel. If you have one of those, if the script can't tell which version is installed, or if the installed app doesn't answer within 60 seconds, the script says so, uses the first-install default and saves it. To stay on another channel, such as Alpha, set `OPENWAGGLE_CHANNEL` that one time. If your channel has no release yet, as Stable before `1.0.0`, the script says OpenWaggle is up to date and changes nothing.
 
 The script never installs a version older than the one you have, because an older version may not be able to open data a newer one has already updated. If the newest release on the channel is older, it stops with status 2 before it downloads anything, and the installed app keeps running. The version you already have reinstalls.
 

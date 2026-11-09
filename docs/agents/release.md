@@ -27,7 +27,8 @@ persisted channel. `openwaggle update --version` refuses a version older than th
   additive top-level `savedChannel`.
 - `install.sh` changes the saved channel only with `OPENWAGGLE_CHANNEL`. A re-run without it reads
   the installed app's `savedChannel`, installs from that channel, and writes no intent; a fresh
-  install, an installed version up to `1.0.0-beta.37`, or a failed read saves the default.
+  install, an installed version up to `1.0.0-beta.37`, an unknown installed version, or a failed
+  read saves the default.
 - With no Stable release yet, `install.sh` defaults to Beta, never Alpha, and a Stable check reports
   "up to date", not an error.
 - A release counts only once it has the platform's channel metadata asset (for example
