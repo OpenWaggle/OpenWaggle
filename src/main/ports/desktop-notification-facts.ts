@@ -47,8 +47,9 @@ export interface DesktopNotificationHiveActivity {
    */
   readonly wakeComing: boolean
   /**
-   * The Run asked about started while a Worker below the root was running: the person asked about
-   * work in progress. False when no Run was named.
+   * The message behind the Run asked about was sent while a Worker below the root was running:
+   * the person asked about work in progress. It is judged by when the Host accepted the message,
+   * so a queued Follow-up counts from when it was sent. False when no Run was named.
    */
   readonly runStartedWhileWorkersRan: boolean
 }

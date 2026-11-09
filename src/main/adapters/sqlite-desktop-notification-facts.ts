@@ -92,8 +92,8 @@ function selectHiveActivity(sql: SqlClient.SqlClient, rootSessionId: string, run
       workers(session_id) AS (
         SELECT session_id FROM subtree WHERE session_id <> ${rootSessionId}
       ),
-      asked(created_at) AS (
-        SELECT created_at FROM session_runs
+      asked(asked_at) AS (
+        SELECT COALESCE(json_extract(intent_json, '$.acceptedAt'), created_at) FROM session_runs
         WHERE id = ${askedRunId} AND session_id = ${rootSessionId}
       )
       SELECT
@@ -107,10 +107,10 @@ function selectHiveActivity(sql: SqlClient.SqlClient, rootSessionId: string, run
         ) AS workers_running,
         EXISTS (
           SELECT 1 FROM session_runs JOIN workers USING (session_id) JOIN asked
-          WHERE session_runs.created_at <= asked.created_at
+          WHERE session_runs.created_at <= asked.asked_at
             AND (
               session_runs.status IN ${running}
-              OR session_runs.updated_at > asked.created_at
+              OR session_runs.updated_at > asked.asked_at
             )
         ) AS run_started_while_workers_ran,
         (

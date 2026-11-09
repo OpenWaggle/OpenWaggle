@@ -27,9 +27,14 @@ function insertRun(
     readonly createdAt: number
     readonly updatedAt: number
     readonly hiveWake?: true
+    readonly acceptedAt?: number
   },
 ) {
-  const intent = { callerId: 'local-user', ...(input.hiveWake ? { hiveWake: true } : {}) }
+  const intent = {
+    callerId: 'local-user',
+    ...(input.hiveWake ? { hiveWake: true } : {}),
+    ...(input.acceptedAt === undefined ? {} : { acceptedAt: input.acceptedAt }),
+  }
   return sql`
     INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
     VALUES (${input.id}, ${input.sessionId}, ${input.status}, ${JSON.stringify(intent)},
@@ -146,6 +151,27 @@ describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 006
       // The Worker ran when the question started, though it has ended since.
       done: { ...idle, runStartedWhileWorkersRan: true },
     })
+  })
+
+  it('judges a queued Follow-up by when the person sent it, not when its Run started', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const notifications = yield* facts
+        yield* settleParentRun(sql)
+        // Sent at 1000, before the Worker existed (2000); delivered once the Worker ran.
+        yield* insertRun(sql, {
+          id: 'run-follow-up',
+          sessionId: PARENT,
+          status: 'completed',
+          createdAt: 2500,
+          updatedAt: 2600,
+          acceptedAt: 1000,
+        })
+        return yield* notifications.hiveActivity(PARENT, 'run-follow-up')
+      }),
+    )
+    expect(result).toMatchObject({ workersRunning: true, runStartedWhileWorkersRan: false })
   })
 
   it('sees a Hive wake still coming until a wake Run ends its claim', async () => {
