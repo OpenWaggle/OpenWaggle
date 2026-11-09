@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
@@ -24,14 +25,14 @@ export function readDelegation(
     if (result.status === 'not-found') {
       return sessionQueryResponse(request, {
         operation: 'delegations-read',
-        error: { code: 'delegation_not_found', message: 'Delegation not found.' },
+        error: { ...sessionHostRefusal('delegation_not_found'), message: 'Delegation not found.' },
       })
     }
     if (result.status === 'record-too-large') {
       return sessionQueryResponse(request, {
         operation: 'delegations-read',
         error: {
-          code: 'record_too_large',
+          ...sessionHostRefusal('record_too_large'),
           message: 'A Delegation history record exceeds the maximum response size.',
         },
       })

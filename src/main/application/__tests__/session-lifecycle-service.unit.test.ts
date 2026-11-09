@@ -70,6 +70,7 @@ describe('Session lifecycle service', () => {
         operation: 'spawn' as const,
         effect: 'rejected' as const,
         code: 'host_lost',
+        kind: 'host_unavailable' as const,
         retryable: true,
       },
     }
@@ -176,6 +177,7 @@ describe('Session lifecycle service', () => {
               operation: 'spawn',
               effect: 'rejected',
               code: 'parent_capacity_reached',
+              kind: 'conflict',
               retryable: true,
               parentConcurrencyLimit: 4,
               parentRunningChildren: 4,

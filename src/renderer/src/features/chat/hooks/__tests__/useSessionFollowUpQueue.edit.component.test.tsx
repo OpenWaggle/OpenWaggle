@@ -185,6 +185,7 @@ describe('useSessionFollowUpQueue Follow-up edits', () => {
       effect: 'rejected',
       sessionId: SESSION_ID,
       code: 'follow_up_edit_not_held',
+      kind: 'conflict',
     })
     const failure = await result.current
       .saveEdit(edit, { text: 'Edited', attachments: [] })

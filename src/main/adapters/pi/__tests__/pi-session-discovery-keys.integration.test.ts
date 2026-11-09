@@ -83,7 +83,11 @@ describe("Pi session discovery's lifecycle keys", () => {
 
     const outcome = await externalCreate('pi-session-discovery:chosen-by-hand')
 
-    expect(outcome).toMatchObject({ effect: 'rejected', code: 'reserved_idempotency_key' })
+    expect(outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'reserved_idempotency_key',
+      kind: 'usage',
+    })
     expect(await sessionIds()).toEqual([])
   })
 

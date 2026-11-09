@@ -122,7 +122,9 @@ describe('SQLite existing Workspace handoff', () => {
     })
     expect(result.raced).toMatchObject({
       status: 'completed',
-      response: { outcome: { effect: 'rejected', code: 'workspace_unavailable' } },
+      response: {
+        outcome: { effect: 'rejected', code: 'workspace_unavailable', kind: 'conflict' },
+      },
     })
   })
 
@@ -174,6 +176,7 @@ describe('SQLite existing Workspace handoff', () => {
     expect(result.response.outcome).toMatchObject({
       effect: 'rejected',
       code: 'workspace_target_transfer_failed',
+      kind: 'internal',
     })
     expect(result.row).toEqual({
       workspace_id: 'workspace-local',

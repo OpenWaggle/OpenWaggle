@@ -53,6 +53,8 @@ describe('CLI contract output (#351)', () => {
     expect(
       (['conflict', 'timeout', 'host_unavailable', 'internal'] as const).map(cliExitCodeForKind),
     ).toEqual([6, 7, 8, 1])
+    // A watch whose cursor lost its place in the event stream (ADR 0063).
+    expect(cliExitCodeForKind('resync_required')).toBe(9)
     expect(new CliError('conflict', 'x').kind).toBe('conflict')
   })
 
@@ -110,7 +112,7 @@ describe('CLI contract output (#351)', () => {
 
   it('shows an idle Session with a queue that is not paused for what it is', () => {
     const text = sessionsCliResponseText(
-      'status',
+      'hive status',
       {
         contract: 'session-query-v2',
         response: {

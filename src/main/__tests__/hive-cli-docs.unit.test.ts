@@ -13,13 +13,21 @@ describe('Hive CLI documentation contract', () => {
     const documentation = await readFile(documentationPath, 'utf8')
 
     expect(documentation).toContain(
-      '{"schemaVersion":1,"type":"response","command":"list","result":',
+      '{"schemaVersion":1,"type":"response","command":"hive list","result":',
     )
     expect(documentation).toContain('{"schemaVersion":1,"type":"record","record":{"kind":"cursor"')
     expect(documentation).toContain(
       '{"schemaVersion":1,"type":"error","error":{"kind":"authorization","message":',
     )
     expect(documentation).toContain("line.type === 'record' && line.record.kind === 'cursor'")
+    // The watch record kinds, and what 1.0 does not cover (ADR 0063).
+    expect(documentation).toContain('{"schemaVersion":1,"type":"record","record":{"kind":"event"')
+    expect(documentation).toContain(
+      '{"schemaVersion":1,"type":"record","record":{"kind":"resync-required"',
+    )
+    expect(documentation).toContain(
+      'The body of `session-transport` and `session-waggle-transport` events is not covered.',
+    )
     expect(documentation).toContain('persistCheckpoint(line.record.cursor)')
     expect(documentation).toContain(
       'When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error.',

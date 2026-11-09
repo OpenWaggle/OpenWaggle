@@ -266,6 +266,7 @@ describe('SQLite Session transcript queries', () => {
       operation: 'items',
       error: {
         code: 'record_too_large',
+        kind: 'conflict',
         message: 'A transcript item exceeds the maximum Session query response size.',
       },
     })

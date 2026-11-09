@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import { mcpLocalRefusal, mcpQueryErrorRefusal } from './openwaggle-mcp-refusal-message'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
 
@@ -127,9 +128,17 @@ function projectPathFromReadResult(read: unknown) {
   return session.projectPath
 }
 
+/**
+ * Whether the scope check's read found the Session. Only `session_not_found` means it is missing;
+ * any other refusal of the read is the answer, with its own code and kind (ADR 0063).
+ */
 function readFoundSession(read: unknown) {
   const outcome = resultOutcome(read)
-  return !(typeof outcome === 'object' && outcome !== null && 'error' in outcome)
+  if (typeof outcome !== 'object' || outcome === null || !('error' in outcome)) return true
+  const error = outcome.error
+  if (typeof error !== 'object' || error === null) return false
+  if (Reflect.get(error, 'code') === 'session_not_found') return false
+  throw mcpQueryErrorRefusal(error)
 }
 
 /** Whether a Session is in the server's scope, outside it, or unknown to the caller. */
@@ -201,12 +210,13 @@ export async function prepareMcpSessionTargetScope(
   for (const sessionId of Array.isArray(targets) ? targets : targets ? [targets] : []) {
     const scope = await sessionScopeOf(options, execute, sessionId)
     if (scope === 'allowed') continue
-    // The same codes the Session Host answers with, first in the message (#351).
-    throw new Error(
-      scope === 'missing'
-        ? `session_not_found: Session ${JSON.stringify(sessionId)} was not found.`
-        : `target_scope_denied: Session ${JSON.stringify(sessionId)} is outside this server's --workspace and --session scope.`,
-    )
+    // The same codes and kinds the Session Host answers with, first in the message (#351).
+    throw scope === 'missing'
+      ? mcpLocalRefusal('session_not_found', `Session ${JSON.stringify(sessionId)} was not found.`)
+      : mcpLocalRefusal(
+          'target_scope_denied',
+          `Session ${JSON.stringify(sessionId)} is outside this server's --workspace and --session scope.`,
+        )
   }
   return payload
 }

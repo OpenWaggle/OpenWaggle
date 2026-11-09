@@ -129,6 +129,7 @@ describe('SQLite settlement of a displaced Run with Undelivered steering message
                 effect: 'rejected',
                 sessionId: 'session-target',
                 code: 'run_not_live',
+                kind: 'conflict',
               })}
             WHERE idempotency_key = ${'pending-promotion'}
           `),

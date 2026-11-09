@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -70,5 +71,55 @@ describe('SQLite Session Control journal outcomes derived from the final state',
 
     expect(result.recorded).toMatchObject({ stateRevision: 42 })
     expect(result.replayed).toEqual(result.recorded)
+  })
+
+  it('completes again a refusal recorded before refusal kinds existed', async () => {
+    const layer = SqliteSessionControlOperationJournalLive.pipe(
+      Layer.provideMerge(
+        makeSessionControlRunLifecycleTestLayer(path.join(temporaryRoot, 'journal.sqlite')),
+      ),
+    )
+    const rejected = {
+      operation: 'interrupt',
+      effect: 'rejected',
+      sessionId: 'session-target',
+      ...sessionHostRefusal('run_not_active'),
+    } as const
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const journal = yield* SessionControlOperationJournal
+        yield* journal.claim({
+          callerId: 'local-user',
+          request,
+          decide: () => ({ accepted: true }),
+        })
+        yield* journal.complete({ callerId: 'local-user', request, outcome: rejected })
+        // The outcome as a beta Host stored it, before refusals named their kind.
+        const sql = yield* SqlClient.SqlClient
+        const { kind: _kind, ...beta } = rejected
+        yield* sql`UPDATE session_operations SET outcome_json = ${JSON.stringify(beta)}`
+        const replayed = yield* journal.complete({
+          callerId: 'local-user',
+          request,
+          outcome: rejected,
+        })
+        const different = yield* Effect.flip(
+          journal.complete({
+            callerId: 'local-user',
+            request,
+            outcome: { ...rejected, ...sessionHostRefusal('run_changed') },
+          }),
+        )
+        yield* sql`UPDATE session_operations SET outcome_json = ${'{not json'}`
+        const malformed = yield* Effect.flip(
+          journal.complete({ callerId: 'local-user', request, outcome: rejected }),
+        )
+        return { replayed, different, malformed }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.replayed).toEqual(rejected)
+    expect(result.different).toMatchObject({ operation: 'operation-outcome-conflict' })
+    expect(result.malformed).toMatchObject({ operation: 'operation-outcome-conflict' })
   })
 })

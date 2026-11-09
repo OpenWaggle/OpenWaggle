@@ -108,6 +108,7 @@ describe('SQLite Session derived-only report authorization', () => {
       operation: 'report',
       effect: 'rejected',
       code: 'target_not_authorized',
+      kind: 'authorization',
     })
     expect(result.reportsCount).toBe(0)
     expect(result.deliveriesCount).toBe(0)

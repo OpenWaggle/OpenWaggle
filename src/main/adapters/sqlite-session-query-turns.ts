@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import {
@@ -29,7 +30,7 @@ export function readTurns(sql: SqlClient.SqlClient, request: TurnsRequest) {
     if (sessions[0]?.found !== 1) {
       return sessionQueryResponse(request, {
         operation: 'turns',
-        error: { code: 'session_not_found', message: 'Session not found.' },
+        error: { ...sessionHostRefusal('session_not_found'), message: 'Session not found.' },
       })
     }
     const rows = yield* sql<{

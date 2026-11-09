@@ -1,3 +1,7 @@
+import {
+  type SessionHostErrorKind,
+  sessionHostErrorKindForThrownCode,
+} from '@shared/domain/session-host-refusals'
 import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
 import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
@@ -5,6 +9,7 @@ import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
 import { isAdmittedWhileDraining } from './local-session-drain-admission'
+import { localSessionErrorFrameCode } from './local-session-error-frame'
 import type { LocalSessionCursorResolution } from './local-session-event-cursor-projection'
 import {
   disconnectLocalSessionProfile,
@@ -42,15 +47,27 @@ async function settleInvalidationResponse(response: Promise<void>) {
   return outcome
 }
 
-function commandFailure(error: unknown) {
+/**
+ * The code and kind of a thrown failure (ADR 0063). The kind is always the refusal table's for
+ * the code, and a code it does not list is `internal`.
+ */
+function commandFailure(error: unknown): {
+  readonly code: string
+  readonly errorKind: SessionHostErrorKind
+  readonly retryable: boolean
+} {
   const failure = Runtime.isFiberFailure(error)
     ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
     : error
   if (typeof failure !== 'object' || failure === null) {
-    return { code: 'command_failed', retryable: false }
+    return { ...localSessionErrorFrameCode('command_failed'), retryable: false }
   }
+  const code =
+    'code' in failure && typeof failure.code === 'string' ? failure.code : 'command_failed'
+  // The kind is the table's for the code, never one the failure claims (ADR 0063).
   return {
-    code: 'code' in failure && typeof failure.code === 'string' ? failure.code : 'command_failed',
+    code,
+    errorKind: sessionHostErrorKindForThrownCode(code),
     retryable: 'retryable' in failure && failure.retryable === true,
   }
 }
@@ -79,7 +96,7 @@ export async function executeLocalSessionCommandFrame(input: {
     await input.send({
       kind: 'error',
       requestId: input.frame.requestId,
-      code: 'host_draining',
+      ...localSessionErrorFrameCode('host_draining'),
       message: describeLocalSessionServerError(error),
       retryable: true,
     })
@@ -115,6 +132,7 @@ export async function executeLocalSessionCommandFrame(input: {
         kind: 'error',
         requestId: input.frame.requestId,
         code: failure.code,
+        errorKind: failure.errorKind,
         message: sessionCommandFailureMessage(error),
         retryable: failure.retryable,
       })

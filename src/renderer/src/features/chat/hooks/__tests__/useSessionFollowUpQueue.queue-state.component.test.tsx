@@ -106,7 +106,7 @@ describe('useSessionFollowUpQueue queue state', () => {
   })
 
   it('rejects a pause with a stale revision but still re-reads the queue', async () => {
-    answer(() => ({ effect: 'rejected', code: 'queue_revision_changed' }))
+    answer(() => ({ effect: 'rejected', code: 'queue_revision_changed', kind: 'conflict' }))
     const { result } = await renderQueue()
 
     await act(async () => {
@@ -186,7 +186,7 @@ describe('useSessionFollowUpQueue queue state', () => {
   })
 
   it('re-reads the queue after a refused adoption', async () => {
-    answer(() => ({ effect: 'rejected', code: 'queue_revision_changed' }))
+    answer(() => ({ effect: 'rejected', code: 'queue_revision_changed', kind: 'conflict' }))
     const { result } = await renderQueue()
 
     await act(async () => {

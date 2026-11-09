@@ -74,7 +74,7 @@ describe('openwaggle mcp registry', () => {
     expect(JSON.parse(result.logs)).toEqual({
       schemaVersion: 1,
       type: 'response',
-      command: 'mcp registry',
+      command: 'mcp registry get',
       result: WEATHER,
     })
   })

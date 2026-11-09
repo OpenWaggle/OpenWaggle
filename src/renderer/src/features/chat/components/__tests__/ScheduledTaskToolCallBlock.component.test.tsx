@@ -173,6 +173,7 @@ describe('Scheduled task hive-tool rows', () => {
       scheduledResult('tc-1', {
         effect: 'rejected',
         code: 'invalid_schedule',
+        kind: 'usage',
         message: 'A Heartbeat fires at most every 5 minutes.',
       }),
     )

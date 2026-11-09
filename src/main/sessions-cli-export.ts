@@ -6,6 +6,7 @@ import { sessionExportMarkdownHeading } from '@shared/utils/session-export-markd
 import { writeCliStdout } from './cli-stdout'
 import type { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, type ParsedArguments } from './mcp-cli-arguments'
+import { pageQueryRefusal } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { FULL_TRANSCRIPT_PAGE_LIMIT } from './sessions-cli-payload'
 
@@ -23,11 +24,7 @@ function exportPage(value: unknown) {
   }
   const outcome = value.response.outcome
   if (!isRecord(outcome)) return undefined
-  if ('error' in outcome && isRecord(outcome.error)) {
-    throw new Error(
-      `${String(outcome.error.code ?? 'query_failed')}: ${String(outcome.error.message ?? 'Query failed.')}`,
-    )
-  }
+  if ('error' in outcome && isRecord(outcome.error)) throw pageQueryRefusal(outcome.error)
   if (!('manifest' in outcome) || !Array.isArray(outcome.records)) return undefined
   return {
     manifest: outcome.manifest,

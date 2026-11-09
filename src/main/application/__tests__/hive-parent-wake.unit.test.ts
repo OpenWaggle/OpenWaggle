@@ -64,6 +64,7 @@ function harness(input: {
                 effect: 'rejected' as const,
                 sessionId: QUEEN,
                 code: input.rejectWith,
+                kind: 'conflict' as const,
               },
             }
           }

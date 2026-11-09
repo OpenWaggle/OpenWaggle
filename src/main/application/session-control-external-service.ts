@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { RunId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type {
@@ -138,7 +139,7 @@ export function interruptSessionRun(input: InterruptSessionRunInput) {
                 operation: 'interrupt',
                 effect: 'rejected',
                 sessionId: state.sessionId,
-                code: result.code,
+                ...sessionHostRefusal(result.code),
               },
             }
       },
@@ -176,7 +177,7 @@ export function interruptSessionRun(input: InterruptSessionRunInput) {
           operation: 'interrupt',
           effect: 'rejected',
           sessionId: input.request.command.sessionId,
-          code: interruption.code,
+          ...sessionHostRefusal(interruption.code),
         }
     yield* journal.complete({
       callerId: input.callerId,

@@ -46,6 +46,7 @@ describe('Session Control promotion recorded outcome', () => {
           effect: 'rejected',
           sessionId: 'session-target',
           code: 'host_lost',
+          kind: 'host_unavailable',
         } as const),
     })
 
@@ -67,7 +68,11 @@ describe('Session Control promotion recorded outcome', () => {
     )
 
     expect(setup.steer).toHaveBeenCalledOnce()
-    expect(response.outcome).toMatchObject({ effect: 'rejected', code: 'host_lost' })
+    expect(response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'host_lost',
+      kind: 'host_unavailable',
+    })
     expect(setup.release).not.toHaveBeenCalled()
   })
 })

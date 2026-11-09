@@ -10,6 +10,7 @@ import type {
 } from '@shared/types/scheduled-task'
 import { writeCliStdout } from './cli-stdout'
 import { cliWallClockTime } from './cli-wall-clock-time'
+import type { CliEnvelopeCommand } from './sessions-cli-output'
 
 const JSON_INDENT_SPACES = 2
 export const SCHEDULES_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
@@ -189,23 +190,51 @@ export function exportedTasks(response: ScheduledTasksResponse) {
   }))
 }
 
+/**
+ * What `openwaggle schedules export` prints, `--json` or not (ADR 0063). `import` reads this
+ * envelope and the bare task array that betas before 1.0 printed. `import` decodes it exactly,
+ * so any change to its shape, even an added field, must raise the schema version: an older
+ * `import` then refuses the file with an "update OpenWaggle" message instead of a decode error.
+ */
+export const SCHEDULED_TASKS_EXPORT_SCHEMA_VERSION = 1 as const
+export const SCHEDULED_TASKS_EXPORT_TYPE = 'scheduled-tasks' as const
+
+export function scheduledTasksExport(responses: readonly ScheduledTasksResponse[]) {
+  return {
+    schemaVersion: SCHEDULED_TASKS_EXPORT_SCHEMA_VERSION,
+    type: SCHEDULED_TASKS_EXPORT_TYPE,
+    tasks: responses.flatMap(exportedTasks),
+  }
+}
+
+/**
+ * The `--json` envelope's `result`: `import` sends one create per task, so its result is always
+ * the array of responses, also for a file with one task or none. Every other command sends one.
+ */
+function schedulesCliJsonResult(command: string, responses: readonly ScheduledTasksResponse[]) {
+  return command === 'import' ? responses : responses[0]
+}
+
 export function writeSchedulesCliResponses(
   command: string,
   responses: readonly ScheduledTasksResponse[],
   json: boolean,
   runsTimeZone?: string,
 ) {
-  if (command === 'export') {
-    const exported = responses.flatMap(exportedTasks)
-    return writeCliStdout(`${JSON.stringify(exported, null, JSON_INDENT_SPACES)}\n`)
+  // A refused list prints the refusal, never an empty export a script would save as a backup.
+  const refused = responses.some((response) => response.outcome.effect === 'rejected')
+  if (command === 'export' && !refused) {
+    return writeCliStdout(
+      `${JSON.stringify(scheduledTasksExport(responses), null, JSON_INDENT_SPACES)}\n`,
+    )
   }
   const output = json
     ? JSON.stringify(
         {
           schemaVersion: SCHEDULES_CLI_OUTPUT_SCHEMA_VERSION,
           type: 'response',
-          command,
-          result: responses.length === 1 ? responses[0] : responses,
+          command: `schedules ${command}` satisfies CliEnvelopeCommand,
+          result: schedulesCliJsonResult(command, responses),
         },
         null,
         JSON_INDENT_SPACES,

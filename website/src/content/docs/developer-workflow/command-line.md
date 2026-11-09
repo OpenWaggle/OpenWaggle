@@ -118,7 +118,7 @@ Give the prompt as words after `run` or with one of `--text`, `--stdin` or `--in
 
 ### Output
 
-The agent's reply streams to stdout, so you can pipe it. Progress lines, tool calls, and questions go to stderr. With `--jsonl`, stdout gets the session's events instead, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
+The agent's reply streams to stdout, so you can pipe it. Progress lines, tool calls, and questions go to stderr. With `--jsonl`, stdout gets the session's events instead, each as an `event` record like [`hive watch`](/docs/developer-workflow/hive-cli#wait-and-watch) prints, ending with a `run-settled` record that carries the exit status and, when there is one, the reason.
 
 Text the agent controls, such as tool arguments and approval messages, can contain characters that change what a terminal shows. `run` prints control characters, text-direction overrides, and invisible characters (zero-width spaces, byte-order marks, variation selectors, tag characters, line separators) as escapes such as `\x1b` or `\u202e`. That way they cannot rewrite, reorder, or hide part of the line you are about to approve. Emoji, including joined sequences and subdivision flags, print normally. The reply on stdout gets the same treatment when stdout is a terminal. `run` leaves it untouched when you pipe it.
 

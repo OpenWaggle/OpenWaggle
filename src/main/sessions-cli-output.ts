@@ -1,3 +1,4 @@
+import { sessionHostErrorKindForThrownCode } from '@shared/domain/session-host-refusals'
 import { CliError, type CliErrorKind } from './cli-error'
 import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './cli-output-schema'
 import { writeCliStdout } from './cli-stdout'
@@ -63,12 +64,30 @@ function humanOutcome(value: unknown) {
   return [title, ...details].join('\n')
 }
 
-export function writeSessionsCliResponse(command: string, value: unknown, json: boolean) {
+/** The `openwaggle` command groups that print the `--json` response envelope. */
+type CliEnvelopeGroup = 'hive' | 'schedules' | 'host' | 'access' | 'agents' | 'mcp' | 'recovery'
+
+/**
+ * A `--json` envelope's `command`: the command path after `openwaggle`, space-separated, such as
+ * `hive list`, `host stop` or `access profiles list` (ADR 0063). The type rejects a bare
+ * subcommand, which is what `hive` and `schedules` printed before 1.0.
+ */
+export type CliEnvelopeCommand = 'status' | `${CliEnvelopeGroup} ${string}`
+
+export function writeSessionsCliResponse(
+  command: CliEnvelopeCommand,
+  value: unknown,
+  json: boolean,
+) {
   return writeCliStdout(sessionsCliResponseText(command, value, json))
 }
 
 /** The text `writeSessionsCliResponse` writes, for commands with their own stdout writer. */
-export function sessionsCliResponseText(command: string, value: unknown, json: boolean) {
+export function sessionsCliResponseText(
+  command: CliEnvelopeCommand,
+  value: unknown,
+  json: boolean,
+) {
   const output = json
     ? JSON.stringify(
         {
@@ -95,43 +114,6 @@ export function writeSessionsCliStreamRecord(record: unknown, jsonl: boolean) {
 
 export type SessionsCliErrorKind = CliErrorKind
 
-const KIND_OF_CODE: ReadonlyMap<string, SessionsCliErrorKind> = new Map([
-  ['authentication_failed', 'authentication'],
-  ['credential_rejected', 'authentication'],
-  ['profile_revoked', 'authentication'],
-  // The caller's own profile was deleted: a credential problem, like a revoked one.
-  ['profile_not_found', 'authentication'],
-  // Too many failed attempts: retry later, with the same credential.
-  ['authentication_throttled', 'authentication'],
-  ['host_draining', 'host_unavailable'],
-  // A Session whose Pi file cannot be used is refused until the file is back or a message
-  // starts a new transcript.
-  ['pi_session_file_unusable', 'conflict'],
-  // A worktree Session whose worktree is gone is refused until it is recreated.
-  ['session_worktree_missing', 'conflict'],
-])
-
-export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind | undefined {
-  const normalized = code.toLowerCase()
-  const exact = KIND_OF_CODE.get(normalized)
-  if (exact) return exact
-  if (normalized.includes('not_found') || normalized.includes('missing')) return 'not_found'
-  if (
-    normalized.includes('authoriz') ||
-    normalized.includes('capability') ||
-    normalized.includes('denied') ||
-    normalized.includes('target_scope')
-  ) {
-    return 'authorization'
-  }
-  if (normalized.includes('timeout')) return 'timeout'
-  if (normalized.includes('host_stopped') || normalized.includes('host_lost')) {
-    return 'host_unavailable'
-  }
-  if (normalized.endsWith('_failed')) return 'internal'
-  return undefined
-}
-
 /** A socket that could not reach the Session Host endpoint: a Node error from `connect`. */
 function isHostConnectionError(error: unknown) {
   return (
@@ -148,8 +130,11 @@ function isHostConnectionError(error: unknown) {
  */
 export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
   if (error instanceof CliError) return error.kind
+  // The Session Host names the kind of a failure it reports (ADR 0063). A frame without one,
+  // such as a handshake refusal from a Session Host older than revision 32, takes its code's
+  // kind from the same table; an unlisted code is an unexpected failure.
   if (error instanceof LocalSessionClientProtocolError) {
-    return sessionsCliErrorKindForCode(error.code) ?? 'internal'
+    return error.errorKind ?? sessionHostErrorKindForThrownCode(error.code)
   }
   if (error instanceof LocalSessionClientTimeoutError) return 'timeout'
   if (

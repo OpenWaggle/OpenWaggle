@@ -1,3 +1,4 @@
+import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentLoopInteraction } from './agent-loop-interaction'
 import type { HiveNextActor } from './hive-next-actor'
 import type { DelegationState } from './session-collaboration'
@@ -299,6 +300,7 @@ export type SessionQueryOutcome =
           | 'record_too_large'
           | 'resync_required'
           | 'host_stopped'
+        readonly kind: SessionHostErrorKind // From the Session Host's refusal table (ADR 0063).
         readonly message: string
       }
     }

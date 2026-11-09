@@ -125,7 +125,7 @@ describe('Hive CLI structured failure exit status', () => {
         requestId: 'request-read',
         outcome: {
           operation: 'read',
-          error: { code: 'session_not_found', message: 'Session not found.' },
+          error: { code: 'session_not_found', kind: 'not_found', message: 'Session not found.' },
         },
       },
     })
@@ -150,6 +150,7 @@ describe('Hive CLI structured failure exit status', () => {
           effect: 'rejected',
           sessionId: 'session-1',
           code: 'run_changed',
+          kind: 'conflict',
         },
       },
     })
@@ -178,6 +179,7 @@ describe('Hive CLI structured failure exit status', () => {
           operation: 'spawn',
           effect: 'rejected',
           code: 'capability_denied',
+          kind: 'authorization',
           retryable: false,
         },
       },
@@ -202,6 +204,7 @@ describe('Hive CLI structured failure exit status', () => {
           kind: 'error',
           requestId: 'request-list',
           code: 'capability_denied',
+          errorKind: 'authorization',
           message: 'An error has occurred',
         },
         'request-list',
@@ -229,6 +232,16 @@ describe('Hive CLI structured failure exit status', () => {
     mocks.watchEvents.mockImplementationOnce(async (input) => {
       await input.onCursor({ hostInstanceId: 'host-1', sequence: 4 })
       await input.onEvent({
+        cursor: { hostInstanceId: 'host-1', sequence: 6 },
+        timestamp: 6,
+        payload: {
+          kind: 'session-state-changed',
+          sessionId: 'session-target',
+          stateRevision: 2,
+          operation: 'message',
+        },
+      })
+      await input.onEvent({
         cursor: { hostInstanceId: 'host-1', sequence: 5 },
         timestamp: 5,
         payload: {
@@ -245,16 +258,28 @@ describe('Hive CLI structured failure exit status', () => {
       }
     })
 
-    await expect(runSessionsCli(['watch', 'session-target', '--jsonl'])).resolves.toBe(1)
+    // A resync exits with its own code, 9 (ADR 0063).
+    await expect(runSessionsCli(['watch', 'session-target', '--jsonl'])).resolves.toBe(9)
 
     const records = vi
       .mocked(process.stdout.write)
       .mock.calls.map(([value]) => JSON.parse(String(value)).record)
     expect(records).toEqual([
       { kind: 'cursor', cursor: { hostInstanceId: 'host-1', sequence: 4 } },
+      {
+        kind: 'event',
+        cursor: { hostInstanceId: 'host-1', sequence: 6 },
+        timestamp: 6,
+        event: {
+          kind: 'session-state-changed',
+          sessionId: 'session-target',
+          stateRevision: 2,
+          operation: 'message',
+        },
+      },
       { kind: 'cursor', cursor: { hostInstanceId: 'host-1', sequence: 5 } },
       {
-        status: 'resync-required',
+        kind: 'resync-required',
         reason: 'cursor-expired',
         cursor: { hostInstanceId: 'host-1', sequence: 8 },
       },
@@ -273,7 +298,7 @@ describe('Hive CLI structured failure exit status', () => {
 
     await expect(
       runSessionsCli(['exports-watch', 'session-1', 'export-1', '--jsonl']),
-    ).resolves.toBe(1)
+    ).resolves.toBe(9)
 
     const records = vi
       .mocked(process.stdout.write)
@@ -281,7 +306,7 @@ describe('Hive CLI structured failure exit status', () => {
     expect(records).toEqual([
       { kind: 'cursor', cursor: { hostInstanceId: 'host-export', sequence: 2 } },
       {
-        status: 'resync-required',
+        kind: 'resync-required',
         reason: 'host-restarted',
         cursor: { hostInstanceId: 'host-export-new', sequence: 0 },
       },
