@@ -79,7 +79,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 
 - Four kinds notify. Needs you is for a session that waits for your approval or your answer, Workers included, and for a stuck Worker. The other three are Ready to read, Failed or interrupted, and Agent errors. They notify only for a top-level session's run that you or a Scheduled task started. A run you stopped never notifies.
 - The Session Host sends them, so they keep coming with every window closed. Clicking one opens OpenWaggle on that session.
-- A session has at most one notification. Opening the session clears it, except Needs you, which stays until the request is answered or the Worker is no longer stuck. Archiving the session clears it too.
+- A session has at most one notification. Opening the session clears it, except Needs you, which stays until you answer the request or the Worker is no longer stuck. Archiving the session clears it too.
 - Settings > Notifications turns each kind on or off, picks its sound, and sets what happens while OpenWaggle is focused. Show badge counts the sessions with a notification on the Dock icon, or shows a red dot on Windows. Show previews is off by default, so message text stays off your lock screen.
 - Mute a session or a project from its menu in the sidebar. A muted session still notifies when it needs you.
 - macOS asks whether OpenWaggle may show notifications the first time you start a run.
@@ -88,7 +88,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 
 - The new Hive panel on the right lists every Worker of a Hive at any depth, each under the session that created it. Turn on By next actor to group them into Needs you, a Waiting for group for each parent, Working and Closed. The sidebar no longer lists Workers unless you pin them or search for them.
 - When a Worker submits its result or asks for help after its parent has finished its turn, OpenWaggle starts a new run on the parent. A Queen that said it would report back when its Workers finish now does. The run starts with a Hive · Worker updates arrived line instead of a message from you. A parent whose last run you stopped waits until you send it something.
-- An agent that can create Workers is told the names and descriptions of its project's enabled Agent definitions, and is asked to use one when it fits a Worker's job. In the Hive panel, a Worker created from a definition shows an agent icon and a line such as `reviewer · High · <model>`, and the toolbar counts Workers per definition.
+- OpenWaggle gives an agent that can create Workers the names and descriptions of its project's enabled Agent definitions, and asks it to use one when it fits a Worker's job. In the Hive panel, a Worker created from a definition shows an agent icon and a line such as `reviewer · High · <model>`, and the toolbar counts Workers per definition.
 - The `agent_definitions_list` and `agent_definitions_search` actions of the agent's `hive` tool read another project's definitions when the agent passes `projectPath`. Before, they ignored it and listed the caller's own project. Reading another project needs `sessions:create` and `sessions:discover`, so Workers can't.
 - The agent's `hive` tool can search archived sessions with `includeArchived`, as `openwaggle hive search --include-archived` does. Archived sessions stay out of a search unless you ask for them.
 - An agent in a top-level session you started from the app can now find, read, message, steer, interrupt, archive and start sessions in your other OpenWaggle projects. Workers, and runs started by a project-scoped CLI profile or MCP client, stay in their own project.
@@ -105,7 +105,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 - Every Heartbeat needs a way to finish: a "Stop when…" outcome, an end date, a run limit, or Runs indefinitely. Heartbeats you created during the Beta run indefinitely and say they have no end.
 - A Heartbeat can run a cheap Wake check command before each firing. When it finds nothing to do, the firing is recorded as skipped and no agent turn or model call happens. A Heartbeat pauses itself when its Run says it is done, or after 3 idle runs in a row, and tells you once, with Resume. It can also use its own, cheaper model for its Runs.
 - Manage tasks from a terminal with `openwaggle schedules`.
-- A task an agent set up runs as the task's owner, which is you or the CLI access profile it belongs to, within what that agent could do when it created the task. Archiving or deleting the agent's session no longer stops a Launch schedule, or a Heartbeat in another session. A Heartbeat in the agent's own session still pauses when you archive that session and is deleted with it. When the agent could do less than the owner, the task says it runs with limited access, until the owner changes its prompt, what it runs, its stop condition or its Wake check.
+- A task an agent set up runs as the task's owner, which is you or the CLI access profile it belongs to, within what that agent could do when it created the task. Archiving or deleting the agent's session no longer stops a Launch schedule, or a Heartbeat in another session. A Heartbeat in the agent's own session still pauses when you archive that session. Deleting that session deletes the Heartbeat. When the agent could do less than the owner, the task says it runs with limited access, until the owner changes its prompt, what it runs, its stop condition or its Wake check.
 
 ### Right panel and workspace
 
@@ -143,6 +143,7 @@ No `openwaggle hive` or `openwaggle access` flag takes inline JSON any more. The
 
 - The new Usage & Cost view shows token use and spending across the Pi sessions on this machine, broken down by day, model and project. Open it from the chart button beside Settings at the bottom of the sidebar. When a session file has no recorded cost for a reply, the view estimates it from the prices in Pi's model catalog.
 - Settings > Archived items can search titles and transcripts, filter by project, date and type, and restore many items at once, with Undo.
+- The Browser, Shortcuts and Appearance tabs in Settings use the full width of the window, like the other tabs.
 
 ### Command line
 
