@@ -23,6 +23,12 @@ const PROMOTION_IGNORED_PATH_PATTERNS = [
   /^\.agents\//u,
   /^[^/]+\.md$/u,
 ]
+/**
+ * Files that match an ignored pattern but ship inside the app (`extraResources` in
+ * electron-builder.ts), so a change to them blocks promotion like any other app change.
+ */
+const PROMOTION_APP_CONTENT_PATHS: ReadonlySet<string> = new Set(['THIRD_PARTY_NOTICES.md'])
+const STABLE_VERSION_PATTERN = /^\d+\.\d+\.\d+$/u
 const MAJOR_RELEASE_PATTERN = /^\d+\.0\.0$/u
 
 const pullRequestSchema = Schema.Struct({
@@ -39,6 +45,10 @@ const pullRequestSchema = Schema.Struct({
   url: Schema.String,
 })
 const pullRequestListJsonSchema = Schema.parseJson(Schema.Array(pullRequestSchema))
+/** One line of `gh api --paginate repos/<repo>/releases --jq '.[] | {tag_name, draft}'`. */
+const gitHubReleaseLineSchema = Schema.parseJson(
+  Schema.Struct({ tag_name: Schema.String, draft: Schema.Boolean }),
+)
 const manifestJsonSchema = Schema.parseJson(
   Schema.Record({ key: Schema.String, value: Schema.Unknown }),
 )
@@ -84,7 +94,7 @@ function manifestWithoutVersion(manifestJson: string) {
  * prerelease or no release candidate exists for it.
  */
 export function latestReleaseCandidateTag(tags: readonly string[], targetVersion: string) {
-  if (!/^\d+\.\d+\.\d+$/u.test(targetVersion)) return null
+  if (!STABLE_VERSION_PATTERN.test(targetVersion)) return null
   let selected: { readonly tag: string; readonly sequence: number } | null = null
   for (const tag of tags) {
     const groups = RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups
@@ -93,6 +103,30 @@ export function latestReleaseCandidateTag(tags: readonly string[], targetVersion
     if (!selected || sequence > selected.sequence) selected = { tag, sequence }
   }
   return selected?.tag ?? null
+}
+
+/**
+ * Tags of the published (non-draft) GitHub releases in `gh api` JSON Lines output. A release tag
+ * can exist without a release: the workflow pushes the tag before the builds run, and
+ * `v1.0.0-beta.33` through `beta.35` never published because their macOS builds were cancelled.
+ * Fails closed on unreadable input or an empty list, because an empty list would let a minor or
+ * patch skip the guard.
+ */
+export function publishedReleaseTags(gitHubReleaseLines: string) {
+  const releases = gitHubReleaseLines
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => Schema.decodeUnknownSync(gitHubReleaseLineSchema)(line))
+  if (releases.length === 0) {
+    throw new Error('The GitHub release list is empty; the promotion guard cannot run without it.')
+  }
+  return releases.filter((release) => !release.draft).map((release) => release.tag_name)
+}
+
+/** Whether a change to this path can never reach a desktop app artifact. */
+export function isPromotionIgnoredPath(changedPath: string) {
+  if (PROMOTION_APP_CONTENT_PATHS.has(changedPath)) return false
+  return PROMOTION_IGNORED_PATH_PATTERNS.some((pattern) => pattern.test(changedPath))
 }
 
 /**
@@ -105,7 +139,7 @@ export function promotionGuardViolations(input: {
   readonly candidateManifestJson: string
 }) {
   return input.changedPaths.filter((changedPath) => {
-    if (PROMOTION_IGNORED_PATH_PATTERNS.some((pattern) => pattern.test(changedPath))) return false
+    if (isPromotionIgnoredPath(changedPath)) return false
     if (changedPath !== ROOT_MANIFEST_PATH) return true
     return (
       manifestWithoutVersion(input.releaseCandidateManifestJson) !==
@@ -118,17 +152,37 @@ function git(args: readonly string[]) {
   return execFileSync('git', args, { encoding: 'utf8' })
 }
 
-function verifyPromotion(targetVersion: string, candidateRef: string) {
-  const tags = git(['tag', '--list', `v${targetVersion}-rc.*`]).split('\n').filter(Boolean)
-  const releaseCandidateTag = latestReleaseCandidateTag(tags, targetVersion)
+function verifyPromotion(targetVersion: string, candidateRef: string, releasesPath: string | undefined) {
+  if (!STABLE_VERSION_PATTERN.test(targetVersion)) {
+    process.stdout.write(`${targetVersion} is a prerelease; the promotion guard applies to Stable only.\n`)
+    return
+  }
+  if (!releasesPath) {
+    throw new Error(`Stable ${targetVersion} needs --releases with the GitHub release list.`)
+  }
+  // The last RC users actually received is the newest one with a published GitHub release, not
+  // the newest tag: a tag whose builds failed never shipped.
+  const publishedTags = publishedReleaseTags(fs.readFileSync(releasesPath, 'utf8'))
+  const releaseCandidateTag = latestReleaseCandidateTag(publishedTags, targetVersion)
+  const unpublishedTags = git(['tag', '--list', `v${targetVersion}-rc.*`])
+    .split('\n')
+    .filter((tag) => tag !== '' && !publishedTags.includes(tag))
+  if (unpublishedTags.length > 0) {
+    process.stdout.write(`Ignoring release candidate tags without a published release: ${unpublishedTags.join(', ')}.\n`)
+  }
   if (!releaseCandidateTag) {
     // A new major version always ships through a release candidate; later minors and patches may
     // release straight to Stable (docs/release-and-versioning.md, "After 1.0.0").
     if (requiresReleaseCandidate(targetVersion)) {
-      throw new Error(`Stable ${targetVersion} needs a validated ${targetVersion}-rc.N release first.`)
+      throw new Error(`Stable ${targetVersion} needs a published ${targetVersion}-rc.N release first.`)
     }
-    process.stdout.write(`No release candidate precedes ${targetVersion}; promotion guard skipped.\n`)
+    process.stdout.write(`No published release candidate precedes ${targetVersion}; promotion guard skipped.\n`)
     return
+  }
+  try {
+    git(['rev-parse', '--verify', '--quiet', `refs/tags/${releaseCandidateTag}^{commit}`])
+  } catch {
+    throw new Error(`Published release candidate ${releaseCandidateTag} has no tag in this checkout.`)
   }
   // --no-renames lists both sides of a move, so moving app code into an ignored path still counts.
   const changedPaths = git(['diff', '--name-only', '--no-renames', releaseCandidateTag, candidateRef])
@@ -141,11 +195,11 @@ function verifyPromotion(targetVersion: string, candidateRef: string) {
   })
   if (violations.length > 0) {
     throw new Error(
-      `Stable ${targetVersion} must match ${releaseCandidateTag} apart from its version and non-app paths. ` +
+      `Stable ${targetVersion} must match ${releaseCandidateTag}, the last published release candidate, apart from its version and non-app paths. ` +
         `Revert these changes or release them as the next release candidate:\n${violations.join('\n')}`,
     )
   }
-  process.stdout.write(`Stable ${targetVersion} matches ${releaseCandidateTag}.\n`)
+  process.stdout.write(`Stable ${targetVersion} matches ${releaseCandidateTag}, the last published release candidate.\n`)
 }
 
 export function releaseSubjectVersion(subject: string) {
@@ -181,9 +235,13 @@ export function assertForwardAppVersionTransition(current: string, target: strin
   throw new Error(`Release target ${target} does not advance ${current}.`)
 }
 
-function argument(name: string) {
+function optionalArgument(name: string) {
   const index = process.argv.indexOf(name)
-  const value = index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
+  return index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
+}
+
+function argument(name: string) {
+  const value = optionalArgument(name)
   if (!value) {
     throw new Error(`Missing required argument ${name}.`)
   }
@@ -233,7 +291,7 @@ async function runCli() {
   }
 
   if (command === 'verify-promotion') {
-    verifyPromotion(argument('--target'), argument('--candidate'))
+    verifyPromotion(argument('--target'), argument('--candidate'), optionalArgument('--releases'))
     return
   }
 

@@ -6,6 +6,8 @@ Amended 2026-10-24: Scheduled tasks are a Covered surface (see the Amendment bel
 
 Amended 2026-10-25: Supported platforms have stated minimums, and a vendor end of support can raise one in a minor version (see the Amendment below).
 
+Amended 2026-11-09: The covered CLIs are the Hive and Access CLIs, and the promotion guard compares Stable with the last published RC (see the Amendment below).
+
 Refines ADR 0032 (Coexisting Build Identities and Channel-Keyed Updates). Supersedes the release-intent design in PRD issue #90.
 
 OpenWaggle had published only prerelease builds (`0.x-alpha.N`), and its docs disagreed about the target: the release docs planned a Stable `0.4.0`, while PRD #90 planned a governed `1.0.0` train with custom release-intent files. We are shipping v1, so we fixed the policy that the release workflow, updater, and docs must follow. The full rules live in `docs/release-and-versioning.md`.
@@ -47,3 +49,9 @@ The Decision made supported platforms a Covered surface, and the compatibility t
 From `1.0.0` the minimums are the oldest versions on which every feature works: macOS 13.4 on Apple silicon and Intel, Windows 10 on x64, and Linux x64 with glibc 2.35 (Ubuntu 22.04, Debian 12, Fedora 36 or later). `LSMinimumSystemVersion` stays 12.0 so an auto-updating macOS 12 install never ends up with an app that will not launch; macOS 12 through 13.3 still opens the app but is unsupported. The Linux release build runs on Ubuntu 22.04, and a release guard (`scripts/check-native-platform-floor.ts`, thresholds in `scripts/supported-platform-floor.ts`) fails any build whose packaged native binaries need a newer OS.
 
 Raising a stated minimum stays breaking, except when the OS vendor has ended support for that version (Apple no longer ships security updates for it, Microsoft's end of support, or the distribution's end of standard support), or when the Electron or Chromium upgrade that drops it is needed to stay on a supported Electron line. Such a raise ships in a minor version with release notes that name it, announced in the previous release's notes when possible. The rules are in `docs/release-and-versioning.md`, "Supported platform minimums".
+
+## Amendment (2026-11-09): Hive and Access CLIs, and the last published RC
+
+The Decision lists "the Sessions/Delegations/Access CLIs" as a Covered surface. Those commands now ship as `openwaggle hive` and `openwaggle access`, so the Covered surface is the Hive and Access CLIs and their machine output, as `docs/release-and-versioning.md` and `CONTEXT.md` already say. The promise did not change, only the command names.
+
+"The last RC tag" in the promotion guard now means the last published RC: the newest `vX.Y.Z-rc.N` tag with a published GitHub release. The release workflow pushes the tag before the builds run, so a tag can exist for a build that never shipped (`v1.0.0-beta.33` through `beta.35`). Comparing Stable with such a tag would let it promote content that no RC user ran. The workflow reads the release list from the GitHub API and fails closed when it cannot. `THIRD_PARTY_NOTICES.md` also counts as app content although it is a top-level Markdown file, because the app ships it.

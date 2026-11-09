@@ -1,9 +1,13 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   assertForwardAppVersionTransition,
   expectedVersionOnlyManifest,
+  isPromotionIgnoredPath,
   latestReleaseCandidateTag,
   promotionGuardViolations,
+  publishedReleaseTags,
   requiresReleaseCandidate,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
@@ -134,5 +138,45 @@ describe('app release state model', () => {
     expect(requiresReleaseCandidate('2.0.0')).toBe(true)
     expect(requiresReleaseCandidate('1.1.0')).toBe(false)
     expect(requiresReleaseCandidate('1.0.1')).toBe(false)
+  })
+
+  it('reads only published release tags from the GitHub release list', () => {
+    const lines = [
+      '{"draft":false,"tag_name":"v1.0.0-rc.1"}',
+      '{"draft":true,"tag_name":"v1.0.0-rc.2"}',
+      '',
+      '{"draft":false,"tag_name":"waggle-core-v0.2.0"}',
+    ].join('\n')
+
+    expect(publishedReleaseTags(lines)).toEqual(['v1.0.0-rc.1', 'waggle-core-v0.2.0'])
+    // An RC tag without a published release (its builds failed) never becomes the guard's base.
+    expect(latestReleaseCandidateTag(publishedReleaseTags(lines), '1.0.0')).toBe('v1.0.0-rc.1')
+  })
+
+  it('fails closed on an empty or malformed GitHub release list', () => {
+    expect(() => publishedReleaseTags('')).toThrow(/release list is empty/u)
+    expect(() => publishedReleaseTags('\n\n')).toThrow(/release list is empty/u)
+    expect(() => publishedReleaseTags('{"tag_name":"v1.0.0-rc.1"}')).toThrow()
+    expect(() => publishedReleaseTags('not json')).toThrow()
+  })
+
+  it('treats THIRD_PARTY_NOTICES.md as app content although it is a top-level Markdown file', () => {
+    expect(isPromotionIgnoredPath('README.md')).toBe(true)
+    expect(isPromotionIgnoredPath('THIRD_PARTY_NOTICES.md')).toBe(false)
+    expect(
+      promotionGuardViolations({
+        changedPaths: ['THIRD_PARTY_NOTICES.md', 'CHANGELOG.md'],
+        releaseCandidateManifestJson: '{"version":"1.0.0-rc.1"}',
+        candidateManifestJson: '{"version":"1.0.0"}',
+      }),
+    ).toEqual(['THIRD_PARTY_NOTICES.md'])
+  })
+
+  it('never ignores a file that electron-builder copies into the app', () => {
+    const config = fs.readFileSync(path.join(process.cwd(), 'electron-builder.ts'), 'utf8')
+    const shippedPaths = [...config.matchAll(/\{ from: '([^']+)', to: /gu)].map((match) => match[1] ?? '')
+
+    expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
+    expect(shippedPaths.filter((shippedPath) => isPromotionIgnoredPath(shippedPath))).toEqual([])
   })
 })

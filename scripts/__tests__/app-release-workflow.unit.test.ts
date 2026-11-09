@@ -129,8 +129,9 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
-    expect(WORKFLOW).toContain("grep -qE 'alpha|beta|rc'")
-    expect(WORKFLOW).toContain("sed 's/.*-\\(alpha\\|beta\\|rc\\)\\..*/\\1/'")
+    expect(WORKFLOW).toContain('if [[ "$CURRENT" =~ ^([0-9]+\\.[0-9]+\\.[0-9]+)-(alpha|beta|rc)\\.([0-9]+)$ ]]; then')
+    expect(WORKFLOW).toContain('echo "Unrecognized desktop app version ${CURRENT}." >&2')
+    expect(WORKFLOW).not.toContain("sed 's/") // GNU sed alternation fails on macOS, where the harness runs it
   })
 
   it('supports an explicit forward promotion through the same protected release PR', () => {

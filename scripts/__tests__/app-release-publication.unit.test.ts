@@ -47,11 +47,27 @@ describe('desktop app release publication', () => {
 
   it('guards every Stable version before a release PR exists and again before tagging', () => {
     expect(WORKFLOW).toMatch(
-      /app-release-notes\.ts check --version "\$VERSION"[\s\S]*?verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate HEAD\n\s+fi\n\n\s+RELEASE_BRANCH=/u,
+      /app-release-notes\.ts check --version "\$VERSION"[\s\S]*?exit 1\n\s+fi\n\s+verify_promotion HEAD\n\s+fi\n/u,
     )
     expect(WORKFLOW).toMatch(
-      /verify_version_only_tree "\$parent_sha" "\$commit_sha"\n\s+pnpm exec tsx scripts\/app-release-state\.ts verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate "\$commit_sha"/u,
+      /verify_version_only_tree "\$parent_sha" "\$commit_sha"\n\s+if \[\[ "\$VERSION" != \*-\* \]\]; then\n\s+verify_promotion "\$commit_sha"\n\s+fi\n\s+\}/u,
     )
+    // Both calls happen before any branch, PR, or tag exists.
+    const firstGuard = WORKFLOW.indexOf('verify_promotion HEAD')
+    expect(firstGuard).toBeGreaterThan(0)
+    expect(firstGuard).toBeLessThan(WORKFLOW.indexOf('RELEASE_BRANCH="app-release-v${VERSION}"'))
+  })
+
+  it('compares Stable with the last published RC from the GitHub release list', () => {
+    const guard = WORKFLOW.slice(
+      WORKFLOW.indexOf('verify_promotion() {'),
+      WORKFLOW.indexOf('verify_promotion HEAD'),
+    )
+    expect(guard).toContain('gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100"')
+    expect(guard).toContain("--jq '.[] | {tag_name, draft}' > \"$releases_path\"")
+    expect(guard).toContain('--releases "$releases_path"')
+    // No `|| true`: an unreadable release list fails the step.
+    expect(guard).not.toContain('|| true')
   })
 
   it('lets an ordinary merge wait for its CHANGELOG entry but fails a dispatch or release commit', () => {
@@ -81,10 +97,27 @@ describe('desktop app release publication', () => {
     expect(verify).toContain('spctl --assess --type open --context context:primary-signature --verbose "$dmg"')
   })
 
-  it('refuses to build unsigned release candidate or Stable macOS artifacts', () => {
+  it('refuses an unsigned release candidate or Stable before its tag is pushed', () => {
+    const versionJob = WORKFLOW.slice(WORKFLOW.indexOf('  version:'), WORKFLOW.indexOf('  build-macos:'))
+    const precheck = versionJob.indexOf('if [[ "$VERSION" == *-rc.* || "$VERSION" != *-* ]]; then')
+    expect(precheck).toBeGreaterThan(0)
+    expect(precheck).toBeLessThan(versionJob.indexOf('RELEASE_BRANCH="app-release-v${VERSION}"'))
+    expect(precheck).toBeLessThan(versionJob.indexOf('git push origin "refs/tags/${TAG}"'))
+    expect(versionJob).toContain(
+      "MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' }}",
+    )
+    expect(versionJob).toContain(
+      "MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}",
+    )
+    expect(versionJob.slice(precheck)).toMatch(
+      /^[^\n]+\n\s+if \[ "\$MACOS_SIGNING_CONFIGURED" != "true" \] \|\| \[ "\$MACOS_NOTARIZATION_CONFIGURED" != "true" \]; then\n[^\n]+\n\s+exit 1/u,
+    )
+  })
+
+  it('checks macOS signing again before building release candidate or Stable artifacts', () => {
     const guard = WORKFLOW.indexOf('name: Require macOS signing for release candidates and Stable')
     const build = WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)')
-    expect(guard).toBeGreaterThan(0)
+    expect(guard).toBeGreaterThan(WORKFLOW.indexOf('  build-macos:'))
     expect(guard).toBeLessThan(build)
     expect(WORKFLOW).toMatch(/rc\|stable\)\n\s+if \[ "\$MACOS_SIGNING_CONFIGURED" != "true" \] \|\| \[ "\$MACOS_NOTARIZATION_CONFIGURED" != "true" \]; then/u)
   })
