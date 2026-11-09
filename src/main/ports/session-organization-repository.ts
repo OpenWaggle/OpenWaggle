@@ -20,6 +20,17 @@ export type ExistingWorkspaceHandoffAdmission =
   | { readonly status: 'admitted'; readonly handoff: AdmittedExistingWorkspaceHandoff }
   | { readonly status: 'completed'; readonly response: SessionControlMutationResponse }
 
+/** What a deferred self-archive re-reads before it archives (see `session-self-archive.ts`). */
+export interface SessionSelfArchiveState {
+  readonly archived: boolean
+  readonly activeRunId: string | null
+  readonly queuedFollowUpCount: number
+  /** The asking Run's durable status, or null when it has no `session_runs` row. */
+  readonly runStatus: string | null
+  /** Runs of the Session recorded after the asking Run, even ones that have already ended. */
+  readonly laterRunCount: number
+}
+
 export interface SessionOrganizationRepositoryShape {
   /** Classify archive replays/rejections before interrupting any current desktop work. */
   readonly prepareArchive: (input: {
@@ -32,6 +43,11 @@ export interface SessionOrganizationRepositoryShape {
     | { readonly status: 'completed'; readonly response: SessionControlMutationResponse },
     SessionControlRepositoryError
   >
+  /** The Session's state for a self-archive deferred by Run `runId`; null when it is gone. */
+  readonly readSelfArchiveState: (input: {
+    readonly sessionId: string
+    readonly runId: string
+  }) => Effect.Effect<SessionSelfArchiveState | null, SessionControlRepositoryError>
   readonly execute: (input: {
     readonly callerId: string
     readonly request: SessionOrganizationRequest

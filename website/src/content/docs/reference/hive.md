@@ -66,14 +66,22 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | Action | Capability | What it does |
 | --- | --- | --- |
 | `rename` | `sessions:organize` | Changes a session's title. |
-| `archive` | `sessions:organize` | Archives a session. Nothing is deleted. A session that archives itself is archived when its run ends. |
+| `archive` | `sessions:organize` | Archives a session. Nothing is deleted. When a session archives itself, the archive waits for its run to end. |
 | `unarchive` | `sessions:organize` | Brings an archived session back. |
 | `handoff` | `sessions:organize` | Moves a session to another workspace the caller may use. |
 | `request_respond` | `sessions:respond` | Answers a question a run is waiting on. |
 | `approval_respond` | `sessions:approve` | Answers an approval request a run is waiting on. |
 | `authorization_set` | `sessions:authorization` | Changes a session's access mode, within the caller's limit. |
 
-Archiving a session stops its runs and closes its terminals and browser previews. An agent can archive its own session, for example a scheduled run that found nothing to do. OpenWaggle does not stop the run that asked. The call returns `effect: "session-archive-deferred"` with that run's `runId`. The agent can still write its final message, and OpenWaggle archives the session once the run ends. If another run of the session has started by then, the archive stops it, as any archive does.
+Archiving a session stops its runs and closes its terminals and browser previews. An agent can archive its own session, for example a scheduled run that found nothing to do. OpenWaggle does not stop the run that asked. The call returns `effect: "session-archive-deferred"` with that run's `runId`, and the agent can still write its final message.
+
+Once that run ends, OpenWaggle archives the session unless one of these happened first:
+
+- The run did not complete. It failed, or someone stopped it.
+- Another run started, or a follow-up is waiting in the queue.
+- The session was already archived.
+
+OpenWaggle keeps a pending self-archive only while it runs. If OpenWaggle restarts before the run ends, the session stays unarchived.
 
 ## Manage the follow-up queue
 
