@@ -66,12 +66,14 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | Action | Capability | What it does |
 | --- | --- | --- |
 | `rename` | `sessions:organize` | Changes a session's title. |
-| `archive` | `sessions:organize` | Archives a session. Nothing is deleted. |
+| `archive` | `sessions:organize` | Archives a session. Nothing is deleted. A session that archives itself is archived when its run ends. |
 | `unarchive` | `sessions:organize` | Brings an archived session back. |
 | `handoff` | `sessions:organize` | Moves a session to another workspace the caller may use. |
 | `request_respond` | `sessions:respond` | Answers a question a run is waiting on. |
 | `approval_respond` | `sessions:approve` | Answers an approval request a run is waiting on. |
 | `authorization_set` | `sessions:authorization` | Changes a session's access mode, within the caller's limit. |
+
+Archiving a session stops its runs and closes its terminals and browser previews. An agent can archive its own session, for example a scheduled run that found nothing to do. OpenWaggle does not stop the run that asked. The call returns `effect: "session-archive-deferred"` with that run's `runId`. The agent can still write its final message, and OpenWaggle archives the session once the run ends. If another run of the session has started by then, the archive stops it, as any archive does.
 
 ## Manage the follow-up queue
 

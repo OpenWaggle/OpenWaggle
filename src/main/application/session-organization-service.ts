@@ -18,6 +18,7 @@ import type { TerminalService } from '../ports/terminal-service'
 import { withSessionActionRelease } from './action-workspace-release'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { refuseRestoreWhileRemovalFenced } from './session-restore-fence'
+import { deferArchiveUntilRunEnds, liveCallerRunOfSession } from './session-self-archive'
 import { recordUsageStatisticsObservation } from './usage-statistics-recording'
 
 const HANDOFF_RECOVERY_RETRY_COUNT = 2
@@ -97,10 +98,17 @@ export function organizeSession(input: {
         request: { ...input.request, command: input.request.command },
       })
       if (admission.status === 'completed') return admission.response
-      return yield* withSessionDesktopRemoval(
-        SessionId(input.request.command.sessionId),
-        repository.execute(input),
-      )
+      const sessionId = SessionId(input.request.command.sessionId)
+      const archive = withSessionDesktopRemoval(sessionId, repository.execute(input))
+      const callerRunId = liveCallerRunOfSession(input.callerId, sessionId)
+      return yield* callerRunId === undefined
+        ? archive
+        : deferArchiveUntilRunEnds({
+            sessionId,
+            runId: callerRunId,
+            request: input.request,
+            archive,
+          })
     }
     return yield* input.request.command.operation === 'handoff'
       ? withSessionActionRelease(
