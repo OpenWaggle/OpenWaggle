@@ -67,29 +67,13 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | --- | --- | --- |
 | `rename` | `sessions:organize` | Changes a session's title. |
 | `archive` | `sessions:organize` | Archives a session. Nothing is deleted. |
-| `unarchive` | `sessions:organize` | Brings an archived session back. |
+| `unarchive` | `sessions:organize` | Brings an archived session back, or cancels an archive its agent asked for. |
 | `handoff` | `sessions:organize` | Moves a session to another workspace the caller may use. |
 | `request_respond` | `sessions:respond` | Answers a question a run is waiting on. |
 | `approval_respond` | `sessions:approve` | Answers an approval request a run is waiting on. |
 | `authorization_set` | `sessions:authorization` | Changes a session's access mode, within the caller's limit. |
 
-Archiving a session stops its runs and closes its terminals and browser previews. An agent can archive its own session through its `hive` tool, for example when a run started by a Launch schedule found nothing to do. OpenWaggle does not stop the run that asked. The call returns `effect: "session-archive-deferred"` with that run's `runId`, and the agent can still write its final message. To have a Launch schedule's agent archive its session, see [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks#run-a-launch-schedule).
-
-Once that run ends, OpenWaggle archives the session unless one of these is true:
-
-- The run did not complete. It failed, or someone stopped it.
-- Another run started, or a follow-up is waiting in the queue.
-- A worker sent the session an update that no run has read yet.
-- One of the session's workers is still working on its delegation.
-- Someone called `unarchive` on the session after the agent asked.
-- The session is pinned when the run ends.
-- Something else archived it first.
-
-A message you steer into the run that asked does not cancel the archive. A skipped archive is not retried, and OpenWaggle does not tell the agent. Worker cleanup still applies to a worker as usual.
-
-If the Session Host stops or restarts before the run ends, for example to install an update, the session stays unarchived.
-
-If the agent runs `openwaggle hive archive` in a shell, or calls the `openwaggle_hive` MCP tool, that archive is not deferred. It stops the run that asked right away, so the agent may not get to write its last message.
+Archiving a session stops its runs and closes its terminals and browser previews. For an agent that archives its own session, see [When an agent archives its own session](#when-an-agent-archives-its-own-session).
 
 ## Manage the follow-up queue
 
@@ -313,6 +297,30 @@ Two settings in **Settings > Agents > Hive controls** cap how many runs go at on
 ## Worker cleanup timing
 
 When a parent accepts or cancels a worker you never touched, OpenWaggle archives the worker once it is idle. A worker it keeps because you have it open, or because it has a terminal, a browser preview or a running project service, gets another check after 15 seconds, then 30 seconds, 1 minute, 2 minutes, and every 5 minutes after that.
+
+## When an agent archives its own session
+
+An agent can archive its own session through its `hive` tool. OpenWaggle does not stop the run that asked.
+
+The call returns `effect: "session-archive-deferred"` with that run's `runId`. The agent can still write its final message.
+
+To have a Launch schedule's agent archive its session, see [Scheduled tasks](/docs/using-openwaggle/scheduled-tasks#run-a-launch-schedule).
+
+Once that run ends, OpenWaggle archives the session unless one of these is true:
+
+- The run did not complete. It failed, or someone stopped it.
+- Another run started, or a follow-up is waiting in the queue.
+- A worker sent the session an update that no run has read yet.
+- One of the session's workers is still working on its delegation.
+- Someone called `unarchive` on the session after the agent asked.
+- The session is pinned when the run ends.
+- Something else archived it first.
+
+A message you steer into the run that asked does not cancel the archive. A skipped archive is not retried, and OpenWaggle does not tell the agent. A worker that archives itself counts as archived on purpose, so new work does not bring it back. If its archive is skipped, worker cleanup can still archive it once its result is accepted or cancelled.
+
+If the Session Host stops or restarts before the run ends, for example to install an update, the session stays unarchived.
+
+If the agent runs `openwaggle hive archive` in a shell, or calls the `openwaggle_hive` MCP tool, that archive is not deferred. It stops the run that asked right away, so the agent may not get to write its last message.
 
 ## Errors
 

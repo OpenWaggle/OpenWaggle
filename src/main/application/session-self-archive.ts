@@ -34,11 +34,14 @@ export function liveCallerRunOfSession(callerId: string, sessionId: SessionId) {
   )
 }
 
-/** Runs of each Session with an archive waiting for them to end, until it runs or is withdrawn. */
-const pendingSelfArchives = new Map<SessionId, Set<string>>()
+/**
+ * Runs of each Session with an archive waiting for them to end, until it runs or is withdrawn.
+ * Each request holds a token, so after an unarchive only the daemon of the newer request acts.
+ */
+const pendingSelfArchives = new Map<SessionId, Map<string, symbol>>()
 
-function isSelfArchivePending(sessionId: SessionId, runId: string) {
-  return pendingSelfArchives.get(sessionId)?.has(runId) === true
+function pendingSelfArchiveToken(sessionId: SessionId, runId: string) {
+  return pendingSelfArchives.get(sessionId)?.get(runId)
 }
 
 /** Whether any Run of the Session has an archive waiting for it to end. */
@@ -46,10 +49,11 @@ export function hasPendingSelfArchive(sessionId: SessionId) {
   return pendingSelfArchives.has(sessionId)
 }
 
-function settleSelfArchive(sessionId: SessionId, runId: string) {
+function settleSelfArchive(sessionId: SessionId, runId: string, token: symbol) {
   const runs = pendingSelfArchives.get(sessionId)
-  runs?.delete(runId)
-  if (runs?.size === 0) pendingSelfArchives.delete(sessionId)
+  if (runs?.get(runId) !== token) return
+  runs.delete(runId)
+  if (runs.size === 0) pendingSelfArchives.delete(sessionId)
 }
 
 /** An unarchive of the Session withdraws every archive its Runs asked for and still wait on. */
@@ -58,11 +62,12 @@ export function withdrawSelfArchives(sessionId: SessionId) {
 }
 
 /**
- * Why the archive the Run asked for no longer applies, or undefined when it still does. A Run
- * that did not complete (the user stopped it, it failed, a drain interrupted it), a Run,
- * Follow-up, Worker update or other Session work that came after it, a Worker still working, an unarchive or pin since, or
- * an archive that already happened all mean someone else decided what happens to the Session since
- * the agent asked. A Run without a `session_runs` row has no status to check, so it is skipped too.
+ * Why the archive the Run asked for no longer applies, or undefined when it still does. Each
+ * reason means someone else decided what happens to the Session since the agent asked: the Run
+ * did not complete (the user stopped it, it failed, a drain interrupted it), later Session work
+ * (a Run, Follow-up, unread Worker update or Worker still working), an unarchive or pin, or an
+ * archive that already happened. A Run without a `session_runs` row has no status to check, so
+ * it is skipped too.
  */
 export function selfArchiveSkipReason(
   state: SessionSelfArchiveState | null,
@@ -118,44 +123,45 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
   R | SessionOrganizationRepository
 > {
   const { sessionId, runId } = input
-  const archiveIfStillWanted = Effect.gen(function* () {
-    const repository = yield* SessionOrganizationRepository
-    const state = yield* repository.readSelfArchiveState({
-      sessionId,
-      runId: durableSessionRunId(runId),
-    })
-    const skipReason = selfArchiveSkipReason(state, {
-      pending: isSelfArchivePending(sessionId, runId),
-      sessionBusy: hasAnyActiveRun(sessionId),
-    })
-    if (skipReason !== undefined) {
-      logger.info('A Session did not archive itself after its Run ended', {
+  const archiveIfStillWanted = (token: symbol) =>
+    Effect.gen(function* () {
+      const repository = yield* SessionOrganizationRepository
+      const state = yield* repository.readSelfArchiveState({
         sessionId,
-        runId,
-        reason: skipReason,
+        runId: durableSessionRunId(runId),
       })
-      return 'skipped' as const
-    }
-    const response = yield* input.archive
-    publishControlResponse(response)
-    return 'archived' as const
-  }).pipe(
-    Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
-        logger.warn('A Session could not archive itself after its Run ended', {
+      const skipReason = selfArchiveSkipReason(state, {
+        pending: pendingSelfArchiveToken(sessionId, runId) === token,
+        sessionBusy: hasAnyActiveRun(sessionId),
+      })
+      if (skipReason !== undefined) {
+        logger.info('A Session did not archive itself after its Run ended', {
           sessionId,
           runId,
-          cause: Cause.pretty(cause),
+          reason: skipReason,
         })
-        return 'failed' as const
-      }),
-    ),
-    // Settled before the serialization is released, so the next command sees no pending archive.
-    Effect.ensuring(Effect.sync(() => settleSelfArchive(sessionId, runId))),
-  )
-  const archiveAfterRun = (releaseLiveness: () => void) =>
+        return 'skipped' as const
+      }
+      const response = yield* input.archive
+      publishControlResponse(response)
+      return 'archived' as const
+    }).pipe(
+      Effect.catchAllCause((cause) =>
+        Effect.sync(() => {
+          logger.warn('A Session could not archive itself after its Run ended', {
+            sessionId,
+            runId,
+            cause: Cause.pretty(cause),
+          })
+          return 'failed' as const
+        }),
+      ),
+      // Settled before the serialization is released, so the next command sees no pending archive.
+      Effect.ensuring(Effect.sync(() => settleSelfArchive(sessionId, runId, token))),
+    )
+  const archiveAfterRun = (token: symbol, releaseLiveness: () => void) =>
     Effect.promise(() => waitForSessionRunEnd(sessionId, runId)).pipe(
-      Effect.zipRight(withSessionCommandSerialization(sessionId, archiveIfStillWanted)),
+      Effect.zipRight(withSessionCommandSerialization(sessionId, archiveIfStillWanted(token))),
       // Hive cleanup keeps a Worker with a pending self-archive. When it did not happen, a
       // finished Worker gets the cleanup pass it was kept from, outside the serialization that an
       // inline pass takes itself.
@@ -179,16 +185,17 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
   return Effect.uninterruptible(
     Effect.gen(function* () {
       // A repeat from the same Run gets the same answer, without forking a second daemon.
-      if (!isSelfArchivePending(sessionId, runId)) {
+      if (pendingSelfArchiveToken(sessionId, runId) === undefined) {
         const releaseLiveness = yield* Effect.try({
           try: acquireArchiveLiveness,
           catch: () => new SessionHostDrainingError(),
         })
-        const runs = pendingSelfArchives.get(sessionId) ?? new Set<string>()
-        pendingSelfArchives.set(sessionId, runs.add(runId))
+        const token = Symbol(runId)
+        const runs = pendingSelfArchives.get(sessionId) ?? new Map<string, symbol>()
+        pendingSelfArchives.set(sessionId, runs.set(runId, token))
         // Forked inside this uninterruptible region, the daemon is uninterruptible too, like every
         // archive Session Control dispatches. Nothing interrupts it; its waits end on their own.
-        yield* Effect.forkDaemon(archiveAfterRun(releaseLiveness))
+        yield* Effect.forkDaemon(archiveAfterRun(token, releaseLiveness))
       }
       return {
         contractVersion: input.request.contractVersion,

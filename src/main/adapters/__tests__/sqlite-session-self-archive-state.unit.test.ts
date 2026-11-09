@@ -76,7 +76,10 @@ describe('SQLite self-archive state', () => {
         `
         for (const [id, state] of [
           ['delegation-working', 'working'],
+          ['delegation-waiting', 'waiting'],
+          ['delegation-revising', 'revision_requested'],
           ['delegation-review', 'ready_for_review'],
+          ['delegation-asking', 'needs_attention'],
           ['delegation-accepted', 'accepted'],
         ] as const) {
           yield* sql`INSERT INTO sessions (id, project_path) VALUES (${`child-${id}`}, ${'/p'})`
@@ -87,6 +90,14 @@ describe('SQLite self-archive state', () => {
             ) VALUES (${id}, ${'session-target'}, ${`child-${id}`}, ${state}, ${1}, ${1}, ${1})
           `
         }
+        // A Worker that asked for help keeps running; one waiting for review does not count.
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+          ) VALUES (
+            ${'child-delegation-asking'}, ${1}, ${'run-worker-live'}, ${'running'}, ${0}, ${1}
+          )
+        `
         const busy = yield* read('run-asking')
         const gone = yield* repository.readSelfArchiveState({
           sessionId: 'session-gone',
@@ -115,7 +126,7 @@ describe('SQLite self-archive state', () => {
       runStatus: 'completed',
       laterRunCount: 0,
       pendingWorkerUpdateCount: 1,
-      workingDelegationCount: 1,
+      workingDelegationCount: 4,
       pinned: true,
     })
     expect(result.gone).toBe(null)

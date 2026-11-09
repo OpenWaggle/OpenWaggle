@@ -135,6 +135,7 @@ describe('the Host hold of a deferred self-archive', () => {
 
     endRun()
     await settled(liveness)
-    expect(first.counter.archives + second.counter.archives).toBe(1)
+    // The newer request archives; the withdrawn one does not.
+    expect([first.counter.archives, second.counter.archives]).toEqual([0, 1])
   })
 })
