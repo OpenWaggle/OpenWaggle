@@ -159,11 +159,15 @@ export function writeSessionsCliError(
 ) {
   const kind = classifySessionsCliError(error)
   const message = error instanceof Error ? error.message : String(error)
+  const code =
+    error instanceof CliError || error instanceof LocalSessionClientProtocolError
+      ? error.code
+      : undefined
   const output = machine
     ? JSON.stringify({
         schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
         type: 'error',
-        error: { kind, message },
+        error: { kind, message, ...(code ? { code } : {}) },
       })
     : `error [${kind}]: ${message}`
   stderr(`${output}\n`)

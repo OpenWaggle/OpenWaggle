@@ -168,7 +168,11 @@ describe('Hive CLI Delegation structured failure exit status', () => {
       expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
         schemaVersion: 1,
         type: 'error',
-        error: { kind, message: error.message },
+        error: {
+          kind,
+          message: error.message,
+          ...(error instanceof LocalSessionClientProtocolError ? { code: error.code } : {}),
+        },
       })
     },
   )

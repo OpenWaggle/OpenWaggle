@@ -1,3 +1,4 @@
+import { sessionHostErrorKindForThrownCode } from '@shared/domain/session-host-refusals'
 import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
 import type {
   LocalSessionCommandPayload,
@@ -47,6 +48,7 @@ export function delegationPage(input: {
   readonly specifications: readonly { readonly revision: number; readonly specification: unknown }[]
   readonly proposals?: readonly { readonly proposalId: string; readonly specification: unknown }[]
   readonly nextCursor?: string
+  readonly currentSpecificationRevision?: number
 }): LocalSessionCommandResult {
   return fromPartial<LocalSessionCommandResult>({
     contract: 'session-query-v2',
@@ -55,7 +57,10 @@ export function delegationPage(input: {
       requestId: 'request-read',
       outcome: {
         operation: 'delegations-read',
-        delegation: { delegationId: 'delegation-1', currentSpecificationRevision: 2 },
+        delegation: {
+          delegationId: 'delegation-1',
+          currentSpecificationRevision: input.currentSpecificationRevision ?? 2,
+        },
         specifications: input.specifications.map((entry) => ({
           ...entry,
           authoredBy: 'queen',
@@ -97,6 +102,26 @@ export function accepted(): LocalSessionCommandResult {
       outcome: { operation: 'request-respond', effect: 'interaction-resolved', sessionId: SESSION },
     },
   })
+}
+
+/** A `request-respond` the Session Host refused with `code`, of the kind its table gives. */
+export function rejected(code: string): LocalSessionCommandResult {
+  return {
+    contract: 'session-control-v2',
+    response: {
+      contractVersion: 2,
+      requestId: 'request-mutation',
+      idempotencyKey: 'once',
+      replayed: false,
+      outcome: {
+        operation: 'request-respond',
+        effect: 'rejected',
+        sessionId: SESSION,
+        code,
+        kind: sessionHostErrorKindForThrownCode(code),
+      },
+    },
+  }
 }
 
 /** The command or query each Session Host call carried, in order. */

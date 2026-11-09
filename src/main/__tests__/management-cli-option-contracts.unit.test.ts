@@ -134,9 +134,25 @@ describe('management CLI option contracts', () => {
     expect(policy(['--capability', 'sessions:read', '--all', ...manage])).toThrow(
       'apply only to a profile with --capability access:profiles',
     )
+    // Even an incomplete envelope is refused for that reason first.
+    expect(policy(['--capability', 'sessions:read', '--all', '--manage-project', '.'])).toThrow(
+      'apply only to a profile with --capability access:profiles',
+    )
     expect(policy(['--capability', 'access:profiles', '--all', ...manage])()).toMatchObject({
       managementEnvelope: { capabilities: ['sessions:read'] },
     })
+  })
+
+  it('names replacements only on the CLI an old option belonged to', () => {
+    expect(() =>
+      validateAccessCliOptions(
+        'create',
+        argumentsFor(['--request-json', 'request.json', '--all', '--credential-store']),
+      ),
+    ).toThrow('Unknown option for OpenWaggle Access profiles: --request-json')
+    expect(() =>
+      validateSessionsCliOptions('list', argumentsFor(['--management-envelope-json', '{}'])),
+    ).toThrow('Unknown option for OpenWaggle Hive: --management-envelope-json')
   })
 
   it('refuses --management-envelope-json and names the options that replaced it', () => {
@@ -176,6 +192,16 @@ describe('management CLI option contracts', () => {
     )
     expect(() => validateAccessCliOptions('create', argumentsFor(['--capability']))).toThrow(
       'Missing value for --capability',
+    )
+    // A typed value of true is a value, not a missing one.
+    expect(() =>
+      validateAccessCliOptions(
+        'update',
+        argumentsFor(['helper', '--capability', 'sessions:read', '--project', 'true']),
+      ),
+    ).not.toThrow()
+    expect(() => validateAccessCliOptions('update', argumentsFor(['helper', '--project']))).toThrow(
+      'Missing value for --project',
     )
   })
 

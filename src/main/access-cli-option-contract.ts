@@ -44,7 +44,7 @@ const ARGUMENTS_BY_OPERATION = {
 } as const
 
 export function validateAccessCliOptions(operation: string, arguments_: ParsedArguments) {
-  refuseFormerCliOptions(operation, arguments_)
+  refuseFormerCliOptions('access', operation, arguments_)
   validateCommandCliOptions({
     surface: 'OpenWaggle Access profiles',
     route: operation,

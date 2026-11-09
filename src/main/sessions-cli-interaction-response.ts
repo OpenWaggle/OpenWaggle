@@ -158,6 +158,48 @@ function confirmResponse(
   throw mismatch(interaction, answer, '--confirm or --decline')
 }
 
+/**
+ * The response an answer gives when only the answer option names the kind: what a retry with
+ * `--idempotency-key` sends once the request is no longer pending, so the Session Host can replay
+ * the answer it recorded. `--text`, `--stdin`, `--input-file` and `--dismiss` fit more than one
+ * kind, so they give none.
+ */
+export function interactionResponseFromAnswerAlone(
+  answer: InteractionAnswer,
+): AgentLoopInteractionResponse | undefined {
+  return matchBy(answer, 'kind')
+    .with(
+      'choice',
+      (choice): AgentLoopInteractionResponse => ({
+        kind: 'select',
+        selected: choice.choice,
+      }),
+    )
+    .with('confirm', (): AgentLoopInteractionResponse => ({ kind: 'confirm', accepted: true }))
+    .with('decline', (): AgentLoopInteractionResponse => ({ kind: 'confirm', accepted: false }))
+    .with(
+      'acknowledge',
+      (): AgentLoopInteractionResponse => ({
+        kind: 'notify',
+        acknowledged: true,
+      }),
+    )
+    .with(
+      'value',
+      (value): AgentLoopInteractionResponse => ({ kind: 'custom', value: value.value }),
+    )
+    .with('text', 'dismiss', () => undefined)
+    .exhaustive()
+}
+
+/** A `--choice` that is one of the select request's choices; any other is a usage error. */
+function listedChoice(select: { readonly choices: readonly string[] }, choice: string) {
+  if (select.choices.includes(choice)) return choice
+  throw new CommandCliUsageError(
+    `--choice ${JSON.stringify(choice)} is not one of this request's choices: ${select.choices.map((item) => JSON.stringify(item)).join(', ')}.`,
+  )
+}
+
 /** The response of the pending request's kind that the command line's answer gives. */
 export function interactionResponseFor(
   interaction: AgentLoopInteraction,
@@ -166,7 +208,8 @@ export function interactionResponseFor(
   return matchBy(interaction, 'kind')
     .with('confirm', (confirm) => confirmResponse(confirm, answer))
     .with('select', (select): AgentLoopInteractionResponse => {
-      if (answer.kind === 'choice') return { kind: 'select', selected: answer.choice }
+      if (answer.kind === 'choice')
+        return { kind: 'select', selected: listedChoice(select, answer.choice) }
       if (answer.kind === 'dismiss') return { kind: 'select', selected: null }
       throw mismatch(select, answer, '--choice <item> or --dismiss')
     })

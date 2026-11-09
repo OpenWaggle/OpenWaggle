@@ -159,6 +159,32 @@ describe('agent-loop interaction broker', () => {
     expect(listPendingAgentLoopInteractions(sessionId)).toHaveLength(0)
   })
 
+  // `hive request-respond` relies on this to ask the Session Host why a request is unlisted.
+  it.each([
+    ['confirm', { ...confirmInteraction(), purpose: 'authorization' }, 'confirm-1'],
+    ['confirm', confirmInteraction(), 'confirm-1'],
+    ['select', selectInteraction(), 'select-1'],
+    ['custom', customInteraction(), 'custom-1'],
+  ] as const)('never settles a pending %s with a notify answer', (_kind, interaction, id) => {
+    requestAgentLoopInteraction({ interaction, onEvent: () => undefined })
+
+    for (const channel of ['response', 'approval', undefined] as const) {
+      expect(
+        submitAgentLoopInteractionResponse(
+          {
+            sessionId,
+            runId: 'run-1',
+            interactionId: id,
+            kind: 'notify',
+            response: { kind: 'notify', acknowledged: true },
+          },
+          channel,
+        ),
+      ).toMatchObject({ ok: false, error: { code: 'interaction-mismatch' } })
+    }
+    expect(listPendingAgentLoopInteractions(sessionId)).toHaveLength(1)
+  })
+
   it('resolves with the Pi dismissed fallback when the run aborts', async () => {
     const emitted: AgentTransportEvent[] = []
     const abortController = new AbortController()

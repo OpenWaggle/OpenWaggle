@@ -26,3 +26,7 @@ From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`,
 ## Consequences
 
 Some refusals exit with a different code than in the betas. `hive-cli.md` lists them under "Exit codes that changed before 1.0". Stored refusals written before revision 32 have no kind, so the SQLite replay paths add the kind their code has now, or `conflict` for a code the table no longer has. A test fails when a Session Host producer writes a rejected outcome without `sessionHostRefusal(code)`, and another pins the kind of every code released in 1.0.
+
+## Note, 2026-11-09: the error envelope's `code`
+
+#433 adds an optional `code` to the `type: "error"` envelope on stderr. It is present only when a Session Host refusal caused the failure: an error frame such as `capability_denied`, or a refusal the CLI learns before it sends a command, such as a refused read of the pending requests, a request that is not pending (`interaction-not-found`), or an amendment revision ahead of the current one (`specification_revision_stale`). The field is additive and covered. Its values are the Session Host's refusal codes, and new codes may appear. Its kind is always the one `SESSION_HOST_REFUSAL_KINDS` gives that code, so a `CliError` built from a Session Host code takes its kind from the table, never a kind of its own.
