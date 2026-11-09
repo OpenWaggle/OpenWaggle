@@ -7,7 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const execFileAsync = promisify(execFile)
 const INSTALLED_VERSION = '1.0.0-rc.1'
-const INSTALLED_APPIMAGE = '#!/bin/sh\nprintf "appimage %s\\n" "$*" >> "$FAKE_CALLS"\n'
+// Records its calls and, like a real AppImage behind the installer's CLI runner, prints its
+// `update --check --json` response to descriptor 3 when the test gives it one.
+const INSTALLED_APPIMAGE = `#!/bin/sh
+printf "appimage %s\\n" "$*" >> "$FAKE_CALLS"
+if [ "$*" = "update --check --json" ] && [ -f "$FAKE_CHANNEL_RESPONSE" ]; then cat "$FAKE_CHANNEL_RESPONSE" >&3; fi
+`
 const DOWNLOADED_APPIMAGE = 'downloaded-appimage'
 const RELEASES_API_URL = 'https://example.test/releases'
 
@@ -18,7 +23,7 @@ let releases = ''
 let appDirectory = ''
 
 beforeEach(async () => {
-  directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'installer-downgrade-')))
+  directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'installer-reinstall-')))
   home = path.join(directory, 'home')
   stubs = path.join(directory, 'bin')
   releases = path.join(directory, 'releases')
@@ -106,6 +111,27 @@ async function installMacApp(applications: string, version: string) {
   )
 }
 
+const CHANNEL_INTENT = ['.config', 'openwaggle', 'install-update-channel'] as const
+
+/** What the installed app's `openwaggle update --check --json` prints, in the CLI's own format. */
+async function reportSavedChannel(savedChannel: string) {
+  const response = {
+    schemaVersion: 1,
+    type: 'response',
+    command: 'update',
+    result: { savedChannel, channel: savedChannel, status: 'up-to-date' },
+  }
+  await fs.writeFile(path.join(directory, 'channel-response.json'), `${JSON.stringify(response, null, 2)}\n`)
+}
+
+async function savedChannelIntent() {
+  return fs.readFile(path.join(home, ...CHANNEL_INTENT), 'utf8').catch(() => null)
+}
+
+async function installedVersion() {
+  return (await fs.readFile(path.join(appDirectory, 'version'), 'utf8')).trim()
+}
+
 async function runInstaller(env: Readonly<Record<string, string>>) {
   const result = await execFileAsync('bash', ['scripts/install.sh', '--no-launch'], {
     env: {
@@ -114,6 +140,7 @@ async function runInstaller(env: Readonly<Record<string, string>>) {
       TMPDIR: path.join(directory, 'tmp'),
       FAKE_CALLS: path.join(directory, 'calls'),
       FAKE_RELEASES: releases,
+      FAKE_CHANNEL_RESPONSE: path.join(directory, 'channel-response.json'),
       OPENWAGGLE_RELEASES_API_URL: RELEASES_API_URL,
       ...env,
     },
@@ -215,5 +242,110 @@ describe('quick installer downgrade refusal', () => {
     await expect(fs.readFile(path.join(appDirectory, 'version'), 'utf8')).resolves.toBe(
       '1.0.0-rc.2\n',
     )
+  })
+})
+
+describe('quick installer update channel on a re-run', () => {
+  it('keeps the channel the installed app has saved and writes no channel intent', async () => {
+    // The default would be Stable, which already has 1.0.0; the saved Beta channel has a newer build.
+    await publish(['v1.0.1-beta.1', 'v1.0.0'])
+    await installLinuxApp('1.0.0')
+    await reportSavedChannel('beta')
+
+    const result = await runInstaller({})
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Update channel: beta, kept from the installed OpenWaggle')
+    await expect(installedVersion()).resolves.toBe('1.0.1-beta.1')
+    await expect(savedChannelIntent()).resolves.toBeNull()
+    expect(await calls()).toContain('appimage update --check --json')
+  })
+
+  it('refuses a downgrade on the kept channel', async () => {
+    await publish(['v1.0.0-rc.1', 'v1.0.0-beta.37'])
+    await installLinuxApp('1.0.0-rc.2')
+    await reportSavedChannel('beta')
+
+    const result = await runInstaller({})
+
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('OpenWaggle v1.0.0-rc.1 is older than the installed 1.0.0-rc.2.')
+    await expect(installedVersion()).resolves.toBe('1.0.0-rc.2')
+    await expect(savedChannelIntent()).resolves.toBeNull()
+  })
+
+  it('says how to switch when the kept channel has no release', async () => {
+    await publish(['v1.0.0-rc.2'])
+    await installLinuxApp(INSTALLED_VERSION)
+    await reportSavedChannel('stable')
+
+    const result = await runInstaller({})
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain(
+      'No stable release is available. OpenWaggle updates from the stable channel; set OPENWAGGLE_CHANNEL to install from another one.',
+    )
+    await expect(savedChannelIntent()).resolves.toBeNull()
+  })
+
+  it('uses and saves OPENWAGGLE_CHANNEL without asking the installed app', async () => {
+    await publish(['v1.0.1-alpha.1', 'v1.0.0'])
+    await installLinuxApp('1.0.0')
+    await reportSavedChannel('beta')
+
+    const result = await runInstaller({ OPENWAGGLE_CHANNEL: 'alpha' })
+
+    expect(result.exitCode).toBe(0)
+    await expect(installedVersion()).resolves.toBe('1.0.1-alpha.1')
+    await expect(savedChannelIntent()).resolves.toBe('alpha\n')
+    expect(await calls()).not.toContain('appimage update --check --json')
+  })
+
+  it('installs an exact version once without reading or saving a channel', async () => {
+    await publish(['v1.0.1-beta.1'])
+    await installLinuxApp('1.0.0')
+    await reportSavedChannel('stable')
+
+    const result = await runInstaller({ OPENWAGGLE_RELEASE_TAG: 'v1.0.1-beta.1' })
+
+    expect(result.exitCode).toBe(0)
+    await expect(installedVersion()).resolves.toBe('1.0.1-beta.1')
+    await expect(savedChannelIntent()).resolves.toBeNull()
+    expect(await calls()).not.toContain('appimage update --check --json')
+  })
+
+  it('saves the default channel on a first install', async () => {
+    await publish(['v1.0.0-rc.1'])
+
+    const result = await runInstaller({})
+
+    expect(result.exitCode).toBe(0)
+    await expect(installedVersion()).resolves.toBe('1.0.0-rc.1')
+    await expect(savedChannelIntent()).resolves.toBe('beta\n')
+  })
+
+  it('saves the default channel over a version too old to report its channel', async () => {
+    await publish(['v1.0.0-rc.1', 'v1.0.0-beta.37'])
+    await installLinuxApp('1.0.0-beta.37')
+    await reportSavedChannel('alpha')
+
+    const result = await runInstaller({})
+
+    expect(result.exitCode).toBe(0)
+    await expect(installedVersion()).resolves.toBe('1.0.0-rc.1')
+    await expect(savedChannelIntent()).resolves.toBe('beta\n')
+    expect(await calls()).not.toContain('appimage update --check --json')
+  })
+
+  it('saves the default channel when the installed app cannot report one', async () => {
+    await publish(['v1.0.0-rc.2'])
+    await installLinuxApp(INSTALLED_VERSION)
+
+    const result = await runInstaller({})
+
+    expect(result.exitCode).toBe(0)
+    expect(await calls()).toContain('appimage update --check --json')
+    await expect(installedVersion()).resolves.toBe('1.0.0-rc.2')
+    await expect(savedChannelIntent()).resolves.toBe('beta\n')
   })
 })

@@ -66,7 +66,7 @@ Pi, the agent engine inside OpenWaggle, reads these itself. [Pi's environment va
 
 | Variable | What it does | Default |
 | --- | --- | --- |
-| `OPENWAGGLE_CHANNEL` | Installs the newest release on `stable`, `beta` or `alpha`, and saves that channel for updates | `stable`, or `beta` while no stable release exists |
+| `OPENWAGGLE_CHANNEL` | Installs the newest release on `stable`, `beta` or `alpha`, and saves that channel for updates | The installed app's channel. On a first install, `stable`, or `beta` while no stable release exists |
 | `OPENWAGGLE_RELEASE_TAG` | Installs this exact version once, such as `v1.0.0` or `1.0.0-beta.25`, without changing your saved channel | Not set |
 | `OPENWAGGLE_NO_LAUNCH` | Set to `1` to install without opening the app, like `--no-launch` | Not set |
 | `OPENWAGGLE_APPLICATIONS_DIR` | macOS only: the folder the app is copied to | `/Applications` |

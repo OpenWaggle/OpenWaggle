@@ -1,0 +1,230 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  checkForUpdatesMock,
+  configureUpdaterFeedMock,
+  executeLocalSessionCommandMock,
+  quitAndInstallMock,
+  writeCliStdoutMock,
+  createClientMock,
+  updater,
+} = vi.hoisted(() => ({
+  checkForUpdatesMock: vi.fn(),
+  configureUpdaterFeedMock: vi.fn(),
+  executeLocalSessionCommandMock: vi.fn(),
+  quitAndInstallMock: vi.fn(),
+  writeCliStdoutMock: vi.fn((_value: string) => Promise.resolve()),
+  createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
+  updater: {
+    channel: null,
+    allowPrerelease: false,
+    allowDowngrade: false,
+    autoDownload: true,
+    autoInstallOnAppQuit: true,
+    logger: null,
+    once: vi.fn(),
+    off: vi.fn(),
+  },
+}))
+
+vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+    getAppPath: () => '/workspace/OpenWaggle',
+    getVersion: () => '1.0.0-beta.25',
+    requestSingleInstanceLock: () => true,
+    releaseSingleInstanceLock: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
+}))
+vi.mock('electron-updater', () => ({
+  autoUpdater: Object.assign(updater, {
+    checkForUpdates: checkForUpdatesMock,
+    quitAndInstall: quitAndInstallMock,
+  }),
+}))
+vi.mock('../session-host/local-session-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../session-host/local-session-client')>()),
+  executeLocalSessionCommand: executeLocalSessionCommandMock,
+}))
+vi.mock('../update-feed', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../update-feed')>()),
+  configureUpdaterFeed: (...args: unknown[]) => configureUpdaterFeedMock(...args),
+}))
+vi.mock('../local-session-cli-client', () => ({
+  createLocalSessionCliClientInput: createClientMock,
+  assertCliAgentMayUseOwnerAuthority: vi.fn(),
+}))
+vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
+vi.mock('../host-cli', () => ({ stopHostForUpdate: vi.fn() }))
+vi.mock('../host-update-stop', () => ({ formatHostUpdateStopReport: () => 'Session Host report' }))
+
+import { runUpdateCli } from '../update-cli'
+
+describe('update CLI --check --json', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    checkForUpdatesMock.mockResolvedValue(null)
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v1.0.0-rc.1' })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  function savedChannel(channel: string) {
+    executeLocalSessionCommandMock.mockResolvedValue({
+      contract: 'local-update-v1',
+      response: { contractVersion: 1, updateChannel: channel },
+    })
+  }
+
+  function envelope(result: Readonly<Record<string, string>>) {
+    return { schemaVersion: 1, type: 'response', command: 'update', result }
+  }
+
+  function printedResponse(): unknown {
+    expect(writeCliStdoutMock).toHaveBeenCalledOnce()
+    return JSON.parse(writeCliStdoutMock.mock.calls[0]?.[0] ?? '')
+  }
+
+  /** The Session Host was asked only to read the channel, never to save one. */
+  function expectChannelOnlyRead() {
+    expect(executeLocalSessionCommandMock).toHaveBeenCalledOnce()
+    expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          contract: 'local-update-v1',
+          request: { contractVersion: 1, operation: 'get-channel' },
+        },
+      }),
+    )
+  }
+
+  it('reports the saved channel and an available release without changing anything', async () => {
+    savedChannel('beta')
+    checkForUpdatesMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '1.0.0-rc.1' },
+    })
+
+    await expect(runUpdateCli(['--check', '--json'])).resolves.toEqual({
+      exitCode: 0,
+      updaterOwnsExit: false,
+    })
+
+    expect(printedResponse()).toEqual(
+      envelope({
+        savedChannel: 'beta',
+        channel: 'beta',
+        status: 'available',
+        version: '1.0.0-rc.1',
+      }),
+    )
+    expectChannelOnlyRead()
+    expect(updater.autoDownload).toBe(false)
+    expect(quitAndInstallMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the saved channel when it is up to date', async () => {
+    savedChannel('alpha')
+
+    await runUpdateCli(['--check', '--json'])
+
+    expect(printedResponse()).toEqual(
+      envelope({
+        savedChannel: 'alpha',
+        channel: 'alpha',
+        status: 'up-to-date',
+      }),
+    )
+  })
+
+  it('reports the saved channel when its channel has no release yet', async () => {
+    savedChannel('stable')
+    configureUpdaterFeedMock.mockResolvedValue({ type: 'no-release' })
+
+    await runUpdateCli(['--check', '--json'])
+
+    expect(printedResponse()).toEqual(
+      envelope({
+        savedChannel: 'stable',
+        channel: 'stable',
+        status: 'no-release',
+      }),
+    )
+  })
+
+  it('reads, but never saves, the channel while it checks another one', async () => {
+    savedChannel('beta')
+
+    await runUpdateCli(['--channel', 'alpha', '--check', '--json'])
+
+    expect(printedResponse()).toEqual(
+      envelope({
+        savedChannel: 'beta',
+        channel: 'alpha',
+        status: 'up-to-date',
+      }),
+    )
+    expectChannelOnlyRead()
+  })
+
+  it('reports an exact version with the saved channel', async () => {
+    savedChannel('beta')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ tag_name: 'v1.0.0-rc.1', assets: [] }), { status: 200 }),
+        ),
+      ),
+    )
+
+    await runUpdateCli(['--version', '1.0.0-rc.1', '--check', '--json'])
+
+    expect(printedResponse()).toEqual(
+      envelope({
+        savedChannel: 'beta',
+        status: 'available',
+        version: '1.0.0-rc.1',
+      }),
+    )
+    expectChannelOnlyRead()
+  })
+
+  it('reports a failure as an error envelope', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    checkForUpdatesMock.mockRejectedValueOnce(new Error('feed unavailable'))
+
+    await expect(runUpdateCli(['--check', '--json'])).resolves.toEqual({
+      exitCode: 1,
+      updaterOwnsExit: false,
+    })
+
+    expect(writeCliStdoutMock).not.toHaveBeenCalled()
+    expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'internal', message: 'feed unavailable' },
+    })
+  })
+
+  it('refuses --json without --check, before it contacts the Session Host', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    await expect(runUpdateCli(['--json'])).resolves.toEqual({
+      exitCode: 2,
+      updaterOwnsExit: false,
+    })
+
+    expect(createClientMock).not.toHaveBeenCalled()
+    expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'usage', message: '--json works only with --check.' },
+    })
+  })
+})

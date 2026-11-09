@@ -1,9 +1,5 @@
 import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
-import {
-  UPDATE_CHANNELS,
-  type UpdateChannel,
-  updaterFeedChannel,
-} from '@shared/types/update-channel'
+import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { CliError, cliExitCodeForKind } from './cli-error'
@@ -16,12 +12,13 @@ import {
 import { hasFlag, option, type ParsedArguments, parseMcpCliArguments } from './mcp-cli-arguments'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { writeSessionsCliError } from './sessions-cli-output'
+import { parseChannel, usage, validateArguments } from './update-cli-arguments'
+import { type UpdateCheckMachineOutput, writeUpdateCheckResult } from './update-cli-check-output'
 import {
   EXIT,
   installExactVersion,
   normalizeVersion,
   stopSessionHostBeforeInstall,
-  UpdateCliUsageError,
 } from './update-cli-exact-version'
 import { runBundledInstaller } from './update-cli-installers'
 import {
@@ -33,52 +30,6 @@ import {
 const UPDATE_AGENT_REFUSAL =
   'OpenWaggle agents cannot check for or install OpenWaggle updates. Ask the user to run openwaggle update.'
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
-
-function usage() {
-  return `OpenWaggle update
-
-Usage:
-  openwaggle update [--channel stable|beta|alpha] [--check]
-  openwaggle update --version <version> [--check]
-
-The selected channel is shared with the desktop app. --check only reports: it never changes the
-saved channel, even with --channel. An exact version is a one-time install, does not change the
-saved channel, and cannot be older than the installed version: downgrades are unsupported.`
-}
-
-function validateArguments(args: ReturnType<typeof parseMcpCliArguments>) {
-  if (args.positionals.length > 0 || args.passthrough.length > 0) {
-    throw new UpdateCliUsageError('OpenWaggle update received unexpected positional arguments.')
-  }
-  const known = new Set(['channel', 'version', 'check', 'help'])
-  const unknown = [...args.options.keys()].filter((name) => !known.has(name))
-  if (unknown.length > 0) {
-    throw new UpdateCliUsageError(`Unknown option for OpenWaggle update: --${unknown[0]}.`)
-  }
-  for (const name of ['channel', 'version']) {
-    if (option(args, name) === 'true') {
-      throw new UpdateCliUsageError(`Missing value for --${name}.`)
-    }
-  }
-  for (const name of ['check', 'help']) {
-    const value = option(args, name)
-    if (value !== undefined && value !== 'true') {
-      throw new UpdateCliUsageError(`--${name} does not accept values.`)
-    }
-  }
-  if (args.options.has('channel') && args.options.has('version')) {
-    throw new UpdateCliUsageError('--channel and --version cannot be used together.')
-  }
-}
-
-function parseChannel(value: string | undefined): UpdateChannel | undefined {
-  if (value === undefined) return undefined
-  const channel = UPDATE_CHANNELS.find((candidate) => candidate === value)
-  if (!channel) {
-    throw new UpdateCliUsageError(`Unsupported update channel ${JSON.stringify(value)}.`)
-  }
-  return channel
-}
 
 async function configureUpdater(
   channel: UpdateChannel,
@@ -147,8 +98,13 @@ async function installAvailableUpdate(input: {
   readonly downloaded: ReturnType<typeof createDownloadWaiter> | null
   readonly parsed: ParsedArguments
   readonly unsavedChannel: boolean
+  readonly machine: UpdateCheckMachineOutput | null
 }) {
   const { mode, version, channel } = input
+  if (mode === 'check' && input.machine) {
+    const savedChannel = await input.machine.savedChannel()
+    return writeUpdateCheckResult({ savedChannel, channel, status: 'available', version })
+  }
   if (mode === 'check') {
     await writeCliStdout(
       `OpenWaggle ${version} is available on the ${channel} channel.` +
@@ -182,11 +138,16 @@ async function updateFromChannel(input: {
   readonly channel: UpdateChannel
   readonly checkOnly: boolean
   readonly unsavedChannel: boolean
+  readonly machine: UpdateCheckMachineOutput | null
 }) {
-  const { parsed, channel, unsavedChannel } = input
+  const { parsed, channel, unsavedChannel, machine } = input
   const mode = channelInstallMode(input.checkOnly)
   const reportOnly = mode !== 'updater'
   const selection = await configureUpdater(channel, reportOnly)
+  if (selection.type === 'no-release' && machine) {
+    const savedChannel = await machine.savedChannel()
+    return writeUpdateCheckResult({ savedChannel, channel, status: 'no-release' })
+  }
   if (selection.type === 'no-release') {
     // Stable before 1.0.0, or a release whose update metadata is still uploading.
     await writeCliStdout(
@@ -202,6 +163,10 @@ async function updateFromChannel(input: {
   })
   if (!result?.isUpdateAvailable) {
     abandonDownloadWaiter(downloaded)
+    if (machine) {
+      const savedChannel = await machine.savedChannel()
+      return writeUpdateCheckResult({ savedChannel, channel, status: 'up-to-date' })
+    }
     await writeCliStdout(`OpenWaggle is up to date on the ${channel} channel.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
@@ -213,7 +178,15 @@ async function updateFromChannel(input: {
     void result.downloadPromise?.catch(() => undefined)
     throw new Error(`OpenWaggle ${version} is not eligible for the ${channel} update channel.`)
   }
-  return installAvailableUpdate({ mode, version, channel, downloaded, parsed, unsavedChannel })
+  return installAvailableUpdate({
+    mode,
+    version,
+    channel,
+    downloaded,
+    parsed,
+    unsavedChannel,
+    machine,
+  })
 }
 
 async function readAndUpdateChannel(
@@ -251,8 +224,10 @@ async function readAndUpdateChannel(
 }
 
 export async function runUpdateCli(args: readonly string[]) {
+  let json = false
   try {
     const parsed = parseMcpCliArguments(args)
+    json = hasFlag(parsed, 'json')
     validateArguments(parsed)
     if (hasFlag(parsed, 'help')) {
       await writeCliStdout(`${usage()}\n`)
@@ -260,11 +235,16 @@ export async function runUpdateCli(args: readonly string[]) {
     }
     // Every path, the Host-free ones included: an agent Run neither checks nor installs (#351).
     assertCliAgentMayUseOwnerAuthority(UPDATE_AGENT_REFUSAL)
-    const version = option(parsed, 'version')
-    if (version)
-      return await installExactVersion(parsed, normalizeVersion(version), hasFlag(parsed, 'check'))
-    const requested = parseChannel(option(parsed, 'channel'))
     const checkOnly = hasFlag(parsed, 'check')
+    // `get-channel` only reads, so --check --json stays read-only.
+    const readSavedChannel = () => readAndUpdateChannel(parsed, undefined)
+    const version = option(parsed, 'version')
+    if (version) {
+      return await installExactVersion(parsed, normalizeVersion(version), checkOnly, {
+        machine: json ? { savedChannel: readSavedChannel } : null,
+      })
+    }
+    const requested = parseChannel(option(parsed, 'channel'))
     // --check is read-only: it checks a requested channel without saving it.
     if (checkOnly && requested) {
       return await updateFromChannel({
@@ -272,14 +252,21 @@ export async function runUpdateCli(args: readonly string[]) {
         channel: requested,
         checkOnly,
         unsavedChannel: true,
+        machine: json ? { savedChannel: readSavedChannel } : null,
       })
     }
     const channel = await readAndUpdateChannel(parsed, requested)
-    return await updateFromChannel({ parsed, channel, checkOnly, unsavedChannel: false })
+    return await updateFromChannel({
+      parsed,
+      channel,
+      checkOnly,
+      unsavedChannel: false,
+      machine: json ? { savedChannel: () => Promise.resolve(channel) } : null,
+    })
   } catch (error) {
-    // `update` has no --json; it reports like every CLI, with the kind (#351).
+    // Every CLI reports a failure with its kind, as an error envelope with --json (#351).
     return {
-      exitCode: cliExitCodeForKind(writeSessionsCliError(error, false)),
+      exitCode: cliExitCodeForKind(writeSessionsCliError(error, json)),
       updaterOwnsExit: false,
     }
   }

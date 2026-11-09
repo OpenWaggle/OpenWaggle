@@ -50,13 +50,15 @@ Windows installers are not signed yet, so SmartScreen may warn you the first tim
 
 ## Install from the terminal
 
-On macOS and Linux, this command downloads the repository's [install script](https://github.com/OpenWaggle/OpenWaggle/blob/main/scripts/install.sh) and runs it. Read the script first if you want to see what it changes.
+On macOS and Linux, this command downloads the [install script](https://github.com/OpenWaggle/OpenWaggle/blob/main/scripts/install.sh) and runs it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+curl -fsSL https://openwaggle.ai/install | bash
 ```
 
-The script installs the newest release on the **Stable** channel and saves Stable as your update channel. Until the first Stable release is out, it uses **Beta** instead, which also gets release candidates and, later, Stable releases. It doesn't keep the channel of the copy you already have. To stay on a prerelease channel, choose it again each time, as in [Install a prerelease channel](#install-a-prerelease-channel).
+`openwaggle.ai/install` redirects to the script in the OpenWaggle repository. To read the script before you run it, open https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh. That address also works in place of `openwaggle.ai/install` in any command on this page.
+
+On a first install, the script installs the newest release on the **Stable** channel and saves Stable as your update channel. Until the first Stable release is out, it uses **Beta** instead, which also gets release candidates and, later, Stable releases. To start on another channel, see [Install a prerelease channel](#install-a-prerelease-channel).
 
 If the release has a `SHA256SUMS` file with an entry for the download, the script checks the download's SHA-256 checksum and stops if it doesn't match. A release without that file or entry installs without the check.
 
@@ -69,7 +71,9 @@ When it finishes, the script opens OpenWaggle. It doesn't open the app over SSH,
 
 ### Update an existing install
 
-Run the same command again to update, with the same `OPENWAGGLE_CHANNEL` if you use one. The script never installs a version older than the one you have, because an older version may not be able to open data a newer one has already updated. If the newest release it finds is older, for example a Stable release while you run a newer Beta, it stops with status 2 before it downloads anything, and the installed app keeps running. Run it again with `OPENWAGGLE_CHANNEL` set to the channel you are on. The version you already have reinstalls.
+Run the same command again to update. The script asks the installed OpenWaggle which update channel it uses and installs the newest release on that channel, so a re-run keeps your channel and doesn't save a new one. Set `OPENWAGGLE_CHANNEL` only to switch channel. Versions up to `1.0.0-beta.37` can't report their channel, so over one of those, or when the installed app can't answer, the script uses the first-install default and saves it.
+
+The script never installs a version older than the one you have, because an older version may not be able to open data a newer one has already updated. If the newest release on the channel is older, it stops with status 2 before it downloads anything, and the installed app keeps running. The version you already have reinstalls.
 
 Before it replaces the app, the script stops OpenWaggle's background Session Host, the same way **Restart to update** does. If an agent is still working, it asks whether to wait for the work, stop it, or cancel. If you cancel, or press Ctrl-C while it waits, the installed version stays as it was and the script reopens the app if it had quit it. If the installed version is too old to ask, the script tells its Session Host to stop, waits up to 20 seconds for running work, then installs even if that work is still finishing. A version without the `host` command is not stopped, so run `openwaggle host stop --update` after the install.
 
@@ -86,7 +90,7 @@ openwaggle host stop --update
 Pass `--no-launch`, or set `OPENWAGGLE_NO_LAUNCH=1`, to install without opening OpenWaggle:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash -s -- --no-launch
+curl -fsSL https://openwaggle.ai/install | bash -s -- --no-launch
 ```
 
 [Environment variables](/docs/reference/environment-variables#install-script) lists every variable the script reads.
@@ -96,23 +100,23 @@ curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/
 To use the Beta channel, which also gets release candidates and Stable releases, run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=beta bash
+curl -fsSL https://openwaggle.ai/install | OPENWAGGLE_CHANNEL=beta bash
 ```
 
 To use the Alpha channel, which also gets Beta, release candidate and Stable releases, run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_CHANNEL=alpha bash
+curl -fsSL https://openwaggle.ai/install | OPENWAGGLE_CHANNEL=alpha bash
 ```
 
-The script saves the channel you chose, not the label of the file it downloaded. An Alpha install stays on Alpha even when the newest release it can get happens to be a Beta or Stable build.
+The script saves the channel you chose, not the label of the file it downloaded. An Alpha install stays on Alpha even when the newest release it can get happens to be a Beta or Stable build. Later re-runs keep that channel without `OPENWAGGLE_CHANNEL`. Setting it is the only way the script changes your channel, the same as `openwaggle update --channel`.
 
 ### Install one exact version
 
 Set `OPENWAGGLE_RELEASE_TAG` to install one version without changing your saved channel. Tags look like `v1.0.0`, `v1.0.0-rc.1` or `v1.0.0-beta.25`. Replace `v1.0.0` below with a tag listed on [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
+curl -fsSL https://openwaggle.ai/install | OPENWAGGLE_RELEASE_TAG=v1.0.0 bash
 ```
 
 OpenWaggle doesn't support downgrades, so the script refuses a version older than the one installed. It exits with status 2 before it changes anything, as `openwaggle update --version` does. The version you already have reinstalls.
@@ -140,6 +144,8 @@ From a terminal, check what is available without downloading anything or changin
 ```bash
 openwaggle update --check
 ```
+
+Add `--json` to `--check` to get the result as JSON, including the saved channel in `savedChannel`.
 
 To switch channel and install its newest release, run this with `alpha`, `beta` or `stable`. Add `--check` to look at a channel without saving it.
 
