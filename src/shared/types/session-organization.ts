@@ -31,8 +31,9 @@ export type SessionOrganizationOutcome =
     }
   | {
       /**
-       * A Session agent archived its own Session from Run `runId`. Archiving stops the Session's
-       * Runs, so the Host archives it once that Run ends instead of interrupting it.
+       * A Session agent asked, from Run `runId`, to archive its own Session. Archiving stops the
+       * Session's Runs, so the Host archives it after that Run completes instead, unless the
+       * Session changed since.
        */
       readonly operation: 'archive'
       readonly effect: 'session-archive-deferred'

@@ -14,6 +14,7 @@ import {
 } from '../ports/session-organization-repository'
 import { tryGetSessionHostEventRuntime } from '../session-host/session-host-events'
 import { hasAnyActiveRun } from './active-session-runs'
+import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
 import { withSessionCommandSerialization } from './session-command-serialization'
 import { publishControlResponse } from './session-control-event-projection'
 import { SessionHostDrainingError } from './session-host-run-admission'
@@ -40,6 +41,11 @@ function isSelfArchivePending(sessionId: SessionId, runId: string) {
   return pendingSelfArchives.get(sessionId)?.has(runId) === true
 }
 
+/** Whether any Run of the Session has an archive waiting for it to end. */
+export function hasPendingSelfArchive(sessionId: SessionId) {
+  return pendingSelfArchives.has(sessionId)
+}
+
 function settleSelfArchive(sessionId: SessionId, runId: string) {
   const runs = pendingSelfArchives.get(sessionId)
   runs?.delete(runId)
@@ -54,9 +60,9 @@ export function withdrawSelfArchives(sessionId: SessionId) {
 /**
  * Why the archive the Run asked for no longer applies, or undefined when it still does. A Run
  * that did not complete (the user stopped it, it failed, a drain interrupted it), a Run,
- * Follow-up or other Session work that came after it, an unarchive since, or an archive that
- * already happened all mean someone else decided what happens to the Session since the agent
- * asked. A Run without a `session_runs` row has no status to check, so it is skipped too.
+ * Follow-up, Worker update or other Session work that came after it, an unarchive since, or an
+ * archive that already happened all mean someone else decided what happens to the Session since
+ * the agent asked. A Run without a `session_runs` row has no status to check, so it is skipped too.
  */
 export function selfArchiveSkipReason(
   state: SessionSelfArchiveState | null,
@@ -67,6 +73,8 @@ export function selfArchiveSkipReason(
   if (state.archived) return 'already-archived'
   if (state.activeRunId !== null || state.laterRunCount > 0) return 'later-run'
   if (state.queuedFollowUpCount > 0) return 'follow-up-queued'
+  // A Worker reported after the Run's last model request; the parent wake would hand it on.
+  if (state.pendingWorkerUpdateCount > 0) return 'worker-updates-pending'
   if (live.sessionBusy) return 'session-busy'
   if (state.runStatus === null) return 'run-missing'
   if (state.runStatus !== 'completed') return 'run-not-completed'
@@ -123,29 +131,44 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
         runId,
         reason: skipReason,
       })
-      return
+      return 'skipped' as const
     }
     const response = yield* input.archive
     publishControlResponse(response)
-  })
+    return 'archived' as const
+  }).pipe(
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        logger.warn('A Session could not archive itself after its Run ended', {
+          sessionId,
+          runId,
+          cause: Cause.pretty(cause),
+        })
+        return 'failed' as const
+      }),
+    ),
+    // Settled before the serialization is released, so the next command sees no pending archive.
+    Effect.ensuring(Effect.sync(() => settleSelfArchive(sessionId, runId))),
+  )
   const archiveAfterRun = (releaseLiveness: () => void) =>
     Effect.promise(() => waitForSessionRunEnd(sessionId, runId)).pipe(
       Effect.zipRight(withSessionCommandSerialization(sessionId, archiveIfStillWanted)),
+      // Hive cleanup keeps a Worker with a pending self-archive. When it did not happen, a
+      // finished Worker gets the cleanup pass it was kept from, outside the serialization that an
+      // inline pass takes itself.
+      Effect.flatMap((outcome) =>
+        outcome === 'archived' ? Effect.void : requestHiveWorkerCleanup(sessionId),
+      ),
       Effect.catchAllCause((cause) =>
         Effect.sync(() => {
-          logger.warn('A Session could not archive itself after its Run ended', {
+          logger.warn('Hive cleanup after a skipped self-archive failed', {
             sessionId,
             runId,
             cause: Cause.pretty(cause),
           })
         }),
       ),
-      Effect.ensuring(
-        Effect.sync(() => {
-          settleSelfArchive(sessionId, runId)
-          releaseLiveness()
-        }),
-      ),
+      Effect.ensuring(Effect.sync(releaseLiveness)),
     )
   return Effect.uninterruptible(
     Effect.gen(function* () {
@@ -157,8 +180,8 @@ export function deferArchiveUntilRunEnds<E, R>(input: {
         })
         const runs = pendingSelfArchives.get(sessionId) ?? new Set<string>()
         pendingSelfArchives.set(sessionId, runs.add(runId))
-        // The daemon inherits this uninterruptible region, as every archive dispatched through
-        // Session Control runs uninterruptibly; nothing interrupts it, and its waits end on their own.
+        // Forked inside this uninterruptible region, the daemon is uninterruptible too, like every
+        // archive Session Control dispatches. Nothing interrupts it; its waits end on their own.
         yield* Effect.forkDaemon(archiveAfterRun(releaseLiveness))
       }
       return {

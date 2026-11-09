@@ -1,3 +1,4 @@
+import type { SessionLatestRunSummary } from '@shared/types/session'
 import type {
   SessionControlMutationRequest,
   SessionControlMutationResponse,
@@ -26,9 +27,11 @@ export interface SessionSelfArchiveState {
   readonly activeRunId: string | null
   readonly queuedFollowUpCount: number
   /** The asking Run's durable status, or null when it has no `session_runs` row. */
-  readonly runStatus: string | null
+  readonly runStatus: SessionLatestRunSummary['status'] | null
   /** Runs of the Session recorded after the asking Run, even ones that have already ended. */
   readonly laterRunCount: number
+  /** Worker updates for this Session as a parent that no Run has taken yet. */
+  readonly pendingWorkerUpdateCount: number
 }
 
 export interface SessionOrganizationRepositoryShape {

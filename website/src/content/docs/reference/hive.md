@@ -73,19 +73,21 @@ When you stop or interrupt a run before the agent wrote anything, the transcript
 | `approval_respond` | `sessions:approve` | Answers an approval request a run is waiting on. |
 | `authorization_set` | `sessions:authorization` | Changes a session's access mode, within the caller's limit. |
 
-Archiving a session stops its runs and closes its terminals and browser previews. An agent can archive its own session through its `hive` tool, for example a scheduled run that found nothing to do. OpenWaggle does not stop the run that asked. The call returns `effect: "session-archive-deferred"` with that run's `runId`, and the agent can still write its final message.
+Archiving a session stops its runs and closes its terminals and browser previews. An agent can archive its own session through its `hive` tool, for example when a run started by a launch schedule found nothing to do. OpenWaggle does not stop the run that asked. The call returns `effect: "session-archive-deferred"` with that run's `runId`, and the agent can still write its final message.
 
 Once that run ends, OpenWaggle archives the session unless one of these happened first:
 
 - The run did not complete. It failed, or someone stopped it.
 - Another run started, or a follow-up is waiting in the queue.
-- The session was unarchived, for example by the agent calling `unarchive`, or it was already archived.
+- A worker sent the session an update that no run has read yet.
+- Someone called `unarchive` on the session.
+- Something else archived it first.
 
-If the Session Host stops or restarts before the run ends, for example to install an update, the session stays unarchived.
+A skipped archive leaves the session as it is, and OpenWaggle does not tell the agent.
 
-This suits a launch schedule, which starts a new session each time. A heartbeat keeps one session, so archiving it turns the heartbeat off until you restore the session. To archive launched sessions without asking the agent, use the task's **Archive finished runs** setting.
+If the Session Host stops or restarts before the run ends, for example to install an update, the session stays unarchived. For when to archive from a scheduled task, see [the Launch schedule section of Scheduled tasks](/docs/using-openwaggle/scheduled-tasks#run-a-launch-schedule).
 
-An agent that archives its own session with `openwaggle hive archive` from a shell, or through MCP, does not act as its run. That archive stops the current run.
+If the agent runs `openwaggle hive archive` in a shell, or calls the `openwaggle_hive` MCP tool, OpenWaggle treats it like any other caller. That archive stops the current run, including the one that asked.
 
 ## Manage the follow-up queue
 

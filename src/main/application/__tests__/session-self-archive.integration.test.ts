@@ -1,12 +1,16 @@
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SessionId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Runtime from 'effect/Runtime'
 import * as Schedule from 'effect/Schedule'
 import { describe, expect, it } from 'vitest'
-import { seedHiveWorker } from '../../adapters/__tests__/hive-worker-cleanup-fixture'
+import {
+  QUEEN_CALLER_ID,
+  seedHiveWorker,
+} from '../../adapters/__tests__/hive-worker-cleanup-fixture'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import {
   SessionControlRunExecutor,
@@ -15,7 +19,7 @@ import {
 import type { SessionControlTerminalRunStatus } from '../../ports/session-control-run-lifecycle-repository'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
 import { dispatchAdmittedSessionControlCommand } from '../local-session-command-dispatcher'
-import { withSessionCommandSerialization } from '../session-command-serialization'
+import { hasPendingSelfArchive } from '../session-self-archive'
 import {
   archived,
   archiveStateJournal,
@@ -28,8 +32,6 @@ import {
 import { authorizationLayer, controlPayload } from './local-session-command-dispatcher.test-support'
 
 const FINAL_RESPONSE = 'No actionable issues today.'
-/** Long enough for a deferred archive that was going to run to have taken the serialization. */
-const DEFERRED_ARCHIVE_SETTLE_MS = 300
 
 /** The Hive tool's archive call, once the Host admitted it, for the agent of Run `runId`. */
 function archiveCommand(input: { readonly sessionId: string; readonly runId: string }) {
@@ -56,6 +58,11 @@ interface Scenario {
   readonly afterArchive?: (runtime: Runtime.Runtime<HostContext>) => Promise<unknown>
   /** How the Run that asked ends. */
   readonly terminalStatus?: SessionControlTerminalRunStatus
+  /**
+   * An accepted Worker its Queen sent more work, which Hive cleanup archives once that Run ends,
+   * instead of a Queen the user started.
+   */
+  readonly acceptedWorker?: boolean
 }
 
 /**
@@ -137,47 +144,51 @@ function runScenario(databasePath: string, scenario: Scenario) {
     Effect.gen(function* () {
       hostRuntime = yield* Effect.runtime<HostContext>()
       const sql = yield* SqlClient.SqlClient
-      yield* seedHiveWorker(sql, { state: 'working' })
+      yield* seedHiveWorker(sql, { state: scenario.acceptedWorker ? 'accepted' : 'working' })
       yield* seedQueenAuthority(sql, path.dirname(databasePath))
-      const started = yield* controlCommandAs('gui:local-user', 'user-starts-queen', {
-        operation: 'start',
-        sessionId: 'queen',
-        input: { text: "Triage today's issues.", attachmentIds: [] },
-      })
+      const target = scenario.acceptedWorker ? 'worker' : 'queen'
+      const started = yield* controlCommandAs(
+        scenario.acceptedWorker ? QUEEN_CALLER_ID : 'gui:local-user',
+        'starts-the-run',
+        {
+          operation: 'start',
+          sessionId: target,
+          input: { text: "Triage today's issues.", attachmentIds: [] },
+        },
+      )
       if (started.outcome.effect !== 'started-run') throw new Error('The Run did not start.')
       // Before the fix the archive waited out its 30 s settle bound for a Run that was waiting
       // for it, so a red run takes that long to show what the tool returned.
       yield* waitUntil(() => observed.archivedDuringRun !== undefined, 'run-pending', '40 seconds')
-      yield* waitForSessionIdle('queen')
-      const archivedAfterRun = yield* archived(sql, 'queen').pipe(
+      yield* waitForSessionIdle(target)
+      const archivedAfterRun = yield* archived(sql, target).pipe(
         Effect.flatMap((isArchived) => (isArchived ? Effect.void : Effect.fail('not-archived'))),
         Effect.retry(Schedule.spaced('10 millis').pipe(Schedule.upTo('2 seconds'))),
         Effect.as(true),
         Effect.orElseSucceed(() => false),
       )
-      // A deferred archive that decided to skip has had its turn at the serialization by now.
-      yield* Effect.sleep(DEFERRED_ARCHIVE_SETTLE_MS)
-      yield* withSessionCommandSerialization('queen', Effect.void)
+      // The deferred archive has decided once nothing is pending for the Session any more.
+      yield* waitUntil(() => !hasPendingSelfArchive(SessionId(target)), 'pending', '5 seconds')
       const runs = yield* sql<{ readonly id: string; readonly status: string }>`
         SELECT id, status FROM session_runs
-        WHERE session_id = ${'queen'} AND id <> ${'run-queen'} ORDER BY rowid
+        WHERE session_id = ${target} AND id <> ${`run-${target}`} ORDER BY rowid
       `
       return {
         observed,
         runId: started.outcome.runId,
-        archivedAfterRun: archivedAfterRun && (yield* archived(sql, 'queen')),
+        archivedAfterRun: archivedAfterRun && (yield* archived(sql, target)),
         runs: runs.map((run) => ({ id: run.id, status: run.status })),
-        journal: yield* archiveStateJournal(sql, 'queen'),
+        journal: yield* archiveStateJournal(sql, target),
       }
     }).pipe(Effect.provide(layer)),
   )
 }
 
-function deferredOutcome(runId: string) {
+function deferredOutcome(runId: string, sessionId = 'queen') {
   return {
     operation: 'archive',
     effect: 'session-archive-deferred',
-    sessionId: 'queen',
+    sessionId,
     runId,
   }
 }
@@ -204,6 +215,16 @@ describe('a Session agent archiving its own Session', () => {
       sessionId: 'queen',
       change: 'archived',
     })
+  }, 45_000)
+
+  it('records the Worker archive its agent asked for, not a Hive cleanup archive', async () => {
+    const result = await runScenario(database('worker'), { acceptedWorker: true })
+
+    expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId, 'worker')])
+    expect(result.archivedAfterRun).toBe(true)
+    expect(result.journal).toEqual([
+      { caller_id: `session-agent:worker:${result.runId}`, operation: 'archive' },
+    ])
   }, 45_000)
 
   it('archives once when the agent asks twice', async () => {

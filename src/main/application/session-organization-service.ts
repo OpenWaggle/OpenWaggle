@@ -128,10 +128,14 @@ export function organizeSession(input: {
         )
       : input.request.command.operation === 'unarchive'
         ? refuseRestoreWhileRemovalFenced(SessionId(input.request.command.sessionId)).pipe(
-            Effect.zipRight(
-              Effect.sync(() => withdrawSelfArchives(SessionId(input.request.command.sessionId))),
-            ),
             Effect.zipRight(organizeSessionWithoutArchive(input)),
+            Effect.tap((response) =>
+              Effect.sync(() => {
+                if (!response.replayed && response.outcome.effect === 'session-unarchived') {
+                  withdrawSelfArchives(SessionId(input.request.command.sessionId))
+                }
+              }),
+            ),
           )
         : organizeSessionWithoutArchive(input)
   })

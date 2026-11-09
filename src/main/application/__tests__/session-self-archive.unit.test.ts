@@ -1,14 +1,16 @@
 import { SessionId } from '@shared/types/brand'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { SessionSelfArchiveState } from '../../ports/session-organization-repository'
 import { cancelAllSessionRuns, reserveActiveSessionRun } from '../active-session-runs'
 import { liveCallerRunOfSession, selfArchiveSkipReason } from '../session-self-archive'
 
-const idle = {
+const idle: SessionSelfArchiveState = {
   archived: false,
   activeRunId: null,
   queuedFollowUpCount: 0,
   runStatus: 'completed',
   laterRunCount: 0,
+  pendingWorkerUpdateCount: 0,
 }
 
 describe('a Session archiving itself', () => {
@@ -44,6 +46,9 @@ describe('a Session archiving itself', () => {
     expect(selfArchiveSkipReason({ ...idle, laterRunCount: 1 }, live)).toBe('later-run')
     expect(selfArchiveSkipReason({ ...idle, queuedFollowUpCount: 1 }, live)).toBe(
       'follow-up-queued',
+    )
+    expect(selfArchiveSkipReason({ ...idle, pendingWorkerUpdateCount: 2 }, live)).toBe(
+      'worker-updates-pending',
     )
     expect(selfArchiveSkipReason(idle, { ...live, sessionBusy: true })).toBe('session-busy')
     expect(selfArchiveSkipReason({ ...idle, runStatus: null }, live)).toBe('run-missing')

@@ -48,26 +48,54 @@ describe('SQLite self-archive state', () => {
           ) VALUES (${'follow-up'}, ${'session-target'}, ${0}, ${'pending'}, ${'{}'}, ${1}, ${1})
         `
         yield* sql`UPDATE sessions SET archived = ${1} WHERE id = ${'session-target'}`
-        const queuedAndArchived = yield* read('run-asking')
+        yield* sql`
+          UPDATE session_control_states SET active_run_id = ${'run-earlier'}
+          WHERE session_id = ${'session-target'}
+        `
+        // The read only counts pending updates; their Delegation and Worker rows do not matter.
+        yield* sql.unsafe('PRAGMA foreign_keys = OFF')
+        for (const [id, status] of [
+          ['update-pending', 'pending'],
+          ['update-delivered', 'delivered'],
+        ] as const) {
+          yield* sql`
+            INSERT INTO session_orchestration_updates (
+              id, parent_session_id, worker_session_id, delegation_id, source_run_id, state,
+              summary, status, delivered_run_id, delivered_item_id, created_at, delivered_at
+            ) VALUES (
+              ${id}, ${'session-target'}, ${'worker'}, ${`delegation-${id}`}, ${'run-worker'},
+              ${'ready_for_review'}, ${'Done.'}, ${status},
+              ${status === 'delivered' ? 'run-asking' : null},
+              ${status === 'delivered' ? 'item' : null}, ${1}, ${status === 'delivered' ? 2 : null}
+            )
+          `
+        }
+        const busy = yield* read('run-asking')
         const gone = yield* repository.readSelfArchiveState({
           sessionId: 'session-gone',
           runId: 'run-asking',
         })
-        return { idle, fromEarlier, missing, elsewhere, queuedAndArchived, gone }
+        return { idle, fromEarlier, missing, elsewhere, busy, gone }
       }).pipe(Effect.provide(layer)),
     )
 
-    const base = { archived: false, activeRunId: null, queuedFollowUpCount: 0 }
+    const base = {
+      archived: false,
+      activeRunId: null,
+      queuedFollowUpCount: 0,
+      pendingWorkerUpdateCount: 0,
+    }
     expect(result.idle).toEqual({ ...base, runStatus: 'completed', laterRunCount: 0 })
     expect(result.fromEarlier).toEqual({ ...base, runStatus: 'completed', laterRunCount: 1 })
     expect(result.missing).toEqual({ ...base, runStatus: null, laterRunCount: 0 })
     expect(result.elsewhere).toEqual({ ...base, runStatus: null, laterRunCount: 0 })
-    expect(result.queuedAndArchived).toEqual({
+    expect(result.busy).toEqual({
       archived: true,
-      activeRunId: null,
+      activeRunId: 'run-earlier',
       queuedFollowUpCount: 1,
       runStatus: 'completed',
       laterRunCount: 0,
+      pendingWorkerUpdateCount: 1,
     })
     expect(result.gone).toBe(null)
   })
