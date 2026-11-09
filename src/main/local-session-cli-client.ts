@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { sessionHostErrorKindForThrownCode } from '@shared/domain/session-host-refusals'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { app } from 'electron'
 import { CliError } from './cli-error'
@@ -108,10 +109,11 @@ export function refusedCredentialError(
   ) {
     return cause
   }
+  // The refusal keeps the kind and code the Session Host gave it (ADR 0063).
   return new CliError(
-    'authentication',
+    cause.errorKind ?? sessionHostErrorKindForThrownCode(cause.code),
     `The Session Host refused the credential for access profile ${JSON.stringify(input.profile)} (${cause.message}). The profile may be unknown or revoked, or its credential may have been rotated: pass the current one with --profile-credential-file, or rotate it with openwaggle access profiles rotate.`,
-    { cause },
+    { cause, code: cause.code },
   )
 }
 

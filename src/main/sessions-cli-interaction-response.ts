@@ -1,4 +1,5 @@
 import { match, matchBy } from '@diegogbrisa/ts-match'
+import { SESSION_HOST_REFUSAL_KINDS } from '@shared/domain/session-host-refusals'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { agentLoopResponseSchema } from '@shared/schemas/agent-loop-interaction'
 import { AGENT_AUTHORIZATION_DECISION_SCOPES } from '@shared/types/agent-authorization-grants'
@@ -8,6 +9,7 @@ import type {
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
 import type { JsonValue } from '@shared/types/json'
+import { CliError } from './cli-error'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import { option, type ParsedArguments } from './mcp-cli-arguments'
 
@@ -146,8 +148,13 @@ function confirmResponse(
   answer: InteractionAnswer,
 ): AgentLoopInteractionResponse {
   if (interaction.purpose === 'authorization') {
-    throw new CommandCliUsageError(
+    // The Session Host refuses it with interaction-mismatch, so the CLI does too, with that
+    // code's kind, as when the caller cannot see the approval (sessions-cli-unlisted-request).
+    const code = 'interaction-mismatch'
+    throw new CliError(
+      SESSION_HOST_REFUSAL_KINDS[code],
       `Request ${interaction.interactionId} is an approval request. Answer it with 'openwaggle hive approval-respond ${interaction.sessionId} ${interaction.runId} ${interaction.interactionId} allow|deny'.`,
+      { code },
     )
   }
   if (answer.kind === 'confirm') return { kind: 'confirm', accepted: true }

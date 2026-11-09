@@ -123,6 +123,7 @@ async function finalizeProfileResponse(input: {
         new CliError(
           accessCliRejectedOutcomeKind(input.response.outcome),
           `The profile operation was rejected (${input.response.outcome.code}).`,
+          { code: input.response.outcome.code },
         ),
         input.staged.recoveryLocation,
       )

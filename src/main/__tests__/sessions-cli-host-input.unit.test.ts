@@ -145,11 +145,18 @@ describe('hive request-respond reads the pending request before it answers', () 
     )
 
     await expect(
-      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm']),
-    ).resolves.toBe(2)
-    expect(stderr()).toContain(
-      `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
-    )
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm', '--json']),
+    ).resolves.toBe(6)
+    // The Session Host's answer, and the probe's for a caller that cannot see the approval.
+    expect(JSON.parse(stderr())).toMatchObject({
+      error: {
+        kind: 'conflict',
+        code: 'interaction-mismatch',
+        message: expect.stringContaining(
+          `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
+        ),
+      },
+    })
   })
 
   it('fails with the error kind of a refused read of the pending requests', async () => {

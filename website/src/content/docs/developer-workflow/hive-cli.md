@@ -85,7 +85,7 @@ In these tables, `<session>` is a session ID or a session link copied from the d
 - `interaction-mismatch` (exit 6) for a pending approval request the caller may not answer.
 - `interaction-not-found` (exit 5) for a request that is not pending.
 
-A retry with the same `--idempotency-key` is safe. When the request is no longer pending, the CLI sends the answer anyway, and the Session Host returns the outcome it recorded for that key, or `interaction-not-found` (exit 5) if it recorded none. That works for `--choice`, `--confirm`, `--decline` and `--value-file`. `--text`, `--stdin`, `--input-file` and `--dismiss` fit more than one kind of request, so the CLI cannot rebuild the recorded answer from them, and the retry fails with `not_found` without sending it. An approval request needs `approval-respond`, and `request-respond` refuses it with that command in the message.
+A retry with the same `--idempotency-key` is safe. When the request is no longer pending, the CLI sends the answer anyway, and the Session Host returns the outcome it recorded for that key, or `interaction-not-found` (exit 5) if it recorded none. That works for `--choice`, `--confirm`, `--decline` and `--value-file`. `--text`, `--stdin`, `--input-file` and `--dismiss` fit more than one kind of request, so the CLI cannot rebuild the recorded answer from them, and the retry fails with `not_found` without sending it. An approval request needs `approval-respond`. `request-respond` refuses one with `interaction-mismatch` (exit 6) and names that command in the message, whether or not the caller can see the approval.
 
 ### Delegations and agent definitions
 

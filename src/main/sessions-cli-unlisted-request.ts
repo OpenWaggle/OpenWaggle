@@ -47,7 +47,7 @@ async function whyUnlisted(input: UnlistedRequest, missing: string) {
     }),
   )
   const outcome = result.contract === 'session-control-v2' ? result.response.outcome : undefined
-  if (!outcome || outcome.effect !== 'rejected') {
+  if (outcome?.effect !== 'rejected') {
     // A notify answer settles nothing, so anything but a refusal is a Host this CLI does not know.
     throw new Error('The Session Host answered the request-respond probe with another result.')
   }
