@@ -29,7 +29,8 @@ const logger = createLogger('session-self-archive')
 export function liveCallerRunOfSession(callerId: string, sessionId: SessionId) {
   const caller = parseSessionAgentCallerId(callerId)
   if (caller?.sessionId !== sessionId) return undefined
-  return [caller.runId, durableSessionRunId(caller.runId)].find((runId) =>
+  // The classic Run first: it outlives the Waggle, and the archive waits for the Run to end.
+  return [durableSessionRunId(caller.runId), caller.runId].find((runId) =>
     isSessionRunLive(sessionId, runId),
   )
 }

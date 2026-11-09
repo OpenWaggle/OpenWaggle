@@ -129,6 +129,7 @@ describe('SQLite self-archive state', () => {
           ['delegation-revising', 'revision_requested'],
           ['delegation-review', 'ready_for_review'],
           ['delegation-asking', 'needs_attention'],
+          ['delegation-woken', 'ready_for_review'],
           ['delegation-accepted', 'accepted'],
         ] as const) {
           yield* sql`INSERT INTO sessions (id, project_path) VALUES (${`child-${id}`}, ${'/p'})`
@@ -147,6 +148,17 @@ describe('SQLite self-archive state', () => {
             ${'child-delegation-asking'}, ${1}, ${'run-worker-live'}, ${'running'}, ${0}, ${1}
           )
         `
+        // A Worker waiting for review whose own Worker reported is about to be woken.
+        yield* sql`
+          INSERT INTO session_orchestration_updates (
+            id, parent_session_id, worker_session_id, delegation_id, source_run_id, state,
+            summary, status, created_at
+          ) VALUES (
+            ${'update-for-worker'}, ${'child-delegation-woken'}, ${'grandchild'},
+            ${'delegation-grandchild'}, ${'run-grandchild'}, ${'ready_for_review'}, ${'Done.'},
+            ${'pending'}, ${1}
+          )
+        `
         return yield* read('run-asking')
       }),
     )
@@ -158,7 +170,7 @@ describe('SQLite self-archive state', () => {
       runStatus: 'completed',
       laterRunCount: 0,
       pendingWorkerUpdateCount: 1,
-      workingDelegationCount: 4,
+      workingDelegationCount: 5,
       pinned: true,
     })
   })

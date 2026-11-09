@@ -57,8 +57,8 @@ export function readSessionSelfArchiveState(
       (SELECT COUNT(*) FROM session_orchestration_updates AS updates
         WHERE updates.parent_session_id = sessions.id AND updates.status = ${'pending'})
         AS pending_worker_update_count,
-      -- A Worker still working, or one with an open result whose Run or Follow-up is still to
-      -- come, reports to this Session later.
+      -- A Worker still working, or one with an open result whose Run, Follow-up or wake is still
+      -- to come, reports to this Session later.
       (SELECT COUNT(*) FROM delegation_contracts AS delegations
         WHERE delegations.parent_session_id = sessions.id
           AND (
@@ -71,6 +71,10 @@ export function readSessionSelfArchiveState(
                     AND worker.active_run_id IS NOT NULL)
                 OR EXISTS (SELECT 1 FROM session_follow_ups AS worker_follow_ups
                   WHERE worker_follow_ups.session_id = delegations.child_session_id)
+                -- Its own Worker reported, so a wake Run of it is about to start.
+                OR EXISTS (SELECT 1 FROM session_orchestration_updates AS worker_updates
+                  WHERE worker_updates.parent_session_id = delegations.child_session_id
+                    AND worker_updates.status = ${'pending'})
               )
             )
           ))

@@ -313,7 +313,7 @@ Once that run ends, OpenWaggle archives the session unless one of these is true:
 - A worker sent the session an update that no run has read yet.
 - One of the session's workers is still working on its delegation.
 - Someone called `unarchive` on the session after the agent asked.
-- The session is pinned when the run ends.
+- The session is pinned.
 - Something else archived it first.
 
 A message you steer into the run that asked does not cancel the archive. OpenWaggle does not retry a skipped archive or tell the agent. A worker that archives itself counts as archived on purpose, so new work does not bring it back. If its archive is skipped, worker cleanup can still archive it once its result is accepted or cancelled.
