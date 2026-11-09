@@ -18,6 +18,13 @@ const DOCS_CHANGE: ReleaseTrainHistoryEntry = {
   subject: 'docs: release notes',
   path: 'docs/notes.md',
 }
+// The 1.0.0 entry is written during the RC window, so it is a change since rc.1.
+const CHANGELOG_ENTRY: ReleaseTrainHistoryEntry = {
+  kind: 'change',
+  subject: 'docs: 1.0.0 changelog',
+  path: 'CHANGELOG.md',
+  content: CHANGELOG,
+}
 
 // Each case has its own temporary repositories, so they run concurrently.
 describe.concurrent('desktop app release candidate and Stable paths', () => {
@@ -109,8 +116,7 @@ describe.concurrent('desktop app release candidate and Stable paths', () => {
   it('prepares Stable 1.0.0 when main matches rc.1 apart from non-app paths', async ({ expect }) => {
     const result = await runReleaseTrain({
       initialVersion: '1.0.0-beta.37',
-      history: [RC_1, DOCS_CHANGE],
-      changelog: CHANGELOG,
+      history: [RC_1, DOCS_CHANGE, CHANGELOG_ENTRY],
       run: { kind: 'dispatch', targetVersion: '1.0.0' },
     })
 
@@ -123,8 +129,7 @@ describe.concurrent('desktop app release candidate and Stable paths', () => {
   it('checks the promotion guard again before tagging a merged Stable release commit', async ({ expect }) => {
     const result = await runReleaseTrain({
       initialVersion: '1.0.0-beta.37',
-      history: [RC_1, DOCS_CHANGE],
-      changelog: CHANGELOG,
+      history: [RC_1, DOCS_CHANGE, CHANGELOG_ENTRY],
       run: { kind: 'release-merge', version: '1.0.0' },
     })
 
@@ -194,5 +199,64 @@ describe.concurrent('desktop app release candidate and Stable paths', () => {
     expect(result.stderr).toContain('HTTP 502')
     expect(result.events).toEqual(['releases'])
     expect(result.releaseBranchHead).toBeNull()
+  })
+
+  it('refuses a Stable dispatch without macOS signing before any branch, PR, or tag exists', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0-beta.37',
+      history: [RC_1, CHANGELOG_ENTRY],
+      run: { kind: 'dispatch', targetVersion: '1.0.0' },
+      macosSigning: false,
+    })
+
+    expect(result.succeeded).toBe(false)
+    expect(result.stderr).toContain('1.0.0 needs signed and notarized macOS builds')
+    expect(result.events).toEqual(['releases'])
+    expect(result.releaseBranchHead).toBeNull()
+    expect(result.tags['v1.0.0']).toBeUndefined()
+  })
+
+  it('fails when the published release candidate has no tag in the checkout', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0-beta.37',
+      history: [RC_1, CHANGELOG_ENTRY],
+      run: { kind: 'dispatch', targetVersion: '1.0.0' },
+      publishedWithoutTag: ['v1.0.0-rc.2'],
+    })
+
+    expect(result.succeeded).toBe(false)
+    expect(result.stderr).toContain('Published release candidate v1.0.0-rc.2 has no tag in this checkout.')
+    expect(result.releaseBranchHead).toBeNull()
+  })
+
+  it('fails a Stable minor whose release candidates never published', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0',
+      history: [
+        { kind: 'release', version: '1.1.0-rc.1', release: 'none' },
+        { kind: 'change', subject: 'docs: 1.1.0 changelog', path: 'CHANGELOG.md', content: '# Changelog\n\n## 1.1.0\n\nA minor.\n' },
+      ],
+      run: { kind: 'dispatch', targetVersion: '1.1.0' },
+    })
+
+    expect(result.succeeded).toBe(false)
+    expect(result.stderr).toContain('Stable 1.1.0 has release candidate tags but no published release candidate.')
+    expect(result.stderr).toContain('v1.1.0-rc.1')
+    expect(result.releaseBranchHead).toBeNull()
+  })
+
+  it('lets a Stable minor without release candidates skip the promotion guard', async ({ expect }) => {
+    const result = await runReleaseTrain({
+      initialVersion: '1.0.0',
+      history: [
+        { kind: 'change', subject: 'feat: a minor feature', path: 'src/app.ts' },
+        { kind: 'change', subject: 'docs: 1.1.0 changelog', path: 'CHANGELOG.md', content: '# Changelog\n\n## 1.1.0\n\nA minor.\n' },
+      ],
+      run: { kind: 'dispatch', targetVersion: '1.1.0' },
+    })
+
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.stdout).toContain('No published release candidate precedes 1.1.0; promotion guard skipped.')
+    expect(result.releaseBranchManifest).toContain('"version": "1.1.0"')
   })
 })

@@ -19,7 +19,7 @@ import {
  * the tag, only a draft, or nothing (the tag of a build that failed, like `v1.0.0-beta.33`).
  */
 export type ReleaseTrainHistoryEntry =
-  | { readonly kind: 'change'; readonly subject: string; readonly path: string }
+  | { readonly kind: 'change'; readonly subject: string; readonly path: string; readonly content?: string }
   | { readonly kind: 'release'; readonly version: string; readonly release: 'published' | 'draft' | 'none' }
 
 type ReleaseTrainRun =
@@ -42,6 +42,8 @@ export interface ReleaseTrainOptions {
   readonly macosSigning?: boolean
   /** Makes the GitHub release list request fail. */
   readonly releasesUnreadable?: boolean
+  /** Tags GitHub lists as published releases although the checkout has no such tag. */
+  readonly publishedWithoutTag?: readonly string[]
 }
 
 const TRAIN_MANIFEST = {
@@ -103,7 +105,7 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
   ]
   for (const [index, entry] of options.history.entries()) {
     if (entry.kind === 'change') {
-      await commit({ [entry.path]: `${entry.subject}\n` }, entry.subject)
+      await commit({ [entry.path]: entry.content ?? `${entry.subject}\n` }, entry.subject)
       continue
     }
     await commit(manifestFile(entry.version), `chore(release): v${entry.version} (#${FIRST_RELEASE_PR_NUMBER + index})`)
@@ -112,6 +114,7 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
       githubReleases.push({ tag_name: `v${entry.version}`, draft: entry.release === 'draft' })
     }
   }
+  for (const tag of options.publishedWithoutTag ?? []) githubReleases.push({ tag_name: tag, draft: false })
   await fs.writeFile(paths.releases, githubReleases.map((release) => `${JSON.stringify(release)}\n`).join(''))
 
   let mainSha = await git(paths.author, 'rev-parse', 'HEAD')

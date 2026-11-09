@@ -65,7 +65,9 @@ describe('desktop app release publication', () => {
     )
     expect(guard).toContain('gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100"')
     expect(guard).toContain("--jq '.[] | {tag_name, draft}' > \"$releases_path\"")
-    expect(guard).toContain('--releases "$releases_path"')
+    expect(guard).toMatch(
+      /scripts\/app-release-state\.ts verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate "\$candidate_ref" \\\n\s+--releases "\$releases_path"\n/u,
+    )
     // No `|| true`: an unreadable release list fails the step.
     expect(guard).not.toContain('|| true')
   })

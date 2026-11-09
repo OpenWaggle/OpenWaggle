@@ -97,7 +97,7 @@ A **Release blocker** loses user data, prevents launch, or blocks updating. It b
 ## RC freeze and promotion
 
 - During RC, `main` is frozen for app code: merge only release-blocker fixes.
-- Stable promotion fails closed unless `main` matches the last published RC's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md` (but not `THIRD_PARTY_NOTICES.md`, which ships in the app); renames count on both sides. The last published RC is the newest `vX.Y.Z-rc.N` tag with a non-draft GitHub release, read from the GitHub API (a failed read fails the guard), because the tag is pushed before the builds run and a failed build leaves a tag without a release. A new major (`X.0.0`) requires a published RC. The guard blocks promotion, not merges.
+- Stable promotion fails closed unless `main` matches the last published RC's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md` (but not `THIRD_PARTY_NOTICES.md`, which ships in the app); renames count on both sides. The last published RC is the newest `vX.Y.Z-rc.N` tag with a non-draft GitHub release, read from the GitHub API (a failed read fails the guard), because the tag is pushed before the builds run and a failed build leaves a tag without a release. A new major (`X.0.0`) requires a published RC, and a minor or patch with rc tags but no published RC fails too. The guard blocks promotion, not merges.
 - RC and Stable versions fail in the version job when the macOS signing secrets are missing, before any release PR or tag exists.
 - Promote after a 7-day RC window with no open release blocker.
 

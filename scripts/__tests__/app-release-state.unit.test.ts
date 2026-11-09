@@ -1,6 +1,5 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import electronBuilderConfig from '../../electron-builder'
 import {
   assertForwardAppVersionTransition,
   expectedVersionOnlyManifest,
@@ -173,8 +172,7 @@ describe('app release state model', () => {
   })
 
   it('never ignores a file that electron-builder copies into the app', () => {
-    const config = fs.readFileSync(path.join(process.cwd(), 'electron-builder.ts'), 'utf8')
-    const shippedPaths = [...config.matchAll(/\{ from: '([^']+)', to: /gu)].map((match) => match[1] ?? '')
+    const shippedPaths = electronBuilderConfig.extraResources.map((resource) => resource.from)
 
     expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
     expect(shippedPaths.filter((shippedPath) => isPromotionIgnoredPath(shippedPath))).toEqual([])

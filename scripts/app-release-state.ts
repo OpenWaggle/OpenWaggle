@@ -153,6 +153,8 @@ function git(args: readonly string[]) {
 }
 
 function verifyPromotion(targetVersion: string, candidateRef: string, releasesPath: string | undefined) {
+  // Throws on a malformed target instead of waving it through as a prerelease.
+  parseAppVersion(targetVersion)
   if (!STABLE_VERSION_PATTERN.test(targetVersion)) {
     process.stdout.write(`${targetVersion} is a prerelease; the promotion guard applies to Stable only.\n`)
     return
@@ -175,6 +177,14 @@ function verifyPromotion(targetVersion: string, candidateRef: string, releasesPa
     // release straight to Stable (docs/release-and-versioning.md, "After 1.0.0").
     if (requiresReleaseCandidate(targetVersion)) {
       throw new Error(`Stable ${targetVersion} needs a published ${targetVersion}-rc.N release first.`)
+    }
+    // A minor or patch may skip RC, but one that started an RC train whose builds never shipped
+    // must not quietly drop its freeze: publish a release candidate or delete the stray tags.
+    if (unpublishedTags.length > 0) {
+      throw new Error(
+        `Stable ${targetVersion} has release candidate tags but no published release candidate. ` +
+          `Publish ${targetVersion}-rc.N first, or delete these tags to release without one: ${unpublishedTags.join(', ')}.`,
+      )
     }
     process.stdout.write(`No published release candidate precedes ${targetVersion}; promotion guard skipped.\n`)
     return

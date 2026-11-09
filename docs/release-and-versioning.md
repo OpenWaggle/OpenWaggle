@@ -94,7 +94,9 @@ sides, so moving app code into an ignored path still blocks. The last published 
 `vX.Y.Z-rc.N` tag with a published (non-draft) GitHub release. The workflow pushes a release tag
 before its builds run, so a tag can exist for a build that never shipped: `v1.0.0-beta.33`
 through `beta.35` have tags and no releases. The guard reads the release list from the GitHub API
-and fails if it cannot. A non-release change to app code
+and fails if it cannot. A minor or patch with `X.Y.Z-rc.N` tags but no published RC also fails,
+so an RC train whose builds never shipped cannot drop its freeze; publish an RC or delete the
+stray tags. A non-release change to app code
 during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
 released as the next RC. A new major version (`X.0.0`) cannot be released without a
 published `X.0.0-rc.N` release, including one computed from a breaking-change merge; later minors and patches may
