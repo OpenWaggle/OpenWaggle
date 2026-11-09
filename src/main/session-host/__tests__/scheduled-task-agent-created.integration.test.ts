@@ -14,7 +14,7 @@ import {
   readTask,
   storedRunsAs,
 } from './scheduled-task-agent-created.test-support'
-import { fire, scheduledTasks } from './scheduled-tasks.test-support'
+import { fire, scheduledTasks, setTaskDue } from './scheduled-tasks.test-support'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -52,7 +52,10 @@ describe('a Scheduled task a Session agent created', () => {
     })
 
     await deleteSession(sessionId)
-    expect(await fire(task.id, Date.now(), 'run-now')).toBe('recorded')
+    // Fired by its schedule, not a Run now, whose key is whoever asks.
+    const dueAt = Date.now() - 1000
+    await setTaskDue(task.id, dueAt)
+    expect(await fire(task.id, dueAt + 500)).toBe('recorded')
 
     const read = await readTask(task.id)
     expect(read.task.attention).toBeNull()

@@ -103,7 +103,8 @@ export function workerRunAdmissionRefusal(
   input: {
     readonly sessionId: string
     readonly caller: StartingRunCaller
-    readonly hostRunCeiling: number
+    /** Read only when the ceiling applies; settlement reads the stored setting. */
+    readonly hostRunCeiling: number | Effect.Effect<number, unknown>
   },
 ): Effect.Effect<WorkerRunAdmissionRefusal | undefined, unknown> {
   if (isPersonStartedRun(input.caller)) return Effect.succeed(undefined)
@@ -113,9 +114,11 @@ export function workerRunAdmissionRefusal(
     if (isWorker && !parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
     // A root Session the person made: no capacity limit applies.
     if (!isWorker && !(yield* isAgentMadeSession(sql, input.sessionId))) return undefined
+    const hostRunCeiling =
+      typeof input.hostRunCeiling === 'number' ? input.hostRunCeiling : yield* input.hostRunCeiling
     const ceiling = yield* hostWorkerCeilingRefusal(sql, {
       exceptSessionId: input.sessionId,
-      hostRunCeiling: input.hostRunCeiling,
+      hostRunCeiling,
     })
     return ceiling?.code
   })

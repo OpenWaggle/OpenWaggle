@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import {
   deliverIdleQueueHead,
   isFollowUpEditHeld,
+  pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
 import type {
   SessionControlFollowUp,
@@ -20,7 +21,8 @@ import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session
 import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
-import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
+import { storedHostRunCeiling } from './sqlite-session-parent-run-admission'
+import { workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 const QUEUE_REVISION_INCREMENT = 1
 
@@ -116,22 +118,26 @@ function settleUnsuccessfulRun(
   }
 }
 
+/** Why a settling Run's next Run waits: a Worker limit was full when it would have started. */
+type SettlementDeferral = 'parent-limit' | 'host-ceiling'
+
 export function planRunSettlement(
   state: SessionControlSessionState,
   input: SettleInput,
-  deferForParentLimit: boolean,
+  deferral?: SettlementDeferral,
 ) {
   if (input.suppressFollowUpScheduling) {
     return { ...settleSessionRun(state, input.runId), scheduled: undefined }
   }
-  if (deferForParentLimit) {
+  if (deferral) {
     const settled = settleSessionRun(state, input.runId)
     if (!settled.accepted) return { ...settled, scheduled: undefined }
-    return {
-      ...settled,
-      state: pauseRunningQueue(settled.state, input.nextRunId, 'parent-limit'),
-      scheduled: undefined,
-    }
+    // No reason for the ceiling: older binaries decode a missing one, and none names it.
+    const paused =
+      deferral === 'parent-limit'
+        ? pauseRunningQueue(settled.state, input.nextRunId, 'parent-limit')
+        : pauseUndeliveredQueue(settled.state)
+    return { ...settled, state: paused, scheduled: undefined }
   }
   const { terminalStatus } = input
   const result =
@@ -147,24 +153,34 @@ export function planRunSettlement(
 }
 
 /**
- * Plans the settlement, deferring the next Run for the parent's Worker limit. A Follow-up the
- * person sent runs next whatever the limit (ADR 0030, amended 2026-11-09); anything else waits
- * for it as before. With no Run to start (an empty queue, or a head held for the person's edit)
- * nothing waits, so the queue is not paused: a pause there outlived the limit, and held back the
- * person's edited or later Follow-ups, which are admitted when they are delivered.
+ * Plans the settlement, deferring the next Run when a Worker limit is full: the parent's Workers
+ * per parent for a Worker, and Active Workers for any agent-made Session, which a Run the person
+ * started there may have passed. A Follow-up the person sent runs next whatever the limits (ADR
+ * 0030, amended 2026-11-09). With no Run to start (an empty queue, or a head held for the
+ * person's edit) nothing waits, so the queue is not paused: a pause there outlived the limit, and
+ * held back the person's edited or later Follow-ups, which are admitted when they are delivered.
  */
-export function planRunSettlementWithinParentLimit(
+export function planRunSettlementWithinWorkerLimits(
   sql: SqlClient.SqlClient,
   state: SessionControlSessionState,
   input: SettleInput,
 ) {
   return Effect.gen(function* () {
-    const planned = planRunSettlement(state, input, false)
+    const planned = planRunSettlement(state, input)
     if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
     if (!nextRun || isPersonStartedRun(nextRun.intent)) return planned
-    const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
-    return parentAdmission.admitted ? planned : planRunSettlement(state, input, true)
+    const refusal = yield* workerRunAdmissionRefusal(sql, {
+      sessionId: input.sessionId,
+      caller: nextRun.intent,
+      hostRunCeiling: storedHostRunCeiling(sql),
+    })
+    if (!refusal) return planned
+    return planRunSettlement(
+      state,
+      input,
+      refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : 'host-ceiling',
+    )
   })
 }
 

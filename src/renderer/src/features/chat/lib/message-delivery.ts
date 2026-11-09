@@ -91,3 +91,31 @@ export class FirstSendFailed extends Error {
 export function createdSessionIdOf(error: unknown) {
   return error instanceof FirstSendFailed ? error.createdSessionId : null
 }
+
+/** What the Session Host's refusal codes a person's send can still meet mean, in plain words. */
+const REFUSAL_REASONS = new Map([
+  ['queue_capacity_reached', 'this Session already has as many queued messages as it can hold'],
+  ['queue_byte_capacity_reached', 'this Session’s queued messages are already as large as allowed'],
+  ['follow_up_reserved', 'a steered message is still being delivered to the running agent'],
+])
+
+/**
+ * What a refused send says: the Host's own words when it wrote some, else what its code means.
+ * The code is kept for support.
+ */
+export function refusalSummary(refusal: MessageNotDelivered) {
+  const { code, message } = refusal
+  const readable = message !== DEFAULT_NOT_DELIVERED_MESSAGE && message !== code
+  const written = readable ? (message.endsWith('.') ? message.slice(0, -1) : message) : undefined
+  const reason = written ?? (code ? REFUSAL_REASONS.get(code) : undefined)
+  if (reason) return code ? `Not sent: ${reason} (${code}).` : `Not sent: ${reason}.`
+  return code ? `Not sent: the Session Host refused it (${code}).` : 'Not sent.'
+}
+
+/** A send failure in words for a toast: a refusal says why, anything else its own message. */
+export function sendFailureText(error: unknown) {
+  if (error instanceof MessageNotDelivered && error.outcome === 'refused') {
+    return refusalSummary(error)
+  }
+  return error instanceof Error ? error.message : String(error)
+}

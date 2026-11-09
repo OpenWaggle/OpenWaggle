@@ -2,38 +2,23 @@ import type { SessionId as SessionIdType } from '@shared/types/brand'
 import { SessionId } from '@shared/types/brand'
 import type { SendFailureDisposition } from '@/features/composer/hooks'
 import {
-  DEFAULT_NOT_DELIVERED_MESSAGE,
   FirstSendFailed,
   isPiSessionFileRefusal,
   MessageDeliveredRunFailed,
   MessageNotDelivered,
+  refusalSummary,
 } from './message-delivery'
 
 /** The toast for a send refused because the Session's Pi file cannot be used. */
 export const PI_SESSION_FILE_REFUSAL_NOTICE =
   'Not sent: this Session cannot be continued. Your message is back in the composer.'
 
-/** What the Session Host's refusal codes a person's send can still meet mean, in plain words. */
-const REFUSAL_REASONS = new Map([
-  ['queue_capacity_reached', 'this Session already has as many queued messages as it can hold'],
-  ['queue_byte_capacity_reached', 'this Session’s queued messages are already as large as allowed'],
-  ['follow_up_reserved', 'a steered message is still being delivered to the running agent'],
-])
-
 /**
  * The toast for any other send the Session Host refused. Without it the message came back to the
- * composer with no word of why, which read as the app ignoring the person. The Host's own words
- * come first when it wrote some, then what its code means; the code is kept for support.
+ * composer with no word of why, which read as the app ignoring the person.
  */
 export function refusedSendNotice(refusal: MessageNotDelivered) {
-  const { code, message } = refusal
-  const readable = message !== DEFAULT_NOT_DELIVERED_MESSAGE && message !== code
-  const written = readable ? (message.endsWith('.') ? message.slice(0, -1) : message) : undefined
-  const reason = written ?? (code ? REFUSAL_REASONS.get(code) : undefined)
-  const suffix = 'Your message is back in the composer.'
-  if (reason)
-    return code ? `Not sent: ${reason} (${code}). ${suffix}` : `Not sent: ${reason}. ${suffix}`
-  return code ? `Not sent: the Session Host refused it (${code}). ${suffix}` : `Not sent. ${suffix}`
+  return `${refusalSummary(refusal)} Your message is back in the composer.`
 }
 
 function refusalOf(cause: unknown) {

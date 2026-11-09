@@ -92,7 +92,21 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
     // failure the earlier Run had already reported.
     const error = completion.error ?? previous.terminalRunError
     if (!previous.waiter) return
-    offerRunCompletion(previous.waiter, { ...completion, ...(error ? { error } : {}) })
+    const routing = offerRunCompletion(previous.waiter, {
+      ...completion,
+      ...(error ? { error } : {}),
+    })
+    // That Run has ended: handed back, its waiter would be followed again, and the next Run this
+    // renderer did not send would be offered to it, dropped, and left on Stop after it ended.
+    if (routing === 'settled') {
+      displacedBy.delete(previous.waiter)
+      previous = {
+        ...previous,
+        waiter: null,
+        foregroundStreamActive: false,
+        foregroundSessionId: null,
+      }
+    }
   }
 
   function settle(error: Error | undefined) {

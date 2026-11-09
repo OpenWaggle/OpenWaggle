@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import { beginForegroundRun } from '../useAgentChat.foreground-run'
+import { createPendingRunWaiter } from '../useAgentChat.message-cache'
 import { forgetIfRefusedForPiSessionFile } from '../useAgentChat.send-without-run'
 import type { AgentChatStatus, MutableValueRef, PendingRunWaiter } from '../useAgentChat.types'
 
@@ -95,5 +96,52 @@ describe('a send refused for its Pi session file while a later send runs', () =>
     later.handBack(refs, SESSION, setters)
     expect(refs.statusRef.current).toBe('ready')
     expect(refs.pendingRunWaiterRef.current).toBeNull()
+  })
+})
+
+/*
+ * The earlier Run's completion lands on a send that then ends without a Run: it is passed on to
+ * the earlier send's waiter, which it settles. Handed back, that spent waiter was followed again,
+ * so the next Run this renderer did not send (a Resume, a Hive wake, a CLI message) was offered to
+ * it, dropped, and left the Session on Stop after it ended.
+ */
+describe('a send that ends without a Run after the earlier Run completed', () => {
+  it.each([
+    ['named', { runId: 'run-1' }],
+    ['unnamed', {}],
+  ])('follows nothing once it hands back, with the completion %s', (_, completion) => {
+    const { refs, setters } = foreground()
+    const earlier = createPendingRunWaiter()
+    let earlierSettled = false
+    void earlier.promise.then(() => {
+      earlierSettled = true
+    })
+    refs.pendingRunWaiterRef.current = earlier.waiter
+    refs.foregroundStreamActiveRef.current = true
+    refs.foregroundSessionIdRef.current = SESSION
+    const send = beginForegroundRun(refs, setters, SESSION)
+
+    send.waiter.complete?.(completion)
+    send.handBack(refs, SESSION, setters)
+
+    expect(refs.pendingRunWaiterRef.current).toBeNull()
+    expect(refs.foregroundStreamActiveRef.current).toBe(false)
+    expect(refs.foregroundSessionIdRef.current).toBeNull()
+    return Promise.resolve().then(() => expect(earlierSettled).toBe(true))
+  })
+
+  it('hands a later send nothing to follow when it splices out', () => {
+    const { refs, setters } = foreground()
+    const earlier = createPendingRunWaiter()
+    refs.pendingRunWaiterRef.current = earlier.waiter
+    const send = beginForegroundRun(refs, setters, SESSION)
+    send.waiter.complete?.({})
+    const later = beginForegroundRun(refs, setters, SESSION)
+
+    send.handBack(refs, SESSION, setters)
+    later.handBack(refs, SESSION, setters)
+
+    expect(refs.pendingRunWaiterRef.current).toBeNull()
+    expect(refs.foregroundStreamActiveRef.current).toBe(false)
   })
 })

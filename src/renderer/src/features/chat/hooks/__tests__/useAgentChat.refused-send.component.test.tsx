@@ -7,6 +7,7 @@ import { MessageNotDelivered } from '../../lib/message-delivery'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 import {
   apiMock,
+  createDeferred,
   createSession,
   createSessionWithMessages,
   firstSendRecoveryCalls,
@@ -130,5 +131,42 @@ describe('useAgentChat send the Session Host refused', () => {
     expect(result.current.status).toBe('ready')
     expect(result.current.isLoading).toBe(false)
     expect(visibleUserTexts(result.current.messages)).not.toContain('A later message')
+  })
+
+  // The earlier send ended without a Run too: left in the chain, the later one handed back its
+  // Thinking and a waiter nothing would settle.
+  it.each([
+    ['refused', REFUSED],
+    ['queued', { outcome: 'queued' } as const],
+  ])('returns to ready when an earlier send fails and a later one is %s', async (_, report) => {
+    let failEarlier: (error: Error) => void = () => {}
+    const earlier = new Promise<AgentSendReport>((_resolve, reject) => {
+      failEarlier = reject
+    })
+    const later = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockReturnValueOnce(earlier).mockReturnValueOnce(later.promise)
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+    const sends: Promise<unknown>[] = []
+    await act(async () => {
+      sends.push(result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => error))
+    })
+    await act(async () => {
+      sends.push(
+        result.current
+          .sendMessage({ ...SEND_PAYLOAD, text: 'A later message' })
+          .catch((error: unknown) => error),
+      )
+    })
+    await act(async () => {
+      failEarlier(new Error('handler died'))
+      await sends[0]
+    })
+    await act(async () => {
+      later.resolve(report)
+      await sends[1]
+    })
+
+    expect(result.current.status).not.toBe('submitted')
+    expect(result.current.isLoading).toBe(false)
   })
 })

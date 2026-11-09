@@ -18,16 +18,28 @@ let temporaryRoot = ''
 
 /**
  * `session-target` as a Worker at its parent's limit of one: its own Run ends while a sibling
- * still runs, with one Follow-up from `callerId` queued behind it, or none.
+ * still runs, with one Follow-up from `callerId` queued behind it, or none. With `limit` set to
+ * `ceiling`, the full limit is an Active Workers of one instead.
  */
-function workerEndingAtParentLimit(callerId: string, queued = true) {
+function workerEndingAtParentLimit(
+  callerId: string,
+  queued = true,
+  limit: 'parent' | 'ceiling' = 'parent',
+) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* seedHive(sql, 1)
-    yield* sql`
-      UPDATE settings_store SET value_json = ${'1'}
-      WHERE key = ${'sessionHostParentConcurrencyLimit'}
-    `
+    if (limit === 'parent') {
+      yield* sql`
+        UPDATE settings_store SET value_json = ${'1'}
+        WHERE key = ${'sessionHostParentConcurrencyLimit'}
+      `
+    } else {
+      yield* sql`
+        INSERT INTO settings_store (key, value_json, updated_at)
+        VALUES (${'sessionHostRunCeiling'}, ${'1'}, ${1})
+      `
+    }
     yield* makeTargetAWorker(sql)
     // Delivery re-checks a Follow-up's authority against the target's execution profile.
     yield* sql`
@@ -120,5 +132,23 @@ describe('Worker Run admission when a Run settles', () => {
     expect(result.settled).toMatchObject({ accepted: true })
     expect(result.after.run).toEqual({ state: 'idle' })
     expect(result.after.followUpQueue).toMatchObject({ state: 'running', items: [] })
+  })
+
+  // A Run the person started there may have passed the ceiling; it is not handed on to agents.
+  it.each([
+    ['defers an agent’s', AGENT_CALLER, 'idle'],
+    ['runs the person’s', 'gui:local-user', 'starting'],
+  ])('%s queued Follow-up in a Worker at the Worker ceiling', async (_, callerId, run) => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, `ceiling-${run}.sqlite`))
+    const result = await Effect.runPromise(
+      workerEndingAtParentLimit(callerId, true, 'ceiling').pipe(Effect.provide(layer)),
+    )
+
+    expect(result.settled).toMatchObject({ accepted: true })
+    expect(result.after.run.state).toBe(run)
+    if (run === 'idle') {
+      expect(result.after.followUpQueue).toMatchObject({ state: 'paused', items: [{ id: 'next' }] })
+      expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
+    }
   })
 })

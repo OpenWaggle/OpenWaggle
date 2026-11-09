@@ -28,7 +28,7 @@ import {
 import { recoverSessionControlHostLoss } from './sqlite-session-control-host-loss-recovery'
 import {
   type planRunSettlement,
-  planRunSettlementWithinParentLimit,
+  planRunSettlementWithinWorkerLimits,
   replacementIsPending,
   type SettleInput,
   settleDisplacedRun,
@@ -171,7 +171,7 @@ function settle(
             result: yield* settleDisplacedRun(sql, { loadedState, returned, input }),
           } as const
         }
-        const result = yield* planRunSettlementWithinParentLimit(sql, state, input)
+        const result = yield* planRunSettlementWithinWorkerLimits(sql, state, input)
         if (!result.accepted) {
           return {
             status: 'settled',

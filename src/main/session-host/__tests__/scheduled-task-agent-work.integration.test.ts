@@ -1,11 +1,13 @@
 import * as Effect from 'effect/Effect'
+import * as Fiber from 'effect/Fiber'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   registerProjects,
+  run,
   setUpPiDiscoveryFixture,
 } from '../../adapters/pi/__tests__/pi-session-discovery.test-support'
 import { agentTaskFixture, dispatched } from './scheduled-task-agent-created.test-support'
-import { fire, LOCAL_USER, scheduledTasks } from './scheduled-tasks.test-support'
+import { fire, LOCAL_USER, scheduledTasks, setTaskDue } from './scheduled-tasks.test-support'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -36,6 +38,13 @@ function lastKey() {
   return JSON.stringify(dispatched.at(-1)?.payload ?? null).match(/"idempotencyKey":"([^"]+)"/)?.[1]
 }
 
+/** Fires the task as its schedule would, at a time it is due. */
+async function fireWhenDue(taskId: string) {
+  const at = Date.now() - 1000
+  await setTaskDue(taskId, at)
+  expect(await fire(taskId, at + 500)).toBe('recorded')
+}
+
 let releaseHooks: (() => void) | null = null
 
 afterEach(() => {
@@ -54,7 +63,7 @@ describe('a Scheduled task whose work an agent wrote', () => {
     const { caller } = await agentSession('yolo')
     const task = await createLaunch(LOCAL_USER)
 
-    await fire(task.id, Date.now(), 'run-now')
+    await fireWhenDue(task.id)
     expect(lastKey()).not.toMatch(AGENT_KEY)
 
     const agentEdit = {
@@ -63,12 +72,15 @@ describe('a Scheduled task whose work an agent wrote', () => {
       patch: { prompt: 'Agent’s.' },
     }
     expect(await scheduledTasks(agentEdit, caller)).toMatchObject({ effect: 'updated' })
-    await fire(task.id, Date.now(), 'run-now')
+    await fireWhenDue(task.id)
     expect(lastKey()).toMatch(AGENT_KEY)
+    // A Run now the person chooses is theirs, whoever wrote the work.
+    await fire(task.id, Date.now(), 'run-now')
+    expect(lastKey()).not.toMatch(AGENT_KEY)
 
     const personEdit = { operation: 'update' as const, taskId: task.id, patch: { prompt: 'Mine.' } }
     expect(await scheduledTasks(personEdit)).toMatchObject({ effect: 'updated' })
-    await fire(task.id, Date.now(), 'run-now')
+    await fireWhenDue(task.id)
     expect(lastKey()).not.toMatch(AGENT_KEY)
   })
 
@@ -92,5 +104,30 @@ describe('a Scheduled task whose work an agent wrote', () => {
 
     await fire(task.id, Date.now(), 'run-now', true)
     expect(lastKey()).toMatch(AGENT_KEY)
+  })
+
+  it('fires an agent’s Run now through the scheduler as an agent’s work', async () => {
+    const { runScheduledTaskSchedulerBackground } = await import('../scheduled-task-scheduler')
+    await registerProjects([fixture.project])
+    const { caller } = await agentSession('yolo')
+    const task = await createLaunch(LOCAL_USER)
+    // Held open until interrupted: the scheduler runs in its scope's background.
+    const scheduler = await run(
+      Effect.forkDaemon(
+        Effect.scoped(Effect.zipRight(runScheduledTaskSchedulerBackground, Effect.never)),
+      ),
+    )
+    try {
+      const before = dispatched.length
+      await vi.waitFor(async () => {
+        expect(
+          await scheduledTasks({ operation: 'run-now', taskId: task.id }, caller),
+        ).toMatchObject({ effect: 'run-requested' })
+      })
+      await vi.waitFor(() => expect(dispatched.length).toBeGreaterThan(before), { timeout: 10_000 })
+      expect(lastKey()).toMatch(AGENT_KEY)
+    } finally {
+      await run(Fiber.interrupt(scheduler))
+    }
   })
 })

@@ -168,7 +168,6 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     const targetSessionId = sessionId
     const run = beginForegroundRun(refs, params, targetSessionId)
     const sent = { refs, setters: params, targetSessionId, run, optimisticMessageId }
-    const runPromise = run.promise
     // The Host reads the Session's model and thinking level at Run start: store a fresh pick first.
     await settledSessionSettingWrites(targetSessionId)
     requestDesktopNotificationPermissionOnce()
@@ -195,11 +194,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       if (report.outcome === 'delivered') {
         delivered = true
         run.bind(report.runId)
-        await runPromise
+        await run.promise
         return
       }
       // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
-      void runPromise.catch(() => undefined)
+      void run.promise.catch(() => undefined)
       reportWithoutRun = { ...report, outcome: report.outcome }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
@@ -208,10 +207,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         void refreshSessionSnapshot(targetSessionId)
         throw refused
       }
-      // A later send may already own the foreground: this Run's completion was passed back to it
-      // after that send began. Its state is not this send's to clear or to mark failed.
+      // A later send may already own the foreground; its state is not this send's to clear or mark
+      // failed. Without a Run, this send leaves the chain, or that send hands back its Thinking.
       const ownsForeground =
         refs.pendingRunWaiterRef.current === null || refs.pendingRunWaiterRef.current === run.waiter
+      if (!ownsForeground && !delivered) run.handBack(refs, targetSessionId, params)
       if (ownsForeground && refs.foregroundSessionIdRef.current === targetSessionId) {
         refs.pendingRunWaiterRef.current = null
         clearRunPointers(refs)
