@@ -19,6 +19,11 @@ vi.mock('@/features/settings/state/preferences-store', () => ({
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api: mocks.api }))
 
+const loggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@/shared/lib/logger', () => ({
+  createRendererLogger: () => ({ warn: loggerWarn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+}))
+
 import { WorktreesSection } from '../WorktreesSection'
 
 const DAY = 86_400_000
@@ -131,4 +136,45 @@ it('counts each row down by the rule as it is now, rounding up', async () => {
   renderWithQueryClient(<WorktreesSection />)
 
   expect(await screen.findByText('Removed automatically in 11 days')).toBeInTheDocument()
+})
+
+it('settles a failed automatic-removal rule write instead of floating its rejection', async () => {
+  // The card fires this Settings write with `void`, so a transient Settings IPC failure used
+  // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+  preferences.setAutomaticWorktreeRemoval.mockRejectedValue(
+    new Error('connect ECONNREFUSED 127.0.0.1:443'),
+  )
+  renderWithQueryClient(<WorktreesSection />)
+
+  const toggle = await screen.findByRole('switch', {
+    name: 'Remove worktrees of archived Sessions automatically',
+  })
+  fireEvent.click(toggle)
+
+  await waitFor(() =>
+    expect(loggerWarn).toHaveBeenCalledWith('Failed to change automatic worktree removal', {
+      error: expect.stringContaining('ECONNREFUSED'),
+    }),
+  )
+})
+
+it("settles a failed 'New Sessions run in' write instead of floating its rejection", async () => {
+  // The Select fires this Settings write with `void`, so a transient Settings IPC failure used
+  // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+  preferences.setDefaultSessionEnvironmentMode.mockRejectedValue(
+    new Error('connect ECONNREFUSED 127.0.0.1:443'),
+  )
+  renderWithQueryClient(<WorktreesSection />)
+
+  const mode = await screen.findByRole('combobox', { name: 'New Sessions run in' })
+  fireEvent.change(mode, { target: { value: 'worktree' } })
+
+  await waitFor(() =>
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Failed to change the default Session environment mode',
+      {
+        error: expect.stringContaining('ECONNREFUSED'),
+      },
+    ),
+  )
 })
