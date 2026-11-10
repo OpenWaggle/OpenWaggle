@@ -37,7 +37,8 @@ Platform trust for v1:
 - Required GitHub Actions secrets: `MACOS_CERTIFICATE_P12_BASE64` (the Developer ID Application
   certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
   `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
-  unsigned; the release workflow refuses to build RC and Stable macOS artifacts without them. The
+  unsigned. The release workflow refuses an RC or Stable version without them in the version job,
+  before it opens a release PR or pushes a tag, and `build-macos` checks again before it builds. The
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
@@ -85,16 +86,21 @@ builds already served as the alpha stage.
 
 During RC, `main` is frozen for app code: merge only release-blocker fixes, each of which cuts the
 next `1.0.0-rc.N` and restarts the validation window. The Stable promotion dispatch fails closed
-unless the content of `main` equals the content of the last RC tag, except for the root
+unless the content of `main` equals the content of the last published RC, except for the root
 `package.json` version and non-app paths (`website/**` except the bundled user docs under
-`website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md`). Renames count on both
-sides, so moving app code into an ignored path still blocks. A non-release change to app code
-during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
-released as the next RC. A new major version (`X.0.0`) cannot be released without a
-`X.0.0-rc.N` tag, including one computed from a breaking-change merge; later minors and patches may
-release straight to Stable. The guard runs before any Stable release PR exists and again before
-tagging. The guard blocks
-promotion only; it does not block merges.
+`website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md` except
+`THIRD_PARTY_NOTICES.md`, which ships inside the app). Renames count on both sides, so moving app
+code into an ignored path still blocks. The last published RC is the newest `vX.Y.Z-rc.N` tag with a
+published (non-draft) GitHub release. The workflow pushes a release tag before its builds run, so a
+tag can exist for a build that never shipped: `v1.0.0-beta.33` through `beta.35` have tags and no
+releases. The guard reads the release list from the GitHub API and fails if it cannot. A minor or
+patch with `X.Y.Z-rc.N` tags but no published RC also fails, so an RC train whose builds never
+shipped cannot drop its freeze; publish an RC or delete the stray tags. A non-release change to app
+code during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
+released as the next RC. A new major version (`X.0.0`) cannot be released without a published
+`X.0.0-rc.N` release, including one computed from a breaking-change merge; later minors and patches
+may release straight to Stable. The guard runs before any Stable release PR exists and again before
+tagging. The guard blocks promotion only; it does not block merges.
 
 ### After 1.0.0
 

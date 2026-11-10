@@ -58,7 +58,7 @@ Release automation is GitHub-based:
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
-macOS artifacts are Developer ID signed and notarized; the release workflow refuses to build RC and Stable macOS artifacts without the signing secrets. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
+macOS artifacts are Developer ID signed and notarized. Without the signing secrets the release workflow refuses an RC or Stable version in the version job, before any release PR or tag exists, and `build-macos` checks again before it builds. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
 
 Supported platforms are a covered surface with stated minimums: macOS 13.4, Windows 10 x64, and Linux x64 with glibc 2.35. `scripts/supported-platform-floor.ts` holds the thresholds, and `scripts/check-native-platform-floor.ts` runs after every release and nightly build and fails when a packaged native binary needs a newer OS. Keep the Linux build on `ubuntu-22.04` and `LSMinimumSystemVersion` at 12.0. See "Supported platform minimums" in `docs/release-and-versioning.md` for the exception that lets a minimum rise in a minor version.
 
