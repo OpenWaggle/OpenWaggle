@@ -30,7 +30,7 @@ No extra Electron release is needed: nothing in the installed Electron app chang
 | All | `sha512` (base64) and `size` of the file named in the metadata. A `.blockmap` enables a differential download, otherwise the full file is downloaded. | `scripts/electrobun-transition/update-metadata.ts` writes the metadata; `scripts/prepare-update-channel-metadata.ts` copies it to every eligible channel, as for Electron builds. | The file hash is computed from the published file. No blockmap is published: nothing in the old install matches the new bytes, and the bench shows electron-updater downloads the full file. |
 | macOS | The file must be a `.zip` whose name has the arch (`-arm64.zip` / `-x64.zip`). Squirrel.Mac (ShipIt) installs it only if the new bundle satisfies the running app's **designated requirement**: `identifier "com.openwaggle.app"` and, for Developer ID, the same Team ID. ShipIt also aborts while other instances run (the product already stops the Session Host). | `openwaggle-<version>-<arch>.zip`: the unwrapped, signed Electrobun `OpenWaggle.app`, zipped with `ditto` (`macos-transition-zip.ts`). | The app is signed with the release Developer ID and the bundle identifier `com.openwaggle.app`. `macos-transition-zip.ts` runs `codesign --verify -R=<requirement>` with the installed build's requirement before it zips, so a wrong identity fails the release, not users' updates. |
 | macOS | ShipIt names the installed bundle after the new bundle's `CFBundleExecutable`, and on macOS 11+ relaunches through `Contents/Frameworks/Squirrel.framework/Resources/ShipIt` inside the new bundle. | `macos-transition-bundle.ts`, run before signing. | It renames Electrobun's `launcher` to `OpenWaggle` and adds a minimal `Squirrel.framework` whose `ShipIt` (`build/electrobun-transition/squirrel-relaunch.c`) only opens the bundle. Without it, the first bench run installed `/Applications/launcher.app` and never relaunched. |
-| Windows | Runs the file as `<installer> --updated /S --force-run`. Verifies the Authenticode publisher only when the installed `app-update.yml` names a `publisherName`; OpenWaggle's Windows builds are unsigned, so it does not. `isAdminRightsRequired` decides whether `elevate.exe` is used. | `openwaggle-<version>-x64.exe`: an NSIS wrapper (`build/electrobun-transition/windows-transition.nsi`, built by `windows-transition-installer.ts`). | The wrapper runs Electrobun's Setup, checks that `%LOCALAPPDATA%\com.openwaggle.app\<channel>\app\bin\launcher.exe` exists, runs the old uninstaller silently without `--delete-app-data` (so `%APPDATA%\openwaggle` stays), then writes `openwaggle.cmd` back into the old install directory (the one on PATH) and re-registers `openwaggle:` links. The metadata sets `isAdminRightsRequired: false`. On failure it leaves the Electron install alone, restarts it and shows a message with the download link. Once Windows builds are signed, the wrapper must be signed with the same publisher. |
+| Windows | Runs the file as `<installer> --updated /S --force-run`. Verifies the Authenticode publisher only when the installed `app-update.yml` names a `publisherName`; OpenWaggle's Windows builds are unsigned, so it does not. `isAdminRightsRequired` decides whether `elevate.exe` is used. | `openwaggle-<version>-x64.exe`: an NSIS wrapper (`build/electrobun-transition/windows-transition.nsi`, built by `windows-transition-installer.ts`). | The wrapper runs Electrobun's Setup and waits until `%LOCALAPPDATA%\com.openwaggle.app\<channel>\app\bin\launcher.exe` and Setup's uninstall entry exist (Setup then waits for a Close click before it would start the app, so the wrapper closes it and starts the app itself), runs the old uninstaller silently without `--delete-app-data` (so `%APPDATA%\openwaggle` stays), then writes `openwaggle.cmd` back into the old install directory (the one on PATH) and re-registers `openwaggle:` links. The metadata sets `isAdminRightsRequired: false`. On failure it leaves the Electron install alone, restarts it and shows a message with the download link. Once Windows builds are signed, the wrapper must be signed with the same publisher. |
 | Linux | Needs `$APPIMAGE`; deletes the running AppImage, moves the new file to the same path (a version-less name such as install.sh's `OpenWaggle.AppImage` is kept), `chmod 755`, and starts it. | `openwaggle-<version>-x86_64.AppImage`: an AppImage whose `AppRun` (`build/electrobun-transition/AppRun.sh`, built by `linux-transition-appimage.ts`) carries Electrobun's `installer`. | On its first start it installs the Electrobun app into `~/.local/share/com.openwaggle.app/<channel>/app`, points install.sh's `openwaggle.desktop` (and its `openwaggle:` link claim) at the new launcher, and later starts simply exec the installed app. The AppImage path, and so the `openwaggle` CLI shim, keep working. |
 
 The `openwaggle update` CLI takes the same paths: on Windows and Linux it uses electron-updater;
@@ -54,7 +54,22 @@ first Electrobun launch reported the same userData, imported 6 `localStorage` en
 non-ASCII and emoji values), re-sealed the MCP vault secret as `ow1…` and opened it with the new
 keychain key, and read the Electron keychain item without a prompt in 68 ms.
 
-Windows and Linux: see "Bench status" below.
+Windows (run 42917162530, windows-2022): the old per-user NSIS install found the release, tried
+`openwaggle-1.0.0-rc.1-x64.exe.blockmap` (404) and downloaded the full wrapper, which logged
+`--updated /S --force-run`, installed Electrobun, ran the old uninstaller (exit 0) and started the new
+app. Afterwards only the Electrobun uninstall entry (`com.openwaggle.app.stable`) and shortcuts
+remain, `%APPDATA%\openwaggle` is intact, `openwaggle.cmd` in the old directory (still on PATH) and
+the `openwaggle:` handler point at the new launcher, and the first launch reported the same results
+as macOS (DPAPI-wrapped `os_crypt` key from `Local State`). An earlier run (42913720524) waited on
+Setup's "Installation complete" dialog forever; the wrapper no longer waits for it.
+
+Linux (run 42913859694, ubuntu-24.04 with gnome-keyring): the AppImage at install.sh's path was
+replaced in place, `AppRun` installed Electrobun into `~/.local/share/com.openwaggle.app/stable/app`
+and rewrote `openwaggle.desktop` to the new launcher (hidden, because Electrobun's own
+`OpenWaggle.desktop` is the visible entry). The first launch read the `v11` key from the Secret
+Service item (`chrome_libsecret_os_crypt_password_v2`, `application=openwaggle`), re-sealed the
+secret with a key it stored through `Bun.secrets`, and imported `localStorage`. WebKitGTK paints
+black under a bare Xvfb, so the Linux screenshot is empty; the report and logs are the evidence.
 
 ## macOS keychain: is there a prompt?
 
@@ -109,9 +124,10 @@ takes over. The keychain read never blocks the window.
   - macOS: Squirrel.Mac reports the error to electron-updater; the installed app stays as it was and
     shows the existing "update failed" state, and the next check offers the update again. Manual
     path: the DMG from the release page or `install.sh`; both keep userData.
-  - Windows: the wrapper restores nothing it did not touch. Its order is install new, verify it, then
-    remove old, so a failure before the uninstaller leaves Electron installed, restarted, and a log in
-    `%LOCALAPPDATA%\openwaggle-updater\electrobun-transition.log`.
+  - Windows: the order is install new, verify it, then remove old, so a failure before the
+    uninstaller leaves Electron installed and restarted, with a message offering the download page
+    and a log in `%LOCALAPPDATA%\openwaggle-updater\electrobun-transition.log`. A half-finished
+    Electrobun install may remain beside it; the next attempt installs over it.
   - Linux: electron-updater has already replaced the Electron AppImage when `AppRun` runs, so there
     is nothing to roll back to. `AppRun` retries the install on every start, shows a zenity, kdialog or
     notify-send error with the download link, and logs to
@@ -193,8 +209,9 @@ Not wired yet. For each platform job, after the Electrobun build:
   Electron 43's Squirrel.Mac. Installed Electron builds never change, so this cannot drift for them,
   but the bench must run against the oldest Electron build still in use before the release.
 - **Linux has no rollback** once the AppImage is replaced (see Fallback).
-- **Windows wrapper relies on Electrobun Setup's behavior** (install path, starting the app when it
-  finishes, no arguments) and on the old uninstaller's flags (`/S /currentuser`, no
+- **Windows wrapper relies on Electrobun Setup's behavior** (install path, uninstall key
+  `<identifier>.<channel>`, the completion dialog it closes, no arguments, since any argument
+  switches Setup into its manager commands) and on the old uninstaller's flags (`/S /currentuser`, no
   `--delete-app-data`). Both are pinned in the bench.
 - **`APPIMAGE_EXIT_AFTER_INSTALL` and `--force-run` are ignored.** Electrobun's installers always
   start the app. OpenWaggle always installs with relaunch (`quitAndInstall(true, true)`), so only a
