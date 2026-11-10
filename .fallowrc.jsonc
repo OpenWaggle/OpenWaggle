@@ -131,7 +131,9 @@
     }
   ],
   "duplicates": {
-    "ignore": ["**/__tests__/**", "e2e/**"],
+    // A prebuilt extension fixture ships its built `modules/` as a copy of `src/`
+    // (openwaggle.extension.json sourceFiles and builtArtifacts).
+    "ignore": ["**/__tests__/**", "e2e/**", "fixtures/extensions/*/modules/**"],
     "ignoreImports": true,
     "minTokens": 100
   },
