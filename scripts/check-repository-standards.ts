@@ -1,6 +1,16 @@
-import { readFile } from 'node:fs/promises'
+/**
+ * Repository standards: per-file rules over every tracked or untracked-but-not-ignored file, plus
+ * rules across files (duplicate exported types, the memory index, design-token exemptions).
+ *
+ *   bun scripts/check-repository-standards.ts [files...]
+ *
+ * With files (the check runner's `--changed`), the per-file rules run on those files only, and a
+ * cross-file rule runs when one of them is an input of that rule.
+ */
 import path from 'node:path'
-import fg from 'fast-glob'
+import { pathToFileURL } from 'node:url'
+import micromatch from 'micromatch'
+import { listRepositoryFiles, readFiles } from './check/repository-files'
 import { collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations } from './standards/forbidden-references'
 import {
   collectAgentMemoryFileViolations,
@@ -120,9 +130,7 @@ function collectToolingConfigViolations(file: string) {
   ]
 }
 
-async function collectViolationsForFile(file: string) {
-  const contents = await readFile(file, 'utf8')
-
+function collectViolationsForFile(file: string, contents: string) {
   return [
     ...collectForbiddenReferenceViolations(file, contents),
     ...collectTsconfigViolations(file, contents),
@@ -150,33 +158,87 @@ function printViolations(violations: readonly Violation[]) {
   }
 }
 
-async function main() {
-  const files = await fg([...scanGlobs, ...packageBoundarySourceGlobs], {
-    dot: true,
-    ignore: ignoreGlobs,
-    onlyFiles: true,
-  })
-  const violations: Violation[] = []
-  const contentsByFile = new Map<string, string>()
+const SCRIPT_ARGUMENTS_START = 2
+const MEMORY_FILES = ['MEMORY.md', '.agents/memory/**']
+const DESIGN_TOKEN_FILES = ['src/renderer/src/**', 'scripts/renderer-design-token-exemptions.json']
+const SKILLS_LOCK_FILES = ['skills-lock.json', '.agents/skills/**']
+const ADR_FILES = ['docs/adr/**', 'docs/architecture.md']
+// The rule catalogue checks IDs across the catalogue, the standards and every file that cites IDs.
+const RULE_CATALOGUE_FILES = [
+  'AGENTS.md',
+  'DEPENDENCIES.md',
+  '.agents/**',
+  'scripts/agent-gate/**',
+  'scripts/oxlint/**',
+]
 
-  for (const file of files.map(normalizePath).sort()) {
-    violations.push(...(await collectViolationsForFile(file)))
-    contentsByFile.set(file, await readFile(file, 'utf8'))
+function isScanned(file: string) {
+  return (
+    micromatch.isMatch(file, [...scanGlobs, ...packageBoundarySourceGlobs], { dot: true }) &&
+    !micromatch.isMatch(file, ignoreGlobs, { dot: true })
+  )
+}
+
+function isDuplicateTypeInput(file: string) {
+  return file.startsWith('src/') && /\.tsx?$/u.test(file) && !file.includes('__tests__')
+}
+
+async function main(requested: readonly string[]) {
+  const repositoryFiles = (await listRepositoryFiles()).filter(isScanned)
+  const present = new Set(repositoryFiles)
+  const scoped = requested.length > 0
+  const changed = [...new Set(requested.map(normalizePath))]
+  const targets = scoped ? changed.filter((file) => present.has(file)).sort() : repositoryFiles
+  // Cross-file rules run when any requested file matches, scanned or not, present or deleted.
+  const touches = (globs: readonly string[]) =>
+    !scoped || changed.some((file) => micromatch.isMatch(file, [...globs], { dot: true }))
+  const checkDuplicateTypes = !scoped || targets.some(isDuplicateTypeInput)
+  const checkMemoryIndex = touches(MEMORY_FILES)
+  const checkRuleCatalogue = touches(RULE_CATALOGUE_FILES)
+
+  const toRead = new Set(targets)
+  if (checkDuplicateTypes) {
+    for (const file of repositoryFiles) if (isDuplicateTypeInput(file)) toRead.add(file)
+  }
+  if (checkMemoryIndex && present.has('MEMORY.md')) toRead.add('MEMORY.md')
+  if (checkRuleCatalogue) {
+    for (const file of repositoryFiles) {
+      if (micromatch.isMatch(file, RULE_CATALOGUE_FILES, { dot: true })) toRead.add(file)
+    }
+  }
+  const contentsByFile = await readFiles([...toRead].sort())
+
+  const violations: Violation[] = targets.flatMap((file) =>
+    collectViolationsForFile(file, contentsByFile.get(file) ?? ''),
+  )
+  if (checkDuplicateTypes) violations.push(...collectDuplicateExportedTypes(contentsByFile))
+  if (checkMemoryIndex) {
+    // The index rule reads MEMORY.md's contents and only the names of the other files.
+    const namesWithIndex = new Map(
+      repositoryFiles.map((file) => [file, contentsByFile.get(file) ?? '']),
+    )
+    violations.push(...collectAgentMemoryIndexViolations(namesWithIndex))
+  }
+  if (touches(DESIGN_TOKEN_FILES)) {
+    violations.push(
+      ...collectRendererDesignTokenExemptionViolations(
+        present,
+        readRendererDesignTokenExemptions(),
+      ),
+    )
   }
 
-  violations.push(...collectDuplicateExportedTypes(contentsByFile))
-  violations.push(...collectAgentMemoryIndexViolations(contentsByFile))
-  violations.push(...collectRuleCatalogueViolations(contentsByFile, new Set(GATE_CHECKS)))
-  violations.push(
-    ...collectRendererDesignTokenExemptionViolations(
-      new Set(contentsByFile.keys()),
-      readRendererDesignTokenExemptions(),
-    ),
-  )
-  violations.push(...collectRepositorySkillsLockViolations(process.cwd()))
-  violations.push(...collectRepositoryAdrNumberingViolations(process.cwd()))
+  if (checkRuleCatalogue) {
+    violations.push(...collectRuleCatalogueViolations(contentsByFile, new Set(GATE_CHECKS)))
+  }
+  if (touches(SKILLS_LOCK_FILES)) {
+    violations.push(...collectRepositorySkillsLockViolations(process.cwd()))
+  }
+  if (touches(ADR_FILES)) violations.push(...collectRepositoryAdrNumberingViolations(process.cwd()))
 
   if (violations.length === 0) {
+    const scope = scoped ? `${targets.length} changed` : `${repositoryFiles.length}`
+    console.log(`repository standards: no problems (${scope} files)`)
     return
   }
 
@@ -184,7 +246,9 @@ async function main() {
   process.exitCode = 1
 }
 
-void main().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main(process.argv.slice(SCRIPT_ARGUMENTS_START)).catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}
