@@ -1,0 +1,2 @@
+# Format the staged files with oxfmt and restage them (scripts/git-hooks/pre-commit.ts).
+bun scripts/git-hooks/pre-commit.ts

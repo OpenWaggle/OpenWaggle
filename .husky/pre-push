@@ -1,26 +1,3 @@
-# Git exports GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE into hook processes. Linked worktrees
-# export an absolute GIT_DIR, which breaks any child that runs `git` in its own temporary
-# repositories (conventional-commit fixtures, worktree fixtures). Strip them so `pnpm`
-# runs see a normal repository discovery environment.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
-
-MAIN_BRANCH_REF='refs/heads/main'
-IS_MAIN_PUSH=0
-
-while IFS=' ' read -r _local_ref _local_oid remote_ref _remote_oid; do
-  if [ "$remote_ref" = "$MAIN_BRANCH_REF" ]; then
-    IS_MAIN_PUSH=1
-    break
-  fi
-done
-
-if [ "$IS_MAIN_PUSH" -eq 1 ]; then
-  echo 'pre-push: running quality gates for pushes to main.'
-  exec pnpm prepush:main
-fi
-
-# Feature branches run the same deterministic checks the CI fast gate enforces, so a
-# push cannot discover a commit-policy violation, static error, or unit regression
-# from a red CI run 15 minutes later.
-echo 'pre-push: running fast local verification (pnpm verify).'
-pnpm verify
+# Refuse force pushes, then run the fast verify, or the full gate for a push to main
+# (scripts/git-hooks/pre-push.ts). git's ref updates arrive on stdin; exec keeps them there.
+exec bun scripts/git-hooks/pre-push.ts
