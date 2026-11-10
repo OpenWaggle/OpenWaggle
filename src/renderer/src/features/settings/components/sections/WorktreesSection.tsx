@@ -7,6 +7,7 @@ import type {
 import { useId, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { SettingsSectionContainer } from '../SettingsSectionContainer'
@@ -18,6 +19,9 @@ import { ALL_PROJECTS, WorktreeFilters } from './worktrees/WorktreeFilters'
 import { WorktreeGroup, type WorktreeRowContext } from './worktrees/WorktreeGroup'
 import { WorktreeRemovalDialog } from './worktrees/WorktreeRemovalDialog'
 import { storageTotals, WorktreeStorageCard } from './worktrees/WorktreeStorageCard'
+
+const logger = createRendererLogger('settings/worktrees')
+
 import { approximateSpace, worktreeEntryMatchesSearch } from './worktrees/worktree-inventory-format'
 
 const GROUPS: readonly WorktreeInventoryGroup[] = ['safe', 'decide', 'in-use']
@@ -59,7 +63,17 @@ function NewSessionsRunIn() {
         selectSize="xs"
         value={mode}
         onChange={(event) => {
-          if (isSessionEnvironmentMode(event.target.value)) void setMode(event.target.value)
+          /*
+           * The Select fires this Settings write with `void`, so a transient Settings IPC failure
+           * would otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+           * The store keeps the previous mode, so the failure is only logged and a retry works.
+           */
+          if (!isSessionEnvironmentMode(event.target.value)) return
+          void setMode(event.target.value).catch((error: unknown) => {
+            logger.warn('Failed to change the default Session environment mode', {
+              error: String(error),
+            })
+          })
         }}
       >
         {SESSION_ENVIRONMENT_MODES.map((option) => (
@@ -162,6 +176,14 @@ export function WorktreesSection() {
   const [pending, setPending] = useState<WorktreeRemovalRequest | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
   const removal = useWorktreeRemoval()
+  // The card fires this Settings write with `void`, so a transient Settings IPC failure would
+  // otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The store
+  // keeps the previous rule, so the failure is only logged and the next change retries it.
+  const chooseRule = (next: Parameters<typeof setRule>[0]) => {
+    void setRule(next).catch((error: unknown) => {
+      logger.warn('Failed to change automatic worktree removal', { error: String(error) })
+    })
+  }
   const projects = inventory.data?.projects ?? []
   // A project whose last worktree was removed leaves the list; so does the filter on it.
   const project = projects.some((entry) => entry.projectPath === chosenProject)
@@ -211,7 +233,7 @@ export function WorktreesSection() {
           />
           <AutomaticRemovalCard
             rule={rule}
-            onChange={(next) => void setRule(next)}
+            onChange={(next) => chooseRule(next)}
             entries={all}
             space={space}
             now={now}

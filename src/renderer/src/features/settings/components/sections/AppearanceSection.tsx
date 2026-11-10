@@ -18,6 +18,21 @@ function ReviewAppearanceSettings() {
   const diffWrapLines = usePreferencesStore((state) => state.settings.diffWrapLines)
   const setDiffView = usePreferencesStore((state) => state.setDiffView)
   const setDiffWrapLines = usePreferencesStore((state) => state.setDiffWrapLines)
+  const showToast = useUIStore((state) => state.showToast)
+
+  // Both controls fire their Settings write with `void`, so a transient Settings IPC failure
+  // would otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+  // The store keeps the previous value, so the failure is shown and the next click retries it.
+  const chooseDiffView = (view: DiffView) => {
+    void setDiffView(view).catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : 'Could not save the diff view.', 'error')
+    })
+  }
+  const chooseWrapLines = (wrap: boolean) => {
+    void setDiffWrapLines(wrap).catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : 'Could not save line wrapping.', 'error')
+    })
+  }
 
   return (
     <section className="space-y-3" aria-labelledby="review-appearance-heading">
@@ -45,7 +60,7 @@ function ReviewAppearanceSettings() {
                 size="xs"
                 variant={diffView === view ? 'subtle' : 'ghost'}
                 aria-pressed={diffView === view}
-                onClick={() => void setDiffView(view)}
+                onClick={() => chooseDiffView(view)}
               >
                 {DIFF_VIEW_LABELS[view]}
               </Button>
@@ -61,7 +76,7 @@ function ReviewAppearanceSettings() {
           </span>
           <ToggleSwitch
             checked={diffWrapLines}
-            onCheckedChange={(checked) => void setDiffWrapLines(checked)}
+            onCheckedChange={(checked) => chooseWrapLines(checked)}
             label="Wrap long lines"
             size="compact"
           />
