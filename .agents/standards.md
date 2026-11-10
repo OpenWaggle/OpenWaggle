@@ -2,6 +2,13 @@
 
 Centralized repository standards for AI coding agents. Root `AGENTS.md` is the entrypoint; this file carries the durable details.
 
+## Two principles
+
+These decide what to do when a gate or a type stands in the way.
+
+- **Broken Window.** A change never adds a warning, a suppression, a skipped or disabled check, or a test marked to skip, and a gate never goes back to accepting one. When a gate reports something, fix its cause. If the rule itself is wrong for this repository, change it once in the shared config or the rule catalogue with the reason recorded there, so every file gets the same decision. One tolerated finding makes the next one look normal, and the gate stops meaning anything.
+- **System Resistance.** When a tool, check or type fights a change, read that as information about the design: the change crosses a boundary, a type is modelled wrong, or the change belongs somewhere else. Do not route around it with a cast, a suppression, a disabled check or a wider exemption list. Find out what the resistance protects, then change the design or ask for a rule decision. A workaround is accepted only when the tool is demonstrably wrong; report that upstream and record it with the rule decision.
+
 ## Type Safety
 
 Type safety is stricter than convenience.
@@ -120,9 +127,11 @@ Mechanical enforcement:
 - Use `while (true)`, not `for (;;)`.
 - Use named `SCREAMING_SNAKE_CASE` constants for numeric literals outside tests.
 - Do not add `eslint-disable`, `oxlint-disable`, or `fallow-ignore` comments to bypass architecture/style gates.
+- A skill copied from another repository is pinned in `skills-lock.json` (upstream repository, path, commit, content hash). Record an edit to it, with the reason, through `bun scripts/skills-lock.ts record <skill> --reason "<why>"`; `bun scripts/skills-lock.ts drift` reports upstream changes on demand and needs the network.
+- ADR numbers are unique and contiguous. A new ADR takes the next free number and is listed in the ADR index in `docs/architecture.md`.
 
 Mechanical enforcement:
 
 - The OpenWaggle lint plugin (`scripts/oxlint/`) catches inline import types, `for (;;)`, raw renderer buttons, lint directive and architecture bypass comments, and inline magic numbers; `bun run check:repository-standards` catches raw `<button>` in website Astro templates.
 - oxfmt (`.oxfmtrc.json`) formats JavaScript and TypeScript: single quotes, no semicolons, trailing commas, width 100.
-- `bun run check:repository-standards` catches repository standards drift.
+- `bun run check:repository-standards` catches repository standards drift, including vendored skills that differ from `skills-lock.json` without a recorded reason, skill directories the lock does not list, and ADR numbers that repeat, leave a gap or are missing from the ADR index. The ADR numbers that two ADRs already shared are frozen in `scripts/standards/adr-numbering.ts`; that list never grows.
