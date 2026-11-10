@@ -185,7 +185,7 @@ The CLI talks to the local Session Host, the process that runs sessions and save
 
 An agent running inside OpenWaggle should use its `hive` tool. The CLI is for people in a terminal and for agents running in other tools. For opening the app, `openwaggle run`, `openwaggle status` and the full command list, see [Command line](/docs/developer-workflow/command-line).
 
-The installed app includes the CLI. On macOS and Linux, the packaged app installs or refreshes its command at `~/.local/bin/openwaggle` when it starts, so make sure `~/.local/bin` is on your shell's `PATH`. OpenWaggle never overwrites an unrelated file at that path. If the command is missing, check for a conflicting file there. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
+The installed app includes the CLI. On macOS and Linux, the packaged app installs or refreshes its command at `~/.local/bin/openwaggle` when it starts, so make sure `~/.local/bin` is on your shell's `PATH`. OpenWaggle never overwrites an unrelated file at that path. If the command is missing, check for a conflicting file there. The Windows installer manages the command. From a source checkout, use `bun run cli:dev -- <command>`.
 
 ## Session IDs and links
 

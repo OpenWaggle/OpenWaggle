@@ -5,17 +5,17 @@ Run the narrowest meaningful checks first, then broaden before handoff.
 ## Pre-Push Baseline
 
 ```bash
-pnpm verify
+bun run verify
 ```
 
-`pnpm verify` is the fast, deterministic pre-push contract: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. The husky pre-push hook runs it for every feature-branch push. Run it before pushing rather than discovering these failures from a red CI run.
+`bun run verify` is the fast, deterministic pre-push contract: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. The husky pre-push hook runs it for every feature-branch push. Run it before pushing rather than discovering these failures from a red CI run.
 
 ## CI Gate Tiers
 
 CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
 
 - **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them.
-- **Session Performance workflow (manual/dispatch):** `pnpm benchmark:session-release` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `pnpm benchmark:session-performance` remains the faster local 1,000,000-message development check.
+- **Session Performance workflow (manual/dispatch):** `bun run benchmark:session-release` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `bun run benchmark:session-performance` remains the faster local 1,000,000-message development check.
 - **Nightly canary (non-gating):** `.github/workflows/nightly.yml` builds and runs `packaged-app:smoke` on macOS/Linux/Windows, and runs the syntax performance benchmark on macOS. It never blocks a merge.
 
 Pushes to `main` run the same checks as a PR (the path-scoped `changes` job is skipped on push, which the gate tolerates).
@@ -29,7 +29,7 @@ Windows. If an older host selects WinPTY and loses output, preparation still fai
 
 The manual `windows-terminal-diagnostics.yml` workflow accepts an exact `head_sha`,
 `runtime` (`electron` or `node`), and `profile` (`runtime` or `all-backends`). It runs
-only native preparation/probes, caches the Windows pnpm store, and retains diagnostic
+only native preparation/probes, caches the Windows Bun package cache, and retains diagnostic
 logs. `all-backends` forces system ConPTY, bundled ConPTY, and WinPTY through the same
 assertions. WinPTY currently fails the burst check because its 3,000-row console
 screen buffer loses the beginning before scraping. Do not treat a green runtime
@@ -45,38 +45,40 @@ Windows diagnostics workflow for native investigation. The reference is T3 Code 
 ## Baseline Static Checks
 
 ```bash
-pnpm typecheck
-pnpm lint
-pnpm check
+bun run typecheck
+bun run lint
+bun run check
 ```
 
-`pnpm check` runs typecheck plus the full static verification (installer script, contrast, test typecheck, lint, renderer bundle budget, package release validation, API snapshots, package docs, package smoke). The renderer bundle budget (`pnpm check:renderer-bundle`) runs `electron-vite build`, `scripts/check-syntax-bundle.ts`, `pnpm check:main-bundle`, and `pnpm check:renderer-csp` (the built page's inline script against its CSP hash), so an oversized initial renderer graph fails the required Typecheck & Lint job on the PR instead of failing the release build after the version PR merges. Lint runs the oxfmt format check, the type-aware lint config (`oxlint.config.mts`) through a pinned Bun canary `bun lint` (`scripts/lint.ts`; `pnpm lint:oxlint` runs the same config through oxlint), and the repository-standards and instruction-reference checks. A clean run prints one summary line; a failing one prints one `file:line:col rule message` line per finding. `pnpm check:react-compiler` (part of `pnpm check`) recompiles `features/chat` and `features/composer` with the React Compiler the build uses and fails on any function it leaves uncompiled; the build itself never fails on one (`panicThreshold: 'none'`).
+`bun run check` runs typecheck plus the full static verification (installer script, contrast, Pi runtime alignment, the provenance downgrade check, test typecheck, lint, renderer bundle budget, package release validation, API snapshots, package docs, package smoke). The renderer bundle budget (`bun run check:renderer-bundle`) runs `electron-vite build`, `scripts/check-syntax-bundle.ts`, `bun run check:main-bundle`, and `bun run check:renderer-csp` (the built page's inline script against its CSP hash), so an oversized initial renderer graph fails the required Typecheck & Lint job on the PR instead of failing the release build after the version PR merges. Lint runs the oxfmt format check, the type-aware lint config (`oxlint.config.mts`) through a pinned Bun canary `bun lint` (`scripts/lint.ts`; `bun run lint:oxlint` runs the same config through oxlint), and the repository-standards and instruction-reference checks. A clean run prints one summary line; a failing one prints one `file:line:col rule message` line per finding. `bun run check:react-compiler` (part of `bun run check`) recompiles `features/chat` and `features/composer` with the React Compiler the build uses and fails on any function it leaves uncompiled; the build itself never fails on one (`panicThreshold: 'none'`).
+
+`bun run check:provenance` reads npm registry metadata for every package in `bun.lock`. Its answers are cached under `node_modules/.cache/openwaggle`, so only the first run, or a run after a lockfile change, needs the network.
 
 ## Targeted Tests
 
 ```bash
-pnpm test:unit
-pnpm test:integration
-pnpm test:component
-pnpm test
-pnpm test:coverage
+bun run test:unit
+bun run test:integration
+bun run test:component
+bun run test
+bun run test:coverage
 ```
 
 Use targeted Vitest file runs while iterating, then run the relevant script before handoff.
 
-Every Vitest config runs its tests in `Pacific/Kiritimati` (UTC+14), whatever the machine's zone, so a test that confuses local and UTC days fails everywhere, not only far from UTC. The nightly workflow runs the unit tier again in `America/Adak`; reproduce it with `OPENWAGGLE_TEST_TIME_ZONE=America/Adak pnpm test:unit` (a plain `TZ=...` no longer reaches the tests). Build test dates from local parts (`new Date(2026, 9, 14, 0, 30)`) when a test means a local time, and stub `TZ` in the test when it needs one zone.
+Every Vitest config runs its tests in `Pacific/Kiritimati` (UTC+14), whatever the machine's zone, so a test that confuses local and UTC days fails everywhere, not only far from UTC. The nightly workflow runs the unit tier again in `America/Adak`; reproduce it with `OPENWAGGLE_TEST_TIME_ZONE=America/Adak bun run test:unit` (a plain `TZ=...` no longer reaches the tests). Build test dates from local parts (`new Date(2026, 9, 14, 0, 30)`) when a test means a local time, and stub `TZ` in the test when it needs one zone.
 
 Component hooks keep Vitest's 10 s deadline. Import a large module graph once in a `beforeAll` with `COLD_IMPORT_TIMEOUT_MS` (`src/renderer/src/test-utils/cold-import.ts`), never in a `beforeEach`; `scripts/test-support/cold-import-hooks.ts` fails the unit tier otherwise.
 
-The unit tier runs in the pre-push hook next to about 1,500 other files, so keep it in-process. A test that spawns many real child processes belongs in `*.integration.test.ts`. Examples are real `git` repositories and the profile-credential owned-file helper. Process start-up under parallel load makes such tests time out in `pnpm verify` even though they pass alone.
+The unit tier runs in the pre-push hook next to about 1,500 other files, so keep it in-process. A test that spawns many real child processes belongs in `*.integration.test.ts`. Examples are real `git` repositories and the profile-credential owned-file helper. Process start-up under parallel load makes such tests time out in `bun run verify` even though they pass alone.
 
 ## Renderer Work
 
 For any `src/renderer/` change:
 
 ```bash
-pnpm lint
-pnpm test:component
+bun run lint
+bun run test:component
 npx -y react-doctor@latest . --verbose --scope changed --base main
 ```
 
@@ -87,7 +89,7 @@ Fix React Doctor errors. Warnings require judgment and should be reported if not
 For renderer interaction, preload, IPC, or main-process behavior that affects the UI:
 
 ```bash
-pnpm dev:debug
+bun run dev:debug
 ```
 
 Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Electron app on CDP port 9223:
@@ -103,9 +105,9 @@ Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Elec
 For Pi adapter, provider/auth/model, MCP, resource loading, session projection, compaction, active-run, or tool-event changes:
 
 ```bash
-pnpm test:unit
-pnpm test:integration
-pnpm check
+bun run test:unit
+bun run test:integration
+bun run check
 ```
 
 Also load `.agents/skills/pi-integration/SKILL.md` and run targeted tests around the touched adapter/projection/service.
@@ -115,10 +117,10 @@ Also load `.agents/skills/pi-integration/SKILL.md` and run targeted tests around
 For native modules or packaged-only regressions:
 
 ```bash
-pnpm prepare:native:node
-pnpm prepare:native:electron
-pnpm build
-pnpm build:mac
+bun run prepare:native:node
+bun run prepare:native:electron
+bun run build
+bun run build:mac
 ```
 
 Packaged regressions require packaged-app QA, not only dev-mode validation.
@@ -128,14 +130,14 @@ Packaged regressions require packaged-app QA, not only dev-mode validation.
 There is no Electron E2E suite (ADR 0033). Per-PR gating relies on unit + integration + component + MCP conformance. For the real packaged app:
 
 ```bash
-pnpm build                      # production bundle
-pnpm packaged-app:smoke         # asar shape + native (node-pty/sqlite) load probe
+bun run build                      # production bundle
+bun run packaged-app:smoke         # asar shape + native (node-pty/sqlite) load probe
 ```
 
-The nightly canary (`.github/workflows/nightly.yml`) runs this build + smoke on macOS/Linux/Windows as a non-gating signal. For UI-visible behavior use `pnpm dev:debug` with `.agents/skills/electron-qa/SKILL.md`. Renderer boot, CSP, visual pixels, and timing budgets are no longer checked in CI — validate them locally/manually when the change touches them.
+The nightly canary (`.github/workflows/nightly.yml`) runs this build + smoke on macOS/Linux/Windows as a non-gating signal. For UI-visible behavior use `bun run dev:debug` with `.agents/skills/electron-qa/SKILL.md`. Renderer boot, CSP, visual pixels, and timing budgets are no longer checked in CI — validate them locally/manually when the change touches them.
 ## Release Work
 
-For publishable package work, `pnpm check` should include package import-boundary checks and package API snapshot checks. Snapshot drift must be fixed by either correcting the public API change or intentionally updating the committed package API snapshot in the same PR.
+For publishable package work, `bun run check` should include package import-boundary checks and package API snapshot checks. Snapshot drift must be fixed by either correcting the public API change or intentionally updating the committed package API snapshot in the same PR.
 
 Load `.agents/skills/release/SKILL.md` before release/version/update-track work.
 

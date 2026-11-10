@@ -8,12 +8,12 @@ package in the real Pi TUI, which no automated check does.
 
 | Check | Command | What it proves |
 |---|---|---|
-| Package tests | `pnpm test:unit` | `packages/waggle-core` policy and `packages/pi-waggle` behaviour against a fake Pi `ExtensionAPI`. Policy covers config, presets, turn sequencing and the stop policy. The Pi side covers command parsing, mode state, preset storage, inherited models, model switching, turn markers and renderers. |
-| Desktop adapter | `pnpm test:unit` and `pnpm test:integration` | OpenWaggle runs Waggle through `@openwaggle/pi-waggle/loop` and projects mode state, turn identity and retries into the Session read model. See `waggle-run-service.unit`, `session-waggle-mode-state.integration`, `waggle-turn-identity-projection.integration` and `pi-waggle-turn-retry.integration`. |
-| Tarball consumers | `pnpm package:smoke`, part of `pnpm check` | The packed tarballs install with npm, pnpm, Yarn and Bun. Every export resolves in ESM and CommonJS, and a CommonJS Waggle turn settles. Pi's own resource loader loads the installed package as a package source, with no errors or warnings, and the declared entry, `dist/extension.js`, registers `/waggle`, `/standard` and the turn renderer. Pi's host packages, the Pi SDKs and `typebox`, must be `"*"` peer dependencies. |
-| Desktop bundle | `pnpm pi-main-bundle:smoke`, part of `pnpm check` | The Electron main build bundles `@openwaggle/pi-waggle` from its sources. In a real Pi session under Node and under Electron, the smoke loads `src/extension.ts`, the module the declared entry is built from, and checks that `/waggle`, `/standard` and the turn renderer register. In a separate session, as production runs it, the smoke binds the desktop Waggle loop from `/loop`, checks that mode state round-trips, and stops the loop. |
-| Dead code | `pnpm check:waggle-dead-code`, part of `pnpm check` | No production-unused code in the Waggle packages, the app files that import them or are named for Waggle, and the desktop agent policy modules. Code that only tests use counts as unused. |
-| Public exports | `pnpm api:snapshot:check` | Public exports match the committed snapshots. |
+| Package tests | `bun run test:unit` | `packages/waggle-core` policy and `packages/pi-waggle` behaviour against a fake Pi `ExtensionAPI`. Policy covers config, presets, turn sequencing and the stop policy. The Pi side covers command parsing, mode state, preset storage, inherited models, model switching, turn markers and renderers. |
+| Desktop adapter | `bun run test:unit` and `bun run test:integration` | OpenWaggle runs Waggle through `@openwaggle/pi-waggle/loop` and projects mode state, turn identity and retries into the Session read model. See `waggle-run-service.unit`, `session-waggle-mode-state.integration`, `waggle-turn-identity-projection.integration` and `pi-waggle-turn-retry.integration`. |
+| Tarball consumers | `bun run package:smoke`, part of `bun run check` | The packed tarballs install with npm, pnpm, Yarn and Bun. Every export resolves in ESM and CommonJS, and a CommonJS Waggle turn settles. Pi's own resource loader loads the installed package as a package source, with no errors or warnings, and the declared entry, `dist/extension.js`, registers `/waggle`, `/standard` and the turn renderer. Pi's host packages, the Pi SDKs and `typebox`, must be `"*"` peer dependencies. |
+| Desktop bundle | `bun run pi-main-bundle:smoke`, part of `bun run check` | The Electron main build bundles `@openwaggle/pi-waggle` from its sources. In a real Pi session under Node and under Electron, the smoke loads `src/extension.ts`, the module the declared entry is built from, and checks that `/waggle`, `/standard` and the turn renderer register. In a separate session, as production runs it, the smoke binds the desktop Waggle loop from `/loop`, checks that mode state round-trips, and stops the loop. |
+| Dead code | `bun run check:waggle-dead-code`, part of `bun run check` | No production-unused code in the Waggle packages, the app files that import them or are named for Waggle, and the desktop agent policy modules. Code that only tests use counts as unused. |
+| Public exports | `bun run api:snapshot:check` | Public exports match the committed snapshots. |
 
 ## Manual: the packed package in the Pi TUI
 
@@ -27,9 +27,9 @@ has OpenWaggle's patches applied. Install it with Pi's installer, or with
 
    ```bash
    QA=$(mktemp -d)
-   pnpm --filter @openwaggle/pi-waggle build
-   (cd packages/waggle-core && pnpm pack --pack-destination "$QA/pack")
-   (cd packages/pi-waggle && pnpm pack --pack-destination "$QA/pack")
+   bun run --filter @openwaggle/pi-waggle build
+   (cd packages/waggle-core && bun pm pack --destination "$QA/pack")
+   (cd packages/pi-waggle && bun pm pack --destination "$QA/pack")
    mkdir "$QA/project"
    (
      cd "$QA/project"
@@ -56,7 +56,7 @@ has OpenWaggle's patches applied. Install it with Pi's installer, or with
      the status line ends with `Waggle complete` when the stop policy ends the run.
    - [ ] `/standard` prints `Waggle disabled.`
 
-4. Build the packaged app for your platform, for example with `pnpm build:unpack`, because the app
+4. Build the packaged app for your platform, for example with `bun run build:unpack`, because the app
    bundles pi-waggle and dev mode does not prove the packaged bundle works. Start the packaged app,
    run one Waggle from the composer, and check that each turn shows one divider and model label,
    with one coloured rail per agent turn.

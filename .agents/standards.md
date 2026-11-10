@@ -66,7 +66,7 @@ OpenWaggle publishable packages must preserve their public contract boundaries.
 - `packages/waggle-core/**` must stay runtime-neutral reusable policy. Do not import Pi SDK packages, Electron, Node built-ins, renderer stores, or app services.
 - `packages/extension-react/**` may depend on `@openwaggle/extension-sdk` and React peers, but must not import OpenWaggle renderer components, app CSS, Tailwind internals, Electron, or app services.
 - `packages/pi-waggle/**` may import Pi SDK packages, but must not import Electron, renderer stores, or OpenWaggle app services.
-- These import boundaries must be enforced by `pnpm check:repository-standards`, not only by review.
+- These import boundaries must be enforced by `bun run check:repository-standards`, not only by review.
 
 ## Electron Runtime
 
@@ -123,6 +123,6 @@ Mechanical enforcement:
 
 Mechanical enforcement:
 
-- The OpenWaggle lint plugin (`scripts/oxlint/`) catches inline import types, `for (;;)`, raw renderer buttons, lint directive and architecture bypass comments, and inline magic numbers; `pnpm check:repository-standards` catches raw `<button>` in website Astro templates.
+- The OpenWaggle lint plugin (`scripts/oxlint/`) catches inline import types, `for (;;)`, raw renderer buttons, lint directive and architecture bypass comments, and inline magic numbers; `bun run check:repository-standards` catches raw `<button>` in website Astro templates.
 - oxfmt (`.oxfmtrc.json`) formats JavaScript and TypeScript: single quotes, no semicolons, trailing commas, width 100.
-- `pnpm check:repository-standards` catches repository standards drift.
+- `bun run check:repository-standards` catches repository standards drift.

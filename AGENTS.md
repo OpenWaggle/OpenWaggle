@@ -14,31 +14,30 @@ This is the root entrypoint for agentic coding work in OpenWaggle. Keep this fil
 
 ## Commands
 
-Use `pnpm` only.
+Use `bun` only: `bun install`, `bun run <script>`, `bun run --filter <package> <script>`, and `bunx <bin>`. Repository scripts run with `bun scripts/<name>.ts`; Node.js still runs Vitest, Electron tooling, and native module builds, so keep Node 24 installed.
 
 ```bash
-pnpm dev                # Electron dev app
-pnpm dev:debug          # Hidden Electron dev app with CDP on port 9223
-pnpm build              # Production build
-pnpm typecheck          # Node + web typecheck
-pnpm lint               # oxfmt check + type-aware `bun lint` (oxlint.config.mts) + repository standards
-pnpm lint:fix           # Format with oxfmt and apply lint fixes
-pnpm lint:oxlint        # Same lint config through oxlint, the fallback runner
-pnpm format             # Format with oxfmt (.oxfmtrc.json)
-pnpm check              # Full static verification
-pnpm verify             # Fast pre-push verification: commit policy, typecheck, lint, unit tests
-pnpm test               # Unit + integration + component tests
-pnpm test:unit          # Unit tests
-pnpm test:integration   # Integration tests
-pnpm test:component     # Component tests
-pnpm verify               # Fast pre-push verification: commit policy, typecheck, lint, unit tests
-pnpm test                 # Unit + integration + component tests
-pnpm test:coverage      # Coverage report
+bun install              # Install from bun.lock (Bun version: packageManager / .bun-version)
+bun run dev              # Electron dev app
+bun run dev:debug        # Hidden Electron dev app with CDP on port 9223
+bun run build            # Production build
+bun run typecheck        # Node + web typecheck
+bun run lint             # oxfmt check + type-aware `bun lint` (oxlint.config.mts) + repository standards
+bun run lint:fix         # Format with oxfmt and apply lint fixes
+bun run lint:oxlint      # Same lint config through oxlint, the fallback runner
+bun run format           # Format with oxfmt (.oxfmtrc.json)
+bun run check            # Full static verification
+bun run verify           # Fast pre-push verification: commit policy, typecheck, lint, unit tests
+bun run test             # Unit + integration + component tests
+bun run test:unit        # Unit tests
+bun run test:integration # Integration tests
+bun run test:component   # Component tests
+bun run test:coverage    # Coverage report
 ```
 
 ## CI Gates
 
-CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Package Release Gate), a PR merges directly. There is no Electron E2E suite — it was removed and per-PR gating relies on unit + integration + MCP conformance (mirroring `pingdotgg/t3code`); a non-gating nightly cross-OS packaged canary (`.github/workflows/nightly.yml`) builds and smokes the app on macOS/Linux/Windows. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `pnpm check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
+CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Package Release Gate), a PR merges directly. There is no Electron E2E suite — it was removed and per-PR gating relies on unit + integration + MCP conformance (mirroring `pingdotgg/t3code`); a non-gating nightly cross-OS packaged canary (`.github/workflows/nightly.yml`) builds and smokes the app on macOS/Linux/Windows. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `bun run check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `bun run verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
 
 ## Repository Model
 
@@ -111,6 +110,6 @@ Agent-facing release and update-track guidance lives in `docs/agents/release.md`
 1. Scope is met without unapproved side effects.
 2. Types, lint, architecture, and relevant tests are green or reported with exact blockers.
 3. Renderer changes are checked with React Doctor when practical.
-4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `pnpm dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
+4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `bun run dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
 5. Significant OpenWaggle technical findings are added to the matching `.agents/memory/<topic>.md` file (a new topic gets one line in the `MEMORY.md` index) or a focused skill, not to deleted legacy memory files.
 6. The final report states what changed, what was validated, and any remaining risk.

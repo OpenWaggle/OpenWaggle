@@ -50,7 +50,7 @@ The Summary's `SessionHiveReader` and `SessionHiveEventSource` were assigned dir
 Repeat the read-only check against the current Host checkout before integration:
 
 ```sh
-pnpm exec tsx scripts/check-session-hive-api-compatibility.ts /path/to/host-checkout
+bun scripts/check-session-hive-api-compatibility.ts /path/to/host-checkout
 ```
 
 The command keeps its probe in a new OS temporary directory. It does not write into either checkout or execute Host code. Missing required Host methods, a failed producer typecheck, or incompatible reader/event signatures fail the command; this does not replace the combined runtime test.

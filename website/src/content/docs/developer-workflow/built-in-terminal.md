@@ -40,7 +40,7 @@ The buttons at the right of the panel header open a new tab, split the active pa
 
 - A tab with more than one pane shows the count after its name, as in **release checks (2)**. Double-click a tab, or focus it and press `F2`, to rename it.
 - A new pane starts in the session's current working directory.
-- While a command runs, the tab shows its name, such as `vim` or `pnpm dev`.
+- While a command runs, the tab shows its name, such as `vim` or `bun run dev`.
 - A process that listens on a port adds a `:port` chip to its pane. Click the chip to open its localhost address wherever **Open web links in** sends web links.
 - **Open active terminal in side panel** moves the tab to the right side of the window. The bottom panel can stay open with your other tabs. **Return terminals to bottom** moves them back. Moving a tab keeps its shell running, with the same working directory, output and scrollback.
 

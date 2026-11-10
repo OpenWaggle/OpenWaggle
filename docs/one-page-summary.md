@@ -74,8 +74,8 @@ Provider/model/auth metadata comes from Pi `ModelRuntime`:
 ```bash
 git clone https://github.com/OpenWaggle/OpenWaggle.git
 cd openwaggle
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
 1. Open Settings → Connections

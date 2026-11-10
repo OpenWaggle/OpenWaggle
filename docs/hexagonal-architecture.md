@@ -150,7 +150,7 @@ ESLint enforces the main-process architecture boundary rules on every PR:
 6. No `src/main/providers/` runtime directory
 7. No production `providerRegistry` references outside the Pi adapter boundary
 
-Run: `pnpm lint` or `pnpm check`
+Run: `bun run lint` or `bun run check`
 
 ---
 

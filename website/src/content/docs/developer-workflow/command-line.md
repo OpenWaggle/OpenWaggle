@@ -6,7 +6,7 @@ section: "Developer docs"
 kind: "reference"
 ---
 
-The `openwaggle` command opens the desktop app, and runs every other OpenWaggle command without a window. [Installation](/docs/getting-started/installation) puts it on your `PATH`, and [Control a Hive from outside the app](/docs/using-openwaggle/hives-and-sessions#control-a-hive-from-outside-the-app) shows how to work with sessions from a terminal. From a source checkout, run `pnpm cli:dev -- <command>` instead.
+The `openwaggle` command opens the desktop app, and runs every other OpenWaggle command without a window. [Installation](/docs/getting-started/installation) puts it on your `PATH`, and [Control a Hive from outside the app](/docs/using-openwaggle/hives-and-sessions#control-a-hive-from-outside-the-app) shows how to work with sessions from a terminal. From a source checkout, run `bun run cli:dev -- <command>` instead.
 
 ## Open the app
 
