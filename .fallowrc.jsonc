@@ -62,9 +62,25 @@
     // Per-platform native builds of sharp and Pi's clipboard addon, loaded by
     // their parent package for the current platform.
     "@img/sharp-*",
-    "@mariozechner/clipboard-*"
+    "@mariozechner/clipboard-*",
+    // tools/bun-lint pins the dated Bun canary's per-platform binaries as optional
+    // dependencies; scripts/lint.ts runs the one for this platform by path.
+    "@oven/bun-*",
+    // The native rebuild scripts run `node-gyp rebuild` from node_modules/.bin
+    // (scripts/native-rebuild-invocations.ts); nothing imports it.
+    "node-gyp",
+    // The package-smoke browser fixture imports the packed tarball inside the
+    // packed-package sandbox (scripts/package-smoke-scripts.ts), not the workspace.
+    "@openwaggle/extension-react"
   ],
   "ignoreDependencyOverrides": [
+    // Nested `parent>child` overrides pin a transitive copy; bun.lock records each one
+    // under its parent, which Fallow's static override check does not read.
+    { "package": "@effect/sql-sqlite-node>better-sqlite3", "source": "package.json" },
+    { "package": "@huggingface/transformers>onnxruntime-node", "source": "package.json" },
+    { "package": "@pierre/diffs>shiki", "source": "package.json" },
+    { "package": "@pierre/theming>shiki", "source": "package.json" },
+    { "package": "electron-vite>vite", "source": "package.json" },
     { "package": "@tanstack/history", "source": "package.json" },
     { "package": "@tanstack/query-core", "source": "package.json" },
     { "package": "@tanstack/router-core", "source": "package.json" },
@@ -154,6 +170,12 @@
   // The package release scripts load these modules by URL (`await import(moduleUrl)`) so
   // they run under plain Node type stripping; the loader checks each export by name.
   "ignoreExports": [
+    // session-host-cli-entry.ts reads it from `import('./runtime')` resolved inside a
+    // Promise.all tuple, which Fallow's member tracking does not follow.
+    {
+      "file": "src/main/runtime.ts",
+      "exports": ["startSessionHostServicesAfterListening"]
+    },
     { "file": "scripts/package-release-promotion.ts", "exports": ["verifyPromotionBundle"] },
     {
       "file": "scripts/package-release-artifact-contract.ts",

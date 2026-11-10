@@ -264,6 +264,12 @@ const config: DoctorConfig = {
         rules: ['react-doctor/async-await-in-loop'],
       },
       {
+        // Each perf run launches a packaged app and measures it. Runs must not overlap, or each
+        // measurement would include the other app's CPU and memory load.
+        files: ['scripts/perf/lib/perf-app-comparison.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
         // Background housekeeping over directories with many entries (Chromium's code cache
         // alone holds thousands of files). One filesystem call at a time keeps a sweep from
         // queuing thousands of requests on libuv's small thread pool, which the app's own
