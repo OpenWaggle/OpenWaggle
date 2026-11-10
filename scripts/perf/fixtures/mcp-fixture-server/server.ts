@@ -93,7 +93,7 @@ function inventoryResult(name: string | undefined, args: Record<string, unknown>
 
 function callResult(params: Record<string, unknown> | null) {
   const name = stringField(params, 'name')
-  const args = params && isRecord(params.arguments) ? params.arguments : null
+  const args = params && isRecord(params['arguments']) ? params['arguments'] : null
   const text = toolset === 'inventory' ? inventoryResult(name, args) : `${name ?? 'tool'}: ok`
   return { content: [{ type: 'text', text }] }
 }
@@ -127,7 +127,7 @@ const RESULTS: Readonly<Record<string, (params: Params) => object>> = {
 }
 
 function handle(message: Record<string, unknown>) {
-  const id = message.id
+  const id = message['id']
   if (id === undefined) return
   const method = stringField(message, 'method') ?? ''
   const result = RESULTS[method]
@@ -135,7 +135,7 @@ function handle(message: Record<string, unknown>) {
     write({ id, error: { code: METHOD_NOT_FOUND, message: `Method not found: ${method}` } })
     return
   }
-  write({ id, result: result(isRecord(message.params) ? message.params : null) })
+  write({ id, result: result(isRecord(message['params']) ? message['params'] : null) })
 }
 
 createInterface({ input: process.stdin }).on('line', (line: string) => {

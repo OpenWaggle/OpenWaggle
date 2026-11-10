@@ -14,7 +14,7 @@ async function main() {
     executable: process.execPath,
     leadingArguments: ['-e', `setTimeout(() => {}, ${String(IDLE_MS)})`],
   }
-  const launched = launchApp(app, { PATH: process.env.PATH ?? '' }, [])
+  const launched = launchApp(app, { PATH: process.env['PATH'] ?? '' }, [])
   process.stdout.write(`${JSON.stringify({ pid: launched.child.pid, root: profile.root })}\n`)
   await new Promise((resolve) => setTimeout(resolve, IDLE_MS))
 }

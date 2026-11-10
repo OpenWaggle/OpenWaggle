@@ -171,7 +171,7 @@ export async function patternOf(fileName: string, pointer: readonly string[]) {
   let node: unknown = await readPublishedSchema(fileName)
   for (const segment of pointer)
     node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
-  const pattern = record(node).pattern
+  const pattern = record(node)['pattern']
   if (typeof pattern !== 'string') throw new Error(`No pattern at ${pointer.join('/')}.`)
   return new RegExp(pattern, 'u')
 }

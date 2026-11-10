@@ -21,7 +21,7 @@ NO_LAUNCH_ARGUMENT="${noLaunchArgument ? '1' : ''}"
 ${source.slice(start + LAUNCH_POLICY_START.length, end)}
 launch_skip_reason "$1"`
   const result = await execFileAsync('bash', ['-c', script, 'installer-launch-test', platform], {
-    env: { PATH: process.env.PATH ?? '', ...environment },
+    env: { PATH: process.env['PATH'] ?? '', ...environment },
   })
   return result.stdout.trim()
 }

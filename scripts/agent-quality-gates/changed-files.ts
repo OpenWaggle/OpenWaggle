@@ -114,8 +114,8 @@ async function headHashes(run: RunProcess, root: string, head: string, files: re
   const hashes = new Map<string, string>()
   for (const entry of nulSeparated(output ?? '')) {
     const groups = LS_TREE_HASH.exec(entry)?.groups
-    if (groups?.file !== undefined && groups.hash !== undefined) {
-      hashes.set(groups.file, groups.hash)
+    if (groups?.['file'] !== undefined && groups['hash'] !== undefined) {
+      hashes.set(groups['file'], groups['hash'])
     }
   }
   return hashes

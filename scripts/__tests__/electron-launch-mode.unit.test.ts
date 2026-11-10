@@ -53,81 +53,81 @@ describe('Playwright Electron launch mode', () => {
   })
 
   it('does not forward unrelated parent secrets', () => {
-    process.env.OPENWAGGLE_QA_TEST_SECRET = 'must-not-leak'
+    process.env['OPENWAGGLE_QA_TEST_SECRET'] = 'must-not-leak'
     try {
       expect(buildSafeElectronEnvironment({ REQUIRED: 'value' })).toEqual(
         expect.not.objectContaining({ OPENWAGGLE_QA_TEST_SECRET: 'must-not-leak' }),
       )
     } finally {
-      delete process.env.OPENWAGGLE_QA_TEST_SECRET
+      delete process.env['OPENWAGGLE_QA_TEST_SECRET']
     }
   })
 
   it('forwards a caller-chosen compile cache directory past a throwaway HOME', () => {
-    process.env.OPENWAGGLE_COMPILE_CACHE_DIR = '/tmp/perf/compile-cache'
+    process.env['OPENWAGGLE_COMPILE_CACHE_DIR'] = '/tmp/perf/compile-cache'
     try {
       expect(buildSafeElectronEnvironment({ HOME: '/tmp/qa-scratch/home' })).toMatchObject({
         HOME: '/tmp/qa-scratch/home',
         OPENWAGGLE_COMPILE_CACHE_DIR: '/tmp/perf/compile-cache',
       })
     } finally {
-      delete process.env.OPENWAGGLE_COMPILE_CACHE_DIR
+      delete process.env['OPENWAGGLE_COMPILE_CACHE_DIR']
     }
   })
 
   it('forwards the caller Pi agent directory so a scratch one reaches the app', () => {
-    const previous = process.env.PI_CODING_AGENT_DIR
-    process.env.PI_CODING_AGENT_DIR = '/tmp/qa-scratch/pi-agent'
+    const previous = process.env['PI_CODING_AGENT_DIR']
+    process.env['PI_CODING_AGENT_DIR'] = '/tmp/qa-scratch/pi-agent'
     try {
       expect(buildSafeElectronEnvironment({})).toMatchObject({
         PI_CODING_AGENT_DIR: '/tmp/qa-scratch/pi-agent',
       })
     } finally {
-      if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR
-      else process.env.PI_CODING_AGENT_DIR = previous
+      if (previous === undefined) delete process.env['PI_CODING_AGENT_DIR']
+      else process.env['PI_CODING_AGENT_DIR'] = previous
     }
   })
 
   it('lets a launcher override an inherited location', () => {
-    const previous = process.env.HOME
-    process.env.HOME = '/Users/maintainer'
+    const previous = process.env['HOME']
+    process.env['HOME'] = '/Users/maintainer'
     try {
       expect(buildSafeElectronEnvironment({ HOME: '/tmp/qa-profile/qa-home' })).toMatchObject({
         HOME: '/tmp/qa-profile/qa-home',
       })
     } finally {
-      process.env.HOME = previous
+      process.env['HOME'] = previous
     }
   })
 
   it('forwards the Host temp directory so a QA app leaves the agent scratch directory', () => {
-    const previous = process.env.OPENWAGGLE_HOST_TMPDIR
-    process.env.OPENWAGGLE_HOST_TMPDIR = '/var/folders/host/T'
+    const previous = process.env['OPENWAGGLE_HOST_TMPDIR']
+    process.env['OPENWAGGLE_HOST_TMPDIR'] = '/var/folders/host/T'
     try {
       expect(buildSafeElectronEnvironment({})).toMatchObject({
         OPENWAGGLE_HOST_TMPDIR: '/var/folders/host/T',
       })
     } finally {
-      if (previous === undefined) delete process.env.OPENWAGGLE_HOST_TMPDIR
-      else process.env.OPENWAGGLE_HOST_TMPDIR = previous
+      if (previous === undefined) delete process.env['OPENWAGGLE_HOST_TMPDIR']
+      else process.env['OPENWAGGLE_HOST_TMPDIR'] = previous
     }
   })
 
   it('forwards the display and X authority required by a Linux virtual display', () => {
-    const previousDisplay = process.env.DISPLAY
-    const previousXAuthority = process.env.XAUTHORITY
-    process.env.DISPLAY = ':99'
-    process.env.XAUTHORITY = '/tmp/xvfb-authority'
+    const previousDisplay = process.env['DISPLAY']
+    const previousXAuthority = process.env['XAUTHORITY']
+    process.env['DISPLAY'] = ':99'
+    process.env['XAUTHORITY'] = '/tmp/xvfb-authority'
     try {
       expect(buildSafeElectronEnvironment({})).toMatchObject({
         DISPLAY: ':99',
         XAUTHORITY: '/tmp/xvfb-authority',
       })
     } finally {
-      if (previousDisplay === undefined) delete process.env.DISPLAY
-      else process.env.DISPLAY = previousDisplay
-      if (previousXAuthority === undefined) delete process.env.XAUTHORITY
-      else process.env.XAUTHORITY = previousXAuthority
+      if (previousDisplay === undefined) delete process.env['DISPLAY']
+      else process.env['DISPLAY'] = previousDisplay
+      if (previousXAuthority === undefined) delete process.env['XAUTHORITY']
+      else process.env['XAUTHORITY'] = previousXAuthority
     }
   })
 })

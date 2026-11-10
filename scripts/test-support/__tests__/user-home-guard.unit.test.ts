@@ -58,28 +58,28 @@ describe('the test user-home guard', () => {
   })
 
   it("clears a developer's Pi session dir and Host temp dir, so tests use their own", () => {
-    expect(process.env.PI_CODING_AGENT_SESSION_DIR).toBeUndefined()
-    expect(process.env.OPENWAGGLE_HOST_TMPDIR).toBeUndefined()
+    expect(process.env['PI_CODING_AGENT_SESSION_DIR']).toBeUndefined()
+    expect(process.env['OPENWAGGLE_HOST_TMPDIR']).toBeUndefined()
   })
 
   it('trips in the shared setup when a test points the Pi session dir at the real home', () => {
     const environment = process.env
-    environment.PI_CODING_AGENT_SESSION_DIR = path.join(os.userInfo().homedir, 'pi-sessions')
+    environment['PI_CODING_AGENT_SESSION_DIR'] = path.join(os.userInfo().homedir, 'pi-sessions')
     try {
       expect(() => assertTestUserIsolated()).toThrow(/must not use the real user's files/)
     } finally {
-      delete environment.PI_CODING_AGENT_SESSION_DIR
+      delete environment['PI_CODING_AGENT_SESSION_DIR']
     }
   })
 
   it('trips in the shared setup when a test points HOME at the real home', () => {
     const environment = process.env
-    const temporaryHome = environment.HOME
-    environment.HOME = os.userInfo().homedir
+    const temporaryHome = environment['HOME']
+    environment['HOME'] = os.userInfo().homedir
     try {
       expect(() => assertTestUserIsolated()).toThrow(/must not use the real user's files/)
     } finally {
-      environment.HOME = temporaryHome
+      environment['HOME'] = temporaryHome
     }
     expect(() => assertTestUserIsolated()).not.toThrow()
   })

@@ -58,7 +58,7 @@ export function suppressDependencyDeprecationWarnings(
   return {
     ...extraEnvironment,
     NODE_OPTIONS: appendWhitespaceDelimitedOption(
-      extraEnvironment.NODE_OPTIONS ?? baseEnvironment['NODE_OPTIONS'],
+      extraEnvironment['NODE_OPTIONS'] ?? baseEnvironment['NODE_OPTIONS'],
       SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION,
     ),
   }

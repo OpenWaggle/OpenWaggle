@@ -113,11 +113,14 @@ async function canonicalPackedPackages(tarballDirectory: string) {
 
 function packedPackageVersions(packedPackages: readonly PackedPackage[]) {
   return packedPackages.map((packedPackage) => {
-    if (!isObject(packedPackage.manifest) || typeof packedPackage.manifest.version !== 'string') {
+    if (
+      !isObject(packedPackage.manifest) ||
+      typeof packedPackage.manifest['version'] !== 'string'
+    ) {
       throw new Error(`${packedPackage.name} packed manifest must declare a version.`)
     }
 
-    return { name: packedPackage.name, version: packedPackage.manifest.version }
+    return { name: packedPackage.name, version: packedPackage.manifest['version'] }
   })
 }
 

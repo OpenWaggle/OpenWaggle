@@ -147,7 +147,7 @@ function scratchBase() {
 }
 
 async function evidenceDirectory() {
-  const base = process.env.OPENWAGGLE_EVIDENCE_DIR
+  const base = process.env['OPENWAGGLE_EVIDENCE_DIR']
   if (base) {
     const directory = path.join(base, `website-screenshots-${Date.now()}`)
     await fs.mkdir(directory, { recursive: true })

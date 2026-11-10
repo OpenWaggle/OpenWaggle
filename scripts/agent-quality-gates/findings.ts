@@ -72,11 +72,11 @@ export function deadCodeFindings(report: string, changed: ReadonlySet<string>): 
       ? []
       : objects(value).flatMap((item) => {
           const files = [
-            text(item.path),
-            ...objects(item.edges).map((edge) => text(edge.path)),
+            text(item['path']),
+            ...objects(item['edges']).map((edge) => text(edge['path'])),
           ].filter((file): file is string => file !== undefined)
-          const cycle = Array.isArray(item.files)
-            ? item.files.filter((file): file is string => typeof file === 'string')
+          const cycle = Array.isArray(item['files'])
+            ? item['files'].filter((file): file is string => typeof file === 'string')
             : []
           const file = [...files, ...cycle].find((candidate) => changed.has(candidate))
           if (file === undefined) {
@@ -85,7 +85,7 @@ export function deadCodeFindings(report: string, changed: ReadonlySet<string>): 
           const name = NAME_FIELDS.map((field) => text(item[field])).find(
             (value) => value !== undefined,
           )
-          const parent = text(item.parent_name) ?? text(item.component_name)
+          const parent = text(item['parent_name']) ?? text(item['component_name'])
           const named = [parent, name].filter(Boolean).join('.')
           const subject =
             cycle.length > 0 ? cycle.join(' -> ') : named || ruleName(key).replace(/-/g, ' ')
@@ -94,7 +94,7 @@ export function deadCodeFindings(report: string, changed: ReadonlySet<string>): 
               tool: 'fallow dead-code' as const,
               rule: ruleName(key),
               file,
-              line: lineOf(item.line),
+              line: lineOf(item['line']),
               message: subject,
             },
           ]
@@ -104,12 +104,12 @@ export function deadCodeFindings(report: string, changed: ReadonlySet<string>): 
 
 /** `fallow dupes --format json`: each clone group with an instance in a changed file. */
 export function duplicationFindings(report: string, changed: ReadonlySet<string>): Finding[] {
-  return objects(parse(report)?.clone_groups).flatMap((group) => {
-    const instances = objects(group.instances).flatMap((instance) => {
-      const file = text(instance.file)
+  return objects(parse(report)?.['clone_groups']).flatMap((group) => {
+    const instances = objects(group['instances']).flatMap((instance) => {
+      const file = text(instance['file'])
       return file === undefined
         ? []
-        : [{ file, start: lineOf(instance.start_line), end: lineOf(instance.end_line) }]
+        : [{ file, start: lineOf(instance['start_line']), end: lineOf(instance['end_line']) }]
     })
     const own = instances.find((instance) => changed.has(instance.file))
     if (own === undefined) {
@@ -134,25 +134,25 @@ export function duplicationFindings(report: string, changed: ReadonlySet<string>
 export function reactDoctorFindings(report: string, changed: ReadonlySet<string>): Finding[] {
   const parsed = parse(report)
   const diagnostics = [
-    ...objects(parsed?.diagnostics),
-    ...objects(parsed?.projects).flatMap((project) => objects(project.diagnostics)),
+    ...objects(parsed?.['diagnostics']),
+    ...objects(parsed?.['projects']).flatMap((project) => objects(project['diagnostics'])),
   ]
   return unique(
     diagnostics.flatMap((diagnostic) => {
-      const file = text(diagnostic.filePath)
+      const file = text(diagnostic['filePath'])
       if (file === undefined || !changed.has(file)) {
         return []
       }
-      const plugin = text(diagnostic.plugin)
-      const rule = text(diagnostic.rule) ?? 'unknown'
-      const help = text(diagnostic.help)
+      const plugin = text(diagnostic['plugin'])
+      const rule = text(diagnostic['rule']) ?? 'unknown'
+      const help = text(diagnostic['help'])
       return [
         {
           tool: 'react-doctor' as const,
           rule: plugin === undefined ? rule : `${plugin}/${rule}`,
           file,
-          line: lineOf(diagnostic.line),
-          message: [text(diagnostic.message), help].filter(Boolean).join(' '),
+          line: lineOf(diagnostic['line']),
+          message: [text(diagnostic['message']), help].filter(Boolean).join(' '),
         },
       ]
     }),
