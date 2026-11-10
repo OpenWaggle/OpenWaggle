@@ -2,7 +2,6 @@ import type {
   ChangeRequestCheckStatus,
   ChangeRequestMergeability,
   ChangeRequestReviewDecision,
-  ChangeRequestState,
   VcsChangeRequestCheck,
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
@@ -13,6 +12,7 @@ import {
   asString,
   boundedObjects,
   CHANGE_REQUEST_MERGE_METHODS,
+  changeRequestMergeBlocker,
 } from './change-request-parse-shared'
 import { mapGhPullRequest } from './change-request-summary-parse'
 
@@ -95,38 +95,6 @@ function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMerg
   return 'unknown'
 }
 
-function mergeReason(input: {
-  readonly state: ChangeRequestState
-  readonly headCommit: string | null
-  readonly checks: readonly VcsChangeRequestCheck[]
-  readonly reviewDecision: ChangeRequestReviewDecision
-  readonly mergeability: ChangeRequestMergeability
-  readonly mergeStateStatus: string | null
-}) {
-  if (input.state === 'draft') return 'Mark this pull request ready for review before merging.'
-  if (input.state !== 'open') return 'Only an open pull request can be merged.'
-  if (!input.headCommit) return 'The head commit is unavailable. Refresh before merging.'
-  if (input.mergeability === 'conflicting') return 'Resolve merge conflicts before merging.'
-  if (input.mergeability === 'unknown') return 'Mergeability is still being calculated.'
-  if (input.reviewDecision === 'changes-requested') {
-    return 'Resolve requested review changes before merging.'
-  }
-  if (input.reviewDecision === 'review-required') return 'Required review approval is missing.'
-  if (input.checks.some((check) => check.status === 'failed' || check.status === 'cancelled')) {
-    return 'Fix failing checks before merging.'
-  }
-  if (input.checks.some((check) => check.status === 'pending')) {
-    return 'Wait for all checks to finish before merging.'
-  }
-  if (
-    input.mergeability === 'blocked' ||
-    (input.mergeStateStatus !== null && input.mergeStateStatus !== 'CLEAN')
-  ) {
-    return 'Repository rules currently block this merge.'
-  }
-  return null
-}
-
 /** Map one bounded `gh pr view --json` response into lifecycle detail. */
 export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
   const record = asObject(raw)
@@ -138,13 +106,14 @@ export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails |
   const mergeability = mapMergeability(record)
   const headCommit = asString(record.headRefOid)
   const mergeStateStatus = asString(record.mergeStateStatus)?.toUpperCase() ?? null
-  const reason = mergeReason({
+  const reason = changeRequestMergeBlocker({
+    noun: 'pull request',
     state: summary.state,
     headCommit,
     checks,
     reviewDecision,
     mergeability,
-    mergeStateStatus,
+    rulesBlocked: mergeStateStatus !== null && mergeStateStatus !== 'CLEAN',
   })
   return {
     ...summary,

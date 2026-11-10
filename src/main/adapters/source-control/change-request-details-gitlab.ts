@@ -2,7 +2,6 @@ import type {
   ChangeRequestCheckStatus,
   ChangeRequestMergeability,
   ChangeRequestReviewDecision,
-  ChangeRequestState,
   VcsChangeRequestCheck,
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
@@ -13,6 +12,7 @@ import {
   asString,
   boundedObjects,
   CHANGE_REQUEST_MERGE_METHODS,
+  changeRequestMergeBlocker,
   MAX_CHANGE_REQUEST_ITEMS,
 } from './change-request-parse-shared'
 import { mapGlabMergeRequest } from './change-request-summary-parse'
@@ -63,32 +63,6 @@ function mapReviewDecision(record: ReturnType<typeof asObject>): ChangeRequestRe
   return 'none'
 }
 
-function mergeReason(input: {
-  readonly state: ChangeRequestState
-  readonly headCommit: string | null
-  readonly checks: readonly VcsChangeRequestCheck[]
-  readonly reviewDecision: ChangeRequestReviewDecision
-  readonly mergeability: ChangeRequestMergeability
-}) {
-  if (input.state === 'draft') return 'Mark this merge request ready for review before merging.'
-  if (input.state !== 'open') return 'Only an open merge request can be merged.'
-  if (!input.headCommit) return 'The head commit is unavailable. Refresh before merging.'
-  if (input.mergeability === 'conflicting') return 'Resolve merge conflicts before merging.'
-  if (input.mergeability === 'unknown') return 'Mergeability is still being calculated.'
-  if (input.reviewDecision === 'changes-requested') {
-    return 'Resolve requested review changes before merging.'
-  }
-  if (input.reviewDecision === 'review-required') return 'Required review approval is missing.'
-  if (input.checks.some((check) => check.status === 'failed' || check.status === 'cancelled')) {
-    return 'Fix failing checks before merging.'
-  }
-  if (input.checks.some((check) => check.status === 'pending')) {
-    return 'Wait for all checks to finish before merging.'
-  }
-  if (input.mergeability === 'blocked') return 'Repository rules currently block this merge.'
-  return null
-}
-
 function pipelineChecks(record: ReturnType<typeof asObject>): readonly VcsChangeRequestCheck[] {
   const pipeline = asObject(record?.head_pipeline)
   if (!pipeline) return []
@@ -134,12 +108,14 @@ export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetail
   const reviewDecision = mapReviewDecision(record)
   const mergeability = mapMergeability(record)
   const headCommit = asString(record.sha)
-  const reason = mergeReason({
+  const reason = changeRequestMergeBlocker({
+    noun: 'merge request',
     state: summary.state,
     headCommit,
     checks,
     reviewDecision,
     mergeability,
+    rulesBlocked: false,
   })
   return {
     ...summary,
