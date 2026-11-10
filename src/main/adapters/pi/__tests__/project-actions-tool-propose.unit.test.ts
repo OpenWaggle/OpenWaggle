@@ -76,7 +76,7 @@ describe('project_actions repair proposals', () => {
   it('declares the proposal fields in the flat provider-facing schema', () => {
     const { tool } = registration()
     const shape = fromAny<{ properties?: Record<string, unknown> }, unknown>(
-      JSON.parse(JSON.stringify(tool.parameters)),
+      structuredClone(tool.parameters),
     )
     expect(shape.properties?.command).toBeDefined()
     expect(shape.properties?.directory).toBeDefined()

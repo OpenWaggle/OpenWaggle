@@ -87,7 +87,7 @@ describe('Pi project_actions shares GUI executions', () => {
         properties?: Record<string, unknown>
       },
       unknown
-    >(JSON.parse(JSON.stringify(tool.parameters)))
+    >(structuredClone(tool.parameters))
 
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()

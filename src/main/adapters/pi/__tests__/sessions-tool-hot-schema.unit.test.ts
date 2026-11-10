@@ -43,7 +43,7 @@ function schemaOf(tool: ToolDefinition) {
   return fromAny<
     { properties: Record<string, { enum?: unknown[]; anyOf?: unknown[]; type?: unknown }> },
     unknown
-  >(JSON.parse(JSON.stringify(tool.parameters)))
+  >(structuredClone(tool.parameters))
 }
 
 /** What Pi does with a model's tool call before the tool runs. */

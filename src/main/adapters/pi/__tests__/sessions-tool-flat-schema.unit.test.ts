@@ -23,7 +23,7 @@ function schemaShape(schema: unknown) {
       required?: string[]
     },
     unknown
-  >(JSON.parse(JSON.stringify(schema)))
+  >(structuredClone(schema))
 }
 
 // Issue #218: GLM via OpenRouter silently emits `{}` tool arguments when the tool's

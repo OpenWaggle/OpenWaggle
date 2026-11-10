@@ -242,7 +242,7 @@ describe('source_control configure', () => {
 
   it('registers a flat provider-facing object schema', () => {
     const { parameters } = sourceControlToolHarness()
-    const shape: unknown = JSON.parse(JSON.stringify(parameters))
+    const shape: unknown = structuredClone(parameters)
 
     expect(shape).toMatchObject({ type: 'object', required: ['action'] })
     expect(shape).not.toHaveProperty('anyOf')

@@ -214,7 +214,7 @@ describe('Pi browser preview automation extension', () => {
     const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
     const scope = { sessionId: SessionId('session-1'), workingPath: '/project' }
 
-    expect(JSON.parse(JSON.stringify(resize?.parameters))).toMatchObject({
+    expect(structuredClone(resize?.parameters)).toMatchObject({
       type: 'object',
       required: ['mode'],
       properties: {

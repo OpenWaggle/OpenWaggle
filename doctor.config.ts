@@ -5,8 +5,9 @@
  * fixed in code. Every override below is a verified false positive, scoped to the
  * single file + single rule it applies to, with the reason it cannot be fixed.
  *
- * Types are declared inline rather than imported from 'react-doctor': the tool
- * runs via npx and is deliberately not a project dependency.
+ * Types are declared inline rather than imported from 'react-doctor' so this file
+ * stays a plain data module. The tool is a pinned devDependency (see package.json),
+ * run as the required `--blocking warning` gate, so any new finding fails it.
  */
 interface DoctorConfig {
   readonly ignore?: {
@@ -147,6 +148,19 @@ const config: DoctorConfig = {
         // IndexedDB, as inline visualizations do above.
         files: ['src/renderer/src/features/mcp/McpAppHost.tsx'],
         rules: ['react-doctor/iframe-missing-sandbox'],
+      },
+      {
+        // These round-trips are deliberate JSON serialization, not deep clones. The
+        // serialization test compares the wire frame with what JSON.stringify produces,
+        // and its payload has a counting `toJSON()` method that structuredClone would
+        // ignore (and, being a function, would throw on). The payload helper captures
+        // the provider request as the SDKs send it on the wire, which drops `undefined`
+        // values and calls `toJSON()`; structuredClone keeps the first and skips the second.
+        files: [
+          'src/main/application/__tests__/session-host-event-serialization.unit.test.ts',
+          'src/main/adapters/pi/__tests__/provider-tool-payload.test-utils.ts',
+        ],
+        rules: ['react-doctor/no-json-parse-stringify-clone'],
       },
     ],
   },

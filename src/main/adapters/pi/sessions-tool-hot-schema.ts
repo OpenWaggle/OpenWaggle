@@ -80,7 +80,7 @@ function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
 
 function plainSchema(schema: unknown) {
   // TypeBox keeps its markers non-enumerable; the provider payload is the JSON form.
-  const plain: unknown = JSON.parse(JSON.stringify(schema))
+  const plain: unknown = structuredClone(schema)
   if (!isJsonSchemaObject(plain)) throw new Error('The hive tool schema is not an object.')
   return plain
 }
