@@ -24,7 +24,7 @@ import {
   validateSessionNodeId,
   validateWorktreePlan,
 } from './host-ui-session-operation-validation'
-import { dispatchLocalSessionCommand } from './local-session-command-dispatcher'
+import { dispatchNestedLocalSessionCommand } from './local-session-nested-command'
 import {
   beginPiSessionProjectRemoval,
   deleteSessionForProjectRemoval,
@@ -48,12 +48,12 @@ function validateOptionalThinkingLevel(
 
 export function mutateLocalUiSession(
   command: Extract<
-    Parameters<typeof dispatchLocalSessionCommand>[0]['payload'],
+    Parameters<typeof dispatchNestedLocalSessionCommand>[0]['payload'],
     { contract: 'local-ui-v1' }
   >['request']['command'],
 ) {
   return Effect.gen(function* () {
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'local-ui-v1',
@@ -82,7 +82,7 @@ export function createSession(args: readonly unknown[]) {
     const thinkingLevel = yield* validateOptionalThinkingLevel(args[THREE_ARGUMENTS])
     const settings = yield* (yield* SettingsService).get()
     const environmentMode = worktreePlan?.environmentMode ?? settings.defaultSessionEnvironmentMode
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: normalizedProjectPath },
       payload: {
         contract: 'session-lifecycle-v2',
@@ -134,7 +134,7 @@ export function forkSession(args: readonly unknown[], position: 'before' | 'at')
     const sourceSessionId = yield* validateSessionId(args[0])
     yield* requiredString(args[1], 'Session model')
     const targetNodeId = yield* validateSessionNodeId(args[TWO_ARGUMENTS])
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-lifecycle-v2',
@@ -189,7 +189,7 @@ export function organizeSession(
   expectedEffect: 'session-renamed' | 'session-archived' | 'session-unarchived',
 ) {
   return Effect.gen(function* () {
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-control-v2',
@@ -218,7 +218,7 @@ export function setAuthorizationMode(args: readonly unknown[]) {
     if (mode !== null && !isAgentAuthorizationMode(mode)) {
       return yield* invalid('Session authorization mode is invalid.')
     }
-    const result = yield* dispatchLocalSessionCommand({
+    const result = yield* dispatchNestedLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
       payload: {
         contract: 'session-control-v2',

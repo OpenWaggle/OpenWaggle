@@ -8,8 +8,8 @@ import { isRecord } from '@shared/utils/validation'
 import {
   hydrateSessionMessage,
   hydrateStructuralSessionMessage,
-  type SessionNodeRow,
-} from '../session-details'
+} from '../session-details/message-hydration'
+import type { SessionNodeRow } from '../session-details/types'
 import { CUSTOM_MESSAGE_ENTRY_TYPE, MESSAGE_ENTRY_TYPE } from './constants'
 import { parseJson } from './json'
 
