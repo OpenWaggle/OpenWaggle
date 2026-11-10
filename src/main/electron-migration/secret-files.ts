@@ -60,6 +60,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** A user-data-relative path with `/` on every OS, for the migration state and the UI. */
+function reportedPath(userData: string, target: string) {
+  return path.relative(userData, target).split(path.sep).join('/')
+}
+
 async function backUpOnce(userData: string, filePath: string) {
   const relative = path.relative(userData, filePath)
   const backup = path.join(userData, MIGRATION_BACKUP_DIRECTORY, relative)
@@ -142,7 +147,7 @@ async function migrateVaultFile(
   ownPath: string,
   sharedPath: string,
 ): Promise<SecretFileResult | undefined> {
-  const file = path.relative(locations.userData, ownPath)
+  const file = reportedPath(locations.userData, ownPath)
   const own = await readOptional(ownPath)
   const source = own ?? (await readOptional(sharedPath))
   if (!source) return undefined
@@ -172,7 +177,7 @@ async function migrateOAuthFile(
   ownPath: string,
   sharedPath: string,
 ): Promise<SecretFileResult | undefined> {
-  const file = path.relative(locations.userData, ownPath)
+  const file = reportedPath(locations.userData, ownPath)
   const own = await readOptional(ownPath)
   const source = own ?? (await readOptional(sharedPath))
   if (!source) return undefined
@@ -218,7 +223,7 @@ async function migrateProfileCredentials(
     resealed += 1
   }
   return {
-    file: path.relative(locations.userData, directory),
+    file: reportedPath(locations.userData, directory),
     resealed,
     alreadySealed,
     unrecoverable,
