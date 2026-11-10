@@ -4,6 +4,7 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
+import { errorCode } from '@shared/utils/node-error'
 import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
 import { getEnvWithOverrides } from '../../env'
 
@@ -114,15 +115,16 @@ function normalizeGitError(error: unknown): GitExecResult {
   }
 
   const value = result.data
+  const code = errorCode(error)
   const fallbackMessage = typeof value.message === 'string' ? value.message : 'Git command failed'
   return {
     stdout: typeof value.stdout === 'string' ? value.stdout : '',
     stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
-    code: typeof value.code === 'number' ? value.code : 1,
-    ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
+    code: typeof code === 'number' ? code : 1,
+    ...(code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
-    ...(value.name === 'AbortError' || value.code === 'ABORT_ERR' ? { aborted: true } : {}),
-    ...(typeof value.code !== 'number' ? { executionFailed: true } : {}),
+    ...(value.name === 'AbortError' || code === 'ABORT_ERR' ? { aborted: true } : {}),
+    ...(typeof code !== 'number' ? { executionFailed: true } : {}),
   }
 }
 
