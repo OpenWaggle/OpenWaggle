@@ -35,12 +35,12 @@ const EXISTING_TOOLS = [
 
 type CommandRunner = (command: string, args: readonly string[]) => Promise<string>
 
-type InstallInput = {
+interface InstallInput {
   readonly toolRoot: string
   readonly githubPath: string
 }
 
-type InstallDependencies = {
+interface InstallDependencies {
   readonly runCommand?: CommandRunner
   readonly appendSearchPath?: (filePath: string, contents: string) => Promise<void>
   readonly prepareDirectory?: (directoryPath: string) => Promise<void>
@@ -48,7 +48,7 @@ type InstallDependencies = {
   readonly writeUserConfig?: (filePath: string, contents: string) => Promise<void>
 }
 
-type VerifyDependencies = {
+interface VerifyDependencies {
   readonly runCommand?: CommandRunner
   readonly resolveExecutable?: (name: string) => Promise<string | undefined>
 }

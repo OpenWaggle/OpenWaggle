@@ -146,8 +146,9 @@ export function publishableTotals(totals: DayTotals): PublishedTotals {
   ) => eventEntries.get(event) ?? unionOf(fallback)
   for (const group of breakdowns.values()) {
     const [first] = group
-    if (first !== undefined)
+    if (first !== undefined) {
       counts.push(...publishableBreakdown(group, entriesOf(first.event, group)))
+    }
   }
   const sums = totals.sums
     .filter((total) => isPublishableGroup(total.contributors, entriesOf(total.event, [total])))

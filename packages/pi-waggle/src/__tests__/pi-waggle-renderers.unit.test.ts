@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest'
 import { registerPiWaggleRenderers } from '../renderers.js'
 
 function registerHarness() {
-  const renderers = new Map<string, MessageRenderer<unknown>>()
+  const renderers = new Map<string, MessageRenderer>()
   registerPiWaggleRenderers({
     registerMessageRenderer: (customType, renderer) => {
-      renderers.set(customType, fromPartial<MessageRenderer<unknown>>(renderer))
+      renderers.set(customType, fromPartial<MessageRenderer>(renderer))
     },
   })
   return renderers

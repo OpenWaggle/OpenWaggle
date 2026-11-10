@@ -69,8 +69,9 @@ async function readManifest(template: string): Promise<ProfileManifest> {
     typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'largeSessions') : null
   const listText: unknown =
     typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'sessionListText') : null
-  if (!Array.isArray(large) || typeof listText !== 'string')
+  if (!Array.isArray(large) || typeof listText !== 'string') {
     throw new Error('Not a generated profile.')
+  }
   return {
     largeSessions: large.filter((title): title is string => typeof title === 'string'),
     sessionListText: listText,
@@ -95,9 +96,9 @@ async function openAndWait(page: Page, title: string, lastText: string) {
     const startedAt = performance.now()
     Reflect.set(globalThis, '__owOpen', null)
     const check = () => {
-      if (textNodes().some((node) => !shown.has(node)))
+      if (textNodes().some((node) => !shown.has(node))) {
         Reflect.set(globalThis, '__owOpen', performance.now() - startedAt)
-      else requestAnimationFrame(check)
+      } else requestAnimationFrame(check)
     }
     requestAnimationFrame(check)
   }, lastText)

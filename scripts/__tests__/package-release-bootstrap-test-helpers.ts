@@ -203,12 +203,12 @@ function missingPackage(): BootstrapCommandResult {
 
 export function createDependencies(
   overrides: ReadonlyMap<string, BootstrapCommandResult> = new Map(),
-  sequenceOverrides: Map<string, BootstrapCommandResult[]> = new Map(),
+  sequenceOverrides = new Map<string, BootstrapCommandResult[]>(),
   environment: Readonly<Record<string, string | undefined>> = {},
 ) {
   const requests: BootstrapCommandRequest[] = []
   const removedDirectories: string[] = []
-  const writtenFiles: Array<{ readonly contents: string; readonly filePath: string }> = []
+  const writtenFiles: { readonly contents: string; readonly filePath: string }[] = []
   const files: BootstrapDependencies['files'] = {
     makeTempDirectory: async () => '/tmp/openwaggle-bootstrap-test',
     removeDirectory: async (directory) => {

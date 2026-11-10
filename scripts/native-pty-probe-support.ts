@@ -22,8 +22,13 @@ const FINAL_SUFFIX = ':OPENWAGGLE_PTY_FINAL_END'
 const FINAL_CHARACTER = '~'
 const UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT = 128
 
-export type Disposable = { readonly dispose: () => void }
-export type ExitEvent = { readonly exitCode: number; readonly signal?: number }
+export interface Disposable {
+  readonly dispose: () => void
+}
+export interface ExitEvent {
+  readonly exitCode: number
+  readonly signal?: number
+}
 export type PtyEvent<T> = (listener: (event: T) => void) => Disposable
 
 export interface ProbedPty {

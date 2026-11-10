@@ -81,7 +81,7 @@ export function parsePublishTimes(document: unknown, name: string): Record<strin
  * package has. Only these need publish times, which only the full packument carries.
  */
 export function isProvenanceCandidate(metadata: PackageProvenance | undefined, version: string) {
-  if (!metadata || metadata.versions[version] !== false) return false
+  if (metadata?.versions[version] !== false) return false
   return Object.values(metadata.versions).some(Boolean)
 }
 
@@ -107,8 +107,9 @@ export function findProvenanceDowngrade(
     if (!attested || (stableOnly && PRERELEASE.test(candidate))) continue
     const time = Date.parse(metadata.published[candidate] ?? '')
     if (!Number.isFinite(time) || time >= lockedTime) continue
-    if (lastAttested === undefined || time > lastAttested.time)
+    if (lastAttested === undefined || time > lastAttested.time) {
       lastAttested = { version: candidate, time }
+    }
   }
   return lastAttested?.version
 }
@@ -137,8 +138,7 @@ export function evaluateProvenanceDowngrades(input: {
     const metadata = input.provenance.get(entry.name)
     const isCandidate = isProvenanceCandidate(metadata, entry.version)
     if (
-      !metadata ||
-      metadata.versions[entry.version] === undefined ||
+      metadata?.versions[entry.version] === undefined ||
       (isCandidate && !metadata.published[entry.version])
     ) {
       missing.push(entry)

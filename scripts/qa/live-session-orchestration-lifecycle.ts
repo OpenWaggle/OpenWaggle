@@ -3,7 +3,7 @@ import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './session-hos
 
 export interface LiveQaLifecycleState {
   gui: Awaited<ReturnType<typeof launchGui>> | null
-  guiLogs: Array<() => string>
+  guiLogs: (() => string)[]
   passed: boolean
 }
 

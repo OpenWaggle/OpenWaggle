@@ -1,7 +1,7 @@
 const DOCS_VERSION_PART_COUNT = 2
 const MINIMUM_KEYWORD_COUNT = 4
 
-function isObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

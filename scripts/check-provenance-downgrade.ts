@@ -79,8 +79,9 @@ export function createRegistryClient(
           if (
             response.status < FIRST_SERVER_ERROR_STATUS &&
             response.status !== TOO_MANY_REQUESTS_STATUS
-          )
+          ) {
             break
+          }
         } catch (error) {
           lastError = error
         }
@@ -131,8 +132,9 @@ export function compactProvenanceCache(
   locked: readonly LockedVersion[],
 ): ProvenanceCache {
   const lockedByName = new Map<string, Set<string>>()
-  for (const entry of locked)
+  for (const entry of locked) {
     lockedByName.set(entry.name, (lockedByName.get(entry.name) ?? new Set()).add(entry.version))
+  }
   const packages: Record<string, PackageProvenance> = {}
   for (const [name, versions] of lockedByName) {
     const entry = cache.packages[name]

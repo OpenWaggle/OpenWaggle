@@ -57,10 +57,11 @@ export function parseJsoncText(text: string, label: string): unknown {
     disallowComments: false,
   })
   const [first] = errors
-  if (first)
+  if (first) {
     throw new Error(
       `${label} is not valid JSON: ${printParseErrorCode(first.error)} at offset ${first.offset}.`,
     )
+  }
   return value
 }
 

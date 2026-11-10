@@ -113,7 +113,7 @@ function chatRequest(headers: Record<string, string>, model = MODEL) {
 function nonLoopbackAddress() {
   return Object.values(os.networkInterfaces())
     .flat()
-    .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)?.address
+    .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
 }
 
 describe('benchmark proxy', () => {

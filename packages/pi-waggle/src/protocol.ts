@@ -28,7 +28,7 @@ export interface PiWaggleModeState {
   readonly updatedAt: number
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

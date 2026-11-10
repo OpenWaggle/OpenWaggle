@@ -85,8 +85,9 @@ export async function manifestChangeCommit(
     .filter(Boolean)
   for (const sha of shas) {
     const before = await readJsonAt(cwd, `${sha}^`, manifestPath)
-    if ((before === undefined ? undefined : stringField(before, packagePath)) !== version)
+    if ((before === undefined ? undefined : stringField(before, packagePath)) !== version) {
       return sha
+    }
   }
   return undefined
 }

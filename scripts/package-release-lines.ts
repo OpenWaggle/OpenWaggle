@@ -93,8 +93,9 @@ async function releasedState(
     }
   }
   const manifest = parseVersion(manifestVersion)
-  if (manifest === undefined)
+  if (manifest === undefined) {
     return `${MANIFEST_PATH} records an invalid ${component} version ${JSON.stringify(manifestVersion)}.`
+  }
   if (tags.some((tag) => tag.compare(manifest) === 0)) {
     return { releasedVersion: manifestVersion, since: `${component}-v${manifestVersion}` }
   }
@@ -206,9 +207,9 @@ export async function checkPackageReleaseLines(
       config,
       manifestVersion,
     )
-    if ('problem' in state)
-      (state.kind === 'config' ? configProblems : historyProblems).push(state.problem)
-    else packages.push(state)
+    if ('problem' in state) {
+      ;(state.kind === 'config' ? configProblems : historyProblems).push(state.problem)
+    } else packages.push(state)
   }
 
   const violations = [

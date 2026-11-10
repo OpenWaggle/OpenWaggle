@@ -154,8 +154,9 @@ describe('the diagrams in the docs', () => {
       const html = await render(markdown, new URL(`file:///docs/${file}`))
       const figures = html.match(FIGURE) ?? []
       expect(figures).toHaveLength(markdown.match(MERMAID_FENCE)?.length ?? 0)
-      for (const figure of figures)
+      for (const figure of figures) {
         expect(figure).toMatch(/<svg class="mermaid-svg" role="img" aria-label="[^"]+"/u)
+      }
       expect(html).not.toContain('data-language="mermaid"')
     },
   )

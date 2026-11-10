@@ -1,6 +1,4 @@
-export type JsonObject = {
-  readonly [key: string]: unknown
-}
+export type JsonObject = Readonly<Record<string, unknown>>
 
 export const BOOTSTRAP_VERSION = '0.0.0-bootstrap.0'
 export const BOOTSTRAP_TAG = 'bootstrap'

@@ -19,7 +19,8 @@ export function releaseStageLabel(version: string): string | undefined {
   const stage = match.groups?.stage
   if (stage === undefined) return undefined
   const label = STAGE_LABELS.get(stage)
-  if (label === undefined)
+  if (label === undefined) {
     throw new Error(`Unknown release stage "${stage}" in version "${version}"`)
+  }
   return label
 }

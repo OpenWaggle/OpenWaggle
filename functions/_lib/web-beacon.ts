@@ -71,8 +71,9 @@ function validateUtm(beacon: Readonly<Record<string, unknown>>) {
 /** Validates a website beacon. Unknown fields, unknown types and stray targets are rejected. */
 export function validateWebBeacon(value: unknown): UsageStatisticsValidation<WebBeacon> {
   if (!isRecord(value)) return failure('beacon', 'expected an object')
-  if (firstUnexpectedKey(value, BEACON_KEYS) !== undefined)
+  if (firstUnexpectedKey(value, BEACON_KEYS) !== undefined) {
     return failure('beacon', 'unknown field')
+  }
   const { type, path, referrer, target } = value
   if (!isPagePath(path)) return failure('path', 'expected a page path')
   if (!isReferrer(referrer)) return failure('referrer', 'expected a page URL')

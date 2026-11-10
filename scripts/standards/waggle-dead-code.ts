@@ -9,7 +9,7 @@ import { isRecord } from './records'
  * Waggle.
  */
 const WAGGLE_PACKAGE_PATH = /^packages\/(?:pi-waggle|waggle-core)\//
-const DESKTOP_AGENT_POLICY_PATH = /^src\/main\/agent\//
+const DESKTOP_AGENT_POLICY_PREFIX = 'src/main/agent/'
 const WAGGLE_DIRECTORY = /(?:^|\/)waggle(?:-run)?\//
 const WAGGLE_PACKAGE_IMPORT =
   /(?:from\s+|import\s*\(\s*)['"]@openwaggle\/(?:pi-waggle|waggle-core)(?:\/[^'"]*)?['"]/
@@ -45,7 +45,7 @@ export function isWaggleScopeFile(filePath: string, contents: string) {
   if (WAGGLE_PACKAGE_PATH.test(filePath)) return true
   if (!filePath.startsWith('src/')) return false
   return (
-    DESKTOP_AGENT_POLICY_PATH.test(filePath) ||
+    filePath.startsWith(DESKTOP_AGENT_POLICY_PREFIX) ||
     WAGGLE_DIRECTORY.test(filePath) ||
     WAGGLE_SYMBOL_NAME.test(filePath.slice(filePath.lastIndexOf('/') + 1)) ||
     WAGGLE_PACKAGE_IMPORT.test(contents)

@@ -50,8 +50,9 @@ function parseLines(text: string) {
 function toolNamesOf(content: unknown) {
   if (!Array.isArray(content)) return []
   return content.flatMap((block: unknown) => {
-    if (!isRecord(block) || block['type'] !== 'toolCall' || typeof block['name'] !== 'string')
+    if (!isRecord(block) || block['type'] !== 'toolCall' || typeof block['name'] !== 'string') {
       return []
+    }
     const args = isRecord(block['arguments']) ? block['arguments'] : {}
     const code = typeof args['code'] === 'string' ? args['code'] : ''
     const nested = [...code.matchAll(CODEMODE_TOOL_PATTERN)].map(
@@ -101,7 +102,7 @@ export function summarizeSessionFile(file: string, text: string): SessionTranscr
       isRoot = false
     }
     const message = isRecord(entry['message']) ? entry['message'] : null
-    if (entry['type'] !== 'message' || !message || message['role'] !== 'assistant') continue
+    if (entry['type'] !== 'message' || message?.['role'] !== 'assistant') continue
     modelCalls += 1
     if (isRecord(message['usage'])) addUsage(usage, message['usage'])
     toolNames.push(...toolNamesOf(message['content']))

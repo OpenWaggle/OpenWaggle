@@ -89,8 +89,9 @@ function hasDeployedLegacyStatusChecks(value: JsonObject) {
   const statusRule = findRule(value['rules'], 'required_status_checks')
   if (!isJsonObject(statusRule) || !isJsonObject(statusRule['parameters'])) return false
   const checks = statusRule['parameters']['required_status_checks']
-  if (!isUnknownArray(checks) || checks.length !== DEPLOYED_LEGACY_CHECK_CONTEXTS.length)
+  if (!isUnknownArray(checks) || checks.length !== DEPLOYED_LEGACY_CHECK_CONTEXTS.length) {
     return false
+  }
   const contexts = checks.flatMap((check) =>
     isJsonObject(check) &&
     typeof check['context'] === 'string' &&
@@ -175,8 +176,9 @@ export function isCompatibleRepositoryMergePolicy(value: unknown) {
 export function isCompatibleEnvironment(value: unknown) {
   if (!isJsonObject(value) || !isJsonObject(value['deployment_branch_policy'])) return false
   const policy = value['deployment_branch_policy']
-  if (policy['protected_branches'] !== false || policy['custom_branch_policies'] !== true)
+  if (policy['protected_branches'] !== false || policy['custom_branch_policies'] !== true) {
     return false
+  }
   const protectionRules = value['protection_rules']
   return (
     isUnknownArray(protectionRules) &&

@@ -13,13 +13,13 @@ import { bunExecutable, nodeRuntime } from './support/node-runtime'
 const SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION = '--no-deprecation'
 const WINDOWS_COMMAND_PROCESSOR = 'cmd.exe'
 
-export type CommandInvocation = {
+export interface CommandInvocation {
   readonly command: string
   readonly args: readonly string[]
 }
 
 /** One package's own install step, run from its directory the way `npm rebuild` runs it. */
-export type PackageRebuildInvocation = {
+export interface PackageRebuildInvocation {
   readonly packageName: string
   readonly cwd: string
   /** A command line for the platform shell: the package's `install` script or `node-gyp rebuild`. */
@@ -114,16 +114,18 @@ export async function nodeNativeRebuildInvocations(
   const paths = { projectRoot, storeDirectory: join(projectRoot, 'node_modules', '.bun') }
   for (const packageName of nativeArtifactPackagesForMode('node')) {
     const [packageRoot] = await findActivePackageRoots(paths, packageName)
-    if (packageRoot === undefined)
+    if (packageRoot === undefined) {
       throw new Error(`${packageName} is not installed; run bun install.`)
+    }
     const manifest: unknown = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
     const hasBindingGyp = await access(join(packageRoot, 'binding.gyp')).then(
       () => true,
       () => false,
     )
     const commandLine = packageRebuildCommandLine(manifest, hasBindingGyp)
-    if (commandLine === null)
+    if (commandLine === null) {
       throw new Error(`${packageName} has no install script or binding.gyp to rebuild.`)
+    }
     invocations.push({
       packageName,
       cwd: packageRoot,

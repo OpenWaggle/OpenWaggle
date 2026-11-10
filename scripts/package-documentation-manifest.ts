@@ -20,9 +20,7 @@ export interface PackageManifest {
   readonly version?: string | undefined
 }
 
-interface JsonObject {
-  readonly [key: string]: unknown
-}
+type JsonObject = Readonly<Record<string, unknown>>
 
 const SEMVER_DOCS_PART_COUNT = 2
 

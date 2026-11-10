@@ -72,7 +72,7 @@ const FALLBACK_REPLY: ScriptedReply = {
   text: 'I can help with that. What would you like me to look at first?',
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -120,8 +120,9 @@ export function parseAnthropicRequest(body: unknown): ModelRequest {
     model: modelOf(body),
     system: isRecord(body) ? textOf(body['system']) : '',
     messages: bodyMessages(body).flatMap((message): ModelMessage[] => {
-      if (message['role'] === 'assistant')
+      if (message['role'] === 'assistant') {
         return [{ role: 'assistant', text: textOf(message['content']) }]
+      }
       if (message['role'] !== 'user') return []
       const parts = partsOf(message['content'])
       const toolTurn = parts.length > 0 && parts.every(isToolResult)

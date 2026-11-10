@@ -19,8 +19,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function traceEventOf(value: unknown): TraceEvent | null {
-  if (!isRecord(value) || typeof value['name'] !== 'string' || typeof value['ph'] !== 'string')
+  if (!isRecord(value) || typeof value['name'] !== 'string' || typeof value['ph'] !== 'string') {
     return null
+  }
   const args = isRecord(value['args']) ? value['args'] : {}
   return {
     name: value['name'],

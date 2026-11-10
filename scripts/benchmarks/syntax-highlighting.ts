@@ -168,8 +168,9 @@ async function main() {
       const visible = analysis.lineStarts
         .slice(0, SOURCE_VIEW_SAMPLE_LINES)
         .map((_, index) => sourceViewLineAt(large, analysis.lineStarts, index))
-      if (visible.length !== SOURCE_VIEW_SAMPLE_LINES)
+      if (visible.length !== SOURCE_VIEW_SAMPLE_LINES) {
         throw new Error('Source-view benchmark returned too few lines.')
+      }
     }),
     sourceFingerprint1MiB: await measure(WARM_SAMPLE_COUNT, () => {
       if (syntaxSourceFingerprint(large) !== largeFingerprint) {

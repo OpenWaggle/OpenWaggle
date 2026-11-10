@@ -3,9 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
 
-interface JsonObject {
-  readonly [key: string]: unknown
-}
+type JsonObject = Readonly<Record<string, unknown>>
 
 interface PackageJson {
   readonly exports?: JsonObject | undefined

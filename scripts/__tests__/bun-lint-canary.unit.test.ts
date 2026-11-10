@@ -8,8 +8,9 @@ function bunLintPins(): Record<string, unknown> {
     typeof manifest === 'object' && manifest !== null && 'optionalDependencies' in manifest
       ? manifest.optionalDependencies
       : undefined
-  if (typeof pins !== 'object' || pins === null)
+  if (typeof pins !== 'object' || pins === null) {
     throw new Error('tools/bun-lint has no optionalDependencies.')
+  }
   return { ...pins }
 }
 

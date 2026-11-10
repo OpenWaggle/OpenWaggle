@@ -89,7 +89,7 @@ export function referrerOrigin(referrer: string): string {
 /** UTM tags from a query string, without control characters and within the length limit. */
 export function campaignTags(search: string): WebBeaconUtm {
   const parameters = new URLSearchParams(search)
-  const tags: { [Parameter in WebUtmParameter]?: string } = {}
+  const tags: Partial<Record<WebUtmParameter, string>> = {}
   for (const parameter of WEB_UTM_PARAMETERS) {
     const value = parameters.get(parameter)?.replace(CONTROL_CHARACTERS, '').trim()
     if (value) tags[parameter] = value.slice(0, WEB_BEACON_MAX_UTM_LENGTH)
@@ -161,8 +161,9 @@ export function startUsageBeacon(environment: BeaconEnvironment): boolean {
   environment.onLinkFollowed((href) => {
     const page = environment.page()
     const target = downloadTarget(href, page.href)
-    if (target !== undefined)
+    if (target !== undefined) {
       sendUsageBeacon(downloadClickBeacon(page, target), environment.transport)
+    }
   })
   return true
 }

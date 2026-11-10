@@ -9,7 +9,7 @@
  */
 import { JSONSchema, type Schema } from 'effect'
 
-export type JsonSchemaNode = { readonly [key: string]: unknown }
+export type JsonSchemaNode = Readonly<Record<string, unknown>>
 
 /** Keywords to merge into the node at each JSON Pointer of the generated schema. */
 export type JsonSchemaOverlay = Readonly<Record<string, JsonSchemaNode>>
@@ -43,8 +43,9 @@ function withoutGeneratedAnnotations(value: unknown): unknown {
     Object.entries(value)
       .filter(([key, entry]) => {
         if (GENERATED_ANNOTATIONS.has(key)) return false
-        if (key === '$id' && typeof entry === 'string' && entry.startsWith('/schemas/'))
+        if (key === '$id' && typeof entry === 'string' && entry.startsWith('/schemas/')) {
           return false
+        }
         return !(key === 'required' && Array.isArray(entry) && entry.length === 0)
       })
       .map(([key, entry]) => [
@@ -117,7 +118,7 @@ export function publishedSchemaRoot(header: PublishedSchemaHeader, body: JsonSch
 
 /** JSON Schema 2020-12 for a runtime schema, with curated descriptions instead of Effect's. */
 export function jsonSchemaFromEffect<A, I>(
-  schema: Schema.Schema<A, I, never>,
+  schema: Schema.Schema<A, I>,
   overlay: JsonSchemaOverlay,
 ): JsonSchemaNode {
   const generated = withoutGeneratedAnnotations(

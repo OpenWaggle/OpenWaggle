@@ -39,7 +39,7 @@ export interface CommandHarness {
   readonly waggleCommand: RegisteredCommandOptions
 }
 
-type BranchEntry = {
+interface BranchEntry {
   readonly id: string
   readonly parentId: string | null
   readonly timestamp: string
@@ -162,7 +162,7 @@ export function createHarness(
 ): CommandHarness {
   vi.stubEnv('HOME', userHomeDir)
   const commands = new Map<string, RegisteredCommandOptions>()
-  const appendedEntries: Array<{ readonly customType: string; readonly data: unknown }> = []
+  const appendedEntries: { readonly customType: string; readonly data: unknown }[] = []
   const selectQueue = [...(input.selectResponses ?? [])]
   const customQueue = [...(input.customResponses ?? [])]
   const editorQueue = [...(input.editorResponses ?? [])]

@@ -24,7 +24,9 @@ function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning'
 
 type ContextMessage = ContextEvent['messages'][number]
 
-type ContextResult = { readonly messages?: ContextEvent['messages'] }
+interface ContextResult {
+  readonly messages?: ContextEvent['messages']
+}
 
 function isWaggleDisplayMessage(message: ContextMessage) {
   return (

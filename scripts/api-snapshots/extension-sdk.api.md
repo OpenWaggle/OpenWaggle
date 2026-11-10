@@ -1073,7 +1073,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -1722,7 +1722,7 @@ export type ExtensionContributionRegistration = SchemaType<typeof extensionContr
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -3985,7 +3985,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -4634,7 +4634,7 @@ export type ExtensionContributionRegistration = SchemaType<typeof extensionContr
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -6449,7 +6449,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -7098,7 +7098,7 @@ export type ExtensionContributionRegistration = SchemaType<typeof extensionContr
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -8438,7 +8438,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -9019,7 +9019,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -9668,7 +9668,7 @@ export type ExtensionContributionRegistration = SchemaType<typeof extensionContr
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -10285,7 +10285,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -10934,7 +10934,7 @@ export type ExtensionContributionRegistration = SchemaType<typeof extensionContr
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
@@ -12736,7 +12736,7 @@ export interface ExtensionSchemaDecodeFailure {
     readonly success: false;
     readonly issues: readonly string[];
 }
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
 export {};
 ```
 
@@ -13385,7 +13385,7 @@ export type ExtensionContributionRegistration = SchemaType<typeof extensionContr
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSchema>;
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>;
-export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema> | ExtensionSidePanelContribution;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | ExtensionSidePanelContribution;
 export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 

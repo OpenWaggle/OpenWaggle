@@ -70,7 +70,7 @@ function runGhApi(endpoint: string) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

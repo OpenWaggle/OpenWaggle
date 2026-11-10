@@ -96,8 +96,9 @@ describe.skipIf(!modelId)('Bedrock time to first byte', () => {
         for await (const event of stream) {
           firstEventMs ??= performance.now() - startedAt
           if (event.type === 'text_delta') firstTextMs ??= performance.now() - startedAt
-          if (event.type === 'error')
+          if (event.type === 'error') {
             throw new Error(event.error.errorMessage ?? 'Bedrock request failed.')
+          }
         }
         const opened = handshakes.slice(handshakesBefore)
         calls.push({

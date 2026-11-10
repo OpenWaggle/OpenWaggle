@@ -54,7 +54,7 @@ const reactManifest: PackageReleaseArtifactManifest = {
   ],
 }
 
-function registryReader(reads: Array<Error | null | string>) {
+function registryReader(reads: (Error | null | string)[]) {
   return vi.fn(async () => {
     const result = reads.shift()
     if (result === undefined) throw new Error('Unexpected registry read.')

@@ -39,7 +39,7 @@ interface ExpectedPackage {
   readonly path: string
 }
 
-type JsonObject = { readonly [key: string]: unknown }
+type JsonObject = Readonly<Record<string, unknown>>
 
 export interface PackageReleaseValidationResult {
   readonly violations: readonly string[]

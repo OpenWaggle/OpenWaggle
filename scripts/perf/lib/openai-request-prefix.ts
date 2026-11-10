@@ -24,8 +24,9 @@ export function systemSections(system: string) {
   let consumed = 0
   for (const match of system.matchAll(SECTION_PATTERN)) {
     const before = system.slice(consumed, match.index).trim()
-    if (before.length > 0)
+    if (before.length > 0) {
       sections.push({ name: sections.length === 0 ? 'preamble' : 'between-sections', text: before })
+    }
     sections.push({ name: match[1] ?? 'section', text: match[0] })
     consumed = match.index + match[0].length
   }

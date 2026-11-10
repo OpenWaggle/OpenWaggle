@@ -176,11 +176,12 @@ const PI_HOST_PROVIDED_PACKAGES = [
 /** Manifest sections whose packages are installed as physical copies inside the package. */
 const INSTALLED_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies'] as const
 
-function bundledDependencyNames(manifest: { readonly [key: string]: unknown }) {
+function bundledDependencyNames(manifest: Readonly<Record<string, unknown>>) {
   for (const key of ['bundleDependencies', 'bundledDependencies']) {
     const value = manifest[key]
-    if (Array.isArray(value))
+    if (Array.isArray(value)) {
       return value.filter((name): name is string => typeof name === 'string')
+    }
   }
   return []
 }

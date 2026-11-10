@@ -47,7 +47,7 @@ export function selectOwnedReleasePullRequests(
 ) {
   return pullRequests.filter(
     (pullRequest) =>
-      pullRequest.isCrossRepository === false &&
+      !pullRequest.isCrossRepository &&
       pullRequest.headRepositoryOwner.login === identity.owner &&
       pullRequest.headRepository.name === identity.repository &&
       pullRequest.headRefName === identity.branch,

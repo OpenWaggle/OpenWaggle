@@ -49,7 +49,7 @@ export type WaggleValidationResult<T> =
   | { readonly success: true; readonly value: T }
   | { readonly success: false; readonly issues: readonly string[] }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

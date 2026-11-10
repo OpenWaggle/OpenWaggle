@@ -40,7 +40,7 @@ export function renderSyntaxLanguageMetadata(languages: readonly SyntaxLanguageM
     "import type { BundledSyntaxLanguageMetadata } from './bundled-language-metadata'",
     '',
     'export const BUNDLED_SYNTAX_LANGUAGES: readonly BundledSyntaxLanguageMetadata[] = ',
-    `${JSON.stringify(syntaxLanguageMetadata(languages))}`,
+    JSON.stringify(syntaxLanguageMetadata(languages)),
     '',
   ].join('\n')
 }

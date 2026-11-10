@@ -17,14 +17,14 @@ interface NativePackageMetadata {
   readonly version?: string | undefined
 }
 
-export type NativeArtifactSignature = {
+export interface NativeArtifactSignature {
   readonly packageName: string
   readonly path: string
   readonly size: number
   readonly mtimeMs: number
 }
 
-export type NativeArtifactPaths = {
+export interface NativeArtifactPaths {
   readonly projectRoot: string
   /**
    * Bun's isolated store, `node_modules/.bun`. Its `node_modules` holds a link to every installed

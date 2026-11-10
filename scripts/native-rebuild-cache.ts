@@ -23,7 +23,7 @@ const ELECTRON_NATIVE_ARTIFACT_PACKAGES = ['sharp', 'node-pty', 'better-sqlite3'
 
 export type RebuildMode = 'node' | 'electron'
 
-export type NativeRebuildCacheKeyInput = {
+export interface NativeRebuildCacheKeyInput {
   readonly mode: RebuildMode
   readonly platform: string
   readonly arch: string

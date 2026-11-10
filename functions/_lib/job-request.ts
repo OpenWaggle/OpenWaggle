@@ -38,8 +38,9 @@ export async function admitJobRequest(context: RouteContext): Promise<JobAdmissi
     }
   }
   const token = configuredValue(environment.STATS_SNAPSHOT_TOKEN)
-  if (token === undefined)
+  if (token === undefined) {
     return { ok: false, result: notConfigured('STATS_SNAPSHOT_TOKEN is not set') }
+  }
   if (!(await bearerTokenMatches(request.headers.get('Authorization'), token))) {
     return {
       ok: false,

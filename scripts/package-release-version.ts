@@ -134,10 +134,11 @@ function reasonFor(state: PackageReleaseLineState) {
       .map((commit) => commit.sha),
   )
   const opening = state.commits.filter((commit) => openingHashes.has(commit.hash))
-  if (opening.length === 0)
+  if (opening.length === 0) {
     return state.rules.releaseAs === undefined
       ? ''
       : ` because release-as is ${state.rules.releaseAs}`
+  }
   const listed = opening.slice(0, MAX_LISTED_COMMITS).map(describeCommit).join(', ')
   const more =
     opening.length > MAX_LISTED_COMMITS

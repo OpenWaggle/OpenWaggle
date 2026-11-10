@@ -111,12 +111,13 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
           delay(DRAIN_GRACE_MS).then(() => 'timeout'),
         ])
         if (settled === 'timeout') await stopProcessGroup(run.launched.child)
-        if (values.out)
+        if (values.out) {
           await writeJsonResult(
             values.out,
             `hive-provider-requests-${app.label}.json`,
             provider.requests,
           )
+        }
         const peak = samples.reduce((best, sample) =>
           sample.footprintMb > best.footprintMb ? sample : best,
         )

@@ -79,8 +79,9 @@ async function createDatabase(profile: PerfProfile, appPath: string) {
   )
   const code = await Promise.race([exited, timeout])
   await stopProcessGroup(started.child)
-  if (code !== 0)
+  if (code !== 0) {
     throw new Error(`host start failed: ${started.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+  }
   await stopProfileHost(profile)
 }
 

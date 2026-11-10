@@ -35,7 +35,7 @@ function run(command: string, args: readonly string[], cwd?: string) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -62,7 +62,7 @@ export function packedFilename(output: string) {
 
 function packedDependency(
   plannedPackage: PackageReleasePlanItem,
-  packedManifest: { readonly [key: string]: unknown },
+  packedManifest: Readonly<Record<string, unknown>>,
 ) {
   if (plannedPackage.dependency === undefined) return undefined
   const dependencyRange = isJsonObject(packedManifest['dependencies'])

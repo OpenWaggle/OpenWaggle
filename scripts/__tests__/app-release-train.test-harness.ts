@@ -129,8 +129,9 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
       githubReleases.push({ tag_name: `v${entry.version}`, draft: entry.release === 'draft' })
     }
   }
-  for (const tag of options.publishedWithoutTag ?? [])
+  for (const tag of options.publishedWithoutTag ?? []) {
     githubReleases.push({ tag_name: tag, draft: false })
+  }
   await fs.writeFile(
     paths.releases,
     githubReleases.map((release) => `${JSON.stringify(release)}\n`).join(''),

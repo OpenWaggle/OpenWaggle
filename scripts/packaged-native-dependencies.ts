@@ -16,7 +16,7 @@ const PLATFORM_PACKAGE =
 /** Toolchain suffixes that load on the supported targets; musl builds never do (glibc floor). */
 const COMPATIBLE_SUFFIXES = new Set(['gnu', 'msvc'])
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -44,8 +44,9 @@ export async function missingNativeDependencies(
         ? parsed['optionalDependencies']
         : {}
     for (const dependency of Object.keys(optional)) {
-      if (!isNativePackageFor(dependency, platform, architecture) || shipped.has(dependency))
+      if (!isNativePackageFor(dependency, platform, architecture) || shipped.has(dependency)) {
         continue
+      }
       if (!missing.has(dependency)) missing.set(dependency, manifest.name)
     }
   }

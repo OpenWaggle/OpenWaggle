@@ -84,8 +84,9 @@ const tools =
   toolset === 'inventory' ? [...INVENTORY_TOOLS, ...toolsFor('generic')] : toolsFor(toolset)
 
 function inventoryResult(name: string | undefined, args: Record<string, unknown> | null) {
-  if (name === 'list_warehouses')
+  if (name === 'list_warehouses') {
     return [...new Set(Object.values(INVENTORY).map((entry) => entry.warehouse))].join(', ')
+  }
   const sku = stringField(args, 'sku') ?? ''
   const entry = INVENTORY[sku]
   return entry ? JSON.stringify({ sku, ...entry }) : `Unknown SKU ${sku}.`

@@ -68,8 +68,9 @@ export function compareReleaseAssets(
   }
   const localNames = new Set(local.map((asset) => asset.name))
   for (const asset of remote) {
-    if (!localNames.has(asset.name))
+    if (!localNames.has(asset.name)) {
       problems.push(`${asset.name} is on the release but was not built`)
+    }
   }
   return problems
 }
@@ -128,7 +129,7 @@ function gh(args: readonly string[]) {
   })
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

@@ -129,9 +129,9 @@ export function createSmokePackageJson(
   smokeDependencyVersions: readonly SmokeDependencyVersion[],
   registryPins: Readonly<Record<string, string>> = {},
 ) {
-  const dependencies: { [name: string]: string } = {}
-  const devDependencies: { [name: string]: string } = {}
-  const packedDependencyOverrides: { [name: string]: string } = { ...registryPins }
+  const dependencies: Record<string, string> = {}
+  const devDependencies: Record<string, string> = {}
+  const packedDependencyOverrides: Record<string, string> = { ...registryPins }
   for (const packedPackage of packedPackages) {
     const tarballReference = `file:${packedPackage.tarballPath}`
     dependencies[packedPackage.name] = tarballReference

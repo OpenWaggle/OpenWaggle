@@ -54,7 +54,7 @@ export function parseBunPackTarballPath(stdout: string) {
   throw new Error('bun pm pack did not report a tarball filename.')
 }
 
-export function isObject(value: unknown): value is { readonly [key: string]: unknown } {
+export function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

@@ -104,10 +104,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     messages: [message('user', 'hey')],
     rubric: 'Return a short meaningful title instead of refusing or copying the greeting.',
   },
-] satisfies ReadonlyArray<{
+] satisfies readonly {
   readonly id: string
   readonly request: string
   readonly previousTitle: string
   readonly messages: readonly SessionTitleContextMessage[]
   readonly rubric: string
-}>
+}[]

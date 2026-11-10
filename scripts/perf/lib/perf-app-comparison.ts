@@ -75,7 +75,8 @@ export async function reportComparison(input: {
     summary,
     results: input.results,
   }
-  if (input.outDirectory)
+  if (input.outDirectory) {
     log(`Wrote ${await writeJsonResult(input.outDirectory, input.fileName, report)}`)
+  }
   process.stdout.write(`${JSON.stringify(summary, null, JSON_INDENT)}\n`)
 }

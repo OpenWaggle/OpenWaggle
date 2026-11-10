@@ -118,8 +118,9 @@ function rootTranscript(transcripts: readonly SessionTranscriptSummary[]) {
 export async function outcomeOf(task: EvalTask, profile: PerfProfile) {
   const transcripts = await readRunTranscripts(profile.agentDir)
   const usage = emptyUsage()
-  for (const transcript of transcripts)
+  for (const transcript of transcripts) {
     addUsage(usage, { ...transcript.usage, cost: { total: transcript.usage.costUsd } })
+  }
   const outcome: EvalOutcome = {
     answer: rootTranscript(transcripts)?.finalText ?? '',
     files: await readInspected(profile.projectPath, task.inspectFiles),
@@ -196,8 +197,9 @@ export async function runEvalTask(input: EvalRunInput) {
           title,
         })
         // The browser preview belongs to the Session the window shows, so open it there.
-        if (task.previewPage)
+        if (task.previewPage) {
           await window.getByText(title, { exact: true }).first().click({ timeout: APP_TIMEOUT_MS })
+        }
         const exit = await Promise.race([
           run.exited,
           delay(task.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS).then(() => 'timeout' as const),

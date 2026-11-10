@@ -51,9 +51,7 @@ export const BUNDLED_DEPS = [
   'chokidar',
 ]
 
-interface UnknownObject {
-  readonly [key: string]: unknown
-}
+type UnknownObject = Readonly<Record<string, unknown>>
 
 function isObject(value: unknown): value is UnknownObject {
   return typeof value === 'object' && value !== null

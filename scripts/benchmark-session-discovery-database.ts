@@ -207,8 +207,9 @@ async function main() {
     )
     const cutoverMs = performance.now() - cutoverStartedAt
     reportSessionDiscoveryBenchmarkPhase('cutover', cutoverMs)
-    if (cutover.status !== 'migrated')
+    if (cutover.status !== 'migrated') {
       throw new Error('Benchmark cutover did not migrate the source.')
+    }
 
     const commonTermIncremental = await benchmarkCommonTermIncrementalProjection(targetDatabasePath)
     reportSessionDiscoveryBenchmarkPhase('common-term projection', commonTermIncremental.elapsedMs)

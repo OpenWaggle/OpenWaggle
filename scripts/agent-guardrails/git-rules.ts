@@ -81,7 +81,7 @@ const CONFIG_WRITE_FLAGS = new Set([
   '--remove-section',
 ])
 const ENV_CONFIG_KEY = /^GIT_CONFIG_KEY_\d+=(.*)$/
-const ENV_CONFIG_PARAMETERS = /^GIT_CONFIG_PARAMETERS=/
+const ENV_CONFIG_PARAMETERS_PREFIX = 'GIT_CONFIG_PARAMETERS='
 // `--no-ve` is the shortest prefix of `--no-verify` git could take; shorter ones are ambiguous.
 const NO_VERIFY_SHORTEST = '--no-ve'.length
 const FORCE_WITH_LEASE_SHORTEST = '--force-w'.length
@@ -119,7 +119,8 @@ function environmentHits(assignments: readonly string[]): GuardrailHit[] {
       return key.toLowerCase() === HOOKS_PATH_KEY
     }
     return (
-      ENV_CONFIG_PARAMETERS.test(assignment) && assignment.toLowerCase().includes(HOOKS_PATH_KEY)
+      assignment.startsWith(ENV_CONFIG_PARAMETERS_PREFIX) &&
+      assignment.toLowerCase().includes(HOOKS_PATH_KEY)
     )
   })
   if (setsHooksPath) {

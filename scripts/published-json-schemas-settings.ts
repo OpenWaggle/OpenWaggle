@@ -82,8 +82,9 @@ const SETTINGS_OVERLAY: JsonSchemaOverlay = {
 /** Lets a file name its schema with a `$schema` key, for a file whose parser keeps unknown keys. */
 function withSchemaKeyProperty(schema: JsonSchemaNode): JsonSchemaNode {
   const { properties, ...rest } = schema
-  if (typeof properties !== 'object' || properties === null || Array.isArray(properties))
+  if (typeof properties !== 'object' || properties === null || Array.isArray(properties)) {
     throw new Error('Expected an object schema with properties.')
+  }
   return {
     ...rest,
     properties: {

@@ -102,8 +102,9 @@ describe('quick installer CLI layout', () => {
         ).rejects.toMatchObject({ code: 1 })
 
         const targetStats = await fs.lstat(target)
-        if (kind === 'file')
+        if (kind === 'file') {
           await expect(fs.readFile(target, 'utf8')).resolves.toContain('unrelated')
+        }
         if (kind === 'symlink') {
           expect(targetStats.isSymbolicLink()).toBe(true)
           await expect(fs.readlink(target)).resolves.toBe(unrelatedTarget)

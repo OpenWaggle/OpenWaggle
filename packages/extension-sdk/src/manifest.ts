@@ -98,11 +98,14 @@ export const extensionDocsSchema = Schema.Struct({
 interface TrustedRendererBoundaryInput {
   readonly trusted?: { readonly renderer?: string | undefined } | undefined
   readonly contributions?:
-    | {
-        readonly [Family in (typeof OPENWAGGLE_EXTENSION.ENTRY_CONTRIBUTION_FAMILIES)[number]]?:
-          | readonly { readonly runtime?: string | undefined }[]
-          | undefined
-      }
+    | Readonly<
+        Partial<
+          Record<
+            (typeof OPENWAGGLE_EXTENSION.ENTRY_CONTRIBUTION_FAMILIES)[number],
+            readonly { readonly runtime?: string | undefined }[] | undefined
+          >
+        >
+      >
     | undefined
 }
 

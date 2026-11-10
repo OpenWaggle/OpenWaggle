@@ -58,7 +58,7 @@ function modelFor(modelReference: string): PiWaggleModel {
 function createPackageLoadHarness(input: { readonly resolveCurrentModel?: boolean } = {}) {
   const commands = new Map<string, RegisteredCommandOptions>()
   const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
-  const appendedEntries: Array<{ readonly customType: string; readonly data: unknown }> = []
+  const appendedEntries: { readonly customType: string; readonly data: unknown }[] = []
   const sendMessage = vi.fn<ExtensionAPI['sendMessage']>()
   const sendUserMessage = vi.fn<ExtensionAPI['sendUserMessage']>()
   const setModel = vi.fn<ExtensionAPI['setModel']>(async () => true)

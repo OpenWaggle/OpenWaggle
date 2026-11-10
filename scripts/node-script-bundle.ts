@@ -82,8 +82,9 @@ async function main(args: readonly string[]) {
   const [first, ...rest] = args
   if (first === RUN_FLAG) {
     const [source, ...scriptArgs] = rest
-    if (source === undefined)
+    if (source === undefined) {
       throw new Error(`Usage: bun scripts/node-script-bundle.ts ${RUN_FLAG} <script> [args...]`)
+    }
     process.exitCode = await runOnNode(process.cwd(), source, scriptArgs)
     return
   }

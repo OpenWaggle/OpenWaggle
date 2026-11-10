@@ -155,8 +155,9 @@ export function probeStartupExternals(
       )
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
-      if (!isRecord(parsed) || !Array.isArray(parsed['loaded']))
+      if (!isRecord(parsed) || !Array.isArray(parsed['loaded'])) {
         throw new Error(`The startup probe printed ${line}.`)
+      }
       return {
         argv,
         loaded: parsed['loaded'].filter((entry): entry is string => typeof entry === 'string'),

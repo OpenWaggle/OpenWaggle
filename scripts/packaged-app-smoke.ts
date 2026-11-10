@@ -43,10 +43,10 @@ const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
-  readonly files?: { readonly [name: string]: AsarNode }
+  readonly files?: Readonly<Record<string, AsarNode>>
 }
 
-function isObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -57,7 +57,7 @@ function parseAsarNode(value: unknown): AsarNode | null {
   if (files === undefined) return {}
   if (!isObject(files)) return null
 
-  const parsedFiles: { [name: string]: AsarNode } = {}
+  const parsedFiles: Record<string, AsarNode> = {}
   for (const [name, child] of Object.entries(files)) {
     const parsedChild = parseAsarNode(child)
     if (parsedChild === null) return null

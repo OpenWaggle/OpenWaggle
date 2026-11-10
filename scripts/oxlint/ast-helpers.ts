@@ -1,8 +1,6 @@
 import type { Node } from '@oxlint/plugins'
 
-interface UnknownObject {
-  readonly [key: string]: unknown
-}
+type UnknownObject = Readonly<Record<string, unknown>>
 
 interface SourceRange {
   readonly start: number

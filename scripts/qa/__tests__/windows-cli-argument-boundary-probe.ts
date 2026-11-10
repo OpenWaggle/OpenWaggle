@@ -156,8 +156,9 @@ export async function probeWindowsCliArgumentBoundary() {
     },
   })
   const executable: unknown = createRequire(import.meta.url)('electron')
-  if (typeof executable !== 'string')
+  if (typeof executable !== 'string') {
     throw new Error('Node did not resolve the Electron executable.')
+  }
   const raw = await runFixture(executable, fixturePath, rawDirectory, false)
   const bounded = await runFixture(executable, fixturePath, boundedDirectory, true)
   console.info('[windows-cli-argument-boundary]', JSON.stringify({ raw, bounded }))

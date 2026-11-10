@@ -124,8 +124,9 @@ export function promotionBase(input: {
   readonly localTags: readonly string[]
 }): PromotionBase {
   const { targetVersion } = input
-  if (!APP_VERSION_PATTERN.test(targetVersion))
+  if (!APP_VERSION_PATTERN.test(targetVersion)) {
     throw new Error(`Invalid desktop app version: ${targetVersion}.`)
+  }
   if (!STABLE_VERSION_PATTERN.test(targetVersion)) {
     return {
       kind: 'skip',

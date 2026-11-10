@@ -63,19 +63,23 @@ export async function discoverPackagedApps(
   const found: string[] = []
   for (const entry of entries) {
     const entryPath = path.join(distDirectory, entry.name)
-    if (platform === 'linux' && entry.isFile() && entry.name.endsWith(APPIMAGE_SUFFIX))
+    if (platform === 'linux' && entry.isFile() && entry.name.endsWith(APPIMAGE_SUFFIX)) {
       found.push(entryPath)
-    if (platform === 'win32' && entry.isDirectory() && entry.name === 'win-unpacked')
+    }
+    if (platform === 'win32' && entry.isDirectory() && entry.name === 'win-unpacked') {
       found.push(entryPath)
+    }
     if (platform === 'darwin' && entry.isDirectory()) {
       for (const child of await directoryEntries(entryPath)) {
-        if (child.isDirectory() && child.name.endsWith('.app'))
+        if (child.isDirectory() && child.name.endsWith('.app')) {
           found.push(path.join(entryPath, child.name))
+        }
       }
     }
   }
-  if (found.length === 0)
+  if (found.length === 0) {
     throw new Error(`No packaged ${platform} app found under ${distDirectory}.`)
+  }
   return found.sort((left, right) => left.localeCompare(right))
 }
 

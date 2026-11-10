@@ -162,15 +162,17 @@ export async function runtimeRejection(read: () => Promise<unknown>): Promise<st
 }
 
 export function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Expected a JSON object.')
+  }
   return Object.fromEntries(Object.entries(value))
 }
 
 export async function patternOf(fileName: string, pointer: readonly string[]) {
   let node: unknown = await readPublishedSchema(fileName)
-  for (const segment of pointer)
+  for (const segment of pointer) {
     node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
+  }
   const pattern = record(node)['pattern']
   if (typeof pattern !== 'string') throw new Error(`No pattern at ${pointer.join('/')}.`)
   return new RegExp(pattern, 'u')
