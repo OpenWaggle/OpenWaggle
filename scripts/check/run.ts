@@ -86,6 +86,16 @@ async function outputLines(
   return lines
 }
 
+async function changedFiles(base: string) {
+  try {
+    return await listChangedFiles(base)
+  } catch {
+    throw new Error(
+      `--changed could not diff against ${base}; fetch it (git fetch origin main) or pass --base <ref>`,
+    )
+  }
+}
+
 export async function runGate(argv: readonly string[]) {
   const options = parseRunArguments(argv)
   const graphErrors = validateStepGraph(STEPS, GATES)
@@ -104,7 +114,7 @@ export async function runGate(argv: readonly string[]) {
   const started = performance.now()
   await mkdir(CHECK_OUTPUT_DIRECTORY, { recursive: true })
   const planned = options.changed
-    ? planChanged(STEPS, selected, await listChangedFiles(options.base))
+    ? planChanged(STEPS, selected, await changedFiles(options.base))
     : planAll(selected)
   if (planned.length === 0) {
     console.log(`${gate.id}: no steps to run`)

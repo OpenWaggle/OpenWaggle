@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConcurrency, parseRunArguments } from '../arguments'
 import { capFindings, FALLBACK_TAIL_LINES, MAX_PRINTED_FINDINGS, parseFindings } from '../findings'
-import { planChanged, selectSteps } from '../plan'
+import { MAX_SCOPED_FILES, planChanged, selectSteps } from '../plan'
 import { summaryLine, type StepReport } from '../report'
 import { type CheckStep, validateStepGraph, withDependencies } from '../step-model'
 import { GATES, STEPS } from '../steps'
@@ -155,6 +155,12 @@ describe('planChanged', () => {
     ])
     const docsOnly = planChanged(steps, [steps[1] ?? step('x')], ['docs/a.md'])
     expect(docsOnly.map((entry) => [entry.step.id, entry.unchanged])).toEqual([['lint', true]])
+  })
+
+  it('runs a step whole rather than pass it more files than a command line holds', () => {
+    const many = Array.from({ length: MAX_SCOPED_FILES + 1 }, (_, index) => `src/f${index}.ts`)
+    const plan = planChanged(steps, [steps[1] ?? step('x')], many)
+    expect(plan.find((entry) => entry.step.id === 'lint')?.commands).toEqual([['true', 'lint']])
   })
 })
 

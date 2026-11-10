@@ -13,6 +13,13 @@ export interface PlannedStep {
   readonly unchanged?: boolean
 }
 
+/**
+ * Above this many files a scoped command runs whole instead: the file list would approach the
+ * command-line length limit (about 32k characters on Windows), and checking that many files costs
+ * about what the whole run does.
+ */
+export const MAX_SCOPED_FILES = 300
+
 function matchesAny(file: string, globs: readonly string[]) {
   return globs.length > 0 && micromatch.isMatch(file, [...globs], { dot: true })
 }
@@ -36,6 +43,7 @@ function scopedStep(step: CheckStep, changedFiles: readonly string[]): PlannedSt
   }
   const files = changedFiles.filter((file) => matchesAny(file, scope.files))
   if (files.length === 0) return { step, commands: [], unchanged: true }
+  if (files.length > MAX_SCOPED_FILES) return { step, commands: step.commands }
   return { step, commands: [scope.command(files)] }
 }
 
