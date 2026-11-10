@@ -30,7 +30,7 @@ const logger = createLogger('error-reporting')
 
 /** Loaded only when this process reports errors, so a process that never does skips the SDK. */
 const importSentryMainErrorReporter = () =>
-  import('./adapters/error-reporting/sentry-main-error-reporter')
+  import('./adapters/electron/error-reporting/sentry-main-error-reporter')
 /** Loaded on start, after Settings: it reads the settings store, which startup loads late. */
 const importUsageStatisticsEnablement = () =>
   import('./usage-statistics/usage-statistics-enablement')

@@ -36,9 +36,9 @@ import {
 } from '@shared/error-reporting/error-report-constants'
 import { scrubErrorReportEvent } from '@shared/error-reporting/error-report-scrubbing'
 import { app, ipcMain } from 'electron'
-import { describeError } from '../../error-description'
-import { createLogger } from '../../logger'
-import type { ErrorReporter, ErrorReportOrigin } from '../../ports/error-reporter'
+import { describeError } from '../../../error-description'
+import { createLogger } from '../../../logger'
+import type { ErrorReporter, ErrorReportOrigin } from '../../../ports/error-reporter'
 import { createGatedElectronTransport } from './sentry-gated-transport'
 
 const logger = createLogger('sentry-main-error-reporter')
