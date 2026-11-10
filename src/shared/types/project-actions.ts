@@ -35,9 +35,9 @@ export interface ProjectAction {
   readonly command: string
   readonly icon: ProjectActionIcon
   readonly runOnWorktreeCreate: boolean
-  readonly previewUrl?: string
+  readonly previewUrl?: string | undefined
   readonly autoOpenPreview?: boolean
-  readonly shortcutRules?: readonly ProjectActionShortcutRule[]
+  readonly shortcutRules?: readonly ProjectActionShortcutRule[] | undefined
   /** Execution fingerprint of the displayed native definition; absent in legacy settings. */
   readonly executionKey?: string
   /** @deprecated Read-only compatibility for settings written before shortcut rules. */

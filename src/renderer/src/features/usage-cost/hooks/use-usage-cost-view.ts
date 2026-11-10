@@ -14,13 +14,13 @@ import {
 
 /** The drill-down selections derived from clicking a chart bar or a breakdown row. */
 export interface UsageCostDrillDown {
-  readonly day?: string
-  readonly provider?: string
-  readonly modelId?: string
+  readonly day?: string | undefined
+  readonly provider?: string | undefined
+  readonly modelId?: string | undefined
   /** Resolved project path group key, sent to the session query. */
-  readonly projectPath?: string | null
+  readonly projectPath?: string | null | undefined
   /** UI-only display label for the selection summary; never sent to the query. */
-  readonly projectLabel?: string
+  readonly projectLabel?: string | undefined
 }
 
 const DEFAULT_QUERY: UsageCostQuery = { preset: '30d', origin: 'all' }

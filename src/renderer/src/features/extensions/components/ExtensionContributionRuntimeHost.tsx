@@ -16,14 +16,14 @@ export function ExtensionContributionRuntimeHost({
   surfacePayload,
 }: {
   readonly entry: ExtensionContributionRegistryEntry
-  readonly autoHeight?: boolean
-  readonly className?: string
-  readonly chrome?: 'bare' | 'card'
-  readonly fill?: boolean
-  readonly maxAutoHeight?: number
-  readonly minAutoHeight?: number
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly autoHeight?: boolean | undefined
+  readonly className?: string | undefined
+  readonly chrome?: 'bare' | 'card' | undefined
+  readonly fill?: boolean | undefined
+  readonly maxAutoHeight?: number | undefined
+  readonly minAutoHeight?: number | undefined
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const sharedHostProps = {
     autoHeight,

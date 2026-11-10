@@ -128,14 +128,14 @@ export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFa
 export interface OpenChangeRequestPayload {
   readonly headRef: string
   /** GitHub owner/namespace receiving the pushed head, needed for fork-safe identity. */
-  readonly headOwner?: string
+  readonly headOwner?: string | undefined
   /** Full GitLab source project path, or GitHub fork path used by the REST fallback. */
-  readonly headRepository?: string
+  readonly headRepository?: string | undefined
   /** Omitted when the provider should use its configured default branch. */
-  readonly baseRef?: string
+  readonly baseRef?: string | undefined
   readonly title: string
-  readonly body?: string
-  readonly draft?: boolean
+  readonly body?: string | undefined
+  readonly draft?: boolean | undefined
   /**
    * Base repository approved during the stacked-action destination preflight.
    *
@@ -143,12 +143,12 @@ export interface OpenChangeRequestPayload {
    * it. Carrying it through the mutation keeps PR/MR creation pinned if CLI defaults or local Git
    * configuration change after the user confirms the action.
    */
-  readonly targetRepository?: SourceControlRepositoryIdentity
+  readonly targetRepository?: SourceControlRepositoryIdentity | undefined
 }
 
 /** Read-only composer planning input; mutation still uses the stacked Git action contract. */
 export interface ChangeRequestPreflightPayload extends OpenChangeRequestPayload {
-  readonly createFeatureBranch?: boolean
+  readonly createFeatureBranch?: boolean | undefined
 }
 
 export interface ChangeRequestSuccess {

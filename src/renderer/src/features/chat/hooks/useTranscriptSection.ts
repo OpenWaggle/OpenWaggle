@@ -90,7 +90,7 @@ export interface TranscriptSectionParams {
   readonly turnAnchorMessageIds: ReadonlySet<string>
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
   /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
-  readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number> | undefined
   readonly pendingSend: PendingSend | null
   readonly onPendingSendConsumed: () => void
   readonly compactionStatus: AgentCompactionStatus | null

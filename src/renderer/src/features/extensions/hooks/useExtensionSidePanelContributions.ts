@@ -6,7 +6,7 @@ import { extensionContributionsQueryOptions } from '@/queries/extensions'
 interface UseExtensionSidePanelContributionsInput {
   readonly enabled: boolean
   readonly projectPath: string | null
-  readonly sessionId?: string | null
+  readonly sessionId?: string | null | undefined
 }
 
 interface ExtensionSidePanelContributionsResult {

@@ -30,8 +30,8 @@ interface ChatRowRendererProps {
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onDismissError?: (message: string) => void
-  onDismissInterruptedRun?: ChatRowRenderContext['actions']['onDismissInterruptedRun']
-  onBranchFromMessage?: (messageId: string) => void
+  onDismissInterruptedRun?: ChatRowRenderContext['actions']['onDismissInterruptedRun'] | undefined
+  onBranchFromMessage?: ((messageId: string) => void) | undefined
   onForkFromMessage?: (messageId: string) => void
   onToggleTurnFold?: (turnKey: string) => void
 }

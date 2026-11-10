@@ -10,7 +10,6 @@
  */
 
 import {
-  type BrowserOptions,
   captureException,
   dedupeIntegration,
   type Event,
@@ -42,8 +41,11 @@ function scrubbed<Report extends Event>(event: Report, hint: EventHint): Report 
   return event
 }
 
+/** The renderer SDK's own options type; it leaves out the main-process-only `dsn`. */
+type SentryRendererOptions = NonNullable<Parameters<typeof init>[0]>
+
 /** The complete Sentry options for the renderer. Release and environment come from main. */
-export function createSentryRendererOptions(): BrowserOptions {
+export function createSentryRendererOptions(): SentryRendererOptions {
   return {
     dataCollection: errorReportingDataCollection(),
     maxBreadcrumbs: 0,

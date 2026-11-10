@@ -8,6 +8,7 @@ import {
   resolveExtensionAgentLoopContribution,
   resolveExtensionAgentLoopContributionEntries,
 } from '../extension-agent-loop-resolution'
+import { omitKey } from '@/test-utils/omit-key'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -94,7 +95,7 @@ describe('resolveExtensionAgentLoopContribution', () => {
 
   it('does not treat missing Pi event matches as a wildcard renderer binding', () => {
     const resolution = resolveExtensionAgentLoopContribution({
-      registry: registry([entry({ matches: undefined })]),
+      registry: registry([omitKey(entry(), 'matches')]),
       target: { surface: 'tool', toolName: 'sample.tool' },
       requestedProjectPaths: [PROJECT_PATH],
     })
@@ -259,11 +260,10 @@ describe('resolveExtensionAgentLoopContribution', () => {
   })
 
   it('uses a later eligible renderer when an earlier matching renderer is invalid', () => {
-    const invalidEntry = entry({
-      extensionId: 'invalid-project',
-      contributionId: 'invalid.tool-renderer',
-      entryPath: undefined,
-    })
+    const invalidEntry = omitKey(
+      entry({ extensionId: 'invalid-project', contributionId: 'invalid.tool-renderer' }),
+      'entryPath',
+    )
     const eligibleEntry = entry({
       extensionId: 'eligible-project',
       contributionId: 'eligible.tool-renderer',

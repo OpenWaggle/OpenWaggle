@@ -57,7 +57,7 @@ function resultsWithEntry(
   state = 'output-available',
   error?: string,
 ) {
-  const map = new Map<string, { content: unknown; state: string; error?: string }>()
+  const map = new Map<string, { content: unknown; state: string; error?: string | undefined }>()
   map.set(id, { content, state, error })
   return map
 }

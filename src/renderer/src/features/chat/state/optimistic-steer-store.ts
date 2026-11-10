@@ -33,7 +33,7 @@ export interface OptimisticSteerPreview {
   readonly incorporatedAt?: number
   /** The user row `incorporatedAt` came from, and its log order: the preview is that row only. */
   readonly incorporatedRowId?: string
-  readonly incorporatedOrder?: number
+  readonly incorporatedOrder?: number | undefined
   /** The Run the steer was promoted into, as this renderer last saw one start. */
   readonly runId?: string
 }

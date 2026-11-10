@@ -81,7 +81,7 @@ async function querySidebarList(query: {
   }
 }
 
-function nextSearchSourceCursor(page: { readonly nextCursor?: string }) {
+function nextSearchSourceCursor(page: { readonly nextCursor?: string | undefined }) {
   return {
     exhausted: page.nextCursor === undefined,
     ...(page.nextCursor ? { cursor: page.nextCursor } : {}),

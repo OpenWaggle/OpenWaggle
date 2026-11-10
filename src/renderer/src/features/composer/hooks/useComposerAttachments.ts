@@ -4,9 +4,9 @@ import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { type UseFileAttachmentResult, useFileAttachment } from './useFileAttachment'
 
 interface UseComposerAttachmentsInput {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly projectPath: string | null
-  readonly onToast?: (message: string) => void
+  readonly onToast?: ((message: string) => void) | undefined
 }
 
 export interface ComposerAttachmentsController {

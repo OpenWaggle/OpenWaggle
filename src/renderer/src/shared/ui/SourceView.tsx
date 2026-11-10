@@ -85,14 +85,14 @@ export function SourceView({
   style,
 }: {
   readonly source: string
-  readonly language?: string
-  readonly path?: string
-  readonly className?: string
-  readonly ariaLabel?: string
-  readonly targetLine?: number | null
-  readonly theme?: string
-  readonly showLineNumbers?: boolean
-  readonly style?: CSSProperties
+  readonly language?: string | undefined
+  readonly path?: string | undefined
+  readonly className?: string | undefined
+  readonly ariaLabel?: string | undefined
+  readonly targetLine?: number | null | undefined
+  readonly theme?: string | undefined
+  readonly showLineNumbers?: boolean | undefined
+  readonly style?: CSSProperties | undefined
 }) {
   const { shikiTheme: activeTheme } = useSyntaxTheme()
   const shikiTheme = theme ?? activeTheme

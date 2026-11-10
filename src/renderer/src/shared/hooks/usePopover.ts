@@ -4,7 +4,7 @@ import { useClickOutside } from '@/shared/hooks/useClickOutside'
 interface UsePopoverOptions {
   onClose?: () => void
   /** Override the click-outside guard (useful for controlled mode). */
-  isActive?: boolean
+  isActive?: boolean | undefined
 }
 
 interface UsePopoverReturn {

@@ -95,7 +95,7 @@ export function placeAgentLoopCards(input: {
   readonly messages: readonly UIMessage[]
   readonly customMessages: readonly AgentTransportCustomEvent[]
   readonly interactionEvents: readonly AgentInteractionEvent[]
-  readonly anchorMessageIdByEventKey?: ReadonlyMap<string, string>
+  readonly anchorMessageIdByEventKey?: ReadonlyMap<string, string> | undefined
 }): AgentLoopCardPlacement {
   const cards = agentLoopCards(input.customMessages, input.interactionEvents)
   if (cards.length === 0) return EMPTY_PLACEMENT

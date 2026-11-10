@@ -102,7 +102,7 @@ describe('task editor draft', () => {
     const reopened = draftFromTask(
       heartbeatTask({
         timeZone: 'Pacific/Kiritimati',
-        endsAt: result.ok ? result.value.endsAt : null,
+        endsAt: result.ok ? (result.value.endsAt ?? null) : null,
       }),
     )
     expect(reopened.endDate).toBe('2026-04-30')

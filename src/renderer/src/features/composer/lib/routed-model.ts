@@ -40,8 +40,8 @@ export function routedModelName({ selected, answeredBy, providerModels }: Routed
 export function lastAnsweringModel(
   messages: readonly {
     readonly role: string
-    readonly model?: SupportedModelId
-    readonly metadata?: { readonly selectedModel?: SupportedModelId }
+    readonly model?: SupportedModelId | undefined
+    readonly metadata?: { readonly selectedModel?: SupportedModelId | undefined } | undefined
   }[],
   selected: SupportedModelId | undefined,
 ) {

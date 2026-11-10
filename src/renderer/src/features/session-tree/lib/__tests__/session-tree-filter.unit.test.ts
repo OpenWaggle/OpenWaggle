@@ -6,7 +6,7 @@ import { filterSessionTreeNodes, searchSessionTreeNodes } from '../session-tree-
 function node(input: {
   readonly id: string
   readonly kind: SessionTreeNode['kind']
-  readonly role?: SessionTreeNode['role']
+  readonly role?: SessionTreeNode['role'] | undefined
   readonly parentId?: string | null
   readonly contentText?: string
 }): SessionTreeNode {

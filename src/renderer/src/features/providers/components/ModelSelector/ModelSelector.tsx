@@ -18,8 +18,8 @@ interface ModelSelectorProps {
   providerModels: ProviderInfo[]
   className?: string
   disabled?: boolean
-  fallbackLabel?: string
-  title?: string
+  fallbackLabel?: string | undefined
+  title?: string | undefined
 }
 
 /**

@@ -23,11 +23,11 @@ export interface UsageCostQuery {
 
 export interface UsageCostSessionQuery extends UsageCostQuery {
   /** Local-timezone day bucket, `YYYY-MM-DD`, from a drill-down selection. */
-  readonly day?: string
-  readonly provider?: string
-  readonly modelId?: string
+  readonly day?: string | undefined
+  readonly provider?: string | undefined
+  readonly modelId?: string | undefined
   /** Resolved project path group key; `null` selects sessions recorded without a working directory. */
-  readonly projectPath?: string | null
+  readonly projectPath?: string | null | undefined
 }
 
 export interface UsageCostTokens {

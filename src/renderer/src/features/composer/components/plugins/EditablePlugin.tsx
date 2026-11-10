@@ -2,7 +2,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { useEffect } from 'react'
 
 interface EditablePluginProps {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
 }
 
 export function EditablePlugin({ disabled }: EditablePluginProps): null {

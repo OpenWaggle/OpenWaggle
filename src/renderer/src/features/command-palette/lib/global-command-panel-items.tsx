@@ -29,7 +29,7 @@ interface PanelCommandItemsInput {
   /** Extension side panels that can be shown now, one per surface. */
   readonly extensionPanels: readonly ExtensionSidePanelSurfaceEntry[]
   readonly showSurface: (id: RightPanelSurfaceId, panel?: ExtensionSidePanelSurfaceEntry) => void
-  readonly disabledReason?: RightPanelSurfaceDisabledReason
+  readonly disabledReason?: RightPanelSurfaceDisabledReason | undefined
 }
 
 function panelItem(

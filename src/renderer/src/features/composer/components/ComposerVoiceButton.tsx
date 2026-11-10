@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/Button'
 import type { VoiceRecorderMode } from '../hooks/useVoiceCapture'
 
 interface ComposerVoiceButtonProps {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly mode: VoiceRecorderMode
   readonly onToggleVoice: () => void
 }

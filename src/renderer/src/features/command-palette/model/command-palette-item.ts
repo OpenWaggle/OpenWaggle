@@ -4,22 +4,22 @@ import type { ReactNode } from 'react'
 export interface CommandPaletteCallbacks {
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
   readonly onStartWaggle: (preset: WagglePreset) => void
-  readonly onOpenSessionTree?: () => void
-  readonly onForkToNewSession?: () => void
-  readonly onCloneToNewSession?: () => void
+  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onForkToNewSession?: (() => void) | undefined
+  readonly onCloneToNewSession?: (() => void) | undefined
 }
 
 export interface CommandPaletteItem {
   readonly id: string
   readonly label: string
-  readonly description?: string
+  readonly description?: string | undefined
   readonly icon: ReactNode
-  readonly section?: string
-  readonly trailing?: string
-  readonly trailingBadge?: string
-  readonly disabled?: boolean
+  readonly section?: string | undefined
+  readonly trailing?: string | undefined
+  readonly trailingBadge?: string | undefined
+  readonly disabled?: boolean | undefined
   /** When the typed command is the whole draft, leave Enter to the composer to submit it. */
-  readonly submitsOnEnter?: boolean
+  readonly submitsOnEnter?: boolean | undefined
   readonly action: () => void
 }
 

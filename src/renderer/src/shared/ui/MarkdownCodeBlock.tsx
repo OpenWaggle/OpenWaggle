@@ -29,10 +29,10 @@ export function MarkdownCodeBlock({
   theme,
 }: {
   readonly children: ReactNode
-  readonly language?: string
-  readonly className?: string
-  readonly highlight?: boolean
-  readonly theme?: string
+  readonly language?: string | undefined
+  readonly className?: string | undefined
+  readonly highlight?: boolean | undefined
+  readonly theme?: string | undefined
 }) {
   const [copied, setCopied] = useState(false)
   const source = textContent(children).replace(/\n$/, '')

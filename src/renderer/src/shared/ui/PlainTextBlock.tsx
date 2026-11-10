@@ -10,9 +10,9 @@ export function PlainTextBlock({
 }: {
   readonly children: string
   readonly reason: 'log' | 'error' | 'terminal' | 'prose' | 'unknown-language' | 'performance'
-  readonly className?: string
-  readonly style?: CSSProperties
-  readonly ariaLabel?: string
+  readonly className?: string | undefined
+  readonly style?: CSSProperties | undefined
+  readonly ariaLabel?: string | undefined
 }) {
   const block = (
     <pre

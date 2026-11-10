@@ -12,7 +12,7 @@ interface CommandPaletteProps {
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
   readonly onStartWaggle: (preset: WagglePreset) => void
-  readonly onOpenSessionTree?: () => void
+  readonly onOpenSessionTree?: (() => void) | undefined
   readonly onForkToNewSession?: () => void
   readonly onCloneToNewSession?: () => void
 }

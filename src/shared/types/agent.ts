@@ -190,7 +190,7 @@ export interface Message {
   readonly role: MessageRole
   readonly parts: readonly MessagePart[]
   readonly model?: SupportedModelId
-  readonly metadata?: MessageMetadata
+  readonly metadata?: MessageMetadata | undefined
   readonly createdAt: number
 }
 

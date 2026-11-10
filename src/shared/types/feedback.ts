@@ -12,10 +12,10 @@ export interface FeedbackPayload {
   readonly includeLastMessage: boolean
   readonly includeModelInfo: boolean
   /** Pre-resolved renderer context for attachment sections */
-  readonly lastUserMessage?: string
-  readonly lastErrorContext?: AgentErrorInfo
-  readonly activeModel?: string
-  readonly activeProvider?: string
+  readonly lastUserMessage?: string | undefined
+  readonly lastErrorContext?: AgentErrorInfo | undefined
+  readonly activeModel?: string | undefined
+  readonly activeProvider?: string | undefined
 }
 
 export interface GhCliStatus {

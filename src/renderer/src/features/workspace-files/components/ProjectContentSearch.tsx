@@ -198,7 +198,7 @@ function ContentEmptyState({
   error = false,
 }: {
   readonly text: string
-  readonly error?: boolean
+  readonly error?: boolean | undefined
 }) {
   return (
     <output

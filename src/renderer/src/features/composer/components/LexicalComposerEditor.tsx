@@ -23,8 +23,8 @@ import { SyncPlugin } from './plugins/SyncPlugin'
 
 interface LexicalComposerEditorProps {
   onSubmit: (text: string) => void
-  onEscape?: () => void
-  disabled?: boolean
+  onEscape?: (() => void) | undefined
+  disabled?: boolean | undefined
   placeholder: string
   editorRef: RefObject<LexicalEditor | null>
   checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean

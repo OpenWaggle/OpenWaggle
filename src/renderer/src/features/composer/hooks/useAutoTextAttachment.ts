@@ -20,12 +20,12 @@ export interface PendingTextAttachmentChip {
 }
 
 interface UseAutoTextAttachmentOptions {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   attachments: PreparedAttachment[]
   addAttachments: (attachments: PreparedAttachment[]) => void
   removeAttachment: (attachmentId: string) => void
   setAttachmentError: (error: string | null) => void
-  onToast?: (message: string) => void
+  onToast?: ((message: string) => void) | undefined
 }
 
 interface UseAutoTextAttachmentResult {

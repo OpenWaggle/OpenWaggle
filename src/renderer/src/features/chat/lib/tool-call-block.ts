@@ -18,7 +18,7 @@ export const FILE_CONTENT_ARG_KEYS = new Set(['content', 'oldString', 'newString
 export interface ToolCallResultPayload {
   readonly content: unknown
   readonly state: string
-  readonly error?: string
+  readonly error?: string | undefined
 }
 
 export function isTextContentBlock(

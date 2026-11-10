@@ -146,7 +146,7 @@ export interface SessionHydrationInput {
   /** The cached messages are a seeded snapshot's: only the active Run's, none persisted yet. */
   readonly cachedRenderSeeded: boolean
   /** Ids of cached messages a settled Run left, persisted under other ids once the Session saved it. */
-  readonly cachedSettledMessageIds?: ReadonlySet<string>
+  readonly cachedSettledMessageIds?: ReadonlySet<string> | undefined
   readonly cachedCompactionStatus: AgentCompactionStatus | null
   /** Counts Host event-stream resyncs: events may have been lost before each. */
   readonly resyncRevision: number

@@ -4,7 +4,7 @@ import { cn } from '@/shared/lib/cn'
 interface ExtensionPanelIconProps {
   readonly icon?: ExtensionContributionIconView
   readonly title: string
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /** Same footprint as a lucide-react icon rendered with `size-4`. */

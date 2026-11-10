@@ -33,7 +33,10 @@ const NEEDS_A_HIVE = 'Only for Sessions in a Hive'
 
 /** The active Session's lineage, read from the chat store's summary list. */
 function activeSessionLineage(
-  sessions: readonly { readonly id: unknown; readonly lineage?: SessionLineageSummary | null }[],
+  sessions: readonly {
+    readonly id: unknown
+    readonly lineage?: SessionLineageSummary | null | undefined
+  }[],
   activeSessionId: unknown,
 ) {
   return sessions.find((session) => String(session.id) === String(activeSessionId))?.lineage

@@ -12,13 +12,13 @@ const logger = createRendererLogger('file-attachment')
 const MAX_ATTACHMENTS = 5
 
 interface UseFileAttachmentParams {
-  readonly disabled?: boolean
+  readonly disabled?: boolean | undefined
   readonly projectPath: string | null
   readonly attachments: readonly PreparedAttachment[]
   readonly preparingPendingCount: number
   readonly addAttachments: (attachments: PreparedAttachment[]) => void
   readonly setAttachmentError: (error: string | null) => void
-  readonly onToast?: (message: string) => void
+  readonly onToast?: ((message: string) => void) | undefined
 }
 
 export interface UseFileAttachmentResult {

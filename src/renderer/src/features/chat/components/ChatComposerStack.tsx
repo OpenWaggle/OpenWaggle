@@ -38,7 +38,7 @@ interface ChatComposerStackProps {
     interaction: AgentLoopInteraction,
     response: AgentLoopInteractionResponse,
   ) => Promise<void>
-  readonly onOpenSessionTree?: () => void
+  readonly onOpenSessionTree?: (() => void) | undefined
 }
 
 const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
@@ -102,7 +102,7 @@ function ComposerOverlays({
   onOpenSessionTree,
 }: {
   readonly section: ChatComposerSectionState
-  readonly onOpenSessionTree?: () => void
+  readonly onOpenSessionTree?: (() => void) | undefined
 }) {
   const {
     activeSessionId,

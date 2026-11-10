@@ -26,8 +26,8 @@ function cleanupAlertMessage(
 export function WorkspaceCleanupFailure(props: {
   readonly projectPath: string
   readonly initial: WorkspacePreparation
-  readonly generationMismatch?: boolean
-  readonly generationMismatchMessage?: string
+  readonly generationMismatch?: boolean | undefined
+  readonly generationMismatchMessage?: string | undefined
   readonly busy: boolean
   readonly onRetry: () => void
   readonly onDeleteAnyway: () => void

@@ -47,8 +47,8 @@ interface ChatErrorDisplayProps {
   dismissedError: string | null
   sessionId: string | null
   onDismiss: (message: string) => void
-  onOpenSettings?: () => void
-  onRetry?: (content: string) => void
+  onOpenSettings?: (() => void) | undefined
+  onRetry?: ((content: string) => void) | undefined
 }
 
 function resolveErrorInfo(error: Error, sessionId: string | null) {
@@ -65,10 +65,10 @@ interface ChatErrorActionsProps {
   readonly copy: { readonly copied: boolean; readonly onCopy: () => void }
   readonly retry: {
     readonly lastUserMessage: string | null
-    readonly onRetry?: (content: string) => void
+    readonly onRetry?: ((content: string) => void) | undefined
     readonly onDismiss: () => void
   }
-  readonly onOpenSettings?: () => void
+  readonly onOpenSettings?: (() => void) | undefined
   readonly onDismiss: () => void
   readonly onReport: () => void
 }

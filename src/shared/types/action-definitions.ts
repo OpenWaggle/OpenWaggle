@@ -134,7 +134,7 @@ export interface CommandRepairProposal {
   readonly current: {
     readonly command: string
     readonly directory: string
-    readonly resolved?: boolean
+    readonly resolved?: boolean | undefined
   }
   readonly proposed: { readonly command: string; readonly directory: string }
   readonly reason: string

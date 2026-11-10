@@ -36,7 +36,7 @@ export interface SyntaxHighlightRequest {
   readonly language: string
   readonly theme: string
   readonly priority?: SyntaxPriority
-  readonly signal?: AbortSignal
+  readonly signal?: AbortSignal | undefined
   readonly lineRange?: SyntaxLineRange
 }
 
@@ -107,8 +107,8 @@ export function plainSyntaxResult(input: {
   readonly source: string
   readonly language: string
   readonly theme: string
-  readonly diagnostic?: string
-  readonly lineRange?: SyntaxLineRange
+  readonly diagnostic?: string | undefined
+  readonly lineRange?: SyntaxLineRange | undefined
 }): SyntaxHighlightResult {
   const allLines = input.source.split('\n')
   const start = Math.max(0, Math.min(input.lineRange?.start ?? 0, allLines.length))

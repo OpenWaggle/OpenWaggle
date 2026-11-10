@@ -67,9 +67,9 @@ function ExtensionSidePanelContribution({
   resolution,
   surfacePayload,
 }: {
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
   readonly resolution: Extract<ExtensionSidePanelResolution, { readonly status: 'available' }>
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const entry = resolution.contribution.entry
 
@@ -105,8 +105,8 @@ function extensionSidePanelBody({
   readonly loading: boolean
   readonly error: string | null
   readonly onRefresh: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }): ReactNode {
   if (loading && registry === null) {
     return <ExtensionSidePanelLoadingCard />
@@ -199,8 +199,8 @@ export function ExtensionSidePanelSurfaceContent({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const title = extensionSidePanelTitle({ registry, target, projectPaths })
   const body = extensionSidePanelBody({
@@ -239,8 +239,8 @@ export function ExtensionSidePanelSurface({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const contentProps = {
     error,

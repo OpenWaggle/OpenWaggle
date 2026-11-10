@@ -43,7 +43,7 @@ export interface WorktreeLaunchStep {
   readonly label: string
   readonly startedAt: number
   /** Set once the step is known to be done; open steps render as in progress. */
-  readonly completedAt?: number
+  readonly completedAt?: number | undefined
 }
 
 /** A Setup action terminal accepted by main and ready for renderer reconciliation. */
@@ -83,15 +83,15 @@ export interface WorktreeLaunchSnapshot {
   readonly startedAt: number
   readonly updatedAt: number
   readonly details: readonly string[]
-  readonly environment?: WorktreeLaunchEnvironment
+  readonly environment?: WorktreeLaunchEnvironment | undefined
   /** Labelled steps in start order; the last one is active while the launch runs. */
-  readonly steps?: readonly WorktreeLaunchStep[]
-  readonly progressPercentage?: number
-  readonly worktreePath?: string
-  readonly branch?: string
-  readonly baseRef?: string
-  readonly setupAction?: WorktreeSetupActionTerminal
-  readonly errorMessage?: string
+  readonly steps?: readonly WorktreeLaunchStep[] | undefined
+  readonly progressPercentage?: number | undefined
+  readonly worktreePath?: string | undefined
+  readonly branch?: string | undefined
+  readonly baseRef?: string | undefined
+  readonly setupAction?: WorktreeSetupActionTerminal | undefined
+  readonly errorMessage?: string | undefined
 }
 
 export interface WorktreeLaunchEventPayload {

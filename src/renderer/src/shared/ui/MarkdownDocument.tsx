@@ -12,7 +12,7 @@ export function MarkdownDocument({
 }: {
   readonly children: string
   readonly className?: string
-  readonly theme?: string
+  readonly theme?: string | undefined
 }) {
   const components = useMemo(() => createSyntaxMarkdownComponents({}, { theme }), [theme])
   return (

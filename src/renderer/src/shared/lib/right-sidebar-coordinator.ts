@@ -26,7 +26,7 @@ export function workspaceFileRightSidebarRequest(path: string, line: number | nu
 type RouteClaim = {
   readonly kind: 'route'
   readonly requestKey: string
-  readonly scopeKey?: string | null
+  readonly scopeKey?: string | null | undefined
 }
 type WorkspaceClaim = { readonly kind: 'workspace'; readonly ownerKey: string }
 /** The claim a closing action panel gives the right side back to (ADR 0038). */

@@ -22,7 +22,11 @@ afterEach(() => {
 function queen(workersLastRunEndedAt: number | undefined) {
   return fromPartial<SessionSummary>({
     id: QUEEN,
-    lineage: { role: 'queen', directWorkerCount: 1, workersLastRunEndedAt },
+    lineage: {
+      role: 'queen',
+      directWorkerCount: 1,
+      ...(workersLastRunEndedAt === undefined ? {} : { workersLastRunEndedAt }),
+    },
   })
 }
 

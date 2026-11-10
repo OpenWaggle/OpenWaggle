@@ -11,6 +11,7 @@ import {
   invokableExtensionSlashCommandEntries,
   parseExtensionSlashCommand,
 } from '../extension-slash-command'
+import { omitKey } from '@/test-utils/omit-key'
 
 function slashEntry(
   overrides: Partial<ExtensionContributionRegistryEntry> = {},
@@ -76,7 +77,7 @@ describe('extension slash command parsing', () => {
         registry([
           slashEntry(),
           slashEntry({ family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS }),
-          slashEntry({ contributionId: 'sample.missing-method', method: undefined }),
+          omitKey(slashEntry({ contributionId: 'sample.missing-method' }), 'method'),
           slashEntry({ contributionId: 'compact', title: 'Conflicting compact command' }),
           slashEntry({ contributionId: 'visualize', title: 'Conflicting visualize command' }),
           disabledEntry,

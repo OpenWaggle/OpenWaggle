@@ -15,7 +15,7 @@ interface NumberStepperProps {
   readonly value: number
   readonly minimum: number
   readonly maximum?: number
-  readonly step?: number
+  readonly step?: number | undefined
   readonly suffix?: string
   readonly disabled?: boolean
   readonly onValueChange: (value: number) => void

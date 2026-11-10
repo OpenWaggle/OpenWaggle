@@ -17,25 +17,29 @@ export interface MessageBubbleRuntime {
 interface MessageBubbleProps {
   message: UIMessage
   runtime: MessageBubbleRuntime
-  waggle?: WaggleInfo
-  run?: {
-    readonly isStreaming?: boolean
-    readonly isRunActive?: boolean
-    readonly assistantModel?: SupportedModelId
-  }
-  presentation?: {
-    readonly hideAgentLabel?: boolean
-    /** Terminal message of a folded turn: render only its final text part. */
-    readonly turnFolded?: boolean
-    /** The settled turn's reply, whose actions sit at the end of its turn. */
-    readonly replyActions?: boolean
-  }
+  waggle?: WaggleInfo | undefined
+  run?:
+    | {
+        readonly isStreaming?: boolean | undefined
+        readonly isRunActive?: boolean | undefined
+        readonly assistantModel?: SupportedModelId | undefined
+      }
+    | undefined
+  presentation?:
+    | {
+        readonly hideAgentLabel?: boolean | undefined
+        /** Terminal message of a folded turn: render only its final text part. */
+        readonly turnFolded?: boolean | undefined
+        /** The settled turn's reply, whose actions sit at the end of its turn. */
+        readonly replyActions?: boolean | undefined
+      }
+    | undefined
   actions?: {
-    readonly onBranchFromMessage?: (messageId: string) => void
-    readonly onForkFromMessage?: (messageId: string) => void
-    readonly copiesBlocked?: boolean
-    readonly onViewTurnDiff?: (messageId: string) => void
-    readonly turnAnchorMessageIds?: ReadonlySet<string>
+    readonly onBranchFromMessage?: ((messageId: string) => void) | undefined
+    readonly onForkFromMessage?: ((messageId: string) => void) | undefined
+    readonly copiesBlocked?: boolean | undefined
+    readonly onViewTurnDiff?: ((messageId: string) => void) | undefined
+    readonly turnAnchorMessageIds?: ReadonlySet<string> | undefined
   }
 }
 

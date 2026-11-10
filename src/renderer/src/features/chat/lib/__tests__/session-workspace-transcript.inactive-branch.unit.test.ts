@@ -7,6 +7,7 @@ import {
   INACTIVE_BRANCH_ID,
   workspaceAtInactiveBranchHead,
 } from './session-workspace-transcript.fixtures'
+import { required } from '@/test-utils/required'
 
 const SESSION_ID = SessionId('session-1')
 
@@ -64,8 +65,8 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
     const failedHead = assistantNode('inactive-branch-head', '', 0)
     const inactiveBranchHead: SessionNode = {
       ...failedHead,
-      message: failedHead.message && {
-        ...failedHead.message,
+      message: {
+        ...required(failedHead.message),
         parts: [],
         metadata: { error: '401 Unauthorized' },
       },
@@ -89,8 +90,8 @@ describe('resolveTranscriptMessages at an inactive branch head', () => {
       ...wakeNode,
       kind: 'user_message',
       role: 'user',
-      message: wakeNode.message && {
-        ...wakeNode.message,
+      message: {
+        ...required(wakeNode.message),
         role: 'user',
         metadata: { hiveWake: true, scheduledTask: { taskId: 'task-1', name: 'Nightly triage' } },
       },

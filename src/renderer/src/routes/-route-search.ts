@@ -13,25 +13,25 @@ export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string
-  readonly contentHash?: string
+  readonly packagePath?: string | undefined
+  readonly contentHash?: string | undefined
 }
 
 export interface ChatRouteSearch {
-  readonly branch?: string
-  readonly node?: string
-  readonly diff?: 1
-  readonly panel?: ChatRightPanel
-  readonly filePath?: string
-  readonly fileLine?: number
-  readonly resourceView?: 'sources' | 'outputs'
-  readonly resourceId?: string
-  readonly sidePanelExtensionId?: string
-  readonly sidePanelId?: string
-  readonly sidePanelPackagePath?: string
-  readonly sidePanelContentHash?: string
-  readonly changeRequestUrl?: string
-  readonly changeRequestSessionId?: string
+  readonly branch?: string | undefined
+  readonly node?: string | undefined
+  readonly diff?: 1 | undefined
+  readonly panel?: ChatRightPanel | undefined
+  readonly filePath?: string | undefined
+  readonly fileLine?: number | undefined
+  readonly resourceView?: 'sources' | 'outputs' | undefined
+  readonly resourceId?: string | undefined
+  readonly sidePanelExtensionId?: string | undefined
+  readonly sidePanelId?: string | undefined
+  readonly sidePanelPackagePath?: string | undefined
+  readonly sidePanelContentHash?: string | undefined
+  readonly changeRequestUrl?: string | undefined
+  readonly changeRequestSessionId?: string | undefined
 }
 
 function parseSearchString(value: unknown) {

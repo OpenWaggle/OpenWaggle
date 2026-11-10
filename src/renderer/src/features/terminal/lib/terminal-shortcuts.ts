@@ -14,12 +14,12 @@ const TERMINAL_SHORTCUT_COMMANDS: readonly TerminalShortcutCommand[] = [
 
 export interface TerminalShortcutEvent {
   readonly key: string
-  readonly code?: string
+  readonly code?: string | undefined
   readonly altKey: boolean
   readonly ctrlKey: boolean
   readonly metaKey: boolean
   readonly shiftKey: boolean
-  readonly isComposing?: boolean
+  readonly isComposing?: boolean | undefined
   readonly repeat?: boolean
 }
 

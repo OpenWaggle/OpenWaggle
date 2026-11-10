@@ -13,7 +13,7 @@ export function useChatRows(inputs: {
   messages: UIMessage[]
   customMessages?: Parameters<typeof buildChatRows>[0]['customMessages']
   interactionEvents?: Parameters<typeof buildChatRows>[0]['interactionEvents']
-  agentLoopAnchorMessageIds?: ReadonlyMap<string, string>
+  agentLoopAnchorMessageIds?: ReadonlyMap<string, string> | undefined
   isLoading: boolean
   isFinishing?: boolean
   error: Error | undefined
@@ -23,11 +23,11 @@ export function useChatRows(inputs: {
   model: SupportedModelId | undefined
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: ReturnType<typeof useStreamingPhase>
-  interruptedRun?: SessionInterruptedRun
+  interruptedRun?: SessionInterruptedRun | undefined
   worktreeLaunch?: WorktreeLaunchSnapshot | null
   firstSendPending?: boolean
   compactionStatus?: AgentCompactionStatus | null
-  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number> | undefined
   expandedTurnKeys?: ReadonlySet<string>
   extensionStatus?: Parameters<typeof buildChatRows>[0]['extensionStatus']
 }): ChatRow[] {

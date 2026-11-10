@@ -17,7 +17,7 @@ import { ExtensionPanelStatusCard } from './ExtensionPanelStatusCard'
 interface ExtensionDialogSurfaceActions {
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
 }
 
 const DIALOG_SIZE_STYLE: CSSProperties & {
@@ -116,9 +116,9 @@ function ExtensionDialogContribution({
   resolution,
   surfacePayload,
 }: {
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
   readonly resolution: Extract<ExtensionDialogResolution, { readonly status: 'available' }>
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const entry = resolution.contribution.entry
 
@@ -151,8 +151,8 @@ function extensionDialogBody({
   readonly loading: boolean
   readonly error: string | null
   readonly onRefresh: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }): ReactNode {
   if (loading && registry === null) {
     return <ExtensionDialogLoadingCard />
@@ -240,7 +240,7 @@ export function ExtensionDialogSurfaceContent({
   readonly loading: boolean
   readonly error: string | null
   readonly actions: ExtensionDialogSurfaceActions
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const title = extensionDialogTitle({ registry, target, projectPaths })
   const body = extensionDialogBody({
@@ -279,8 +279,8 @@ export function ExtensionDialogSurface({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
-  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
-  readonly surfacePayload?: JsonValue
+  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   const actions = onSurfaceAction ? { onClose, onRefresh, onSurfaceAction } : { onClose, onRefresh }
 

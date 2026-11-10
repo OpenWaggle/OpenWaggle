@@ -14,7 +14,7 @@ const logger = createRendererLogger('git')
 
 interface UseStackedGitActionsOptions {
   readonly workingPath: WorkingPath | null
-  readonly sessionId?: SessionId
+  readonly sessionId?: SessionId | undefined
   readonly onCompleted?: () => void
 }
 

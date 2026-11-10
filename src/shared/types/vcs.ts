@@ -126,13 +126,13 @@ export interface GitRunStackedActionOptions {
   /** Renderer-generated id used to scope progress and cancellation to this invocation. */
   readonly operationId?: string
   /** Session that initiated the action, used only to project created outputs. */
-  readonly sessionId?: SessionId
-  readonly commitMessage?: string
+  readonly sessionId?: SessionId | undefined
+  readonly commitMessage?: string | undefined
   readonly createFeatureBranch?: boolean
-  readonly featureBranchName?: string
+  readonly featureBranchName?: string | undefined
   /** Preserve a validated user-entered ref verbatim instead of auto-sanitizing or suffixing it. */
-  readonly exactFeatureBranchName?: boolean
-  readonly baseRef?: string
+  readonly exactFeatureBranchName?: boolean | undefined
+  readonly baseRef?: string | undefined
   readonly changeRequestTitle?: string
   readonly changeRequestBody?: string
   readonly draft?: boolean
@@ -143,7 +143,7 @@ export interface GitRunStackedActionOptions {
    * staging the whole repository. `git add --all` has no pathspec, so the old fallback reached
    * past the opened directory and swept the user's unrelated in-flight work into the commit.
    */
-  readonly paths?: readonly string[]
+  readonly paths?: readonly string[] | undefined
   /** False commits only the existing index and leaves unstaged changes untouched. */
   readonly includeUnstaged?: boolean
 }

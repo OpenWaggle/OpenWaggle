@@ -30,23 +30,25 @@ interface ComposerProps {
    * The agent ended the Run and it is finishing: a message is queued. Stop shows only while the
    * agent still works on (`stoppable`), not while the Host merely saves the Run (`settling`).
    */
-  finishing?: ComposerRunFinishing
-  mode?: {
-    readonly disabled?: boolean
-    readonly placeholder?: string
-    readonly sendTitle?: string
-    readonly requiresText?: boolean
-    readonly clearOnSubmit?: boolean
-    readonly recordHistory?: boolean
-    readonly allowEnqueue?: boolean
-    readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
-    /**
-     * The Session whose queued messages this composer can edit. While one of them is being
-     * edited, the composer is in edit mode: it shows the edit bar, and Enter saves the edit.
-     */
-    readonly queuedMessagesSessionId?: SessionId | null
-  }
-  onToast?: (message: string) => void
+  finishing?: ComposerRunFinishing | undefined
+  mode?:
+    | {
+        readonly disabled?: boolean | undefined
+        readonly placeholder?: string | undefined
+        readonly sendTitle?: string | undefined
+        readonly requiresText?: boolean | undefined
+        readonly clearOnSubmit?: boolean | undefined
+        readonly recordHistory?: boolean | undefined
+        readonly allowEnqueue?: boolean | undefined
+        readonly onSendFailure?: ((cause: unknown) => SendFailureDisposition) | undefined
+        /**
+         * The Session whose queued messages this composer can edit. While one of them is being
+         * edited, the composer is in edit mode: it shows the edit bar, and Enter saves the edit.
+         */
+        readonly queuedMessagesSessionId?: SessionId | null | undefined
+      }
+    | undefined
+  onToast?: ((message: string) => void) | undefined
 }
 
 function noToast() {}

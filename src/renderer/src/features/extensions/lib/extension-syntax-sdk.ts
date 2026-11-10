@@ -33,7 +33,7 @@ export async function highlightExtensionSyntax(
     language,
     theme: currentSyntaxTheme(),
     priority: input.priority ?? 'visible',
-    signal: options?.signal,
+    ...(options?.signal === undefined ? {} : { signal: options.signal }),
   })
   return {
     status: result.status,

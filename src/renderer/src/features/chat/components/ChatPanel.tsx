@@ -38,12 +38,14 @@ const LazySessionResourceViewer = lazy(() =>
 
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
-  readonly onOpenSessionTree?: () => void
-  readonly onOpenDiff?: () => void
-  readonly onOpenChangeRequest?: (url: string) => void
-  readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
-  readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
-  readonly rightSidebarOpen?: boolean
+  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onOpenDiff?: (() => void) | undefined
+  readonly onOpenChangeRequest?: ((url: string) => void) | undefined
+  readonly onOpenResources?: ((target: SessionResourceBrowserTarget) => void) | undefined
+  readonly onOpenExtensionSidePanel?:
+    | ((target: SessionSummaryExtensionSidePanelTarget) => void)
+    | undefined
+  readonly rightSidebarOpen?: boolean | undefined
 }
 
 function SessionNotificationStack({

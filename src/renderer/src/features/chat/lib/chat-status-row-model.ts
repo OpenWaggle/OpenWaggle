@@ -15,18 +15,18 @@ interface StatusRowInput {
   readonly phase: StreamingPhaseState
   readonly isLoading: boolean
   /** The agent ended the Run and the Host is still settling it (see `run-finishing-store`). */
-  readonly isFinishing?: boolean
+  readonly isFinishing?: boolean | undefined
   readonly error: Error | undefined
   readonly lastUserMessage: string | null
   readonly dismissedError: string | null
   readonly sessionId: string | null
-  readonly compactionStatus?: AgentCompactionStatus | null
+  readonly compactionStatus?: AgentCompactionStatus | null | undefined
   /**
    * A new Session's first message was sent and nothing has reported back yet: no launch step, no
    * run. The Host may be creating the Session or building the runtime; say so instead of nothing.
    */
   readonly awaitingFirstRun?: boolean
-  readonly extensionStatus?: ExtensionStatusRowInput
+  readonly extensionStatus?: ExtensionStatusRowInput | undefined
 }
 
 /**

@@ -49,7 +49,7 @@ interface PopoverProps {
    * trigger on close. Declaring the role without that model tells a screen reader user to press
    * keys that do nothing, so the two are deliberately not separable.
    */
-  role?: 'menu' | 'listbox' | 'dialog'
+  role?: 'menu' | 'listbox' | 'dialog' | undefined
   /** Accessible name for non-menu popup panels such as searchable picker dialogs. */
   ariaLabel?: string
 }

@@ -25,7 +25,7 @@ export interface ExtensionSessionSummarySectionsProps {
   readonly placement: SessionSummaryPlacement
   readonly resources: readonly SessionResource[]
   readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
-  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
+  readonly onOpenSidePanel?: ((target: SessionSummaryExtensionSidePanelTarget) => void) | undefined
 }
 
 function entryMatchesSession(entry: ExtensionContributionRegistryEntry, sessionId: string) {

@@ -82,7 +82,7 @@ export interface ChatRightSidebarRouteActions {
   readonly onHiveOpenChange: (open: boolean) => void
   readonly onWorkspaceFileOpenChange: (
     open: boolean,
-    target?: { readonly path: string; readonly line?: number | null },
+    target?: { readonly path: string; readonly line?: number | null | undefined },
   ) => void
 }
 
@@ -98,7 +98,7 @@ export interface ChatRouteSurfaceHandlers {
   readonly handleHiveOpenChange: (open: boolean) => void
   readonly handleWorkspaceFileOpenChange: (
     open: boolean,
-    target?: { readonly path: string; readonly line?: number | null },
+    target?: { readonly path: string; readonly line?: number | null | undefined },
   ) => void
 }
 

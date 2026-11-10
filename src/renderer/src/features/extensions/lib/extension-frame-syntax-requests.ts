@@ -6,16 +6,36 @@ import type {
 import { createPlainExtensionSyntaxResult } from '@shared/extension-sdk'
 import { highlightExtensionSyntax } from './extension-syntax-sdk'
 
+/** A highlight request as a frame sends it. The frame may set an optional field to undefined. */
+interface FrameSyntaxHighlightInput {
+  readonly source: string
+  readonly language?: string | undefined
+  readonly path?: string | undefined
+  readonly priority?: OpenWaggleExtensionSyntaxHighlightInput['priority'] | undefined
+}
+
+/** Drops the fields a frame sent as undefined, so the SDK input only holds set fields. */
+function sdkSyntaxInput(input: FrameSyntaxHighlightInput): OpenWaggleExtensionSyntaxHighlightInput {
+  const { source, language, path, priority } = input
+  return {
+    source,
+    ...(language === undefined ? {} : { language }),
+    ...(path === undefined ? {} : { path }),
+    ...(priority === undefined ? {} : { priority }),
+  }
+}
+
 export function createExtensionFrameSyntaxRequests() {
   const controllers = new Map<string, AbortController>()
 
   return {
     highlight(
       requestId: string,
-      input: OpenWaggleExtensionSyntaxHighlightInput,
+      frameInput: FrameSyntaxHighlightInput,
       isActive: () => boolean,
       postResult: (result: OpenWaggleExtensionSyntaxHighlightResult) => void,
     ) {
+      const input = sdkSyntaxInput(frameInput)
       const existing = controllers.get(requestId)
       existing?.abort()
       if (

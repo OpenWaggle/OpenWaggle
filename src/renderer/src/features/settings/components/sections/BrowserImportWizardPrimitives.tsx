@@ -33,7 +33,7 @@ export function WizardSelectableTile({
 }: {
   readonly selected: boolean
   readonly title: string
-  readonly subtitle?: string
+  readonly subtitle?: string | undefined
   readonly onSelect: () => void
 }) {
   return (

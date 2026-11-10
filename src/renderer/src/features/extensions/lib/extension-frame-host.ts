@@ -98,13 +98,13 @@ export type ExtensionFrameInvokeMessage = SchemaType<typeof extensionFrameInvoke
 export function extensionFrameConfig(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly moduleUrl: string
-  readonly surfacePayload?: JsonValue
+  readonly surfacePayload?: JsonValue | undefined
 }) {
   return {
     moduleUrl: input.moduleUrl,
     context: createOpenWaggleExtensionSurfaceContext({
       entry: input.entry,
-      surfacePayload: input.surfacePayload,
+      ...(input.surfacePayload === undefined ? {} : { surfacePayload: input.surfacePayload }),
       theme: createRendererExtensionTheme(),
     }),
   } satisfies ExtensionFrameConfig
