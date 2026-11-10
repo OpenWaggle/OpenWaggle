@@ -366,6 +366,14 @@ const config: DoctorConfig = {
         rules: ['react-doctor/server-sequential-independent-await'],
       },
       {
+        // The scratch directory for the shim is created only once the target directory is
+        // pinned, opened and verified. Creating it alongside those checks would leave a stray
+        // temporary directory whenever one fails, because its cleanup starts with the `try`
+        // that follows.
+        files: ['src/main/services/cli-shim-mutation-runner.ts'],
+        rules: ['react-doctor/server-sequential-independent-await'],
+      },
+      {
         // The awaited capture is not skipped by the early return: `capture?.invocation` is
         // the command the preparation launches, so it must exist before `launches.start`.
         // The later `!capture` return only decides whether to read back what it captured.
@@ -403,7 +411,7 @@ const config: DoctorConfig = {
         // by takeDraftMaterialization, which consumes a one-shot receipt and so cannot run
         // during render.
         files: ['src/renderer/src/shell/WorkspaceTerminal.tsx'],
-        rules: ['react-doctor/no-derived-state'],
+        rules: ['react-doctor/no-derived-state', 'react-doctor/no-derived-state-effect'],
       },
       {
         // No state goes to a parent. useSaveQueueValues and useSaveQueueLifecycle are two
