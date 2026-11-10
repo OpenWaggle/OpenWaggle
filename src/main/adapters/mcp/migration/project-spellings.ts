@@ -4,6 +4,7 @@
  * once, under the spelling the old OpenWaggle used for it, since state.json keys its switches by
  * that spelling (`path.resolve` of the path it was given, never the real path).
  */
+import { settledValue } from '@shared/utils/all-in-order'
 import { isRecord } from '@shared/utils/validation'
 import { realLocation } from '../config/mcp-config-files'
 import type { McpFileSources } from './file-computation'
@@ -26,9 +27,14 @@ export function sameMigrationLocation(left: string, right: string) {
 /** How many of the spelling's old servers state.json has switches for under that spelling. */
 async function stateHits(sources: McpFileSources, state: LegacyStateFile, projectPath: string) {
   const project = projectMcpPaths(projectPath)
+  const files = await Promise.all(
+    [project.openwaggle, project.mcpJson].map(async (filePath) => ({
+      filePath,
+      config: await sources.legacyConfig(filePath).catch(() => undefined),
+    })),
+  )
   let hits = 0
-  for (const filePath of [project.openwaggle, project.mcpJson]) {
-    const config = await sources.legacyConfig(filePath).catch(() => undefined)
+  for (const { filePath, config } of files) {
     if (!isRecord(config)) continue
     for (const name of Object.keys(legacyServerMap(config))) {
       if (state.servers[legacyServerIdentityKey(filePath, name)]) hits += 1
@@ -47,10 +53,16 @@ async function oldSpelling(
   const named = new Set(legacyStateProjects(input.state))
   const inState = spellings.find((spelling) => named.has(spelling))
   if (inState !== undefined) return inState
+  // stateHits never rejects; the counts are compared in spelling order, so the first best wins.
+  const counted = await Promise.all(
+    spellings.map(async (spelling) => ({
+      spelling,
+      hits: await stateHits(input.sources, input.state, spelling),
+    })),
+  )
   let best = first
   let bestHits = 0
-  for (const spelling of spellings) {
-    const hits = await stateHits(input.sources, input.state, spelling)
+  for (const { spelling, hits } of counted) {
     if (hits > bestHits) {
       best = spelling
       bestHits = hits
@@ -69,12 +81,10 @@ async function oneSpellingPerProject(
     const folder = realLocation(projectPath)
     byFolder.set(folder, [...(byFolder.get(folder) ?? []), projectPath])
   }
-  const chosen: string[] = []
-  for (const spellings of byFolder.values()) {
-    const spelling = await oldSpelling(spellings, input)
-    if (spelling !== undefined) chosen.push(spelling)
-  }
-  return chosen
+  const spellings = await Promise.all(
+    [...byFolder.values()].map((folderSpellings) => oldSpelling(folderSpellings, input)),
+  )
+  return spellings.filter((spelling) => spelling !== undefined)
 }
 
 /**
@@ -127,8 +137,16 @@ export function keepsEnablement(kept: readonly string[] | null, projectPath: str
 export async function presentMigrationProjects(fs: McpMigrationFs, projects: readonly string[]) {
   const present: string[] = []
   const gone: string[] = []
-  for (const projectPath of projects) {
-    if (await fs.projectFolderGone?.(projectPath)) {
+  // Checked at once, then handled in order, as if each project were checked in turn.
+  const checks = await Promise.allSettled(
+    projects.map(async (projectPath) => ({
+      projectPath,
+      folderGone: await fs.projectFolderGone?.(projectPath),
+    })),
+  )
+  for (const check of checks) {
+    const { projectPath, folderGone } = settledValue(check)
+    if (folderGone) {
       recordMcpFileMigrationOutcome(projectMcpPaths(projectPath).openwaggle)
       gone.push(projectPath)
     } else {

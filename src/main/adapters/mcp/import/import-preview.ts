@@ -170,8 +170,15 @@ export async function previewMcpImports(
   const candidates = new Map<string, ExternalMcpImportCandidate>()
   const errors: ExternalMcpImportSourceError[] = []
   const found = new Set<ExternalMcpImportSource>()
-  for (const importPath of getMcpImportPaths(input)) {
-    const read = await readSourceFile(importPath, readText)
+  // readSourceFile never rejects, so the sources are read at once and handled in order.
+  const importPaths = getMcpImportPaths(input)
+  const reads = await Promise.all(
+    importPaths.map(async (importPath) => ({
+      importPath,
+      read: await readSourceFile(importPath, readText),
+    })),
+  )
+  for (const { importPath, read } of reads) {
     if (read.kind === 'missing') continue
     if (read.kind === 'error') {
       errors.push({ source: importPath.source, path: importPath.path, message: read.message })

@@ -6,6 +6,7 @@ import type {
   AgentDefinitionScope,
   ResolvedAgentDefinitionSnapshot,
 } from '@shared/types/agent-definition'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { readBoundAgentDefinitionSources } from './agent-definition-bound-catalog-reader'
 import {
   extractAgentDefinitionDeclaredName,
@@ -96,13 +97,15 @@ export async function listAllAgentDefinitions(input: {
   readonly projectPath: string
   readonly userHome?: string
 }) {
-  const items: AgentDefinitionCatalogItem[] = []
-  for (const root of roots(input.projectPath, input.userHome ?? os.homedir())) {
-    items.push(...(await loadRoot(root)))
-  }
-  return items.sort(
-    (left, right) => left.name.localeCompare(right.name) || left.scope.localeCompare(right.scope),
+  // Every root loads at once; a failure is the first root's in order, as when loaded in turn.
+  const loaded = await allInOrder(
+    roots(input.projectPath, input.userHome ?? os.homedir()).map(loadRoot),
   )
+  return loaded
+    .flat()
+    .sort(
+      (left, right) => left.name.localeCompare(right.name) || left.scope.localeCompare(right.scope),
+    )
 }
 
 export async function resolveAgentDefinition(input: {

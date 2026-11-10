@@ -1,6 +1,6 @@
 import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
-import { allInOrder } from '@shared/utils/all-in-order'
+import { allInOrder, settledValue } from '@shared/utils/all-in-order'
 import { createLogger } from '../../logger'
 import {
   type HistoryFiles,
@@ -93,12 +93,21 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
     const metadataEntries = entries.filter((entry) =>
       entry.endsWith(TERMINAL_HISTORY_METADATA_EXTENSION),
     )
+    // Every entry is planned at once, then taken in order: the first failure is the one thrown.
+    const planned = await Promise.allSettled(
+      metadataEntries.map(async (metadataEntry) => {
+        const fromKey = await this.files.read(this.files.pathForEntry(metadataEntry))
+        const terminalId = terminalIdForOwner(fromKey, fromOwnerKey)
+        if (terminalId === null) throw new Error('Terminal history owner metadata mismatch')
+        return {
+          metadataEntry,
+          move: await this.makeMove(fromKey, terminalKeyOf(toOwnerKey, terminalId)),
+        }
+      }),
+    )
     const moves: HistoryMove[] = []
-    for (const metadataEntry of metadataEntries) {
-      const fromKey = await this.files.read(this.files.pathForEntry(metadataEntry))
-      const terminalId = terminalIdForOwner(fromKey, fromOwnerKey)
-      if (terminalId === null) throw new Error('Terminal history owner metadata mismatch')
-      const move = await this.makeMove(fromKey, terminalKeyOf(toOwnerKey, terminalId))
+    for (const plan of planned) {
+      const { metadataEntry, move } = settledValue(plan)
       if (move === null) continue
       moves.push(move)
       sourceLogs.delete(
@@ -117,19 +126,27 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
     return moves
   }
 
+  /** Whether a destination file exists, read in order as `||` would: the first answer decides. */
+  private async destinationTaken(move: HistoryMove) {
+    const files = [
+      move.to.logFile,
+      move.to.metadataFile,
+      move.to.workingDirectoryFile,
+      move.to.cursorFile,
+    ]
+    const checks = await Promise.allSettled(files.map((file) => this.files.exists(file)))
+    return checks.some((check) => settledValue(check))
+  }
+
   private async preflight(moves: readonly HistoryMove[]) {
+    // Every destination is checked at once, then judged in move order as when checked in turn.
+    const taken = await Promise.allSettled(moves.map((move) => this.destinationTaken(move)))
     const destinations = new Set<string>()
-    for (const move of moves) {
+    for (const [index, move] of moves.entries()) {
       if (destinations.has(move.to.baseName)) throw historyMoveConflict()
       destinations.add(move.to.baseName)
-      if (
-        (await this.files.exists(move.to.logFile)) ||
-        (await this.files.exists(move.to.metadataFile)) ||
-        (await this.files.exists(move.to.workingDirectoryFile)) ||
-        (await this.files.exists(move.to.cursorFile))
-      ) {
-        throw historyMoveConflict()
-      }
+      const check = taken[index]
+      if (check && settledValue(check)) throw historyMoveConflict()
     }
   }
 

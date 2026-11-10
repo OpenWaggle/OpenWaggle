@@ -14,3 +14,12 @@ export async function allInOrder<const T extends readonly unknown[]>(
   // Every value has settled, so this resolves at once with the same values, typed per position.
   return Promise.all(values)
 }
+
+/**
+ * A settled outcome's value, or its rejection rethrown. Reading `Promise.allSettled` outcomes in
+ * order with it behaves like awaiting each task in turn, except that every task has started.
+ */
+export function settledValue<T>(outcome: PromiseSettledResult<T>): T {
+  if (outcome.status === 'rejected') throw outcome.reason
+  return outcome.value
+}

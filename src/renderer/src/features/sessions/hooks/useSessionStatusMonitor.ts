@@ -1,8 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionSummary } from '@shared/types/session'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
+import { allInOrder } from '@shared/utils/all-in-order'
+import { batchesOf } from '@shared/utils/batches'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
@@ -96,13 +97,13 @@ async function loadRunningWorkerParents(
 ) {
   if (runningSessionIds.length === 0 || typeof api.listSessionsByIds !== 'function') return
   const ids = [...new Set(runningSessionIds)]
-  const running: SessionSummary[] = []
-  for (let start = 0; start < ids.length; start += SESSION_IDS_PER_REQUEST) {
-    running.push(
-      ...(await api.listSessionsByIds(ids.slice(start, start + SESSION_IDS_PER_REQUEST))),
+  // Every batch is requested at once; a failure is the first batch's in order.
+  const running = (
+    await allInOrder(
+      batchesOf(ids, SESSION_IDS_PER_REQUEST).map((batch) => api.listSessionsByIds(batch)),
     )
-    if (cancelled()) return
-  }
+  ).flat()
+  if (cancelled()) return
   const loaded = new Set(useSessionStore.getState().sessions.map((session) => String(session.id)))
   const parents = new Set<SessionId>()
   for (const session of running) {

@@ -5,6 +5,8 @@ import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT,
 } from '@shared/types/session-query'
+import { allInOrder } from '@shared/utils/all-in-order'
+import { batchesOf } from '@shared/utils/batches'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 
@@ -42,14 +44,14 @@ export async function hydrateSidebarSessions(
   ids: readonly SessionId[],
   beforeHydrate?: (sessions: readonly SessionSummary[]) => void,
 ) {
-  const sessions: SessionSummary[] = []
-  for (let offset = 0; offset < ids.length; offset += SIDEBAR_SESSION_HYDRATION_BATCH_SIZE) {
-    sessions.push(
-      ...(await api.listSessionsByIds(
-        ids.slice(offset, offset + SIDEBAR_SESSION_HYDRATION_BATCH_SIZE),
-      )),
+  // Every batch is requested at once; a failure is the first batch's in order.
+  const sessions = (
+    await allInOrder(
+      batchesOf(ids, SIDEBAR_SESSION_HYDRATION_BATCH_SIZE).map((batch) =>
+        api.listSessionsByIds(batch),
+      ),
     )
-  }
+  ).flat()
   beforeHydrate?.(sessions)
   useSessionStatusStore.getState().hydratePersistedStatuses(sessions)
   return sessions

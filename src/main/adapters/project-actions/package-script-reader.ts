@@ -80,14 +80,18 @@ async function runnerFor(workspace: string, directory: string, declared: string 
   let searchDirectory = directory
   while (true) {
     const runners = new Set<string>()
-    for (const [file, manager] of LOCKFILES) {
-      // Lockfiles only establish presence; they can legitimately be larger than a task source.
-      try {
-        await access(await resolveActionPath(workspace, posix.join(searchDirectory, file)))
-        runners.add(manager)
-      } catch (error) {
-        if (!isEnoent(error)) throw error
-      }
+    // Lockfiles only establish presence; they can legitimately be larger than a task source.
+    // Checked at once, then read in LOCKFILES order as if each were checked in turn.
+    const directory = searchDirectory
+    const checks = await Promise.allSettled(
+      LOCKFILES.map(async ([file, manager]) => {
+        await access(await resolveActionPath(workspace, posix.join(directory, file)))
+        return manager
+      }),
+    )
+    for (const check of checks) {
+      if (check.status === 'fulfilled') runners.add(check.value)
+      else if (!isEnoent(check.reason)) throw check.reason
     }
     if (runners.size > 1)
       return {
@@ -202,17 +206,18 @@ async function requestedPackageSource(
   return [reference.source]
 }
 
-async function appendPackageSourceTasks(
+/** One package source's tasks and diagnostics. Only a source that was read checks the task limit. */
+async function packageSourceTasks(
   workspace: string,
   source: string,
   root: NonNullable<Awaited<ReturnType<typeof packageManifest>>>,
-  tasks: DiscoveredProjectTask[],
-  diagnostics: { source: string; message: string }[],
   requested?: ProjectTaskReference,
 ) {
+  const tasks: DiscoveredProjectTask[] = []
+  const diagnostics: { source: string; message: string }[] = []
   try {
     const manifest = source === 'package.json' ? root : await packageManifest(workspace, source)
-    if (manifest === null) return
+    if (manifest === null) return { source, tasks, diagnostics, read: false }
     const directory = posix.dirname(source)
     const runner = await runnerFor(
       workspace,
@@ -233,9 +238,10 @@ async function appendPackageSourceTasks(
         ...runner,
       })
     }
-    if (!requested) limitDiscoveredTasks(tasks, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
+    return { source, tasks, diagnostics, read: true }
   } catch (error) {
     diagnostics.push(taskReadError(source, error))
+    return { source, tasks, diagnostics, read: false }
   }
 }
 
@@ -260,9 +266,21 @@ async function list(
   } catch (error) {
     diagnostics.push(taskReadError('package.json / pnpm-workspace.yaml', error))
   }
-  for (const source of sources) {
-    if (requested && source !== requested.source) continue
-    await appendPackageSourceTasks(workspace, source, root, tasks, diagnostics, requested)
+  // Sources are read at once and gathered in order. The limit applies to the tasks gathered so
+  // far after each source, and every source past it reports that, as when each was read in turn.
+  const selected = requested ? sources.filter((source) => source === requested.source) : sources
+  const results = await Promise.all(
+    selected.map((source) => packageSourceTasks(workspace, source, root, requested)),
+  )
+  for (const result of results) {
+    tasks.push(...result.tasks)
+    diagnostics.push(...result.diagnostics)
+    if (!result.read || requested) continue
+    try {
+      limitDiscoveredTasks(tasks, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS)
+    } catch (error) {
+      diagnostics.push(taskReadError(result.source, error))
+    }
   }
   return { tasks: tasks.slice(0, ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS), diagnostics }
 }

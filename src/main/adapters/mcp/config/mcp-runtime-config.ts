@@ -272,15 +272,25 @@ export async function loadMcpRuntimeConfig(
   const connectionConfigs = new Map<string, McpServerConfig>()
   const missingSecrets = new Map<string, string>()
   const stamp = input.secretStamp ?? (async (name: string) => name)
-  for (const configured of selected) {
-    // Files keep `direct` for the `pi` command; OpenWaggle runs it as `codemode`.
-    const server = { ...configured, config: withOpenWaggleRuntimeExposure(configured.config) }
-    const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
-    const resolved = await resolveServer(
-      server,
-      // Not piLiteral-escaped: a marker holds no `$` and does not start with `!`.
-      deferred ? async (name) => deferredMcpSecret(name) : input.resolveSecret,
-    )
+  // resolveServer reports a secret it cannot read instead of rejecting, so every server resolves
+  // at once and the results are gathered in configuration order.
+  const resolutions = await Promise.all(
+    selected.map(async (configured) => {
+      // Files keep `direct` for the `pi` command; OpenWaggle runs it as `codemode`.
+      const server = { ...configured, config: withOpenWaggleRuntimeExposure(configured.config) }
+      const deferred = input.deferSecretsOfServersOff === true && server.config.enabled === false
+      const resolved = await resolveServer(
+        server,
+        // Not piLiteral-escaped: a marker holds no `$` and does not start with `!`.
+        deferred ? async (name) => deferredMcpSecret(name) : input.resolveSecret,
+      )
+      const stamped = resolved.ok
+        ? await resolveServer(server, async (name) => `vault-secret:${await stamp(name)}`)
+        : undefined
+      return { server, resolved, stamped }
+    }),
+  )
+  for (const { server, resolved, stamped } of resolutions) {
     if (!resolved.ok) {
       errors.push(resolved.error)
       unavailable.set(server.name, resolved.error)
@@ -289,8 +299,7 @@ export async function loadMcpRuntimeConfig(
     }
     servers.push(runtimeEntry(server, resolved.config))
     transports.set(server.name, server.transport)
-    const stamped = await resolveServer(server, async (name) => `vault-secret:${await stamp(name)}`)
-    if (stamped.ok) connectionConfigs.set(server.name, stamped.config)
+    if (stamped?.ok) connectionConfigs.set(server.name, stamped.config)
   }
   return {
     loaded: {

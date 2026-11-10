@@ -207,17 +207,16 @@ async function sourcePermissionDenied(
   root: string,
 ) {
   const candidates = [root, ...cookieDatabaseCandidates(definition, context, 'Default')]
-  for (const candidate of candidates) {
-    try {
-      await access(candidate)
-    } catch (error) {
-      const reason = browserImportFilePermissionReason(
-        definition.id,
-        context.platform,
-        fileErrorCode(error),
-      )
-      if (reason) return reason
-    }
+  // Checked at once; the first candidate in order with a permission reason decides.
+  const checks = await Promise.allSettled(candidates.map((candidate) => access(candidate)))
+  for (const check of checks) {
+    if (check.status === 'fulfilled') continue
+    const reason = browserImportFilePermissionReason(
+      definition.id,
+      context.platform,
+      fileErrorCode(check.reason),
+    )
+    if (reason) return reason
   }
   return undefined
 }

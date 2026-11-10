@@ -1,6 +1,7 @@
 import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { settledValue } from '@shared/utils/all-in-order'
 
 const RESOURCE_STREAM_CHUNK_SIZE_BYTES = 64 * 1_024
 
@@ -41,8 +42,12 @@ async function captureManagedPathIdentities(realRoot: string, realPath: string) 
 }
 
 async function assertManagedPathIdentitiesUnchanged(identities: readonly ManagedPathIdentity[]) {
-  for (const identity of identities) {
-    const stats = await fs.lstat(identity.path)
+  const checks = await Promise.allSettled(
+    identities.map(async (identity) => ({ identity, stats: await fs.lstat(identity.path) })),
+  )
+  // In order, as if each path were checked in turn: the first failure is the one thrown.
+  for (const check of checks) {
+    const { identity, stats } = settledValue(check)
     if (
       stats.isSymbolicLink() ||
       !sameIdentity(identity, stats) ||

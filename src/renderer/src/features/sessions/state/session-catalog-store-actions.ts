@@ -1,5 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { allInOrder } from '@shared/utils/all-in-order'
+import { batchesOf } from '@shared/utils/batches'
 import { coalescedRead } from '@/shared/lib/coalesced-read'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -128,12 +130,10 @@ async function refreshCatalogSessions(
     targetedSessionOperationIds.set(String(sessionId), operationId)
   }
   try {
-    const refreshed: SessionSummary[] = []
-    for (let offset = 0; offset < requestedIds.length; offset += PAGE_SIZE) {
-      refreshed.push(
-        ...(await api.listSessionsByIds(requestedIds.slice(offset, offset + PAGE_SIZE))),
-      )
-    }
+    // Every page is requested at once; a failure is the first page's in order.
+    const refreshed = (
+      await allInOrder(batchesOf(requestedIds, PAGE_SIZE).map((ids) => api.listSessionsByIds(ids)))
+    ).flat()
     const requested = new Set(
       requestedIds
         .filter((sessionId) => targetedSessionOperationIds.get(String(sessionId)) === operationId)

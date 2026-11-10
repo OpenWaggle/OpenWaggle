@@ -7,6 +7,7 @@
  * so nothing would clear its gate. The caller logs the failure.
  */
 
+import { settledValue } from '@shared/utils/all-in-order'
 import { ProcessFileLockTimeoutError } from '../process-file-lock'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
 import { recordMcpFileMigrationOutcome } from './migration-health'
@@ -49,16 +50,26 @@ export async function gateUnmigratedMcpFiles(input: {
   const projects = input.projectPaths.filter((projectPath) => projectPath !== null)
   const worktrees = managedWorktreesRoot(homeDir)
   const scopes = [null, ...projects.filter((projectPath) => !isInside(projectPath, worktrees))]
-  for (const projectPath of scopes) {
-    const filePath = projectPath
-      ? projectMcpPaths(projectPath).openwaggle
-      : globalMcpPaths(homeDir).openwaggleGlobal
-    if (record?.isFileMigrated(filePath)) continue
-    // A project folder that is gone migrates once it is back; until then nothing is there to load.
-    if (projectPath && (await fs.projectFolderGone?.(projectPath))) continue
-    const keeps = keepsLegacyState(record, projectPath)
-    // Without old state, an absent file has nothing to convert and nothing to keep from loading.
-    if (!keeps && !(await exists(fs, filePath))) continue
+  // Every scope is checked at once, then gated in order: the first failed check is the one thrown.
+  const checks = await Promise.allSettled(
+    scopes.map(async (projectPath) => {
+      const filePath = projectPath
+        ? projectMcpPaths(projectPath).openwaggle
+        : globalMcpPaths(homeDir).openwaggleGlobal
+      if (record?.isFileMigrated(filePath)) return null
+      // A project folder that is gone migrates once it is back; until then nothing is there to
+      // load.
+      if (projectPath && (await fs.projectFolderGone?.(projectPath))) return null
+      const keeps = keepsLegacyState(record, projectPath)
+      // Without old state, an absent file has nothing to convert and nothing to keep from loading.
+      if (!keeps && !(await exists(fs, filePath))) return null
+      return { filePath, keeps }
+    }),
+  )
+  for (const check of checks) {
+    const gate = settledValue(check)
+    if (gate === null) continue
+    const { filePath, keeps } = gate
     recordMcpFileMigrationOutcome(filePath, error, {
       cause,
       keepsLegacyState: keeps,

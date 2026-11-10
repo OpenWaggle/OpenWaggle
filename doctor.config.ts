@@ -3,7 +3,11 @@
  *
  * Policy: no blanket rule disables, and no suppression of a finding that could be
  * fixed in code. Every override below is a verified false positive, scoped to the
- * single file + single rule it applies to, with the reason it cannot be fixed.
+ * files and rules it applies to, with the reason it cannot be fixed. Several files
+ * share one override only when its reason holds for each of them. For
+ * `async-await-in-loop` the false positive is work that must stay sequential:
+ * ordered writes, transactions with rollback, locks, waits and polls, or loops kept
+ * one at a time to bound resources.
  *
  * Types are declared inline rather than imported from 'react-doctor' so this file
  * stays a plain data module. The tool is a pinned devDependency (see package.json),
@@ -167,17 +171,185 @@ const config: DoctorConfig = {
       {
         // Every read here draws on one shared byte budget (`remainingBytes`), checked and
         // then decremented per file, so read order decides which file crosses the limit.
-        // Reading the kinds or the files of a kind concurrently would make the outcome
-        // depend on I/O timing. The catalog is bounded and read rarely.
-        files: [
-          'src/main/adapters/syntax-resource-persistence.ts',
-          'src/main/adapters/syntax-resource-persistence-read.ts',
-        ],
+        // Reading the kinds concurrently would make the outcome depend on I/O timing.
+        files: ['src/main/adapters/syntax-resource-persistence.ts'],
         rules: [
           'react-doctor/async-parallel',
           'react-doctor/server-sequential-independent-await',
-          'react-doctor/async-await-in-loop',
         ],
+      },
+      {
+        // Each file read draws on one shared budget, checked and then decremented per
+        // file: bytes in the installed library, entries in a project's resource inputs.
+        // Read order decides which file crosses the limit, so the reads stay in order.
+        files: [
+          'src/main/adapters/syntax-resource-persistence-read.ts',
+          'src/main/adapters/syntax-resource-project-catalog.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Each vault secret is decrypted through the OS keychain (Electron safeStorage).
+        // The loop returns at the first secret that cannot be read, so a locked or refused
+        // keychain is not asked again for the same server's other secrets.
+        files: [
+          'src/main/adapters/mcp/config/mcp-deferred-secrets.ts',
+          'src/main/adapters/mcp/config/mcp-runtime-config.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // MCP migrations that write, one location or sign-in at a time: each migrates under
+        // the migration's process file lock and records its outcome before the next starts.
+        // mcp-write-refusal and openwaggle-mcp-migration also stop, or switch to gating the
+        // rest, at the first location whose lock another process holds.
+        files: [
+          'src/main/adapters/mcp/config/mcp-write-refusal.ts',
+          'src/main/adapters/mcp/migration/migrate-openwaggle-mcp-files.ts',
+          'src/main/adapters/mcp/migration/oauth-state-migration.ts',
+          'src/main/adapters/mcp/migration/session-switch-migration.ts',
+          'src/main/adapters/pi/mcp/openwaggle-mcp-migration.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Ordered writes and transactions with rollback. Each step depends on the one
+        // before it: action-publication-files creates `.openwaggle`, then the recovery
+        // directory inside it; the terminal history moves and the owner migration apply one
+        // move at a time and roll back exactly the applied ones, in reverse; the history
+        // flush appends a terminal's batches in order and holds back the rest of a terminal
+        // whose append failed; path cleanup reports each entry just before removing it and
+        // stops at the first failing removal; the Project deletion goes leaves first.
+        files: [
+          'src/main/adapters/project-actions/action-publication-files.ts',
+          'src/main/adapters/terminal/terminal-history-moves.ts',
+          'src/main/adapters/terminal/terminal-owner-migration.ts',
+          'src/main/adapters/terminal/terminal-history-flush.ts',
+          'src/main/adapters/terminal/terminal-history-path-cleanup.ts',
+          'src/renderer/src/features/sidebar/hooks/sidebar-project-session-deletion.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Closing terminals removes or releases each one's history through the history
+        // store's mutation queue, which runs one mutation at a time anyway, and emits each
+        // record's `closed` event after its own history settles, in record order.
+        files: ['src/main/adapters/terminal/terminal-close-actions.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Each stop persists the run as stopping, signals its process tree, waits for it to
+        // exit and persists the result. Runs stop in registration order, starting ones
+        // before active ones, and the first failing stop ends the sweep with the remaining
+        // runs untouched.
+        files: ['src/main/adapters/project-actions/managed-action-runs.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Each write is a compare-and-set transaction on the app database's single SQLite
+        // connection, so the writes run one at a time anyway. Deletion recovery also removes
+        // Pi session files, and logs each failure against its own Session.
+        files: [
+          'src/main/adapters/project-actions/preparation-recovery.ts',
+          'src/main/adapters/sqlite-session-projection-deletion.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Loops kept one at a time to bound resources. Embedding batches exist to bound the
+        // local model's memory and CPU, so sending them together would defeat the batching.
+        // Pi session discovery reads every session file of a directory, which can hold
+        // thousands, in a background scan.
+        files: [
+          'src/main/adapters/session-embedding-batches.ts',
+          'src/main/adapters/pi/pi-session-discovery.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Background housekeeping over directories with many entries (Chromium's code cache
+        // alone holds thousands of files). One filesystem call at a time keeps a sweep from
+        // queuing thousands of requests on libuv's small thread pool, which the app's own
+        // file I/O shares.
+        files: [
+          'src/main/boot/main-compile-cache.ts',
+          'src/main/chromium-disk-cache.ts',
+          'src/main/utils/model-download-temp-sweep.ts',
+          'src/main/utils/session-scratch-sweep.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Waits, polls and fallbacks: each turn depends on the one before. A Waggle command
+        // waits for the pending owner to settle before it checks again; the desktop bridge's
+        // heartbeat, poll pump and shutdown drain wait for their interval or the previous
+        // request, and acknowledge released fences one at a time over the same lease; the
+        // connection waits for admission before each attempt; login shells are tried in
+        // preference order and later ones only spawn when an earlier one gave no PATH.
+        files: [
+          'src/main/application/explicit-waggle-command-service.ts',
+          'src/main/session-host/gui-desktop-service-bridge.ts',
+          'src/main/session-host/local-session-connection.ts',
+          'src/main/desktop-shell-environment.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Locks and fences are acquired one at a time in a fixed order (sorted repository
+        // keys; the Host's fence order), the usual way to keep two callers that need
+        // overlapping sets from deadlocking, and the first that fails stops acquisition.
+        files: [
+          'src/main/services/git/mutation-lock.ts',
+          'src/main/session-host/gui-desktop-mutation-fences.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Ordered streams: decoded frames are handled in arrival order, a frame's slices
+        // are written to the socket in order behind backpressure, CLI records are written to
+        // stdout in order, and terminal input is written in the order it was typed.
+        files: [
+          'src/main/session-host/local-session-connection-input.ts',
+          'src/main/session-host/local-session-server-frame.ts',
+          'src/main/sessions-cli-export.ts',
+          'src/main/sessions-cli-transcript.ts',
+          'src/renderer/src/features/terminal/lib/terminal-input-transport.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Credential recovery handles staged files one at a time: decoding a protected
+        // credential goes through the OS credential store, files are marked consumed as they
+        // are matched, and the first incompatible file stops recovery with its own error.
+        files: ['src/main/session-host/profile-credential-pending.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // The loop is the body of each worker in a bounded pool: at most
+        // CANONICAL_DIRECTORY_CONCURRENCY workers share one iterator, and awaiting inside the
+        // loop is what bounds the concurrency.
+        files: ['src/main/utils/canonical-directory-roots.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // Cookies are set in the order they were read. Two entries can name the same
+        // cookie (host, name and path), and the later one has to win, which concurrent
+        // writes to the cookie store would not guarantee.
+        files: ['src/main/browser-import/browser-cookie-importer.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
+        // One request at a time on purpose. Each Worktree removal takes the repository's
+        // worktree lock and the Host's Workspace fence. Idle browser preview owners are
+        // released through the lifecycle queue, and whether one is still retained is checked
+        // after the previous release settled. Launch requests are taken and opened one at a
+        // time, so each navigation finishes before the next request is read.
+        files: [
+          'src/renderer/src/features/settings/components/sections/worktrees/use-worktree-removal.ts',
+          'src/renderer/src/shell/browser-preview-owner-leases.ts',
+          'src/renderer/src/shell/useOpenProjectRequests.ts',
+        ],
+        rules: ['react-doctor/async-await-in-loop'],
       },
       {
         // The handoff snapshot is a chain of git processes on one repository: resolve HEAD,

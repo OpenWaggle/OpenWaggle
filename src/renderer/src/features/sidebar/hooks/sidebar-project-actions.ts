@@ -5,6 +5,8 @@ import {
   SESSION_QUERY_CONTRACT_VERSION,
   SESSION_QUERY_DISCOVERY_LIMIT,
 } from '@shared/types/session-query'
+import { allInOrder } from '@shared/utils/all-in-order'
+import { batchesOf } from '@shared/utils/batches'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
@@ -67,13 +69,11 @@ async function listProjectSessionSummaries(path: string) {
       cursor = response.outcome.nextCursor
     } while (cursor)
   }
-  const sessions: SessionSummary[] = []
-  for (let offset = 0; offset < ids.length; offset += SESSION_HYDRATION_BATCH_SIZE) {
-    sessions.push(
-      ...(await api.listSessionsByIds(ids.slice(offset, offset + SESSION_HYDRATION_BATCH_SIZE))),
-    )
-  }
-  return sessions
+  // Every batch is requested at once; a failure is the first batch's in order.
+  const batches = await allInOrder(
+    batchesOf(ids, SESSION_HYDRATION_BATCH_SIZE).map((batch) => api.listSessionsByIds(batch)),
+  )
+  return batches.flat()
 }
 
 export interface SidebarProjectActionDeps {
