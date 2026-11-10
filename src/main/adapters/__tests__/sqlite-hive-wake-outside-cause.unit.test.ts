@@ -6,7 +6,7 @@ import { RunId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { hiveWakeKey } from '../../domain/session-control/hive-wake'
-import { hiveWakeRefusal } from '../sqlite-hive-wake-admission'
+import { hiveWakeAdmission } from '../sqlite-hive-wake-admission'
 import { wakeCausedOutsideHive } from '../sqlite-hive-wake-work'
 import { loadSessionControlState } from '../sqlite-session-control-state'
 import { countActiveWorkerRuns } from '../sqlite-worker-run-admission'
@@ -64,7 +64,7 @@ function wakeAtFullCeiling(workerRunBy: string) {
       },
     }
     // The Worker's own active Run fills a Worker ceiling of 1.
-    return yield* hiveWakeRefusal(sql, waking, 'gui:local-user', 1)
+    return (yield* hiveWakeAdmission(sql, waking, 'gui:local-user', 1)).refusal
   })
 }
 

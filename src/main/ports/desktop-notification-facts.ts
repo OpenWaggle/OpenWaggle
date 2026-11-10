@@ -47,6 +47,11 @@ export interface DesktopNotificationHiveActivity {
    */
   readonly wakeComing: boolean
   /**
+   * A coming wake is agents' work, which a full Active Workers ceiling defers; the person's own
+   * Queen's wake never waits for it (ADR 0030, amended 2026-11-09). Absent: assume it may wait.
+   */
+  readonly wakeWaitsForCapacity?: boolean
+  /**
    * The message behind the Run asked about was sent while a Worker below the root was running:
    * the person asked about work in progress. It is judged by when the Host accepted the message,
    * so a queued Follow-up counts from when it was sent. False when no Run was named.

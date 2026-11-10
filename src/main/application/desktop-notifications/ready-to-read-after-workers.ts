@@ -205,7 +205,8 @@ export class ReadyToReadAfterWorkers {
       if (!held) return
       const work = yield* this.dependencies.facts.hiveActivity(rootSessionId, null)
       if (this.held.get(rootSessionId) !== held) return
-      if (work.rootRunning || work.workersRunning || (work.wakeComing && runLimitFull)) {
+      const wakeDeferred = work.wakeComing && work.wakeWaitsForCapacity !== false && runLimitFull
+      if (work.rootRunning || work.workersRunning || wakeDeferred) {
         this.quietSince.delete(rootSessionId)
         return
       }

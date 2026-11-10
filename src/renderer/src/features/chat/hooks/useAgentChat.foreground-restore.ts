@@ -1,5 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { AgentErrorInfo } from '@shared/types/errors'
+import { restoreLastAgentErrorInfo } from '../lib/agent-error-store'
 import type {
   AgentChatStatus,
   MutableValueRef,
@@ -36,6 +38,8 @@ export interface ForegroundRunState {
   readonly terminalRunError: Error | undefined
   readonly status: AgentChatStatus
   readonly error: Error | undefined
+  /** The banner's details for `error`, which a failure meanwhile would otherwise overwrite. */
+  readonly errorInfo: AgentErrorInfo | null
 }
 
 /**
@@ -46,9 +50,12 @@ export function restoreBeforeRefusedSend(
   refs: ForegroundRunRefs,
   previous: ForegroundRunState,
   setters: ForegroundRunSetters,
+  sessionId: SessionId,
 ) {
   const status = refs.statusRef.current
   if (status !== 'submitted' && status !== 'ready' && status !== 'error') return false
+  // The banner reads its text from the stored details, so they go back with the error.
+  restoreLastAgentErrorInfo(sessionId, previous.errorInfo)
   refs.terminalRunErrorRef.current = previous.terminalRunError
   setters.setError(previous.error)
   setters.setStatus(previous.status)

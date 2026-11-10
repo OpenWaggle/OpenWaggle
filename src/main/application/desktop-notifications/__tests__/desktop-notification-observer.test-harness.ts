@@ -38,6 +38,8 @@ export interface Fixture {
   running: Set<string>
   /** Idle parents a Hive wake is still coming for. */
   wakeComing: Set<string>
+  /** Of those, the person's own Queen's wakes, which a full Active Workers ceiling never defers. */
+  personWakes: Set<string>
   /** Root Runs the person started while Workers below were running. */
   midWorkRuns: Set<string>
   /** Each Session's latest Run as stored, when a test needs one. */
@@ -71,6 +73,7 @@ export function setup(overrides: Partial<Fixture> = {}) {
     parents: {},
     running: new Set(),
     wakeComing: new Set(),
+    personWakes: new Set(),
     midWorkRuns: new Set(),
     latestRuns: {},
     ...overrides,
@@ -95,6 +98,9 @@ export function setup(overrides: Partial<Fixture> = {}) {
           rootRunning: fixture.running.has(root),
           workersRunning: workers.some((id) => fixture.running.has(id)),
           wakeComing: [root, ...workers].some((id) => fixture.wakeComing.has(id)),
+          wakeWaitsForCapacity: [root, ...workers].some(
+            (id) => fixture.wakeComing.has(id) && !fixture.personWakes.has(id),
+          ),
           runStartedWhileWorkersRan: runId !== null && fixture.midWorkRuns.has(runId),
         }
       }),

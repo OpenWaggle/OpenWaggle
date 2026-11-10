@@ -139,6 +139,7 @@ describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 006
       rootRunning: false,
       workersRunning: false,
       wakeComing: false,
+      wakeWaitsForCapacity: false,
       runStartedWhileWorkersRan: false,
     }
     expect(result).toEqual({
@@ -195,7 +196,12 @@ describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 006
         return { reported, afterWake }
       }),
     )
-    expect(result.reported).toMatchObject({ workersRunning: false, wakeComing: true })
+    // The person's own Queen's wake: a full Active Workers ceiling never defers it.
+    expect(result.reported).toMatchObject({
+      workersRunning: false,
+      wakeComing: true,
+      wakeWaitsForCapacity: false,
+    })
     expect(result.afterWake).toMatchObject({ workersRunning: false, wakeComing: false })
   })
 

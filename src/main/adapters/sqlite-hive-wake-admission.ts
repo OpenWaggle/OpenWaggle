@@ -26,27 +26,30 @@ export function startsHiveWake(state: SessionControlSessionState) {
  * no Follow-up (a queue paused at the Worker limits does not count) and an unread update; its
  * last Run's caller is still the wake's caller and may still message it; that Run asks for no
  * wider mode than the wake carries; and an update it acts on has a cause that may wake the parent.
+ *
+ * `state` is what to persist when it starts: a wake that something outside the Queen's Hive
+ * caused since the Host built its key gets the marked key here, so the Run that starts counts.
  */
-export function hiveWakeRefusal(
+export function hiveWakeAdmission(
   sql: SqlClient.SqlClient,
-  state: SessionControlSessionState,
+  starting: SessionControlSessionState,
   callerId: string,
   hostRunCeiling: number,
 ) {
   return Effect.gen(function* () {
-    const { run, sessionId } = state
+    const refused = <Code extends string>(refusal: Code) => ({ refusal, state: starting })
+    const { run, sessionId } = starting
     const candidate = yield* selectHiveParentWakeCandidate(sql, { parentSessionId: sessionId })
-    if (!candidate || candidate.callerId !== callerId) return HIVE_WAKE_NOT_NEEDED
+    if (!candidate || candidate.callerId !== callerId) return refused(HIVE_WAKE_NOT_NEEDED)
     const narrowed =
       run.state === 'starting' && run.intent.runAuthorizationOverride === 'ask-for-approval'
     if (candidate.runAuthorizationOverride === 'ask-for-approval' && !narrowed) {
-      return HIVE_WAKE_NOT_NEEDED
+      return refused(HIVE_WAKE_NOT_NEEDED)
     }
     const callerBlock = yield* messageCallerBlockReason(sql, sessionId, callerId)
-    if (callerBlock) return callerBlock
-    if (!(yield* wakeCandidateMayWake(sql, candidate))) return HIVE_WAKE_NOT_NEEDED
-    // Caused from outside the Hive since the Host built the wake's key: held as agents' work.
-    const outside = yield* wakeCausedOutsideHive(sql, candidate)
-    return yield* newRunAdmissionRefusal(sql, outside ? asAgentsWake(state) : state, hostRunCeiling)
+    if (callerBlock) return refused(callerBlock)
+    if (!(yield* wakeCandidateMayWake(sql, candidate))) return refused(HIVE_WAKE_NOT_NEEDED)
+    const state = (yield* wakeCausedOutsideHive(sql, candidate)) ? asAgentsWake(starting) : starting
+    return { refusal: yield* newRunAdmissionRefusal(sql, state, hostRunCeiling), state }
   })
 }

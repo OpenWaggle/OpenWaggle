@@ -3,6 +3,11 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import {
+  clearLastAgentErrorInfo,
+  getLastAgentErrorInfo,
+  setLastAgentErrorInfo,
+} from '../../lib/agent-error-store'
 import { MessageNotDelivered } from '../../lib/message-delivery'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 import {
@@ -27,6 +32,33 @@ function visibleUserTexts(messages: readonly UIMessage[]) {
     .flatMap((message) =>
       message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
     )
+}
+
+/** A Waggle that failed before it reached the agent: its Run ends in error, then the Host refuses. */
+async function refuseAfterOwnFailure(result: {
+  readonly current: ReturnType<typeof useAgentChat>
+}) {
+  const report = createDeferred<AgentSendReport>()
+  apiMock.sendMessage.mockImplementationOnce(() => report.promise)
+  await act(async () => {
+    void result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
+  })
+  await act(async () => {
+    emitAgentEvent({
+      sessionId: SESSION_ID,
+      event: {
+        type: 'agent_end',
+        runId: 'run-x',
+        reason: 'error',
+        error: { message: 'boom' },
+        timestamp: 1,
+      },
+    })
+    emitRunCompleted({ sessionId: SESSION_ID })
+  })
+  await act(async () => {
+    report.resolve({ outcome: 'refused', message: 'boom', code: 'waggle_failed' })
+  })
 }
 
 /*
@@ -114,35 +146,26 @@ describe('useAgentChat send the Session Host refused', () => {
   })
 
   it('shows no error of its own when its Run failed before the Host refused it', async () => {
-    const report = createDeferred<AgentSendReport>()
-    apiMock.sendMessage.mockImplementationOnce(() => report.promise)
+    clearLastAgentErrorInfo(SESSION_ID)
     const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
 
-    await act(async () => {
-      void result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
-    })
-    // A Waggle that failed before it reached the agent: its Run ends in error, then the Host
-    // reports the send refused.
-    await act(async () => {
-      emitAgentEvent({
-        sessionId: SESSION_ID,
-        event: {
-          type: 'agent_end',
-          runId: 'run-x',
-          reason: 'error',
-          error: { message: 'boom' },
-          timestamp: 1,
-        },
-      })
-      emitRunCompleted({ sessionId: SESSION_ID })
-    })
-    await act(async () => {
-      report.resolve({ outcome: 'refused', message: 'boom', code: 'waggle_failed' })
-    })
+    await refuseAfterOwnFailure(result)
 
     // The composer says why; an error banner here would offer Retry for the message before it.
     expect(result.current.error).toBeUndefined()
     expect(result.current.status).toBe('ready')
     expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
+    expect(getLastAgentErrorInfo(SESSION_ID)).toBeNull()
+  })
+
+  it('puts back the earlier error’s banner details, not the refused Run’s', async () => {
+    setLastAgentErrorInfo(SESSION_ID, { message: 'Rate limited by the provider' })
+    const earlier = getLastAgentErrorInfo(SESSION_ID)
+    const { result } = renderHook(() => useAgentChat(SESSION_ID, createSession(), MODEL))
+
+    await refuseAfterOwnFailure(result)
+
+    // The banner reads its text from the stored details, which the refused Run overwrote.
+    expect(getLastAgentErrorInfo(SESSION_ID)).toEqual(earlier)
   })
 })

@@ -3,6 +3,7 @@ import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import { parseJsonUnknown } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { hiveWakeKey } from '../domain/session-control/hive-wake'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
 import {
   DesktopNotificationFacts,
@@ -13,7 +14,8 @@ import { selectLatestRun, selectRunFacts } from './sqlite-desktop-notification-r
 import { parentWillActSql } from './sqlite-hive-next-actor-facts'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
-import { countActiveWorkerRuns } from './sqlite-worker-run-admission'
+import { wakeCausedOutsideHive } from './sqlite-hive-wake-work'
+import { countActiveWorkerRuns, isPersonRun } from './sqlite-worker-run-admission'
 
 interface SessionRow {
   readonly id: string
@@ -41,16 +43,25 @@ function decodeSessionIds(value: string): readonly string[] {
 /**
  * Whether the Host would still wake `parentSessionId` (`hive-parent-wake.ts`): the wake candidate
  * SQL finds an unread update a wake acts on, the latest Run's caller may still message the
- * parent, and a cause of that update may wake it. A full Run limit only defers a wake, so it
- * still counts as coming; the pi CLI check is not repeated here.
+ * parent, and a cause of that update may wake it. A full Active Workers ceiling only defers a
+ * wake that is agents' work, so it still counts as coming; the pi CLI check is not repeated here.
+ * Whether it comes, and whether it is agents' work (`isPersonRun`, as its admission reads it).
  */
-function wakeComingFor(sql: SqlClient.SqlClient, parentSessionId: string) {
+function wakeComingFor(sql: SqlClient.SqlClient, parentSessionId: string, rootSessionId: string) {
   return Effect.gen(function* () {
     const candidate = yield* selectHiveParentWakeCandidate(sql, { parentSessionId })
-    if (!candidate) return false
+    if (!candidate) return undefined
     const blocked = yield* messageCallerBlockReason(sql, parentSessionId, candidate.callerId)
-    if (blocked) return false
-    return yield* wakeCandidateMayWake(sql, candidate)
+    if (blocked || !(yield* wakeCandidateMayWake(sql, candidate))) return undefined
+    const outside = yield* wakeCausedOutsideHive(sql, candidate)
+    const wake = {
+      callerId: candidate.callerId,
+      idempotencyKey: hiveWakeKey(parentSessionId, 'expected', outside),
+      hiveWake: true,
+    } as const
+    const inWorker = parentSessionId !== rootSessionId
+    const person = yield* isPersonRun(sql, wake, { sessionId: parentSessionId, inWorker })
+    return { waitsForCapacity: !person }
   })
 }
 
@@ -122,16 +133,18 @@ function selectHiveActivity(sql: SqlClient.SqlClient, rootSessionId: string, run
         ) AS waking_parent_ids
     `
     let wakeComing = false
+    let wakeWaitsForCapacity = false
     for (const parentSessionId of decodeSessionIds(row?.waking_parent_ids ?? '[]')) {
-      if (yield* wakeComingFor(sql, parentSessionId)) {
-        wakeComing = true
-        break
-      }
+      const wake = yield* wakeComingFor(sql, parentSessionId, rootSessionId)
+      wakeComing ||= wake !== undefined
+      wakeWaitsForCapacity ||= wake?.waitsForCapacity === true
+      if (wakeWaitsForCapacity) break
     }
     return {
       rootRunning: row?.root_running === 1,
       workersRunning: row?.workers_running === 1,
       wakeComing,
+      wakeWaitsForCapacity,
       runStartedWhileWorkersRan: row?.run_started_while_workers_ran === 1,
     }
   })

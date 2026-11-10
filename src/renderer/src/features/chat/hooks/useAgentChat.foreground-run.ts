@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { getLastAgentErrorInfo } from '../lib/agent-error-store'
 import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
 import { settlingRunId } from '../lib/run-ids'
 import {
@@ -124,7 +125,11 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
     for (const completion of held.splice(0)) forwardToPrevious(completion)
     const laterSendOwnsForeground = handBackForegroundPointers(refs, tracked, previous)
     if (laterSendOwnsForeground || refs.currentSessionIdRef.current !== targetSessionId) return
-    if (options.refused && failedMeanwhile && restoreBeforeRefusedSend(refs, previous, setters)) {
+    if (
+      options.refused &&
+      failedMeanwhile &&
+      restoreBeforeRefusedSend(refs, previous, setters, targetSessionId)
+    ) {
       return
     }
     restoreVisibleRunState(refs, previous, completedMeanwhile, setters)
@@ -148,6 +153,7 @@ export function beginForegroundRun(
     terminalRunError: refs.terminalRunErrorRef.current,
     status: refs.statusRef.current,
     error: setters.error,
+    errorInfo: getLastAgentErrorInfo(targetSessionId),
   })
   refs.pendingRunWaiterRef.current = run.waiter
   refs.foregroundStreamActiveRef.current = true

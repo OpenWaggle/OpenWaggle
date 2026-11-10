@@ -10,12 +10,13 @@ import * as Layer from 'effect/Layer'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
 import {
+  type SessionControlMutationDecision,
   SessionControlRepository,
   type SessionControlRepositoryShape,
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
-import { hiveWakeRefusal, startsHiveWake } from './sqlite-hive-wake-admission'
+import { hiveWakeAdmission, startsHiveWake } from './sqlite-hive-wake-admission'
 import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import {
@@ -34,6 +35,49 @@ interface SessionOperationRow {
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
+}
+
+/**
+ * The admission of a Run the decision starts: a Hive wake's own re-check, or the Worker limits.
+ * A wake's decision keeps the key its admission marked, so the Run it starts counts as it should.
+ */
+function admitNewRun(
+  sql: SqlClient.SqlClient,
+  state: SessionControlSessionState,
+  decision: SessionControlMutationDecision,
+  input: {
+    readonly callerId: string
+    readonly hostRunCeiling: number
+    readonly requestCaller: ReturnType<typeof requestCallerOf>
+  },
+) {
+  return Effect.gen(function* () {
+    const startsNewRun =
+      decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
+    if (!startsNewRun) return { decision, refusal: undefined, startsWake: false }
+    // This mutation starts the wake; any other one landing while a wake starts is ordinary.
+    if (startsHiveWake(decision.state)) {
+      const wake = yield* hiveWakeAdmission(
+        sql,
+        decision.state,
+        input.callerId,
+        input.hostRunCeiling,
+      )
+      return {
+        decision: { ...decision, state: wake.state },
+        refusal: wake.refusal,
+        startsWake: true,
+      }
+    }
+    const { hostRunCeiling, requestCaller } = input
+    const refusal = yield* newRunAdmissionRefusal(
+      sql,
+      decision.state,
+      hostRunCeiling,
+      requestCaller,
+    )
+    return { decision, refusal, startsWake: false }
+  })
 }
 
 /** Who sent a mutation's request, as the capacity rule reads it. */
@@ -190,21 +234,18 @@ function executeMutation(
             ? refusedMutation(operation, targetScope, authorityBlock)
             : input.decide(state)
         const now = Date.now()
-        const startsNewRun =
-          decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
         const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
         const requestCaller = requestCallerOf(input)
-        // This mutation starts the wake; any other one landing while a wake starts is ordinary.
-        const startsWake = startsNewRun && startsHiveWake(decision.state)
-        const refusal = startsWake
-          ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
-          : startsNewRun
-            ? yield* newRunAdmissionRefusal(sql, decision.state, hostRunCeiling, requestCaller)
-            : undefined
-        const admittedDecision = refusal
-          ? refusedMutation(operation, targetScope, refusal)
+        const admission = yield* admitNewRun(sql, state, decision, {
+          callerId: input.callerId,
+          hostRunCeiling,
+          requestCaller,
+        })
+        const { startsWake } = admission
+        const admittedDecision = admission.refusal
+          ? refusedMutation(operation, targetScope, admission.refusal)
           : yield* deliverAfterQueueDecision(sql, {
-              decision,
+              decision: admission.decision,
               operation,
               nextRunId: input.nextRunId,
               hostRunCeiling,

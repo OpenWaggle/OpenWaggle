@@ -6,7 +6,7 @@ import { RunId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { scheduledTaskRunKey } from '../../domain/scheduled-tasks/scheduled-task-run-key'
-import { hiveWakeRefusal } from '../sqlite-hive-wake-admission'
+import { hiveWakeAdmission } from '../sqlite-hive-wake-admission'
 import { loadSessionControlState } from '../sqlite-session-control-state'
 import {
   candidate,
@@ -17,7 +17,7 @@ import {
 import { seedScheduledFiring } from './sqlite-worker-run-admission.test-support'
 
 /**
- * The in-transaction check of a Hive wake (`hiveWakeRefusal`), as the repository runs it when the
+ * The in-transaction check of a Hive wake (`hiveWakeAdmission`), as the repository runs it when the
  * Host starts one: the idle parent's Worker has reported, the wake acts for the person who ran
  * the parent last, and that Worker's own active Run fills a Worker ceiling of 1.
  */
@@ -89,7 +89,7 @@ function wakeAtFullCeiling(
         },
       },
     }
-    return yield* hiveWakeRefusal(sql, waking, 'local-user', 1)
+    return (yield* hiveWakeAdmission(sql, waking, 'local-user', 1)).refusal
   })
 }
 

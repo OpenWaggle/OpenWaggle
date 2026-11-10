@@ -132,6 +132,19 @@ describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0063)'
     expect(shownKinds(published)).toEqual(['shown:completed'])
   })
 
+  it('gives up on the person’s own Queen’s wake at a full ceiling, which never defers it', async () => {
+    const { emit, published, fixture, observer } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    fixture.running.clear()
+    fixture.wakeComing.add('root')
+    fixture.personWakes.add('root')
+    await emit(workerSettled('w1'), 110)
+    await Effect.runPromise(observer.settleHeldReadyToRead(10_000, true))
+    await Effect.runPromise(observer.settleHeldReadyToRead(40_110, true))
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
   it('keeps the person waiting on their request when an agent-started Run fails', async () => {
     const { emit, published, fixture } = hive({
       runs: {
