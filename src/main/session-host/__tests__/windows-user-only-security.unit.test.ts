@@ -1,7 +1,6 @@
 import type * as ChildProcessModule from 'node:child_process'
-import { ChildProcess } from 'node:child_process'
-import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pipedChildProcess } from '../../test-support/piped-child-process'
 import {
   secureWindowsUserOnly,
   WindowsUserOnlySecurityTimeoutError,
@@ -16,10 +15,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
 vi.mock('../../env', () => ({ getWindowsSecurityChildEnv: () => ({ SystemRoot: 'C:\\Windows' }) }))
 
 function childProcess() {
-  const child = new ChildProcess()
-  child.stdin = new PassThrough()
-  child.stdout = new PassThrough()
-  child.stderr = new PassThrough()
+  const child = pipedChildProcess()
   const kill = vi.spyOn(child, 'kill').mockReturnValue(true)
   mocks.spawn.mockReturnValue(child)
   return { child, kill }

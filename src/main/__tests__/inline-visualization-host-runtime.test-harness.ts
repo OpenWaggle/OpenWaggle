@@ -52,20 +52,35 @@ export function runtimeHarness(
   const parent = { postMessage: (message: unknown) => postedMessages.push(message) }
   const nativeEventTrust = new WeakMap<object, boolean>()
   let currentDocumentEvent: NativeDocumentEvent | null = null
-  class NativeDocumentEvent extends Event {
+  /*
+   * The runtime reads trust through the `isTrusted` getter it finds on a probe event. A subclass of
+   * the runtime's `Event` cannot fake trust where `isTrusted` is unforgeable, an own
+   * non-configurable property of each instance (as on Bun and in browsers), so the harness's
+   * events are their own class and `NativeEventTarget` hands real events to the real listeners.
+   */
+  class NativeDocumentEvent {
+    readonly #type: string
+
     constructor(eventType: string, trusted = false) {
-      super(eventType)
+      this.#type = eventType
       nativeEventTrust.set(this, trusted)
-      Object.defineProperty(this, 'isTrusted', {
-        configurable: false,
-        enumerable: true,
-        get(this: object) {
-          return nativeEventTrust.get(this) ?? false
-        },
-      })
     }
 
-    declare readonly isTrusted: boolean
+    get type() {
+      return this.#type
+    }
+
+    get isTrusted() {
+      return nativeEventTrust.get(this) ?? false
+    }
+  }
+  class NativeEventTarget extends EventTarget {
+    override dispatchEvent(event: Event | NativeDocumentEvent) {
+      if (!(event instanceof NativeDocumentEvent)) return super.dispatchEvent(event)
+      const nativeEvent = new Event(event.type)
+      Object.defineProperties(nativeEvent, Object.getOwnPropertyDescriptors(event))
+      return super.dispatchEvent(nativeEvent)
+    }
   }
   class NativeRuntimeWindow {
     declare readonly openai?: RuntimeWindow['openai']
@@ -176,7 +191,7 @@ export function runtimeHarness(
     navigator,
     window: runtimeWindow,
     Event: NativeDocumentEvent,
-    EventTarget,
+    EventTarget: NativeEventTarget,
     Element: class Element {},
     HTMLAnchorElement: class HTMLAnchorElement {},
     matchMedia: vi.fn(() => ({ matches: false })),

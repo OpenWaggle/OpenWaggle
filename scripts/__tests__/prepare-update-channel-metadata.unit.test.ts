@@ -17,13 +17,18 @@ async function fixture(name: string) {
   return root
 }
 
+// Directory order is the file system's and the runtime's: Bun does not list in name order.
+async function directoryEntries(root: string) {
+  return (await fs.readdir(root)).toSorted()
+}
+
 describe('update channel metadata', () => {
   it('makes a stable release available to Stable, Beta, and Alpha users', async () => {
     const root = await fixture('latest-mac.yml')
     await expect(
       prepareUpdateChannelMetadata({ directory: root, buildChannel: 'stable', platform: 'mac' }),
     ).resolves.toEqual(['latest-mac.yml', 'beta-mac.yml', 'alpha-mac.yml'])
-    await expect(fs.readdir(root)).resolves.toEqual([
+    expect(await directoryEntries(root)).toEqual([
       'alpha-mac.yml',
       'beta-mac.yml',
       'latest-mac.yml',
@@ -35,7 +40,7 @@ describe('update channel metadata', () => {
     await expect(
       prepareUpdateChannelMetadata({ directory: root, buildChannel: 'beta', platform: 'windows' }),
     ).resolves.toEqual(['beta.yml', 'alpha.yml'])
-    await expect(fs.readdir(root)).resolves.toEqual(['alpha.yml', 'beta.yml'])
+    expect(await directoryEntries(root)).toEqual(['alpha.yml', 'beta.yml'])
   })
 
   it('makes RC releases available to Beta and Alpha users, never Stable', async () => {
@@ -43,7 +48,7 @@ describe('update channel metadata', () => {
     await expect(
       prepareUpdateChannelMetadata({ directory: root, buildChannel: 'rc', platform: 'windows' }),
     ).resolves.toEqual(['rc.yml', 'beta.yml', 'alpha.yml'])
-    await expect(fs.readdir(root)).resolves.toEqual(['alpha.yml', 'beta.yml', 'rc.yml'])
+    expect(await directoryEntries(root)).toEqual(['alpha.yml', 'beta.yml', 'rc.yml'])
   })
 
   it('keeps Alpha releases off the Stable and Beta feeds', async () => {
@@ -51,6 +56,6 @@ describe('update channel metadata', () => {
     await expect(
       prepareUpdateChannelMetadata({ directory: root, buildChannel: 'alpha', platform: 'linux' }),
     ).resolves.toEqual(['alpha-linux.yml'])
-    await expect(fs.readdir(root)).resolves.toEqual(['alpha-linux.yml'])
+    expect(await directoryEntries(root)).toEqual(['alpha-linux.yml'])
   })
 })

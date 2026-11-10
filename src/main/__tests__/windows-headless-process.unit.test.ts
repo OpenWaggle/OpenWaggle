@@ -1,7 +1,6 @@
 import type * as ChildProcessModule from 'node:child_process'
-import { ChildProcess } from 'node:child_process'
-import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pipedChildProcess } from '../test-support/piped-child-process'
 
 const mocks = vi.hoisted(() => ({ spawn: vi.fn() }))
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -22,11 +21,7 @@ const launch = {
 }
 
 function childProcess() {
-  const child = Object.assign(new ChildProcess(), {
-    stdin: new PassThrough(),
-    stdout: new PassThrough(),
-    stderr: new PassThrough(),
-  })
+  const child = pipedChildProcess()
   vi.spyOn(child, 'kill').mockImplementation(() => true)
   vi.spyOn(child, 'unref').mockImplementation(() => undefined)
   mocks.spawn.mockImplementation(() => {

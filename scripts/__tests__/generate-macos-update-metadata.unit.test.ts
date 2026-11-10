@@ -67,6 +67,6 @@ describe('macOS update metadata', () => {
     )
 
     expect(result).toMatchObject({ status: 0, stderr: '' })
-    await expect(fs.access(path.join(root, 'latest-mac.yml'))).resolves.toBeUndefined()
+    await expect(fs.access(path.join(root, 'latest-mac.yml'))).resolves.not.toThrow()
   })
 })

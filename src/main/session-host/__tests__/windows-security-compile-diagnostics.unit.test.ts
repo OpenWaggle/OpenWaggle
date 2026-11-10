@@ -1,7 +1,6 @@
 import type * as ChildProcessModule from 'node:child_process'
-import { ChildProcess } from 'node:child_process'
-import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { pipedChildProcess } from '../../test-support/piped-child-process'
 import { WINDOWS_PIPE_SECURITY_SOURCE } from '../windows-pipe-security-source'
 import { WindowsUserOnlySecurityTimeoutError } from '../windows-user-only-security'
 import {
@@ -26,10 +25,7 @@ afterEach(() => {
 })
 
 function probeChild() {
-  const child = new ChildProcess()
-  child.stdin = new PassThrough()
-  child.stdout = new PassThrough()
-  child.stderr = new PassThrough()
+  const child = pipedChildProcess()
   vi.spyOn(child, 'kill').mockReturnValue(true)
   mocks.spawn.mockReturnValueOnce(child)
   return child

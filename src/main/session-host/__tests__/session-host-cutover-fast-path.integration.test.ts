@@ -55,8 +55,8 @@ describe('Session Host cutover completion fast path', () => {
     await expect(runSessionHostCutover(paths, Date.now(), fakeEmbeddingModel)).rejects.toThrow(
       'completion metadata is missing or incompatible',
     )
-    await expect(fs.access(paths.targetDatabasePath)).resolves.toBeUndefined()
-    await expect(fs.access(paths.recoveryDatabasePath)).resolves.toBeUndefined()
+    await expect(fs.access(paths.targetDatabasePath)).resolves.not.toThrow()
+    await expect(fs.access(paths.recoveryDatabasePath)).resolves.not.toThrow()
     await expect(fs.access(paths.sourceDatabasePath)).rejects.toThrow()
   })
 
@@ -78,6 +78,6 @@ describe('Session Host cutover completion fast path', () => {
     )
     await expect(fs.access(paths.targetDatabasePath)).rejects.toThrow()
     await expect(fs.access(stagingPath)).rejects.toThrow()
-    await expect(fs.access(paths.recoveryDatabasePath)).resolves.toBeUndefined()
+    await expect(fs.access(paths.recoveryDatabasePath)).resolves.not.toThrow()
   })
 })
