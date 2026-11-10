@@ -104,10 +104,12 @@ export function archiveSessionRow(sessionId: string) {
   )
 }
 
+/** Fires a task; a Run now is the person's unless `requestedByAgent`. */
 export async function fire(
   taskId: string,
   now: number,
   trigger: 'schedule' | 'run-now' = 'schedule',
+  requestedByAgent = false,
 ) {
   const { fireScheduledTask } = await import('../scheduled-task-firing')
   const { ScheduledTaskRepository } = await import('../../ports/scheduled-task-repository')
@@ -117,7 +119,8 @@ export async function fire(
       const repository = yield* ScheduledTaskRepository
       const record = yield* repository.get(taskId)
       if (!record) throw new Error('No such task.')
-      return yield* fireScheduledTask(sql, { record, trigger, now })
+      if (trigger === 'schedule') return yield* fireScheduledTask(sql, { record, trigger, now })
+      return yield* fireScheduledTask(sql, { record, trigger, requestedByAgent, now })
     }),
   )
 }

@@ -18,6 +18,8 @@ The Session Host decides when to notify, so notifications keep coming after you 
 | **Failed or interrupted** | A run failed, stopped waiting for your answer, or was cut off when the Session Host stopped. A scheduled task that OpenWaggle turned off because it needs your attention notifies here too, unless it is a heartbeat whose session you archived. |
 | **Agent errors** | An agent or an extension reported an error, at most once per run. |
 
+For a session with [workers](/docs/using-openwaggle/hives-and-sessions), **Ready to read** waits until no worker below the session is running, unless you sent your message while they were already running.
+
 Some things never notify:
 
 - A run you stopped yourself.

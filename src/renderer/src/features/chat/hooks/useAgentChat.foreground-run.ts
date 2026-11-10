@@ -1,8 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
 import { settlingRunId } from '../lib/run-ids'
-import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
+import { createPendingRunWaiter } from './useAgentChat.message-cache'
 import type {
   AgentChatStatus,
   MutableValueRef,
@@ -13,7 +12,7 @@ import type {
   SetRunRenderMessages,
 } from './useAgentChat.types'
 
-interface ForegroundRunRefs {
+export interface ForegroundRunRefs {
   readonly currentSessionIdRef: MutableValueRef<SessionId | null>
   readonly statusRef: MutableValueRef<AgentChatStatus>
   readonly foregroundStreamActiveRef: MutableValueRef<boolean>
@@ -23,7 +22,7 @@ interface ForegroundRunRefs {
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
 }
 
-interface ForegroundRunSetters {
+export interface ForegroundRunSetters {
   readonly error: Error | undefined
   readonly setError: (error: Error | undefined) => void
   readonly setStatus: (status: AgentChatStatus) => void
@@ -77,7 +76,10 @@ export function offerRunCompletion(
  * send; another Run's completion (the earlier Run settling just after this send began) is forwarded
  * to the send it belongs to. A completion that arrives before the Run is known is held until then.
  */
-function createForegroundRunWaiter(previous: ForegroundRunState) {
+function createForegroundRunWaiter(displaced: ForegroundRunState) {
+  // Replaced when the send this one displaced ends without a Run: this send then displaced what
+  // that one had (`spliceOut`).
+  let previous = displaced
   const { promise, waiter } = createPendingRunWaiter()
   let settled: { readonly error: Error | undefined } | null = null
   let handedBack = false
@@ -90,7 +92,21 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
     // failure the earlier Run had already reported.
     const error = completion.error ?? previous.terminalRunError
     if (!previous.waiter) return
-    offerRunCompletion(previous.waiter, { ...completion, ...(error ? { error } : {}) })
+    const routing = offerRunCompletion(previous.waiter, {
+      ...completion,
+      ...(error ? { error } : {}),
+    })
+    // That Run has ended: handed back, its waiter would be followed again, and the next Run this
+    // renderer did not send would be offered to it, dropped, and left on Stop after it ended.
+    if (routing === 'settled') {
+      displacedBy.delete(previous.waiter)
+      previous = {
+        ...previous,
+        waiter: null,
+        foregroundStreamActive: false,
+        foregroundSessionId: null,
+      }
+    }
   }
 
   function settle(error: Error | undefined) {
@@ -143,17 +159,102 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
     const completedMeanwhile = settled !== null || held.length > 0
     if (settled) forwardToPrevious(settled.error ? { error: settled.error } : {})
     for (const completion of held.splice(0)) forwardToPrevious(completion)
-    if (refs.pendingRunWaiterRef.current === tracked) {
+    const ownsForeground = refs.pendingRunWaiterRef.current === tracked
+    if (ownsForeground) {
+      if (previous.waiter) displacedBy.delete(previous.waiter)
       refs.pendingRunWaiterRef.current = previous.waiter
       refs.foregroundStreamActiveRef.current = previous.foregroundStreamActive
       refs.foregroundSessionIdRef.current = previous.foregroundSessionId
       refs.terminalRunErrorRef.current ??= previous.terminalRunError
     }
-    if (refs.currentSessionIdRef.current !== targetSessionId) return
+    // A later send that owns the foreground owns the status too: its `submitted` is not ours.
+    const laterSendOwnsForeground = !ownsForeground && refs.pendingRunWaiterRef.current !== null
+    if (laterSendOwnsForeground) spliceOut()
+    if (laterSendOwnsForeground || refs.currentSessionIdRef.current !== targetSessionId) return
     restoreVisibleRunState(refs, previous, completedMeanwhile, setters)
   }
 
-  return { promise, waiter: tracked, bind, handBack }
+  /**
+   * Takes this send, which ends without a Run, out of the chain: the later send that displaced it
+   * now displaces what this one did. Left in, that send handed back this one's `submitted` and
+   * its spent waiter, and the Session kept showing "Thinking" over nothing.
+   */
+  function spliceOut() {
+    const later = displacedBy.get(tracked)
+    if (later) {
+      later.replacePrevious(previous)
+      // The later send now displaces what this one did, so a send this one displaced, ending
+      // without a Run in turn, hands its own state on to it.
+      if (previous.waiter) displacedBy.set(previous.waiter, later)
+    }
+    displacedBy.delete(tracked)
+  }
+
+  function replacePrevious(next: ForegroundRunState) {
+    previous = next
+  }
+
+  displacedOf.set(tracked, () => previous.waiter)
+
+  /** Whether this send displaced an earlier send still waiting on its Run. */
+  function displacesPendingSend() {
+    return previous.waiter !== null
+  }
+
+  return {
+    promise,
+    waiter: tracked,
+    bind,
+    handBack,
+    spliceOut,
+    replacePrevious,
+    displacesPendingSend,
+  }
+}
+
+/** Each pending send's waiter, to the later send that displaced it from the foreground. */
+const displacedBy = new WeakMap<PendingRunWaiter, ForegroundRun>()
+/** Each send's waiter, to the Session it was sent to. */
+const sentToSession = new WeakMap<PendingRunWaiter, SessionId>()
+
+/**
+ * Whether `waiter` is a send to a Session other than `sessionId`. A completion the send held
+ * (an earlier Run's, before the send knew its own) clears the foreground state while the send is
+ * still in flight, so a switch away has only this to know that the send belongs to another Session.
+ */
+export function isSendToOtherSession(waiter: PendingRunWaiter, sessionId: SessionId) {
+  const sentTo = sentToSession.get(waiter)
+  return sentTo !== undefined && sentTo !== sessionId
+}
+
+/** Each send's waiter, to the waiter of the earlier send it displaced, while that one waits. */
+const displacedOf = new WeakMap<PendingRunWaiter, () => PendingRunWaiter | null>()
+
+/**
+ * Settles every earlier send the followed `waiter` displaced, once the Session stops being
+ * followed (Stop, a switch away). Only the followed send was settled before, so an earlier one
+ * whose Run was still settling waited forever, and the Session's pickers stayed locked behind it.
+ */
+export function settleDisplacedSends(waiter: PendingRunWaiter | null) {
+  let next = waiter ? (displacedOf.get(waiter)?.() ?? null) : null
+  while (next) {
+    const earlier = next
+    next = displacedOf.get(earlier)?.() ?? null
+    earlier.resolve()
+  }
+}
+
+/** Stop: the followed send settles, and so does every earlier send it displaced. */
+export function stopFollowingSends(refs: Pick<ForegroundRunRefs, 'pendingRunWaiterRef'>) {
+  const pending = refs.pendingRunWaiterRef.current
+  if (!pending) return
+  if (
+    offerRunCompletion(pending, {}) === 'settled' &&
+    refs.pendingRunWaiterRef.current === pending
+  ) {
+    refs.pendingRunWaiterRef.current = null
+  }
+  settleDisplacedSends(pending)
 }
 
 function restoreVisibleRunState(
@@ -185,14 +286,17 @@ export function beginForegroundRun(
   setters: ForegroundRunSetters,
   targetSessionId: SessionId,
 ): ForegroundRun {
+  const displacedWaiter = refs.pendingRunWaiterRef.current
   const run = createForegroundRunWaiter({
-    waiter: refs.pendingRunWaiterRef.current,
+    waiter: displacedWaiter,
     foregroundStreamActive: refs.foregroundStreamActiveRef.current,
     foregroundSessionId: refs.foregroundSessionIdRef.current,
     terminalRunError: refs.terminalRunErrorRef.current,
     status: refs.statusRef.current,
     error: setters.error,
   })
+  if (displacedWaiter) displacedBy.set(displacedWaiter, run)
+  sentToSession.set(run.waiter, targetSessionId)
   refs.pendingRunWaiterRef.current = run.waiter
   refs.foregroundStreamActiveRef.current = true
   refs.foregroundSessionIdRef.current = targetSessionId
@@ -201,74 +305,4 @@ export function beginForegroundRun(
   setters.setError(undefined)
   setters.setStatus('submitted')
   return run
-}
-
-/**
- * The Host kept the message as a Follow-up rather than starting a Run - the Session still had a Run
- * settling, or Follow-ups waiting in a queue a failed Run paused. Nothing will complete for this
- * send, so the Session goes back to what it was showing, and the message leaves the transcript: it
- * is a queued Follow-up now, shown in the queue with a way to resume it. If the Host has already
- * started it as the next Run, its row is that Run's incorporated user message and stays.
- */
-export function forgetQueuedSend(input: {
-  readonly refs: ForegroundRunRefs
-  readonly setters: ForegroundRunSetters
-  readonly targetSessionId: SessionId
-  readonly run: ForegroundRun
-  readonly optimisticMessageId: UIMessage['id']
-}) {
-  input.run.handBack(input.refs, input.targetSessionId, input.setters)
-  dropOptimisticSend(input)
-}
-
-/**
- * A send the Host refused before the agent got the message, as for a Session whose Pi file cannot
- * be used: the Run it started is over, so the Session is idle again, with no error of its own to
- * show, and the message leaves the transcript. Returns the refusal, for the caller, undelivered;
- * nothing for any other failure.
- */
-export function forgetIfRefusedForPiSessionFile(
-  input: {
-    readonly refs: ForegroundRunRefs
-    readonly setters: ForegroundRunSetters
-    readonly targetSessionId: SessionId
-    readonly run: ForegroundRun
-    readonly optimisticMessageId: UIMessage['id']
-  },
-  refusal: Error,
-) {
-  if (!isPiSessionFileRefusal(refusal)) return undefined
-  const { refs, setters, targetSessionId } = input
-  if (refs.pendingRunWaiterRef.current === input.run.waiter) refs.pendingRunWaiterRef.current = null
-  if (refs.foregroundSessionIdRef.current === targetSessionId) clearRunPointers(refs)
-  if (refs.currentSessionIdRef.current === targetSessionId) {
-    setters.setError(undefined)
-    setters.setStatus('ready')
-  }
-  dropOptimisticSend(input)
-  return new MessageNotDelivered('refused', refusal.message)
-}
-
-function dropOptimisticSend(input: {
-  readonly refs: ForegroundRunRefs
-  readonly setters: ForegroundRunSetters
-  readonly targetSessionId: SessionId
-  readonly optimisticMessageId: UIMessage['id']
-}) {
-  const { refs, setters, targetSessionId, optimisticMessageId } = input
-  setters.removeOptimisticUserMessage(targetSessionId, optimisticMessageId)
-  updateMessagesForSession(
-    refs.messagesBySessionIdRef,
-    setters.setMessagesBySessionId,
-    setters.setRunRenderMessages,
-    targetSessionId,
-    // A row that took a log order is a message the Host already started as the next Run's input.
-    (currentMessages) =>
-      currentMessages.filter(
-        (message) =>
-          message.id !== optimisticMessageId ||
-          message.metadata?.sessionNodeCreatedOrder !== undefined,
-      ),
-    { cacheRunSnapshot: true },
-  )
 }

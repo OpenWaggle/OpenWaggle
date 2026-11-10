@@ -99,6 +99,7 @@ export function createScheduledTask(input: {
       creator: principal.creator,
       creatorWorkingDirectory: principal.workingDirectory,
       authorityLimits: principal.authorityLimits,
+      workByAgent: !principal.localUser,
       kind,
       name: task.name.trim(),
       prompt: task.prompt,
@@ -208,6 +209,7 @@ function recordChanges(record: ScheduledTaskRecord): ScheduledTaskRecordChanges 
   return {
     creatorCallerId: record.creatorCallerId,
     authorityLimits: record.authorityLimits,
+    workByAgent: record.workByAgent,
     name: record.name,
     prompt: record.prompt,
     enabled: record.enabled,

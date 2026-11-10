@@ -26,7 +26,8 @@ import { publishControlResponse } from './session-control-event-projection'
  * parent's latest Run acted for, as a Follow-up that caller queued would: that caller's authority
  * is checked again as Follow-up delivery checks it, and the Run keeps only a narrowing Run mode
  * override: it never runs above the live Authorization ceiling of whoever started that Run.
- * The Workers per parent and Active agent runs limits apply as to any new Run.
+ * When the parent is an agent-made Session, the Workers per parent and Active Workers limits
+ * apply as to any Run the Host starts; the person's top-level Queen is never held back by them.
  *
  * This constant is the wake Run's intent text; its prompt is the Pi adapter's Host-authored
  * message (`hive-wake-prompt.ts`), never a user message.

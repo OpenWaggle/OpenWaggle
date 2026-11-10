@@ -1,6 +1,6 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { useDeferredValue } from 'react'
-import { isReportableSendFailure } from '@/features/chat/lib'
+import { isReportableSendFailure, sendFailureText } from '@/features/chat/lib'
 import { WorkspaceTreePanel } from '@/shared/ui/WorkspaceTreePanel'
 import { useUIStore } from '@/shell/ui-store'
 import { useDiffReviewActions } from '../hooks/useDiffReviewActions'
@@ -68,7 +68,13 @@ export function DiffReviewBody({
        * they asked for. The review comes back either way.
        */
       if (isReportableSendFailure(error)) {
-        showToast(`Could not send this review: ${String(error)}`, 'error')
+        showToast(
+          sendFailureText(error, {
+            refused: 'Review not sent',
+            failed: 'Could not send this review',
+          }),
+          'error',
+        )
       }
     },
   )

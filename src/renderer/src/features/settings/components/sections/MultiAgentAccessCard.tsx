@@ -135,7 +135,8 @@ export function MultiAgentAccessCard() {
       <div className="flex flex-col gap-0.5">
         <h2 className="text-sm font-semibold text-text-primary">Hive controls</h2>
         <p className="text-xs text-text-tertiary">
-          Control agent-created Workers and concurrent runs. Saved Sessions are not limited.
+          Control agent-created Workers and how many run at once. Your own Sessions are never
+          limited.
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
@@ -165,12 +166,12 @@ export function MultiAgentAccessCard() {
           />
         </SettingRow>
         <SettingRow
-          label="Active agent runs"
-          description="App-wide ceiling across independent Sessions and every Hive."
+          label="Active Workers"
+          description="Most Worker runs active at once across every Hive, counting Sessions agents make."
           last
         >
           <NumberStepper
-            label="Active agent runs"
+            label="Active Workers"
             value={settings.sessionHostRunCeiling}
             minimum={1}
             disabled={saving}
@@ -179,9 +180,10 @@ export function MultiAgentAccessCard() {
         </SettingRow>
       </div>
       <p className="text-xs text-text-tertiary">
-        New runs are rejected with a retryable error at either limit; they are not queued. Higher
-        values may strain your machine or model provider. Project configuration files can override
-        these app-wide defaults.
+        At either limit a new Worker run is rejected with a retryable error; it is not queued.
+        Messages you send, your new Sessions and your top-level Sessions are never refused because
+        of these limits. Higher values may strain your machine or model provider. Project
+        configuration files can override these app-wide defaults.
       </p>
       <SavedProjectOverrides
         settings={settings}

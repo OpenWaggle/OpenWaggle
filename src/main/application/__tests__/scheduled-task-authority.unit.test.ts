@@ -15,6 +15,7 @@ const PROFILE_TASK = {
   ownerKey: 'profile:ci',
   creatorCallerId: 'profile:ci',
   authorityLimits: { ...LIMITS, capabilities: [...LIMITS.capabilities] },
+  workByAgent: true,
   prompt: 'Triage the new errors.',
   target: { kind: 'heartbeat' as const, sessionId: 'session-1' },
 }
@@ -40,6 +41,7 @@ describe('runsAsAfterUpdate', () => {
     expect(await runsAs(owner, { prompt: 'Something else.' })).toEqual({
       creatorCallerId: 'profile:ci',
       authorityLimits: null,
+      workByAgent: true,
     })
     expect(await runsAs(owner, { heartbeat: { stopWhen: 'CI is green.' } })).toMatchObject({
       authorityLimits: null,
@@ -50,6 +52,7 @@ describe('runsAsAfterUpdate', () => {
     expect(await runsAs(owner, { enabled: false })).toEqual({
       creatorCallerId: 'profile:ci',
       authorityLimits: PROFILE_TASK.authorityLimits,
+      workByAgent: true,
     })
   })
 
@@ -63,6 +66,56 @@ describe('runsAsAfterUpdate', () => {
     expect(await runsAs(agent, { heartbeat: { stopWhen: 'Never.' } })).toEqual({
       creatorCallerId: 'profile:ci',
       authorityLimits: PROFILE_TASK.authorityLimits,
+      workByAgent: true,
+    })
+  })
+
+  // It still runs as the profile, so its firings stay held to the Worker limits.
+  it('keeps a profile’s task the profile’s work when the person changes it', async () => {
+    const person = fromPartial<ScheduledTaskPrincipal>({
+      localUser: true,
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      creator: { kind: 'local-user', label: 'You' },
+    })
+    expect(await runsAs(person, { prompt: 'Mine now.' })).toEqual({
+      creatorCallerId: 'profile:ci',
+      authorityLimits: PROFILE_TASK.authorityLimits,
+      workByAgent: true,
+    })
+  })
+
+  // Its firings are then the agent's, held to the Worker limits though they run as the person.
+  it('marks the person’s task as an agent’s work once a Session agent changes it, and back', async () => {
+    const personTask = {
+      ...PROFILE_TASK,
+      ownerKey: 'local-user',
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      workByAgent: false,
+    }
+    const agent = fromPartial<ScheduledTaskPrincipal>({
+      localUser: false,
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      creator: { kind: 'session-agent', label: 'Agent', sessionId: 'session-2' },
+    })
+    const person = fromPartial<ScheduledTaskPrincipal>({
+      localUser: true,
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      creator: { kind: 'local-user', label: 'You' },
+    })
+    const edit = (principal: ScheduledTaskPrincipal, task: typeof personTask) =>
+      Effect.runPromise(
+        runsAsAfterUpdate(principal, task, { prompt: 'Something else.' }).pipe(
+          Effect.provideService(SessionAuthorizationTargetRepository, fromPartial({})),
+        ),
+      )
+
+    expect(await edit(agent, personTask)).toMatchObject({ workByAgent: true })
+    expect(await edit(person, { ...personTask, workByAgent: true })).toMatchObject({
+      workByAgent: false,
     })
   })
 })
