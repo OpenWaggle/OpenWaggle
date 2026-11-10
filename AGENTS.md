@@ -62,6 +62,7 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
   [agent domain map](docs/agents/domain.md).
 - Whenever a product, architecture, release, or process decision is needed, run the `grill-with-docs` skill (`.agents/skills/grill-with-docs/SKILL.md`) instead of deciding unilaterally or asking an ad-hoc list of questions.
 - Do not commit, push, reset, clean, checkout, restore, or delete branches unless the maintainer explicitly approves that exact action.
+- PR workflow: `/pr` opens a draft, `/ready` gets an independent review and marks it ready, and `/babysit` runs as soon as a PR leaves draft (`.agents/skills/{pr,ready,babysit}`). Invoking one approves the commits and pushes it makes on the current branch; never merge.
 - Do not use destructive commands to resolve local conflicts. Ask if unrelated work blocks the task.
 - Prefer additive or isolated changes when another agent is active.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
