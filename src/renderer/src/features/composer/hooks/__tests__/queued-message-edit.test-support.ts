@@ -1,10 +1,11 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { WaggleInvocation, WagglePreset } from '@shared/types/waggle'
-import type {
-  SessionFollowUpEdit,
-  SessionFollowUpQueueItem,
-  SessionFollowUpQueueSnapshot,
+import {
+  heldEdit,
+  type SessionFollowUpEdit,
+  type SessionFollowUpQueueItem,
+  type SessionFollowUpQueueSnapshot,
 } from '@/features/chat/hooks'
 
 export const REVIEW_PRESET: WagglePreset = {
@@ -107,16 +108,10 @@ export function heldItem(item: SessionFollowUpQueueItem, holdId = 'hold-1') {
 }
 
 /** What a test's `useSessionFollowUpQueue` mock needs to re-adopt held edits like the real hook. */
-export function resumeFrom(
-  snapshot: SessionFollowUpQueueSnapshot,
-  heldEditOf: (
-    snapshot: SessionFollowUpQueueSnapshot,
-    followUpId: string,
-  ) => SessionFollowUpEdit | null,
-) {
+export function resumeFrom(snapshot: SessionFollowUpQueueSnapshot) {
   return {
     refresh: () => Promise.resolve(snapshot),
-    resumeEdit: (followUpId: string) => heldEditOf(snapshot, followUpId),
+    resumeEdit: (followUpId: string) => heldEdit(snapshot, followUpId),
     adoptEdit: () => Promise.resolve(true),
   }
 }

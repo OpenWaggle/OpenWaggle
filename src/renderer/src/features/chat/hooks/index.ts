@@ -1,5 +1,6 @@
 export { reconcileQueuedRunStarts } from './queued-run-start-reconcile'
 export {
+  heldEdit,
   isLostFollowUpEdit,
   SessionControlRejectedError,
   type SessionFollowUpEdit,
