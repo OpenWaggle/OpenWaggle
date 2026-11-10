@@ -21,7 +21,6 @@
     "types": ["node"],
     "rootDir": ".",
     "paths": {
-      "*": ["./*"],
       "@shared/*": ["./src/shared/*"],
       "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
       "@openwaggle/extension-sdk/*": ["./packages/extension-sdk/src/*"],
