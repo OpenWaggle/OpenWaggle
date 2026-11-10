@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CHAT_CONTENT_FRAME_CLASS,
@@ -8,8 +6,6 @@ import {
   SESSION_SUMMARY_RESERVE_PROPERTY,
   sessionSummaryReservePx,
 } from '../chat-content-layout'
-
-const GLOBALS_CSS = resolve(__dirname, '../../../../styles/globals.css')
 
 describe('sessionSummaryReservePx', () => {
   it('reserves the least width that keeps the centered conversation clear of a docked Summary', () => {
@@ -35,15 +31,11 @@ describe('sessionSummaryReservePx', () => {
   })
 })
 
-describe('the docking rule in globals.css', () => {
-  it('moves every conversation frame by the reserve while a persistent Summary is docked', () => {
-    const css = readFileSync(GLOBALS_CSS, 'utf8')
-    const selector = `.${SESSION_SUMMARY_DOCKED_CHAT_CLASS}:has(> div > aside[data-session-summary-mode="persistent"])`
-    const start = css.indexOf(selector)
-    expect(start).toBeGreaterThan(-1)
-    const rule = css.slice(start, css.indexOf('}', start))
-    expect(rule).toContain('.chat-content-frame')
-    expect(rule).toContain(`var(${SESSION_SUMMARY_RESERVE_PROPERTY}, 0px)`)
+describe('the names the docking rule in globals.css keys on', () => {
+  // scripts/__tests__/session-summary-docking-css.unit.test.ts reads the rule with these names.
+  it('keeps the class, frame marker and property names the rule uses', () => {
+    expect(SESSION_SUMMARY_DOCKED_CHAT_CLASS).toBe('session-summary-docking')
+    expect(SESSION_SUMMARY_RESERVE_PROPERTY).toBe('--session-summary-reserve')
     expect(CHAT_CONTENT_FRAME_CLASS.split(' ')).toContain('chat-content-frame')
   })
 })
