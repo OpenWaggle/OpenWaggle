@@ -77,10 +77,12 @@ export class TranscriptViewportSession {
   private saveTimer: Timer | null = null
   private scrollbarTimer: Timer | null = null
 
-  constructor(
-    private readonly positionKey: string,
-    private readonly view: TranscriptViewportView,
-  ) {
+  private readonly positionKey: string
+  private readonly view: TranscriptViewportView
+
+  constructor(positionKey: string, view: TranscriptViewportView) {
+    this.positionKey = positionKey
+    this.view = view
     this.savedPosition = savedReadingPosition(positionKey)
     this.lastPosition = this.savedPosition
     this.controller = new TranscriptViewportController(

@@ -29,8 +29,11 @@ export const BROWSER_PREVIEW_VIEWPORT_COMMIT_TIMEOUT_MS = 15_000
 export class BrowserPreviewViewportCommitTimeoutError extends Error {
   override readonly name = 'BrowserPreviewViewportCommitTimeoutError'
 
-  constructor(readonly previewId: string) {
+  readonly previewId: string
+
+  constructor(previewId: string) {
     super(`Timed out committing the browser viewport for preview ${previewId}`)
+    this.previewId = previewId
   }
 }
 

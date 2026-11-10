@@ -24,11 +24,15 @@ export class BrowserPreviewRecordingRequestClient {
   private pendingRequestId: string | null = null
   private disposed = false
 
-  constructor(
-    private readonly previewId: string,
-    private readonly controller: RecordingController,
-    private readonly respond: Respond,
-  ) {}
+  private readonly previewId: string
+  private readonly controller: RecordingController
+  private readonly respond: Respond
+
+  constructor(previewId: string, controller: RecordingController, respond: Respond) {
+    this.previewId = previewId
+    this.controller = controller
+    this.respond = respond
+  }
 
   async handle(request: BrowserPreviewRecordingRequest): Promise<void> {
     if (this.disposed || request.previewId !== this.previewId) return

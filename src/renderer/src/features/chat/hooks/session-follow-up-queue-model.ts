@@ -84,12 +84,14 @@ export interface SessionFollowUpEditPayload {
  * `queue_byte_capacity_reached`, `follow_up_edit_requires_desktop_user`.
  */
 export class SessionControlRejectedError extends Error {
-  constructor(
-    readonly operation: string,
-    readonly code: string,
-  ) {
+  readonly operation: string
+  readonly code: string
+
+  constructor(operation: string, code: string) {
     super(`Session Control rejected ${operation}: ${code}`)
     this.name = 'SessionControlRejectedError'
+    this.operation = operation
+    this.code = code
   }
 }
 
