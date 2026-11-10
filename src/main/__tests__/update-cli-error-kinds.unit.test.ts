@@ -73,4 +73,14 @@ describe('openwaggle update error kinds (#351)', () => {
     )
     stderr.mockRestore()
   })
+
+  it('refuses an empty --version instead of installing the newest release', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await expect(runUpdateCli(['--version='])).resolves.toEqual({
+      exitCode: 2,
+      updaterOwnsExit: false,
+    })
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Missing value for --version.'))
+    stderr.mockRestore()
+  })
 })

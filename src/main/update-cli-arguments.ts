@@ -31,7 +31,8 @@ export function validateArguments(args: ParsedArguments) {
   }
   for (const name of ['channel', 'version']) {
     const value = option(args, name)
-    if (value !== undefined && isOptionWithoutValue(value)) {
+    // An empty value, as in --version="$V" with $V unset, is missing too.
+    if (value !== undefined && (value === '' || isOptionWithoutValue(value))) {
       throw new UpdateCliUsageError(`Missing value for --${name}.`)
     }
   }
