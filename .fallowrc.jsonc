@@ -138,6 +138,9 @@
   "health": {
     "maxCrap": 100
   },
+  // A dynamic import() inside a function loads on demand, after both modules
+  // have initialised, which is how main breaks runtime/composition-root cycles.
+  "circularDependencies": { "ignoreLazyImports": true },
   "ignoreExportsUsedInFile": true,
   "usedClassMembers": [
     // Thrown errors cross the Session Host protocol as plain objects:
