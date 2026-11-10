@@ -301,23 +301,26 @@ describe('exact dependency versions', () => {
     ).toEqual(['lexical: ^0.30.0', 'vitest: ~4.1.0', 'dmg-license: *'])
   })
 
-  it('requires exact versions in the default and named pnpm catalogs', () => {
-    const workspace = [
-      'catalog:',
-      '  zod: ^4.0.0',
-      'catalogs:',
-      '  pi-runtime:',
-      '    "@earendil-works/pi-ai": 1.4.0',
-      '    "@earendil-works/pi-tui": ~1.4.0',
-      'overrides:',
-      '  qs: ^6.16.0',
-    ].join('\n')
+  it('requires exact versions in the default and named workspace catalogs', () => {
+    const rootManifest = JSON.stringify({
+      workspaces: {
+        packages: ['packages/*'],
+        catalog: { zod: '^4.0.0' },
+        catalogs: {
+          'pi-runtime': { '@earendil-works/pi-ai': '1.4.0', '@earendil-works/pi-tui': '~1.4.0' },
+        },
+      },
+      overrides: { qs: '^6.16.0' },
+    })
 
     expect(
-      collectExactDependencyVersionViolations('pnpm-workspace.yaml', workspace).map(
+      collectExactDependencyVersionViolations('package.json', rootManifest).map(
         (violation) => violation.detail,
       ),
     ).toEqual(['zod: ^4.0.0', '@earendil-works/pi-tui: ~1.4.0'])
+    expect(
+      collectExactDependencyVersionViolations('packages/pi-waggle/package.json', rootManifest),
+    ).toEqual([])
   })
 
   it('leaves peer ranges and fixture packages alone', () => {

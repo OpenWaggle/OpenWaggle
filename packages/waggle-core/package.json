@@ -78,8 +78,8 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && bun ../../scripts/write-cjs-package-json.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
+    "pack:check": "bun run build && bun pm pack --destination .pack"
   }
 }
