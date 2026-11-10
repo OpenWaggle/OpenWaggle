@@ -8,6 +8,10 @@ linker = "isolated"
 # `bun add` writes exact versions; check:repository-standards rejects ranges
 # (docs/dependency-updates.md).
 exact = true
+# Never resolve a missing package from Bun's global cache at run time. Without a node_modules
+# directory (a scratch repository in a test, a script run outside the checkout) Bun would
+# otherwise load whatever version it has cached instead of failing.
+auto = "disable"
 
 # Supply-chain hardening: refuse releases younger than seven days, so a hijacked publish has time
 # to be noticed and unpublished before it reaches this repository. Bun has no equivalent of pnpm's
