@@ -96,10 +96,6 @@ export class BufferEntryBuilder {
     row[COUNT_INDEX] += times
   }
 
-  get isEmpty() {
-    return this.countRows.size === 0 && this.sumRows.size === 0
-  }
-
   build(day: string): BufferEntry {
     return { day, counts: [...this.countRows.values()], sums: [...this.sumRows.values()] }
   }

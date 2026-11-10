@@ -189,16 +189,6 @@ export class BrowserPreviewPictureInPictureController {
     if (session) this.release(session, true)
   }
 
-  closeForContents(contents: WebContents): void {
-    for (const session of [...this.sessions.values()]) {
-      if (session.target === contents) this.release(session, true)
-    }
-  }
-
-  closeAll(): void {
-    for (const session of [...this.sessions.values()]) this.release(session, true)
-  }
-
   isOpen(previewId: string): boolean {
     const session = this.sessions.get(previewId)
     return session !== undefined && !session.window.isDestroyed()

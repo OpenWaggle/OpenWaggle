@@ -16,8 +16,6 @@ import {
 } from './sessions-cli-output'
 
 export class AmbiguousProfileOperationError extends Error {
-  readonly preserveStagedCredential = true
-
   constructor(message: string, options?: ErrorOptions) {
     super(message, options)
     this.name = 'AmbiguousProfileOperationError'

@@ -8,7 +8,6 @@ export interface GuiDesktopServiceLifecycle {
 
 export class DesktopNativeQuarantinedError extends Error {
   readonly code = 'desktop_native_quarantined'
-  readonly reason = 'previous-owner-unclean'
 
   constructor() {
     super(

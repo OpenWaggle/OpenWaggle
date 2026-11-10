@@ -19,10 +19,7 @@ export async function settleAccessCliFailure(input: {
       writeAccessCliError(preservedProfileCredentialError(error, staged.recoveryLocation), json),
     )
   }
-  if (
-    !accepted &&
-    !(error instanceof AmbiguousProfileOperationError && error.preserveStagedCredential)
-  ) {
+  if (!accepted && !(error instanceof AmbiguousProfileOperationError)) {
     try {
       await staged?.discard()
     } catch (cleanupError) {

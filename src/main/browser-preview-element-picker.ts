@@ -153,15 +153,6 @@ export class BrowserPreviewElementPicker {
     await executePickerControl(active.contents, BROWSER_PREVIEW_ELEMENT_PICKER_CANCEL_SCRIPT)
   }
 
-  cancelForContents(contents: WebContents): void {
-    for (const [previewId, active] of this.active) {
-      if (active.contents !== contents) continue
-      this.active.delete(previewId)
-      active.cancel()
-      void executePickerControl(contents, BROWSER_PREVIEW_ELEMENT_PICKER_CANCEL_SCRIPT)
-    }
-  }
-
   private getArtifacts(): ElementPickerArtifactStore {
     this.artifacts ??= getBrowserPreviewArtifactStore()
     return this.artifacts

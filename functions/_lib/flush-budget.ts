@@ -29,11 +29,6 @@ export class OperationBudget {
     private readonly reserve: number,
   ) {}
 
-  /** Operations made so far. */
-  get spent() {
-    return this.used
-  }
-
   /** Whether `count` optional operations still leave the reserve free. */
   allows(count: number) {
     return this.used + count <= this.limit - this.reserve

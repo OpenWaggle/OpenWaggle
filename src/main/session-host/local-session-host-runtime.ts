@@ -83,10 +83,6 @@ export class LocalSessionHostRuntime {
     return this.stoppedPromise
   }
 
-  isStopping(): boolean {
-    return this.stopPromise !== null
-  }
-
   stop(): Promise<void> {
     if (this.stopPromise) return this.stopPromise
     this.stopPromise = this.stopOnce()

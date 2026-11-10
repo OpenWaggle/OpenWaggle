@@ -165,11 +165,6 @@ export class BrowserPreviewRecordingController {
     this.publish({ phase: 'idle', previewId: null, bytes: 0, artifact: null, error: null })
   }
 
-  async dispose(): Promise<void> {
-    await this.cancel()
-    this.listeners.clear()
-  }
-
   clearResult(): void {
     if (this.session !== null || this.startingPreviewId !== null) return
     this.publish({ phase: 'idle', previewId: null, bytes: 0, artifact: null, error: null })

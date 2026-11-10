@@ -123,11 +123,6 @@ export class FollowUpEditHoldWindowLeases {
     }
   }
 
-  dispose() {
-    this.holdsByWindow.clear()
-    this.stopTimer()
-  }
-
   private ensureTimer() {
     if (this.stopRenewal) return
     const repeat = this.dependencies.repeat ?? repeatWithTimer
