@@ -35,7 +35,6 @@ One row covers every manifest that pins the package at that version.
 | `@img/sharp-win32-x64` | `0.35.4` | Prebuilt binary for `sharp` `0.35.4`; moves with `sharp` | `0.35.4` |
 | `@lexical/react` | `0.50.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `0.50.0` |
 | `@lobehub/icons-static-svg` | `1.95.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `1.95.0` |
-| `@lucide/astro` | `1.46.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `1.46.0` |
 | `@modelcontextprotocol/client` | `2.0.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `2.0.0` |
 | `@modelcontextprotocol/conformance` | `0.2.0-alpha.11` | Prerelease newer than the `latest` tag (`0.1.16`); moving to `latest` would be a downgrade | `0.2.0-alpha.11` |
 | `@modelcontextprotocol/ext-apps` | `2.0.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `2.0.0` |
