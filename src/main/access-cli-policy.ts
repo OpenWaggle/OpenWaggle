@@ -135,13 +135,14 @@ export function parseManagementEnvelope(
 }
 
 export function parseProfilePolicy(arguments_: ParsedArguments, workingDirectory = process.cwd()) {
-  const managementEnvelope = parseManagementEnvelope(arguments_, workingDirectory)
   const capabilities = parseProfileCapabilities(arguments_.options.get('capability'))
-  if (managementEnvelope && !capabilities.includes('access:profiles')) {
+  const managing = MANAGEMENT_ENVELOPE_OPTIONS.some((name) => arguments_.options.has(name))
+  if (managing && !capabilities.includes('access:profiles')) {
     throw new CommandCliUsageError(
       'The --manage-* options apply only to a profile with --capability access:profiles.',
     )
   }
+  const managementEnvelope = parseManagementEnvelope(arguments_, workingDirectory)
   return {
     capabilities,
     scope: parseProfileScope(arguments_, workingDirectory),

@@ -3,7 +3,10 @@ const STRUCTURED_INPUT_NOTES = `Message input: exactly one of --text <text>, --s
 Answer (request-respond reads the pending request, so it also needs sessions:read):
   --choice <item> (select) | --text <text>, --stdin, --input-file <path> (input, editor) |
   --confirm or --decline (confirm) | --acknowledge (notify) | --value-file <path|-> (custom,
-  one JSON value) | --dismiss (no answer; a confirm is declined). Approvals take approval-respond
+  one JSON value) | --dismiss (no answer; a confirm is declined). Approvals take approval-respond.
+  For a request requests-list does not show, the Session Host says why (capability_denied,
+  interaction-mismatch, interaction-not-found). An --idempotency-key retry is sent anyway so the
+  Host replays it, except with --text, --stdin, --input-file or --dismiss.
 Evidence (delegation-submit, delegation-verify), each repeatable: --evidence-command <summary>
   --evidence-diff <summary> --evidence-note <summary> --evidence-artifact <path-or-url>
   --evidence-source <reference>
@@ -13,9 +16,9 @@ Specification changes (delegation-propose-amendment, delegation-amend): --object
   --deliverable <text>... --accept <criterion>... --resource <reference>...
   --depends-on <delegation-id>[:accepted]... (default ready_for_review) --handoff <text>;
   --no-deliverables, --no-acceptance-criteria, --no-resources, --no-dependencies and
-  --no-handoff empty a field. A field left out keeps its current value, or the proposal's with
-  --proposal (which alone applies the proposed change). These commands read the Delegation first,
-  so they also need delegations:read`
+  --no-handoff empty a field. A field left out keeps its current value. delegation-amend
+  --proposal <id> applies the proposal as proposed and takes no changes. These commands read
+  the Delegation first, so they also need delegations:read`
 
 /**
  * `openwaggle hive` help. Every subcommand is the Hive tool action of the same name with `_`
@@ -71,9 +74,9 @@ Usage:
   openwaggle hive delegation-dependency <parent-id> <delegation-id> add|remove
     <dependency-id> ready_for_review|accepted <reason>
   openwaggle hive delegation-propose-amendment <worker-id> <delegation-id>
-    <base-revision> <reason> [specification changes]
+    <base-revision> <reason> <specification changes>
   openwaggle hive delegation-amend <parent-id> <delegation-id> <expected-revision>
-    <reason> [specification changes] [--proposal <proposal-id>]
+    <reason> (specification changes | --proposal <proposal-id>)
   openwaggle hive delegation-request-revision <parent-id> <delegation-id> <revision>
     <feedback> [--revised-objective <text> --deliverable <text>... --accept <criterion>...
     --resource <reference>...]

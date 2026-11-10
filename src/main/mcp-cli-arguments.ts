@@ -70,6 +70,22 @@ const SERVE_OPTIONS = [
   'workspace',
 ] as const
 
+/**
+ * What the parser records for an option given without a value. No command-line argument can hold
+ * a NUL character, so this never collides with a typed value, and `--choice true` stays a choice.
+ */
+const OPTION_WITHOUT_VALUE = '\u0000'
+
+/** Whether a recorded option value means the option was given without one. */
+export function isOptionWithoutValue(value: string) {
+  return value === OPTION_WITHOUT_VALUE
+}
+
+/** Whether a recorded value fits a boolean flag: no value, or the explicit `true` of `--flag=true`. */
+export function isFlagValue(value: string) {
+  return value === 'true' || value === OPTION_WITHOUT_VALUE
+}
+
 function parseOption(args: readonly string[], index: number, options: Map<string, string[]>) {
   const value = args[index] ?? ''
   const separator = value.indexOf('=')
@@ -81,7 +97,9 @@ function parseOption(args: readonly string[], index: number, options: Map<string
     !BOOLEAN_OPTIONS.has(key) &&
     Boolean(next) &&
     !next?.startsWith('--')
-  const optionValue = inlineValue ?? (consumesNext ? (next ?? '') : 'true')
+  const optionValue =
+    inlineValue ??
+    (consumesNext ? (next ?? '') : BOOLEAN_OPTIONS.has(key) ? 'true' : OPTION_WITHOUT_VALUE)
   options.set(key, [...(options.get(key) ?? []), optionValue])
   return consumesNext ? OPTION_AND_VALUE_COUNT : NEXT_ARGUMENT_OFFSET
 }
@@ -112,7 +130,8 @@ export function option(arguments_: ParsedArguments, name: string) {
 }
 
 export function hasFlag(arguments_: ParsedArguments, name: string) {
-  return option(arguments_, name) === 'true'
+  const value = option(arguments_, name)
+  return value !== undefined && isFlagValue(value)
 }
 
 export function validateMcpCliOptions(command: string, arguments_: ParsedArguments) {
@@ -128,7 +147,7 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
   }
   const missingValues = [...arguments_.options.entries()]
     .flatMap(([name, values]) =>
-      !BOOLEAN_OPTIONS.has(name) && values.some((value) => value === 'true') ? [name] : [],
+      !BOOLEAN_OPTIONS.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
     )
     .sort()
   if (missingValues.length > 0) {
@@ -136,7 +155,7 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
   }
   const valuedBooleans = [...arguments_.options.entries()]
     .flatMap(([name, values]) =>
-      BOOLEAN_OPTIONS.has(name) && values.some((value) => value !== 'true') ? [name] : [],
+      BOOLEAN_OPTIONS.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
     )
     .sort()
   if (valuedBooleans.length > 0) {

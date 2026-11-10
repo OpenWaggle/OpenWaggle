@@ -157,17 +157,30 @@ export function writeSessionsCliError(
   machine: boolean,
   stderr: (value: string) => unknown = (value) => process.stderr.write(value),
 ) {
-  const kind = classifySessionsCliError(error)
-  const message = error instanceof Error ? error.message : String(error)
+  const body = cliErrorBody(error)
   const output = machine
     ? JSON.stringify({
         schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
         type: 'error',
-        error: { kind, message },
+        error: body,
       })
-    : `error [${kind}]: ${message}`
+    : `error [${body.kind}]: ${body.message}`
   stderr(`${output}\n`)
-  return kind
+  return body.kind
+}
+
+/**
+ * The `error` of a CLI error envelope: its kind, its message, and the Session Host's refusal
+ * `code` when a Session Host refusal caused the failure (ADR 0063).
+ */
+export function cliErrorBody(error: unknown) {
+  const kind = classifySessionsCliError(error)
+  const message = error instanceof Error ? error.message : String(error)
+  const code =
+    error instanceof CliError || error instanceof LocalSessionClientProtocolError
+      ? error.code
+      : undefined
+  return { kind, message, ...(code ? { code } : {}) }
 }
 
 export function validateSessionsCliOutputMode(input: {

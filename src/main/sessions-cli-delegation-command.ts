@@ -228,7 +228,11 @@ export function delegationCommand(
       ),
     }
   }
-  const revision = positiveInteger(arguments_.positionals[REVISION_POSITION], 'Submission revision')
-  if (revision === 0) throw new Error('Submission revision must be positive.')
+  const revisionLabel =
+    action === 'amend' || action === 'propose-amendment'
+      ? 'Specification revision'
+      : 'Submission revision'
+  const revision = positiveInteger(arguments_.positionals[REVISION_POSITION], revisionLabel)
+  if (revision === 0) throw new Error(`${revisionLabel} must be positive.`)
   return revisionCommand(action, arguments_, sessionId, delegationId, revision, structured)
 }
