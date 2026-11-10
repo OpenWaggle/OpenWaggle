@@ -45,13 +45,18 @@ export function cliExitCodeForKind(kind: CliErrorKind) {
 /** An error whose CLI kind is known where it is raised. */
 export class CliError extends Error {
   override readonly name: string = 'CliError'
+  readonly code: string | undefined
 
   constructor(
     readonly kind: CliErrorKind,
     message: string,
-    options?: ErrorOptions,
+    options?: ErrorOptions & {
+      /** The Session Host's refusal code, when one caused the error; `--json` carries it. */
+      readonly code?: string
+    },
   ) {
     super(message, options)
+    this.code = options?.code
   }
 }
 

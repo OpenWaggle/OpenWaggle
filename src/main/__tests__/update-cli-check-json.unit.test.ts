@@ -60,7 +60,9 @@ vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
 vi.mock('../host-cli', () => ({ stopHostForUpdate: vi.fn() }))
 vi.mock('../host-update-stop', () => ({ formatHostUpdateStopReport: () => 'Session Host report' }))
 
+import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
 import { runUpdateCli } from '../update-cli'
+import { writeUpdateCheckError } from '../update-cli-check-output'
 
 describe('update CLI --check --json', () => {
   beforeEach(() => {
@@ -264,6 +266,20 @@ describe('update CLI --check --json', () => {
       schemaVersion: 1,
       type: 'error',
       error: { kind: 'usage', message: '--json works only with --check.' },
+    })
+  })
+
+  it('carries the Session Host code of a refusal in the error envelope', () => {
+    const lines: string[] = []
+    writeUpdateCheckError(
+      new LocalSessionClientProtocolError('capability_denied', 'Refused.'),
+      'beta',
+      (value) => lines.push(value),
+    )
+
+    expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+      error: { kind: 'authorization', code: 'capability_denied' },
+      savedChannel: 'beta',
     })
   })
 })

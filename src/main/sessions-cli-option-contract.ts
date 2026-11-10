@@ -1,6 +1,6 @@
 import { refuseFormerCliOptions } from './cli-former-options'
 import { CommandCliUsageError } from './command-cli-option-contract'
-import type { ParsedArguments } from './mcp-cli-arguments'
+import { isFlagValue, isOptionWithoutValue, type ParsedArguments } from './mcp-cli-arguments'
 import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
 import { formerGroupReplacement } from './sessions-cli-former-commands'
 import {
@@ -259,7 +259,7 @@ export function isLocalHiveCliCommand(command: string) {
 
 function validateOptionValues(arguments_: ParsedArguments) {
   const missing = [...arguments_.options.entries()].flatMap(([name, values]) =>
-    !BOOLEAN_OPTIONS.has(name) && values.some((value) => value === 'true') ? [name] : [],
+    !BOOLEAN_OPTIONS.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
   )
   if (missing.length > 0) {
     throw new CommandCliUsageError(
@@ -271,7 +271,7 @@ function validateOptionValues(arguments_: ParsedArguments) {
   }
   const valuedBooleans = [...arguments_.options.entries()]
     .flatMap(([name, values]) =>
-      BOOLEAN_OPTIONS.has(name) && values.some((value) => value !== 'true') ? [name] : [],
+      BOOLEAN_OPTIONS.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
     )
     .sort()
   if (valuedBooleans.length > 0) {
@@ -283,7 +283,7 @@ function validateOptionValues(arguments_: ParsedArguments) {
 
 export function validateSessionsCliOptions(command: string, arguments_: ParsedArguments) {
   const allowed = allowedOptions(command, arguments_)
-  refuseFormerCliOptions(command, arguments_)
+  refuseFormerCliOptions('hive', command, arguments_)
   const unknown = [...arguments_.options.keys()]
     .filter((name) => !ALL_SESSION_OPTIONS.has(name))
     .sort()

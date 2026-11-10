@@ -164,6 +164,7 @@ describe('local Hive CLI client credentials', () => {
       createLocalSessionCliClientInput(parseMcpCliArguments(['--profile', 'helper'])),
     ).rejects.toMatchObject({
       kind: 'authentication',
+      code: 'authentication_failed',
       message: expect.stringContaining(
         'The Session Host refused the credential for access profile "helper" (Authentication failed.)',
       ),

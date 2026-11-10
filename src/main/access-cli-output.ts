@@ -7,6 +7,7 @@ import type {
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { AcceptedProfileCredentialRecoveryError } from './access-cli-credential-settlement'
 import { CliError } from './cli-error'
+import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 import {
   classifySessionsCliError,
   SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
@@ -70,10 +71,32 @@ export function writeAccessCliError(
   return writeSessionsCliError(new AccessCliClassifiedError(error), json, stderr)
 }
 
+/** How many wrapped causes to look through for a Session Host code. */
+const MAX_CAUSE_DEPTH = 8
+
+/** The Session Host code of an error or of the error it wraps, as an uncertain create does. */
+function hostRefusalCode(error: unknown): string | undefined {
+  for (
+    let current = error, depth = 0;
+    current instanceof Error && depth < MAX_CAUSE_DEPTH;
+    depth += 1
+  ) {
+    if (current instanceof CliError || current instanceof LocalSessionClientProtocolError) {
+      if (current.code) return current.code
+    }
+    current = current.cause
+  }
+  return undefined
+}
+
 /** Carries the Access classification to the shared writer, which reads `kind` from a CliError. */
 class AccessCliClassifiedError extends CliError {
   constructor(error: unknown) {
-    super(classifyAccessCliError(error), formatErrorMessage(error), { cause: error })
+    const code = hostRefusalCode(error)
+    super(classifyAccessCliError(error), formatErrorMessage(error), {
+      cause: error,
+      ...(code ? { code } : {}),
+    })
   }
 }
 

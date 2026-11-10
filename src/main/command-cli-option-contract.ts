@@ -1,5 +1,5 @@
 import { CliError } from './cli-error'
-import type { ParsedArguments } from './mcp-cli-arguments'
+import { isFlagValue, isOptionWithoutValue, type ParsedArguments } from './mcp-cli-arguments'
 
 interface CommandCliOptionContractInput {
   readonly surface: string
@@ -52,7 +52,7 @@ export function validateCommandCliOptions(input: CommandCliOptionContractInput) 
   const booleans = input.booleanOptions ?? new Set<string>()
   const missing = [...input.arguments.options.entries()]
     .flatMap(([name, values]) =>
-      !booleans.has(name) && values.some((value) => value === 'true') ? [name] : [],
+      !booleans.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
     )
     .sort()
   if (missing.length > 0)
@@ -60,7 +60,7 @@ export function validateCommandCliOptions(input: CommandCliOptionContractInput) 
 
   const valuedBooleans = [...input.arguments.options.entries()]
     .flatMap(([name, values]) =>
-      booleans.has(name) && values.some((value) => value !== 'true') ? [name] : [],
+      booleans.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
     )
     .sort()
   if (valuedBooleans.length > 0) {

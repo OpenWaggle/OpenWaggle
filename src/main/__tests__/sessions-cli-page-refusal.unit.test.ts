@@ -80,7 +80,12 @@ async function failure(run: () => Promise<unknown>) {
     (reason: unknown) => reason,
   )
   if (!(error instanceof CliError)) throw new Error(`Expected a CliError, got ${String(error)}`)
-  return { kind: error.kind, exitCode: cliExitCodeForKind(error.kind), message: error.message }
+  return {
+    kind: error.kind,
+    exitCode: cliExitCodeForKind(error.kind),
+    message: error.message,
+    code: error.code,
+  }
 }
 
 beforeEach(() => {
@@ -106,6 +111,7 @@ describe('a refused later page of a paged read', () => {
       kind: 'resync_required',
       exitCode: 9,
       message: 'resync_required: Refused.',
+      code: 'resync_required',
     })
   })
 
@@ -124,6 +130,6 @@ describe('a refused later page of a paged read', () => {
           arguments: NO_ARGUMENTS,
         }),
       ),
-    ).resolves.toMatchObject({ kind: 'conflict', exitCode: 6 })
+    ).resolves.toMatchObject({ kind: 'conflict', exitCode: 6, code: 'record_too_large' })
   })
 })
