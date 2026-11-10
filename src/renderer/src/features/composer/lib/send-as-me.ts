@@ -1,5 +1,6 @@
 import { ADOPTION_LIFTED_PAUSE_REASONS } from '@shared/types/session-control-queue'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
+import { isOwnQueuedMessage } from './own-queued-message'
 
 type SendAsMeQueue = Pick<
   SessionFollowUpQueueSnapshot,
@@ -30,7 +31,8 @@ export function sendAsMeStartsNow(input: {
       index >= 0 &&
       upToIt.every((item) => item.editHold === undefined) &&
       !upToIt.some(
-        (item) => item.id !== followUpId && item.editable && item.deliveryState === 'pending',
+        (item) =>
+          item.id !== followUpId && isOwnQueuedMessage(item) && item.deliveryState === 'pending',
       )
     )
   }

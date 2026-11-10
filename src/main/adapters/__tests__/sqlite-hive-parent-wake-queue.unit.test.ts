@@ -17,6 +17,7 @@ const AGENT = 'transient-mcp:digest-agent'
 function wakeWithAgentFollowUp(
   root: string,
   queue: { readonly state: string; readonly reason?: string },
+  personFollowUp = false,
 ) {
   return runHiveWakeTest(
     root,
@@ -43,6 +44,17 @@ function wakeWithAgentFollowUp(
           ${1}, ${1}
         )
       `
+      if (personFollowUp) {
+        // The person's Follow-up behind it, which waits only while an edit holds it.
+        const mine = { ...intent, callerId: 'gui:local-user', idempotencyKey: 'mine' }
+        yield* sql`
+          INSERT INTO session_follow_ups (
+            id, session_id, position, delivery_state, intent_json, created_at, updated_at
+          ) VALUES (
+            ${'mine'}, ${'session-parent'}, ${1}, ${'pending'}, ${JSON.stringify(mine)}, ${1}, ${1}
+          )
+        `
+      }
       yield* submit(3000)
       return yield* candidate()
     }),
@@ -66,6 +78,12 @@ describe('Hive wake beside queued Follow-ups', () => {
     const woken = await wakeWithAgentFollowUp(root, { state: 'paused', reason: 'parent-limit' })
 
     expect(woken).toMatchObject({ parentSessionId: 'session-parent', callerId: 'gui:local-user' })
+  })
+
+  it('leaves the person’s Follow-up in a queue waiting on agents’ capacity to run first', async () => {
+    expect(
+      await wakeWithAgentFollowUp(root, { state: 'paused', reason: 'parent-limit' }, true),
+    ).toBeUndefined()
   })
 
   it.each([

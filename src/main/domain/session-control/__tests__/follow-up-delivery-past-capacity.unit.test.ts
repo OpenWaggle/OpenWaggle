@@ -95,7 +95,7 @@ describe('waitsOnHeldNextFollowUp in a queue waiting on agents’ capacity', () 
       false,
     ],
     ['nothing is held', [agents, mine], false],
-  ] as const)('is %s: %s', (_, items, waits) => {
+  ] as const)('when %s', (_, items, waits) => {
     expect(
       waitsOnHeldNextFollowUp(state([...items], IDLE, 'paused', { pauseReason: 'parent-limit' })),
     ).toBe(waits)

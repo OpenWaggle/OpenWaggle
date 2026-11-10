@@ -65,7 +65,8 @@ export interface SessionOrchestrationUpdateRepositoryShape {
     SessionControlRepositoryError
   >
   /**
-   * The parent, if it is idle, not archived, has no queued Follow-up, its latest Run completed or
+   * The parent, if it is idle, not archived, has no queued Follow-up (apart from agents' ones a
+   * Worker limit holds back, `parent-limit`), its latest Run completed or
    * failed (a stopped Run is the user's choice), and an update reached it that no Run acted on.
    * Optional so test doubles that never wake keep compiling.
    */

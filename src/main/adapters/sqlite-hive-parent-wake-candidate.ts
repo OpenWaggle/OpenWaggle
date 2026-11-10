@@ -29,6 +29,12 @@ function runAuthorizationOverride(value: string | null) {
   return AGENT_AUTHORIZATION_MODES.find((mode) => mode === value)
 }
 
+/** A Follow-up the local desktop user sent (`isLocalUserCallerId`). */
+const LOCAL_USER_FOLLOW_UP_SQL = `(
+  json_extract(follow_ups.intent_json, '$.callerId') IN ('local-user', 'gui:local-user')
+  OR json_extract(follow_ups.intent_json, '$.callerId') LIKE 'local-user:%'
+)`
+
 /**
  * The parent to wake, read in one statement (`hive-parent-wake.ts`). An update is pending until a
  * model request of the parent includes it, so a pending update is one no Run has acted on. It
@@ -73,12 +79,19 @@ export function selectHiveParentWakeCandidate(
         AND sessions.archived = 0
         AND states.active_run_id IS NULL
         -- Follow-ups run first, except agents' ones a Worker limit holds back: those wait for a
-        -- slot, and the wake meets the limits itself (ADR 0030, amended 2026-11-10).
-        AND (
-          (states.queue_state = ${'paused'} AND states.queue_pause_reason = ${'parent-limit'})
-          OR NOT EXISTS (
-            SELECT 1 FROM session_follow_ups WHERE session_follow_ups.session_id = sessions.id
-          )
+        -- slot, and the wake meets the limits itself. The person's still come first, even while
+        -- an edit holds them (ADR 0030, amended 2026-11-10).
+        AND NOT EXISTS (
+          SELECT 1 FROM session_follow_ups AS follow_ups
+          WHERE follow_ups.session_id = sessions.id
+            AND (
+              states.queue_state IS NOT ${'paused'}
+              OR states.queue_pause_reason IS NOT ${'parent-limit'}
+              OR (
+                follow_ups.delivery_state = ${'pending'}
+                AND ${sql.literal(LOCAL_USER_FOLLOW_UP_SQL)}
+              )
+            )
         )
         AND latest.status IN (${'completed'}, ${'failed'})
     )

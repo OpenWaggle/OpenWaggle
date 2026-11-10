@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mutateSessionQueue } from '../../application/session-control-service'
 import {
+  beginEdit,
   followUpEditLayer,
   idleQueue,
   loadState,
@@ -193,5 +194,68 @@ describe('Queue delivery of agents’ work beside the person’s', () => {
       pauseReason: 'run-failed',
       items: [{ id: 'earlier' }, { id: 'agent-retry' }],
     })
+  })
+
+  // The deferral outlives a refusal, so the person's retry an edit holds starts once it ends (the
+  // Host's lease expiry, not the person's queue action, which would admit the agent's retry).
+  it('starts the person’s held retry once the edit ends after the agent’s retry was refused', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue(
+          [
+            { id: 'earlier', acceptedAt: 1 },
+            { id: 'agent-other', acceptedAt: 2 },
+            { id: 'agent-more', acceptedAt: 3 },
+            { id: 'agent-retry', acceptedAt: 11 },
+            { id: 'mine', acceptedAt: 12 },
+          ],
+          'paused',
+        )
+        yield* busyWorkerHive
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE session_control_states SET queue_pause_reason = ${'run-failed'}
+          WHERE session_id = ${SESSION}
+        `
+        yield* sql`
+          CREATE TEMP TABLE IF NOT EXISTS session_follow_up_deferred_retries (
+            session_id TEXT PRIMARY KEY, accepted_after INTEGER NOT NULL
+          )
+        `
+        yield* sql`
+          INSERT INTO temp.session_follow_up_deferred_retries (session_id, accepted_after)
+          VALUES (${SESSION}, ${10})
+        `
+        const held = yield* beginEdit('mine')
+        if (held.outcome.effect !== 'follow-up-edit-held') throw new Error('expected a hold')
+        yield* mutateSessionQueue({
+          callerId: AGENT,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-withdraw',
+            sessionId: SESSION,
+            followUpIds: ['agent-other'],
+          }),
+        })
+        const whileHeld = yield* loadState()
+        yield* sql`DELETE FROM temp.session_follow_up_edit_holds WHERE follow_up_id = ${'mine'}`
+        const after = yield* mutateSessionQueue({
+          callerId: AGENT,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-withdraw',
+            sessionId: SESSION,
+            followUpIds: ['agent-more'],
+          }),
+        })
+        return { whileHeld, after }
+      }).pipe(Effect.provide(layer('held-retry-after-refusal.sqlite'))),
+    )
+
+    expect(result.whileHeld.followUpQueue).toMatchObject({
+      pauseReason: 'run-failed',
+      deferredRetryAfter: 10,
+    })
+    expect(result.after.outcome).toMatchObject({ effect: 'started-run', followUpId: 'mine' })
   })
 })

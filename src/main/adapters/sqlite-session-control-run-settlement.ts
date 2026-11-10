@@ -220,13 +220,12 @@ export function planRunSettlementWithinWorkerLimits(
     }
     const settled = refusal ? planRunSettlement(state, input, true) : planned
     if (!settled.accepted) return settled
-    // A refused retry a failed Run deferred lets only the person's own retry start past its pause.
-    const { deferredRetryAfter } = state.followUpQueue
+    // A failed Run's deferred retry never outlives a Run (`persistFollowUpEditHolds`), so only
+    // queue delivery meets a refused one.
     const delivery = yield* deliverAuthorizedPersonFollowUpPastCapacity(
       sql,
       settled.state,
       input.nextRunId,
-      refusal ? deferredRetryAfter : undefined,
     )
     return delivery.delivered
       ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }

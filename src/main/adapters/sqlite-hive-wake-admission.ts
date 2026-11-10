@@ -15,9 +15,9 @@ export function startsHiveWake(state: SessionControlSessionState) {
 /**
  * A Hive wake checks its parent and its authority before it starts, but outside the mutation's
  * transaction. It starts only if both still hold inside it: the parent is idle, unarchived, with
- * no Follow-up (or only ones a Worker limit holds back) and an unread update; its last Run's caller is still the wake's caller and may
- * still message it; that Run asks for no wider mode than the wake carries; and an update it acts
- * on has a cause that may wake the parent.
+ * no Follow-up (or only agents' ones a Worker limit holds back) and an unread update; its last
+ * Run's caller is still the wake's caller and may still message it; that Run asks for no wider
+ * mode than the wake carries; and an update it acts on has a cause that may wake the parent.
  */
 export function hiveWakeRefusal(
   sql: SqlClient.SqlClient,

@@ -194,8 +194,13 @@ export function deliverAfterQueueDecision(
     // and only the person's own retry starts past it.
     if (refusal) {
       const { deferredRetryAfter } = authorized.followUpQueue
+      const paused = pauseUndeliveredQueue(authorized, 'parent-limit')
+      // The deferral stays while it waits, so the person's retry an edit holds starts once the
+      // edit ends, and the agent's when a slot frees.
       return yield* undelivered(
-        pauseUndeliveredQueue(authorized, 'parent-limit'),
+        deferredRetryAfter === undefined
+          ? paused
+          : { ...paused, followUpQueue: { ...paused.followUpQueue, deferredRetryAfter } },
         deferredRetryAfter,
       )
     }
