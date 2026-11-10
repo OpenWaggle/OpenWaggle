@@ -117,6 +117,8 @@ bun run test:coverage
 
 Use targeted Vitest file runs while iterating, then run the relevant script before handoff.
 
+The test scripts run Vitest on the Bun runtime (`bun --bun vitest`, ADR 0064), so a targeted run is `bun --bun vitest run -c vitest.unit.config.ts <file>`. A plain `vitest` runs the same tests on Node, which is not what CI runs. `.agents/memory/testing.md` lists the Bun differences the tier configs absorb.
+
 Every Vitest config runs its tests in `Pacific/Kiritimati` (UTC+14), whatever the machine's zone, so a test that confuses local and UTC days fails everywhere, not only far from UTC. The nightly workflow runs the unit tier again in `America/Adak`; reproduce it with `OPENWAGGLE_TEST_TIME_ZONE=America/Adak bun run test:unit` (a plain `TZ=...` no longer reaches the tests). Build test dates from local parts (`new Date(2026, 9, 14, 0, 30)`) when a test means a local time, and stub `TZ` in the test when it needs one zone.
 
 Component hooks keep Vitest's 10 s deadline. Import a large module graph once in a `beforeAll` with `COLD_IMPORT_TIMEOUT_MS` (`src/renderer/src/test-utils/cold-import.ts`), never in a `beforeEach`; `scripts/test-support/cold-import-hooks.ts` fails the unit tier otherwise.

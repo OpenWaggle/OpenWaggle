@@ -5,6 +5,19 @@ helpers and `fromPartial`, the React Compiler in component tests, renderer test 
 CI-only test environment quirks.
 Load when writing or debugging tests, or changing Vitest configuration.
 
+## Vitest runs on Bun: what differs from Node
+
+Every tier runs as `bun --bun vitest` (ADR 0064). Bun 1.4.4 differs from Node in ways that break tests, not product code, and the tier configs or test helpers absorb them:
+
+- Bun's builtin ESM named exports are fixed once the first importer loads them, and `syncBuiltinESMExports()` does nothing. Patching `os.homedir` or `net.connect` on the module object never reaches `import { homedir } from 'node:os'`. The tiers alias `node:os` to `scripts/test-support/node-os.ts` so `homedir` follows the per-file HOME. The same gap affects the trusted-main extension network guard in product code.
+- `'__esModule' in namespace` is true for every ES namespace, so Vitest's external interop returns the wrong object for a package whose default export is a namespace (zod). `server.deps.inline: ['zod']` fixes it.
+- A bare `undici` resolves to Bun's partial builtin (no `MockAgent`); the tiers alias it to the npm package.
+- `ChildProcess` pipes and `Event.isTrusted` are accessors that cannot be assigned (`pipedChildProcess()` in `src/main/test-support/`). `fs.access` resolves `null`. `readdir` order differs. A `maxBuffer` error's `code` sits on its prototype (`errorCode()` in `@shared/utils/node-error`).
+- `bun --bun` puts a directory first on `PATH` whose `node` is Bun; `nodeRuntime()` skips it.
+- With no `node_modules` above it (a scratch repository under the temp directory), Bun resolves a package from its global install cache. `bunfig.toml` sets `install.auto = "disable"` so such a lookup fails as on Node.
+- oxlint's RuleTester refuses Bun (it needs a 6 GiB `ArrayBuffer`), so the custom lint rule tests run through `oxc-parser` (`scripts/oxlint/__tests__/lint-rule.ts`).
+- Bun's `tty.ReadStream` destroys itself on EAGAIN, so node-pty gave no output; `patches/node-pty@1.1.0.patch` polls the master with `fs.read` on Bun.
+
 ## Runtime-importing unit tests time out under heavy machine load
 
 The unit tests that import the app runtime (`settings-*.unit.test.ts`, `runtime-usage-statistics`, `runtime-idle-cache-warming`) reset it in a `beforeEach` that can pass its 60 s hook limit when the machine is busy (load average above about 20, for example several agent Sessions building at once). `bun run verify` and the pre-push hook then fail on files the change never touched. An earlier note blamed `build/session-embedding-model/`. That was wrong: they also fail without it, and pass alone once the load drops. Rerun them alone, or rely on CI, before suspecting the change.

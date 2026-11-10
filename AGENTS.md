@@ -14,7 +14,7 @@ This is the root entrypoint for agentic coding work in OpenWaggle. Keep this fil
 
 ## Commands
 
-Use `bun` only: `bun install`, `bun run <script>`, `bun run --filter <package> <script>`, and `bunx <bin>`. Repository scripts run with `bun scripts/<name>.ts`; Node.js still runs Vitest, Electron tooling, and native module builds, so keep Node 24 installed.
+Use `bun` only: `bun install`, `bun run <script>`, `bun run --filter <package> <script>`, and `bunx <bin>`. Repository scripts run with `bun scripts/<name>.ts`, and every Vitest tier runs on the Bun runtime (`bun --bun vitest`). Node.js still runs Electron tooling, native module builds and the MCP conformance client, so keep Node 24 installed.
 
 ```bash
 bun install              # Install from bun.lock (Bun version: packageManager / .bun-version)
