@@ -4,6 +4,7 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
 import {
   DOCX_MIME_TYPE,
@@ -143,8 +144,10 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
   const buffer = Buffer.from(input.bytes)
   const kind = 'image'
-  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
-  const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
+  const [extractedText, tempAttachmentsDir] = await allInOrder([
+    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
+    ensureTempAttachmentsDirectory(),
+  ])
   const filePath = path.join(tempAttachmentsDir, `resource-${randomUUID()}${extension}`)
   await fs.writeFile(filePath, buffer, { flag: 'wx', mode: PRIVATE_ATTACHMENT_FILE_MODE })
 

@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 import type { Settings } from '@shared/types/settings'
+import { allInOrder } from '@shared/utils/all-in-order'
 import * as Effect from 'effect/Effect'
 import {
   projectOfWorkspacePath,
@@ -60,15 +61,15 @@ async function spellings(directory: string) {
  * that project; a Session's ready managed worktree, or a directory inside one, stands for the
  * Session's project, which the hive tool and spawn read for a Run there. Anything else, a plain
  * subdirectory of a project included, is its own project, as `create` and `launch` take it.
- * Settings are read first, so a Settings failure lists nothing.
+ * Settings are read alongside the directory's spellings, and a Settings failure is the one
+ * reported, so it lists nothing.
  */
 export async function resolveAgentDefinitionProject(
   directory: string,
   sources?: AgentDefinitionProjectSources,
 ): Promise<AgentDefinitionProject> {
   const resolved = sources ?? (await defaultSources())
-  const settings = await resolved.readSettings()
-  const candidates = await spellings(directory)
+  const [settings, candidates] = await allInOrder([resolved.readSettings(), spellings(directory)])
   const knownProject = await projectOfWorkspacePath(
     candidates,
     {

@@ -120,6 +120,7 @@ export async function resolveEffectiveAuthorizationMode(
       })
       return FAIL_CLOSED_AUTHORIZATION_MODE
     }
+    if (!boundary) return FAIL_CLOSED_AUTHORIZATION_MODE
 
     const [projectDefault, globalDefault] = await Promise.all([
       readProjectDefault(session.projectPath),
@@ -133,7 +134,6 @@ export async function resolveEffectiveAuthorizationMode(
         projectDefault,
         globalDefault,
       })
-    if (!boundary) return FAIL_CLOSED_AUTHORIZATION_MODE
     return authorizationBoundaryRequiresApproval({ boundary, callerBoundary })
       ? FAIL_CLOSED_AUTHORIZATION_MODE
       : preferredMode

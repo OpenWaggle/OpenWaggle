@@ -11,14 +11,17 @@ export function reconcileLoadedSummaries(
   current: CurrentSessionSummaryState,
   changed: (id: SessionId) => boolean,
 ) {
+  const currentById = new Map<SessionId, SessionSummary>()
+  for (const summary of current.sessions) {
+    // The first summary with an id wins, as `find` would pick it.
+    if (!currentById.has(summary.id)) currentById.set(summary.id, summary)
+  }
   const summaryById = new Map<SessionId, SessionSummary>()
   for (const summary of loaded) {
     if (changed(summary.id) && current.missingSessionIds.has(summary.id)) continue
     summaryById.set(
       summary.id,
-      changed(summary.id)
-        ? (current.sessions.find((candidate) => candidate.id === summary.id) ?? summary)
-        : summary,
+      changed(summary.id) ? (currentById.get(summary.id) ?? summary) : summary,
     )
   }
   for (const summary of current.sessions) {

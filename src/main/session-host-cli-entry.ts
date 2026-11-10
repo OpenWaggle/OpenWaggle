@@ -177,6 +177,15 @@ async function prepareSessionHostStore(preparedPaths: LocalSessionHostPaths) {
   return paths
 }
 
+/** What the Host starts with, imported once this process owns the profile. */
+function importSessionHostStartup() {
+  return Promise.all([
+    import('./runtime'),
+    import('./store/settings'),
+    import('./session-host/session-host-bootstrap'),
+  ])
+}
+
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
   // A detached Host owns no windows and must never register in the macOS Dock.
@@ -215,9 +224,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       try {
         const paths = await prepareSessionHostStore(preparedPaths)
         startupMark('host-cutover-settled')
-        const runtime = await import('./runtime')
-        const settings = await import('./store/settings')
-        const { startAppSessionHost } = await import('./session-host/session-host-bootstrap')
+        const [runtime, settings, { startAppSessionHost }] = await importSessionHostStartup()
         let releaseQuitHold: () => void = () => undefined
         try {
           await runtime.initializeAppRuntime()

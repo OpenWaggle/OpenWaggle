@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { link, lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ActionManifest } from '@shared/types/action-definitions'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import type { ActionPublicationIdentity } from '../../domain/project-action-catalog'
 import { isSameDurableDirectoryIdentity } from '../../domain/workspace-generation'
@@ -120,11 +121,13 @@ export async function writeActionManifest(
   const read = (source: string) => readActionConfigSource(workspace, source)
   const content = serializeActionManifest(manifest)
   const installed = async () => {
-    const targetFile = await lstat(target).catch((error: unknown) => {
-      if (isEnoent(error)) return null
-      throw error
-    })
-    const prepared = await lstat(next)
+    const [targetFile, prepared] = await allInOrder([
+      lstat(target).catch((error: unknown) => {
+        if (isEnoent(error)) return null
+        throw error
+      }),
+      lstat(next),
+    ])
     return (
       targetFile?.isFile() &&
       targetFile.dev === prepared.dev &&

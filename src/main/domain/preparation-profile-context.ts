@@ -30,6 +30,13 @@ export function sharePreparationProfile(
   return { ...shared, profiles: [...shared.profiles, profile] }
 }
 
+/** Each id's first profile, as `find` would return it. */
+function firstProfileById(profiles: readonly PreparationProfile[]) {
+  const byId = new Map<string, PreparationProfile>()
+  for (const profile of profiles) if (!byId.has(profile.id)) byId.set(profile.id, profile)
+  return byId
+}
+
 /** Private preparation must remain usable after its shared profile disappears. */
 export function retainPrivatePreparationProfiles(
   manifest: ActionManifest,
@@ -38,14 +45,14 @@ export function retainPrivatePreparationProfiles(
   releasedProfileId?: string,
 ): ActionManifest {
   const profiles = new Map(manifest.profiles.map((profile) => [profile.id, profile]))
+  const previousById = firstProfileById(previousProfiles)
+  const sharedById = firstProfileById(sharedProfiles)
   for (const definition of manifest.preparation) {
     const id = definition.profileId
     if (id === 'default' || profiles.has(id)) continue
     // An explicit local delete restores the shared profile instead of re-creating its override.
-    if (id === releasedProfileId && sharedProfiles.some((profile) => profile.id === id)) continue
-    const profile =
-      previousProfiles.find((candidate) => candidate.id === id) ??
-      sharedProfiles.find((candidate) => candidate.id === id)
+    if (id === releasedProfileId && sharedById.has(id)) continue
+    const profile = previousById.get(id) ?? sharedById.get(id)
     if (!profile) throw new Error(`Preparation profile ${id} is missing.`)
     profiles.set(id, profile)
   }

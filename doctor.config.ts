@@ -164,6 +164,42 @@ const config: DoctorConfig = {
         ],
         rules: ['react-doctor/no-json-parse-stringify-clone'],
       },
+      {
+        // Every read here draws on one shared byte budget (`remainingBytes`), checked and
+        // then decremented per file, so read order decides which file crosses the limit.
+        // Reading the kinds or the files of a kind concurrently would make the outcome
+        // depend on I/O timing. The catalog is bounded and read rarely.
+        files: [
+          'src/main/adapters/syntax-resource-persistence.ts',
+          'src/main/adapters/syntax-resource-persistence-read.ts',
+        ],
+        rules: [
+          'react-doctor/async-parallel',
+          'react-doctor/server-sequential-independent-await',
+          'react-doctor/async-await-in-loop',
+        ],
+      },
+      {
+        // The handoff snapshot is a chain of git processes on one repository: resolve HEAD,
+        // write the index tree, snapshot the worktree through a scratch index, then create
+        // the commits. Each commit-tree names trees and parents from the steps before it,
+        // and the snapshot records HEAD, index and worktree in that order on purpose.
+        files: ['src/main/adapters/git/workspace-handoff-snapshot.ts'],
+        rules: ['react-doctor/server-sequential-independent-await'],
+      },
+      {
+        // recoverCursor can repair the history log after an interrupted write, and the read
+        // that follows must see the repaired file, so the two cannot overlap.
+        files: ['src/main/adapters/terminal/terminal-history-store.ts'],
+        rules: ['react-doctor/server-sequential-independent-await'],
+      },
+      {
+        // The awaited capture is not skipped by the early return: `capture?.invocation` is
+        // the command the preparation launches, so it must exist before `launches.start`.
+        // The later `!capture` return only decides whether to read back what it captured.
+        files: ['src/main/adapters/project-actions/preparation-process.ts'],
+        rules: ['react-doctor/async-defer-await'],
+      },
     ],
   },
 }

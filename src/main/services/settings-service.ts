@@ -97,6 +97,10 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
   // Dynamic import defers settings.ts module-level side effects (electron.safeStorage)
   // until runtime initialization, preventing test breakage in unrelated suites.
   static readonly Live = Effect.promise(async () => {
+    const [settingsStore, { installLegacyPreferenceMigrator }] = await Promise.all([
+      import('../store/settings'),
+      import('../config/project-config'),
+    ])
     const {
       getSettings,
       updateSettingsDurably,
@@ -109,8 +113,7 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
       refreshSettingsStore,
       hydrateSettingsStoreFromHost,
       flushSettingsStoreForTests,
-    } = await import('../store/settings')
-    const { installLegacyPreferenceMigrator } = await import('../config/project-config')
+    } = settingsStore
     // The project settings file strips its retired `model` key on every write; route that strip
     // through the queue-safe insert-if-absent DB writer so the value is never lost.
     installLegacyPreferenceMigrator((projectPath, model) =>

@@ -1,5 +1,6 @@
 import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { createLogger } from '../../logger'
 import {
   type HistoryFiles,
@@ -56,10 +57,12 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
   private async makeMove(fromKey: TerminalKey, toKey: TerminalKey) {
     const from = this.files.describe(fromKey)
     const to = this.files.describe(toKey)
-    const sourceMetadata = await this.files.readIfPresent(from.metadataFile)
-    const logExists = await this.files.exists(from.logFile)
-    const workingDirectoryExists = await this.files.exists(from.workingDirectoryFile)
-    const cursorExists = await this.files.exists(from.cursorFile)
+    const [sourceMetadata, logExists, workingDirectoryExists, cursorExists] = await allInOrder([
+      this.files.readIfPresent(from.metadataFile),
+      this.files.exists(from.logFile),
+      this.files.exists(from.workingDirectoryFile),
+      this.files.exists(from.cursorFile),
+    ])
     if (sourceMetadata === null && !logExists && !workingDirectoryExists && !cursorExists)
       return null
     if (sourceMetadata !== fromKey) {

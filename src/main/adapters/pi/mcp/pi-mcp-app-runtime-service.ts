@@ -205,12 +205,13 @@ async function readResource(
 /** A list the server may not offer at all; a server without the method lists nothing. */
 async function optionalList(
   pool: McpConnectionPool,
+  connection: AppConnection,
   input: McpAppServerInput,
   method: string,
   key: string,
 ) {
   try {
-    const result = await appRequest(pool, input, method, {})
+    const result = await requestOver(pool, connection, input, method, {})
     return json(isRecord(result) ? (result[key] ?? []) : [])
   } catch (error) {
     if (isRecord(error) && error.code === METHOD_NOT_FOUND) return json([])
@@ -219,8 +220,12 @@ async function optionalList(
 }
 
 async function listCatalog(pool: McpConnectionPool, input: McpAppServerInput) {
-  const resources = await optionalList(pool, input, 'resources/list', 'resources')
-  const prompts = await optionalList(pool, input, 'prompts/list', 'prompts')
+  // Both lists go over one connection, resolved once, as concurrent requests.
+  const { connection } = await appConnection(pool, input)
+  const [resources, prompts] = await Promise.all([
+    optionalList(pool, connection, input, 'resources/list', 'resources'),
+    optionalList(pool, connection, input, 'prompts/list', 'prompts'),
+  ])
   return { resources, prompts }
 }
 
