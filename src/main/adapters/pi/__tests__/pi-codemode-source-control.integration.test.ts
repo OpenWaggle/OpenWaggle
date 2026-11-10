@@ -28,8 +28,11 @@ import {
  * Agent definition's allowlist must govern it like any tool.
  */
 
-afterEach(cleanupOpenWagglePiSessions)
-afterEach(clearAgentLoopInteractionBrokerForTests)
+// Vitest runs after-hooks newest first, so the broker clears before the sessions close.
+afterEach(async () => {
+  clearAgentLoopInteractionBrokerForTests()
+  await cleanupOpenWagglePiSessions()
+})
 
 function sourceControlTool() {
   const { backend } = sourceControlToolHarness()

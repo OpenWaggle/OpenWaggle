@@ -25,7 +25,7 @@ import { usageStatisticsFieldError } from '../src/shared/usage-statistics/valida
 
 export const CATALOG_PATH = 'src/shared/usage-statistics/catalog.generated.ts'
 const INDENT = '  '
-const BIOME_LAUNCHER = 'node_modules/@biomejs/biome/bin/biome'
+const OXFMT_LAUNCHER = 'node_modules/oxfmt/bin/oxfmt'
 const FORMATTER_OUTPUT_LIMIT_BYTES = 16_777_216
 
 export interface UsageStatisticsCatalogSource {
@@ -105,13 +105,13 @@ export async function loadUsageStatisticsCatalogSource(): Promise<UsageStatistic
 }
 
 /**
- * The text as Biome formats it with the repository's settings, so `pnpm lint:fix` and
+ * The text as oxfmt formats it with the repository's settings, so `pnpm lint:fix` and
  * `pnpm format` never change the generated file and the check never fails after them.
  */
-export function formatWithBiome(text: string, root: string) {
+export function formatWithOxfmt(text: string, root: string) {
   return execFileSync(
     process.execPath,
-    [path.join(root, BIOME_LAUNCHER), 'format', `--stdin-file-path=${CATALOG_PATH}`],
+    [path.join(root, OXFMT_LAUNCHER), `--stdin-filepath=${CATALOG_PATH}`],
     { cwd: root, input: text, encoding: 'utf8', maxBuffer: FORMATTER_OUTPUT_LIMIT_BYTES },
   )
 }
@@ -125,7 +125,7 @@ export interface CatalogGeneratorOptions {
 /** Writes the catalog, or with `check` compares it; returns the process exit code. */
 export async function runUsageStatisticsCatalogGenerator(options: CatalogGeneratorOptions) {
   const source = await loadUsageStatisticsCatalogSource()
-  const expected = formatWithBiome(renderUsageStatisticsCatalog(source), options.root)
+  const expected = formatWithOxfmt(renderUsageStatisticsCatalog(source), options.root)
   const target = path.join(options.root, CATALOG_PATH)
   const current = await fs.readFile(target, 'utf8').catch(() => undefined)
   if (current === expected) {

@@ -4,6 +4,7 @@ import fg from 'fast-glob'
 import {
   collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations,
 } from './standards/forbidden-references'
+import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
 import {
@@ -128,6 +129,7 @@ async function collectViolationsForFile(file: string) {
     ...collectSyntaxRenderingViolations(file, contents),
     ...collectExactDependencyVersionViolations(file, contents),
     ...collectSqliteLibraryViolations(file, contents),
+    ...collectAstroRawButtonViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 

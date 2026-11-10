@@ -19,7 +19,7 @@ Mechanical enforcement:
 - Oxlint's `typescript/consistent-type-assertions` bans raw assertions while allowing `as const`.
 - Oxlint's tsgolint-powered, type-aware `typescript/no-unsafe-*` rules catch unsafe flow from dependencies; intentional test and boundary exceptions stay narrowly scoped in `oxlint.config.mts`.
 - `openwaggle/no-shoehorn-outside-tests` keeps Shoehorn test-only.
-- Biome and ESLint ban explicit `any`, non-null assertions, disabled lint comments, and unsafe patterns.
+- The lint config (`oxlint.config.mts`, run by `bun lint` with oxlint as the fallback runner) bans explicit `any`, non-null assertions, unsafe patterns, and every inline lint directive (`eslint-disable*`, `oxlint-disable*`, `/* eslint */`, `/* global */`): fix the code or change the shared config, never the line.
 
 ## ts-match
 
@@ -119,9 +119,10 @@ Mechanical enforcement:
 - Avoid inline `import()` types in source files; import types at the top.
 - Use `while (true)`, not `for (;;)`.
 - Use named `SCREAMING_SNAKE_CASE` constants for numeric literals outside tests.
-- Do not add `eslint-disable`, `biome-ignore`, or `fallow-ignore` comments to bypass architecture/style gates.
+- Do not add `eslint-disable`, `oxlint-disable`, or `fallow-ignore` comments to bypass architecture/style gates.
 
 Mechanical enforcement:
 
-- OpenWaggle ESLint rules catch inline import types, `for (;;)`, raw website/renderer buttons, architecture bypass comments, and inline magic numbers.
+- The OpenWaggle lint plugin (`scripts/oxlint/`) catches inline import types, `for (;;)`, raw renderer buttons, lint directive and architecture bypass comments, and inline magic numbers; `pnpm check:repository-standards` catches raw `<button>` in website Astro templates.
+- oxfmt (`.oxfmtrc.json`) formats JavaScript and TypeScript: single quotes, no semicolons, trailing commas, width 100.
 - `pnpm check:repository-standards` catches repository standards drift.

@@ -24,7 +24,7 @@ const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_DEPENDENCY_BUILD_SCRIPT =
   'pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build'
 const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'pnpm build:package-dependencies &&'
-const TYPE_AWARE_LINT_PREREQUISITE = 'pnpm build:package-dependencies && oxlint '
+const TYPE_AWARE_LINT_PREREQUISITE = 'pnpm build:package-dependencies && bun scripts/lint.ts'
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 interface ExpectedPackage {

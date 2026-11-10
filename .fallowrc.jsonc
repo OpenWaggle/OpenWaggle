@@ -8,10 +8,9 @@
     "babel-plugin-react-compiler",
     "better-sqlite3",
     "diff",
-    // ESLint resolves the TypeScript import resolver through string config.
-    "eslint-import-resolver-typescript",
-    // ESLint loads eslint.config.ts through jiti before project imports run.
-    "jiti",
+    // oxlint.config.mts loads the TanStack lint plugins by package name (jsPlugins).
+    "@tanstack/eslint-plugin-query",
+    "@tanstack/eslint-plugin-router",
     // Packaged Electron updater resolves debug's `require("ms")` from the
     // app-level node_modules inside app.asar.
     "ms"

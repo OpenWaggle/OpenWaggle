@@ -100,7 +100,7 @@ describe('browser preview automation DOM expressions', () => {
     if (descriptor === undefined) throw new Error('Expected native input value descriptor.')
     Object.defineProperty(HTMLInputElement.prototype, 'value', {
       ...descriptor,
-      set: () => undefined,
+      set: () => {},
     })
     input.focus()
 

@@ -21,7 +21,10 @@ pnpm dev                # Electron dev app
 pnpm dev:debug          # Hidden Electron dev app with CDP on port 9223
 pnpm build              # Production build
 pnpm typecheck          # Node + web typecheck
-pnpm lint               # Biome + ESLint architecture and style rules
+pnpm lint               # oxfmt check + type-aware `bun lint` (oxlint.config.mts) + repository standards
+pnpm lint:fix           # Format with oxfmt and apply lint fixes
+pnpm lint:oxlint        # Same lint config through oxlint, the fallback runner
+pnpm format             # Format with oxfmt (.oxfmtrc.json)
 pnpm check              # Full static verification
 pnpm verify             # Fast pre-push verification: commit policy, typecheck, lint, unit tests
 pnpm test               # Unit + integration + component tests

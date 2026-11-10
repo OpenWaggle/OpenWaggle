@@ -139,9 +139,8 @@ export async function writeMinimalPackageReleaseProject(
       'build:packages':
         'pnpm build:package-dependencies && pnpm --filter @openwaggle/pi-waggle build && pnpm --filter @openwaggle/extension-react build',
       check: 'pnpm typecheck && pnpm package:smoke',
-      lint: 'biome check src packages && pnpm build:package-dependencies && oxlint src packages',
-      'lint:fix':
-        'biome check --write src packages && pnpm build:package-dependencies && oxlint src packages --fix',
+      lint: 'pnpm build:package-dependencies && bun scripts/lint.ts && pnpm check:repository-standards',
+      'lint:fix': 'pnpm build:package-dependencies && bun scripts/lint.ts --fix',
       'package-release:publish': 'node scripts/package-release-publish.ts',
     },
   })

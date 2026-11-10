@@ -16,7 +16,7 @@ import { bundledLanguagesInfo } from 'shiki'
 
 export const SYNTAX_LANGUAGE_METADATA_PATH =
   'src/renderer/src/shared/lib/syntax/bundled-language-metadata.generated.ts'
-const BIOME_LAUNCHER = 'node_modules/@biomejs/biome/bin/biome'
+const OXFMT_LAUNCHER = 'node_modules/oxfmt/bin/oxfmt'
 const FORMATTER_OUTPUT_LIMIT_BYTES = 16_777_216
 
 export interface SyntaxLanguageMetadata {
@@ -45,17 +45,17 @@ export function renderSyntaxLanguageMetadata(languages: readonly SyntaxLanguageM
   ].join('\n')
 }
 
-function formatWithBiome(text: string, root: string) {
+function formatWithOxfmt(text: string, root: string) {
   return execFileSync(
     process.execPath,
-    [path.join(root, BIOME_LAUNCHER), 'format', `--stdin-file-path=${SYNTAX_LANGUAGE_METADATA_PATH}`],
+    [path.join(root, OXFMT_LAUNCHER), `--stdin-filepath=${SYNTAX_LANGUAGE_METADATA_PATH}`],
     { cwd: root, input: text, encoding: 'utf8', maxBuffer: FORMATTER_OUTPUT_LIMIT_BYTES },
   )
 }
 
 async function main() {
   const root = process.cwd()
-  const output = formatWithBiome(renderSyntaxLanguageMetadata(bundledLanguagesInfo), root)
+  const output = formatWithOxfmt(renderSyntaxLanguageMetadata(bundledLanguagesInfo), root)
   await fs.writeFile(path.join(root, SYNTAX_LANGUAGE_METADATA_PATH), output)
   process.stdout.write(
     `Wrote ${String(bundledLanguagesInfo.length)} languages to ${SYNTAX_LANGUAGE_METADATA_PATH}\n`,

@@ -148,7 +148,7 @@ describe('package release validation', () => {
         ...packageJson,
         scripts: {
           ...scripts,
-          lint: 'oxlint src packages',
+          lint: 'bun scripts/lint.ts src packages',
         },
       })
 

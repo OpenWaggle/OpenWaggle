@@ -1,3 +1,4 @@
+import { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
@@ -290,5 +291,3 @@ export function resetWorkspaceLifecycleMocks() {
 export function loadUseWorkspaceLifecycle() {
   return import('../useWorkspaceLifecycle')
 }
-
-import { SessionId } from '@shared/types/brand'
