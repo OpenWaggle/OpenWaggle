@@ -20,10 +20,10 @@ This is not a one-time migration-only skill. Keep using it whenever tests need p
 
 ## Install
 
-OpenWaggle pins dependencies. Use pnpm and an explicit version:
+OpenWaggle pins dependencies. Use Bun and an explicit version:
 
 ```bash
-pnpm add -D @total-typescript/shoehorn@0.1.2
+bun add -d --exact @total-typescript/shoehorn@0.1.2
 ```
 
 ## Migration Patterns
@@ -58,4 +58,4 @@ handler(fromExact({ body: { id: '123' }, headers: {}, cookies: {} }))
 2. Replace partial valid objects with `fromPartial()`.
 3. Replace intentionally wrong data with `fromAny()`.
 4. Replace full fixture assertions with explicit typed objects or `fromExact()`.
-5. Run `pnpm typecheck`, `pnpm lint`, and relevant tests.
+5. Run `bun run typecheck`, `bun run lint`, and relevant tests.

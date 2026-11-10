@@ -29,7 +29,7 @@ Each line names a topic file and when to load it:
 - [`project-actions`](.agents/memory/project-actions.md): touching Project Actions, Setup/cleanup preparation, action bindings or action output.
 - [`terminals-and-browser-preview`](.agents/memory/terminals-and-browser-preview.md): touching Session-bound terminals, node-pty/xterm, or the Session-owned Browser preview.
 - [`session-resources`](.agents/memory/session-resources.md): touching Session resources, captured images, the resource protocol or extension resource contributions.
-- [`electron-shell`](.agents/memory/electron-shell.md): touching Electron main-process startup, packaging, native addons, hidden QA, visualizations or `pnpm dev:debug`.
+- [`electron-shell`](.agents/memory/electron-shell.md): touching Electron main-process startup, packaging, native addons, hidden QA, visualizations or `bun run dev:debug`.
 - [`persistence-and-migrations`](.agents/memory/persistence-and-migrations.md): adding a migration or touching SQLite schemas, settings keys or `src/main/services/database-*`.
 - [`release-and-ci`](.agents/memory/release-and-ci.md): touching `.github/workflows/`, release scripts, signing, updater artifacts or the commit policy.
 - [`tooling`](.agents/memory/tooling.md): touching lint, format, TypeScript config, dependencies, repository standards or scripts.
@@ -48,5 +48,5 @@ Each line names a topic file and when to load it:
   title and a 3-6 line summary (what it covers, when to load it), and add one line here.
 - When an entry describes code that has been removed, move it to `archive.md` instead of
   deleting it.
-- `pnpm check:repository-standards` caps this index at 2,000 o200k tokens and each topic file
+- `bun run check:repository-standards` caps this index at 2,000 o200k tokens and each topic file
   at 12,000. Split a topic that reaches its cap instead of trimming facts.

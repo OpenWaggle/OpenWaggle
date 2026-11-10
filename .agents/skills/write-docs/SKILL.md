@@ -64,7 +64,7 @@ Every code block gets a **Copy** button, so a reader pastes the whole block. Wri
 
 ## Before you finish
 
-1. `pnpm website:test` passes, including `docs-style.unit.test.ts`.
-2. `pnpm --filter @openwaggle/website build` passes and `pnpm docs:generate` runs.
+1. `bun run website:test` passes, including `docs-style.unit.test.ts`.
+2. `bun run --filter @openwaggle/website build` passes and `bun run docs:generate` runs.
 3. Every fact the page had before is still in the docs: in the guide, or in the reference page it links to. Check numbers, defaults, limits, exit codes and error behavior against the code, not memory.
 4. Read the page out loud in your head. Anything that sounds like a specification or a chatbot gets rewritten.
