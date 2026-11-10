@@ -10,6 +10,7 @@
     "verbatimModuleSyntax": true,
     "noUncheckedSideEffectImports": true,
     "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
     "noUnusedParameters": true,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false
