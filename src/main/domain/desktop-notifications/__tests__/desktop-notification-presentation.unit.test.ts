@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   desktopNotificationBadgeCount,
   desktopNotificationPresentation,
+  windowsBadgeOverlayUpdate,
 } from '../desktop-notification-presentation'
 
 const NOTIFICATION: DesktopNotification = {
@@ -115,5 +116,15 @@ describe('desktopNotificationBadgeCount', () => {
       }),
     ).toBe(1)
     expect(desktopNotificationBadgeCount([NOTIFICATION], { ...settings, showBadge: false })).toBe(0)
+  })
+})
+
+describe('windowsBadgeOverlayUpdate', () => {
+  it('shows the dot, renames it as the count changes, and clears it at 0', () => {
+    expect(windowsBadgeOverlayUpdate(0, 0)).toBeNull()
+    expect(windowsBadgeOverlayUpdate(0, 1)).toEqual({ show: true, description: '1 notification' })
+    expect(windowsBadgeOverlayUpdate(1, 5)).toEqual({ show: true, description: '5 notifications' })
+    expect(windowsBadgeOverlayUpdate(5, 5)).toBeNull()
+    expect(windowsBadgeOverlayUpdate(5, 0)).toEqual({ show: false, description: '' })
   })
 })

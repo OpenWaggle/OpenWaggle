@@ -50,6 +50,17 @@ describe('NotificationsSection', () => {
       'sound-only',
     )
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
+    // Both name every type that is on, not only Needs you and Ready to read.
+    expect(
+      screen.getByText(
+        'Show how many notifications are waiting on the app icon, for the types turned on above. Windows shows a dot.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Hear about the types turned on below, even when OpenWaggle is in the background.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('saves a category switch and a sound with the rest of the settings', async () => {

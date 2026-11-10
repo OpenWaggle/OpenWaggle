@@ -9,6 +9,7 @@ import * as Effect from 'effect/Effect'
 import { localUserWithinLimits } from '../application/local-session-authority-limits'
 import { refreshNamedProfileCaller } from '../application/local-session-command-authorization'
 import {
+  HEARTBEAT_OWNER_REMEDY,
   heartbeatBoundaryRefusal,
   launchNeedsKnownProject,
 } from '../application/scheduled-task-authority'
@@ -168,6 +169,7 @@ function heartbeatCheck(record: ScheduledTaskRecord) {
     ownerCallerId: record.creatorCallerId,
     limits: record.authorityLimits,
     sessionId: record.target.sessionId,
+    remedy: HEARTBEAT_OWNER_REMEDY,
   }).pipe(Effect.map((message) => (message ? revoked(message) : null)))
 }
 

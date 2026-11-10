@@ -79,7 +79,7 @@ export function NotificationsSection() {
         <div className="overflow-hidden rounded-lg border border-border bg-bg">
           <Row
             label="Desktop notifications"
-            description="Hear about Sessions that need you or are ready to read, even when OpenWaggle is in the background."
+            description="Hear about the types turned on below, even when OpenWaggle is in the background."
           >
             <ToggleSwitch
               checked={settings.enabled}
@@ -153,7 +153,7 @@ export function NotificationsSection() {
           </Row>
           <Row
             label="Show badge"
-            description="Count the Sessions that need you or are ready to read on the app icon."
+            description="Show how many notifications are waiting on the app icon, for the types turned on above. Windows shows a dot."
           >
             <ToggleSwitch
               checked={settings.showBadge}

@@ -12,9 +12,17 @@ import {
   dispatched,
   fireAfterConcurrentEdit,
   readTask,
+  setCeiling,
   storedRunsAs,
 } from './scheduled-task-agent-created.test-support'
-import { fire, scheduledTasks, setTaskDue } from './scheduled-tasks.test-support'
+import {
+  createIdleSession,
+  fire,
+  heartbeatInput,
+  scheduledTasks,
+  setSessionModel,
+  setTaskDue,
+} from './scheduled-tasks.test-support'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -119,6 +127,49 @@ describe('a Scheduled task a Session agent created', () => {
       creator_kind: 'session-agent',
       authority_limits_json: null,
     })
+  })
+
+  it('keeps a Heartbeat’s limits when you save an edit to its name and schedule only', async () => {
+    await registerProjects([fixture.project])
+    const { caller } = await agentSession('ask-for-approval')
+    const target = await createIdleSession(fixture.project)
+    await setSessionModel(target)
+    await setCeiling(target, 'ask-for-approval')
+    const input = heartbeatInput(target)
+    const created = await scheduledTasks({ operation: 'create', input }, caller)
+    if (created.effect !== 'created') throw new Error(JSON.stringify(created))
+    const limits = JSON.parse(
+      (await storedRunsAs(created.task.id))?.authority_limits_json ?? 'null',
+    )
+    expect(limits).toMatchObject({ authorizationCeiling: 'ask-for-approval' })
+
+    // The app's editor sends every field, the unchanged stop condition included.
+    const saved = await scheduledTasks({
+      operation: 'update',
+      taskId: created.task.id,
+      patch: {
+        name: 'Watch CI hourly',
+        prompt: input.prompt,
+        enabled: true,
+        schedule: { kind: 'interval', everyMinutes: 60 },
+        timeZone: 'UTC',
+        endsAt: null,
+        maxRuns: null,
+        target: { kind: 'heartbeat', sessionId: target },
+        notificationPolicy: 'failures-only',
+        heartbeat: { stopWhen: input.heartbeat.stopWhen, indefinite: false, idlePauseAfter: 3 },
+      },
+    })
+    expect(saved).toMatchObject({ effect: 'updated' })
+    const kept = (await storedRunsAs(created.task.id))?.authority_limits_json
+    expect(JSON.parse(kept ?? 'null')).toEqual(limits)
+
+    await scheduledTasks({
+      operation: 'update',
+      taskId: created.task.id,
+      patch: { heartbeat: { stopWhen: 'The release is out.' } },
+    })
+    expect((await storedRunsAs(created.task.id))?.authority_limits_json).toBeNull()
   })
 
   it('adopts a task stored naming an agent whose Session was deleted', async () => {
