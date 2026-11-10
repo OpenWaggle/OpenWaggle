@@ -218,7 +218,10 @@ describe('QueuedMessages', () => {
   it.each([
     ['run-failed', 'Paused because the last Run failed.'],
     ['run-interrupted', 'Paused because the last Run was stopped.'],
-    ['parent-limit', 'Paused because the parent Session has as many active Workers as it allows.'],
+    [
+      'parent-limit',
+      'Agents’ messages wait because agents are running as many Workers as the limits allow. Yours still send.',
+    ],
     ['requested', 'Paused on request.'],
     [undefined, 'The queue is paused.'],
   ] as const)('says the queue paused for %s', (reason, copy) => {

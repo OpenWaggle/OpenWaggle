@@ -44,6 +44,7 @@ import {
   SESSION_NODE_DUPLICATE_INDEX_MIGRATION_ID,
   SESSION_NODE_MUTATION_REVISION_COLUMNS_MIGRATION_ID,
   SESSION_RESOURCE_DOCS_IMAGE_MIGRATION_ID,
+  SESSION_RUN_AGENT_WORK_MIGRATION_ID,
   SESSION_TITLE_PROVENANCE_MIGRATION_ID,
 } from './session-host-schema-identity'
 
@@ -142,6 +143,7 @@ const currentIdentities = [
   { id: SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION_ID, name: 'scheduled-task-authority-limits' },
   { id: HIVE_WAKE_CAUSE_MIGRATION_ID, name: 'hive-wake-cause' },
   { id: SESSION_AGENT_ORIGIN_MIGRATION_ID, name: 'session-agent-origins' },
+  { id: SESSION_RUN_AGENT_WORK_MIGRATION_ID, name: 'session-run-agent-work' },
 ]
 
 export interface MigrationIdentity {

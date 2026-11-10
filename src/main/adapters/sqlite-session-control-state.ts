@@ -1,4 +1,3 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
@@ -19,6 +18,7 @@ import type {
 import { SessionControlRepositoryError } from '../errors'
 import { monotonicNowMs } from '../utils/monotonic-clock'
 import { persistFollowUpEditHolds, withFollowUpEditLeaseState } from './sqlite-follow-up-edit-holds'
+import { persistRun } from './sqlite-session-control-run-row'
 import { persistRunStartThinkingLevel } from './sqlite-session-run-start-settings'
 
 const POSITION_INCREMENT = 1
@@ -196,43 +196,6 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
     })
     return yield* withFollowUpEditLeaseState(sql, state)
   })
-}
-
-function persistRun(sql: SqlClient.SqlClient, state: SessionControlSessionState, now: number) {
-  return matchBy(state.run, 'state')
-    .with('idle', () => Effect.succeed<string | null>(null))
-    .with('starting', (run) =>
-      sql`
-        INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
-        VALUES (
-          ${run.runId},
-          ${state.sessionId},
-          ${run.state},
-          ${JSON.stringify(run.intent)},
-          ${now},
-          ${now}
-        )
-        ON CONFLICT(id) DO UPDATE SET
-          status = excluded.status,
-          intent_json = excluded.intent_json,
-          updated_at = excluded.updated_at
-      `.pipe(Effect.as(String(run.runId))),
-    )
-    .with('active', (run) =>
-      sql`
-        UPDATE session_runs
-        SET status = ${run.state}, updated_at = ${now}
-        WHERE id = ${run.runId} AND session_id = ${state.sessionId}
-      `.pipe(Effect.as(String(run.runId))),
-    )
-    .with('stopping', (run) =>
-      sql`
-        UPDATE session_runs
-        SET status = ${run.state}, updated_at = ${now}
-        WHERE id = ${run.runId} AND session_id = ${state.sessionId}
-      `.pipe(Effect.as(String(run.runId))),
-    )
-    .exhaustive()
 }
 
 function persistFollowUps(

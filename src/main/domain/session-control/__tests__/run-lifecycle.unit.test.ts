@@ -59,6 +59,21 @@ describe('Session Control Run lifecycle', () => {
     })
   })
 
+  // What waited only on agents' capacity now waits for the person's Resume.
+  it.each([
+    ['takes the loss’s reason over a wait on capacity', 'parent-limit', 'host-lost'],
+    ['keeps the person’s own pause', 'requested', 'requested'],
+  ] as const)('%s after host loss', (_case, pauseReason, expected) => {
+    const recovered = recoverSessionAfterHostLoss({
+      sessionId: SessionId('session-target'),
+      revision: 6,
+      run: { state: 'active', runId: RunId('run-active') },
+      followUpQueue: { state: 'paused', pauseReason, revision: 4, items: [] },
+    })
+
+    expect(recovered.followUpQueue).toMatchObject({ state: 'paused', pauseReason: expected })
+  })
+
   it('atomically promotes the first durable Follow-up when a Run settles', () => {
     const nextRunId = RunId('run-follow-up')
     const result = settleAndScheduleNextFollowUp(

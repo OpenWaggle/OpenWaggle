@@ -135,8 +135,7 @@ export function MultiAgentAccessCard() {
       <div className="flex flex-col gap-0.5">
         <h2 className="text-sm font-semibold text-text-primary">Hive controls</h2>
         <p className="text-xs text-text-tertiary">
-          Control agent-created Workers and how many run at once. Your own Sessions are never
-          limited.
+          Control agent-created Workers and how many run at once. Your own runs are never limited.
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
@@ -167,7 +166,7 @@ export function MultiAgentAccessCard() {
         </SettingRow>
         <SettingRow
           label="Active Workers"
-          description="Most Worker runs active at once across every Hive, counting Sessions agents make."
+          description="Most Worker runs active at once across every Hive, counting Sessions agents make and runs agents start in yours."
           last
         >
           <NumberStepper
@@ -181,7 +180,7 @@ export function MultiAgentAccessCard() {
       </div>
       <p className="text-xs text-text-tertiary">
         At either limit a new Worker run is rejected with a retryable error; it is not queued.
-        Messages you send, your new Sessions and your top-level Sessions are never refused because
+        Messages you send, your new Sessions and your replies to a Queen are never refused because
         of these limits. Higher values may strain your machine or model provider. Project
         configuration files can override these app-wide defaults.
       </p>

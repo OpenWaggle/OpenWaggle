@@ -79,4 +79,48 @@ describe('Session Control explicit Follow-up', () => {
       },
     })
   })
+
+  // The person's work never waits behind agents' work held back by a full limit.
+  it.each([
+    ['starts the person’s', 'parent-limit', 'gui:local-user', 'started-run'],
+    ['queues an agent’s', 'parent-limit', 'session-agent:queen:run-queen', 'queued-follow-up'],
+    ['queues the person’s', 'requested', 'gui:local-user', 'queued-follow-up'],
+  ] as const)(
+    '%s Follow-up in an idle Session paused for %s',
+    (_, pauseReason, callerId, effect) => {
+      const agentItem = {
+        id: FollowUpId('agent-held'),
+        deliveryState: 'pending' as const,
+        intent: {
+          text: 'Agent work',
+          attachmentIds: [],
+          callerId: 'session-agent:queen:run-queen',
+          acceptedAt: 1,
+          idempotencyKey: 'agent',
+        },
+      }
+      const result = applyExplicitFollowUp({
+        state: {
+          sessionId: SessionId('session-target'),
+          revision: 2,
+          run: { state: 'idle' },
+          followUpQueue: { state: 'paused', revision: 1, items: [agentItem], pauseReason },
+        },
+        runId: RunId('run-next'),
+        followUpId: FollowUpId('follow-up-next'),
+        intent: {
+          text: 'Mine',
+          attachmentIds: [],
+          callerId,
+          acceptedAt: 2,
+          idempotencyKey: 'mine',
+        },
+      })
+
+      if (!result.accepted) throw new Error(result.code)
+      expect(result.outcome.effect).toBe(effect)
+      expect(result.state.followUpQueue).toMatchObject({ state: 'paused', pauseReason })
+      expect(result.state.followUpQueue.items[0]?.id).toBe('agent-held')
+    },
+  )
 })
