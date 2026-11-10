@@ -15,8 +15,6 @@ import {
   readWriteBatch,
 } from './leveldb-records'
 
-export { LevelDbError } from './leveldb-records'
-
 const EDIT_COMPARATOR = 1
 const EDIT_LOG_NUMBER = 2
 const EDIT_NEXT_FILE = 3

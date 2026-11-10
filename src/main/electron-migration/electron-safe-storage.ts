@@ -241,5 +241,3 @@ export function createElectronSafeStorageReader(sources: ElectronSafeStorageKeyS
 
   return { decrypt, format: (blob: Buffer) => electronSafeStorageFormat(sources.platform, blob) }
 }
-
-export type ElectronSafeStorageReader = ReturnType<typeof createElectronSafeStorageReader>

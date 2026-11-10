@@ -113,5 +113,3 @@ export function createKeychainSealer(options: KeychainSealerOptions) {
 
   return { seal, open }
 }
-
-export type KeychainSealer = ReturnType<typeof createKeychainSealer>
