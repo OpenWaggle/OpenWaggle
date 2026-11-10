@@ -15,7 +15,7 @@ import {
 
 /**
  * The state each row shows, including Host-listed Sessions the sidebar has not loaded. The shared
- * map resolves those from their status alone, so a parent reading Done below (ADR 0063) would look
+ * map resolves those from their status alone, so a parent reading Done below (ADR 0065) would look
  * quiet there. A remote summary carries its lineage, so it is resolved by the same rule a row uses.
  */
 export function useRemoteSidebarRowStates(input: {

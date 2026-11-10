@@ -69,7 +69,7 @@ describe('HeaderControls', () => {
     expect(identity).not.toHaveClass('border')
   })
 
-  it('says how many Workers below still run and opens the Hive panel from it (ADR 0063)', () => {
+  it('says how many Workers below still run and opens the Hive panel from it (ADR 0065)', () => {
     const showSurface = vi.fn()
     const release = registerRightPanelController({
       toggleSurface: vi.fn(),

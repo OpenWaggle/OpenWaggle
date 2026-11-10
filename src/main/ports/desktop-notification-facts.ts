@@ -33,7 +33,7 @@ export interface DesktopNotificationLatestRun {
 }
 
 /**
- * What is still running in a root Session's Hive (ADR 0063): its Workers are every Session below
+ * What is still running in a root Session's Hive (ADR 0065): its Workers are every Session below
  * it by spawn, at any depth, archived or not. A Run is running while starting, active or stopping.
  */
 export interface DesktopNotificationHiveActivity {

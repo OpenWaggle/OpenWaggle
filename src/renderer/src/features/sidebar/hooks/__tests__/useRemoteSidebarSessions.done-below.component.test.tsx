@@ -13,7 +13,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
 
-describe('remote Completed filter with a Done below parent (ADR 0063)', () => {
+describe('remote Completed filter with a Done below parent (ADR 0065)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useSessionStatusStore.setState({

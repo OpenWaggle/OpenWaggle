@@ -1,6 +1,6 @@
 import { Context, type Effect } from 'effect'
 
-/** Read-only Spawn-lineage facts the Hive ancestor refresh needs (ADR 0063). */
+/** Read-only Spawn-lineage facts the Hive ancestor refresh needs (ADR 0065). */
 export interface HiveAncestryShape {
   /**
    * Every Spawn-lineage ancestor of a Session, nearest first, up to its Hive root; empty for a

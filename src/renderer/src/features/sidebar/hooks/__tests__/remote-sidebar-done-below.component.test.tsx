@@ -31,7 +31,7 @@ function queen(): SessionSummary {
   }
 }
 
-describe('remote sidebar filters with Done below parents (ADR 0063)', () => {
+describe('remote sidebar filters with Done below parents (ADR 0065)', () => {
   it('keeps a Host-listed Done parent that is not loaded, whose own Run was seen', () => {
     useSessionStatusStore.getState().setStatus(SessionId('queen'), 'completed', 1)
     useSessionStatusStore.setState({ lastVisitedAt: new Map([[SessionId('queen'), 2]]) })

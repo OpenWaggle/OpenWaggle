@@ -26,7 +26,7 @@ function queen(workersLastRunEndedAt: number | undefined) {
   })
 }
 
-describe('useActiveParentWorkerVisit (ADR 0063)', () => {
+describe('useActiveParentWorkerVisit (ADR 0065)', () => {
   it('marks the open parent visited when a Worker Run below it ends', () => {
     const markVisited = vi.fn()
     useSessionStatusStore.setState({ markVisited })

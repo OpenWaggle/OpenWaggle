@@ -64,7 +64,7 @@ function interruptedFilter(sql: SqlClient.SqlClient, value: boolean | undefined)
   return value ? membership : sql`NOT (${membership})`
 }
 
-/** Every Spawn-lineage ancestor paired with each Session below it, at any depth (ADR 0063). */
+/** Every Spawn-lineage ancestor paired with each Session below it, at any depth (ADR 0065). */
 function workersBelowCte(sql: SqlClient.SqlClient) {
   return sql`WITH RECURSIVE workers_below(ancestor_id, session_id) AS (
     SELECT parent_session_id, child_session_id FROM session_spawn_lineage
@@ -75,7 +75,7 @@ function workersBelowCte(sql: SqlClient.SqlClient) {
   )`
 }
 
-/** Parents with a Running Worker below them, whose row reads Working (ADR 0063). */
+/** Parents with a Running Worker below them, whose row reads Working (ADR 0065). */
 function runningWorkersFilter(sql: SqlClient.SqlClient) {
   return sql`sessions.id IN (
     ${workersBelowCte(sql)}
@@ -87,7 +87,7 @@ function runningWorkersFilter(sql: SqlClient.SqlClient) {
 }
 
 /**
- * Done below (ADR 0063): nothing below the parent runs and the last Run there ended after the
+ * Done below (ADR 0065): nothing below the parent runs and the last Run there ended after the
  * person last visited the parent. The parent's own latest Run must be one its row would not
  * outrank: none, completed, or a failure the person has already seen. An interrupted one makes
  * the row read Interrupted, which outranks Done.

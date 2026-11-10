@@ -4,7 +4,7 @@ import { HiveAncestry } from '../ports/hive-ancestry'
 
 /**
  * Whether a Host event may have started or settled a Run, which changes the Running Workers and
- * the Done-below time of every ancestor of that Session (ADR 0063). A Run is created by a Session
+ * the Done-below time of every ancestor of that Session (ADR 0065). A Run is created by a Session
  * Control mutation and settles with `run-settled` or `follow-up-started`, each published as
  * `session-state-changed`; `agent_start` and `agent_end` also cover a Run that began or ended
  * outside those paths.
@@ -19,7 +19,7 @@ export function mayChangeWorkerRuns(payload: SessionHostEventPayload) {
 
 /**
  * Tells windows to read the catalog entry of every ancestor of a Session whose Run changed, so a
- * parent's row, header and rail dot follow its Workers (ADR 0063). A catalog-only list change: no
+ * parent's row, header and rail dot follow its Workers (ADR 0065). A catalog-only list change: no
  * Hive query, discovery index or notification reacts to it, and it never triggers itself.
  */
 export function refreshHiveAncestors(

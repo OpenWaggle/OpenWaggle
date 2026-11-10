@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { AGENT, PERSON, settled, shownKinds } from './desktop-notification-observer.test-harness'
 import { hive, person, workerSettled } from './desktop-notification-observer-hive.test-support'
 
-describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0063)', () => {
+describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0065)', () => {
   it('shows a held Ready to read when an archived Worker completes last', async () => {
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1'])

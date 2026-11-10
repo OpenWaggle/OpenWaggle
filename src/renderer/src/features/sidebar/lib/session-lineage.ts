@@ -12,7 +12,7 @@ function directWorkerDescription(count: number) {
   return ` · ${String(count)} direct Worker${count === 1 ? '' : 's'}`
 }
 
-/** Why a parent row reads Working while its own Run is idle (ADR 0063). */
+/** Why a parent row reads Working while its own Run is idle (ADR 0065). */
 function runningWorkersDescription(session: SessionSummary) {
   const count = runningWorkerCount(session.lineage)
   return count === 0 ? '' : ` · ${runningWorkersLabel(count)}`

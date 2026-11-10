@@ -19,7 +19,7 @@ function queen(runningWorkerCount: number): SessionSummary {
   }
 }
 
-describe('activeSessionRunningWorkerCount (ADR 0063)', () => {
+describe('activeSessionRunningWorkerCount (ADR 0065)', () => {
   it('prefers the catalog entry, which follows Worker Runs, over the open tree', () => {
     expect(
       activeSessionRunningWorkerCount({

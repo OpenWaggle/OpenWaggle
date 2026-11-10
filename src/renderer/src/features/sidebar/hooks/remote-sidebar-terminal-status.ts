@@ -49,7 +49,7 @@ const STATUSES_AFTER_A_NEW_RUN: ReadonlySet<SessionStatus> = new Set([
 /**
  * Forgets Host-discovered terminal rows that no longer hold that state. A row keeps its id while
  * its raw status still holds it, so a visit and Mark as unread do not rewind paging, or while the
- * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0063). Only
+ * row shows it, because a parent reads Done below whatever its own last Run was (ADR 0065). Only
  * a row in `resolvedIds` (loaded, or listed by the Host) has a shown state resolved with its
  * lineage; any other was loaded after the states were resolved, so it is kept until it starts a
  * new Run.

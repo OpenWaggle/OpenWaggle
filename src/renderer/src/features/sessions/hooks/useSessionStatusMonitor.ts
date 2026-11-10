@@ -88,7 +88,7 @@ const SESSION_IDS_PER_REQUEST = 100
 
 /**
  * A parent whose Workers already run when the window opens reads Working only once its catalog
- * entry is loaded (ADR 0063). The first catalog page may not hold it, so the parent and the Hive
+ * entry is loaded (ADR 0065). The first catalog page may not hold it, so the parent and the Hive
  * root of every running Worker are read in; a deeper ancestor arrives with its next Worker change.
  */
 async function loadRunningWorkerParents(

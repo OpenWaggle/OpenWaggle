@@ -9,7 +9,7 @@ import {
   makeSessionQueryRuntime as makeRuntime,
 } from './sqlite-session-query-test-layer'
 
-describe('SQLite Session catalog Done below (ADR 0063)', () => {
+describe('SQLite Session catalog Done below (ADR 0065)', () => {
   let temporaryRoot = ''
   const runtimes: Array<ReturnType<typeof makeRuntime>> = []
 

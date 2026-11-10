@@ -11,7 +11,7 @@ export interface SessionLineageRow {
   readonly hive_root_session_id: string | null
   readonly direct_worker_count: number
   readonly active_direct_worker_count: number
-  /** Workers below the Session, at any depth, with a live Run (ADR 0063). */
+  /** Workers below the Session, at any depth, with a live Run (ADR 0065). */
   readonly running_worker_count: number
   /** When the last settled Run below the Session ended; null when none has. */
   readonly workers_last_run_ended_at: number | null
@@ -83,7 +83,7 @@ function agentDefinitionLineage(row: SessionLineageRow) {
   }
 }
 
-/** A parent's Running Workers and Done-below time (ADR 0063); nothing for a Session without any. */
+/** A parent's Running Workers and Done-below time (ADR 0065); nothing for a Session without any. */
 function workerRunLineage(row: SessionLineageRow) {
   if (row.running_worker_count === 0 && row.workers_last_run_ended_at === null) return {}
   return {

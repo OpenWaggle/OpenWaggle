@@ -6,7 +6,7 @@ import { publishSessionHostEvent, tryGetSessionHostEventRuntime } from './sessio
 const logger = createLogger('hive-ancestor-refresh')
 
 /**
- * Keeps every parent's Running Workers current in the windows (ADR 0063): reads the Host's own
+ * Keeps every parent's Running Workers current in the windows (ADR 0065): reads the Host's own
  * events and, when a Run may have started or settled, republishes each ancestor's catalog entry.
  */
 export const runHiveAncestorRefreshBackground = Effect.gen(function* () {

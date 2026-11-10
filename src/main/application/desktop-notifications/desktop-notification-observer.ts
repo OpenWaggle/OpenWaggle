@@ -59,7 +59,7 @@ function needsYouReason(request: HivePendingRequest): DesktopNotificationReason 
  * Reads the Session Host's own events and decides which Desktop notification each one is due
  * (ADR 0062, CONTEXT.md): Needs you for every Session, Ready to read, Failed or interrupted and
  * Agent errors for a root Session's Runs that the person or a Scheduled task started. Ready to
- * read waits for the root's Running Workers (ADR 0063): a reply that leaves Workers running, or a
+ * read waits for the root's Running Workers (ADR 0065): a reply that leaves Workers running, or a
  * Hive wake still coming, is held per root Session and shown once its Hive settles.
  */
 export class DesktopNotificationObserver {
@@ -253,7 +253,7 @@ export class DesktopNotificationObserver {
     ).pipe(Effect.zipRight(this.readyToRead.settle(sessionId, occurredAt, runId)))
   }
 
-  /** A root Session's Run completed: Ready to read now, or once its Hive settles (ADR 0063). */
+  /** A root Session's Run completed: Ready to read now, or once its Hive settles (ADR 0065). */
   private onCompleted(completed: CompletedRootRun) {
     const { sessionId, runId, occurredAt } = completed
     return Effect.gen(this, function* () {

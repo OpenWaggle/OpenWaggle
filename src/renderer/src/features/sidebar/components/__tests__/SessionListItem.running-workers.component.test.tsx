@@ -11,7 +11,7 @@ import {
 } from './SessionListItem.two-line.test-utils'
 
 describe('a parent row and its Running Workers', () => {
-  it('reads Working while the Queen is idle and her Workers run, then Done below (ADR 0063)', () => {
+  it('reads Working while the Queen is idle and her Workers run, then Done below (ADR 0065)', () => {
     useSessionStatusStore.setState({
       statuses: new Map(),
       completedAt: new Map(),

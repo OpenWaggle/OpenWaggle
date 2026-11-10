@@ -11,7 +11,7 @@ import {
 } from './desktop-notification-observer.test-harness'
 import { hive, workerSettled } from './desktop-notification-observer-hive.test-support'
 
-describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 0063)', () => {
+describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 0065)', () => {
   it('does not notify a Queen that delegated and ended her turn', async () => {
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1', 'w2'])
