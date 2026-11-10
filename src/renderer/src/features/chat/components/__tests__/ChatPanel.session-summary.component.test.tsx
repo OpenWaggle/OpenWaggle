@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { act, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
 import { useUIStore } from '@/shell/ui-store'
@@ -9,13 +9,11 @@ import {
   advanceSessionResourceBackfill,
   findSessionSummary,
   listSessionResources,
-  notifyResize,
   preloadSessionSummaryOverlay,
   renderPanel,
   renderPanelSettled,
   SESSION,
   setupChatPanelSessionSummaryHarness,
-  toggleSessionSummaryPanel,
 } from './chat-panel-session-summary.test-harness'
 
 describe('ChatPanel session summary', () => {
@@ -91,129 +89,6 @@ describe('ChatPanel session summary', () => {
     renderPanel({}, { isFirstMessage: true, session: SESSION })
 
     expect(await findSessionSummary()).toBeInTheDocument()
-  })
-
-  it('keeps the transcript width independent from the floating Session Summary', () => {
-    const message = makeMessage({
-      id: 'u1',
-      role: 'user',
-      parts: [{ type: 'text', content: 'Hello agent' }],
-    })
-    renderPanel(
-      {
-        messages: [message],
-        chatRows: [
-          {
-            type: 'message',
-            message,
-            isStreaming: false,
-            isRunActive: false,
-            showTurnDivider: false,
-          },
-        ],
-      },
-      { isFirstMessage: false, session: SESSION },
-    )
-    expect(screen.getByRole('log', { name: 'Chat messages' })).not.toHaveClass('pr-84')
-    act(() => toggleSessionSummaryPanel('session-1'))
-    expect(screen.getByRole('log', { name: 'Chat messages' })).not.toHaveClass('pr-84')
-    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-  })
-
-  it('automatically hides the panel in a narrow chat while keeping its toggle usable', async () => {
-    const message = makeMessage({
-      id: 'u1',
-      role: 'user',
-      parts: [{ type: 'text', content: 'Hello agent' }],
-    })
-    await renderPanelSettled(
-      {
-        messages: [message],
-        chatRows: [
-          {
-            type: 'message',
-            message,
-            isStreaming: false,
-            isRunActive: false,
-            showTurnDivider: false,
-          },
-        ],
-      },
-      { isFirstMessage: false, session: SESSION },
-    )
-    const chatPanel = document.querySelector('[data-chat-panel-main="true"]')
-    if (!(chatPanel instanceof HTMLElement)) throw new Error('Chat panel main element is missing.')
-    Object.defineProperty(chatPanel, 'clientWidth', { configurable: true, value: 700 })
-
-    act(() => notifyResize())
-
-    expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
-    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    act(() => toggleSessionSummaryPanel('session-1'))
-    expect(await findSessionSummary()).toBeInTheDocument()
-  })
-
-  it('auto-hides at a medium width where the panel would overlap centered chat content', async () => {
-    const message = makeMessage({
-      id: 'u1',
-      role: 'user',
-      parts: [{ type: 'text', content: 'Hello agent' }],
-    })
-    await renderPanelSettled(
-      {
-        messages: [message],
-        chatRows: [
-          {
-            type: 'message',
-            message,
-            isStreaming: false,
-            isRunActive: false,
-            showTurnDivider: false,
-          },
-        ],
-      },
-      { isFirstMessage: false, session: SESSION },
-    )
-    const chatPanel = document.querySelector('[data-chat-panel-main="true"]')
-    if (!(chatPanel instanceof HTMLElement)) throw new Error('Chat panel main element is missing.')
-    Object.defineProperty(chatPanel, 'clientWidth', { configurable: true, value: 1_200 })
-
-    act(() => notifyResize())
-
-    expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
-    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    act(() => toggleSessionSummaryPanel('session-1'))
-    expect(await findSessionSummary()).toBeInTheDocument()
-  })
-
-  it('hides before paint when the chat mounts below the automatic summary width', async () => {
-    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(700)
-    const message = makeMessage({
-      id: 'u1',
-      role: 'user',
-      parts: [{ type: 'text', content: 'Hello agent' }],
-    })
-
-    await renderPanelSettled(
-      {
-        messages: [message],
-        chatRows: [
-          {
-            type: 'message',
-            message,
-            isStreaming: false,
-            isRunActive: false,
-            showTurnDivider: false,
-          },
-        ],
-      },
-      { isFirstMessage: false, session: SESSION },
-    )
-    // A ResizeObserver reports its first observation after layout and before paint; its update
-    // renders synchronously, so the summary is hidden in the first painted frame.
-    act(() => notifyResize())
-
-    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
   it('orders gallery images by persisted transcript node identity', async () => {

@@ -13,6 +13,7 @@ import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
 import { useSessionSummarySpace } from '../hooks/use-session-summary-space'
+import { SESSION_SUMMARY_DOCKED_CHAT_CLASS } from '../lib/chat-content-layout'
 import type { ChatPanelSections } from '../model'
 import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
@@ -143,7 +144,7 @@ export function ChatPanelContent({
     <div className="flex size-full overflow-hidden">
       <div
         ref={panelRef}
-        className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
+        className={`relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg ${SESSION_SUMMARY_DOCKED_CHAT_CLASS}`}
         data-chat-panel-main="true"
         data-session-summary-space={hasSpace ? 'available' : 'constrained'}
       >

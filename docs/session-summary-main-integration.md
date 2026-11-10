@@ -4,7 +4,7 @@ The Summary branch incorporates main commit `82f862a5` and app version `v0.3.0-a
 
 ## Session ownership and overlays
 
-The header toggle remains available independently of available chat width. The Summary floats and does not reserve chat width. Automatic display yields to the current Session's inspector or floating browser preview. Explicitly opening the Summary suspends that Session's floating preview, including its native browser view. Closing the Summary restores the retained preview tab. Switching Sessions must not expose the previous Session's preview or resource catalog.
+The header toggle remains available independently of available chat width. A docked Summary moves the conversation frames clear of it; a transient one floats and reserves no chat width (ADR 0026 amendment). Automatic display yields to the current Session's inspector or floating browser preview. Explicitly opening the Summary suspends that Session's floating preview, including its native browser view. Closing the Summary restores the retained preview tab. Switching Sessions must not expose the previous Session's preview or resource catalog.
 
 Resources and change-request details participate in the same right-sidebar coordinator as terminals and browser tabs. Opening one claims the inspector without deleting the other Session-owned tabs. Authorization remains in the dock.
 

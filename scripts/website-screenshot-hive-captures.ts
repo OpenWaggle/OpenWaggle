@@ -78,7 +78,7 @@ export async function captureSessionSummary(context: CaptureContext) {
   await outputs.waitFor({ timeout: UI_TIMEOUT_MS })
   if ((await outputs.getAttribute('aria-expanded')) === 'false') await outputs.click()
   await summary.getByRole('region', { name: 'Outputs list' }).waitFor({ timeout: UI_TIMEOUT_MS })
-  // The Summary card alone: it floats over the transcript, which a wider margin would show.
+  // The Summary card alone: it sits over the panel's right side, which a wider margin would show.
   await shootRegion(context, 'session-summary.png', async () => regionOf(summary))
 }
 

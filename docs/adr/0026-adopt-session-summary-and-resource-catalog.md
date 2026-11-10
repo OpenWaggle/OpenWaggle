@@ -2,6 +2,8 @@
 
 Status: accepted
 
+Amended 2026-11-10: the Summary is shown by default and a docked Summary moves the conversation aside (see the Amendment below, #439).
+
 OpenWaggle will add a Codex-style Session Summary backed by a durable, session-owned resource catalog. Pi remains the runtime/session authority; SQLite and managed files provide the product read model needed to render Sources, Outputs, and images after restart.
 
 ## Parity baseline
@@ -13,7 +15,7 @@ Parity means matching the reference interaction for capabilities OpenWaggle trut
 | Codex behavior | OpenWaggle behavior |
 | --- | --- |
 | Summary appears after a task has content | Summary appears after the first sent message |
-| Top-right floating panel, responsive suppression, header toggle | Same overlay behavior; it never reserves transcript or composer width |
+| Top-right floating panel, responsive suppression, header toggle | Same panel, suppression and toggle; a docked Summary moves the conversation clear of it, a product departure (see the Amendment) |
 | Environment sections for discovered repositories | One Environment section for the session's single bound project/working tree; OpenWaggle has no multi-root Session model |
 | Changes, environment, branch, Commit or push, change request | Same separate controls through guarded Git services; View PR/MR opens a Session-bound in-app lifecycle inspector |
 | GitHub pull-request workflow | Same composer interaction, native `gh` path, exact-host readiness, and browser fallback |
@@ -67,7 +69,7 @@ The app also spreads persistent session context across the composer, header, dif
 ### The Session Summary is host-owned
 
 - Show the Summary only after the first message. Before first send, the existing setup dock owns project, environment, and run target.
-- Render the same content in one top-right floating overlay after the first message. It never reserves transcript or composer width. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep a Layout list toggle in the header available so the user can explicitly reopen or hide the overlay at any width.
+- Render the same content in one top-right floating overlay after the first message. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep a Layout list toggle in the header available so the user can explicitly reopen or hide the overlay at any width. (Amended below: a docked Summary moves the conversation out from under it, and "too narrow" means too narrow for the Summary beside the chat's minimum width.)
 - Initial first-party order is Environment, Hive, Outputs, Sources. Add future capabilities as explicitly named conditional sections. Do not add generic Activity or Usage buckets.
 - The order may include truthful named conditional capabilities around that spine. For this baseline, active event subscriptions appear as Subscriptions and declarative extension placements remain deterministic; absent product domains do not render empty sections.
 - Authorization mode and model context usage remain in the composer before and after first send.
@@ -109,6 +111,16 @@ The app also spreads persistent session context across the composer, header, dif
 ## Consequences
 
 The change adds a persistence port/adapter, migration, managed-file service, typed IPC, renderer resource feature, Summary shell, Resource Browser, image viewer, extension contract additions, and provider-aware change-request workflow UI. Tests must cover session isolation, branch provenance, idempotent backfill, archive/delete lifecycle, capture limits and SSRF protection, Session switching, floating-overlay responsiveness, sidebar yielding, extension isolation, image keyboard/zoom behavior, and GitHub/GitLab workflows. Real hidden Electron QA and end-to-end interaction tests are required because layout ownership, route state, and image rendering cannot be proven through unit tests alone.
+
+## Amendment (2026-11-10): the Summary is shown by default (#439)
+
+The first rule docked the Summary only where it fit beside the centered 720px conversation column without covering it: a chat panel of 1,384px, a window 1,744px wide beside the 316px sidebar and 44px panel rail. The default 1,200px window and every common laptop width, including a maximized 1,728px MacBook Pro window (8px short), fell below it, so the Summary was hidden by default and opened only as a transient overlay. A docked Summary that floated over the conversation was tried and rejected: right-aligned user messages and the composer's send controls sat under it.
+
+- The Summary docks, and opens by itself unless the person hid it for that Session, whenever the chat panel keeps the chat's minimum width (`CHAT_MIN_WIDTH`, 420px, the width the right sidebar also keeps) beside the Summary's 332px footprint (300px wide, 16px inset, 16px gap): a chat panel of at least 752px. Narrower, or beside a floating browser preview, it stays hidden and opens on request as the transient overlay.
+- A docked Summary moves the conversation frames clear of it, not the panel: each frame centers in the panel's width less a reserve of `min(332, max(0, 2 * 332 + 720 - panel width))` px. A wide window keeps the centered column unmoved, a medium one shifts it left at full width, and a narrow one narrows it to what is left. The transcript keeps scrolling across the whole panel and keeps its scrollbar at the panel's edge. Hiding the Summary gives the width back.
+- A transient Summary still floats over the conversation and reserves nothing.
+- This departs from the Codex reference, whose panel floats over the conversation. It is a product decision, like keeping authorization in the composer.
+- The reserve appears in the frame the Summary mounts in. On the first Summary of an app launch, whose code loads beside the chat, and when a Session without messages learns it has Summary content, the conversation moves once after its first paint.
 
 ## Alternatives considered
 
