@@ -42,17 +42,31 @@ function asSentence(words: string) {
  * composer with no word of why, which read as the app ignoring the person.
  */
 export function refusedSendNotice(refusal: MessageNotDelivered) {
+  const reason = refusalReason(refusal)
+  return reason
+    ? `Not sent: ${reason} Your message is back in the composer.`
+    : 'Not sent. Your message is back in the composer.'
+}
+
+function refusalReason(refusal: MessageNotDelivered) {
   const readable =
     refusal.message !== DEFAULT_NOT_DELIVERED_MESSAGE && refusal.message !== refusal.code
   // The Host's own words when it wrote some, as for a Waggle it could not start; else its code.
-  if (readable)
-    return `Not sent: ${asSentence(refusal.message)} Your message is back in the composer.`
+  if (readable) return asSentence(refusal.message)
   const reason = refusal.code ? REFUSAL_REASONS.get(refusal.code) : undefined
-  if (reason) return `Not sent: ${reason} Your message is back in the composer.`
-  if (refusal.code) {
-    return `Not sent: the Session Host refused it (${refusal.code}). Your message is back in the composer.`
-  }
-  return 'Not sent. Your message is back in the composer.'
+  if (reason) return reason
+  return refusal.code ? `the Session Host refused it (${refusal.code}).` : undefined
+}
+
+/**
+ * The toast for a send from outside the composer (a Retry, a review, a starter prompt) that the
+ * Session Host refused, or undefined for any other failure: those report themselves.
+ */
+export function refusedSendToast(cause: unknown) {
+  const refusal = refusalOf(cause)
+  if (!refusal) return undefined
+  const reason = refusalReason(refusal)
+  return reason ? `Not sent: ${reason}` : 'Not sent.'
 }
 
 function refusalOf(cause: unknown) {

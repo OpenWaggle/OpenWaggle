@@ -4,6 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { isAgentsHiveWakeKey } from '../../domain/session-control/hive-wake'
 import type {
   SessionControlRunIntent,
   SessionControlSessionState,
@@ -178,6 +179,31 @@ describe('Hive wake of an idle parent', () => {
     ])
     // The wake Run settled like any parent Run, so the Host checks again for updates it missed.
     expect(requests).toEqual([{ parentSessionId: QUEEN }])
+  })
+
+  it('marks a wake that something outside the Queen’s Hive caused as agents’ work', async () => {
+    installRuntime()
+    captureWakeRequests()
+    const wake = (causedOutsideHive: boolean) => {
+      const { layer, executed, ran } = harness({
+        candidate: {
+          parentSessionId: QUEEN,
+          latestRunId: 'run-parent',
+          callerId: 'local-user',
+          piSessionFile: null,
+          triggerCallerIds: ['session-agent:session-worker:run-worker'],
+          causedOutsideHive,
+        },
+      })
+      return Effect.runPromise(
+        wakeIdleParent({ parentSessionId: QUEEN }, allowed).pipe(Effect.provide(layer)),
+      ).then(() => ran.then(() => executed[0]?.idempotencyKey))
+    }
+
+    const [outside, inside] = [await wake(true), await wake(false)]
+
+    expect(isAgentsHiveWakeKey(outside)).toBe(true)
+    expect(isAgentsHiveWakeKey(inside)).toBe(false)
   })
 
   it('runs no higher than the latest Run’s caller may, and not at all once it may not', async () => {

@@ -41,6 +41,11 @@ export interface HiveParentWakeCandidate {
    * named their cause, which counts as the Host's own.
    */
   readonly triggerCallerIds: readonly (string | null)[]
+  /**
+   * Something outside the Queen's own Hive caused an update the wake would act on, so the wake is
+   * agents' work (`sqlite-hive-wake-work.ts`). Set by the repository's candidate read.
+   */
+  readonly causedOutsideHive?: boolean
 }
 
 export interface HiveParentWakeQuery {

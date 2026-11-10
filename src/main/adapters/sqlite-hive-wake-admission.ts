@@ -1,11 +1,19 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
-import { HIVE_WAKE_NOT_NEEDED } from '../domain/session-control/hive-wake'
+import { asAgentsHiveWakeKey, HIVE_WAKE_NOT_NEEDED } from '../domain/session-control/hive-wake'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
 import { messageCallerBlockReason } from './session-follow-up-authorization'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
+import { wakeCausedOutsideHive } from './sqlite-hive-wake-work'
 import { newRunAdmissionRefusal } from './sqlite-session-control-queue-delivery'
+
+/** The starting wake as the capacity rule reads it when something outside its Hive caused it. */
+function asAgentsWake(state: SessionControlSessionState): SessionControlSessionState {
+  if (state.run.state !== 'starting') return state
+  const idempotencyKey = asAgentsHiveWakeKey(state.run.intent.idempotencyKey)
+  return { ...state, run: { ...state.run, intent: { ...state.run.intent, idempotencyKey } } }
+}
 
 /** Whether this decision starts a Host-authored Hive wake Run. */
 export function startsHiveWake(state: SessionControlSessionState) {
@@ -37,6 +45,8 @@ export function hiveWakeRefusal(
     const callerBlock = yield* messageCallerBlockReason(sql, sessionId, callerId)
     if (callerBlock) return callerBlock
     if (!(yield* wakeCandidateMayWake(sql, candidate))) return HIVE_WAKE_NOT_NEEDED
-    return yield* newRunAdmissionRefusal(sql, state, hostRunCeiling)
+    // Caused from outside the Hive since the Host built the wake's key: held as agents' work.
+    const outside = yield* wakeCausedOutsideHive(sql, candidate)
+    return yield* newRunAdmissionRefusal(sql, outside ? asAgentsWake(state) : state, hostRunCeiling)
   })
 }

@@ -181,9 +181,11 @@ export function MultiAgentAccessCard() {
       </div>
       <p className="text-xs text-text-tertiary">
         At either limit a new run of agents' work, or a new Worker, is refused with a retryable
-        error, an agent's queued message waits paused, and a Worker's or agent's Queen's wake waits
-        for a free run. Messages you send are never held back by them. Higher values may strain your
-        machine or model provider. Project configuration files can override these app-wide defaults.
+        error, an agent's queued message waits paused, and the Host's wake of a Worker, or of a
+        Queen whose work is an agent's, waits for a free run. Messages you send are never refused by
+        them; one that lands behind an agent's paused message waits for your Resume. Higher values
+        may strain your machine or model provider. Project configuration files can override these
+        app-wide defaults.
       </p>
       <SavedProjectOverrides
         settings={settings}

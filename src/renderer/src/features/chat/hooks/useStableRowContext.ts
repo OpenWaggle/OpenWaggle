@@ -1,6 +1,8 @@
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { useLayoutEffect, useRef, useState } from 'react'
+import { useUIStore } from '@/shell/ui-store'
 import type { ChatRowRenderContext } from '../components/ChatRowRenderContext'
+import { refusedSendToast } from '../lib/session-image-send-failure'
 import type { ChatTranscriptSectionState } from '../model'
 
 function sameSet(left: ReadonlySet<string>, right: ReadonlySet<string>) {
@@ -61,7 +63,11 @@ export function useStableRowContext(section: Section): ChatRowRenderContext {
     onToggleTurnFold: (turnKey: string) => latest.current.onToggleTurnFold(turnKey),
     onOpenSettings: () => latest.current.onOpenSettings(),
     onRetry: (content: string) => {
-      void latest.current.onRetryText(content)
+      // A Retry the Host refused says why; a Run failure after delivery shows its own banner.
+      latest.current.onRetryText(content).catch((cause: unknown) => {
+        const refused = refusedSendToast(cause)
+        if (refused) useUIStore.getState().showToast(refused, 'error')
+      })
     },
     onDismissError: (message: string) => latest.current.onDismissError(message),
   }))

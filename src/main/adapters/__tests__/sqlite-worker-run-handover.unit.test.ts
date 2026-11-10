@@ -177,6 +177,24 @@ describe('Worker limits when one Run hands a Session to the next', () => {
     })
   })
 
+  it('keeps a queue paused for capacity when its head needs attention', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'attention-head.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        // The head's client profile is gone, so it needs attention when the Run settles.
+        const queued = ['profile:revoked', 'gui:local-user']
+        const sql = yield* personRunAtFullCeiling(queued, { pausedForCapacity: true })
+        return yield* settleTarget(sql)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'parent-limit',
+    })
+  })
+
   it('refuses an agent’s replacement of the person’s Run when the ceiling is full', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'agent-replace.sqlite'))
     const claim = await Effect.runPromise(

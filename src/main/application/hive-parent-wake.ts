@@ -6,7 +6,7 @@ import {
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
-import { HIVE_WAKE_NOT_NEEDED } from '../domain/session-control/hive-wake'
+import { HIVE_WAKE_NOT_NEEDED, hiveWakeKey } from '../domain/session-control/hive-wake'
 import { PiSessionFiles } from '../ports/pi-session-discovery'
 import {
   type HiveParentWakeCandidate,
@@ -89,7 +89,11 @@ export function wakeIdleParent<R = never>(
     if (authority.blocked !== undefined) return 'refused' as const
     const settings = yield* SettingsService
     const snapshot = yield* settings.get()
-    const key = `hive-wake:${candidate.parentSessionId}:${randomUUID()}`
+    const key = hiveWakeKey(
+      candidate.parentSessionId,
+      randomUUID(),
+      candidate.causedOutsideHive === true,
+    )
     const response = yield* executeSessionControlMutation({
       callerId: candidate.callerId,
       hostRunCeiling: snapshot.sessionHostRunCeiling,

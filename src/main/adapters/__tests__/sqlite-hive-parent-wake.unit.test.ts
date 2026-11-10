@@ -131,6 +131,8 @@ describe('Hive wake: Worker updates reach an idle parent', () => {
         piSessionFile: null,
         // Who caused the update the wake would act on.
         triggerCallerIds: ['session-agent:session-worker:run-worker'],
+        // The Queen's own Hive caused it, so the wake is not marked as agents' work.
+        causedOutsideHive: false,
       },
     })
   })

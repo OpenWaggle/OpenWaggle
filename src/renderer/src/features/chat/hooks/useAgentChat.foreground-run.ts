@@ -4,46 +4,16 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
 import { settlingRunId } from '../lib/run-ids'
+import {
+  type ForegroundRunRefs,
+  type ForegroundRunSetters,
+  type ForegroundRunState,
+  handBackForegroundPointers,
+  restoreBeforeRefusedSend,
+  restoreVisibleRunState,
+} from './useAgentChat.foreground-restore'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
-import type {
-  AgentChatStatus,
-  MutableValueRef,
-  PendingRunWaiter,
-  RunCompletion,
-  RunCompletionRouting,
-  SetMessagesBySessionId,
-  SetRunRenderMessages,
-} from './useAgentChat.types'
-
-interface ForegroundRunRefs {
-  readonly currentSessionIdRef: MutableValueRef<SessionId | null>
-  readonly statusRef: MutableValueRef<AgentChatStatus>
-  readonly foregroundStreamActiveRef: MutableValueRef<boolean>
-  readonly foregroundSessionIdRef: MutableValueRef<SessionId | null>
-  readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
-  readonly pendingRunWaiterRef: MutableValueRef<PendingRunWaiter | null>
-  readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
-}
-
-interface ForegroundRunSetters {
-  readonly error: Error | undefined
-  readonly setError: (error: Error | undefined) => void
-  readonly setStatus: (status: AgentChatStatus) => void
-  readonly setBackgroundStreaming: (backgroundStreaming: boolean) => void
-  readonly setMessagesBySessionId: SetMessagesBySessionId
-  readonly setRunRenderMessages: SetRunRenderMessages
-  readonly removeOptimisticUserMessage: (sessionId: SessionId, messageId: UIMessage['id']) => void
-}
-
-/** What the renderer was following when a send began, so a send that started nothing can hand it back. */
-interface ForegroundRunState {
-  readonly waiter: PendingRunWaiter | null
-  readonly foregroundStreamActive: boolean
-  readonly foregroundSessionId: SessionId | null
-  readonly terminalRunError: Error | undefined
-  readonly status: AgentChatStatus
-  readonly error: Error | undefined
-}
+import type { PendingRunWaiter, RunCompletion, RunCompletionRouting } from './useAgentChat.types'
 
 export function normalizeError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
@@ -152,47 +122,15 @@ function createForegroundRunWaiter(previous: ForegroundRunState) {
       settled?.error !== undefined || held.some((completion) => completion.error)
     if (settled) forwardToPrevious(settled.error ? { error: settled.error } : {})
     for (const completion of held.splice(0)) forwardToPrevious(completion)
-    // A later send that began meanwhile owns the foreground: what is on screen is its own.
-    const laterSendOwnsForeground =
-      refs.pendingRunWaiterRef.current !== null && refs.pendingRunWaiterRef.current !== tracked
-    if (refs.pendingRunWaiterRef.current === tracked) {
-      refs.pendingRunWaiterRef.current = previous.waiter
-      refs.foregroundStreamActiveRef.current = previous.foregroundStreamActive
-      refs.foregroundSessionIdRef.current = previous.foregroundSessionId
-      refs.terminalRunErrorRef.current ??= previous.terminalRunError
-    }
+    const laterSendOwnsForeground = handBackForegroundPointers(refs, tracked, previous)
     if (laterSendOwnsForeground || refs.currentSessionIdRef.current !== targetSessionId) return
-    if (options.refused && failedMeanwhile) {
-      refs.terminalRunErrorRef.current = previous.terminalRunError
-      setters.setError(previous.error)
-      setters.setStatus(previous.status)
+    if (options.refused && failedMeanwhile && restoreBeforeRefusedSend(refs, previous, setters)) {
       return
     }
     restoreVisibleRunState(refs, previous, completedMeanwhile, setters)
   }
 
   return { promise, waiter: tracked, bind, handBack }
-}
-
-function restoreVisibleRunState(
-  refs: ForegroundRunRefs,
-  previous: ForegroundRunState,
-  completedMeanwhile: boolean,
-  setters: ForegroundRunSetters,
-) {
-  // Anything other than the send's own `submitted` (or the `ready` a completion set) came from a
-  // real event that arrived meanwhile, and wins.
-  const status = refs.statusRef.current
-  if (!completedMeanwhile && status === 'submitted') {
-    setters.setError(previous.error)
-    setters.setStatus(previous.status)
-    return
-  }
-  if (completedMeanwhile && (status === 'submitted' || status === 'ready')) {
-    const error = previous.error ?? previous.terminalRunError
-    setters.setError(error)
-    setters.setStatus(error ? 'error' : 'ready')
-  }
 }
 
 export type ForegroundRun = ReturnType<typeof createForegroundRunWaiter>

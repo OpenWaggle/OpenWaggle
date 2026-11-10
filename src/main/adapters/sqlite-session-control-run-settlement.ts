@@ -199,6 +199,8 @@ export function planRunSettlementWithinParentLimit(
 function waitsOnCapacityForPerson(sql: SqlClient.SqlClient, state: SessionControlSessionState) {
   const queue = state.followUpQueue
   if (queue.state !== 'paused' || queue.pauseReason !== 'parent-limit') return Effect.succeed(false)
+  // A head that needs attention keeps the queue paused: resuming would deliver nothing.
+  if (queue.items[0]?.deliveryState !== 'pending') return Effect.succeed(false)
   return holdsPersonFollowUp(sql, queue.items)
 }
 

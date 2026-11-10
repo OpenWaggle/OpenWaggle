@@ -1,4 +1,5 @@
 import { createRendererLogger } from '@/shared/lib/logger'
+import { refusedSendToast } from './session-image-send-failure'
 
 const logger = createRendererLogger('chat-panel')
 
@@ -18,6 +19,6 @@ export async function sendStarterPrompt(input: {
   } catch (sendError) {
     const message = sendError instanceof Error ? sendError.message : String(sendError)
     logger.error('Failed to send starter prompt', { error: message })
-    input.showToast(message)
+    input.showToast(refusedSendToast(sendError) ?? message)
   }
 }

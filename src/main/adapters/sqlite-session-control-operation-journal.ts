@@ -2,7 +2,6 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
 import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { parseJsonUnknown } from '@shared/schema'
-import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
@@ -13,10 +12,10 @@ import {
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
 import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
+import { withReplacementCapacity } from './sqlite-session-control-replacement-capacity'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { withStoredRefusalKind } from './sqlite-stored-refusal-kind'
-import { workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 interface SessionOperationRow {
   readonly request_json: string
@@ -92,31 +91,6 @@ function pendingPromotionReplaceRejection(
   )
 }
 
-/** A claimed replacement whose Run would be agents' work past a full Worker limit. */
-function replacementCapacityRejection(
-  sql: SqlClient.SqlClient,
-  input: Parameters<SessionControlOperationJournalShape['claim']>[0],
-  sessionId: string,
-) {
-  return Effect.gen(function* () {
-    if (!input.replacementRun) return undefined
-    const { caller, hostRunCeiling } = input.replacementRun
-    const code = yield* workerRunAdmissionRefusal(sql, {
-      sessionId,
-      runCaller: caller,
-      requestCaller: caller,
-      hostRunCeiling,
-    })
-    if (!code) return undefined
-    return {
-      operation: input.request.command.operation,
-      effect: 'rejected',
-      sessionId,
-      ...sessionHostRefusal(code),
-    } satisfies SessionControlMutationOutcome
-  })
-}
-
 function claimExternalOperation(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlOperationJournalShape['claim']>[0],
@@ -172,14 +146,7 @@ function claimExternalOperation(
         const decided = replaceRejection
           ? ({ accepted: false, outcome: replaceRejection } as const)
           : input.decide(state)
-        // Capacity is checked only for a claim that is otherwise valid, so a stale request gets
-        // its own code, not a retryable capacity one.
-        const capacityRejection = decided.accepted
-          ? yield* replacementCapacityRejection(sql, input, targetScope)
-          : undefined
-        const decision = capacityRejection
-          ? ({ accepted: false, outcome: capacityRejection } as const)
-          : decided
+        const decision = yield* withReplacementCapacity(sql, input, targetScope, decided)
         const now = Date.now()
         if (decision.accepted) {
           if (decision.state) {

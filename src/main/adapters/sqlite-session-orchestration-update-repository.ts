@@ -9,6 +9,7 @@ import {
   type SessionOrchestrationUpdateRepositoryShape,
 } from '../ports/session-orchestration-update-repository'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
+import { wakeCausedOutsideHive } from './sqlite-hive-wake-work'
 
 interface PendingUpdateRow {
   readonly id: string
@@ -160,6 +161,14 @@ export const SqliteSessionOrchestrationUpdateRepositoryLive = Layer.effect(
       markSpecificationsDelivered: (input) => markSpecificationsDelivered(sql, input),
       parentWakeCandidate: (input) =>
         selectHiveParentWakeCandidate(sql, input).pipe(
+          Effect.flatMap((candidate) =>
+            candidate
+              ? Effect.map(wakeCausedOutsideHive(sql, candidate), (causedOutsideHive) => ({
+                  ...candidate,
+                  causedOutsideHive,
+                }))
+              : Effect.succeed(candidate),
+          ),
           Effect.mapError((cause) => repositoryError('hive-parent-wake-candidate', cause)),
         ),
     })

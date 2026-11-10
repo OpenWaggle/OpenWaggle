@@ -120,6 +120,43 @@ describe('Follow-up delivery at the Worker ceiling', () => {
     expect(result.after.run).toMatchObject({ state: 'starting' })
   })
 
+  it('refuses an agent’s resume at the ceiling though the person’s Follow-up waits behind', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue([{ id: 'agent-next' }, { id: 'mine' }], 'paused')
+        yield* busyWorkerHive
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE session_control_states SET queue_pause_reason = ${'parent-limit'}
+          WHERE session_id = ${SESSION}
+        `
+        const before = yield* loadState()
+        const resumed = yield* mutateSessionQueue({
+          callerId: AGENT,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-resume',
+            sessionId: SESSION,
+            expectedQueueRevision: before.followUpQueue.revision,
+          }),
+        })
+        return { resumed, after: yield* loadState() }
+      }).pipe(Effect.provide(layer('worker-ceiling-agent-resume.sqlite'))),
+    )
+
+    // Only a running queue lets an agent's head through for the person; an agent's resume waits.
+    expect(result.resumed.outcome).toMatchObject({
+      operation: 'queue-resume',
+      effect: 'rejected',
+      code: 'host_run_ceiling_reached',
+    })
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'parent-limit',
+    })
+  })
+
   it('holds a failed Run’s agent retry to the ceiling though the person’s Follow-up waits behind it', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {

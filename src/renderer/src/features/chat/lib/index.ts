@@ -18,3 +18,4 @@ export {
 } from './scroll-to-bottom'
 export { isSessionModelActionable } from './session-answered-by'
 export { runSessionCopyOnce } from './session-copy-in-flight'
+export { refusedSendToast } from './session-image-send-failure'

@@ -6,6 +6,7 @@ import {
   isScheduledTaskRunKey,
   scheduledTaskRunWork,
 } from '../domain/scheduled-tasks/scheduled-task-run-key'
+import { isAgentsHiveWakeKey } from '../domain/session-control/hive-wake'
 import {
   isLocalUserCallerId,
   LOCAL_USER_CALLER_IDS,
@@ -67,6 +68,8 @@ export function isPersonRun(
 ) {
   if (!caller.hiveWake) return isPersonCaller(sql, caller)
   if (session.inWorker || !isLocalUserCallerId(caller.callerId)) return Effect.succeed(false)
+  // Caused from outside the Queen's Hive: the outside caller's work (`wakeCausedOutsideHive`).
+  if (isAgentsHiveWakeKey(caller.idempotencyKey)) return Effect.succeed(false)
   // A wake acts for the caller of the Run it continues and carries a key of its own, so whose
   // work it is comes from that Run: an agent's Scheduled task fires as its local-user owner.
   return Effect.gen(function* () {

@@ -82,6 +82,36 @@ describe('SqliteDesktopNotificationFactsLive', () => {
     })
   })
 
+  it('counts the active Runs the Active Workers ceiling counts, never the person’s own', async () => {
+    const active = await withFacts(
+      (sql) =>
+        Effect.gen(function* () {
+          for (const [sessionId, callerId] of [
+            ['mine', 'gui:local-user'],
+            ['agents', 'transient-mcp:digest-agent'],
+          ] as const) {
+            yield* insertSession(sql, sessionId)
+            yield* insertRun(sql, {
+              id: `run-${sessionId}`,
+              sessionId,
+              status: 'active',
+              intent: { callerId, idempotencyKey: `key-${sessionId}` },
+              updatedAt: 1,
+            })
+            yield* sql`
+              INSERT INTO session_control_states (
+                session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+              ) VALUES (${sessionId}, ${1}, ${`run-${sessionId}`}, ${'running'}, ${0}, ${1})
+            `
+          }
+        }),
+      (facts) => facts.hostActiveRunCount(),
+    )
+
+    // A full ceiling only defers a wake that is agents' work: the person's Run takes no slot.
+    expect(active).toBe(1)
+  })
+
   it("reads a root Session, its Run's caller, the visit receipt and Runs lost with the Host", async () => {
     const result = await withFacts(
       (sql) =>

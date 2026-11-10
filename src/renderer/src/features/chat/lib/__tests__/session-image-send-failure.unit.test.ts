@@ -8,6 +8,7 @@ import {
 import {
   PI_SESSION_FILE_REFUSAL_NOTICE,
   refusedSendNotice,
+  refusedSendToast,
   sessionImageSendFailureDisposition,
 } from '../session-image-send-failure'
 
@@ -223,5 +224,27 @@ describe('Session image send failure ownership', () => {
       notice:
         "Not sent: agents' work is at the Active Workers limit. Your message is back in the composer.",
     })
+  })
+
+  it('says why a send from outside the composer was refused, and nothing for other failures', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'queue_capacity_reached',
+      'queue_capacity_reached',
+    )
+
+    expect(refusedSendToast(refusal)).toBe(
+      'Not sent: this Session already has as many queued messages as it can hold.',
+    )
+    expect(refusedSendToast(new MessageNotDelivered('refused', 'odd_code', 'odd_code'))).toBe(
+      'Not sent: the Session Host refused it (odd_code).',
+    )
+    expect(refusedSendToast(new MessageNotDelivered('cancelled'))).toBeUndefined()
+    expect(
+      refusedSendToast(new MessageDeliveredRunFailed(new Error('Rate limited'))),
+    ).toBeUndefined()
+    // Already explained by its own toast.
+    const explained = new MessageNotDelivered('refused', 'x', 'x', { explained: true })
+    expect(refusedSendToast(explained)).toBeUndefined()
   })
 })
