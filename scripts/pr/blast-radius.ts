@@ -149,9 +149,7 @@ export function renderBlastRadius(input: BlastRadiusInput) {
       '## Blast radius',
       '',
       `- Risk: **${risk}** across ${fileCount(input.changedFiles.length)} at \`${shortSha}\``,
-      ...groups.map(
-        (group) => `- ${group.label}: ${group.risk}, ${fileCount(group.files.length)}`,
-      ),
+      ...groups.map((group) => `- ${group.label}: ${group.risk}, ${fileCount(group.files.length)}`),
       `- Full report: ${reportUrl}`,
       '- Written by `bun run pr:ready`; edits inside this section are replaced on the next run.',
       '',
