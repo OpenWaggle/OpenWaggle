@@ -27,7 +27,7 @@ vi.mock('@pierre/diffs/react', async () => {
           const shadowRoot = container.shadowRoot
           if (!shadowRoot) throw new Error('expected the test diffs container to expose its root')
           const header = document.createElement('div')
-          header.dataset.diffsHeader = 'diff'
+          header.dataset['diffsHeader'] = 'diff'
           shadowRoot.append(header)
         }}
       />

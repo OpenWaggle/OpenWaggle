@@ -6,8 +6,8 @@ import { isRecord } from './validation'
  * other Follow-up.
  */
 export function returnedSteerProvenance(intent: unknown) {
-  if (!isRecord(intent) || !isRecord(intent.returnedSteer)) return {}
-  const { runId } = intent.returnedSteer
+  if (!isRecord(intent) || !isRecord(intent['returnedSteer'])) return {}
+  const { runId } = intent['returnedSteer']
   const { idempotencyKey } = intent
   return typeof runId === 'string' && typeof idempotencyKey === 'string'
     ? { returnedSteer: { runId, idempotencyKey } }

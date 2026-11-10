@@ -79,7 +79,7 @@ async function moveWithMenu(text: string, direction: 'Move up' | 'Move down') {
 
 function renderedOrder() {
   return [...document.querySelectorAll<HTMLElement>('[data-qa="queued-message-row"]')].map(
-    (row) => row.dataset.followUpId,
+    (row) => row.dataset['followUpId'],
   )
 }
 
@@ -125,7 +125,7 @@ function recordOrderWhenGripFocused() {
     this: HTMLElement,
     options?: FocusOptions,
   ) {
-    if (this.dataset.qa === 'queued-message-grip') orders.push(renderedOrder())
+    if (this.dataset['qa'] === 'queued-message-grip') orders.push(renderedOrder())
     focus.call(this, options)
   })
   return orders

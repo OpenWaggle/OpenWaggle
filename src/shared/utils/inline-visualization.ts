@@ -50,14 +50,14 @@ export function parseInlineVisualizationReference(
     const parsed: unknown = JSON.parse(value)
     if (!isRecord(parsed)) return null
     if (Object.keys(parsed).some((key) => !VISUALIZE_REFERENCE_KEYS.has(key))) return null
-    if (!isValidVisualizationPath(parsed.path)) return null
-    if (!isValidVisualizationTitle(parsed.title)) return null
-    if (parsed.mode !== undefined && parsed.mode !== 'wide') return null
+    if (!isValidVisualizationPath(parsed['path'])) return null
+    if (!isValidVisualizationTitle(parsed['title'])) return null
+    if (parsed['mode'] !== undefined && parsed['mode'] !== 'wide') return null
 
     return {
-      path: parsed.path,
-      ...(typeof parsed.title === 'string' ? { title: parsed.title } : {}),
-      ...(parsed.mode === 'wide' ? { mode: 'wide' as const } : {}),
+      path: parsed['path'],
+      ...(typeof parsed['title'] === 'string' ? { title: parsed['title'] } : {}),
+      ...(parsed['mode'] === 'wide' ? { mode: 'wide' as const } : {}),
     }
   } catch {
     return null
@@ -146,11 +146,11 @@ export function containsInlineVisualizationReference(text: string) {
 function readContentTextParts(text: string): string[] | null {
   try {
     const parsed: unknown = JSON.parse(text)
-    if (!isRecord(parsed) || !Array.isArray(parsed.parts)) return null
+    if (!isRecord(parsed) || !Array.isArray(parsed['parts'])) return null
     const parts: string[] = []
-    for (const part of parsed.parts) {
-      if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') {
-        parts.push(part.text)
+    for (const part of parsed['parts']) {
+      if (isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string') {
+        parts.push(part['text'])
       }
     }
     return parts

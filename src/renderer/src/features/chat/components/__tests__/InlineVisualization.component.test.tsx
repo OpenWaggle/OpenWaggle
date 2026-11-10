@@ -50,7 +50,7 @@ describe('InlineVisualization', () => {
     document.documentElement.style.removeProperty('--color-text-primary')
     document.documentElement.style.removeProperty('--text-sm')
     document.documentElement.style.removeProperty('font-size')
-    delete document.documentElement.dataset.motion
+    delete document.documentElement.dataset['motion']
     apiMock.showConfirm.mockReset()
     apiMock.openExternal.mockReset()
     apiMock.registerInlineVisualizationFrame.mockReset()
@@ -184,7 +184,7 @@ describe('InlineVisualization', () => {
     document.documentElement.style.setProperty('--color-text-primary', TEST_FOREGROUND)
     document.documentElement.style.setProperty('--text-sm', TEST_FONT_SIZE)
     document.documentElement.style.setProperty('font-size', '20px')
-    document.documentElement.dataset.motion = 'reduced'
+    document.documentElement.dataset['motion'] = 'reduced'
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
@@ -214,7 +214,7 @@ describe('InlineVisualization', () => {
     ])
 
     const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
-    delete document.documentElement.dataset.motion
+    delete document.documentElement.dataset['motion']
     await waitFor(() => {
       expect(postMessage).toHaveBeenCalledWith(
         expect.objectContaining({

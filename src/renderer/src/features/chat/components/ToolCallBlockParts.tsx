@@ -52,8 +52,10 @@ export function ToolArgs({
   path: string | null
 }) {
   const displayRawArgs = useChatDisplayText(rawArgs)
-  const displayCommand = useChatDisplayText(typeof args.command === 'string' ? args.command : '')
-  if (name === 'bash' && typeof args.command === 'string') {
+  const displayCommand = useChatDisplayText(
+    typeof args['command'] === 'string' ? args['command'] : '',
+  )
+  if (name === 'bash' && typeof args['command'] === 'string') {
     return (
       <SyntaxBlock
         source={`$ ${displayCommand}`}

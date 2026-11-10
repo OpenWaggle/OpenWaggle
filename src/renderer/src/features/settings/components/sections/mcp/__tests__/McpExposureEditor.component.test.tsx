@@ -42,7 +42,7 @@ describe('Settings > MCP exposure editor', () => {
     expect(
       within(exposure)
         .getAllByRole('radio')
-        .map((radio) => radio.dataset.exposure),
+        .map((radio) => radio.dataset['exposure']),
     ).toEqual(['codemode', 'hidden'])
     expect(within(exposure).getByRole('radio', { name: /Codemode/ })).toHaveAttribute(
       'aria-checked',

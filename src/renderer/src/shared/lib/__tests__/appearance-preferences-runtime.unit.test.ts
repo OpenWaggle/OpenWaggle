@@ -13,7 +13,7 @@ import {
 describe('appearance preferences runtime', () => {
   afterEach(() => {
     document.documentElement.removeAttribute('style')
-    delete document.documentElement.dataset.motion
+    delete document.documentElement.dataset['motion']
     localStorage.clear()
   })
 
@@ -25,13 +25,13 @@ describe('appearance preferences runtime', () => {
     }
     setRuntimeAppearancePreferences(preferences)
     document.documentElement.removeAttribute('style')
-    delete document.documentElement.dataset.motion
+    delete document.documentElement.dataset['motion']
     useAppearancePreferencesRuntimeStore.setState({ preferences: DEFAULT_APPEARANCE_PREFERENCES })
 
     expect(restoreCachedAppearancePreferences()).toBe(true)
 
     expect(document.documentElement.style.fontSize).toBe('115%')
-    expect(document.documentElement.dataset.motion).toBe('reduced')
+    expect(document.documentElement.dataset['motion']).toBe('reduced')
     expect(useAppearancePreferencesRuntimeStore.getState().preferences).toEqual(preferences)
   })
 
@@ -71,7 +71,7 @@ describe('appearance preferences runtime', () => {
     expect(root.style.getPropertyValue('--font-code-size')).toBe('14px')
     expect(root.style.getPropertyValue('--font-code-ligatures')).toBe('normal')
     expect(root.style.fontSize).toBe('110%')
-    expect(root.dataset.motion).toBe('reduced')
+    expect(root.dataset['motion']).toBe('reduced')
   })
 
   it('lets an appearance provide typography when preferences are reset to defaults', () => {

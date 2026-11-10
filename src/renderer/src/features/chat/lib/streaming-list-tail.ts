@@ -52,7 +52,7 @@ function itemMarker(line: string) {
   const match = MARKER_LINE.exec(line)
   if (!match || THEMATIC_BREAK.test(line)) return null
   return {
-    style: match.groups?.bullet ?? match.groups?.delimiter ?? null,
+    style: match.groups?.['bullet'] ?? match.groups?.['delimiter'] ?? null,
     contentIndent: match[0].length,
   }
 }

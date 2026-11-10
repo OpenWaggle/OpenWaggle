@@ -11,10 +11,10 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 function isLanguageRegistration(value: unknown): value is LanguageRegistration {
   return (
     isRecord(value) &&
-    typeof value.name === 'string' &&
-    typeof value.scopeName === 'string' &&
-    Array.isArray(value.patterns) &&
-    isRecord(value.repository)
+    typeof value['name'] === 'string' &&
+    typeof value['scopeName'] === 'string' &&
+    Array.isArray(value['patterns']) &&
+    isRecord(value['repository'])
   )
 }
 

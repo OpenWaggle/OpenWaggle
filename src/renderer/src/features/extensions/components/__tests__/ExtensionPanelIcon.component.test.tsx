@@ -18,7 +18,7 @@ describe('ExtensionPanelIcon', () => {
 
     const icon = renderedIcon(container)
     const style = icon.getAttribute('style') ?? ''
-    expect(icon.dataset.extensionPanelIcon).toBe('svg')
+    expect(icon.dataset['extensionPanelIcon']).toBe('svg')
     expect(icon.getAttribute('aria-hidden')).toBe('true')
     expect(icon.className).toContain('size-4')
     expect(icon.className).toContain('bg-current')
@@ -36,14 +36,14 @@ describe('ExtensionPanelIcon', () => {
       <ExtensionPanelIcon icon={{ source: 'lucide', svg: SVG }} title="Issues" />,
     )
 
-    expect(renderedIcon(container).dataset.extensionPanelIcon).toBe('lucide')
+    expect(renderedIcon(container).dataset['extensionPanelIcon']).toBe('lucide')
   })
 
   it('falls back to a letter tile with the title initial', () => {
     const { container } = render(<ExtensionPanelIcon title="  issues board" />)
 
     const icon = renderedIcon(container)
-    expect(icon.dataset.extensionPanelIcon).toBe('letter')
+    expect(icon.dataset['extensionPanelIcon']).toBe('letter')
     expect(icon.textContent).toBe('I')
     expect(icon.getAttribute('style')).toBeNull()
     expect(icon.className).toContain('size-4')

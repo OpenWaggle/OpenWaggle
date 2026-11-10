@@ -90,8 +90,8 @@ export function buildMcpServerEntry(draft: McpAddServerDraft): McpDraftResult {
   if (draft.kind === 'url') {
     const url = draft.url.trim()
     if (!isHttpUrl(url)) return { ok: false, error: 'Enter an http or https URL.' }
-    entry.url = url
-    if (hasValues) entry.headers = variables.values
+    entry['url'] = url
+    if (hasValues) entry['headers'] = variables.values
   } else {
     const command = draft.command.trim()
     if (!command) return { ok: false, error: 'Enter the command that starts the server.' }
@@ -99,11 +99,11 @@ export function buildMcpServerEntry(draft: McpAddServerDraft): McpDraftResult {
       .split('\n')
       .map((arg) => arg.trim())
       .filter((arg) => arg.length > 0)
-    entry.command = command
-    if (args.length > 0) entry.args = args
-    if (hasValues) entry.env = variables.values
+    entry['command'] = command
+    if (args.length > 0) entry['args'] = args
+    if (hasValues) entry['env'] = variables.values
   }
   const description = draft.description.trim()
-  if (description) entry.description = description
+  if (description) entry['description'] = description
   return { ok: true, entry }
 }
