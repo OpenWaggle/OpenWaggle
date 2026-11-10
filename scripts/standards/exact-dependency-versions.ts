@@ -10,7 +10,7 @@ import type { Violation } from './violation'
  * its host, and the root `overrides` hold deliberate vulnerability floors.
  */
 const CHECKED_MANIFESTS =
-  /^(?:package\.json|packages\/[^/]+\/package\.json|website\/package\.json)$/
+  /^(?:package\.json|(?:packages|tools)\/[^/]+\/package\.json|website\/package\.json)$/
 const ROOT_MANIFEST = 'package.json'
 const PINNED_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/

@@ -200,6 +200,20 @@
       "name": "@openwaggle/waggle-core",
       "version": "0.2.0",
     },
+    "tools/bun-lint": {
+      "name": "@openwaggle/bun-lint",
+      "version": "0.0.0",
+      "optionalDependencies": {
+        "@oven/bun-darwin-aarch64": "1.4.4-canary.20261103.1",
+        "@oven/bun-darwin-x64": "1.4.4-canary.20261103.1",
+        "@oven/bun-linux-aarch64": "1.4.4-canary.20261103.1",
+        "@oven/bun-linux-aarch64-musl": "1.4.4-canary.20261103.1",
+        "@oven/bun-linux-x64": "1.4.4-canary.20261103.1",
+        "@oven/bun-linux-x64-musl": "1.4.4-canary.20261103.1",
+        "@oven/bun-windows-aarch64": "1.4.4-canary.20261103.1",
+        "@oven/bun-windows-x64": "1.4.4-canary.20261103.1",
+      },
+    },
     "website": {
       "name": "@openwaggle/website",
       "version": "0.1.0",
@@ -903,6 +917,8 @@
 
     "@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.43.0", "", {}, "sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg=="],
 
+    "@openwaggle/bun-lint": ["@openwaggle/bun-lint@workspace:tools/bun-lint"],
+
     "@openwaggle/extension-react": ["@openwaggle/extension-react@workspace:packages/extension-react"],
 
     "@openwaggle/extension-sdk": ["@openwaggle/extension-sdk@workspace:packages/extension-sdk"],
@@ -914,6 +930,22 @@
     "@openwaggle/website": ["@openwaggle/website@workspace:website"],
 
     "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, "sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ=="],
+
+    "@oven/bun-darwin-aarch64": ["@oven/bun-darwin-aarch64@1.4.4-canary.20261103.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-KVNco0cpa1N42U8E0F91UDMDQr+m+OfKiJD/qOt1Wi3mFJFrpzI65A8LxLwoGXiAHuqLyyy2/s8zgkmtoDjsDg=="],
+
+    "@oven/bun-darwin-x64": ["@oven/bun-darwin-x64@1.4.4-canary.20261103.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-Ib1/K3PCvpC14PB2OXACSRtwtU79Jl9QUY99aVX8u3CaKzk5BLBn3WJzOFq9BVYywd1n8UWETZnmaFonuLc/Rg=="],
+
+    "@oven/bun-linux-aarch64": ["@oven/bun-linux-aarch64@1.4.4-canary.20261103.1", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-nU0nBHLJ0fkCN4zJsM5jvrvu7oKjVF26MFFrqujl5/iUFT7SEby2MXMUWMQj6Zim4EEI0LuHK+IvzuydOObGJg=="],
+
+    "@oven/bun-linux-aarch64-musl": ["@oven/bun-linux-aarch64-musl@1.4.4-canary.20261103.1", "", { "os": "linux", "cpu": "arm64", "libc": "musl" }, "sha512-zHXNvgzkM83Hk1Q93hJbjsU1bonhBd59DV/5ZpM8kIR/L1ckiW3mjTAwi/qTgaUm3aElVPNApYyVp+FxzpwGrA=="],
+
+    "@oven/bun-linux-x64": ["@oven/bun-linux-x64@1.4.4-canary.20261103.1", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-ZcRIYh+BigPPH+nuM8PSWX7aaDtxCJd+ig+fEbQ5tnk0f6pdB7msLjxHOklgY/c6GCGecNGE+rmr8o2KSJ4k+Q=="],
+
+    "@oven/bun-linux-x64-musl": ["@oven/bun-linux-x64-musl@1.4.4-canary.20261103.1", "", { "os": "linux", "cpu": "x64", "libc": "musl" }, "sha512-TFSwhSZ8sEkenqUNsQOedmYNBup4wEIIK8QWdy/NOWK1GAEYc7/ThrmWIuPxrSXZvToYsEg0UF6veN3mq3JGLQ=="],
+
+    "@oven/bun-windows-aarch64": ["@oven/bun-windows-aarch64@1.4.4-canary.20261103.1", "", { "os": "win32", "cpu": "arm64" }, "sha512-qORaaESRBsn9+hKhrBbJ44p4F91IvZBCAT7VO/FJ/7HBZi1ArneWUSw8vxic0/O8ym3HKRxkEwv05dL5W21sPg=="],
+
+    "@oven/bun-windows-x64": ["@oven/bun-windows-x64@1.4.4-canary.20261103.1", "", { "os": "win32", "cpu": "x64" }, "sha512-bqtV+uOp+88NNUwzUEtIf7OofZtJYb3PNW50mC00y24jZZ+dVh5LKYR0qEvqpfMMwr2nIcPWHCUDsKRrXSSZ4A=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.149.0", "", {}, "sha512-Efcc+iF0j3Bf67YjEqIqWXbX5XddXoK/Mw4K1/JuXwRCZ8N16VR7iT23nlCc9XrveFVh/E5Rqs2StT0V8v9LdA=="],
 

@@ -1,6 +1,6 @@
 # Dependency updates
 
-Every direct dependency in the root, `packages/*` and `website` manifests is pinned to an exact
+Every direct dependency in the root, `packages/*`, `tools/*` and `website` manifests is pinned to an exact
 version, except `workspace:` links between monorepo packages, which `bun pm pack` publishes as
 caret ranges. Every entry of the catalogs under `workspaces` in the root `package.json` is exact
 too. The lockfile, `bun.lock`, already fixes what `bun install --frozen-lockfile` installs. Pinning adds two things on top of it. A
@@ -51,6 +51,12 @@ days ago pass, so the check covers releases between 7 and 30 days old. A reviewe
 in `scripts/provenance-downgrade-policy.ts` with its reason, and the check fails once no locked
 downgrade needs it. The script caches registry answers in `node_modules/.cache/openwaggle`, so a
 repeat run makes no requests.
+
+`bun lint` exists only in Bun canaries, so `scripts/lint.ts` runs a dated canary while
+everything else runs on the stable Bun in `packageManager`. The private workspace package
+`tools/bun-lint` lists that canary's `@oven/bun-<platform>` binaries as optional dependencies, so
+they are locked in `bun.lock` and go through the release-age gate and the provenance check. Bump
+all of its versions together, to a canary at least seven days old.
 
 Dependency install scripts run only for the packages in `trustedDependencies` in the root
 `package.json`. Add a package there only when it has to build or download something at install

@@ -4,7 +4,9 @@
  * `file:line:col rule message` line per finding.
  *
  * `bun lint` is pinned to a dated Bun canary (ADR 0064): it exists only in canary builds, so it
- * runs from the npm `bun` package at BUN_LINT_VERSION while the runtime stays on stable Bun.
+ * runs from that canary's platform binary while the runtime stays on stable Bun. The private
+ * workspace package tools/bun-lint names the canary's `@oven/bun-<platform>` packages as optional
+ * dependencies, so bun.lock locks them and minimumReleaseAge and check:provenance apply.
  * `--runner=oxlint` runs the same config through oxlint, the fallback runner.
  *
  *   bun scripts/lint.ts [--runner=bun|oxlint] [--fix] [paths...]
@@ -15,10 +17,17 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
+import { pathToFileURL } from 'node:url'
 import { compactLintOutput } from './oxlint/compact-output'
 
-/** A dated canary at least seven days old when pinned; bump it like any other dependency. */
-const BUN_LINT_VERSION = '1.4.4-canary.20261103.1'
+/** Holds the canary pin; bump the versions in its package.json like any other dependency. */
+const BUN_LINT_PACKAGE_JSON = path.join(
+  import.meta.dirname,
+  '..',
+  'tools',
+  'bun-lint',
+  'package.json',
+)
 const LINT_PATHS = [
   'src',
   'packages',
@@ -65,12 +74,38 @@ function lintCommand(runner: Runner, fix: boolean, paths: readonly string[]) {
   }
   // --no-inline-config: no comment can switch a rule off; openwaggle/no-lint-directive-comments
   // reports every directive in both runners.
-  const bun = process.versions.bun === undefined ? 'bun' : process.execPath
   return {
-    command: bun,
-    args: ['x', `bun@${BUN_LINT_VERSION}`, 'lint', '--no-script', '--no-inline-config', ...shared],
+    command: bunLintExecutable(),
+    args: ['lint', '--no-script', '--no-inline-config', ...shared],
     env: process.env,
   }
+}
+
+/** `@oven/bun-<os>-<arch>[-musl]`, the names Bun's npm packages use. */
+export function bunLintPlatformPackages(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+) {
+  const os = platform === 'win32' ? 'windows' : platform
+  const cpu = arch === 'arm64' ? 'aarch64' : arch
+  const name = `@oven/bun-${os}-${cpu}`
+  return platform === 'linux' ? [name, `${name}-musl`] : [name]
+}
+
+/** The canary binary bun install placed for this platform (glibc first on Linux). */
+function bunLintExecutable() {
+  const require = createRequire(BUN_LINT_PACKAGE_JSON)
+  const binary = process.platform === 'win32' ? 'bun.exe' : 'bun'
+  for (const packageName of bunLintPlatformPackages()) {
+    try {
+      return path.join(path.dirname(require.resolve(`${packageName}/package.json`)), 'bin', binary)
+    } catch {
+      // Not installed for this platform or libc; try the next candidate.
+    }
+  }
+  throw new Error(
+    `No ${bunLintPlatformPackages().join(' or ')} in tools/bun-lint; run bun install, or use --runner=oxlint.`,
+  )
 }
 
 function packageBin(packageName: string, bin: string) {
@@ -96,7 +131,15 @@ function main() {
   const { runner, fix, paths } = parseArguments(process.argv.slice(SCRIPT_ARGUMENTS_START))
   // Without paths, oxfmt formats the whole repository (.oxfmtrc.json decides the files) and
   // lint covers LINT_PATHS.
-  const { command, args, env } = lintCommand(runner, fix, paths.length > 0 ? paths : LINT_PATHS)
+  let invocation: ReturnType<typeof lintCommand>
+  try {
+    invocation = lintCommand(runner, fix, paths.length > 0 ? paths : LINT_PATHS)
+  } catch (error) {
+    console.error(`lint: ${error instanceof Error ? error.message : String(error)}`)
+    process.exitCode = 1
+    return
+  }
+  const { command, args, env } = invocation
   const started = performance.now()
   const formatting = formatFindings(fix, paths)
   const result = spawnSync(command, args, { encoding: 'utf8', env, shell: false })
@@ -117,4 +160,6 @@ function main() {
   process.exitCode = result.status || 1
 }
 
-main()
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+}

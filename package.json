@@ -270,6 +270,7 @@
   "workspaces": {
     "packages": [
       "packages/*",
+      "tools/*",
       "website"
     ],
     "catalogs": {
