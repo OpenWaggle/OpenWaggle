@@ -78,7 +78,7 @@ export default function qualityGates(pi: ExtensionAPI) {
       { outcome: event.outcome, canContinue: event.context.canContinue },
       ctx.signal,
     )
-    if (decision === undefined || decision.content === undefined) return undefined
+    if (decision?.content === undefined) return undefined
     return {
       entries: [
         ...event.entries,

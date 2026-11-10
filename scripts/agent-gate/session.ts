@@ -84,7 +84,10 @@ export class AgentGateSession {
   private readonly run: RunProcess
   private readonly approvals: Approvals
 
-  constructor(private readonly options: AgentGateOptions = {}) {
+  private readonly options: AgentGateOptions
+
+  constructor(options: AgentGateOptions = {}) {
+    this.options = options
     this.run = options.run ?? runProcess
     this.approvals = new Approvals(options.ask)
   }
@@ -151,8 +154,9 @@ export class AgentGateSession {
   async settle(state: SettleState, signal?: AbortSignal): Promise<GateDecision | undefined> {
     const root = this.root
     const baseline = this.baseline
-    if (root === undefined || baseline === undefined || state.outcome !== 'completed')
+    if (root === undefined || baseline === undefined || state.outcome !== 'completed') {
       return undefined
+    }
     const sessionFindings = this.activity.findings()
     if (this.activity.pending.size === 0 && sessionFindings.length === 0) return undefined
     const verdict = await runGate({
@@ -177,8 +181,9 @@ export class AgentGateSession {
     const decision = decide(verdict.findings, verdict.failures, this.loop, canContinue)
     if (decision.kind === 'block') this.rounds += 1
     this.loop = nextLoopState(this.loop, decision)
-    if (decision.kind === 'pass')
+    if (decision.kind === 'pass') {
       this.activity.passed(verdict.failures.flatMap((failure) => failure.files))
+    }
     return decision
   }
 
@@ -203,8 +208,9 @@ export class AgentGateSession {
       result.parentId !== undefined ||
       !this.inFlight.has(result.id) ||
       this.snapshot === undefined
-    )
+    ) {
       return []
+    }
     // Content hashes against the snapshot before the call: a shell edit counts, a touch does not.
     const changed = await changedFiles(this.run, this.snapshot)
     // Only an overlapping call still measures from the old snapshot; the next call takes its own.

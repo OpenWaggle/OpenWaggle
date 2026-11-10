@@ -28,7 +28,11 @@ export class Approvals {
   private readonly answers = new Map<string, boolean>()
   private readonly prompts: string[] = []
 
-  constructor(private readonly ask: ApprovalAsk | undefined) {}
+  private readonly ask: ApprovalAsk | undefined
+
+  constructor(ask: ApprovalAsk | undefined) {
+    this.ask = ask
+  }
 
   notePrompt(text: string) {
     this.prompts.push(text)
@@ -61,10 +65,11 @@ export class Approvals {
             `Allow a weaker ${file}?`,
             `${weakenings.join(', ')} [TS-01]`,
           )
-          if (allowed === false)
+          if (allowed === false) {
             refusals.push(
               `The user did not allow weakening ${file} (${weakenings.join(', ')}); revert it [TS-01].`,
             )
+          }
         }
       }
       if (MANIFEST.test(file)) {
@@ -77,10 +82,11 @@ export class Approvals {
             `Add ${pin.package}@${pin.spec}?`,
             `${file} ${pin.section} [DEP-02]`,
           )
-          if (allowed === false)
+          if (allowed === false) {
             refusals.push(
               `The user did not approve adding ${pin.package}; remove it from ${file} [DEP-02].`,
             )
+          }
         }
       }
     }

@@ -83,8 +83,8 @@ export function formatPinFinding(finding: {
   readonly message: string
 }) {
   const groups = TRAILING_RULE.exec(finding.message)?.groups
-  const text = groups?.text ?? finding.message
-  const rule = groups?.rule ?? '[DEP-03]'
+  const text = groups?.['text'] ?? finding.message
+  const rule = groups?.['rule'] ?? '[DEP-03]'
   return `${finding.file}:${finding.line}:1 ${finding.kind} ${rule} ${text}`
 }
 
@@ -201,9 +201,9 @@ export function manifestPins(manifestPath: string, manifestText: string): readon
   )
   const { workspaces } = manifest
   if (!isRecord(workspaces)) return pins
-  pins.push(...sectionPins(manifestPath, 'catalog:default', workspaces.catalog))
-  if (isRecord(workspaces.catalogs)) {
-    for (const [name, catalog] of Object.entries(workspaces.catalogs)) {
+  pins.push(...sectionPins(manifestPath, 'catalog:default', workspaces['catalog']))
+  if (isRecord(workspaces['catalogs'])) {
+    for (const [name, catalog] of Object.entries(workspaces['catalogs'])) {
       pins.push(...sectionPins(manifestPath, `catalog:${name}`, catalog))
     }
   }
