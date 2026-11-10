@@ -43,6 +43,14 @@ describe('Scheduled task run settlement', () => {
     ).toBeUndefined()
   })
 
+  it('skips a Heartbeat on a Worker whose parent runs as many Workers as it may', () => {
+    const settlement = settlementOfDispatch(controlRejection('parent_concurrency_limit_reached'))
+    expect(settlement).toMatchObject({
+      run: { status: 'skipped', reason: 'host-capacity-reached' },
+    })
+    expect(settlement.attention).toBeUndefined()
+  })
+
   it('stops the task for problems the user must fix', () => {
     expect(settlementOfDispatch(launchRejection('model_not_found'))).toMatchObject({
       attention: 'model-unavailable',

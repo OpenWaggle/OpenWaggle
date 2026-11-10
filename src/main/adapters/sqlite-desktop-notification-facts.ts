@@ -13,6 +13,7 @@ import { selectLatestRun, selectRunFacts } from './sqlite-desktop-notification-r
 import { parentWillActSql } from './sqlite-hive-next-actor-facts'
 import { selectHiveParentWakeCandidate } from './sqlite-hive-parent-wake-candidate'
 import { wakeCandidateMayWake } from './sqlite-hive-wake-trigger-authority'
+import { countActiveWorkerRuns, isAgentMadeSession } from './sqlite-worker-run-admission'
 
 interface SessionRow {
   readonly id: string
@@ -40,8 +41,8 @@ function decodeSessionIds(value: string): readonly string[] {
 /**
  * Whether the Host would still wake `parentSessionId` (`hive-parent-wake.ts`): the wake candidate
  * SQL finds an unread update a wake acts on, the latest Run's caller may still message the
- * parent, and a cause of that update may wake it. A full Run limit only defers a wake, so it
- * still counts as coming; the pi CLI check is not repeated here.
+ * parent, and a cause of that update may wake it. A full Active Workers limit only defers an
+ * agent-made parent's wake, so it still counts as coming; the pi CLI check is not repeated here.
  */
 function wakeComingFor(sql: SqlClient.SqlClient, parentSessionId: string) {
   return Effect.gen(function* () {
@@ -121,16 +122,18 @@ function selectHiveActivity(sql: SqlClient.SqlClient, rootSessionId: string, run
         ) AS waking_parent_ids
     `
     let wakeComing = false
+    let limitedWakeComing = false
     for (const parentSessionId of decodeSessionIds(row?.waking_parent_ids ?? '[]')) {
-      if (yield* wakeComingFor(sql, parentSessionId)) {
-        wakeComing = true
-        break
-      }
+      if (!(yield* wakeComingFor(sql, parentSessionId))) continue
+      wakeComing = true
+      limitedWakeComing = yield* isAgentMadeSession(sql, parentSessionId)
+      if (limitedWakeComing) break
     }
     return {
       rootRunning: row?.root_running === 1,
       workersRunning: row?.workers_running === 1,
       wakeComing,
+      limitedWakeComing,
       runStartedWhileWorkersRan: row?.run_started_while_workers_ran === 1,
     }
   })
@@ -178,13 +181,8 @@ function makeFacts(sql: SqlClient.SqlClient): DesktopNotificationFactsShape {
       ),
     latestRun: (sessionId) =>
       selectLatestRun(sql, sessionId).pipe(Effect.mapError(factsError('latest-run'))),
-    hostActiveRunCount: () =>
-      sql<{ readonly count: number }>`
-        SELECT COUNT(*) AS count FROM session_control_states WHERE active_run_id IS NOT NULL
-      `.pipe(
-        Effect.map((rows) => rows[0]?.count ?? 0),
-        Effect.mapError(factsError('host-active-runs')),
-      ),
+    activeWorkerRunCount: () =>
+      countActiveWorkerRuns(sql).pipe(Effect.mapError(factsError('active-worker-runs'))),
     lastVisitedAt: (sessionId) =>
       sql<{ readonly last_visited_at: number | null }>`
         SELECT last_visited_at FROM session_visit_receipts WHERE session_id = ${sessionId} LIMIT 1

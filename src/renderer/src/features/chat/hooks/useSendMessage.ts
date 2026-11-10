@@ -29,9 +29,7 @@ import {
 } from '@/features/project-actions'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
-
-const logger = createRendererLogger('use-send-message')
+import { endFailedFirstSend } from './useSendMessage.first-send-failure'
 
 interface SendMessageDeps {
   readonly activeSessionId: SessionId | null
@@ -273,17 +271,9 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        * A cancellation is reported too, so work the user may still want is not discarded - but it carries its
        * outcome, because a caller must not tell the user their turn "could not start" when they stopped it.
        */
-      throw new MessageNotDelivered(report.outcome, report.message)
+      throw new MessageNotDelivered(report.outcome, report.message, report.code)
     } catch (error) {
-      useFirstSendPendingStore.getState().clear(sessionId)
-      if (config) useWaggleStore.getState().stopCollaboration(sessionId)
-      if (error instanceof MessageNotDelivered && error.outcome === 'cancelled') {
-        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
-      }
-      logger.error('First message send failed', {
-        sessionId: String(sessionId),
-        error: error instanceof Error ? error.message : String(error),
-      })
+      endFailedFirstSend(sessionId, config, optimisticUserMessage.id, error)
       /*
        * Rethrown so the caller can react - a submitted review has to be restored, not silently lost - and
        * named with the session just created, because that is where the caller's work now belongs and it

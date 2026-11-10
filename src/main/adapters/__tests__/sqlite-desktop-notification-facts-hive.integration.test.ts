@@ -139,6 +139,7 @@ describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 006
       rootRunning: false,
       workersRunning: false,
       wakeComing: false,
+      limitedWakeComing: false,
       runStartedWhileWorkersRan: false,
     }
     expect(result).toEqual({
@@ -195,8 +196,29 @@ describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 006
         return { reported, afterWake }
       }),
     )
-    expect(result.reported).toMatchObject({ workersRunning: false, wakeComing: true })
+    // The person's own Queen: a full Active Workers limit would not defer its wake.
+    expect(result.reported).toMatchObject({
+      workersRunning: false,
+      wakeComing: true,
+      limitedWakeComing: false,
+    })
     expect(result.afterWake).toMatchObject({ workersRunning: false, wakeComing: false })
+  })
+
+  it('sees the wake of a root an agent made as one the Worker limits defer', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const notifications = yield* facts
+        yield* sql`INSERT INTO session_agent_origins (session_id, caller_id, created_at)
+          VALUES (${PARENT}, ${'session-agent:queen:run-1'}, ${1})`
+        yield* settleParentRun(sql)
+        yield* submit(3000)
+        yield* settleWorkerRun(sql, 3000)
+        return yield* notifications.hiveActivity(PARENT, null)
+      }),
+    )
+    expect(result).toMatchObject({ wakeComing: true, limitedWakeComing: true })
   })
 
   it('sees no wake coming for a Queen the person stopped', async () => {

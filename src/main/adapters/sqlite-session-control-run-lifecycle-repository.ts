@@ -27,7 +27,8 @@ import {
 } from './sqlite-session-control-external-run-replacement'
 import { recoverSessionControlHostLoss } from './sqlite-session-control-host-loss-recovery'
 import {
-  planRunSettlement,
+  type planRunSettlement,
+  planRunSettlementWithinWorkerLimits,
   replacementIsPending,
   type SettleInput,
   settleDisplacedRun,
@@ -35,7 +36,6 @@ import {
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { settleWorkerDelegation } from './sqlite-session-control-worker-settlement'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
-import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
 const PROMOTION_SETTLEMENT_RETRY_DELAY_MS = 100
 const PROMOTION_SETTLEMENT_RETRY_LIMIT = 10
@@ -171,11 +171,7 @@ function settle(
             result: yield* settleDisplacedRun(sql, { loadedState, returned, input }),
           } as const
         }
-        const parentAdmission = input.suppressFollowUpScheduling
-          ? { admitted: true }
-          : yield* directWorkerRunAdmission(sql, input.sessionId)
-        const deferForParentLimit = !parentAdmission.admitted
-        const result = planRunSettlement(state, input, deferForParentLimit)
+        const result = yield* planRunSettlementWithinWorkerLimits(sql, state, input)
         if (!result.accepted) {
           return {
             status: 'settled',

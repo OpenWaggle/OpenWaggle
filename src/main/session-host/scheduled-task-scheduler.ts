@@ -128,6 +128,7 @@ function runNow(
   state: SchedulerState,
   context: Context.Context<FiringDependencies>,
   taskId: string,
+  requestedByAgent: boolean,
 ) {
   return Effect.sync(() => {
     if (state.inProgress.has(taskId)) return 'busy' as const
@@ -137,7 +138,12 @@ function runNow(
       const repository = yield* ScheduledTaskRepository
       const record = yield* repository.get(taskId)
       if (!record) return
-      yield* fireScheduledTask(sql, { record, trigger: 'run-now', now: Date.now() })
+      yield* fireScheduledTask(sql, {
+        record,
+        trigger: 'run-now',
+        requestedByAgent,
+        now: Date.now(),
+      })
     }).pipe(
       Effect.catchAllCause((cause) =>
         Effect.sync(() =>
@@ -190,7 +196,8 @@ export const runScheduledTaskSchedulerBackground = Effect.gen(function* () {
   }
   const releaseHooks = installScheduledTaskHooks({
     tasksChanged: () => state.wake?.(),
-    requestRunNow: (taskId) => runNow(sql, state, context, taskId),
+    requestRunNow: (taskId, requestedByAgent) =>
+      runNow(sql, state, context, taskId, requestedByAgent),
     runWakeCheck: runHostWakeCheck,
     heartbeatRunEnded: (end) => settleRunEnd(context, end),
   })
