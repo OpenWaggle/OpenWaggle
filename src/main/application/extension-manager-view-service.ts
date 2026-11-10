@@ -12,25 +12,24 @@ import type {
 } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import {
-  ExtensionManagerService,
-  type ExtensionManagerServiceShape,
-} from '../ports/extension-manager-service'
-import {
   ExtensionProjectOverridesRepository,
   type ExtensionProjectOverridesRepositoryShape,
 } from '../ports/extension-project-overrides-repository'
 import {
   appendExtensionDiagnostic,
   appendExtensionDiagnostics,
-  makeDiscoveryFailurePackage,
   makeExtensionFailureDiagnostic,
-  scopeForProjectPath,
 } from './extension-failure-isolation-model'
 import {
   packageToSummary,
   projectOverrideToView,
   unavailableProjectOverrideToView,
 } from './extension-manager-view-model'
+import {
+  loadScopedExtensionPackages,
+  normalizeExtensionProjectPaths,
+  packageRequestedProjectPaths,
+} from './extension-package-listing'
 
 interface LifecycleLookup {
   readonly extensionPackage: DiscoveredExtensionPackage
@@ -40,82 +39,6 @@ interface LifecycleLookup {
 interface ProjectOverrideLookup {
   readonly projectOverride: ExtensionProjectOverrideView
   readonly diagnostics: readonly ExtensionDiagnostic[]
-}
-
-function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
-  const normalizedProjectPaths: string[] = []
-  const seenProjectPaths = new Set<string>()
-  for (const projectPath of projectPaths ?? []) {
-    const normalized = projectPath.trim()
-    if (normalized.length > 0 && !seenProjectPaths.has(normalized)) {
-      seenProjectPaths.add(normalized)
-      normalizedProjectPaths.push(normalized)
-    }
-  }
-  return normalizedProjectPaths
-}
-
-function isGlobalPackage(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-}
-
-function listPackagesSafely(manager: ExtensionManagerServiceShape, projectPath: string | null) {
-  return manager
-    .listPackages({ projectPath })
-    .pipe(
-      Effect.catchAll((error) =>
-        Effect.succeed([
-          makeDiscoveryFailurePackage({ scope: scopeForProjectPath(projectPath), error }),
-        ]),
-      ),
-    )
-}
-
-function isProjectPackageForPath(
-  extensionPackage: DiscoveredExtensionPackage,
-  projectPath: string,
-) {
-  return (
-    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
-    extensionPackage.scope.projectPath === projectPath
-  )
-}
-
-function loadViewPackages(projectPaths: readonly string[]) {
-  return Effect.gen(function* () {
-    const manager = yield* ExtensionManagerService
-    const globalPackages = yield* listPackagesSafely(manager, null).pipe(
-      Effect.map((packages) => packages.filter(isGlobalPackage)),
-    )
-    const projectPackageGroups = yield* Effect.forEach(projectPaths, (projectPath) =>
-      listPackagesSafely(manager, projectPath).pipe(
-        Effect.map((packages) =>
-          packages.filter((extensionPackage) =>
-            isProjectPackageForPath(extensionPackage, projectPath),
-          ),
-        ),
-      ),
-    )
-
-    return [...globalPackages, ...projectPackageGroups.flat()]
-  })
-}
-
-function getOverrideProjectPaths(
-  extensionPackage: DiscoveredExtensionPackage,
-  projectPaths: readonly string[],
-) {
-  if (projectPaths.length === 0) {
-    return []
-  }
-
-  if (extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND) {
-    return projectPaths.includes(extensionPackage.scope.projectPath)
-      ? [extensionPackage.scope.projectPath]
-      : []
-  }
-
-  return projectPaths
 }
 
 function getPrimaryProjectOverride(
@@ -209,7 +132,7 @@ function loadProjectOverrides(
 ) {
   return Effect.gen(function* () {
     const projectOverridesRepository = yield* ExtensionProjectOverridesRepository
-    const overrideProjectPaths = getOverrideProjectPaths(extensionPackage, projectPaths)
+    const overrideProjectPaths = packageRequestedProjectPaths(extensionPackage, projectPaths)
     const lookups = yield* Effect.forEach(overrideProjectPaths, (projectPath) =>
       loadProjectOverride(projectOverridesRepository, extensionPackage, projectPath),
     )
@@ -223,8 +146,8 @@ function loadProjectOverrides(
 
 export function listExtensionPackagesView(input: ExtensionListPackagesInput) {
   return Effect.gen(function* () {
-    const projectPaths = normalizeProjectPaths(input.projectPaths)
-    const packages = yield* loadViewPackages(projectPaths)
+    const projectPaths = normalizeExtensionProjectPaths(input.projectPaths)
+    const packages = yield* loadScopedExtensionPackages(projectPaths)
     const summaries = yield* Effect.forEach(packages, (extensionPackage) =>
       Effect.gen(function* () {
         const lifecycleLookup = yield* loadLifecycle(extensionPackage)
