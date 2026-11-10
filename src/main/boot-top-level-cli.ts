@@ -1,6 +1,6 @@
 import { applicationCliArguments } from './application-cli-arguments'
 import { parseCliOutputFd, writeAllToFd, writeWritableChunk } from './cli-output-writer'
-import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { bootShell } from './desktop-shell/boot-shell'
 import { type TopLevelCliAnswer, topLevelCliAnswer } from './top-level-cli-answer'
 import { nodeTopLevelCliEnvironment } from './top-level-cli-environment'
 import {
@@ -54,9 +54,9 @@ export function answerTopLevelCliInBoot(input: BootTopLevelCliInput): BootTopLev
     // The main bundle reports a malformed descriptor the way every command does.
     return 'main-bundle'
   }
-  const argv = applicationCliArguments(input.argv, { isPackaged: appLifecycle.isPackaged() })
-  const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(appLifecycle.isPackaged()))
-  const answer = topLevelCliAnswer(route, appLifecycle.version())
+  const argv = applicationCliArguments(input.argv, { isPackaged: bootShell.isPackaged() })
+  const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(bootShell.isPackaged()))
+  const answer = topLevelCliAnswer(route, bootShell.version())
   if (!answer) {
     if (DESKTOP_APP_ROUTES.has(route.kind)) return 'desktop-app'
     if (route.kind === 'delegate' && route.argv[0] === SESSION_HOST_COMMAND) return 'session-host'

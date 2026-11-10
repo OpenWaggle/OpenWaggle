@@ -1,6 +1,7 @@
 import { app, autoUpdater } from 'electron'
 import type { AppLifecycleShape } from '../../ports/desktop-shell/app-lifecycle'
 import type { CancellableShellEvent, Unsubscribe } from '../../ports/desktop-shell/shell-events'
+import { electronBootShell } from './electron-boot-shell'
 
 function subscribe(
   add: (handler: () => void) => void,
@@ -13,12 +14,12 @@ function subscribe(
 }
 
 export const electronAppLifecycle: AppLifecycleShape = {
-  version: () => app.getVersion(),
+  version: electronBootShell.version,
   name: () => app.name,
-  isPackaged: () => app.isPackaged,
+  isPackaged: electronBootShell.isPackaged,
   whenReady: () => app.whenReady().then(() => undefined),
   quit: () => app.quit(),
-  exit: (code) => (code === undefined ? app.exit() : app.exit(code)),
+  exit: electronBootShell.exit,
   relaunch: () => app.relaunch(),
   onBeforeQuit: (listener) => {
     const handler = (event: CancellableShellEvent) => listener(event)
@@ -51,13 +52,6 @@ export const electronAppLifecycle: AppLifecycleShape = {
       (handler) => autoUpdater.off('before-quit-for-update', handler),
       listener,
     ),
-  commandLine: {
-    hasSwitch: (name) => app.commandLine.hasSwitch(name),
-    getSwitchValue: (name) => app.commandLine.getSwitchValue(name),
-    appendSwitch: (name, value) =>
-      value === undefined
-        ? app.commandLine.appendSwitch(name)
-        : app.commandLine.appendSwitch(name, value),
-  },
+  commandLine: electronBootShell.commandLine,
   disableHardwareAcceleration: () => app.disableHardwareAcceleration(),
 }

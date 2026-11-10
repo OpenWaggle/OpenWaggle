@@ -1,7 +1,7 @@
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CommandLine } from 'electron'
-import { limitChromiumHttpDiskCache } from './electron-chromium-disk-cache'
+import { limitChromiumHttpDiskCache } from './electron-chromium-cache-limit'
 
 const CHROMIUM_DIPS_BASENAME = 'DIPS'
 const CHROMIUM_DIPS_SIDE_SUFFIXES = ['', '-wal', '-shm'] as const

@@ -3,12 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  CHROMIUM_CODE_CACHE_MAX_BYTES,
   CHROMIUM_HTTP_CACHE_MAX_BYTES,
+  limitChromiumHttpDiskCache,
+} from '../electron-chromium-cache-limit'
+import {
+  CHROMIUM_CODE_CACHE_MAX_BYTES,
   type ChromiumCacheSession,
   checkChromiumCacheSizeOnUse,
   directorySizeBytes,
-  limitChromiumHttpDiskCache,
   oversizedChromiumCaches,
   trimChromiumCachesIfOversized,
   watchChromiumCacheSize,

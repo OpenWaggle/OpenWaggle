@@ -1,5 +1,6 @@
 import { app, powerMonitor } from 'electron'
 import type { SystemIntegrationShape } from '../../ports/desktop-shell/system-integration'
+import { electronBootShell } from './electron-boot-shell'
 
 /** The Windows AppUserModelID of an unpackaged build is its executable, as electron-toolkit does. */
 function appUserModelId(id: string) {
@@ -32,7 +33,7 @@ export const electronSystemIntegration: SystemIntegrationShape = {
   setBadgeCount: (count) => {
     app.setBadgeCount(count)
   },
-  setActivationPolicy: (policy) => app.setActivationPolicy(policy),
+  setActivationPolicy: electronBootShell.setActivationPolicy,
   setDockIcon: (iconPath) => app.dock?.setIcon(iconPath),
   setAppUserModelId: (id) => {
     if (process.platform === 'win32') app.setAppUserModelId(appUserModelId(id))

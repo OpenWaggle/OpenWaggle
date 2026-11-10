@@ -1,20 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { CommandLine, Session } from 'electron'
+import type { Session } from 'electron'
 import { createLogger } from '../../logger'
+import { CHROMIUM_HTTP_CACHE_MAX_BYTES, MEBIBYTE } from './electron-chromium-cache-limit'
 
 const logger = createLogger('chromium-disk-cache')
 
-const MEBIBYTE = 1024 * 1024
 const MINUTE_MS = 60 * 1000
 const HOUR_MS = 60 * MINUTE_MS
 
-/**
- * Most bytes one Chromium session keeps in its HTTP cache. Unbounded, Chromium sizes it from the
- * free disk space: 1.2 GB in the default session and 853 MB in the browser preview partition were
- * observed.
- */
-export const CHROMIUM_HTTP_CACHE_MAX_BYTES = 256 * MEBIBYTE
 /**
  * Most bytes of V8 code cache a session keeps before it is cleared; Chromium does not bound it by
  * the switch above. The app's own scripts need a small part of it.
@@ -25,19 +19,7 @@ const FIRST_CACHE_CHECK_DELAY_MS = MINUTE_MS
 /** A long-lived window keeps checking, since the code cache only grows. */
 const CACHE_CHECK_INTERVAL_MS = 6 * HOUR_MS
 
-const DISK_CACHE_SIZE_SWITCH = 'disk-cache-size'
 const CODE_CACHE_DIRECTORY_NAME = 'Code Cache'
-
-/**
- * Cap the HTTP disk cache of every Chromium session this process opens. Must run before the app is
- * ready; an explicit `--disk-cache-size` given on the command line wins.
- */
-export function limitChromiumHttpDiskCache(
-  commandLine: Pick<CommandLine, 'appendSwitch' | 'hasSwitch'>,
-) {
-  if (commandLine.hasSwitch(DISK_CACHE_SIZE_SWITCH)) return
-  commandLine.appendSwitch(DISK_CACHE_SIZE_SWITCH, String(CHROMIUM_HTTP_CACHE_MAX_BYTES))
-}
 
 export interface ChromiumCacheSizes {
   readonly httpCacheBytes: number

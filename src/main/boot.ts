@@ -22,8 +22,7 @@ import {
 import { mainCompileCacheLocation } from './boot/main-compile-cache-location'
 import { startSessionHostPrelaunch } from './boot/session-host-prelaunch'
 import { answerTopLevelCliInBoot } from './boot-top-level-cli'
-import { appLifecycle } from './desktop-shell/app-lifecycle'
-import { appPaths } from './desktop-shell/app-paths'
+import { bootShell } from './desktop-shell/boot-shell'
 
 function startCompileCache(): MainCompileCache | null {
   try {
@@ -51,10 +50,10 @@ if (outcome !== 'answered') {
   if (outcome === 'desktop-app') {
     startSessionHostPrelaunch({
       app: {
-        isPackaged: appLifecycle.isPackaged(),
-        getAppPath: () => appPaths.appRoot(),
-        getPath: () => appPaths.userData(),
-        commandLine: appLifecycle.commandLine,
+        isPackaged: bootShell.isPackaged(),
+        getAppPath: () => bootShell.appRoot(),
+        getPath: () => bootShell.userData(),
+        commandLine: bootShell.commandLine,
       },
       desktopApp: true,
       environment: process.env,
