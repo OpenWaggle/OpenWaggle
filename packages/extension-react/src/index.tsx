@@ -12,6 +12,7 @@ import type {
   CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
+  JSX,
   ReactNode,
   Ref,
   SelectHTMLAttributes,
@@ -100,7 +101,7 @@ export function SyntaxBlock({
   wrap = false,
   showLineNumbers = false,
   ariaLabel,
-}: SyntaxBlockProps) {
+}: SyntaxBlockProps): JSX.Element {
   const result =
     useExtensionSyntaxResult({ syntax, source, language, path }) ??
     createPlainExtensionSyntaxResult({ source, language })
@@ -190,7 +191,7 @@ export function SourceView({
   className,
   showLineNumbers = true,
   ariaLabel,
-}: SourceViewProps) {
+}: SourceViewProps): JSX.Element {
   const sourceLineStarts = useMemo(() => indexSourceLines(source), [source])
   const sourceLineCount = sourceLineStarts.length
   const highlightEnabled =
@@ -290,7 +291,7 @@ export interface StackProps {
   readonly style?: CSSProperties
 }
 
-export function Stack({ children, className, gap, ref, style }: StackProps) {
+export function Stack({ children, className, gap, ref, style }: StackProps): JSX.Element {
   return (
     <div
       ref={ref}
@@ -309,7 +310,7 @@ export interface PanelProps {
   readonly style?: CSSProperties
 }
 
-export function Panel({ children, className, ref, style }: PanelProps) {
+export function Panel({ children, className, ref, style }: PanelProps): JSX.Element {
   return (
     <section
       ref={ref}
@@ -326,7 +327,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly variant?: OpenWaggleExtensionUiButtonVariant
 }
 
-export function Button({ children, className, ref, variant = 'secondary', ...props }: ButtonProps) {
+export function Button({
+  children,
+  className,
+  ref,
+  variant = 'secondary',
+  ...props
+}: ButtonProps): JSX.Element {
   return (
     <button
       {...props}
@@ -346,7 +353,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   readonly ref?: Ref<HTMLInputElement>
 }
 
-export function Input({ className, ref, ...props }: InputProps) {
+export function Input({ className, ref, ...props }: InputProps): JSX.Element {
   return (
     <input
       {...props}
@@ -360,7 +367,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
   readonly ref?: Ref<HTMLTextAreaElement>
 }
 
-export function Textarea({ className, ref, ...props }: TextareaProps) {
+export function Textarea({ className, ref, ...props }: TextareaProps): JSX.Element {
   return (
     <textarea
       {...props}
@@ -377,7 +384,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   readonly ref?: Ref<HTMLSelectElement>
 }
 
-export function Select({ children, className, ref, ...props }: SelectProps) {
+export function Select({ children, className, ref, ...props }: SelectProps): JSX.Element {
   return (
     <select
       {...props}
@@ -396,7 +403,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   readonly ref?: Ref<HTMLInputElement>
 }
 
-export function Checkbox({ className, ref, ...props }: CheckboxProps) {
+export function Checkbox({ className, ref, ...props }: CheckboxProps): JSX.Element {
   return (
     <input
       {...props}
@@ -417,7 +424,7 @@ export interface BadgeProps {
   readonly tone?: OpenWaggleExtensionUiTone
 }
 
-export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps) {
+export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps): JSX.Element {
   return (
     <span
       ref={ref}
@@ -437,7 +444,13 @@ export interface AlertProps {
   readonly tone?: OpenWaggleExtensionUiTone
 }
 
-export function Alert({ children, className, ref, role = 'status', tone = 'neutral' }: AlertProps) {
+export function Alert({
+  children,
+  className,
+  ref,
+  role = 'status',
+  tone = 'neutral',
+}: AlertProps): JSX.Element {
   return (
     <div
       ref={ref}
@@ -467,7 +480,7 @@ export function Field({
   label,
   ref,
   ...props
-}: FieldProps) {
+}: FieldProps): JSX.Element {
   return (
     <div
       {...props}
