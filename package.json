@@ -238,6 +238,7 @@
     "oxlint": "1.91.0",
     "oxlint-tsgolint": "7.0.2005",
     "react": "19.3.0",
+    "react-doctor": "0.9.22",
     "react-dom": "19.3.0",
     "react-markdown": "10.1.0",
     "react-voice-visualizer": "2.1.0",
