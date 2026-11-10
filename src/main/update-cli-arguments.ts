@@ -1,5 +1,10 @@
 import { UPDATE_CHANNELS, type UpdateChannel } from '@shared/types/update-channel'
-import { option, type ParsedArguments } from './mcp-cli-arguments'
+import {
+  isFlagValue,
+  isOptionWithoutValue,
+  option,
+  type ParsedArguments,
+} from './mcp-cli-arguments'
 import { UpdateCliUsageError } from './update-cli-exact-version'
 
 export function usage() {
@@ -25,13 +30,15 @@ export function validateArguments(args: ParsedArguments) {
     throw new UpdateCliUsageError(`Unknown option for OpenWaggle update: --${unknown[0]}.`)
   }
   for (const name of ['channel', 'version']) {
-    if (option(args, name) === 'true') {
+    const value = option(args, name)
+    // An empty value, as in --version="$V" with $V unset, is missing too.
+    if (value !== undefined && (value === '' || isOptionWithoutValue(value))) {
       throw new UpdateCliUsageError(`Missing value for --${name}.`)
     }
   }
   for (const name of ['check', 'json', 'help']) {
     const value = option(args, name)
-    if (value !== undefined && value !== 'true') {
+    if (value !== undefined && !isFlagValue(value)) {
       throw new UpdateCliUsageError(`--${name} does not accept values.`)
     }
   }

@@ -88,6 +88,16 @@ describe('Hive CLI option contract', () => {
     },
   )
 
+  it('accepts true as a typed value and still reports an option without one', () => {
+    expect(validate(['request-respond', 's', 'r', 'i', '--choice', 'true'])).not.toThrow()
+    expect(validate(['message', 'session', '--text', 'true'])).not.toThrow()
+    expect(validate(['request-respond', 's', 'r', 'i', '--choice'])).toThrow(
+      'Missing value for --choice',
+    )
+    // A flag the shared parser does not know as boolean still reads as a flag.
+    expect(validate(['export-create', 'session', 'out.jsonl', '--overwrite'])).not.toThrow()
+  })
+
   it('rejects values assigned to boolean flags instead of silently disabling them', () => {
     expect(validate(['list', '--json=false'])).toThrow('--json do not accept values')
     expect(validate(['launch', '.', '--text', 'work', '--yolo=false'])).toThrow(

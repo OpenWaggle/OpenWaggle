@@ -56,4 +56,31 @@ describe('openwaggle update error kinds (#351)', () => {
       env.OPENWAGGLE_AGENT_RUN = undefined
     },
   )
+
+  it('refuses --channel without a value but reads --channel true as a channel', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await expect(runUpdateCli(['--channel'])).resolves.toEqual({
+      exitCode: 2,
+      updaterOwnsExit: false,
+    })
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Missing value for --channel.'))
+    await expect(runUpdateCli(['--channel', 'true'])).resolves.toEqual({
+      exitCode: 2,
+      updaterOwnsExit: false,
+    })
+    expect(stderr).toHaveBeenCalledWith(
+      expect.stringContaining('Unsupported update channel "true"'),
+    )
+    stderr.mockRestore()
+  })
+
+  it('refuses an empty --version instead of installing the newest release', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await expect(runUpdateCli(['--version='])).resolves.toEqual({
+      exitCode: 2,
+      updaterOwnsExit: false,
+    })
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Missing value for --version.'))
+    stderr.mockRestore()
+  })
 })

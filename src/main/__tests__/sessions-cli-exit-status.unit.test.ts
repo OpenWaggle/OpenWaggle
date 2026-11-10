@@ -224,7 +224,7 @@ describe('Hive CLI structured failure exit status', () => {
     expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
       type: 'error',
-      error: { kind: 'authorization', message: 'An error has occurred' },
+      error: { kind: 'authorization', message: 'An error has occurred', code: 'capability_denied' },
     })
   })
 

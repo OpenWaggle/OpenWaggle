@@ -19,6 +19,7 @@ import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { streamSessionExport } from './sessions-cli-export'
 import { watchSessionExportOperations } from './sessions-cli-export-operation'
 import {
+  hiveHostInputPlaceholder,
   type PreparedHiveHostInput,
   prepareHiveHostInput,
   resolveHiveHostInput,
@@ -136,7 +137,7 @@ async function runSessionCommand(
 
 /**
  * Reads what `request-respond` and the amendment commands build on, then builds their request. A
- * refused read is the command's answer, with the exit code of its refusal.
+ * refused read fails with the refusal's error kind and exit code.
  */
 async function resolveHostPayload(
   command: string,
@@ -144,22 +145,10 @@ async function resolveHostPayload(
   clientInput: ClientInput,
   prepared: PreparedHiveHostInput,
 ) {
-  const resolution = await resolveHiveHostInput(prepared, arguments_, (payload) =>
+  const structured = await resolveHiveHostInput(prepared, arguments_, (payload) =>
     executeLocalSessionCommand({ ...clientInput, payload }),
   )
-  if (resolution.status === 'refused') {
-    await writeSessionsCliResponse(
-      `hive ${command}`,
-      resolution.result,
-      hasFlag(arguments_, 'json'),
-    )
-    const kind = sessionCliResultErrorKind(resolution.result) ?? 'internal'
-    return { status: 'refused' as const, exitCode: sessionCliExitCodeForError(kind) }
-  }
-  const payload = asUsageErrorsSync(() =>
-    buildSessionsCliPayload(command, arguments_, { structured: resolution.structured }),
-  )
-  return { status: 'resolved' as const, payload }
+  return asUsageErrorsSync(() => buildSessionsCliPayload(command, arguments_, { structured }))
 }
 
 function isStreamingCommand(command: string, arguments_: ReturnType<typeof parseMcpCliArguments>) {
@@ -211,6 +200,12 @@ export async function runSessionsCli(args: readonly string[]) {
         jsonl: hasFlag(resolvedInput.arguments, 'jsonl'),
         stream: isStreamingCommand(command, resolvedInput.arguments),
       })
+      // Check the rest of the command line before reading an answer or connecting, with
+      // placeholders for what the Session Host read supplies.
+      const placeholder = hiveHostInputPlaceholder(command)
+      if (placeholder) {
+        buildSessionsCliPayload(command, resolvedInput.arguments, { structured: placeholder })
+      }
       const hostInput = await prepareHiveHostInput(command, resolvedInput.arguments, {
         stdin: readCliStdin,
         file: (filePath) => readUtf8File(filePath),
@@ -224,8 +219,7 @@ export async function runSessionsCli(args: readonly string[]) {
     const clientInput = await createLocalSessionCliClientInput(arguments_)
     if (!prepared) return await runSessionCommand(command, arguments_, clientInput, payload)
     const resolved = await resolveHostPayload(command, arguments_, clientInput, prepared)
-    if (resolved.status === 'refused') return resolved.exitCode
-    return await runSessionCommand(command, arguments_, clientInput, resolved.payload)
+    return await runSessionCommand(command, arguments_, clientInput, resolved)
   } catch (error) {
     const kind = writeSessionsCliError(
       error,

@@ -46,5 +46,5 @@ export function sessionCliResultErrorKind(
 export function pageQueryRefusal(error: Readonly<Record<string, unknown>>) {
   const code = typeof error.code === 'string' ? error.code : 'query_failed'
   const message = typeof error.message === 'string' ? error.message : 'Query failed.'
-  return new CliError(refusalKind(error), `${code}: ${message}`)
+  return new CliError(refusalKind(error), `${code}: ${message}`, { code })
 }

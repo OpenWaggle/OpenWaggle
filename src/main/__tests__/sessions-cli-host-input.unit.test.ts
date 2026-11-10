@@ -20,17 +20,26 @@ vi.mock('../session-host/local-session-client', () => ({
 }))
 
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
 import { runSessionsCli } from '../sessions-cli'
 import {
   accepted,
   captureCliOutput,
   interaction,
   RUN,
+  rejected,
   requestsList,
   SESSION,
   sentCommands,
   stderr,
 } from './sessions-cli-host-input.test-utils'
+
+const APPROVAL = interaction({
+  kind: 'confirm',
+  purpose: 'authorization',
+  title: 'Run?',
+  message: 'ls',
+})
 
 function sent() {
   return sentCommands(mocks.executeCommand.mock.calls)
@@ -137,30 +146,48 @@ describe('hive request-respond reads the pending request before it answers', () 
   })
 
   it('points an approval request answered with request-respond at approval-respond', async () => {
-    mocks.executeCommand.mockResolvedValueOnce(
-      requestsList([
-        interaction({ kind: 'confirm', purpose: 'authorization', title: 'Run?', message: 'ls' }),
-      ]),
-    )
+    mocks.executeCommand
+      .mockResolvedValueOnce(requestsList([APPROVAL]))
+      .mockResolvedValueOnce(rejected('interaction-mismatch'))
 
     await expect(
-      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm']),
-    ).resolves.toBe(2)
-    expect(stderr()).toContain(
-      `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
-    )
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm', '--json']),
+    ).resolves.toBe(6)
+    // The Session Host's answer, asked with an answer that settles nothing.
+    expect(sent()[1]).toMatchObject({ kind: 'notify', response: { kind: 'notify' } })
+    expect(JSON.parse(stderr())).toMatchObject({
+      error: {
+        kind: 'conflict',
+        code: 'interaction-mismatch',
+        message: expect.stringContaining(
+          `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
+        ),
+      },
+    })
   })
 
-  it('answers not-found for a request that is no longer pending', async () => {
-    mocks.executeCommand.mockResolvedValueOnce(requestsList([]))
+  it('refuses a visible approval as the Session Host does for a caller without sessions:respond', async () => {
+    mocks.executeCommand
+      .mockResolvedValueOnce(requestsList([APPROVAL]))
+      .mockRejectedValueOnce(
+        new LocalSessionClientProtocolError('capability_denied', 'sessions:respond is required.'),
+      )
 
     await expect(
-      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--dismiss', '--json']),
-    ).resolves.toBe(5)
-    expect(stderr()).toContain(`"kind":"not_found"`)
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--confirm', '--json']),
+    ).resolves.toBe(4)
+    expect(JSON.parse(stderr())).toMatchObject({
+      error: {
+        kind: 'authorization',
+        code: 'capability_denied',
+        message: expect.stringContaining(
+          `openwaggle hive approval-respond ${SESSION} ${RUN} interaction-1 allow|deny`,
+        ),
+      },
+    })
   })
 
-  it('reports a refused read of the pending requests as the command answer', async () => {
+  it('fails with the error kind of a refused read of the pending requests', async () => {
     mocks.executeCommand.mockResolvedValueOnce({
       contract: 'session-query-v2',
       response: {
@@ -168,22 +195,63 @@ describe('hive request-respond reads the pending request before it answers', () 
         requestId: 'request-list',
         outcome: {
           operation: 'requests-list',
-          error: {
-            code: 'capability_denied',
-            kind: 'authorization',
-            message: 'sessions:read is required.',
-          },
+          error: { code: 'session_not_found', kind: 'not_found', message: 'Session not found.' },
         },
       },
     })
 
     await expect(
       runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--dismiss', '--json']),
-    ).resolves.toBe(4)
-    expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
-      command: 'hive request-respond',
-      result: { response: { outcome: { error: { code: 'capability_denied' } } } },
+    ).resolves.toBe(5)
+    expect(process.stdout.write).not.toHaveBeenCalled()
+    expect(JSON.parse(stderr())).toMatchObject({
+      type: 'error',
+      error: {
+        kind: 'not_found',
+        message: expect.stringContaining('session_not_found: Session not found.'),
+        code: 'session_not_found',
+      },
     })
+  })
+
+  it('carries the code of a capability the Session Host refused before reading', async () => {
+    // The Host checks capabilities before it dispatches, so the refusal is an error frame.
+    mocks.executeCommand.mockRejectedValueOnce(
+      new LocalSessionClientProtocolError('capability_denied', 'sessions:read is required.'),
+    )
+
+    await expect(
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--dismiss', '--json']),
+    ).resolves.toBe(4)
+    expect(JSON.parse(stderr())).toMatchObject({
+      type: 'error',
+      error: { kind: 'authorization', code: 'capability_denied' },
+    })
+  })
+
+  it('refuses a --choice that is not one of the request choices as a usage error', async () => {
+    mocks.executeCommand.mockResolvedValueOnce(
+      requestsList([interaction({ kind: 'select', choices: ['a', 'b'] })]),
+    )
+
+    await expect(
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--choice', 'c']),
+    ).resolves.toBe(2)
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(1)
+    expect(stderr()).toContain('--choice "c" is not one of this request\'s choices: "a", "b".')
+  })
+
+  it.each(['true', 'false'])('answers a select with the choice %s', async (choice) => {
+    mocks.executeCommand
+      .mockResolvedValueOnce(
+        requestsList([interaction({ kind: 'select', choices: ['true', 'false'] })]),
+      )
+      .mockResolvedValueOnce(accepted())
+
+    await expect(
+      runSessionsCli(['request-respond', SESSION, RUN, 'interaction-1', '--choice', choice]),
+    ).resolves.toBe(0)
+    expect(sent()[1]).toMatchObject({ response: { kind: 'select', selected: choice } })
   })
 
   it.each([

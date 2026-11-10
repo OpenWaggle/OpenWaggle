@@ -107,6 +107,7 @@ describe('Hive CLI Host rejection', () => {
         kind: 'authorization',
         message:
           'Session command refused (capability_denied): the caller lacks a Session capability this operation requires. Missing capabilities: sessions:discover.',
+        code: 'capability_denied',
       },
     })
     expect(exitCode).toBe(4)

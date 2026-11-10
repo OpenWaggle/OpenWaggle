@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { classifyAccessCliError } from '../access-cli-output'
+import {
+  AmbiguousProfileOperationError,
+  classifyAccessCliError,
+  writeAccessCliError,
+} from '../access-cli-output'
 import { sessionCliExitCodeForError } from '../session-cli-exit-status'
 import {
   LocalSessionClientProtocolError,
@@ -28,5 +32,43 @@ describe('Access CLI protocol error classification', () => {
     const kind = classifyAccessCliError(error)
     expect(kind).toBe('authentication')
     expect(sessionCliExitCodeForError(kind)).toBe(3)
+  })
+
+  it('carries the Session Host code in the JSON error envelope', () => {
+    let written = ''
+    writeAccessCliError(
+      new LocalSessionClientProtocolError('capability_denied', 'access:profiles is required.'),
+      true,
+      (value) => {
+        written += value
+      },
+    )
+
+    expect(JSON.parse(written)).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: {
+        kind: 'authorization',
+        message: 'access:profiles is required.',
+        code: 'capability_denied',
+      },
+    })
+  })
+
+  it('carries the code of a Session Host refusal an uncertain operation wraps', () => {
+    let written = ''
+    writeAccessCliError(
+      new AmbiguousProfileOperationError('The profile may have been created.', {
+        cause: new LocalSessionClientProtocolError('profile_revoked', 'Profile revoked.'),
+      }),
+      true,
+      (value) => {
+        written += value
+      },
+    )
+
+    expect(JSON.parse(written)).toMatchObject({
+      error: { kind: 'authentication', code: 'profile_revoked' },
+    })
   })
 })

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
+import { parseMcpCliArguments } from '../mcp-cli-arguments'
 import { respondCommandHint } from '../run-cli-interactions'
 import { sanitizeTerminalText } from '../terminal-text'
 
@@ -33,6 +34,12 @@ function shellArgument(quoted: string) {
   return execFileSync('sh', ['-c', `printf %s ${quoted}`], { encoding: 'utf8' })
 }
 
+/** Every argument a POSIX shell hands the CLI for a pasted command line. */
+function shellArguments(commandLine: string) {
+  const output = execFileSync('sh', ['-c', `printf '%s\\0' ${commandLine}`], { encoding: 'utf8' })
+  return output.split('\0').slice(0, -1)
+}
+
 describe('respondCommandHint', () => {
   it('quotes an agent-chosen choice so pasting the command cannot run anything else', () => {
     const choice = "x'; touch /tmp/owned; echo '"
@@ -46,6 +53,13 @@ describe('respondCommandHint', () => {
   it('attaches a choice that starts with -- so it is not read as an option', () => {
     const hint = respondCommandHint(selectWithChoice('--force'), 'darwin') ?? ''
     expect(hint).toContain("--choice='--force'")
+  })
+
+  it('prints a choice of true as a value the CLI reads back as that choice', () => {
+    const hint = respondCommandHint(selectWithChoice('true'), 'darwin') ?? ''
+    const parsed = parseMcpCliArguments(shellArguments(hint.split('request-respond ')[1] ?? ''))
+    expect(parsed.options.get('choice')).toEqual(['true'])
+    expect(parsed.positionals).toEqual(['session-1', 'run-1', 'interaction-1'])
   })
 
   it('shows the choice on its own line on Windows', () => {

@@ -76,10 +76,16 @@ In these tables, `<session>` is a session ID or a session link copied from the d
 | Pick one of several choices (`select`) | `--choice <item>`, or `--dismiss` to pick none |
 | Type an answer or edit text (`input`, `editor`) | `--text <text>`, `--stdin` or `--input-file <path>`, or `--dismiss` for no answer |
 | Yes or no (`confirm`) | `--confirm` or `--decline` |
-| A notice (`notify`) | `--acknowledge` |
+| A notice (`notify`) | `--acknowledge`, though a notice never waits for an answer, so the Session Host never has one pending |
 | An extension's own request (`custom`) | `--value-file <path>` or `--value-file -` with one JSON value, or `--dismiss` for no value |
 
-`--dismiss` on a yes-or-no request declines it, as closing the dialog does. `--value-file -` reads the JSON value from stdin. An option that does not fit the request's kind fails as a usage error (exit 2) and names the options that fit. A request that is no longer pending fails with `not_found` (exit 5). An approval request needs `approval-respond`, and `request-respond` refuses it with that command in the message.
+`--dismiss` on a yes-or-no request declines it, as closing the dialog does. `--value-file -` reads the JSON value from stdin. An option that does not fit the request's kind fails as a usage error (exit 2) and names the options that fit. `requests-list` shows only the requests the caller may answer. When the request is not there, the CLI asks the Session Host why, with an answer that cannot settle anything, and fails with the reason:
+
+- `capability_denied` (exit 4) when the caller lacks `sessions:respond`.
+- `interaction-mismatch` (exit 6) for a pending approval request the caller may not answer.
+- `interaction-not-found` (exit 5) for a request that is not pending.
+
+A retry with the same `--idempotency-key` is safe. When the request is no longer pending, the CLI sends the answer anyway, and the Session Host returns the outcome it recorded for that key, or `interaction-not-found` (exit 5) if it recorded none. That works for `--choice`, `--confirm`, `--decline` and `--value-file`. `--text`, `--stdin`, `--input-file` and `--dismiss` fit more than one kind of request, so the CLI cannot rebuild the recorded answer from them, and the retry fails with `not_found` without sending it. An approval request needs `approval-respond`. For one, `request-respond` asks the Session Host as it does for an unlisted request, so the exit is the same whether or not the caller can see the approval: `capability_denied` (exit 4) without `sessions:respond`, or `interaction-mismatch` (exit 6) with it. The message names the `approval-respond` command when the caller can see the approval.
 
 ### Delegations and agent definitions
 
@@ -92,7 +98,7 @@ In these tables, `<session>` is a session ID or a session link copied from the d
 | `delegation-state` | `hive delegation-state <worker> <delegation-id> working\|waiting\|needs_attention <reason>` | A worker sets its own state, with a reason. |
 | `delegation-claim` | `hive delegation-claim <worker> <delegation-id> <reason> [<claims>]` | A worker records the files or areas it plans to change. Claims lock nothing. |
 | `delegation-propose-amendment` | `hive delegation-propose-amendment <worker> <delegation-id> <base-revision> <reason> <changes>` | A worker proposes a change to its task. |
-| `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> [<changes>] [--proposal <proposal-id>]` | Changes the task, or accepts a proposed change. |
+| `delegation-amend` | `hive delegation-amend <parent> <delegation-id> <expected-revision> <reason> (<changes> \| --proposal <proposal-id>)` | Changes the task, or accepts a proposed change. |
 | `delegation-request-revision` | `hive delegation-request-revision <parent> <delegation-id> <revision> <feedback>` | Asks for a new revision. |
 | `delegation-accept` | `hive delegation-accept <parent> <delegation-id> <revision> [note]` | Accepts one submitted revision. |
 | `delegation-verify` | `hive delegation-verify <parent> <delegation-id> <revision> passed\|failed\|inconclusive <summary> [<evidence>]` | Records a check of a submitted revision. |
@@ -139,7 +145,7 @@ For an artifact or a source, the value is both the reference and the summary.
 | `--handoff <text>` | The handoff context |
 | `--no-deliverables`, `--no-acceptance-criteria`, `--no-resources`, `--no-dependencies`, `--no-handoff` | Empties that field |
 
-A dependency waits for `ready_for_review` unless you add `:accepted`. A list option replaces the whole list, so repeat it for every item you want to keep. These commands read the delegation first, so the profile you use also needs `delegations:read`. With `--proposal`, `delegation-amend` starts from the proposed task instead of the current one, so `--proposal <proposal-id>` alone applies the proposal as proposed. `delegation-propose-amendment` needs at least one change.
+A dependency waits for `ready_for_review` unless you add `:accepted`. A list option replaces the whole list, so repeat it for every item you want to keep. These commands read the delegation first, so the profile you use also needs `delegations:read`. If the Session Host refuses that read, or the read of pending requests for `request-respond`, the command fails with the refusal's error kind and exit code, and the message names its code. `delegation-amend --proposal <proposal-id>` applies a proposal exactly as proposed, so it takes no change options. To accept a proposal with changes, amend without `--proposal`. Without `--proposal`, both commands need at least one change. The changes apply to the specification at the revision you pass, so they cannot undo a change made since you read it. The Session Host refuses a revision that is no longer current with `specification_revision_stale` (exit 6). A retry with the same `--idempotency-key` sends the same command again, so the Session Host returns the result it recorded the first time.
 
 ### Export
 
@@ -203,12 +209,12 @@ A search for several words matches sessions that contain all of them, anywhere i
 
 With `--json`, a command that returns one response prints a `type: "response"` envelope with a schema version on stdout, and puts the command's result in `result`. Its `command` is the command as you typed it after `openwaggle`, without operands, such as `hive list`, `hive delegation-accept`, `schedules list`, `host stop` or `update` (for `update --check --json`). When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error. It does not also print an error on stderr. Streams such as `read --full`, `watch` and `exports-watch` use `--jsonl`. Every stdout line then has `type: "record"` and puts the streamed value in `record`.
 
-A failure that stops the command before it has a result prints a `type: "error"` envelope on stderr. That covers invalid usage, failed authentication or authorization, connection failures and internal errors.
+A failure that stops the command before it has a result prints a `type: "error"` envelope on stderr. That covers invalid usage, failed authentication or authorization, connection failures and internal errors. It also covers what `request-respond` and the amendment commands learn before they send the command: a refused read of the pending requests or the delegation, and the reason a request is not listed or an approval cannot be answered with `request-respond`. Those errors carry the Session Host's `code`, such as `capability_denied`, `interaction-not-found` or `interaction-mismatch`, as does any refusal the Session Host sends as an error, such as a capability it refuses before it runs a command. The `code` field is optional: it is there only when the Session Host refused something, and its values are the Session Host's refusal codes, so new ones may appear. Its kind and exit code are the ones the Session Host's table gives that code, wherever it comes from. So the same code can come on stderr, when the CLI finds it first, or on stdout, when the Session Host refuses the command it was sent. A keyed retry with nothing recorded, and an amendment whose revision is not current, are the second case.
 
 ```json
 {"schemaVersion":1,"type":"response","command":"hive list","result":{"contract":"session-query-v2","response":{"contractVersion":2,"requestId":"request-1","outcome":{"operation":"list","sessions":[]}}}}
 {"schemaVersion":1,"type":"record","record":{"kind":"cursor","cursor":{"hostInstanceId":"host-1","sequence":42}}}
-{"schemaVersion":1,"type":"error","error":{"kind":"authorization","message":"An error has occurred"}}
+{"schemaVersion":1,"type":"error","error":{"kind":"authorization","message":"Session command refused (capability_denied): the caller lacks a Session capability this operation requires.","code":"capability_denied"}}
 ```
 
 ### Error kinds and exit codes
@@ -219,7 +225,7 @@ When the Session Host refuses a request, it names the kind itself. A rejected ou
 
 | Kind | Exit code | Meaning |
 | --- | --- | --- |
-| `usage` | 2 | The command or its request cannot run as typed. |
+| `usage` | 2 | The command or its request cannot run as typed. Nothing was changed. `request-respond` and the amendment commands may have read from the Session Host first. |
 | `authentication` | 3 | A credential is missing, unreadable or refused. |
 | `authorization` | 4 | The caller may not do this. |
 | `not_found` | 5 | The session, delegation or other target does not exist. |
@@ -234,7 +240,7 @@ What each kind covers:
 - `usage` covers an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one. It also covers a request the Session Host finds incomplete, such as a delegation change without its required reason (`transition_reason_required`) or an empty report (`report_empty`).
 - `authentication` covers an unknown or revoked access profile, and one whose credential was rotated. It also comes back while the Session Host slows down repeated failed attempts, so retry later.
 - `authorization` covers a missing capability, a session outside the caller's scope (`target_scope_denied`), a delegation change only its parent or its worker may make (`parent_required`, `worker_required`), and an OpenWaggle agent that uses the CLI without a named profile.
-- `not_found` comes with `session_not_found`, `delegation_not_found` and the other codes for a target that does not exist.
+- `not_found` comes with `session_not_found`, `delegation_not_found`, `interaction-not-found` for a request that is not pending, and the other codes for a target that does not exist.
 - `conflict` covers a stale run or queue revision, an existing credential destination without `--replace`, a destination that changed after a repeatable operation, and most other refusals of the current state.
 - `timeout` covers a `hive wait` or `hive exports-wait` that ended before its condition was met. Both still print their response on stdout. For `run`, it means a question went unanswered past `--interaction-timeout-ms`, so OpenWaggle stopped the run. `host stop` returns it when, with `--wait`, the Session Host's work outlasted `--timeout-ms`, or when, with `--update`, the Session Host had not exited after 20 seconds. It also covers an update download or a Session Host request that took too long, and an `update --check --json` release check that did not finish within 30 seconds.
 - `resync_required` comes from `hive watch` and `hive exports-watch` when the Session Host restarted, no longer has the cursor you passed, was passed a cursor for an event it has not sent, or dropped a subscriber that fell behind. The last stdout record is then the `resync-required` record. `hive export` stops with it when a transcript node changed between two of its pages; start the export again.
@@ -254,7 +260,7 @@ Before 1.0 the CLI guessed some kinds from the words in a refusal code, and gave
 | 6 → 2 | `submission_empty`, `report_empty`, `claim_target_invalid`, `delegation_dependency_invalid`, `delegation_specification_invalid` |
 | 6 → 2 | `invalid_cursor`, `reserved_idempotency_key`, `invalid-response-payload` |
 | 6 → 4 | `parent_required`, `worker_required`, `authority_changed`, `follow_up_adopt_requires_desktop_user`, `follow_up_edit_requires_desktop_user` |
-| 6 → 5 | `interaction-not-found` |
+| 6 → 5 | `interaction-not-found`, also when `request-respond` finds the request is not pending before it sends an answer |
 | 4 → 6 | `run_authorization_override_requires_idle_session` |
 | 5 → 6 | `delegation_workspace_missing` |
 | 1 → 6 | `subscription_limit_exceeded`, and `profile_admission_changed` and `profile_credential_rate_limited`, which can also stop `access profiles` |
@@ -422,7 +428,7 @@ The Session Host enforces a named profile's policy, and the profile signs in wit
 
 A named profile does not contain a process that can also run the CLI as the same unrestricted user. Use an operating system sandbox, a separate account or a container when an outside agent must not be able to get the owner's access back. OpenWaggle's own agents should use the `hive` tool. The agent's shell sets `OPENWAGGLE_AGENT_RUN=1`, so the CLI refuses to run there without a profile (exit code 4) and refuses `mcp serve --owner`. That marker is a guardrail, not a security boundary. [Environment variables](/docs/reference/environment-variables#set-for-agent-shell-commands) lists what the agent's shell gets.
 
-OpenWaggle stores the generated credential apart from the profile's policy. Profiles sign in, have a scope, can be revoked, and never quietly take on a broader `YOLO` preference. `access` commands use the [error kinds and exit codes](#error-kinds-and-exit-codes) above. With `--json`, a result is `{"schemaVersion":1,"type":"response","command":"access profiles list","result":...}` on stdout, and a failure is `{"schemaVersion":1,"type":"error","error":{"kind":"...","message":"..."}}` on stderr. Without `--json`, they print readable lines. When the Session Host refuses a profile change, the response still goes to stdout and the command exits with the matching nonzero code, as refused session commands do.
+OpenWaggle stores the generated credential apart from the profile's policy. Profiles sign in, have a scope, can be revoked, and never quietly take on a broader `YOLO` preference. `access` commands use the [error kinds and exit codes](#error-kinds-and-exit-codes) above. With `--json`, a result is `{"schemaVersion":1,"type":"response","command":"access profiles list","result":...}` on stdout, and a failure is `{"schemaVersion":1,"type":"error","error":{"kind":"...","message":"..."}}` on stderr, with the Session Host's `code` added when it refused the request. Without `--json`, they print readable lines. When the Session Host refuses a profile change, the response still goes to stdout and the command exits with the matching nonzero code, as refused session commands do.
 
 `access profiles list` leaves out revoked profiles. Add `--include-revoked` to show them. A revoked profile keeps its record, for its audit history, and its name. Revoking a profile also removes, on this machine, its credential-store copy, its installation receipts, and the markers of its used staged credentials. A staged `.pending` credential stays, as a recovery file. When `create` or `rotate` writes the credential to `--credential-file`, the command removes an older credential-store copy, so `--profile` does not keep using an old credential. A profile with no stored credential fails with `No stored credential for access profile "<name>"`, and a credential the Session Host refuses names the profile and suggests rotating it.
 

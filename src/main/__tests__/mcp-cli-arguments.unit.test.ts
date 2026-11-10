@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  hasFlag,
+  option,
   parseMcpCliArguments,
   requireServeScope,
   serveAuthorizationCeiling,
@@ -104,4 +106,15 @@ describe('MCP CLI arguments', () => {
       expect(() => validateMcpCliOptions('help', arguments_)).toThrow(`Unknown option: --${name}.`)
     },
   )
+
+  it('keeps a typed value of true apart from an option given without a value', () => {
+    const typed = parseMcpCliArguments(['--choice', 'true', '--text=true'])
+    const bare = parseMcpCliArguments(['--choice', '--yolo'])
+    expect(option(typed, 'choice')).toBe('true')
+    expect(option(typed, 'text')).toBe('true')
+    expect(hasFlag(typed, 'choice')).toBe(true)
+    expect(option(bare, 'choice')).not.toBe('true')
+    expect(hasFlag(bare, 'choice')).toBe(true)
+    expect(hasFlag(bare, 'yolo')).toBe(true)
+  })
 })
