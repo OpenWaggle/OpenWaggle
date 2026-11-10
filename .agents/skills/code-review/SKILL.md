@@ -9,7 +9,7 @@ Review for bugs first. Summaries are secondary.
 
 ## Workflow
 
-1. Load `AGENTS.md`, `MEMORY.md`, `.agents/standards.md`, and `.agents/verification.md`.
+1. Load `AGENTS.md`, the `MEMORY.md` index (then only the `.agents/memory/` topics the diff touches), `.agents/standards.md`, and `.agents/verification.md`.
 2. Inspect the diff and current dirty tree.
 3. Run the bundled analyzers when useful:
 

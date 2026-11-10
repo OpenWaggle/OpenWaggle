@@ -6,7 +6,7 @@ This is the root entrypoint for agentic coding work in OpenWaggle. Keep this fil
 
 1. Inspect the current working tree before editing: `git status --short --branch`.
 2. Treat uncommitted work as source of truth. Another agent may be refactoring this repository; do not overwrite, revert, unstage, or "clean up" work you did not create.
-3. For non-trivial work, skim `MEMORY.md` before planning. Load the sections relevant to Pi, Electron, sessions, renderer, release, or tooling when those areas are touched.
+3. For non-trivial work, read the `MEMORY.md` index before planning, then load only the `.agents/memory/<topic>.md` files whose trigger matches the area you touch (Pi, Session Host, renderer, release, tooling, and so on). Do not load every topic.
 4. Load `.agents/standards.md` before architectural, TypeScript, renderer, Pi, Electron, testing, or tooling changes.
 5. Load `.agents/verification.md` before deciding which checks to run.
 6. Load skills from `.agents/skills/<skill-id>/SKILL.md` only when the task or user explicitly calls for that expertise.
@@ -69,7 +69,7 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 - Do not use destructive commands to resolve local conflicts. Ask if unrelated work blocks the task.
 - Prefer additive or isolated changes when another agent is active.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
-- Legacy agent memory files were removed; durable project memory lives in `MEMORY.md`.
+- Legacy agent memory files were removed; durable project memory lives in `.agents/memory/<topic>.md`, indexed by `MEMORY.md`.
 - `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not create those files manually during unrelated work.
 - Before adding or editing anything under `website/src/content/docs/` (pages, screenshots, alt text, tables), load `.agents/skills/write-docs/SKILL.md`. User docs follow the guide, reference and overview split in ADR 0061.
 - Project-local skills are discovered from `.openwaggle/skills` and `.agents/skills`; same-name `.openwaggle` skills win at runtime.
@@ -78,7 +78,7 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 
 - Engineering standards: `.agents/standards.md`.
 - Validation matrix: `.agents/verification.md`.
-- Durable project memory: `MEMORY.md`.
+- Durable project memory: `MEMORY.md` (index) and `.agents/memory/` (topic files).
 - Architecture index: `docs/architecture.md`.
 - Architecture docs: `docs/first-principles.md`, `docs/system-architecture.md`, `docs/hexagonal-architecture.md`, `docs/renderer-architecture.md`.
 - Architecture decisions: `docs/adr/`.
@@ -112,5 +112,5 @@ Agent-facing release and update-track guidance lives in `docs/agents/release.md`
 2. Types, lint, architecture, and relevant tests are green or reported with exact blockers.
 3. Renderer changes are checked with React Doctor when practical.
 4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `pnpm dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
-5. Significant OpenWaggle technical findings are added to `MEMORY.md` or a focused skill, not to deleted legacy memory files.
+5. Significant OpenWaggle technical findings are added to the matching `.agents/memory/<topic>.md` file (a new topic gets one line in the `MEMORY.md` index) or a focused skill, not to deleted legacy memory files.
 6. The final report states what changed, what was validated, and any remaining risk.

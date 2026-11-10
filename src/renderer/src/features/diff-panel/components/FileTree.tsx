@@ -216,7 +216,7 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
   // its visible-item list changes. The compiler therefore cached the mapped rows
   // and the navigator rendered permanently empty in the packaged/dev app while
   // every test passed -- vitest does not run the compiler, so the suite is
-  // structurally blind to this class of bug (see MEMORY.md).
+  // structurally blind to this class of bug (see .agents/memory/testing.md).
   'use no memo'
 
   const { tree, containerProps, handleContainerRef, handleScroll, items, rowHeight, visibleRows } =

@@ -188,7 +188,7 @@ export function SessionSummaryLinkSection({
         <Button
           variant="unstyled"
           // Keyboard focus only: the row stays focused after a click, and `focus:` would keep it
-          // painted as if hovered (MEMORY.md, "A focused row keeps its focus").
+          // painted as if hovered (.agents/memory/renderer.md, "A focused row keeps its focus").
           className={cn(
             SECTION_ROW_CLASS,
             'group cursor-pointer transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover',

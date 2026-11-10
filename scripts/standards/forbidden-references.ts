@@ -26,7 +26,8 @@ const forbiddenReferences: string[] = [
  * measured facts about other products; they carry no legacy configuration.
  */
 const forbiddenReferenceExemptFiles: string[] = [
-  'MEMORY.md',
+  // Project memory records the same benchmark (Active Warnings, Docker token benchmark).
+  '.agents/memory/performance.md',
   // The v1 performance report carries the same benchmark table.
   'docs/performance/v1-performance-2026-10.md',
   'scripts/benchmark-docker/inside.sh',

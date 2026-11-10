@@ -67,7 +67,7 @@ export async function captureBrowserPreview(context: CaptureContext) {
     const guest = await waitForGuest(context, site.url)
     await settleForShot(page)
     // Hidden-window screenshots on macOS can leave out the native WebContentsView even when its
-    // page is loaded (MEMORY.md, Electron Runtime), so the guest is captured on its own.
+    // page is loaded (.agents/memory/electron-shell.md), so the guest is captured on its own.
     const renderer = await page.screenshot({ animations: 'disabled', scale: 'css' })
     const guestImage = await guest.page.screenshot({ animations: 'disabled', scale: 'css' })
     const composite = await compositeGuestImage({

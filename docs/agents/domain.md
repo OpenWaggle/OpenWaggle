@@ -11,7 +11,7 @@ OpenWaggle is one product domain: an Electron desktop coding-agent workspace bui
 - `docs/renderer-architecture.md` defines renderer organization, state, UI, testing, and enforcement rules.
 - `docs/architecture.md` is the architecture documentation index.
 - `docs/adr/` records why major architecture decisions were made.
-- `MEMORY.md` records durable technical findings that are too specific for architecture docs.
+- `MEMORY.md` indexes durable technical findings that are too specific for architecture docs; the findings live in topic files under `.agents/memory/`, loaded only when relevant.
 - `.agents/standards.md` and `.agents/verification.md` define agent coding and validation rules.
 - `website/src/content/docs/extending/openwaggle-extensions.md` is the user-facing extension author contract.
 
@@ -32,7 +32,7 @@ Primary references:
 - `docs/system-architecture.md`
 - `docs/renderer-architecture.md`
 - `docs/specs/pi-migration-remaining-work.md`
-- `MEMORY.md`
+- `.agents/memory/sessions.md` and `.agents/memory/renderer-transcript.md`
 
 ### Session Host And Hives
 

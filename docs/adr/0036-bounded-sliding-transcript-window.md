@@ -34,7 +34,7 @@ Production-build measurements bound the cost of mounted rows: streaming stayed w
 - A missing anchor (first visit, compaction replaced the row, branch gone) opens at the newest end.
 - Switching branch applies the same rules to the target branch; no window state carries across branches.
 
-No virtualization dependency is adopted. Mutable-instance virtualizers are a known React Compiler hazard in this codebase (see MEMORY.md, `@headless-tree`), and dynamic-height streaming rows with stick-to-bottom are their hardest integration case.
+No virtualization dependency is adopted. Mutable-instance virtualizers are a known React Compiler hazard in this codebase (see `.agents/memory/renderer.md`, `@headless-tree`), and dynamic-height streaming rows with stick-to-bottom are their hardest integration case.
 
 ## Related transcript presentation decisions
 

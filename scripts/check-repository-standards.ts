@@ -2,6 +2,10 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
 import { collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations } from './standards/forbidden-references'
+import {
+  collectAgentMemoryFileViolations,
+  collectAgentMemoryIndexViolations,
+} from './standards/agent-memory'
 import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
@@ -128,6 +132,7 @@ async function collectViolationsForFile(file: string) {
     ...collectExactDependencyVersionViolations(file, contents),
     ...collectSqliteLibraryViolations(file, contents),
     ...collectAstroRawButtonViolations(file, contents),
+    ...collectAgentMemoryFileViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 
@@ -156,6 +161,7 @@ async function main() {
   }
 
   violations.push(...collectDuplicateExportedTypes(contentsByFile))
+  violations.push(...collectAgentMemoryIndexViolations(contentsByFile))
   violations.push(
     ...collectRendererDesignTokenExemptionViolations(
       new Set(contentsByFile.keys()),
