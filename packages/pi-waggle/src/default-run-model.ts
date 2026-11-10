@@ -28,7 +28,10 @@ export function modelReferenceForModel(model: DefaultPiWaggleModel) {
   return `${model.provider}/${model.id}`
 }
 
-export function effectiveAgentModelReference(agentModel: string, inheritedModelReference: string) {
+export function effectiveAgentModelReference(
+  agentModel: string,
+  inheritedModelReference: string,
+): string {
   return isWaggleInheritedModel(agentModel) ? inheritedModelReference : agentModel
 }
 

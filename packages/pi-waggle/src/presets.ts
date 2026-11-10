@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { BUILT_IN_WAGGLE_PRESETS, type WagglePreset } from '@openwaggle/waggle-core'
+import {
+  BUILT_IN_WAGGLE_PRESETS,
+  type WaggleConfig,
+  type WagglePreset,
+} from '@openwaggle/waggle-core'
 import {
   getPiWaggleProjectPresetsPath,
   getPiWaggleUserPresetsPath,
@@ -91,12 +95,14 @@ function sortIds(ids: readonly string[]) {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
 
-export function resolvedPresetsForUi(layers: PiWagglePresetLayers) {
+export function resolvedPresetsForUi(layers: PiWagglePresetLayers): PiWaggleResolvedPreset[] {
   const merged = mergePiWagglePresetLayers(layers)
   return [...merged].sort((left, right) => left.preset.name.localeCompare(right.preset.name))
 }
 
-export function hiddenBuiltInPresetsForUi(layers: PiWagglePresetLayers) {
+export function hiddenBuiltInPresetsForUi(
+  layers: PiWagglePresetLayers,
+): PiWaggleHiddenBuiltInPreset[] {
   const hidden: PiWaggleHiddenBuiltInPreset[] = []
   const projectHiddenIds = idSet(layers.projectHiddenBuiltInPresetIds)
   const userHiddenIds = idSet(layers.userHiddenBuiltInPresetIds)
@@ -149,7 +155,9 @@ function persistPathForScope(scope: PiWaggleEditablePresetScope, cwd?: string) {
   return getPiWaggleProjectPresetsPath(cwd)
 }
 
-export function presetScopeLabel(scope: PiWaggleEditablePresetScope) {
+export function presetScopeLabel(
+  scope: PiWaggleEditablePresetScope,
+): 'Project (.pi/waggle-presets.json)' | 'User (~/.pi/agent/waggle-presets.json)' {
   return scope === 'project'
     ? 'Project (.pi/waggle-presets.json)'
     : 'User (~/.pi/agent/waggle-presets.json)'
@@ -168,7 +176,7 @@ export async function savePiWagglePreset(input: {
   readonly cwd?: string
   readonly scope: PiWaggleEditablePresetScope
   readonly preset: WagglePreset
-}) {
+}): Promise<void> {
   await updatePresetFile(input, (current) => ({
     ...current,
     wagglePresets: sortPresetsByName([
@@ -182,7 +190,7 @@ export async function deletePiWaggleCustomPreset(input: {
   readonly cwd?: string
   readonly scope: PiWaggleEditablePresetScope
   readonly presetId: string
-}) {
+}): Promise<void> {
   await updatePresetFile(input, (current) => ({
     ...current,
     wagglePresets: current.wagglePresets.filter((preset) => preset.id !== input.presetId),
@@ -193,7 +201,7 @@ export async function suppressPiWaggleBuiltInPreset(input: {
   readonly cwd?: string
   readonly scope: PiWaggleEditablePresetScope
   readonly presetId: string
-}) {
+}): Promise<void> {
   await updatePresetFile(input, (current) => ({
     ...current,
     hiddenBuiltInPresetIds: sortIds([...current.hiddenBuiltInPresetIds, input.presetId]),
@@ -204,7 +212,7 @@ export async function restorePiWaggleBuiltInPreset(input: {
   readonly cwd?: string
   readonly scope: PiWaggleEditablePresetScope
   readonly presetId: string
-}) {
+}): Promise<void> {
   await updatePresetFile(input, (current) => ({
     ...current,
     hiddenBuiltInPresetIds: current.hiddenBuiltInPresetIds.filter((id) => id !== input.presetId),
@@ -216,7 +224,15 @@ export function buildEditablePreset(input: {
   readonly existingId?: string
   readonly existingIds: ReadonlySet<string>
   readonly existingCreatedAt?: number
-}) {
+}): {
+  id: string
+  name: string
+  description: string
+  config: WaggleConfig
+  isBuiltIn: false
+  createdAt: number
+  updatedAt: number
+} {
   const now = Date.now()
   const presetId = input.existingId
     ? input.existingId

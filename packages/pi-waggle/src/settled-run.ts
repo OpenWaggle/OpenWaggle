@@ -34,7 +34,7 @@ export function onPiWaggleSettledAgentEnd(
   pi: Pick<ExtensionAPI, 'on'>,
   handler: PiWaggleAgentEndHandler,
   options: { readonly onAborted?: (ctx: PiWaggleExtensionContext) => void | Promise<void> } = {},
-) {
+): void {
   let messages: AgentEndEvent['messages'] = []
   let ended = false
   pi.on('agent_end', (event) => {

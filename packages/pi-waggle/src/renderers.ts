@@ -15,7 +15,7 @@ function singleLineComponent(line: string) {
   }
 }
 
-export function registerPiWaggleRenderers(pi: MessageRendererRegistrar) {
+export function registerPiWaggleRenderers(pi: MessageRendererRegistrar): void {
   pi.registerMessageRenderer(PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE, (message) =>
     singleLineComponent(`🐝 Waggle request: ${String(message.content)}`),
   )

@@ -63,7 +63,7 @@ function rewriteLatestUserMessage(input: {
     .reverse()
 }
 
-export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
+export default function defaultPiWaggleExtension(pi: ExtensionAPI): void {
   let activeRun: DefaultPiWaggleRunState | null = null
   const getActiveRun = () => activeRun
   const setActiveRun = (run: DefaultPiWaggleRunState | null) => {

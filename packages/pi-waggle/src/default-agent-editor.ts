@@ -172,7 +172,7 @@ async function editSelectedAgentField(input: {
 export async function editAgentSlot(input: {
   readonly ctx: ExtensionCommandContext
   readonly agent: WaggleAgentSlot
-}) {
+}): Promise<WaggleAgentSlot> {
   if (!input.ctx.hasUI) return input.agent
 
   let agent = input.agent
@@ -194,7 +194,7 @@ export async function editAgentSlot(input: {
 export async function promptAgentSlot(input: {
   readonly ctx: ExtensionCommandContext
   readonly agent: WaggleAgentSlot
-}) {
+}): Promise<WaggleAgentSlot | null> {
   const label = await promptPrefilledText({
     ctx: input.ctx,
     title: `Agent label for ${input.agent.label}`,

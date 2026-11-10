@@ -65,7 +65,7 @@ function activePreset(
 export function menuTitle(
   ctx: ExtensionCommandContext,
   presets: readonly PiWaggleResolvedPreset[],
-) {
+): string {
   const activeState = latestActiveState(ctx)
   if (!activeState) return 'Waggle control center — off'
   const preset = activePreset(activeState, presets)

@@ -53,7 +53,7 @@ function parsePresetValues(rawPresets: readonly unknown[]): WagglePreset[] {
 }
 
 export function getPiWaggleUserPresetsPath(
-  agentDir = join(homedir(), PI_CONFIG_DIR, PI_AGENT_DIR),
+  agentDir: string = join(homedir(), PI_CONFIG_DIR, PI_AGENT_DIR),
 ): string {
   return join(agentDir, WAGGLE_PRESETS_FILE)
 }

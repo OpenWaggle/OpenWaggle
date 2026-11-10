@@ -300,7 +300,7 @@ export function createPiWaggleTurnEndHandler<TMeta>(
 export function registerPiWaggleLoop<TMeta>(
   input: PiWaggleLoopInput<TMeta>,
   api: PiWaggleExtensionApi,
-) {
+): void {
   api.onAgentEnd(createPiWaggleLoopHandler(input, api))
 }
 
