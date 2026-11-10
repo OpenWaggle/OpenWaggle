@@ -7,7 +7,7 @@ kind: "guide"
 aliases: "session hub, hub, session resources"
 ---
 
-The Session Summary is a panel that floats over the right side of a conversation. It shows where the session works, its Git branch and changes, its project actions and scheduled tasks, its Hive, and the files, links and images that went into the conversation or came out of it. Use it to find something from the session without scrolling back through every message, or to commit and open a pull request from the session's own checkout. In OpenWaggle's code and design documents it is called the Session Hub, and the app calls it the Session Summary.
+The Session Summary is a panel on the right side of a conversation. It shows where the session works, its Git branch and changes, its project actions and scheduled tasks, its Hive, and the files, links and images that went into the conversation or came out of it. Use it to find something from the session without scrolling back through every message, or to commit and open a pull request from the session's own checkout. In OpenWaggle's code and design documents it is called the Session Hub, and the app calls it the Session Summary.
 
 ![The Session Summary card of a Queen session, with Environment, two scheduled heartbeats, the Hive row, Outputs and Sources](/screenshots/session-summary.png)
 
@@ -17,7 +17,9 @@ Click **Open Session Summary** in the header, or run **Toggle Session Summary** 
 
 The Summary appears once a session has something to show. For an ordinary session that means you have sent its first message. A session in a [Hive](/docs/using-openwaggle/hives-and-sessions), a session with project action or workspace setup activity, and a session with a scheduled Heartbeat show it before that.
 
-It opens by itself when the window has room for it beside the message box, unless you hid it for that session. OpenWaggle remembers, for each session, whether you left the Summary open and which of its sections you expanded. In a narrow window it does not open by itself. Opening it there is temporary. Press `Escape` or click outside it to dismiss it, and your choice for wide windows stays as it was. Resizing the window does not clear your message draft, its command chips, or interactive visualizations.
+It opens by itself unless you hid it for that session. OpenWaggle remembers, for each session, whether you left the Summary open and which of its sections you expanded. When it opens by itself, the conversation and message box move left or get narrower so they never sit under it. They move back when you hide it.
+
+In a narrow window, where the chat area is less than 752 pixels wide (about 1,110 pixels of window with the sidebar open), the Summary does not open by itself. Opening it there is temporary, and it floats over the conversation. Press `Escape` or click outside it to dismiss it, and your choice for wide windows stays as it was. Resizing the window does not clear your message draft, its command chips, or interactive visualizations.
 
 A few things take the Summary's place:
 

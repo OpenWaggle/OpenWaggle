@@ -60,6 +60,22 @@ export async function openSession(page: Page, title: string) {
     .first()
     .waitFor({ timeout: UI_TIMEOUT_MS })
   await blurFocusedControl(page)
+  await hideDockedSessionSummary(page)
+}
+
+/**
+ * The Session Summary docks by default and moves the conversation aside (ADR 0026 amendment).
+ * Captures of the conversation predate that and show it full width, so a Session opens with its
+ * Summary hidden; a capture that shows the Summary opens it with setSessionSummary.
+ */
+async function hideDockedSessionSummary(page: Page) {
+  const hide = page.getByRole('button', { name: 'Hide Session Summary', exact: true })
+  if ((await hide.count()) === 0) return
+  await hide.click()
+  await page
+    .getByRole('complementary', { name: 'Session Summary' })
+    .waitFor({ state: 'hidden', timeout: UI_TIMEOUT_MS })
+  await blurFocusedControl(page)
 }
 
 /**

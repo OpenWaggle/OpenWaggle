@@ -786,6 +786,28 @@
 }
 
 /*
+ * A docked (persistent) Session Summary floats over the chat panel's right side, so every
+ * conversation frame (CHAT_CONTENT_FRAME_CLASS) centers in the width the Summary leaves (ADR 0026
+ * amendment). The chat panel sets --session-summary-reserve from its width
+ * (sessionSummaryReservePx): none where the panel has room beside the centered column, up to the
+ * Summary's footprint. The frames move, not the scrollers, so the transcript still scrolls and
+ * keeps its scrollbar at the panel's edge, clear of the Summary's inset. A transient Summary
+ * reserves nothing. Unlayered, so it overrides the frames' mx-auto and max-w-180 utilities.
+ */
+.session-summary-docking:has(> div > aside[data-session-summary-mode="persistent"])
+.chat-content-frame {
+  max-width: min(calc(var(--spacing) * 180), 100% - var(--session-summary-reserve, 0px));
+  margin-left: calc(
+    (
+      100% -
+      var(--session-summary-reserve, 0px) -
+      min(calc(var(--spacing) * 180), 100% - var(--session-summary-reserve, 0px))
+    ) /
+    2
+  );
+}
+
+/*
  * Appearance override layer (ADR 0015, ADR 0024).
  *
  * `@theme static` is the compile-time carrier; this layer overrides the same custom

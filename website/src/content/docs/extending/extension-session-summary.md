@@ -32,7 +32,7 @@ Sections are declarative. You list the rows in the manifest, and OpenWaggle draw
 }
 ```
 
-The Summary is there when the open session has messages, Hive relationships, workspace activity such as managed actions or workspace setup, or a scheduled task: a Heartbeat that runs in it, or the Launch schedule that started it. It floats over the chat and never takes width from it. Your section appears in the open Summary when the package and the session are eligible, and it goes away with the Summary while the right sidebar is open.
+The Summary is there when the open session has messages, Hive relationships, workspace activity such as managed actions or workspace setup, or a scheduled task: a Heartbeat that runs in it, or the Launch schedule that started it. When it opens by itself, the conversation moves aside to make room for it. When you open it in a narrow window, it floats over the chat. Your section appears in the open Summary when the package and the session are eligible, and it goes away with the Summary while the right sidebar is open.
 
 A section must not show authorization controls, guess at another session, or replace OpenWaggle's own Environment, Hive, Outputs, or Sources sections.
 

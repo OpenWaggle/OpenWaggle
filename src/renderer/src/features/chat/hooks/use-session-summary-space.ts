@@ -1,17 +1,20 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
-
-const SESSION_SUMMARY_WIDTH_PX = 300
-const SESSION_SUMMARY_RIGHT_INSET_PX = 16
-const SESSION_SUMMARY_CONTENT_GAP_PX = 16
-const SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX =
-  CHAT_CONTENT_MAX_WIDTH_PX +
-  2 * (SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX)
+import { CHAT_MIN_WIDTH } from '@/shell'
+import {
+  SESSION_SUMMARY_FOOTPRINT_PX,
+  SESSION_SUMMARY_RESERVE_PROPERTY,
+  sessionSummaryReservePx,
+} from '../lib/chat-content-layout'
 
 /**
- * Whether the chat panel has room to dock the Session Summary beside the conversation, measured
- * before the first paint of each size.
+ * Whether the chat panel can dock the Session Summary, measured before the first paint of each
+ * size: the panel must keep the chat's minimum width (the one the right sidebar keeps) beside the
+ * Summary's footprint (ADR 0026 amendment). It also sets the reserve the conversation frames move
+ * by while a Summary is docked.
+ *
+ * The measurement reads the panel's border box. Moving the frames does not change it, so docking
+ * never feeds back into this decision.
  */
 export function useSessionSummarySpace(rightSidebarOpen: boolean) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -26,17 +29,12 @@ export function useSessionSummarySpace(rightSidebarOpen: boolean) {
       setHasSpace(true)
       return
     }
-
-    const contentFrame = container.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    const containerRect = container.getBoundingClientRect()
-    const contentRect = contentFrame?.getBoundingClientRect()
-    const hasMeasuredGeometry =
-      containerRect.width > 0 && contentRect !== undefined && contentRect.width > 0
-    const roomForSummary = hasMeasuredGeometry
-      ? containerRect.right - contentRect.right >=
-        SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX
-      : width >= SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX
-    setHasSpace(roomForSummary)
+    // Set on the element, not through state: a resize moves the frames without rendering the chat.
+    container.style.setProperty(
+      SESSION_SUMMARY_RESERVE_PROPERTY,
+      `${String(sessionSummaryReservePx(width))}px`,
+    )
+    setHasSpace(width - SESSION_SUMMARY_FOOTPRINT_PX >= CHAT_MIN_WIDTH)
   }, [rightSidebarOpen])
 
   useLayoutEffect(() => {
@@ -51,9 +49,7 @@ export function useSessionSummarySpace(rightSidebarOpen: boolean) {
      * window painted the docked Summary for a frame (PR 391 review R2 P3-3).
      */
     const observer = new ResizeObserver(() => flushSync(measure))
-    observer.observe(element)
-    const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    if (contentFrame) observer.observe(contentFrame)
+    observer.observe(element, { box: 'border-box' })
     return () => observer.disconnect()
   }, [measure])
 
