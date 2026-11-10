@@ -163,7 +163,7 @@ const MEMORY_FILES = ['MEMORY.md', '.agents/memory/**']
 const DESIGN_TOKEN_FILES = ['src/renderer/src/**', 'scripts/renderer-design-token-exemptions.json']
 const SKILLS_LOCK_FILES = ['skills-lock.json', '.agents/skills/**']
 const ADR_FILES = ['docs/adr/**', 'docs/architecture.md']
-// The rule catalogue checks IDs across the catalogue, the standards and every file that cites IDs.
+// The rule catalogue, standards.md, the lint plugin and every file that may cite a rule ID.
 const RULE_CATALOGUE_FILES = [
   'AGENTS.md',
   'DEPENDENCIES.md',
@@ -183,59 +183,83 @@ function isDuplicateTypeInput(file: string) {
   return file.startsWith('src/') && /\.tsx?$/u.test(file) && !file.includes('__tests__')
 }
 
+const matches = (globs: readonly string[]) => (file: string) =>
+  micromatch.isMatch(file, [...globs], { dot: true })
+
+interface CrossFileContext {
+  readonly repositoryFiles: readonly string[]
+  readonly present: ReadonlySet<string>
+  readonly contentsByFile: ReadonlyMap<string, string>
+}
+
+/**
+ * Rules that read more than the file they report on. A scoped run (`--changed`) runs one only when
+ * a requested file matches `trigger`, present or deleted, and then reads every file `reads` names.
+ */
+interface CrossFileRule {
+  readonly trigger: (file: string) => boolean
+  readonly reads?: (file: string) => boolean
+  readonly collect: (context: CrossFileContext) => readonly Violation[]
+}
+
+const CROSS_FILE_RULES: readonly CrossFileRule[] = [
+  {
+    trigger: isDuplicateTypeInput,
+    reads: isDuplicateTypeInput,
+    collect: ({ contentsByFile }) => collectDuplicateExportedTypes(contentsByFile),
+  },
+  {
+    trigger: matches(MEMORY_FILES),
+    reads: (file) => file === 'MEMORY.md',
+    // The index rule reads MEMORY.md's contents and only the names of the other files.
+    collect: ({ repositoryFiles, contentsByFile }) =>
+      collectAgentMemoryIndexViolations(
+        new Map(repositoryFiles.map((file) => [file, contentsByFile.get(file) ?? ''])),
+      ),
+  },
+  {
+    trigger: matches(DESIGN_TOKEN_FILES),
+    collect: ({ present }) =>
+      collectRendererDesignTokenExemptionViolations(present, readRendererDesignTokenExemptions()),
+  },
+  {
+    trigger: matches(RULE_CATALOGUE_FILES),
+    reads: matches(RULE_CATALOGUE_FILES),
+    collect: ({ contentsByFile }) =>
+      collectRuleCatalogueViolations(contentsByFile, new Set(GATE_CHECKS)),
+  },
+  {
+    trigger: matches(SKILLS_LOCK_FILES),
+    collect: () => collectRepositorySkillsLockViolations(process.cwd()),
+  },
+  {
+    trigger: matches(ADR_FILES),
+    collect: () => collectRepositoryAdrNumberingViolations(process.cwd()),
+  },
+]
+
 async function main(requested: readonly string[]) {
   const repositoryFiles = (await listRepositoryFiles()).filter(isScanned)
   const present = new Set(repositoryFiles)
   const scoped = requested.length > 0
   const changed = [...new Set(requested.map(normalizePath))]
   const targets = scoped ? changed.filter((file) => present.has(file)).sort() : repositoryFiles
-  // Cross-file rules run when any requested file matches, scanned or not, present or deleted.
-  const touches = (globs: readonly string[]) =>
-    !scoped || changed.some((file) => micromatch.isMatch(file, [...globs], { dot: true }))
-  const checkDuplicateTypes = !scoped || targets.some(isDuplicateTypeInput)
-  const checkMemoryIndex = touches(MEMORY_FILES)
-  const checkRuleCatalogue = touches(RULE_CATALOGUE_FILES)
+  const rules = scoped
+    ? CROSS_FILE_RULES.filter((rule) => changed.some(rule.trigger))
+    : CROSS_FILE_RULES
 
   const toRead = new Set(targets)
-  if (checkDuplicateTypes) {
-    for (const file of repositoryFiles) if (isDuplicateTypeInput(file)) toRead.add(file)
-  }
-  if (checkMemoryIndex && present.has('MEMORY.md')) toRead.add('MEMORY.md')
-  if (checkRuleCatalogue) {
-    for (const file of repositoryFiles) {
-      if (micromatch.isMatch(file, RULE_CATALOGUE_FILES, { dot: true })) toRead.add(file)
-    }
+  for (const rule of rules) {
+    const reads = rule.reads
+    if (reads !== undefined) for (const file of repositoryFiles.filter(reads)) toRead.add(file)
   }
   const contentsByFile = await readFiles([...toRead].sort())
 
-  const violations: Violation[] = targets.flatMap((file) =>
-    collectViolationsForFile(file, contentsByFile.get(file) ?? ''),
-  )
-  if (checkDuplicateTypes) violations.push(...collectDuplicateExportedTypes(contentsByFile))
-  if (checkMemoryIndex) {
-    // The index rule reads MEMORY.md's contents and only the names of the other files.
-    const namesWithIndex = new Map(
-      repositoryFiles.map((file) => [file, contentsByFile.get(file) ?? '']),
-    )
-    violations.push(...collectAgentMemoryIndexViolations(namesWithIndex))
-  }
-  if (touches(DESIGN_TOKEN_FILES)) {
-    violations.push(
-      ...collectRendererDesignTokenExemptionViolations(
-        present,
-        readRendererDesignTokenExemptions(),
-      ),
-    )
-  }
-
-  if (checkRuleCatalogue) {
-    violations.push(...collectRuleCatalogueViolations(contentsByFile, new Set(GATE_CHECKS)))
-  }
-  if (touches(SKILLS_LOCK_FILES)) {
-    violations.push(...collectRepositorySkillsLockViolations(process.cwd()))
-  }
-  if (touches(ADR_FILES)) violations.push(...collectRepositoryAdrNumberingViolations(process.cwd()))
-
+  const context: CrossFileContext = { repositoryFiles, present, contentsByFile }
+  const violations: Violation[] = [
+    ...targets.flatMap((file) => collectViolationsForFile(file, contentsByFile.get(file) ?? '')),
+    ...rules.flatMap((rule) => rule.collect(context)),
+  ]
   if (violations.length === 0) {
     const scope = scoped ? `${targets.length} changed` : `${repositoryFiles.length}`
     console.log(`repository standards: no problems (${scope} files)`)

@@ -71,11 +71,11 @@ export const STEPS: readonly CheckStep[] = [
   },
   {
     id: 'dependency-pins',
-    summary: 'every exact pin behind latest has a DEPENDENCIES.md row',
+    summary: 'changed dependency pins are latest or have a DEPENDENCIES.md row',
     commands: [bunScript('scripts/check-dependency-pins.ts')],
-    inputs: ['package.json', '**/package.json', 'DEPENDENCIES.md', 'bun.lock'],
-    findings: 'generic',
-    hint: 'add or update the DEPENDENCIES.md row for the pin',
+    inputs: ['**/package.json', 'DEPENDENCIES.md', 'scripts/check-dependency-pins.ts'],
+    findings: 'lines',
+    hint: 'bump the pin or add its DEPENDENCIES.md row; bun run check:dependency-pins',
   },
   {
     id: 'usage-statistics-catalog',
