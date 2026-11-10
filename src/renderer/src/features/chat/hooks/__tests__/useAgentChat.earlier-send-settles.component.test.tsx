@@ -157,7 +157,7 @@ describe('useAgentChat earlier send while a newer one ends without a Run', () =>
       })
       emitAgentEvent({
         sessionId: SESSION_ID,
-        event: { type: 'agent_end', runId: 'run-1', timestamp: 2 },
+        event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 2 },
       })
     })
     let newer = 'pending'

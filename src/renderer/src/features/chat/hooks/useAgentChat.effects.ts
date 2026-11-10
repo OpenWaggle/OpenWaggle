@@ -185,7 +185,7 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
 
   useEffect(() => {
     if (!sessionId || !session) {
-      resetMissingSessionHydration(context)
+      resetMissingSessionHydration(context, sessionId ?? null)
       return
     }
 

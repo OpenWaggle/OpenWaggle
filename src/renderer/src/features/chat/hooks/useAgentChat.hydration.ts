@@ -35,8 +35,15 @@ function clearForegroundRunState(context: SessionHydrationContext) {
   context.terminalRunErrorRef.current = undefined
 }
 
-export function resetMissingSessionHydration(context: SessionHydrationContext) {
-  if (context.foregroundStreamActiveRef.current) {
+export function resetMissingSessionHydration(
+  context: SessionHydrationContext,
+  sessionId: SessionId | null,
+) {
+  const pending = context.pendingRunWaiterRef.current
+  // A send to the Session left behind settles, even when a completion it held cleared the flag.
+  const sentElsewhere =
+    pending !== null && sessionId !== null && isSendToOtherSession(pending, sessionId)
+  if (context.foregroundStreamActiveRef.current || sentElsewhere) {
     resolvePendingForegroundRun(context)
   }
   clearForegroundRunState(context)
