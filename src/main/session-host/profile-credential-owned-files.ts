@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import type { WorkspaceDirectoryIdentity } from '../domain/workspace-generation'
 import { getSafeChildEnv } from '../env'
 import {
@@ -88,7 +89,7 @@ function spawnOwnedFileHelper(
   directoryIdentity: string,
 ) {
   return spawn(
-    process.execPath,
+    childScriptRuntime.executable(),
     [
       '-e',
       OWNED_FILE_HELPER,
@@ -102,7 +103,7 @@ function spawnOwnedFileHelper(
     ],
     {
       cwd: input.directory,
-      env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+      env: childScriptRuntime.environment(getSafeChildEnv()),
       stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle?.fd ?? 'ignore'],
     },
   )

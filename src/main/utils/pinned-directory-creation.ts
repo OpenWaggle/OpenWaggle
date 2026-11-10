@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import { releaseValidatedChild, waitForChildExit } from './validated-child-process'
 
@@ -105,11 +106,11 @@ async function createPinnedComponent({
   readonly input: PinnedComponentCreation
 }) {
   const child = spawn(
-    process.execPath,
+    childScriptRuntime.executable(),
     ['-e', PINNED_DIRECTORY_CREATOR, parentIdentity, String(input.mode), component],
     {
       cwd: parentDirectory,
-      env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+      env: childScriptRuntime.environment(getSafeChildEnv()),
       stdio: ['pipe', 'pipe', 'pipe'],
     },
   )

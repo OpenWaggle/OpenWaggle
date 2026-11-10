@@ -3,7 +3,7 @@ import { runManagedShimMutationInternal } from './cli-shim-mutation-runner'
 const EXECUTABLE_MODE = 0o755
 
 /**
- * Runs inside the packaged Electron executable with `ELECTRON_RUN_AS_NODE=1`.
+ * Runs inside the packaged app executable as a plain script (`childScriptRuntime`).
  *
  * The helper's cwd is the descriptor-pinned command directory. New bytes arrive
  * through inherited fd 3, never through a path that an untrusted peer can swap.

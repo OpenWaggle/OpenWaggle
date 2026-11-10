@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -200,7 +201,7 @@ function spawnMutationChild(
 ) {
   const displaced = `.${path.basename(input.destinationPath)}.${randomUUID()}.displaced`
   return spawn(
-    process.execPath,
+    childScriptRuntime.executable(),
     [
       '-e',
       BOUND_DEFINITION_MUTATION,
@@ -215,7 +216,7 @@ function spawnMutationChild(
       input.faultInjection ?? 'none',
     ],
     {
-      env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+      env: childScriptRuntime.environment(getSafeChildEnv()),
       cwd: input.directory,
       stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle?.fd ?? 'ignore'],
     },

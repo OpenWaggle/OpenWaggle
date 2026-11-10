@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { CliError } from '../cli-error'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -151,7 +152,7 @@ export async function installCredentialInBoundDirectory(input: {
     }
     await input.beforeSpawn?.()
     const child = spawn(
-      process.execPath,
+      childScriptRuntime.executable(),
       [
         '-e',
         CREDENTIAL_INSTALLER,
@@ -165,7 +166,7 @@ export async function installCredentialInBoundDirectory(input: {
       ],
       {
         cwd: input.directory,
-        env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+        env: childScriptRuntime.environment(getSafeChildEnv()),
         stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle.fd],
       },
     )

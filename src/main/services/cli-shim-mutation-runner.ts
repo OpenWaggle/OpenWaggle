@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { allInOrder } from '@shared/utils/all-in-order'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import { ensureDirectoryPathPinned } from '../utils/pinned-directory-creation'
 import { abortValidatedChild, waitForChildExit } from '../utils/validated-child-process'
@@ -148,7 +149,7 @@ export async function runManagedShimMutationInternal(
     }
     await input.service.beforeManagedSpawn?.({ directory, pendingName })
     const child = spawn(
-      process.execPath,
+      childScriptRuntime.executable(),
       mutationArguments(
         {
           mode: input.mode,
@@ -161,7 +162,7 @@ export async function runManagedShimMutationInternal(
       ),
       {
         cwd: directory,
-        env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+        env: childScriptRuntime.environment(getSafeChildEnv()),
         stdio: ['pipe', 'pipe', 'pipe', sourceHandle?.fd ?? 'ignore'],
       },
     )
