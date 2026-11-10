@@ -1,8 +1,6 @@
 /**
- * The gate's tool runs over changed files: oxfmt for formatting (TOOL-05), and one type-aware lint
- * run with `--type-check` that reports lint findings and TypeScript errors together. The type
- * check also covers the files that import a changed module, keeping only their type errors, so a
- * changed signature that breaks a caller is caught without type-checking whole projects.
+ * The gate's tool runs over changed files: oxfmt for formatting (TOOL-05) and one type-aware lint
+ * run with the repository config. Type errors come from typecheck.ts, which checks whole projects.
  */
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -15,7 +13,6 @@ export type LintRunner = 'oxlint' | 'bun'
 export interface ToolCheckInput {
   readonly root: string
   readonly files: readonly string[]
-  readonly importers: readonly string[]
   readonly run: RunProcess
   readonly runner: LintRunner
   readonly signal?: AbortSignal
@@ -30,7 +27,6 @@ const FORMATTED = /\.(?:[cm]?[jt]sx?)$/u
 /** The paths `bun run lint` covers (scripts/lint.ts LINT_PATHS). */
 const LINTED =
   /^(?:src|packages|scripts|website|functions|fixtures)\/.*\.(?:[cm]?[jt]sx?|astro)$|^electron\.vite\.config\.ts$/u
-const TYPE_ERROR_RULE = /^typescript\/(?<code>TS\d+)$/u
 const FORMAT_TIMEOUT_MS = 30_000
 const LINT_TIMEOUT_MS = 90_000
 const FINDINGS_EXIT_CODE = 1
@@ -96,7 +92,7 @@ export async function formatCheck(input: ToolCheckInput): Promise<ToolCheckResul
 }
 
 function lintInvocation(input: ToolCheckInput, files: readonly string[]) {
-  const shared = ['--type-aware', '--type-check', '--deny-warnings', '-f', 'unix', ...files]
+  const shared = ['--type-aware', '--deny-warnings', '-f', 'unix', ...files]
   if (input.runner === 'bun') {
     return {
       command: bunLintBinary(input.root),
@@ -113,14 +109,13 @@ function lintInvocation(input: ToolCheckInput, files: readonly string[]) {
   }
 }
 
-/** Lint findings in changed files, and type errors in changed files and their importers. */
-export async function lintAndTypeCheck(input: ToolCheckInput): Promise<ToolCheckResult> {
+/** Lint findings in the changed files that `bun run lint` covers. */
+export async function lintCheck(input: ToolCheckInput): Promise<ToolCheckResult> {
   const changed = input.files.filter((file) => LINTED.test(file))
-  const importers = input.importers.filter((file) => LINTED.test(file) && !changed.includes(file))
   if (changed.length === 0) return { findings: [], failures: [] }
   let invocation: ReturnType<typeof lintInvocation>
   try {
-    invocation = lintInvocation(input, [...changed, ...importers])
+    invocation = lintInvocation(input, changed)
   } catch {
     return failure(
       'lint',
@@ -133,20 +128,12 @@ export async function lintAndTypeCheck(input: ToolCheckInput): Promise<ToolCheck
     timeoutMs: LINT_TIMEOUT_MS,
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   })
-  const lines = compactLintOutput(`${result.stdout}\n${result.stderr}`)
-  const parsed = lines.map((line) => parseFindingLine(line, 'block'))
-  if (
-    result.code !== 0 &&
-    (result.code !== FINDINGS_EXIT_CODE || parsed.every((finding) => finding === undefined))
-  ) {
+  const parsed = compactLintOutput(`${result.stdout}\n${result.stderr}`).map((line) =>
+    parseFindingLine(line, 'block'),
+  )
+  const findings = parsed.flatMap((finding) => (finding === undefined ? [] : [finding]))
+  if (result.code !== 0 && (result.code !== FINDINGS_EXIT_CODE || findings.length === 0)) {
     return failure('lint', changed, reasonOf(result))
   }
-  const own = new Set(changed)
-  const findings = parsed.flatMap((finding) => {
-    if (finding === undefined) return []
-    const code = TYPE_ERROR_RULE.exec(finding.rule)?.groups?.['code']
-    if (code === undefined) return own.has(finding.file) ? [finding] : []
-    return [{ ...finding, rule: code }]
-  })
   return { findings, failures: [] }
 }

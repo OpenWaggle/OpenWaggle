@@ -9,10 +9,10 @@ import path from 'node:path'
 import type { Baseline } from './baseline'
 import { staleDocs } from './doc-watch'
 import { type Finding, type ToolFailure } from './findings'
-import { importersOf } from './importers'
 import type { RunProcess } from './run-process'
 import { newSuppressions } from './suppressions'
-import { type LintRunner, formatCheck, lintAndTypeCheck } from './tool-checks'
+import { type LintRunner, formatCheck, lintCheck } from './tool-checks'
+import { affectedProjects, typecheckProjects, typeErrorFindings } from './typecheck'
 import { TSCONFIG_FILE, tsconfigFinding, tsconfigWeakenings } from './tsconfig-strictness'
 
 export interface PluginResult {
@@ -51,6 +51,8 @@ export interface GateInput {
   readonly tsconfigApproved?: (file: string, weakenings: readonly string[]) => boolean
   readonly dependencies?: DependencyCheck
   readonly plugins?: readonly GatePlugin[]
+  /** Type error keys from the Session-start type check; see typecheck.ts. */
+  readonly typeBaseline?: () => Promise<ReadonlySet<string> | undefined>
   /** Files changed earlier in the Session, so a doc updated then counts. */
   readonly sessionFiles?: readonly string[]
   readonly signal?: AbortSignal
@@ -114,12 +116,27 @@ async function existingFiles(root: string, files: readonly string[]) {
   return present.flat()
 }
 
+async function typecheckResult(
+  input: GateInput,
+  existing: readonly string[],
+): Promise<PluginResult> {
+  const projects = affectedProjects(existing)
+  if (projects.length === 0) return { findings: [], failures: [] }
+  const [result, baseline] = await Promise.all([
+    typecheckProjects(input.run, input.root, projects, input.signal),
+    input.typeBaseline?.(),
+  ])
+  const files = result.failures.length > 0 ? existing : []
+  return {
+    findings: typeErrorFindings(result.errors, existing, baseline),
+    failures: result.failures.map((failure) => ({ ...failure, files })),
+  }
+}
+
 async function toolResults(input: GateInput, existing: readonly string[]) {
-  const importers = await importersOf(input.run, input.root, existing)
   const shared = {
     root: input.root,
     files: existing,
-    importers,
     run: input.run,
     runner: input.runner,
     ...(input.signal === undefined ? {} : { signal: input.signal }),
@@ -127,7 +144,8 @@ async function toolResults(input: GateInput, existing: readonly string[]) {
   const manifests = existing.filter((file) => MANIFEST.test(file))
   return Promise.all([
     formatCheck(shared),
-    lintAndTypeCheck(shared),
+    lintCheck(shared),
+    typecheckResult(input, existing),
     input.dependencies === undefined || manifests.length === 0
       ? { findings: [], failures: [] }
       : input.dependencies({
@@ -169,11 +187,18 @@ export async function runGate(
     suppressionFindings(input, existing),
     tsconfigFindings(input, existing),
   ])
+  const toolFindings = tools.flatMap((result) => result.findings)
+  // A directive lint already reported (typescript/ban-ts-comment, TS-08) is not reported twice.
+  const linted = new Set(
+    toolFindings
+      .filter((finding) => finding.id === 'TS-08')
+      .map((finding) => `${finding.file}:${finding.line ?? 0}`),
+  )
   return {
     findings: [
       ...(input.sessionFindings ?? []),
-      ...tools.flatMap((result) => result.findings),
-      ...suppressions,
+      ...toolFindings,
+      ...suppressions.filter((finding) => !linted.has(`${finding.file}:${finding.line ?? 0}`)),
       ...tsconfigs,
       ...docFindings(input),
     ],

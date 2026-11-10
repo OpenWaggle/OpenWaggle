@@ -15,6 +15,7 @@ import { type GateDecision, type LoopState, decide, nextLoopState } from './repo
 import { type RunProcess, runProcess } from './run-process'
 import { type WorkspaceSnapshot, changesBetween, repositoryRoot, takeSnapshot } from './snapshot'
 import type { LintRunner } from './tool-checks'
+import { typecheckProjects, typeErrorKey } from './typecheck'
 import { type ApprovalAsk, Approvals } from './approvals'
 
 export interface ToolCall {
@@ -66,6 +67,7 @@ export class AgentGateSession {
   private baseline: Baseline | undefined = undefined
   private snapshot: WorkspaceSnapshot | undefined = undefined
   private readonly inFlight = new Map<string, InFlight>()
+  private typeBaseline: Promise<ReadonlySet<string> | undefined> | undefined = undefined
   private readonly activity = new SessionActivity()
   private loop: LoopState = { blocked: undefined, handedOff: undefined }
   private readonly run: RunProcess
@@ -92,10 +94,13 @@ export class AgentGateSession {
   }
 
   async beforeTool(call: ToolCall) {
-    if (this.root === undefined || call.parentId !== undefined || !this.tracksSnapshots(call.name))
-      return
-    if (this.inFlight.size === 0)
+    if (this.root === undefined || call.parentId !== undefined || this.readOnly(call.name)) return
+    // The type-check baseline must not see the agent's first change.
+    await this.typeBaseline
+    if (PATH_TOOLS.has(call.name)) return
+    if (this.inFlight.size === 0) {
       this.snapshot = (await takeSnapshot(this.run, this.root)) ?? this.snapshot
+    }
     this.inFlight.set(call.id, { name: call.name, commands: [] })
   }
 
@@ -137,6 +142,7 @@ export class AgentGateSession {
       run: this.run,
       runner: this.options.runner ?? 'oxlint',
       sessionFindings,
+      typeBaseline: () => this.typeBaseline ?? Promise.resolve(undefined),
       sessionFiles: [...this.activity.sessionFiles],
       tsconfigApproved: (file, weakenings) => this.approvals.tsconfigApproved(file, weakenings),
       dependencies: dependencyCheck({
@@ -154,8 +160,8 @@ export class AgentGateSession {
     return decision
   }
 
-  private tracksSnapshots(name: string) {
-    return !PATH_TOOLS.has(name) && !READ_ONLY_TOOLS.has(name) && !name.startsWith('mcp__')
+  private readOnly(name: string) {
+    return READ_ONLY_TOOLS.has(name) || name.startsWith('mcp__')
   }
 
   private async changedBy(root: string, result: ToolResult) {

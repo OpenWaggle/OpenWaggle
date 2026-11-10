@@ -3,10 +3,10 @@ import { isTestCommand, bashRun } from '../commands'
 import { staleDocs } from '../doc-watch'
 import { findingSetKey, formatFinding, parseFindingLine, type Finding } from '../findings'
 import { ranGenerator } from '../generated-files'
-import { importsAny, resolveSpecifier } from '../importers'
 import { changedBetween } from '../snapshot'
 import { newSuppressions } from '../suppressions'
 import { parseJsonc, tsconfigWeakenings } from '../tsconfig-strictness'
+import { affectedProjects, parseTscErrors, typeErrorFindings, typeErrorKey } from '../typecheck'
 
 describe('new suppressions', () => {
   it('reports only the directives the Session added', () => {
@@ -152,24 +152,38 @@ describe('findings', () => {
   })
 })
 
-describe('importers and snapshots', () => {
-  it('resolves relative and alias specifiers', () => {
-    expect(resolveSpecifier('src/main/x/b.ts', './a.js')).toContain('src/main/x/a.ts')
-    expect(resolveSpecifier('src/renderer/src/c.tsx', '@shared/types/json')).toContain(
-      'src/shared/types/json.ts',
-    )
-    expect(resolveSpecifier('src/a.ts', '@openwaggle/waggle-core')).toContain(
-      'packages/waggle-core/src/index.ts',
-    )
-    expect(resolveSpecifier('src/a.ts', 'node:fs')).toEqual([])
+describe('project type check', () => {
+  it('maps changed files to the projects that check them', () => {
+    expect(affectedProjects(['src/main/a.ts'])).toEqual(['node'])
+    expect(affectedProjects(['src/renderer/src/a.tsx'])).toEqual(['web'])
+    expect(affectedProjects(['src/shared/a.ts'])).toEqual(['node', 'web'])
+    expect(affectedProjects(['src/renderer/src/a.test.tsx', 'README.md'])).toEqual([])
   })
 
-  it('finds an import of a changed module', () => {
-    const text = "import { a } from './a'\nexport { b } from '../lib/b.ts'\n"
-    expect(importsAny('src/x/c.ts', text, new Set(['src/lib/b.ts']))).toBe(true)
-    expect(importsAny('src/x/c.ts', text, new Set(['src/lib/a.ts']))).toBe(false)
+  it('blocks errors in changed files and new errors elsewhere', () => {
+    const errors = parseTscErrors(
+      "src/main/a.ts(3,7): error TS2322: Type 'string' is not assignable to type 'number'.\n" +
+        'src/main/b.ts(1,1): error TS2304: Cannot find name x.\n' +
+        'src/main/c.ts(2,2): error TS2304: Cannot find name y.\n',
+    )
+    expect(errors).toHaveLength(3)
+    const known = new Set(errors.slice(2).map(typeErrorKey))
+    expect(
+      typeErrorFindings(errors, ['src/main/a.ts'], known).map((finding) => [
+        finding.file,
+        finding.severity,
+      ]),
+    ).toEqual([
+      ['src/main/a.ts', 'block'],
+      ['src/main/b.ts', 'block'],
+    ])
+    expect(
+      typeErrorFindings(errors, ['src/main/a.ts'], undefined).map((finding) => finding.severity),
+    ).toEqual(['block', 'advisory', 'advisory'])
   })
+})
 
+describe('snapshots', () => {
   it('lists files whose fingerprint changed in either direction', () => {
     const before = {
       head: 'h',
