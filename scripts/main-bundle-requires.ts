@@ -73,8 +73,17 @@ export function topLevelRequires(source: string) {
   return [...specifiers].sort()
 }
 
+/*
+ * Bun lists its own `bun:` modules and the npm packages it reimplements (`ws`, `undici`) among the
+ * built-ins. The main bundle loads those packages from node_modules, so they count as requires.
+ */
+const BUN_REIMPLEMENTED_PACKAGES = new Set(['undici', 'ws'])
+const NODE_BUILTIN_MODULES = builtinModules.filter(
+  (name) => name !== 'bun' && !name.startsWith('bun:') && !BUN_REIMPLEMENTED_PACKAGES.has(name),
+)
+
 function isNodeBuiltin(specifier: string) {
-  return specifier.startsWith('node:') || builtinModules.includes(specifier)
+  return specifier.startsWith('node:') || NODE_BUILTIN_MODULES.includes(specifier)
 }
 
 /** Another chunk of the same build, beside this file; budgeted as part of the chunk graph. */

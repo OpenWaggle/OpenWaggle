@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
+import path from 'node:path'
 
 /**
  * Repository scripts run on Bun (`bun scripts/<name>.ts`), but some of them must start the
@@ -24,6 +26,35 @@ export function nodeRuntime(): NodeRuntime {
   return cachedNodeRuntime
 }
 
+const NODE_EXECUTABLE_NAMES = ['node', 'node.exe']
+
+function resolvesTo(file: string, target: string) {
+  try {
+    return realpathSync(file) === target
+  } catch {
+    return false
+  }
+}
+
+/**
+ * `PATH` without the directories whose `node` is Bun. `bun --bun` (how the Vitest tiers run) puts
+ * one first on `PATH`, so a plain `node` there would start Bun again.
+ */
+export function pathWithoutBunNode(
+  searchPath: string,
+  bunExecutablePath: string,
+  delimiter: string = path.delimiter,
+) {
+  const bun = realpathSync(bunExecutablePath)
+  return searchPath
+    .split(delimiter)
+    .filter(
+      (directory) =>
+        !NODE_EXECUTABLE_NAMES.some((name) => resolvesTo(path.join(directory, name), bun)),
+    )
+    .join(delimiter)
+}
+
 function readNodeRuntime(): NodeRuntime {
   let output: string
   try {
@@ -32,6 +63,10 @@ function readNodeRuntime(): NodeRuntime {
       ['-p', 'JSON.stringify([process.execPath, process.versions.node])'],
       {
         encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: pathWithoutBunNode(process.env.PATH ?? '', process.execPath),
+        },
         stdio: ['ignore', 'pipe', 'inherit'],
       },
     )
