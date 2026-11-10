@@ -7,8 +7,8 @@
  * requests a local fake provider records. Counts o200k tokens of the system prompt (by section),
  * the tool declarations and the Run's hidden context, for every request of the Run.
  *
- *   pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty --out <dir>
- *   pnpm perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup maintainer --out <dir>
+ *   bun run perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup empty --out <dir>
+ *   bun run perf:first-turn-prefix:packaged --app <OpenWaggle.app> --setup maintainer --out <dir>
  *
  * `real-home` is an empty project whose HOME has a slow `.zshrc` exporting the user PATH.
  * `maintainer` adds the heavy-user MCP setup, this repository's AGENTS.md and project skills at the

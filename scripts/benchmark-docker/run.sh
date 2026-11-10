@@ -118,7 +118,7 @@ done
 
 if [[ -n "${BENCH_OPENWAGGLE_APP:-}" ]]; then
   echo "=== openwaggle ==="
-  (cd "$SCRIPT_DIR/../.." && pnpm -s exec tsx scripts/benchmark-docker/openwaggle-row.ts \
+  (cd "$SCRIPT_DIR/../.." && bun scripts/benchmark-docker/openwaggle-row.ts \
     --app "$BENCH_OPENWAGGLE_APP" --proxy "http://$BENCH_PROXY_BIND:$PROXY_PORT/agent/openwaggle" \
     --model "$BENCH_MODEL" --results "$RESULTS_DIR") \
     > "$RESULTS_DIR/openwaggle.out" 2> "$RESULTS_DIR/openwaggle.err" \
@@ -129,6 +129,6 @@ fi
 wait_for_quiet_proxy_log
 for agent in ${sliced[@]+"${sliced[@]}"}; do slice_proxy_log "$agent"; done
 
-(cd "$SCRIPT_DIR/../.." && pnpm -s exec tsx scripts/benchmark-docker/count-request-tokens.ts "$RESULTS_DIR") \
+(cd "$SCRIPT_DIR/../.." && bun scripts/benchmark-docker/count-request-tokens.ts "$RESULTS_DIR") \
   || echo "warning: request token counting failed" >&2
 python3 "$SCRIPT_DIR/parse-results.py" "$RESULTS_DIR"

@@ -1,5 +1,5 @@
 /**
- * Types of the agent-context evaluation (`pnpm evaluate:agent-context`, decision 7 of the v1
+ * Types of the agent-context evaluation (`bun run evaluate:agent-context`, decision 7 of the v1
  * performance plan): script-graded tasks that a real model runs through a packaged build.
  */
 

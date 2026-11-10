@@ -14,7 +14,7 @@ import { summarize } from '../../lib/perf-stats'
  * timed from the request until its first streamed event and its first text. Only runs with
  *
  *   OPENWAGGLE_PERF_BEDROCK_MODEL=eu.anthropic.claude-sonnet-5 AWS_PROFILE=<sso profile> \
- *     OPENWAGGLE_PERF_OUT=<dir> pnpm perf:bedrock-ttfb
+ *     OPENWAGGLE_PERF_OUT=<dir> bun run perf:bedrock-ttfb
  *
  * The test home has no AWS configuration, so it gets read-only copies of the user's `~/.aws/config`
  * and SSO token cache (never a link to the real `~/.aws`, and never its long-lived keys).

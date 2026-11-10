@@ -6,9 +6,9 @@
  * `evaluate-session-titles.ts`: about 25 script-graded tasks that a real model runs through a
  * packaged build in hidden automation, each repetition on a fresh throwaway profile.
  *
- *   pnpm evaluate:agent-context --app <OpenWaggle.app> --label beta27 \
+ *   bun run evaluate:agent-context --app <OpenWaggle.app> --label beta27 \
  *     --model amazon-bedrock/eu.anthropic.claude-opus-5-5 --reps 5 --out <dir>
- *   pnpm evaluate:agent-context ... --out <dir> --baseline <baseline out dir>
+ *   bun run evaluate:agent-context ... --out <dir> --baseline <baseline out dir>
  *
  * Bedrock models use the caller's AWS_PROFILE (and AWS_REGION): before each Run its short-lived
  * role credentials are exported into the Run's environment, and the throwaway home holds no AWS

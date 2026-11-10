@@ -16,7 +16,7 @@ import { runCloseUnderFloodGate, runRestartUnderFloodGate } from './benchmark-te
  * against a live shell and measures attach latency, streamed throughput, and
  * IPC coalescing efficiency.
  *
- * Run: pnpm tsx scripts/benchmark-terminal-output.ts
+ * Run: bun scripts/benchmark-terminal-output.ts
  */
 
 const OUTPUT_LINES = 200_000

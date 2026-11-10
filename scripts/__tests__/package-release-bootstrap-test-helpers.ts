@@ -32,7 +32,7 @@ export function publicAccess(packageName: string) {
 
 export function successfulFirstPackageTransaction(packageName: string) {
   return new Map<string, BootstrapCommandResult>([
-    ['pnpm check', successful()],
+    ['bun run check', successful()],
     [
       'npm access list packages maintainer --json',
       successful(JSON.stringify({ [packageName]: 'read-write' })),

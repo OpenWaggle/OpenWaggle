@@ -15,7 +15,7 @@ import {
 describe('package release namespace bootstrap automatic latest handling', () => {
   it('accepts automatic latest until the first real release replaces it', async () => {
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         'npm access list packages maintainer --json',
         successful(

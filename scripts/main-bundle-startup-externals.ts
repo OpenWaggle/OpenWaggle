@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { nodeRuntime } from './support/node-runtime'
 
 /** External packages the main bundle may load while it starts. Node built-ins always may. */
 export const ALLOWED_STARTUP_EXTERNALS: readonly string[] = ['electron']
@@ -143,7 +144,7 @@ export function probeStartupExternals(
   try {
     return argumentVectors.map((argv) => {
       const output = execFileSync(
-        process.execPath,
+        nodeRuntime().execPath,
         ['-e', PROBE_SOURCE, path.resolve(bundlePath), JSON.stringify(ELECTRON_EXPORTS), ...argv],
         {
           encoding: 'utf8',

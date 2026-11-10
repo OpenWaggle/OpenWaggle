@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Plugin } from 'vite'
 
-/** Written beside the main bundle for `pnpm check:main-bundle`; never packaged (electron-builder.ts). */
+/** Written beside the main bundle for `bun run check:main-bundle`; never packaged (electron-builder.ts). */
 export const MAIN_CHUNK_MANIFEST_PATH = '.vite/main-chunks.json'
 
 export interface MainChunkManifestEntry {

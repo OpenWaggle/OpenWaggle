@@ -6,7 +6,7 @@
  * a working one.
  *
  * Run with the app closed, then start it:
- *   pnpm qa:seed-conversations [--messages 400] [--replace-qa]
+ *   bun run qa:seed-conversations [--messages 400] [--replace-qa]
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'

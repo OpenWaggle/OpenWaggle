@@ -18,7 +18,7 @@ import { CHANNEL_BADGES, channelPillSvg } from './generate-channel-icons'
  * an 824 px continuous-corner square centred on the canvas, with Apple's drop shadow in the margin.
  *
  * Icons are committed, so this runs on a macOS developer machine (it needs `iconutil`), never in CI.
- * Run: `tsx scripts/generate-macos-icons.ts`.
+ * Run: `bun scripts/generate-macos-icons.ts`.
  */
 
 const CANVAS = 1024

@@ -33,16 +33,15 @@ describe('packaged app smoke', () => {
         '/release/OpenWaggle.app/Contents/Resources/app.asar',
         '/workspace',
         'darwin',
+        '/usr/local/bin/node',
       ),
     ).toEqual({
       command: '/release/OpenWaggle.app/Contents/MacOS/OpenWaggle',
       args: [
-        '--import',
-        'tsx',
-        '/workspace/scripts/native-load-probe.ts',
+        '/workspace/node_modules/.cache/openwaggle/native-load-probe.mjs',
         'electron',
         '/release/OpenWaggle.app/Contents/Resources/app.asar',
-        process.execPath,
+        '/usr/local/bin/node',
       ],
     })
     expect(

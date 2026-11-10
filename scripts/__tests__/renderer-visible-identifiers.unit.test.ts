@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 function findRepoRoot(start: string) {
   let current = start
-  while (!existsSync(join(current, 'pnpm-workspace.yaml'))) {
+  while (!existsSync(join(current, 'bun.lock'))) {
     const parent = dirname(current)
     if (parent === current) throw new Error('Could not locate the repository root')
     current = parent

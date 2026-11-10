@@ -2,7 +2,7 @@
  * The renderer page's inline scripts against the CSP hash that allows them
  * (`STARTUP_APPEARANCE_SCRIPT_HASH`). The unit test hashes the source page; this checks the page
  * electron-vite built, so a build step that rewrites an inline script (a minifier, a Vite plugin)
- * fails `pnpm check` instead of blanking the startup scale in packaged builds.
+ * fails `bun run check` instead of blanking the startup scale in packaged builds.
  */
 import { createHash } from 'node:crypto'
 

@@ -7,14 +7,12 @@ import { promisify } from 'node:util'
 import {
   assertPackedWorkspaceDependencyRanges,
   isObject,
-  parsePnpmPackTarballPath,
+  parseBunPackTarballPath,
 } from './package-smoke-assertions'
 import {
   assertBrowserBundleContent,
-  findPackageDependencyVersion,
   isPackageSmokeDevDependency,
   piRuntimeSmokePins,
-  resolvePackageSmokeCatalogVersion,
   smokePnpmWorkspaceConfig,
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-runtime-assertions'
@@ -40,6 +38,9 @@ import {
   validatePackedPackage,
 } from './package-smoke-tarballs'
 import { SMOKE_PROJECT_SCRIPTS, SMOKE_SCRIPTS_BEFORE_BROWSER } from './package-smoke-scripts'
+import { BUNFIG } from './support/bun-workspace'
+import { readWorkspaceCatalogs, smokeDependencyVersion } from './package-smoke-dependency-versions'
+import { bunExecutable, nodeRuntime } from './support/node-runtime'
 
 const execFile = promisify(execFileCallback)
 const JSON_INDENT_SPACES = 2
@@ -89,18 +90,13 @@ async function runCommand(command: string, args: readonly string[], cwd: string)
   if (result.stderr) process.stderr.write(result.stderr)
 }
 
-async function readJsonFile(filePath: string) {
-  const content = await fs.readFile(filePath, 'utf8')
-  const parsed: unknown = JSON.parse(content)
-  return parsed
-}
-
 async function packPackage(projectRoot: string, spec: PackageSpec, packDir: string) {
-  const result = await execFile('pnpm', ['pack', '--pack-destination', packDir, '--json'], {
-    cwd: path.join(projectRoot, spec.directory),
-    maxBuffer: EXEC_MAX_BUFFER_BYTES,
-  })
-  return validatePackedPackage(spec, parsePnpmPackTarballPath(result.stdout))
+  const result = await execFile(
+    bunExecutable(),
+    ['pm', 'pack', '--destination', packDir, '--quiet'],
+    { cwd: path.join(projectRoot, spec.directory), maxBuffer: EXEC_MAX_BUFFER_BYTES },
+  )
+  return validatePackedPackage(spec, parseBunPackTarballPath(result.stdout))
 }
 
 async function canonicalPackedPackages(tarballDirectory: string) {
@@ -123,24 +119,6 @@ function packedPackageVersions(packedPackages: readonly PackedPackage[]) {
 
     return { name: packedPackage.name, version: packedPackage.manifest.version }
   })
-}
-
-async function smokeDependencyVersion(
-  projectRoot: string,
-  dependencyName: string,
-  workspaceConfig: string,
-) {
-  const manifests = [
-    await readJsonFile(path.join(projectRoot, 'package.json')),
-    await readJsonFile(path.join(projectRoot, 'packages/pi-waggle/package.json')),
-  ]
-
-  for (const manifest of manifests) {
-    const version = findPackageDependencyVersion(manifest, dependencyName)
-    if (version) return resolvePackageSmokeCatalogVersion(version, dependencyName, workspaceConfig)
-  }
-
-  throw new Error(`Cannot find smoke dependency version for ${dependencyName}.`)
 }
 
 export function createSmokePackageJson(
@@ -183,14 +161,14 @@ async function writeSmokePackageJson(
   smokeProjectRoot: string,
   packedPackages: readonly PackedPackage[],
 ) {
-  const workspaceConfig = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const catalogs = await readWorkspaceCatalogs(projectRoot)
   const smokeDependencyVersions = await Promise.all(
     SMOKE_REGISTRY_DEPENDENCIES.map(async (name) => ({
       name,
-      version: await smokeDependencyVersion(projectRoot, name, workspaceConfig),
+      version: await smokeDependencyVersion(projectRoot, name, catalogs),
     })),
   )
-  const pins = piRuntimeSmokePins(workspaceConfig)
+  const pins = piRuntimeSmokePins(catalogs)
   const packageJson = createSmokePackageJson(packedPackages, smokeDependencyVersions, pins)
   await fs.writeFile(
     path.join(smokeProjectRoot, 'package.json'),
@@ -208,14 +186,14 @@ async function writeSmokeWorkspaceConfig(
   smokeProjectRoot: string,
   packedPackages: readonly PackedPackage[],
 ) {
-  const workspace = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
-  const config = smokePnpmWorkspaceConfig(piRuntimeSmokePins(workspace), packedPackages)
+  const catalogs = await readWorkspaceCatalogs(projectRoot)
+  const config = smokePnpmWorkspaceConfig(piRuntimeSmokePins(catalogs), packedPackages)
   await fs.writeFile(path.join(smokeProjectRoot, 'pnpm-workspace.yaml'), config, 'utf8')
 }
 
 async function writeYarnTrustPolicy(projectRoot: string, smokeProjectRoot: string) {
-  const workspaceConfig = await fs.readFile(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8')
-  const exclusions = parseMinimumReleaseAgeExclusions(workspaceConfig)
+  const bunfig = await fs.readFile(path.join(projectRoot, BUNFIG), 'utf8')
+  const exclusions = parseMinimumReleaseAgeExclusions(bunfig)
   await fs.writeFile(
     path.join(smokeProjectRoot, '.yarnrc.yml'),
     createYarnTrustPolicy(exclusions),
@@ -237,10 +215,10 @@ async function prepareSmokeProject(
 }
 
 async function runPackedPackageSmoke(root: string, packages: readonly PackedPackage[]) {
-  if (!supportsPackageSmokeNodeVersion(process.versions.node)) {
-    throw new Error(
-      `Package consumer smoke requires Node.js >=22.19.0, found ${process.versions.node}.`,
-    )
+  // The consumers run on the Node.js on PATH; this script itself runs on Bun.
+  const nodeVersion = nodeRuntime().version
+  if (!supportsPackageSmokeNodeVersion(nodeVersion)) {
+    throw new Error(`Package consumer smoke requires Node.js >=22.19.0, found ${nodeVersion}.`)
   }
 
   const environment = readPackageSmokeEnvironment()
@@ -286,7 +264,7 @@ async function main(args: readonly string[]) {
     const canonicalPackages =
       tarballDirectory === undefined ? [] : await canonicalPackedPackages(tarballDirectory)
     if (tarballDirectory === undefined) {
-      await runCommand('pnpm', ['build:packages'], projectRoot)
+      await runCommand(bunExecutable(), ['run', 'build:packages'], projectRoot)
     }
     const packDir = path.join(smokeRoot, 'tarballs')
     await fs.mkdir(packDir, { recursive: true })

@@ -1,7 +1,7 @@
 /**
  * The JSON Schemas published under `website/public/schemas/` for project files whose format
  * OpenWaggle owns. Each is generated from the schema the runtime parses the file with;
- * `pnpm website:schemas` writes them and `published-json-schemas.unit.test.ts` fails when a
+ * `bun run website:schemas` writes them and `published-json-schemas.unit.test.ts` fails when a
  * committed file drifts from what this module generates.
  */
 import {

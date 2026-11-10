@@ -86,14 +86,15 @@ const config: DoctorConfig = {
          * which in turn peers `@effect/workflow ^0.19.0`. Satisfying a peer is not
          * an import, so import-graph analysis reports them as unused.
          *
-         * Verified by removing both and reinstalling: pnpm then hoisted newer
+         * Verified by removing both and reinstalling (with pnpm, before Bun): it pulled newer
          * transitive copies (cluster 0.60.2 / workflow 0.19.1) which demanded newer
          * @effect/platform, rpc, sql and effect, turning one pre-existing unmet peer
          * into four. Removal makes the tree worse, so this cannot be fixed in code.
          *
          * Note this override is necessarily rule-wide: package.json is the only file
-         * `unused-dev-dependency` can fire on. Re-test with `pnpm peers check` if the
-         * @effect ecosystem versions are ever realigned.
+         * `unused-dev-dependency` can fire on. If the @effect ecosystem versions are
+         * ever realigned, re-test by removing both and reading `bun install`'s
+         * peer-dependency warnings.
          */
         files: ['package.json'],
         rules: ['deslop/unused-dev-dependency'],

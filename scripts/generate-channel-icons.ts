@@ -9,7 +9,7 @@ import type { BuildChannel } from '../src/shared/types/build-identity'
  * channel keeps the full-colour brand mark and adds a small, rounded, floating
  * pill near the bottom so builds are distinguishable at a glance without
  * dominating the artwork. Icons are committed, so this runs on a developer
- * machine, never in CI. Run: `tsx scripts/generate-channel-icons.ts`.
+ * machine, never in CI. Run: `bun scripts/generate-channel-icons.ts`.
  */
 
 const PILL_HEIGHT_RATIO = 0.135

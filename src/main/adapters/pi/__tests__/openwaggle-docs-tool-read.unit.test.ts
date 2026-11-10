@@ -144,6 +144,6 @@ describe('openwaggle_docs read', () => {
     const result = await call(tool, { action: 'search', query: 'hives' })
     expect(result.isError).toBe(true)
     expect(result.text).toContain(JSON.stringify(docsRoot()))
-    expect(result.text).toContain('pnpm docs:generate')
+    expect(result.text).toContain('bun run docs:generate')
   })
 })

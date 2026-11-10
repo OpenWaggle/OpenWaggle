@@ -3,7 +3,7 @@
  * Seeds one session with two settled turns plus turn_checkpoints rows so the
  * fold rows, duration labels, and changed-files card render from real data.
  *
- *   pnpm exec tsx scripts/qa/seed-turn-fold-qa.ts
+ *   bun scripts/qa/seed-turn-fold-qa.ts
  */
 import { seedSessions } from '../support/session-fixtures'
 import os from 'node:os'

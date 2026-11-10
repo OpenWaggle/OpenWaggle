@@ -17,7 +17,7 @@
  * timeout, a network failure) the job warns and sends the rest. Collecting fails the snapshot only
  * when releases cannot be read, or when GitHub answers in a shape it no longer recognises.
  *
- * Usage: `pnpm exec tsx scripts/usage-stats-snapshot.ts [--dry-run]`
+ * Usage: `bun scripts/usage-stats-snapshot.ts [--dry-run]`
  */
 import { pathToFileURL } from 'node:url'
 import { isMatching, P } from '@diegogbrisa/ts-match'

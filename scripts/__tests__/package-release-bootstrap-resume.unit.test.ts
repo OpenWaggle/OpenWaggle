@@ -111,7 +111,7 @@ describe('package release namespace bootstrap resume behavior', () => {
   it('reports sanitized resume state and cleans temp files after a partial publish failure', async () => {
     const firstPackage = PACKAGE_NAMES[0]
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         `npm trust github ${firstPackage} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
         successful(),
@@ -176,7 +176,7 @@ describe('package release namespace bootstrap resume behavior', () => {
     expect(result.packages[0]?.state).toBe('complete')
     expect(result.packages[1]?.nextAction).toBe('publish bootstrap placeholder')
     expect(result.nextAction).toBe(
-      'Rerun pnpm package-release:bootstrap to inspect and resume partial state.',
+      'Rerun bun run package-release:bootstrap to inspect and resume partial state.',
     )
     expect(removedDirectories).toEqual([
       '/tmp/openwaggle-bootstrap-test',

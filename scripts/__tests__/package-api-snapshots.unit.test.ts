@@ -105,7 +105,9 @@ describe('checkPackageApiSnapshots', () => {
       }),
     ).resolves.toEqual({
       changedSnapshots: ['scripts/api-snapshots/example.api.md'],
-      violations: ['scripts/api-snapshots/example.api.md is stale. Run pnpm api:snapshot:update.'],
+      violations: [
+        'scripts/api-snapshots/example.api.md is stale. Run bun run api:snapshot:update.',
+      ],
       writtenSnapshots: [],
     })
   })

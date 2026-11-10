@@ -4,6 +4,8 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
+import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
+import { nodeRuntime } from './support/node-runtime'
 import { prunedRuntimeIssues } from './electron-builder-runtime-trim'
 
 const execFile = promisify(execFileCallback)
@@ -234,6 +236,7 @@ export function packagedPtyProbeInvocation(
   asarPath: string,
   projectRoot: string = process.cwd(),
   platform: NodeJS.Platform = process.platform,
+  nodeExecutable: string = nodeRuntime().execPath,
 ) {
   const executablePath =
     platform === 'darwin'
@@ -241,14 +244,8 @@ export function packagedPtyProbeInvocation(
       : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
   return {
     command: executablePath,
-    args: [
-      '--import',
-      'tsx',
-      path.join(projectRoot, 'scripts', 'native-load-probe.ts'),
-      'electron',
-      asarPath,
-      process.execPath,
-    ],
+    // The bundle of scripts/native-load-probe.ts; the packaged Electron cannot load TypeScript.
+    args: [nativeLoadProbeBundlePath(projectRoot, platform), 'electron', asarPath, nodeExecutable],
   }
 }
 
@@ -265,6 +262,7 @@ export function packagedAppMatchesHostArchitecture(
 }
 
 async function runPackagedPtyProbe(appPath: string, asarPath: string) {
+  await buildNativeLoadProbe(process.cwd())
   const invocation = packagedPtyProbeInvocation(appPath, asarPath)
   await execFile(invocation.command, invocation.args, {
     cwd: process.cwd(),

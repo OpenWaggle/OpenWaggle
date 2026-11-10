@@ -162,7 +162,7 @@ async function discover(input: OpenWaggleDocsToolInput, includeExtensions: boole
       error: error instanceof Error ? error.message : String(error),
     })
     throw new Error(
-      `The OpenWaggle docs bundle could not be loaded from ${JSON.stringify(expected)}. In a development checkout, run \`pnpm docs:generate\` to build it; in an installed app, reinstall OpenWaggle. Answer from what you already know and say the docs were unavailable.`,
+      `The OpenWaggle docs bundle could not be loaded from ${JSON.stringify(expected)}. In a development checkout, run \`bun run docs:generate\` to build it; in an installed app, reinstall OpenWaggle. Answer from what you already know and say the docs were unavailable.`,
       { cause: error },
     )
   }

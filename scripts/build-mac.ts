@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
+import { bunExecutable } from './support/node-runtime'
 
 const FAILURE_EXIT_CODE = 1
 const APPLE_SILICON_ARCH = 'arm64'
@@ -10,8 +11,8 @@ function currentMacBuildArch() {
 }
 
 const result = spawnSync(
-  'pnpm',
-  ['exec', 'electron-builder', '--mac', `--${currentMacBuildArch()}`],
+  bunExecutable(),
+  ['x', 'electron-builder', '--mac', `--${currentMacBuildArch()}`],
   {
     stdio: 'inherit',
   },

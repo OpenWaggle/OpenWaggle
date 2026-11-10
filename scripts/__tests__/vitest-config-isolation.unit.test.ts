@@ -80,7 +80,7 @@ describe('Vitest config isolation', () => {
   })
 
   /*
-   * pnpm test:coverage runs the same tests under instrumentation. Without the tiers' deadlines it
+   * `bun run test:coverage` runs the same tests under instrumentation. Without the tiers' deadlines it
    * fell back to Vitest's 5 s default, and 26 tests in 10 files timed out on a clean main.
    */
   it.each([

@@ -33,7 +33,7 @@ describe('package release namespace bootstrap preflight', () => {
       environment: 'pending',
       ruleset: 'pending',
     })
-    expect(result.nextAction).toBe('Run pnpm package-release:bootstrap --execute.')
+    expect(result.nextAction).toBe('Run bun run package-release:bootstrap --execute.')
     expect(requests).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ mutates: true })]),
     )

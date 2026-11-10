@@ -274,7 +274,7 @@ export async function checkPackageApiSnapshots({
       continue
     }
 
-    violations.push(`${relativeSnapshotFile} is stale. Run pnpm api:snapshot:update.`)
+    violations.push(`${relativeSnapshotFile} is stale. Run bun run api:snapshot:update.`)
   }
 
   return { changedSnapshots, violations, writtenSnapshots }

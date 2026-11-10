@@ -1,4 +1,3 @@
-import { parse } from 'yaml'
 import { isObject } from './package-smoke-assertions'
 
 const MINIMUM_PACKAGE_SMOKE_NODE_MAJOR = 22
@@ -70,18 +69,17 @@ export function assertBrowserRuntimeResult(input: {
   }
 }
 
+/** Workspace catalogs by name, as `parseRootWorkspaceConfig` reads them from package.json. */
+export type WorkspaceCatalogs = Readonly<Record<string, Readonly<Record<string, string>>>>
+
 export function resolvePackageSmokeCatalogVersion(
   specifier: string,
   dependencyName: string,
-  workspaceConfig: string,
+  catalogs: WorkspaceCatalogs,
 ) {
   if (!specifier.startsWith('catalog:')) return specifier
-  const workspace: unknown = parse(workspaceConfig)
-  const catalogName = specifier.slice('catalog:'.length)
-  const catalogs =
-    isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
-  const catalog = catalogs && isObject(catalogs[catalogName]) ? catalogs[catalogName] : undefined
-  const version = catalog?.[dependencyName]
+  const catalogName = specifier.slice('catalog:'.length) || 'default'
+  const version = catalogs[catalogName]?.[dependencyName]
   if (typeof version !== 'string') {
     throw new Error(`Cannot resolve ${dependencyName} from catalog:${catalogName}.`)
   }
@@ -135,16 +133,9 @@ export function assertNoWorkspaceProtocols(packageName: string, manifest: unknow
  * overrides them all, so a newer Pi release (or one still being published) cannot be mixed in
  * through a transitive range.
  */
-export function piRuntimeSmokePins(workspaceConfig: string): Record<string, string> {
-  const workspace: unknown = parse(workspaceConfig)
-  const catalogs =
-    isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
-  const catalog = catalogs && isObject(catalogs['pi-runtime']) ? catalogs['pi-runtime'] : {}
-  const pins: Record<string, string> = {}
-  for (const [name, version] of Object.entries(catalog)) {
-    if (typeof version === 'string' || typeof version === 'number') pins[name] = String(version)
-  }
-  return Object.fromEntries(Object.entries(pins).sort(([a], [b]) => a.localeCompare(b)))
+export function piRuntimeSmokePins(catalogs: WorkspaceCatalogs): Record<string, string> {
+  const catalog = catalogs['pi-runtime'] ?? {}
+  return Object.fromEntries(Object.entries(catalog).sort(([a], [b]) => a.localeCompare(b)))
 }
 
 /** The consumer smoke's pnpm workspace: the Pi release pins plus the packed tarballs. */

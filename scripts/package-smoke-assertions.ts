@@ -42,14 +42,16 @@ const PACKED_WORKSPACE_DEPENDENCIES = {
   '@openwaggle/pi-waggle': '@openwaggle/waggle-core',
 } as const
 
-export function parsePnpmPackTarballPath(stdout: string) {
-  const parsed: unknown = JSON.parse(stdout)
+/** `bun pm pack --quiet` prints only the path of the tarball it wrote. */
+export function parseBunPackTarballPath(stdout: string) {
+  const lines = stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const [tarballPath] = lines
+  if (lines.length === 1 && tarballPath?.endsWith('.tgz')) return tarballPath
 
-  if (isObject(parsed) && typeof parsed.filename === 'string') {
-    return parsed.filename
-  }
-
-  throw new Error('pnpm pack did not report a tarball filename.')
+  throw new Error('bun pm pack did not report a tarball filename.')
 }
 
 export function isObject(value: unknown): value is { readonly [key: string]: unknown } {

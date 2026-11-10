@@ -6,7 +6,7 @@
  * Sessions and 300,000 transcript nodes, most of them archived as in a long-used profile, plus a
  * few multi-megabyte Sessions. Measurements clone it instead of touching anyone's real profile.
  *
- *   pnpm perf:generate-profile --app <OpenWaggle.app> --out <dir>
+ *   bun run perf:generate-profile --app <OpenWaggle.app> --out <dir>
  *
  * The app only creates the empty Session Host database (its schema and migrations); the Sessions
  * are then written with the same fixture writer the QA seeds use, with the Host stopped.

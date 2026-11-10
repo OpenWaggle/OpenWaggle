@@ -4,9 +4,15 @@ import { piRuntimeSmokePins, smokePnpmWorkspaceConfig } from '../package-smoke-r
 
 describe('package smoke Pi release pins', () => {
   it('pins every package of the Pi release the app is built on', () => {
-    const workspace = `catalogs:\n  pi-runtime:\n    "@earendil-works/pi-ai": 1.2.0\n    "@earendil-works/pi-coding-agent": 1.2.0\n`
+    const catalogs = {
+      'pi-runtime': {
+        '@earendil-works/pi-coding-agent': '1.2.0',
+        '@earendil-works/pi-ai': '1.2.0',
+      },
+      'pi-extension-host': { typebox: '1.3.27' },
+    }
     // Since Pi 1.2.0 the release is exactly the catalog; chord is no longer part of it.
-    expect(piRuntimeSmokePins(workspace)).toEqual({
+    expect(piRuntimeSmokePins(catalogs)).toEqual({
       '@earendil-works/pi-ai': '1.2.0',
       '@earendil-works/pi-coding-agent': '1.2.0',
     })

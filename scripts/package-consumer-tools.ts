@@ -30,7 +30,7 @@ const PACKAGE_TOOLS = [
 ] as const
 const EXISTING_TOOLS = [
   { name: 'pnpm', version: '11.15.1' },
-  { name: 'bun', version: '1.3.14' },
+  { name: 'bun', version: '1.4.4' },
 ] as const
 
 type CommandRunner = (command: string, args: readonly string[]) => Promise<string>

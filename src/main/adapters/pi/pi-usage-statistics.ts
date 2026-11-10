@@ -6,7 +6,7 @@
  * Catalog identifiers come from src/shared/usage-statistics/catalog.generated.ts, the same file
  * the statistics endpoint enforces, so the app and the endpoint cannot disagree on what is
  * `custom`. That file is generated from Pi's built-in catalog and the shared built-in skill list,
- * and `pnpm check:usage-statistics-catalog` fails while it is out of date.
+ * and `bun run check:usage-statistics-catalog` fails while it is out of date.
  */
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'

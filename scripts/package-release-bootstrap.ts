@@ -49,7 +49,7 @@ export async function runPackageReleaseBootstrap(
   }
   const nextAction =
     mode === 'preflight' && ok
-      ? 'Run pnpm package-release:bootstrap --execute.'
+      ? 'Run bun run package-release:bootstrap --execute.'
       : 'Resolve every blocker and rerun the preflight.'
   dependencies.writeLine(`Package namespace bootstrap ${mode}: ${ok ? 'ready' : 'blocked'}.`)
   return { ...preflight, mode, nextAction, ok }

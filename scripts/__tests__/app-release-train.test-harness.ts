@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { bunExecutable } from '../support/node-runtime'
 import {
   BUMP_STEP,
   gitRunner,
@@ -209,8 +210,7 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
       GITHUB_SHA: mainSha,
       RUNNER_TEMP: directory,
       TEST_PROJECT_ROOT: PROJECT_ROOT,
-      TEST_NODE: process.execPath,
-      TEST_TSX: import.meta.resolve('tsx'),
+      TEST_BUN: bunExecutable(),
       TEST_AUTHOR: paths.author,
       TEST_REMOTE: paths.remote,
       TEST_MERGE_STATUS: 'BLOCKED',

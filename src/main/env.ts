@@ -78,7 +78,7 @@ export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
 
 /**
- * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `pnpm dev`)
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `bun run dev`)
  * inherits that Session's scratch directory as TMPDIR, TMP, and TEMP. Its own temp files belong in
  * the Host temp directory the agent environment keeps in OPENWAGGLE_HOST_TMPDIR, or archiving the
  * Session would delete them under the running process.

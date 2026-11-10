@@ -1,5 +1,5 @@
 /**
- * Client for the official MCP conformance suite (`pnpm test:mcp:conformance`).
+ * Client for the official MCP conformance suite (`bun run test:mcp:conformance`).
  *
  * Drives Pi's MCP client (`@earendil-works/pi-mcp`, the one Pi's MCP extension uses) through
  * OpenWaggle's MCP transport layer: a pooled connection lease over streamable HTTP with
@@ -23,7 +23,7 @@ const SESSION_ID = 'conformance'
 function requireServerUrl() {
   if (!SCENARIO || !SERVER_URL) {
     throw new Error(
-      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> tsx scripts/mcp-conformance-client.mts <server-url>',
+      'Usage: MCP_CONFORMANCE_SCENARIO=<scenario> bun scripts/node-script-bundle.ts --run scripts/mcp-conformance-client.mts <server-url>',
     )
   }
   if (PROTOCOL_VERSION !== SUPPORTED_PROTOCOL_VERSION) {

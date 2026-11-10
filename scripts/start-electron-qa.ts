@@ -21,6 +21,7 @@ import {
   stopElectronQaSessionHost,
 } from './electron-qa-shutdown'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
+import { bunExecutable } from './support/node-runtime'
 
 const QA_HOST = '127.0.0.1'
 const CDP_TIMEOUT_MS = 60_000
@@ -130,14 +131,14 @@ export function electronEnvironment(
 }
 
 /**
- * `pnpm` arguments that start the dev app. Chromium's mock keychain (and Linux's basic password
+ * `bun` arguments that start the dev app. Chromium's mock keychain (and Linux's basic password
  * store) keeps the app, and the Session Host it forwards the switches to, off the user's real
  * credential store: with the profile's HOME, macOS `safeStorage` otherwise blocks looking for a
  * login keychain there.
  */
 export function electronQaLaunchArguments(platform: NodeJS.Platform = process.platform) {
   return [
-    'exec',
+    'x',
     'electron-vite',
     'dev',
     '--',
@@ -148,7 +149,7 @@ export function electronQaLaunchArguments(platform: NodeJS.Platform = process.pl
 }
 
 function startElectron(lease: QaLease) {
-  return spawn('pnpm', electronQaLaunchArguments(), {
+  return spawn(bunExecutable(), electronQaLaunchArguments(), {
     cwd: lease.metadata.projectPath,
     detached: process.platform !== 'win32',
     env: electronEnvironment(lease),

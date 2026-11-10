@@ -6,7 +6,7 @@
  * in the sidebar until its last message is on screen, with every main-process IPC response and
  * pushed event counted (bytes are JSON characters). Runs on a generated large profile.
  *
- *   pnpm perf:session-open --app <before.app> --app <after.app> --template <large-profile> --runs 10
+ *   bun run perf:session-open --app <before.app> --app <after.app> --template <large-profile> --runs 10
  *
  * `--mode cross-project` then opens a second large Session, which the generator puts in another
  * project, `--switch-delay` ms after the first one is on screen. The default, 5 s, lands the switch in the

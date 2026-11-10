@@ -5,7 +5,7 @@ Local fixture for validating the OpenWaggle extension lifecycle in a real Electr
 Install into the current checkout with:
 
 ```bash
-pnpm extension:qa:install
+bun run extension:qa:install
 ```
 
 Then open Settings > Extensions, trust and enable `OpenWaggle Reload QA`, and click Reload.

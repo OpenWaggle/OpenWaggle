@@ -14,7 +14,7 @@
  * scripts/electron-builder-native-prebuilds.ts should exclude. Every per-platform package that a
  * package in `app.asar` declares for the target in `optionalDependencies` must ship as well
  * (scripts/packaged-native-dependencies.ts), which catches a build that is missing entirely.
- * Run it after packaging and before upload: `pnpm exec tsx scripts/check-native-platform-floor.ts`.
+ * Run it after packaging and before upload: `bun scripts/check-native-platform-floor.ts`.
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'

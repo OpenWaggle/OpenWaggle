@@ -7,7 +7,7 @@
  * same bundle: the source module its declared Pi extension entry is built from, and the desktop
  * Waggle loop.
  *
- * Usage: pnpm pi-main-bundle:smoke
+ * Usage: bun run pi-main-bundle:smoke
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -16,6 +16,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { build } from 'electron-vite'
+import { nodeRuntime } from './support/node-runtime'
 import { PI_WORKER_BUNDLES } from './vite/pi-worker-bundles'
 
 const execFileAsync = promisify(execFile)
@@ -62,7 +63,10 @@ async function main() {
     }
   }
   try {
-    await runSmoke('node', process.execPath, { ...process.env, ELECTRON_RUN_AS_NODE: undefined })
+    await runSmoke('node', nodeRuntime().execPath, {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: undefined,
+    })
     await runSmoke('electron-as-node', electronBinary(), {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',

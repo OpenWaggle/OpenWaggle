@@ -16,7 +16,7 @@
  * error for another: verified while building this, a deliberately wrong mock in a file
  * that already had errors left the total unchanged and passed.
  *
- * Run `pnpm typecheck:tests --update` after genuinely fixing files.
+ * Run `bun run typecheck:tests --update` after genuinely fixing files.
  */
 import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -238,7 +238,7 @@ async function main() {
   if (staleExemptions.length > 0) {
     console.error('These files are now clean and must be removed from the exemption list:\n')
     for (const file of staleExemptions) console.error(`  ${file}`)
-    console.error('\nRun: pnpm typecheck:tests --update')
+    console.error('\nRun: bun run typecheck:tests --update')
     process.exitCode = 1
     return
   }

@@ -106,7 +106,7 @@ describe('package consumer tools', () => {
       ['npm', '11.18.0'],
       ['yarn', '4.17.1'],
       ['pnpm', '11.15.1'],
-      ['bun', '1.3.14'],
+      ['bun', '1.4.4'],
     ])
     await verifyPackageConsumerTools('/tmp/tools', {
       resolveExecutable: async (name) =>
