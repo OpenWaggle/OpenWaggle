@@ -3,12 +3,8 @@ import type { InlineVisualizationContext } from '@shared/types/agent'
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { WaggleInvocation } from '@shared/types/waggle'
-import {
-  type FollowUpQueue,
-  type FollowUpQueueItem,
-  mutateFollowUpQueue,
-  queuedFollowUpQueueState,
-} from './follow-up-queue'
+import { appendPendingFollowUp } from './follow-up-append'
+import type { FollowUpQueue, FollowUpQueueItem } from './follow-up-queue'
 import { planMessageSubmission, type SessionRunAvailability } from './message-submission'
 import {
   type RunStartSettings,
@@ -207,46 +203,20 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
     .with('append-follow-up', (): ApplyAdaptiveMessageResult => {
       const refused = refuseRunStartSettings(input.runSettings)
       if (refused) return { accepted: false, code: refused, state: input.state }
-      const followUp: SessionControlFollowUp = {
-        id: input.identities.followUpId,
+      const appended = appendPendingFollowUp({
+        state: input.state,
+        followUpId: input.identities.followUpId,
         intent: input.intent,
-        deliveryState: 'pending',
-      }
-      const queueResult = mutateFollowUpQueue(input.state.followUpQueue, {
-        type: 'append',
-        item: followUp,
       })
-      if (!queueResult.accepted) {
-        if (
-          queueResult.code !== 'follow_up_already_exists' &&
-          queueResult.code !== 'queue_capacity_reached' &&
-          queueResult.code !== 'queue_byte_capacity_reached'
-        ) {
-          throw new Error(`Unexpected Follow-up append rejection: ${queueResult.code}`)
-        }
-        return {
-          accepted: false,
-          code: queueResult.code,
-          state: input.state,
-        }
-      }
-
-      const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
+      if (!appended.accepted) return { accepted: false, code: appended.code, state: input.state }
       return {
         accepted: true,
-        state: {
-          ...input.state,
-          revision: nextRevision,
-          followUpQueue: queueResult.queue,
-        },
+        state: appended.state,
         outcome: {
           operation: 'message',
           effect: 'queued-follow-up',
           sessionId: input.state.sessionId,
-          followUpId: input.identities.followUpId,
-          ...queuedFollowUpQueueState(queueResult.queue),
-          queueRevision: queueResult.queue.revision,
-          stateRevision: nextRevision,
+          ...appended.queued,
         },
       }
     })
