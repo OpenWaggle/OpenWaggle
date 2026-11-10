@@ -3,7 +3,31 @@
   "entry": [
     "src/renderer/src/main.tsx",
     // Project Pi extensions: Pi loads every file here by convention; nothing imports them.
-    ".pi/extensions/*.ts"
+    ".pi/extensions/*.ts",
+    // Tool configs loaded by name from the project root (react-doctor, oxlint).
+    "doctor.config.ts",
+    "oxlint.config.mts",
+    // Run by path from scripts/benchmark-docker/run.sh.
+    "scripts/benchmark-docker/count-request-tokens.ts",
+    "scripts/benchmark-docker/openwaggle-row.ts",
+    // Maintainer scripts run by path with bun (their doc comments, docs/, or the
+    // electron-automation allowlist in scripts/standards/electron-automation.ts).
+    "scripts/benchmark-terminal-output.ts",
+    "scripts/check-session-hive-api-compatibility.ts",
+    "scripts/generate-channel-icons.ts",
+    "scripts/generate-macos-icons.ts",
+    "scripts/measure-main-startup.ts",
+    // Run through `conformance client --command "bun scripts/node-script-bundle.ts --run ..."` in test:mcp:conformance.
+    "scripts/mcp-conformance-client.mts",
+    // scripts/pi-main-bundle-smoke.ts builds this config by path; its lib entry is the smoke entry.
+    "scripts/support/pi-main-bundle-smoke.electron-vite.config.ts",
+    "scripts/support/pi-main-bundle-smoke-entry.ts",
+    // Vitest globalSetup, referenced by path through TEST_TEMPORARY_ROOT_SETUP.
+    "scripts/test-support/vitest-temporary-root.ts",
+    // Package smoke fixtures compiled or run by path inside the packed-package sandbox
+    // (tests/fixtures/package-smoke/tsconfig.json, scripts/package-smoke-scripts.ts).
+    "tests/fixtures/package-smoke/cjs-type-smoke.cts",
+    "tests/fixtures/package-smoke/require-waggle-turn-smoke.cjs"
   ],
   "ignorePatterns": [
     "out/**",
@@ -22,7 +46,23 @@
     "@tanstack/eslint-plugin-router",
     // Packaged Electron updater resolves debug's `require("ms")` from the
     // app-level node_modules inside app.asar.
-    "ms"
+    "ms",
+    // Pi's bundled main process reads these packages' wasm from the installed
+    // root package (scripts/vite/pi-worker-bundles.ts); check:pi-runtime pins them.
+    "@silvia-odwyer/photon-node",
+    "quickjs-wasi",
+    // The attachment parser worker resolves these by package name at run time
+    // (src/main/utils/attachment-parser-worker.ts), so only tests import them statically.
+    "mammoth",
+    "tesseract.js",
+    "unpdf",
+    // CLI binaries run through `pnpm exec` by check scripts; nothing imports them.
+    "oxfmt",
+    "react-doctor",
+    // Per-platform native builds of sharp and Pi's clipboard addon, loaded by
+    // their parent package for the current platform.
+    "@img/sharp-*",
+    "@mariozechner/clipboard-*"
   ],
   "ignoreDependencyOverrides": [
     { "package": "@tanstack/history", "source": "package.json" },
@@ -34,8 +74,25 @@
   ],
   // TanStack Router file routes must each export `Route`; that framework contract
   // makes duplicate-export analysis noisy for this app.
-  "rules": { "duplicate-exports": "off" },
+  //
+  // electron-vite bundles main, preload and renderer, and electron-builder ships
+  // only `dependencies`, so bundled packages are devDependencies on purpose
+  // (MEMORY.md; packaged-app:smoke rejects renderer-only packages that ship).
+  "rules": { "duplicate-exports": "off", "dev-dependencies-in-production": "off" },
   "overrides": [
+    {
+      // The pi-runtime catalog pins Pi's whole matched release, including the
+      // packages OpenWaggle only gets transitively; check:pi-runtime requires
+      // every one of them (scripts/check-pi-runtime-alignment.ts).
+      "files": ["pnpm-workspace.yaml"],
+      "rules": { "unused-catalog-entries": "off" }
+    },
+    {
+      // Served by the extension frame protocol, which answers ./frame.css and
+      // ./bootstrap.js itself (src/main/extension-frame-protocol.ts).
+      "files": ["src/main/extension-frame-assets/extension-frame.html"],
+      "rules": { "unresolved-imports": "off" }
+    },
     {
       // Vitest mock specifiers intentionally point at virtual mock modules.
       "files": ["**/__tests__/**"],
