@@ -135,9 +135,13 @@ function relativeDeclarationDependencies(contents: string) {
     const followsFrom = previousToken === SyntaxKind.FromKeyword
     const followsBareImport = previousToken === SyntaxKind.ImportKeyword
     const followsImportCall =
-      previousToken === SyntaxKind.OpenParenToken && tokenBeforePrevious === SyntaxKind.ImportKeyword
+      previousToken === SyntaxKind.OpenParenToken &&
+      tokenBeforePrevious === SyntaxKind.ImportKeyword
 
-    if (token === SyntaxKind.StringLiteral && (followsFrom || followsBareImport || followsImportCall)) {
+    if (
+      token === SyntaxKind.StringLiteral &&
+      (followsFrom || followsBareImport || followsImportCall)
+    ) {
       const declarationPath = declarationPathForModuleSpecifier(scanner.getTokenValue())
       if (declarationPath) {
         declarations.push(declarationPath)
@@ -170,7 +174,9 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
     })
 
     for (const childDeclarationPath of relativeDeclarationDependencies(contents)) {
-      await visit(path.normalize(path.join(path.dirname(currentDeclarationPath), childDeclarationPath)))
+      await visit(
+        path.normalize(path.join(path.dirname(currentDeclarationPath), childDeclarationPath)),
+      )
     }
   }
 
@@ -199,12 +205,22 @@ export async function createPackageApiSnapshot({
       continue
     }
 
-    const declarationBlocks = await collectDeclarationBlocks(packageRoot, exportEntry.declarationPath)
+    const declarationBlocks = await collectDeclarationBlocks(
+      packageRoot,
+      exportEntry.declarationPath,
+    )
 
     lines.push(`Types: \`${exportEntry.declarationPath}\``, '')
 
     for (const block of declarationBlocks) {
-      lines.push(`### Declarations from \`${block.relativePath}\``, '', '```ts', block.contents, '```', '')
+      lines.push(
+        `### Declarations from \`${block.relativePath}\``,
+        '',
+        '```ts',
+        block.contents,
+        '```',
+        '',
+      )
     }
   }
 
@@ -297,7 +313,11 @@ function defaultPackageRoots(projectRoot: string) {
   return DEFAULT_PACKAGE_PATHS.map((packagePath) => path.join(projectRoot, packagePath))
 }
 
-function printResult(result: CheckPackageApiSnapshotsResult, mode: CliOptions['mode'], dryRun: boolean) {
+function printResult(
+  result: CheckPackageApiSnapshotsResult,
+  mode: CliOptions['mode'],
+  dryRun: boolean,
+) {
   for (const violation of result.violations) {
     console.error(violation)
   }

@@ -33,7 +33,9 @@ describe('quick installer update channel on a re-run', () => {
     const result = await harness.runInstaller({})
 
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain('OpenWaggle v1.0.0-rc.1 is older than the installed 1.0.0-rc.2.')
+    expect(result.stderr).toContain(
+      'OpenWaggle v1.0.0-rc.1 is older than the installed 1.0.0-rc.2.',
+    )
     expect(result.stderr).toContain(
       'OpenWaggle was not changed. It is ahead of the beta channel; set OPENWAGGLE_CHANNEL or OPENWAGGLE_RELEASE_TAG to install another release.',
     )
@@ -67,7 +69,9 @@ describe('quick installer update channel on a re-run', () => {
     const result = await harness.runInstaller({})
 
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain('OpenWaggle v1.0.0-rc.1 is older than the installed 1.0.0-rc.2.')
+    expect(result.stderr).toContain(
+      'OpenWaggle v1.0.0-rc.1 is older than the installed 1.0.0-rc.2.',
+    )
     // rc.2 can report its channel, so it was asked rather than treated as 1.0.0-beta.37.
     expect(await harness.calls()).toContain('appimage update --check --json')
     await expect(harness.savedChannelIntent()).resolves.toBeNull()
@@ -177,7 +181,13 @@ describe('quick installer update channel on a re-run', () => {
     async () => {
       const applications = path.join(harness.directory(), 'Applications')
       await harness.installMacApp(applications, INSTALLED_VERSION)
-      const executable = path.join(applications, 'OpenWaggle.app', 'Contents', 'MacOS', 'OpenWaggle')
+      const executable = path.join(
+        applications,
+        'OpenWaggle.app',
+        'Contents',
+        'MacOS',
+        'OpenWaggle',
+      )
       await fs.mkdir(path.dirname(executable), { recursive: true })
       await fs.writeFile(
         executable,
@@ -193,7 +203,9 @@ describe('quick installer update channel on a re-run', () => {
 
       expect(result.exitCode).toBe(2)
       expect(result.stdout).toContain('Update channel: alpha, kept from the installed OpenWaggle')
-      expect(result.stderr).toContain('OpenWaggle v1.0.0-beta.37 is older than the installed 1.0.0-rc.1.')
+      expect(result.stderr).toContain(
+        'OpenWaggle v1.0.0-beta.37 is older than the installed 1.0.0-rc.1.',
+      )
       expect(await harness.calls()).toContain('mac-cli update --check --json')
     },
   )

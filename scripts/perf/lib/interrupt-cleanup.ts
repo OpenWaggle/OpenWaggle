@@ -19,7 +19,11 @@ export interface SignalTarget {
 
 const HANDLED_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const satisfies readonly NodeJS.Signals[]
 const SIGNAL_EXIT_BASE = 128
-const SIGNAL_NUMBERS: Readonly<Record<(typeof HANDLED_SIGNALS)[number], number>> = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
+const SIGNAL_NUMBERS: Readonly<Record<(typeof HANDLED_SIGNALS)[number], number>> = {
+  SIGHUP: 1,
+  SIGINT: 2,
+  SIGTERM: 15,
+}
 const PHASE_ORDER: readonly InterruptPhase[] = ['process', 'profile']
 
 function exitCodeOf(signal: NodeJS.Signals) {
@@ -45,7 +49,9 @@ export function createInterruptCleanup(target: SignalTarget, exit: (code: number
       return
     }
     cleaning = true
-    process.stderr.write(`${signal}: stopping the apps and Hosts this harness started, removing its profiles…\n`)
+    process.stderr.write(
+      `${signal}: stopping the apps and Hosts this harness started, removing its profiles…\n`,
+    )
     void run().finally(() => exit(exitCodeOf(signal)))
   }
 

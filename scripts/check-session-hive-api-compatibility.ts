@@ -6,7 +6,9 @@ import path from 'node:path'
 const HOST_ROOT_ARGUMENT = 2
 const hostRootArgument = process.argv[HOST_ROOT_ARGUMENT]
 if (!hostRootArgument) {
-  throw new Error('Usage: pnpm exec tsx scripts/check-session-hive-api-compatibility.ts <host-checkout>')
+  throw new Error(
+    'Usage: pnpm exec tsx scripts/check-session-hive-api-compatibility.ts <host-checkout>',
+  )
 }
 
 const hostRoot = path.resolve(hostRootArgument)
@@ -24,15 +26,26 @@ export const reader: Required<Pick<SessionHiveReader, 'listHiveSessionCatalogPag
 export const events: Required<Pick<SessionHiveEventSource, 'onSessionHostEvent' | 'onSessionHostResyncRequired'>> = producer
 `
 writeFileSync(probePath, probe)
-writeFileSync(configPath, JSON.stringify({
-  extends: path.join(hostRoot, 'tsconfig.web.json'),
-  compilerOptions: {
-    composite: false, declaration: false, noEmit: true, noCheck: false,
-    strict: true, strictNullChecks: true, noImplicitAny: true,
-    rootDir: path.parse(summaryRoot).root, types: [],
-  },
-  include: [probePath], exclude: [], references: [],
-}))
+writeFileSync(
+  configPath,
+  JSON.stringify({
+    extends: path.join(hostRoot, 'tsconfig.web.json'),
+    compilerOptions: {
+      composite: false,
+      declaration: false,
+      noEmit: true,
+      noCheck: false,
+      strict: true,
+      strictNullChecks: true,
+      noImplicitAny: true,
+      rootDir: path.parse(summaryRoot).root,
+      types: [],
+    },
+    include: [probePath],
+    exclude: [],
+    references: [],
+  }),
+)
 console.log(`Compatibility probe evidence: ${evidenceDirectory}`)
 try {
   execFileSync('pnpm', ['exec', 'tsc', '-p', configPath], { cwd: summaryRoot, stdio: 'inherit' })

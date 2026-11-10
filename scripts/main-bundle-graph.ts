@@ -97,7 +97,8 @@ export function processStartupChunks(
   startupModules: readonly string[],
 ) {
   const byFile = new Map(manifest.map((entry) => [entry.file, entry]))
-  if (!byFile.has(MAIN_ENTRY_CHUNK)) throw new Error(`The main build emitted no ${MAIN_ENTRY_CHUNK}.`)
+  if (!byFile.has(MAIN_ENTRY_CHUNK))
+    throw new Error(`The main build emitted no ${MAIN_ENTRY_CHUNK}.`)
   const roots = [MAIN_ENTRY_CHUNK]
   for (const module of startupModules) {
     const holder = manifest.find((entry) => entry.modules.includes(module))

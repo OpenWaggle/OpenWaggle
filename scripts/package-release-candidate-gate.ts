@@ -4,18 +4,20 @@ const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_ARGUMENT_COUNT = 3
 const RELEASE_PLEASE_BRANCH = 'release-please--branches--main'
 
-export function validatePackageReleaseCandidate(input: Readonly<{
-  artifactResult: string
-  classificationResult: string
-  headRef: string
-}>) {
+export function validatePackageReleaseCandidate(
+  input: Readonly<{
+    artifactResult: string
+    classificationResult: string
+    headRef: string
+  }>,
+) {
   if (input.classificationResult !== 'success') {
-    throw new Error(`package release candidate classification did not succeed: ${input.classificationResult}.`)
+    throw new Error(
+      `package release candidate classification did not succeed: ${input.classificationResult}.`,
+    )
   }
 
-  const expectedArtifactResult = input.headRef === RELEASE_PLEASE_BRANCH
-    ? 'success'
-    : 'skipped'
+  const expectedArtifactResult = input.headRef === RELEASE_PLEASE_BRANCH ? 'success' : 'skipped'
   if (input.artifactResult !== expectedArtifactResult) {
     throw new Error(
       `package release candidate artifacts must be ${expectedArtifactResult} for ${input.headRef}: ${input.artifactResult}.`,
@@ -30,11 +32,7 @@ export function runPackageReleaseCandidateCli(args: readonly string[]) {
     )
   }
   const [classificationResult, artifactResult, headRef] = args
-  if (
-    classificationResult === undefined ||
-    artifactResult === undefined ||
-    headRef === undefined
-  ) {
+  if (classificationResult === undefined || artifactResult === undefined || headRef === undefined) {
     throw new Error('Package release candidate arguments are incomplete.')
   }
   validatePackageReleaseCandidate({ artifactResult, classificationResult, headRef })

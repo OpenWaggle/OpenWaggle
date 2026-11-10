@@ -159,7 +159,8 @@ function LinkedScriptNote(props: {
       <p className="min-w-0">
         {props.command ? (
           <>
-            Runs <code className="break-all font-mono text-text-secondary">{props.command}</code>.{' '}
+            Runs <code className="break-all font-mono text-text-secondary">{props.command}</code>
+            .{' '}
           </>
         ) : null}
         Linked to the <code className="font-mono text-text-secondary">{task.task}</code> script in{' '}

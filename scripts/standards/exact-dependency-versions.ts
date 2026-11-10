@@ -10,7 +10,8 @@ import type { Violation } from './violation'
  * dependencies state what a published package accepts from its host, and `overrides` in
  * pnpm-workspace.yaml hold deliberate vulnerability floors.
  */
-const CHECKED_MANIFESTS = /^(?:package\.json|packages\/[^/]+\/package\.json|website\/package\.json)$/
+const CHECKED_MANIFESTS =
+  /^(?:package\.json|packages\/[^/]+\/package\.json|website\/package\.json)$/
 const PNPM_WORKSPACE = 'pnpm-workspace.yaml'
 const PINNED_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
@@ -33,7 +34,10 @@ function manifestViolations(file: string, contents: string) {
     const dependencies = manifest[section]
     if (!isRecord(dependencies)) continue
     for (const [name, version] of Object.entries(dependencies)) {
-      if (typeof version === 'string' && (EXACT_VERSION.test(version) || PINNED_PROTOCOL.test(version))) {
+      if (
+        typeof version === 'string' &&
+        (EXACT_VERSION.test(version) || PINNED_PROTOCOL.test(version))
+      ) {
         continue
       }
       violations.push({

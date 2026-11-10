@@ -126,19 +126,20 @@ export async function locatePackageReleaseArtifact(args: readonly string[]) {
   const repository = process.env.GITHUB_REPOSITORY
   const githubEnvironment = process.env.GITHUB_ENV
   const githubOutput = process.env.GITHUB_OUTPUT
-  if (sourceTree === undefined || repository === undefined || githubEnvironment === undefined ||
-    githubOutput === undefined) {
+  if (
+    sourceTree === undefined ||
+    repository === undefined ||
+    githubEnvironment === undefined ||
+    githubOutput === undefined
+  ) {
     throw new Error('Package release artifact locator environment is incomplete.')
   }
   const artifactName = `package-release-${sourceTree}`
   const candidates = decodeCandidates(
     await runGhApi(`repos/${repository}/actions/artifacts?name=${artifactName}&per_page=100`),
   )
-  const selection = await selectPackageReleaseArtifactRun(
-    artifactName,
-    candidates,
-    async (runId) =>
-      decodeWorkflowRun(await runGhApi(`repos/${repository}/actions/runs/${runId}`)),
+  const selection = await selectPackageReleaseArtifactRun(artifactName, candidates, async (runId) =>
+    decodeWorkflowRun(await runGhApi(`repos/${repository}/actions/runs/${runId}`)),
   )
   await appendFile(githubOutput, `run_id=${String(selection.runId)}\n`)
   await appendFile(githubOutput, `source_sha=${selection.sourceSha}\n`)

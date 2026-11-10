@@ -195,7 +195,10 @@ function externalBoundaryViolation(input: {
     }
   }
 
-  if (input.specifier.startsWith('@openwaggle/') && !isAllowedExternal(input.rule, input.specifier)) {
+  if (
+    input.specifier.startsWith('@openwaggle/') &&
+    !isAllowedExternal(input.rule, input.specifier)
+  ) {
     return {
       detail: input.specifier,
       file: input.file,

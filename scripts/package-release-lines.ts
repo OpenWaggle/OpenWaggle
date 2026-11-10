@@ -50,7 +50,10 @@ export interface PackageReleaseLineCheckResult {
   readonly violations: readonly string[]
 }
 
-async function pullRequestTitleCommit(options: PackageReleaseLineCheckOptions, packagePath: string) {
+async function pullRequestTitleCommit(
+  options: PackageReleaseLineCheckOptions,
+  packagePath: string,
+) {
   const { base, prTitle } = options
   if (prTitle === undefined || prTitle.length === 0 || base === undefined) return []
   const touched = await touchesPath({
@@ -84,10 +87,14 @@ async function releasedState(
   const tags = await releasedTagVersions(options.cwd, component, options.to)
   const newestTag = tags.at(-1)?.toString()
   if (manifestVersion === undefined) {
-    return { releasedVersion: newestTag, since: newestTag === undefined ? undefined : `${component}-v${newestTag}` }
+    return {
+      releasedVersion: newestTag,
+      since: newestTag === undefined ? undefined : `${component}-v${newestTag}`,
+    }
   }
   const manifest = parseVersion(manifestVersion)
-  if (manifest === undefined) return `${MANIFEST_PATH} records an invalid ${component} version ${JSON.stringify(manifestVersion)}.`
+  if (manifest === undefined)
+    return `${MANIFEST_PATH} records an invalid ${component} version ${JSON.stringify(manifestVersion)}.`
   if (tags.some((tag) => tag.compare(manifest) === 0)) {
     return { releasedVersion: manifestVersion, since: `${component}-v${manifestVersion}` }
   }
@@ -97,7 +104,13 @@ async function releasedState(
   if ((tags.at(-1)?.compare(manifest) ?? 0) > 0) {
     return `the newest ${component} tag ${component}-v${newestTag} is newer than ${MANIFEST_PATH}'s ${manifestVersion}.`
   }
-  const releaseCommit = await manifestChangeCommit(options.cwd, options.to, MANIFEST_PATH, packagePath, manifestVersion)
+  const releaseCommit = await manifestChangeCommit(
+    options.cwd,
+    options.to,
+    MANIFEST_PATH,
+    packagePath,
+    manifestVersion,
+  )
   if (releaseCommit === undefined) {
     return `no commit reachable from ${options.to} recorded ${component} ${manifestVersion} in ${MANIFEST_PATH}.`
   }
@@ -111,7 +124,9 @@ async function readPackageState(
   packageConfig: object,
   config: object,
   manifestVersion: string | undefined,
-): Promise<PackageReleaseLineState | { readonly problem: string; readonly kind: 'history' | 'config' }> {
+): Promise<
+  PackageReleaseLineState | { readonly problem: string; readonly kind: 'history' | 'config' }
+> {
   const slug = packagePath.replace(/^packages\//u, '')
   const component = stringField(packageConfig, 'component') ?? slug
   const rules = packageReleaseRules(packageConfig, config)
@@ -132,8 +147,16 @@ async function readPackageState(
     // Newest first, as Release Please reads them: the title stands for the squash commit on top.
     commits: [...(await pullRequestTitleCommit(options, packagePath)), ...history],
     rules,
-    publishedLines: await publishedLinesAt(options.cwd, options.to, `${PUBLISHED_DOCS_ROOT}/${slug}`),
-    hasPendingDocs: await gitSucceeds(options.cwd, ['cat-file', '-e', `${options.to}:${PENDING_DOCS_ROOT}/${slug}/index.md`]),
+    publishedLines: await publishedLinesAt(
+      options.cwd,
+      options.to,
+      `${PUBLISHED_DOCS_ROOT}/${slug}`,
+    ),
+    hasPendingDocs: await gitSucceeds(options.cwd, [
+      'cat-file',
+      '-e',
+      `${options.to}:${PENDING_DOCS_ROOT}/${slug}/index.md`,
+    ]),
   }
 }
 
@@ -146,16 +169,25 @@ export async function checkPackageReleaseLines(
   if (config === undefined || configuredPackages === undefined) {
     // No config means no Release Please packages. A config that exists but cannot be read must not
     // silently turn the check off.
-    const configExists = await gitSucceeds(options.cwd, ['cat-file', '-e', `${options.to}:${CONFIG_PATH}`])
+    const configExists = await gitSucceeds(options.cwd, [
+      'cat-file',
+      '-e',
+      `${options.to}:${CONFIG_PATH}`,
+    ])
     const violations = configExists
-      ? [`Cannot predict package documentation lines: ${CONFIG_PATH} is not valid JSON with a packages object.`]
+      ? [
+          `Cannot predict package documentation lines: ${CONFIG_PATH} is not valid JSON with a packages object.`,
+        ]
       : []
     return { packages: [], skipped: [], violations }
   }
   const manifest = await readJsonAt(options.cwd, options.to, MANIFEST_PATH)
-  const shallow = (await git(options.cwd, ['rev-parse', '--is-shallow-repository'])).trim() === 'true'
+  const shallow =
+    (await git(options.cwd, ['rev-parse', '--is-shallow-repository'])).trim() === 'true'
   const historyProblems = shallow
-    ? ['the clone is shallow, so package tags and history are incomplete. Run git fetch --unshallow --tags.']
+    ? [
+        'the clone is shallow, so package tags and history are incomplete. Run git fetch --unshallow --tags.',
+      ]
     : []
   const configProblems: string[] = []
 
@@ -167,8 +199,15 @@ export async function checkPackageReleaseLines(
       continue
     }
     const manifestVersion = manifest === undefined ? undefined : stringField(manifest, packagePath)
-    const state = await readPackageState(options, packagePath, packageConfig, config, manifestVersion)
-    if ('problem' in state) (state.kind === 'config' ? configProblems : historyProblems).push(state.problem)
+    const state = await readPackageState(
+      options,
+      packagePath,
+      packageConfig,
+      config,
+      manifestVersion,
+    )
+    if ('problem' in state)
+      (state.kind === 'config' ? configProblems : historyProblems).push(state.problem)
     else packages.push(state)
   }
 
@@ -181,6 +220,9 @@ export async function checkPackageReleaseLines(
   return {
     packages,
     skipped: [],
-    violations: [...historyProblems.map((problem) => `Cannot predict package documentation lines: ${problem}`), ...violations],
+    violations: [
+      ...historyProblems.map((problem) => `Cannot predict package documentation lines: ${problem}`),
+      ...violations,
+    ],
   }
 }

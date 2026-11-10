@@ -52,9 +52,8 @@ async function selectDefaultModel() {
 /** A message admitted and activated by Session Control, as the Run coordinator does. */
 async function admit(sessionId: SessionId, key: string) {
   const { submitSessionMessage } = await import('../../../application/session-control-service')
-  const { SessionControlRunLifecycleRepository } = await import(
-    '../../../ports/session-control-run-lifecycle-repository'
-  )
+  const { SessionControlRunLifecycleRepository } =
+    await import('../../../ports/session-control-run-lifecycle-repository')
   return run(
     Effect.gen(function* () {
       const admitted = yield* submitSessionMessage({
@@ -76,9 +75,8 @@ async function admit(sessionId: SessionId, key: string) {
 }
 
 async function settle(sessionId: SessionId, runId: RunId) {
-  const { SessionControlRunLifecycleRepository } = await import(
-    '../../../ports/session-control-run-lifecycle-repository'
-  )
+  const { SessionControlRunLifecycleRepository } =
+    await import('../../../ports/session-control-run-lifecycle-repository')
   await run(
     Effect.flatMap(SessionControlRunLifecycleRepository, (lifecycle) =>
       lifecycle.settle({
@@ -105,9 +103,8 @@ describe('Pi settings a Run held off', () => {
   it('are not applied by a later Run over a setting the user chose since', async () => {
     const sessionId = await discoveredWithPiSettings()
     const first = await admit(sessionId, 'first')
-    const { refreshPiSessionProjection } = await import(
-      '../../../application/pi-session-projection-refresh'
-    )
+    const { refreshPiSessionProjection } =
+      await import('../../../application/pi-session-projection-refresh')
     await run(refreshPiSessionProjection(sessionId, 'reader'))
     // The first Run ends before its own refresh, as when its authority check fails.
     await settle(sessionId, first)
@@ -131,9 +128,8 @@ describe('Pi settings a Run held off', () => {
   it('are still applied by the Run that held them off', async () => {
     const sessionId = await discoveredWithPiSettings()
     const runId = await admit(sessionId, 'held')
-    const { refreshPiSessionProjection } = await import(
-      '../../../application/pi-session-projection-refresh'
-    )
+    const { refreshPiSessionProjection } =
+      await import('../../../application/pi-session-projection-refresh')
     await run(refreshPiSessionProjection(sessionId, 'reader'))
 
     await run(refreshPiSessionProjection(sessionId, 'run', runId))
@@ -147,9 +143,8 @@ describe('Pi settings a Run held off', () => {
   it("keep the thinking level the holding Run's message chose", async () => {
     const sessionId = await discoveredWithPiSettings()
     const runId = await admit(sessionId, 'chosen')
-    const { refreshPiSessionProjection } = await import(
-      '../../../application/pi-session-projection-refresh'
-    )
+    const { refreshPiSessionProjection } =
+      await import('../../../application/pi-session-projection-refresh')
     await run(refreshPiSessionProjection(sessionId, 'reader'))
 
     await run(refreshPiSessionProjection(sessionId, 'run', runId, { thinkingLevel: 'low' }))

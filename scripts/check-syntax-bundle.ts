@@ -22,7 +22,9 @@ const CHAT_SURFACE_SOURCES: readonly RegExp[] = [
   /^src\/routes\/sessions\.\$sessionId\.tsx\?tsr-split=component$/u,
 ]
 /** A chunk of its own before B1 moved the surface into the route chunks; counted if it is one again. */
-const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [/^src\/routes\/-chat-route-surface\.tsx$/u]
+const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [
+  /^src\/routes\/-chat-route-surface\.tsx$/u,
+]
 // Minified (B4); unminified they were 391, 408 and 428 KiB.
 const MAX_SYNTAX_WORKER_BYTES = 320 * KIBIBYTE
 const MAX_FOCUSED_EDITOR_BYTES = 320 * KIBIBYTE
@@ -72,10 +74,10 @@ async function matchingAsset(budget: AssetBudget, assets: readonly string[]) {
 
 async function initialRendererAssets() {
   const html = await fs.readFile(path.resolve('out/renderer/index.html'), 'utf8')
-  const entry = html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u)?.groups
-    ?.asset
+  const entry = html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u)?.groups?.asset
   if (!entry) throw new Error('Could not resolve the initial renderer asset from index.html.')
-  const preloadPattern = /<link[^>]+rel="modulepreload"[^>]+href="\.\/assets\/(?<asset>[^"]+\.js)"/gu
+  const preloadPattern =
+    /<link[^>]+rel="modulepreload"[^>]+href="\.\/assets\/(?<asset>[^"]+\.js)"/gu
   const assets = [
     entry,
     ...[...html.matchAll(preloadPattern)].flatMap((match) =>
@@ -121,7 +123,11 @@ async function chatSurfaceGraph(initialFiles: ReadonlySet<string>) {
   const optional = OPTIONAL_CHAT_SURFACE_SOURCES.filter((pattern) =>
     Object.keys(manifest).some((key) => pattern.test(key)),
   )
-  const files = lazySurfaceChunkFiles(manifest, [...CHAT_SURFACE_SOURCES, ...optional], initialFiles)
+  const files = lazySurfaceChunkFiles(
+    manifest,
+    [...CHAT_SURFACE_SOURCES, ...optional],
+    initialFiles,
+  )
   const sizes = await Promise.all(
     files.map(async (file) => (await fs.stat(path.resolve('out/renderer', file))).size),
   )

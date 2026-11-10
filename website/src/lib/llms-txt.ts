@@ -1,8 +1,8 @@
-import { DEFAULT_DESCRIPTION, SITE_URL } from './seo';
+import { DEFAULT_DESCRIPTION, SITE_URL } from './seo'
 
 export interface LlmsTxtSection {
-  title: string;
-  pages: readonly { title: string; path: string; description?: string }[];
+  title: string
+  pages: readonly { title: string; path: string; description?: string }[]
 }
 
 /** Renders an llms.txt index (https://llmstxt.org) so AI assistants can find the right docs page. */
@@ -16,13 +16,17 @@ export function buildLlmsTxt(sections: readonly LlmsTxtSection[]): string {
     '',
     `Download: ${SITE_URL}/docs/getting-started/installation/`,
     'Source: https://github.com/OpenWaggle/OpenWaggle',
-  ];
+  ]
   for (const section of sections) {
-    lines.push('', `## ${section.title}`, '');
+    lines.push('', `## ${section.title}`, '')
     for (const page of section.pages) {
-      const url = new URL(page.path, SITE_URL).href;
-      lines.push(page.description ? `- [${page.title}](${url}): ${page.description}` : `- [${page.title}](${url})`);
+      const url = new URL(page.path, SITE_URL).href
+      lines.push(
+        page.description
+          ? `- [${page.title}](${url}): ${page.description}`
+          : `- [${page.title}](${url})`,
+      )
     }
   }
-  return `${lines.join('\n')}\n`;
+  return `${lines.join('\n')}\n`
 }

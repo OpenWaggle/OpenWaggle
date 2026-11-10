@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   createDependencies,
   PACKAGE_NAMES,
@@ -24,14 +27,8 @@ function metadataState(metadata: object, extraCommands: readonly BootstrapComman
     ],
   ])
   if (extraCommands.length > 0) {
-    overrides.set(
-      `npm view ${packageName} dist-tags --json`,
-      extraCommands[0] ?? successful(),
-    )
-    overrides.set(
-      `npm access get status ${packageName} --json`,
-      extraCommands[1] ?? successful(),
-    )
+    overrides.set(`npm view ${packageName} dist-tags --json`, extraCommands[0] ?? successful())
+    overrides.set(`npm access get status ${packageName} --json`, extraCommands[1] ?? successful())
     overrides.set(`npm trust list ${packageName} --json`, extraCommands[2] ?? successful())
   }
   return createDependencies(overrides)
@@ -40,14 +37,11 @@ function metadataState(metadata: object, extraCommands: readonly BootstrapComman
 describe('package release bootstrap npm metadata normalization', () => {
   it('accepts an injected empty directories object for a one-file placeholder', async () => {
     const packageName = PACKAGE_NAMES[0]
-    const { dependencies } = metadataState(
-      { directories: {}, dist: { fileCount: 1 } },
-      [
-        successful(JSON.stringify({ bootstrap: '0.0.0-bootstrap.0' })),
-        publicAccess(packageName),
-        successful(),
-      ],
-    )
+    const { dependencies } = metadataState({ directories: {}, dist: { fileCount: 1 } }, [
+      successful(JSON.stringify({ bootstrap: '0.0.0-bootstrap.0' })),
+      publicAccess(packageName),
+      successful(),
+    ])
 
     const result = await runPackageReleaseBootstrap(
       { args: [], projectRoot: '/workspace/OpenWaggle' },

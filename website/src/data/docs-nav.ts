@@ -1,11 +1,11 @@
 export interface NavItem {
-  title: string;
-  slug: string;
+  title: string
+  slug: string
 }
 
 export interface NavSection {
-  title: string;
-  items: NavItem[];
+  title: string
+  items: NavItem[]
 }
 
 // Navigation labels describe tasks. Slugs stay stable so existing links keep working.
@@ -90,7 +90,7 @@ export const docsNav: NavSection[] = [
       { title: 'Usage statistics fields', slug: 'reference/usage-statistics-fields' },
     ],
   },
-];
+]
 
 export const developerDocsNav: NavSection[] = [
   {
@@ -119,24 +119,24 @@ export const developerDocsNav: NavSection[] = [
       { title: 'Pi Waggle', slug: 'packages/pi-waggle' },
     ],
   },
-];
+]
 
 export function isDeveloperDoc(slug: string): boolean {
   return developerDocsNav.some((section) =>
     section.items.some((item) => slug === item.slug || slug.startsWith(`${item.slug}/`)),
-  );
+  )
 }
 
 export function flatNavItems(): NavItem[] {
-  return [...docsNav, ...developerDocsNav].flatMap((section) => section.items);
+  return [...docsNav, ...developerDocsNav].flatMap((section) => section.items)
 }
 
 export function getPrevNext(currentSlug: string) {
-  const sections = isDeveloperDoc(currentSlug) ? developerDocsNav : docsNav;
-  const flat = sections.flatMap((section) => section.items);
-  const index = flat.findIndex((item) => item.slug === currentSlug);
+  const sections = isDeveloperDoc(currentSlug) ? developerDocsNav : docsNav
+  const flat = sections.flatMap((section) => section.items)
+  const index = flat.findIndex((item) => item.slug === currentSlug)
   return {
     prev: index > 0 ? flat[index - 1] : null,
     next: index >= 0 && index < flat.length - 1 ? flat[index + 1] : null,
-  };
+  }
 }

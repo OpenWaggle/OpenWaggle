@@ -4,9 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 const manageProjectActions = vi.hoisted(() => vi.fn())
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions } }))
 
-const { selectDraftWorkspacePreparation, validateDraftWorkspacePreparation } = await import(
-  '../prepare-draft-workspace'
-)
+const { selectDraftWorkspacePreparation, validateDraftWorkspacePreparation } =
+  await import('../prepare-draft-workspace')
 
 const catalog = {
   type: 'catalog',

@@ -42,9 +42,9 @@ describe('quick installer launch policy', () => {
 
   it('skips the launch without a graphical session', async () => {
     await expect(launchSkipReason('mac', { CI: 'true' })).resolves.toBe('running in CI')
-    await expect(launchSkipReason('mac', { SSH_CONNECTION: '10.0.0.1 22 10.0.0.2 22' })).resolves.toBe(
-      'running over SSH',
-    )
+    await expect(
+      launchSkipReason('mac', { SSH_CONNECTION: '10.0.0.1 22 10.0.0.2 22' }),
+    ).resolves.toBe('running over SSH')
     await expect(launchSkipReason('linux', {})).resolves.toBe('no graphical session is available')
   })
 

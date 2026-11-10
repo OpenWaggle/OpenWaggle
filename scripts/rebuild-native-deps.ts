@@ -81,7 +81,11 @@ export function commandInvocationForPlatform(
   }
 }
 
-function runCommand(command: string, args: readonly string[], extraEnvironment: NodeJS.ProcessEnv = {}) {
+function runCommand(
+  command: string,
+  args: readonly string[],
+  extraEnvironment: NodeJS.ProcessEnv = {},
+) {
   return new Promise<void>((resolve, reject) => {
     const invocation = commandInvocationForPlatform(command, args)
     const child = spawn(invocation.command, invocation.args, {
@@ -130,7 +134,9 @@ function appendWhitespaceDelimitedOption(existingOptions: string | undefined, op
     return option
   }
 
-  return existingOptions.split(/\s+/u).includes(option) ? existingOptions : `${existingOptions} ${option}`
+  return existingOptions.split(/\s+/u).includes(option)
+    ? existingOptions
+    : `${existingOptions} ${option}`
 }
 
 function suppressDependencyDeprecationWarnings(

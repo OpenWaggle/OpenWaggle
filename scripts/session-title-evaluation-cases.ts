@@ -28,7 +28,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     previousTitle: 'Fix failing test',
     messages: [
       message('user', 'Fix this failing test.'),
-      message('assistant', 'The lazy feed test expects a full message body before the client requests it.'),
+      message(
+        'assistant',
+        'The lazy feed test expects a full message body before the client requests it.',
+      ),
     ],
     rubric: 'Name the lazy feed test. Do not invent a wider regression.',
   },
@@ -39,7 +42,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     messages: [
       message('user', 'Improve QR sharing layout.'),
       message('user', 'Change of plan. Fix pairing token expiry. Keep remote access working.'),
-      message('assistant', `The token expires before redemption. ${'Implementation detail. '.repeat(800)}`),
+      message(
+        'assistant',
+        `The token expires before redemption. ${'Implementation detail. '.repeat(800)}`,
+      ),
       message('user', 'Ship it.'),
     ],
     rubric: 'Name pairing expiry and honor the explicit scope change.',

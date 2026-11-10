@@ -19,9 +19,8 @@ vi.mock('../session-host/local-session-client', async () => ({
 const { formatDuration, formatStatusReport, mapWithConcurrency, readStatusReport, runStatusCli } =
   await import('../status-cli')
 const { cliWallClockTime } = await import('../cli-wall-clock-time')
-const { LocalSessionHostUpgradePendingError } = await import(
-  '../session-host/local-session-client-connection'
-)
+const { LocalSessionHostUpgradePendingError } =
+  await import('../session-host/local-session-client-connection')
 type StatusCliDependencies = NonNullable<Parameters<typeof runStatusCli>[1]>
 
 const NOW = 10 * 60_000

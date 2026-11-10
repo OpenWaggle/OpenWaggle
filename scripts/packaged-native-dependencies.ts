@@ -9,7 +9,8 @@ import type { AsarArchive } from './asar-archive'
 
 type PackagedPlatform = 'darwin' | 'linux' | 'win32'
 
-const PACKAGE_JSON = /^(?:\/node_modules\/(?:.+\/node_modules\/)?((?:@[^/]+\/)?[^/]+))?\/package\.json$/u
+const PACKAGE_JSON =
+  /^(?:\/node_modules\/(?:.+\/node_modules\/)?((?:@[^/]+\/)?[^/]+))?\/package\.json$/u
 const PLATFORM_PACKAGE =
   /-(?<platform>darwin|linux|win32)-(?<arch>x64|arm64|ia32|arm|ppc64|s390x|riscv64|loong64)(?:-(?<toolchain>[a-z0-9]+))?$/u
 /** Toolchain suffixes that load on the supported targets; musl builds never do (glibc floor). */
@@ -38,9 +39,11 @@ export async function missingNativeDependencies(
   const missing = new Map<string, string>()
   for (const manifest of manifests) {
     const parsed: unknown = JSON.parse((await archive.readFile(manifest.file)).toString('utf8'))
-    const optional = isRecord(parsed) && isRecord(parsed.optionalDependencies) ? parsed.optionalDependencies : {}
+    const optional =
+      isRecord(parsed) && isRecord(parsed.optionalDependencies) ? parsed.optionalDependencies : {}
     for (const dependency of Object.keys(optional)) {
-      if (!isNativePackageFor(dependency, platform, architecture) || shipped.has(dependency)) continue
+      if (!isNativePackageFor(dependency, platform, architecture) || shipped.has(dependency))
+        continue
       if (!missing.has(dependency)) missing.set(dependency, manifest.name)
     }
   }

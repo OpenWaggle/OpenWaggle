@@ -26,7 +26,10 @@ function isFloorPlatform(value: string | undefined): value is FloorTargetPlatfor
   return PLATFORMS.some((platform) => platform === value)
 }
 
-export function parseFloorArguments(args: readonly string[], hostPlatform: string = process.platform) {
+export function parseFloorArguments(
+  args: readonly string[],
+  hostPlatform: string = process.platform,
+) {
   const paths: string[] = []
   let platform: string | undefined = hostPlatform
   for (let index = 0; index < args.length; index += 1) {
@@ -40,7 +43,9 @@ export function parseFloorArguments(args: readonly string[], hostPlatform: strin
     if (argument !== undefined) paths.push(argument)
   }
   if (!isFloorPlatform(platform)) {
-    throw new Error(`Usage: check-native-platform-floor.ts [${PLATFORM_FLAG} darwin|linux|win32] [app paths...]`)
+    throw new Error(
+      `Usage: check-native-platform-floor.ts [${PLATFORM_FLAG} darwin|linux|win32] [app paths...]`,
+    )
   }
   return { platform, paths }
 }
@@ -50,20 +55,27 @@ async function directoryEntries(directory: string) {
 }
 
 /** The packaged outputs electron-builder leaves in `dist` for one platform. */
-export async function discoverPackagedApps(platform: FloorTargetPlatform, distDirectory: string = DIST_DIR) {
+export async function discoverPackagedApps(
+  platform: FloorTargetPlatform,
+  distDirectory: string = DIST_DIR,
+) {
   const entries = await directoryEntries(distDirectory)
   const found: string[] = []
   for (const entry of entries) {
     const entryPath = path.join(distDirectory, entry.name)
-    if (platform === 'linux' && entry.isFile() && entry.name.endsWith(APPIMAGE_SUFFIX)) found.push(entryPath)
-    if (platform === 'win32' && entry.isDirectory() && entry.name === 'win-unpacked') found.push(entryPath)
+    if (platform === 'linux' && entry.isFile() && entry.name.endsWith(APPIMAGE_SUFFIX))
+      found.push(entryPath)
+    if (platform === 'win32' && entry.isDirectory() && entry.name === 'win-unpacked')
+      found.push(entryPath)
     if (platform === 'darwin' && entry.isDirectory()) {
       for (const child of await directoryEntries(entryPath)) {
-        if (child.isDirectory() && child.name.endsWith('.app')) found.push(path.join(entryPath, child.name))
+        if (child.isDirectory() && child.name.endsWith('.app'))
+          found.push(path.join(entryPath, child.name))
       }
     }
   }
-  if (found.length === 0) throw new Error(`No packaged ${platform} app found under ${distDirectory}.`)
+  if (found.length === 0)
+    throw new Error(`No packaged ${platform} app found under ${distDirectory}.`)
   return found.sort((left, right) => left.localeCompare(right))
 }
 
@@ -73,7 +85,9 @@ export async function discoverPackagedApps(platform: FloorTargetPlatform, distDi
  */
 async function extractAppImage(appImagePath: string) {
   if (process.platform !== 'linux') {
-    throw new Error(`Extract ${appImagePath} first and pass the extracted directory; its runtime needs Linux.`)
+    throw new Error(
+      `Extract ${appImagePath} first and pass the extracted directory; its runtime needs Linux.`,
+    )
   }
   const workDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-appimage-'))
   await fs.chmod(appImagePath, EXECUTABLE_MODE)
@@ -85,12 +99,16 @@ async function extractAppImage(appImagePath: string) {
   return path.join(workDirectory, 'squashfs-root')
 }
 
-export async function resolveFloorTargets(args: readonly string[]): Promise<readonly FloorTarget[]> {
+export async function resolveFloorTargets(
+  args: readonly string[],
+): Promise<readonly FloorTarget[]> {
   const { platform, paths } = parseFloorArguments(args)
   const appPaths = paths.length > 0 ? paths : await discoverPackagedApps(platform)
   const targets: FloorTarget[] = []
   for (const appPath of appPaths) {
-    const root = appPath.endsWith(APPIMAGE_SUFFIX) ? await extractAppImage(appPath) : path.resolve(appPath)
+    const root = appPath.endsWith(APPIMAGE_SUFFIX)
+      ? await extractAppImage(appPath)
+      : path.resolve(appPath)
     targets.push({ root, platform })
   }
   return targets

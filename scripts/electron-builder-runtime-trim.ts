@@ -26,7 +26,10 @@ interface AsarEntryRule {
 }
 
 const PRUNED_ASAR_ENTRY_RULES: readonly AsarEntryRule[] = [
-  { label: 'onnxruntime-web', matches: (entry) => /\/node_modules\/onnxruntime-web(?:\/|$)/u.test(entry) },
+  {
+    label: 'onnxruntime-web',
+    matches: (entry) => /\/node_modules\/onnxruntime-web(?:\/|$)/u.test(entry),
+  },
   {
     label: 'better-sqlite3 sources',
     matches: (entry) => /\/node_modules\/better-sqlite3\/(?:deps|src)(?:\/|$)/u.test(entry),

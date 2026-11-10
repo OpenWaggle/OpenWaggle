@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   compatibleTrustConfiguration,
   createDependencies,
@@ -37,9 +40,7 @@ describe('package release namespace bootstrap conflicts', () => {
       [`npm access get status ${packageName} --json`, publicAccess(packageName)],
       [
         `npm trust list ${packageName} --json`,
-        successful(
-          JSON.stringify(compatibleTrustConfiguration()),
-        ),
+        successful(JSON.stringify(compatibleTrustConfiguration())),
       ],
     ])
     const { dependencies, requests } = createDependencies(overrides)
@@ -296,5 +297,4 @@ describe('package release namespace bootstrap conflicts', () => {
     })
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
-
 })

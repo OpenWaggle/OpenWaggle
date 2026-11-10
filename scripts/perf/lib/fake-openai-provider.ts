@@ -14,7 +14,9 @@ export interface FakeProviderRequest {
 
 export interface StreamWriter {
   readonly text: (chunk: string) => void
-  readonly toolCalls: (calls: readonly { readonly name: string; readonly arguments: object }[]) => void
+  readonly toolCalls: (
+    calls: readonly { readonly name: string; readonly arguments: object }[],
+  ) => void
   readonly end: () => void
 }
 
@@ -53,7 +55,12 @@ function writer(response: ServerResponse): StreamWriter {
     toolCalls: (calls) => {
       finish = 'tool_calls'
       calls.forEach((call, index) => {
-        const toolCall = { index, id: `call_${String(Date.now())}_${String(index)}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments) } }
+        const toolCall = {
+          index,
+          id: `call_${String(Date.now())}_${String(index)}`,
+          type: 'function',
+          function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+        }
         response.write(chunk({ tool_calls: [toolCall] }, null))
       })
     },
@@ -75,7 +82,9 @@ function readBody(request: IncomingMessage) {
 function parsedBody(raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? { ...parsed } : {}
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? { ...parsed }
+      : {}
   } catch {
     return {}
   }
@@ -111,13 +120,21 @@ export async function configureFakeProvider(agentDir: string, baseUrl: string) {
         baseUrl,
         api: 'openai-completions',
         apiKey: 'perf-key',
-        models: [{ id: FAKE_MODEL_ID, contextWindow: FAKE_CONTEXT_WINDOW, maxTokens: FAKE_MAX_TOKENS }],
+        models: [
+          { id: FAKE_MODEL_ID, contextWindow: FAKE_CONTEXT_WINDOW, maxTokens: FAKE_MAX_TOKENS },
+        ],
       },
     },
   }
-  await writeFile(path.join(agentDir, 'models.json'), `${JSON.stringify(models, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(agentDir, 'models.json'),
+    `${JSON.stringify(models, null, JSON_INDENT)}\n`,
+  )
   const settings = { defaultProvider: FAKE_PROVIDER_ID, defaultModel: FAKE_MODEL_ID }
-  await writeFile(path.join(agentDir, 'settings.json'), `${JSON.stringify(settings, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(agentDir, 'settings.json'),
+    `${JSON.stringify(settings, null, JSON_INDENT)}\n`,
+  )
 }
 
 /** Whether a request is OpenWaggle's Session title generation rather than an agent turn. */

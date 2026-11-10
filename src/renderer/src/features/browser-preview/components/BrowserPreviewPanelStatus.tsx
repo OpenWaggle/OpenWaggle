@@ -12,8 +12,10 @@ import {
 import { BrowserPreviewControllerBadge } from './BrowserPreviewControllerBadge'
 import { BrowserPreviewProfileSelector } from './BrowserPreviewProfileSelector'
 
-interface BrowserPreviewPanelStatusProps
-  extends Pick<BrowserPreviewPanelCallbacks, 'onError' | 'onUpdate'> {
+interface BrowserPreviewPanelStatusProps extends Pick<
+  BrowserPreviewPanelCallbacks,
+  'onError' | 'onUpdate'
+> {
   readonly onFloat: () => void
   readonly tab: BrowserPreviewMaterializedTab
   readonly getSourceViewport: () => BrowserPreviewFloatingSize | undefined

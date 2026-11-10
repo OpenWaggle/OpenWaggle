@@ -76,21 +76,18 @@ export function mergeBackgroundReconnectMessages(
       .with(undefined, () => message)
       .when(isAssistantMessage, (currentAssistantMessage) =>
         match(message)
-          .when(
-            isAssistantMessage,
-            (assistantMessage): UIMessage => ({
-              ...assistantMessage,
-              parts: mergeReconnectedAnswerParts(
-                assistantMessage.parts,
-                currentAssistantMessage.parts,
-                context.streamingBaseline?.messageId === assistantMessage.id
-                  ? context.streamingBaseline
-                  : undefined,
-              ),
-              createdAt: currentAssistantMessage.createdAt ?? assistantMessage.createdAt,
-              metadata: currentAssistantMessage.metadata ?? assistantMessage.metadata,
-            }),
-          )
+          .when(isAssistantMessage, (assistantMessage): UIMessage => ({
+            ...assistantMessage,
+            parts: mergeReconnectedAnswerParts(
+              assistantMessage.parts,
+              currentAssistantMessage.parts,
+              context.streamingBaseline?.messageId === assistantMessage.id
+                ? context.streamingBaseline
+                : undefined,
+            ),
+            createdAt: currentAssistantMessage.createdAt ?? assistantMessage.createdAt,
+            metadata: currentAssistantMessage.metadata ?? assistantMessage.metadata,
+          }))
           .otherwise(() => currentAssistantMessage),
       )
       .otherwise((value) => retainSnapshotMessageOrder(value, message))

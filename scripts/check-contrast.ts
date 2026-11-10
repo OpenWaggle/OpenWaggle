@@ -89,7 +89,10 @@ export function parseHexColor(hex: string): RgbColor {
   }
 
   return {
-    red: Number.parseInt(hex.slice(RED_CHANNEL_START, RED_CHANNEL_START + HEX_CHANNEL_LENGTH), HEX_BASE),
+    red: Number.parseInt(
+      hex.slice(RED_CHANNEL_START, RED_CHANNEL_START + HEX_CHANNEL_LENGTH),
+      HEX_BASE,
+    ),
     green: Number.parseInt(
       hex.slice(GREEN_CHANNEL_START, GREEN_CHANNEL_START + HEX_CHANNEL_LENGTH),
       HEX_BASE,
@@ -253,7 +256,9 @@ export function validateHostColorVariables(
       continue
     }
     if (comparableColor(actual) !== comparableColor(expected)) {
-      issues.push(`Host variable ${variableName} for ${role} is ${actual}; SDK default is ${expected}`)
+      issues.push(
+        `Host variable ${variableName} for ${role} is ${actual}; SDK default is ${expected}`,
+      )
     }
   }
   return issues

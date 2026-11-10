@@ -50,7 +50,10 @@ describe('prunedRuntimeIssues', () => {
 
 describe('source maps of the minified bundles (R6 P3-5)', () => {
   it('are emitted hidden for the main process and the renderer', async () => {
-    const source = await readFile(path.join(import.meta.dirname, '..', '..', 'electron.vite.config.ts'), 'utf8')
+    const source = await readFile(
+      path.join(import.meta.dirname, '..', '..', 'electron.vite.config.ts'),
+      'utf8',
+    )
     expect(source.match(/sourcemap: 'hidden'/gu)).toHaveLength(2)
     expect(source).not.toMatch(/sourcemap: (?:true|'inline')/u)
   })

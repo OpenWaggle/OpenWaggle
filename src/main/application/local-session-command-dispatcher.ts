@@ -305,7 +305,4 @@ export {
   canonicalizeNamedProfileProjectPayload,
   scopeNamedProfileExport,
 } from './local-session-command-scoping'
-export {
-  dispatchSessionQuery,
-  dispatchSessionWaitQuery,
-} from './local-session-query-dispatcher'
+export { dispatchSessionQuery, dispatchSessionWaitQuery } from './local-session-query-dispatcher'

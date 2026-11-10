@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   addCompatibleGithubState,
   addCompatiblePackageState,
@@ -51,9 +54,7 @@ describe('package release namespace bootstrap automatic latest handling', () => 
     expect(
       requests
         .filter((request) => commandKey(request).startsWith('npm trust list'))
-        .every(
-          (request) => request.interactive === true && request.captureOutput === true,
-        ),
+        .every((request) => request.interactive === true && request.captureOutput === true),
     ).toBe(true)
   })
 })

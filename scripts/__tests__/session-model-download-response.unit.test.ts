@@ -177,7 +177,10 @@ describe('model download HTTP retries', () => {
 
   it('recovers from a transient transport failure', async () => {
     const failure = new Error('transport failed')
-    const fetch = vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce(new Response('model'))
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(new Response('model'))
     const wait = vi.fn().mockResolvedValue(undefined)
     const response = await fetchModelDownloadResponse(MODEL_URL, { fetch, wait })
     expect(await response.text()).toBe('model')
@@ -256,9 +259,7 @@ describe('model download HTTP retries', () => {
     const fetch = vi.fn().mockResolvedValue(new Response(body, { status: 403 }))
     const wait = vi.fn().mockResolvedValue(undefined)
 
-    await expect(fetchModelDownloadResponse(MODEL_URL, { fetch, wait })).rejects.toThrow(
-      'HTTP 403',
-    )
+    await expect(fetchModelDownloadResponse(MODEL_URL, { fetch, wait })).rejects.toThrow('HTTP 403')
     expect(fetch).toHaveBeenCalledOnce()
     expect(wait).not.toHaveBeenCalled()
   })

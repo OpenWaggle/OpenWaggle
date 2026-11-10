@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { isIndexablePage } from '../sitemap';
+import { describe, expect, it } from 'vitest'
+import { isIndexablePage } from '../sitemap'
 
 describe('sitemap filter', () => {
   it.each([
@@ -10,6 +10,6 @@ describe('sitemap filter', () => {
     ['https://openwaggle.ai/docs/packages/pi-waggle/', false],
     ['https://openwaggle.ai/benchmarks/', false],
   ])('%s indexable: %s', (page, expected) => {
-    expect(isIndexablePage(page)).toBe(expected);
-  });
-});
+    expect(isIndexablePage(page)).toBe(expected)
+  })
+})

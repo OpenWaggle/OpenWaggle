@@ -14,9 +14,11 @@ describe('Hive Session fixtures', () => {
   beforeEach(async () => {
     userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-hive-fixture-test-'))
     await fs.mkdir(path.dirname(getDatabasePath(userDataDir)), { recursive: true })
-    await Effect.runPromise(runAppDatabaseMigrations.pipe(
-      Effect.provide(SqliteClient.layer({ filename: getDatabasePath(userDataDir) })),
-    ))
+    await Effect.runPromise(
+      runAppDatabaseMigrations.pipe(
+        Effect.provide(SqliteClient.layer({ filename: getDatabasePath(userDataDir) })),
+      ),
+    )
   })
 
   afterEach(async () => {
@@ -24,25 +26,22 @@ describe('Hive Session fixtures', () => {
   })
 
   it('seeds a Worker spawned by another Worker one level deeper in the same Hive', async () => {
-    const hive = await seedHive(
-      userDataDir,
-      { title: 'Queen', updatedAt: 30, messages: [] },
-      [
-        { title: 'Lead', updatedAt: 20, messages: [], delegationState: 'working' },
-        {
-          title: 'Helper',
-          updatedAt: 10,
-          messages: [],
-          delegationState: 'needs_attention',
-          attentionCause: 'worker_request',
-          parentWorkerIndex: 0,
-        },
-      ],
-    )
+    const hive = await seedHive(userDataDir, { title: 'Queen', updatedAt: 30, messages: [] }, [
+      { title: 'Lead', updatedAt: 20, messages: [], delegationState: 'working' },
+      {
+        title: 'Helper',
+        updatedAt: 10,
+        messages: [],
+        delegationState: 'needs_attention',
+        attentionCause: 'worker_request',
+        parentWorkerIndex: 0,
+      },
+    ])
     const [lead, helper] = hive.workerSessionIds
     const database = new Database(getDatabasePath(userDataDir))
     try {
-      const lineage = database.prepare(`
+      const lineage = database
+        .prepare(`
         SELECT lineage.child_session_id AS child, lineage.parent_session_id AS parent,
                lineage.hive_root_session_id AS root, lineage.depth,
                contracts.parent_session_id AS delegation_parent, contracts.attention_cause,
@@ -51,16 +50,26 @@ describe('Hive Session fixtures', () => {
         JOIN delegation_contracts AS contracts ON contracts.child_session_id = lineage.child_session_id
         JOIN session_runs AS runs ON runs.id = lineage.parent_run_id
         ORDER BY lineage.depth
-      `).all()
+      `)
+        .all()
       expect(lineage).toEqual([
         {
-          child: lead, parent: hive.queenSessionId, root: hive.queenSessionId, depth: 1,
-          delegation_parent: hive.queenSessionId, attention_cause: null,
+          child: lead,
+          parent: hive.queenSessionId,
+          root: hive.queenSessionId,
+          depth: 1,
+          delegation_parent: hive.queenSessionId,
+          attention_cause: null,
           parent_run_session: hive.queenSessionId,
         },
         {
-          child: helper, parent: lead, root: hive.queenSessionId, depth: 2,
-          delegation_parent: lead, attention_cause: 'worker_request', parent_run_session: lead,
+          child: helper,
+          parent: lead,
+          root: hive.queenSessionId,
+          depth: 2,
+          delegation_parent: lead,
+          attention_cause: 'worker_request',
+          parent_run_session: lead,
         },
       ])
     } finally {
@@ -71,7 +80,13 @@ describe('Hive Session fixtures', () => {
   it('refuses a parent that is not an earlier Worker', async () => {
     await expect(
       seedHive(userDataDir, { title: 'Queen', updatedAt: 30, messages: [] }, [
-        { title: 'Orphan', updatedAt: 20, messages: [], delegationState: 'working', parentWorkerIndex: 0 },
+        {
+          title: 'Orphan',
+          updatedAt: 20,
+          messages: [],
+          delegationState: 'working',
+          parentWorkerIndex: 0,
+        },
       ]),
     ).rejects.toThrow('must name an earlier Worker')
   })

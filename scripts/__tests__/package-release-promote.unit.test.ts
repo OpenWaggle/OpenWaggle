@@ -4,9 +4,7 @@ import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  releaseAssetRepairPlan,
-} from '../package-release-artifact-contract'
+import { releaseAssetRepairPlan } from '../package-release-artifact-contract'
 import {
   promoteVerifiedPackageRelease,
   readPackageReleasePlan,
@@ -132,12 +130,15 @@ describe('package release promotion', () => {
     const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-promotion-plan-'))
     const planPath = path.join(temporaryDirectory, 'plan.json')
     try {
-      await writeFile(planPath, JSON.stringify({
-        packages: [plan.packages[0]],
-        schemaVersion: 1,
-        sourceSha: 'source-sha',
-        sourceTree: 'source-tree',
-      }))
+      await writeFile(
+        planPath,
+        JSON.stringify({
+          packages: [plan.packages[0]],
+          schemaVersion: 1,
+          sourceSha: 'source-sha',
+          sourceTree: 'source-tree',
+        }),
+      )
 
       await expect(readPackageReleasePlan(planPath)).rejects.toThrow(
         '@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release',
@@ -173,13 +174,17 @@ describe('package release promotion', () => {
     const registry = new Map([['@openwaggle/waggle-core@0.1.1', 'sha512-core']])
     let sdkPublishAttempts = 0
     const dependencies = {
-      ensureGitHubRelease: vi.fn(async ({ artifact }: {
-        readonly artifact: { readonly tag: string }
-        readonly artifactRoot: string
-        readonly sourceSha: string
-      }) => {
-        events.push(`release:${artifact.tag}`)
-      }),
+      ensureGitHubRelease: vi.fn(
+        async ({
+          artifact,
+        }: {
+          readonly artifact: { readonly tag: string }
+          readonly artifactRoot: string
+          readonly sourceSha: string
+        }) => {
+          events.push(`release:${artifact.tag}`)
+        },
+      ),
       ensureTag: vi.fn(async (tag: string) => {
         events.push(`tag:${tag}`)
       }),
@@ -191,8 +196,8 @@ describe('package release promotion', () => {
         }
         registry.set(`${artifact.name}@0.1.1`, artifact.integrity)
       }),
-      readRegistryIntegrity: vi.fn(async (name: string, version: string) =>
-        registry.get(`${name}@${version}`) ?? null,
+      readRegistryIntegrity: vi.fn(
+        async (name: string, version: string) => registry.get(`${name}@${version}`) ?? null,
       ),
       sleep: vi.fn(async () => undefined),
     }

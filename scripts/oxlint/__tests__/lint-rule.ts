@@ -17,7 +17,13 @@ interface ReportedPosition {
 type ReportDescriptor = Parameters<Context['report']>[0]
 
 /** A rule option as JSON, the form a lint config passes it in. */
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
 
 // RuleTester registers a describe/it per case; run them inline so each `lint()` call parses and
 // lints synchronously inside the calling test.
@@ -77,29 +83,32 @@ export function lintWithRule(
     ...rule,
     create(context) {
       // The context is frozen, so the proxy wraps a copy and forwards every other key to it.
-      const collectingContext = new Proxy<Context>({ ...context }, {
-        get(_target, key) {
-          if (key === 'report') {
-            return (descriptor: ReportDescriptor) => {
-              const start = reportedStart(context, descriptor)
-              messages.push({
-                ruleId,
-                message: resolveMessage(rule, descriptor),
-                line: start.line,
-                column: start.column + 1,
-              })
+      const collectingContext = new Proxy<Context>(
+        { ...context },
+        {
+          get(_target, key) {
+            if (key === 'report') {
+              return (descriptor: ReportDescriptor) => {
+                const start = reportedStart(context, descriptor)
+                messages.push({
+                  ruleId,
+                  message: resolveMessage(rule, descriptor),
+                  line: start.line,
+                  column: start.column + 1,
+                })
+              }
             }
-          }
-          const value: unknown = Reflect.get(context, key, context)
-          if (typeof value !== 'function') {
-            return value
-          }
-          return (...args: unknown[]) => {
-            const result: unknown = Reflect.apply(value, context, args)
-            return result
-          }
+            const value: unknown = Reflect.get(context, key, context)
+            if (typeof value !== 'function') {
+              return value
+            }
+            return (...args: unknown[]) => {
+              const result: unknown = Reflect.apply(value, context, args)
+              return result
+            }
+          },
         },
-      })
+      )
       return create(collectingContext)
     },
   }

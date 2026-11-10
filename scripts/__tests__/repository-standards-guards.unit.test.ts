@@ -93,7 +93,7 @@ describe('non-disruptive Electron automation boundary', () => {
       "const marker = 'OPENWAGGLE_AUTOMATION'; electron.launch({ args: ['.'], env: {} })"
     const aliased =
       "import { _electron as appDriver } from '@playwright/test'; appDriver.launch({ env: {} })"
-    const safe = "launchOpenWaggleElectron({ userDataDir, hidden: true })"
+    const safe = 'launchOpenWaggleElectron({ userDataDir, hidden: true })'
 
     expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', unsafe)).toHaveLength(1)
     expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', misleading)).toHaveLength(1)
@@ -218,7 +218,8 @@ describe('SessionSummaryRow column detection', () => {
   })
 
   it('still ignores a projection of aggregates only', () => {
-    const contents = 'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, MAX(created_at) FROM sessions`'
+    const contents =
+      'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, MAX(created_at) FROM sessions`'
 
     expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
   })
@@ -281,9 +282,9 @@ describe('exact dependency versions', () => {
     })
 
     expect(collectExactDependencyVersionViolations('package.json', contents)).toEqual([])
-    expect(collectExactDependencyVersionViolations('packages/pi-waggle/package.json', contents)).toEqual(
-      [],
-    )
+    expect(
+      collectExactDependencyVersionViolations('packages/pi-waggle/package.json', contents),
+    ).toEqual([])
   })
 
   it('reports caret, tilde, and open ranges in every installed section', () => {

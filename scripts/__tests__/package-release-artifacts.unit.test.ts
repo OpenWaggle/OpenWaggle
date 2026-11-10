@@ -44,7 +44,13 @@ async function createArtifactBundle() {
     writeFile(path.join(packageRoot, 'dist', 'index.js'), 'export {}\n'),
   ])
   const tarball = 'openwaggle-extension-sdk-0.1.1.tgz'
-  await run('tar', ['-czf', path.join(artifactRoot, tarball), '-C', path.join(root, 'source'), 'package'])
+  await run('tar', [
+    '-czf',
+    path.join(artifactRoot, tarball),
+    '-C',
+    path.join(root, 'source'),
+    'package',
+  ])
   const contents = await readFile(path.join(artifactRoot, tarball))
   const plan: PackageReleasePlan = {
     packages: [
@@ -62,32 +68,36 @@ async function createArtifactBundle() {
   }
   await writeFile(
     path.join(artifactRoot, 'release-artifacts.json'),
-    `${JSON.stringify({
-      packages: [
-        {
-          file: tarball,
-          integrity: `sha512-${createHash('sha512').update(contents).digest('base64')}`,
-          key: 'extension-sdk',
-          name: '@openwaggle/extension-sdk',
-          releaseNotes: 'SDK notes',
-          sha256: createHash('sha256').update(contents).digest('hex'),
-          tag: 'extension-sdk-v0.1.1',
-          version: '0.1.1',
-        },
-      ],
-      schemaVersion: 1,
-      sourceSha: 'source-sha',
-      sourceTree: 'source-tree',
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        packages: [
+          {
+            file: tarball,
+            integrity: `sha512-${createHash('sha512').update(contents).digest('base64')}`,
+            key: 'extension-sdk',
+            name: '@openwaggle/extension-sdk',
+            releaseNotes: 'SDK notes',
+            sha256: createHash('sha256').update(contents).digest('hex'),
+            tag: 'extension-sdk-v0.1.1',
+            version: '0.1.1',
+          },
+        ],
+        schemaVersion: 1,
+        sourceSha: 'source-sha',
+        sourceTree: 'source-tree',
+      },
+      null,
+      2,
+    )}\n`,
   )
   return { artifactRoot, plan, tarball }
 }
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { force: true, recursive: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { force: true, recursive: true })),
   )
 })
 
@@ -129,7 +139,10 @@ describe('package release artifacts', () => {
 
     const fresh = await createArtifactBundle()
     await expect(
-      verifyReleaseArtifactBundle({ ...fresh.plan, sourceTree: 'different-tree' }, fresh.artifactRoot),
+      verifyReleaseArtifactBundle(
+        { ...fresh.plan, sourceTree: 'different-tree' },
+        fresh.artifactRoot,
+      ),
     ).rejects.toThrow('source identity')
   })
 })

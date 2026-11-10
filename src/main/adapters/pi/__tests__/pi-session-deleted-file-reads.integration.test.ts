@@ -45,9 +45,8 @@ beforeEach(async () => {
 })
 
 async function opened(sessionId: SessionId) {
-  const { dispatchHostBackedSessionGuiOperation } = await import(
-    '../../../application/host-ui-session-operation-dispatcher'
-  )
+  const { dispatchHostBackedSessionGuiOperation } =
+    await import('../../../application/host-ui-session-operation-dispatcher')
   return run(dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]))
 }
 
@@ -62,9 +61,8 @@ describe('A forked discovered Session whose Pi file was deleted', () => {
     const { cli, sessionId: id } = await discoveredSession(fixture)
     const sessionId = SessionId(id)
     const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
+    const { forkSession } =
+      await import('../../../application/host-ui-session-lifecycle-operations')
     const forked = await run(forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
     const forkTitle = forked.cancelled ? '' : forked.session.title
     await fs.rm(cli.file)

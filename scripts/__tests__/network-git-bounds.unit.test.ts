@@ -32,7 +32,8 @@ describe('git commands that reach the network', () => {
        * version of this test silently matched nothing.
        */
       for (const match of source.matchAll(/runGit\(/gu)) {
-        const window = source.slice(match.index, match.index + WINDOW_CHARS).split('runGit(')[1] ?? ''
+        const window =
+          source.slice(match.index, match.index + WINDOW_CHARS).split('runGit(')[1] ?? ''
         const call = window.split('\n\n')[0] ?? ''
         const usesNetworkVerb = NETWORK_VERBS.some((verb) => call.includes(`'${verb}'`))
         if (usesNetworkVerb && !call.includes('networkGitOptions')) {

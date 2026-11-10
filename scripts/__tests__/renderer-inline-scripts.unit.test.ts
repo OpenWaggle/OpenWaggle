@@ -44,7 +44,10 @@ describe('the built renderer page against its CSP hash', () => {
   })
 
   it('fails a build that adds an inline script, and ignores bundled ones', () => {
-    const html = builtPage(sourceInlineScript()).replace('</head>', '<script>void 0</script></head>')
+    const html = builtPage(sourceInlineScript()).replace(
+      '</head>',
+      '<script>void 0</script></head>',
+    )
 
     expect(inlineScriptHashes(builtPage(sourceInlineScript()))).toHaveLength(1)
     expect(

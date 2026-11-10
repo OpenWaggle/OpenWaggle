@@ -126,9 +126,8 @@ export async function registerProjects(projectPaths: readonly string[]) {
 
 /** The Session Host's lifecycle create, which the Host entry passes to discovery. */
 export async function lifecycleCreate() {
-  const { createDiscoveredSessionWithLifecycle } = await import(
-    '../../../application/pi-session-discovery-lifecycle'
-  )
+  const { createDiscoveredSessionWithLifecycle } =
+    await import('../../../application/pi-session-discovery-lifecycle')
   return createDiscoveredSessionWithLifecycle
 }
 
@@ -148,16 +147,14 @@ export async function discoverOne() {
 }
 
 export async function openSession(sessionId: string) {
-  const { refreshPiSessionProjection } = await import(
-    '../../../application/pi-session-projection-refresh'
-  )
+  const { refreshPiSessionProjection } =
+    await import('../../../application/pi-session-projection-refresh')
   return run(refreshPiSessionProjection(SessionId(sessionId), 'reader'))
 }
 
 export async function sessionDetail(sessionId: string) {
-  const { SessionProjectionRepository } = await import(
-    '../../../ports/session-projection-repository'
-  )
+  const { SessionProjectionRepository } =
+    await import('../../../ports/session-projection-repository')
   return run(
     Effect.flatMap(SessionProjectionRepository, (repository) =>
       repository.getOptional(SessionId(sessionId)),

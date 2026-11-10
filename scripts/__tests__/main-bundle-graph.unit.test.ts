@@ -5,7 +5,12 @@ import {
   processStartupChunks,
 } from '../main-bundle-graph'
 
-function chunk(file: string, modules: readonly string[], imports: readonly string[] = [], dynamicImports: readonly string[] = []) {
+function chunk(
+  file: string,
+  modules: readonly string[],
+  imports: readonly string[] = [],
+  dynamicImports: readonly string[] = [],
+) {
   return { file, isEntry: file === 'index.js', modules, imports, dynamicImports }
 }
 

@@ -50,10 +50,7 @@ describe('pending package documentation guards', () => {
           lifecyclePath.join(publishedRoot, 'api-reference.md'),
           'Published API.\n',
         ),
-        lifecycleFs.writeFile(
-          lifecyclePath.join(pendingRoot, 'index.md'),
-          'Future 0.2 guide.\n',
-        ),
+        lifecycleFs.writeFile(lifecyclePath.join(pendingRoot, 'index.md'), 'Future 0.2 guide.\n'),
         lifecycleFs.writeFile(
           lifecyclePath.join(packageRoot, 'package.json'),
           `${JSON.stringify(manifest, null, 2)}\n`,

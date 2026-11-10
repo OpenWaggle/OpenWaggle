@@ -5,16 +5,18 @@ const MINIMUM_PACKAGE_SMOKE_NODE_MAJOR = 22
 const MINIMUM_PACKAGE_SMOKE_NODE_MINOR = 19
 
 export function assertReactPeerDependencies(manifest: unknown) {
-  const peerDependencies = isObject(manifest) && isObject(manifest.peerDependencies)
-    ? manifest.peerDependencies
-    : undefined
-  const dependencies = isObject(manifest) && isObject(manifest.dependencies)
-    ? manifest.dependencies
-    : undefined
+  const peerDependencies =
+    isObject(manifest) && isObject(manifest.peerDependencies)
+      ? manifest.peerDependencies
+      : undefined
+  const dependencies =
+    isObject(manifest) && isObject(manifest.dependencies) ? manifest.dependencies : undefined
 
   for (const dependencyName of ['react', 'react-dom']) {
     if (peerDependencies?.[dependencyName] !== '^19.0.0') {
-      throw new Error(`@openwaggle/extension-react must declare ${dependencyName} as a peer dependency.`)
+      throw new Error(
+        `@openwaggle/extension-react must declare ${dependencyName} as a peer dependency.`,
+      )
     }
 
     if (dependencies?.[dependencyName] !== undefined) {
@@ -76,7 +78,8 @@ export function resolvePackageSmokeCatalogVersion(
   if (!specifier.startsWith('catalog:')) return specifier
   const workspace: unknown = parse(workspaceConfig)
   const catalogName = specifier.slice('catalog:'.length)
-  const catalogs = isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
+  const catalogs =
+    isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
   const catalog = catalogs && isObject(catalogs[catalogName]) ? catalogs[catalogName] : undefined
   const version = catalog?.[dependencyName]
   if (typeof version !== 'string') {
@@ -134,7 +137,8 @@ export function assertNoWorkspaceProtocols(packageName: string, manifest: unknow
  */
 export function piRuntimeSmokePins(workspaceConfig: string): Record<string, string> {
   const workspace: unknown = parse(workspaceConfig)
-  const catalogs = isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
+  const catalogs =
+    isObject(workspace) && isObject(workspace.catalogs) ? workspace.catalogs : undefined
   const catalog = catalogs && isObject(catalogs['pi-runtime']) ? catalogs['pi-runtime'] : {}
   const pins: Record<string, string> = {}
   for (const [name, version] of Object.entries(catalog)) {
@@ -180,7 +184,8 @@ const INSTALLED_DEPENDENCY_SECTIONS = ['dependencies', 'optionalDependencies'] a
 function bundledDependencyNames(manifest: { readonly [key: string]: unknown }) {
   for (const key of ['bundleDependencies', 'bundledDependencies']) {
     const value = manifest[key]
-    if (Array.isArray(value)) return value.filter((name): name is string => typeof name === 'string')
+    if (Array.isArray(value))
+      return value.filter((name): name is string => typeof name === 'string')
   }
   return []
 }

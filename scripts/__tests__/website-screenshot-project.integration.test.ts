@@ -5,10 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  createScreenshotProject,
-  OUTPUT_IMAGE_RELATIVE_PATH,
-} from '../website-screenshot-project'
+import { createScreenshotProject, OUTPUT_IMAGE_RELATIVE_PATH } from '../website-screenshot-project'
 
 const execFileAsync = promisify(execFile)
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -21,7 +18,9 @@ describe('website screenshot project', () => {
   let scratch = ''
 
   beforeEach(async () => {
-    scratch = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-shots-project-')))
+    scratch = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-shots-project-')),
+    )
   })
 
   afterEach(async () => {

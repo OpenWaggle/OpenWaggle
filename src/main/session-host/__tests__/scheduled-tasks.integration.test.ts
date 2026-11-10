@@ -265,9 +265,8 @@ describe('Scheduled task runs', () => {
         Effect.asVoid,
       ),
     )
-    const { loadRunExecutionProfile } = await import(
-      '../../adapters/session-control-run-executor-profile'
-    )
+    const { loadRunExecutionProfile } =
+      await import('../../adapters/session-control-run-executor-profile')
     const profile = await run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         loadRunExecutionProfile(sql, {

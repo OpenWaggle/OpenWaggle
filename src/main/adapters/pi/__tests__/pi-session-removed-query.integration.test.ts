@@ -30,9 +30,8 @@ describe('A query about a Session that was removed', () => {
   it.each<['requests-list' | 'queue-list']>([['requests-list'], ['queue-list']])(
     'answers that the Session is not found for %s',
     async (operation) => {
-      const { dispatchLocalSessionCommand } = await import(
-        '../../../application/local-session-command-dispatcher'
-      )
+      const { dispatchLocalSessionCommand } =
+        await import('../../../application/local-session-command-dispatcher')
 
       const result = await run(
         dispatchLocalSessionCommand({
@@ -56,9 +55,8 @@ describe('A query about a Session that was removed', () => {
   )
 
   it('answers every action on an unknown ID with one not-found shape (#351)', async () => {
-    const { dispatchLocalSessionCommand } = await import(
-      '../../../application/local-session-command-dispatcher'
-    )
+    const { dispatchLocalSessionCommand } =
+      await import('../../../application/local-session-command-dispatcher')
     const caller = { callerId: 'gui:local-user', workingDirectory: fixture.project }
     const unknown = 'session-that-never-existed'
 

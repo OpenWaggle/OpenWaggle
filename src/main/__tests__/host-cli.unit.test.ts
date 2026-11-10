@@ -16,9 +16,8 @@ vi.mock('../session-host/local-session-client', async () => ({
 }))
 
 const { formatHostStopReport, runHostCli, stopHost } = await import('../host-cli')
-const { LocalSessionHostUpgradePendingError } = await import(
-  '../session-host/local-session-client-connection'
-)
+const { LocalSessionHostUpgradePendingError } =
+  await import('../session-host/local-session-client-connection')
 const { parseMcpCliArguments } = await import('../mcp-cli-arguments')
 type HostCliDependencies = NonNullable<Parameters<typeof runHostCli>[1]>
 
@@ -32,18 +31,17 @@ function dependencies(input: {
   readonly updateStop?: HostCliDependencies['updateStop']
 }) {
   const probes = [...input.probes]
-  const execute = vi.fn(
-    async (): Promise<LocalSessionCommandResult> =>
-      fromPartial({
-        contract: 'local-host-v1',
-        response: {
-          contractVersion: 1,
-          operation: 'stop',
-          hostInstanceId: 'host-1',
-          blockingRuns: input.blockingRuns ?? 0,
-          blockingActions: input.blockingActions ?? 0,
-        },
-      }),
+  const execute = vi.fn(async (): Promise<LocalSessionCommandResult> =>
+    fromPartial({
+      contract: 'local-host-v1',
+      response: {
+        contractVersion: 1,
+        operation: 'stop',
+        hostInstanceId: 'host-1',
+        blockingRuns: input.blockingRuns ?? 0,
+        blockingActions: input.blockingActions ?? 0,
+      },
+    }),
   )
   let time = 0
   const value: HostCliDependencies = {

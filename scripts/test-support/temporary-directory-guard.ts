@@ -7,7 +7,10 @@ import path from 'node:path'
  * (`tsx-<uid>`, from tests that run scripts with tsx). Code under test creates them, but they are
  * not a test's own temporary files.
  */
-const TEMPORARY_DIRECTORY_CACHE_ENTRIES: ReadonlySet<string> = new Set(['jiti', 'node-compile-cache'])
+const TEMPORARY_DIRECTORY_CACHE_ENTRIES: ReadonlySet<string> = new Set([
+  'jiti',
+  'node-compile-cache',
+])
 const TSX_CACHE_ENTRY = /^tsx-[\w-]+$/
 
 function isToolCache(entry: string) {
@@ -72,7 +75,9 @@ export function createTestTemporaryDirectory(input: {
   const root = fs.mkdtempSync(path.join(input.runRoot, 'f'))
   const temporaryDirectory = path.join(root, 'tmp')
   fs.mkdirSync(temporaryDirectory)
-  const previous = TEMPORARY_DIRECTORY_VARIABLES.map((name) => [name, input.environment[name]] as const)
+  const previous = TEMPORARY_DIRECTORY_VARIABLES.map(
+    (name) => [name, input.environment[name]] as const,
+  )
   for (const name of TEMPORARY_DIRECTORY_VARIABLES) input.environment[name] = temporaryDirectory
 
   return {

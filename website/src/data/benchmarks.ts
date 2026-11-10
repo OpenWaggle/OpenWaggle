@@ -45,13 +45,17 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
     name: 'Pi CLI',
     version: '1.4.0',
     routing: 'Raw openai-completions endpoint via proxy',
-    notes: ['The Pi version OpenWaggle bundles. OpenWaggle adds its Hive, codemode and tool search on top.'],
+    notes: [
+      'The Pi version OpenWaggle bundles. OpenWaggle adds its Hive, codemode and tool search on top.',
+    ],
   },
   opencode: {
     name: 'opencode',
     version: '1.19.4',
     routing: 'OpenAI-compatible provider via proxy',
-    notes: ['The run made two model calls, the second a background title request; the chart counts the first.'],
+    notes: [
+      'The run made two model calls, the second a background title request; the chart counts the first.',
+    ],
   },
   codex: {
     name: 'Codex CLI',
@@ -70,7 +74,8 @@ const ENTRY_COPY: Record<string, EntryCopy> = {
 }
 
 /** The OpenWaggle build the run measured: its package version and source commit. */
-export const openwaggleBuild: { readonly appVersion: string; readonly commit: string } = results.openwaggleBuild
+export const openwaggleBuild: { readonly appVersion: string; readonly commit: string } =
+  results.openwaggleBuild
 
 const MEASURED_ENTRIES: BenchmarkEntry[] = results.entries.map((result) => {
   const copy = ENTRY_COPY[result.id]

@@ -112,26 +112,31 @@ export async function collectReleases(options: SnapshotJobOptions): Promise<Snap
     url = nextPage(response.headers.get('Link'))
   }
   if (url !== undefined) {
-    options.log(`::warning::Stopped reading GitHub releases after ${String(MAX_RELEASE_PAGES)} pages.`)
+    options.log(
+      `::warning::Stopped reading GitHub releases after ${String(MAX_RELEASE_PAGES)} pages.`,
+    )
   }
   return releases
 }
 
 function dailyCounts(days: readonly { timestamp: string; count: number; uniques: number }[]) {
-  return days.map(
-    (day): SnapshotDailyCount => ({
-      day: day.timestamp.slice(0, ISO_DAY_LENGTH),
-      count: day.count,
-      uniques: day.uniques,
-    }),
-  )
+  return days.map((day): SnapshotDailyCount => ({
+    day: day.timestamp.slice(0, ISO_DAY_LENGTH),
+    count: day.count,
+    uniques: day.uniques,
+  }))
 }
 
 function popular(entries: readonly { name: string; count: number; uniques: number }[]) {
   return entries.map(({ name, count, uniques }): SnapshotPopularEntry => ({ name, count, uniques }))
 }
 
-const TRAFFIC_PATHS = ['views?per=day', 'clones?per=day', 'popular/referrers', 'popular/paths'] as const
+const TRAFFIC_PATHS = [
+  'views?per=day',
+  'clones?per=day',
+  'popular/referrers',
+  'popular/paths',
+] as const
 const HTTP_UNAUTHORIZED = 401
 const HTTP_FORBIDDEN = 403
 
@@ -161,7 +166,9 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
   const bodies: unknown[] = []
   for (const read of reads) {
     if (read.failure !== undefined) {
-      options.log(`::warning::GitHub traffic could not be read (${read.failure}); the snapshot carries no traffic.`)
+      options.log(
+        `::warning::GitHub traffic could not be read (${read.failure}); the snapshot carries no traffic.`,
+      )
       return null
     }
     if (!read.response.ok) {
@@ -186,7 +193,9 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
 }
 
 /** One package's daily downloads, or why it is skipped. */
-function npmDays(read: JsonRead): { readonly days: SnapshotNpmPackage['days'] } | { readonly skipped: string } {
+function npmDays(
+  read: JsonRead,
+): { readonly days: SnapshotNpmPackage['days'] } | { readonly skipped: string } {
   if (read.failure !== undefined) return { skipped: `could not be read (${read.failure})` }
   if (!read.response.ok) return { skipped: `answered ${String(read.response.status)}` }
   if (!isNpmRange(read.body)) return { skipped: 'returned an unexpected shape' }
@@ -200,7 +209,9 @@ function npmDays(read: JsonRead): { readonly days: SnapshotNpmPackage['days'] } 
  * The endpoint keeps what it already forwarded for a skipped package, and the next snapshot's
  * month-long range catches up on an outage shorter than that month.
  */
-export async function collectNpmDownloads(options: SnapshotJobOptions): Promise<SnapshotNpmPackage[]> {
+export async function collectNpmDownloads(
+  options: SnapshotJobOptions,
+): Promise<SnapshotNpmPackage[]> {
   const packages: SnapshotNpmPackage[] = []
   for (const name of SNAPSHOT_NPM_PACKAGES) {
     const read = await readOptionalJson(options, `${NPM_DOWNLOADS_API}/${name}`, {
@@ -216,7 +227,9 @@ export async function collectNpmDownloads(options: SnapshotJobOptions): Promise<
   return packages
 }
 
-export async function collectUsageStatsSnapshot(options: SnapshotJobOptions): Promise<UsageStatsSnapshot> {
+export async function collectUsageStatsSnapshot(
+  options: SnapshotJobOptions,
+): Promise<UsageStatsSnapshot> {
   const [releases, traffic, npm] = await Promise.all([
     collectReleases(options),
     collectTraffic(options),
@@ -227,7 +240,10 @@ export async function collectUsageStatsSnapshot(options: SnapshotJobOptions): Pr
 
 function summary(snapshot: UsageStatsSnapshot) {
   const assets = snapshot.releases.reduce((total, release) => total + release.assets.length, 0)
-  const traffic = snapshot.traffic === null ? 'no traffic' : `${String(snapshot.traffic.views.length)} traffic days`
+  const traffic =
+    snapshot.traffic === null
+      ? 'no traffic'
+      : `${String(snapshot.traffic.views.length)} traffic days`
   return `Collected ${String(snapshot.releases.length)} releases with ${String(assets)} downloaded assets, ${traffic}, ${String(snapshot.npm.length)} npm packages.`
 }
 
@@ -250,10 +266,14 @@ function failureMessage(step: string, error: unknown) {
  * Sends the snapshot, then flushes the buffered app statistics whether or not the snapshot
  * succeeded, since they do not depend on it; fails when either step failed.
  */
-export async function runUsageStatsSnapshot(options: SnapshotJobOptions & { readonly dryRun: boolean }) {
+export async function runUsageStatsSnapshot(
+  options: SnapshotJobOptions & { readonly dryRun: boolean },
+) {
   const token = configured(options.env.STATS_SNAPSHOT_TOKEN)
   if (token === undefined && !options.dryRun) {
-    options.log('::notice::STATS_SNAPSHOT_TOKEN is not set; skipping the usage statistics snapshot.')
+    options.log(
+      '::notice::STATS_SNAPSHOT_TOKEN is not set; skipping the usage statistics snapshot.',
+    )
     return
   }
   if (options.dryRun || token === undefined) {

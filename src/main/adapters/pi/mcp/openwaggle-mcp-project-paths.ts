@@ -2,9 +2,8 @@
 
 /** Session workspace roots, paged as `WorkspaceProjectAuthorization` reads them. */
 async function sessionWorkspaceRoots() {
-  const { listSessionWorkspaceRootPage } = await import(
-    '../../../store/session-details/workspace-root-authorization'
-  )
+  const { listSessionWorkspaceRootPage } =
+    await import('../../../store/session-details/workspace-root-authorization')
   const roots: string[] = []
   let afterRoot: string | undefined
   while (true) {
@@ -40,8 +39,7 @@ export async function knownMcpProjectPaths(): Promise<readonly string[]> {
  * untracked file in the user's checkout.
  */
 export async function durableMcpProjectPaths(): Promise<readonly string[]> {
-  const { listSessionProjectRoots } = await import(
-    '../../../store/session-details/workspace-root-authorization'
-  )
+  const { listSessionProjectRoots } =
+    await import('../../../store/session-details/workspace-root-authorization')
   return [...new Set([...(await settingsProjectPaths()), ...(await listSessionProjectRoots())])]
 }

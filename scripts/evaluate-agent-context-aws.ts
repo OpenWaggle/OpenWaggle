@@ -12,7 +12,8 @@ export type AwsCli = (args: readonly string[]) => string
 
 const SESSION_TOKEN_SECONDS = 3_600
 
-const defaultAwsCli: AwsCli = (args) => execFileSync('aws', [...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+const defaultAwsCli: AwsCli = (args) =>
+  execFileSync('aws', [...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 interface ExportedCredentials {
   readonly accessKeyId: string
@@ -57,14 +58,32 @@ export function shortLivedAwsEnvironment(
 ): Record<string, string> {
   const { AWS_PROFILE: profile, ...rest } = environment
   if (!profile) return { ...environment }
-  const exportArgs = ['configure', 'export-credentials', '--profile', profile, '--format', 'process']
+  const exportArgs = [
+    'configure',
+    'export-credentials',
+    '--profile',
+    profile,
+    '--format',
+    'process',
+  ]
   let credentials = parseCredentials(aws(exportArgs), 'aws configure export-credentials')
   if (!credentials.expires) {
-    const tokenArgs = ['sts', 'get-session-token', '--profile', profile, '--duration-seconds', String(SESSION_TOKEN_SECONDS), '--output', 'json']
+    const tokenArgs = [
+      'sts',
+      'get-session-token',
+      '--profile',
+      profile,
+      '--duration-seconds',
+      String(SESSION_TOKEN_SECONDS),
+      '--output',
+      'json',
+    ]
     credentials = parseCredentials(aws(tokenArgs), 'aws sts get-session-token')
   }
   const region =
-    rest.AWS_REGION ?? rest.AWS_DEFAULT_REGION ?? aws(['configure', 'get', 'region', '--profile', profile]).trim()
+    rest.AWS_REGION ??
+    rest.AWS_DEFAULT_REGION ??
+    aws(['configure', 'get', 'region', '--profile', profile]).trim()
   return {
     ...rest,
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,

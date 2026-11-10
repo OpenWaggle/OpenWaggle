@@ -13,7 +13,12 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { sampleAppMemory } from './lib/app-memory'
 import { startCliRun } from './lib/cli-run'
-import { configureFakeProvider, FAKE_MODEL_REFERENCE, isTitleRequest, startFakeProvider } from './lib/fake-openai-provider'
+import {
+  configureFakeProvider,
+  FAKE_MODEL_REFERENCE,
+  isTitleRequest,
+  startFakeProvider,
+} from './lib/fake-openai-provider'
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
 import { resolvePerfApp, stopProcessGroup } from './lib/perf-app'
 import { profileHostPids, sampleProcesses } from './lib/perf-processes'
@@ -64,7 +69,12 @@ async function sampleIdleHost(userData: string, secondsAfterClose: number, appEx
     hostTreeFootprintMb: tree.footprintMb,
     hostTreeProcesses: tree.processCount,
     hostTreeByRole: tree.byRole,
-    hostCpuPercent: Math.round(((after.cpuNs - before.cpuNs) / NANOSECONDS_PER_MILLISECOND / CPU_WINDOW_MS) * PERCENT * PERCENT) / PERCENT,
+    hostCpuPercent:
+      Math.round(
+        ((after.cpuNs - before.cpuNs) / NANOSECONDS_PER_MILLISECOND / CPU_WINDOW_MS) *
+          PERCENT *
+          PERCENT,
+      ) / PERCENT,
   }
 }
 
@@ -88,10 +98,18 @@ async function measureIdle(appPath: string, label: string | undefined) {
         },
       },
       async ({ profile, launched, browser }) => {
-        const run = startCliRun(app, profile, { prompt: 'What is the answer?', model: FAKE_MODEL_REFERENCE, environment: HEAVY_USER_MCP_ENVIRONMENT })
+        const run = startCliRun(app, profile, {
+          prompt: 'What is the answer?',
+          model: FAKE_MODEL_REFERENCE,
+          environment: HEAVY_USER_MCP_ENVIRONMENT,
+        })
         await Promise.race([run.exited, delay(RUN_TIMEOUT_MS)])
         await stopProcessGroup(run.launched.child)
-        const attached = sampleAppMemory({ guiPid: launched.child.pid, userData: profile.userData, appExecutable: app.executable })
+        const attached = sampleAppMemory({
+          guiPid: launched.child.pid,
+          userData: profile.userData,
+          appExecutable: app.executable,
+        })
         await browser.close().catch(() => undefined)
         await stopProcessGroup(launched.child)
         const closedAt = Date.now()
@@ -124,8 +142,13 @@ async function main() {
     process.exit(USAGE_EXIT_CODE)
   }
   const runs = Number.parseInt(values.runs ?? String(DEFAULT_RUNS), DECIMAL)
-  const indexed = apps.map((appPath, index) => ({ appPath, label: values.label?.[index] ?? path.basename(appPath) }))
-  const results: Record<string, object[]> = Object.fromEntries(indexed.map((entry) => [entry.label, []]))
+  const indexed = apps.map((appPath, index) => ({
+    appPath,
+    label: values.label?.[index] ?? path.basename(appPath),
+  }))
+  const results: Record<string, object[]> = Object.fromEntries(
+    indexed.map((entry) => [entry.label, []]),
+  )
   for (let run = 0; run < runs; run += 1) {
     for (const entry of run % ORDERS === 0 ? indexed : [...indexed].reverse()) {
       try {
@@ -138,9 +161,22 @@ async function main() {
       }
     }
   }
-  const metrics = ['attachedFootprintMb', 'idleHostFootprintMb', 'idleHostTreeFootprintMb', 'idleHostCpuPercent']
-  const summary = Object.fromEntries(Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]))
-  const report = { kind: 'idle-host', environment: measurementEnvironment(), runs, summary, results }
+  const metrics = [
+    'attachedFootprintMb',
+    'idleHostFootprintMb',
+    'idleHostTreeFootprintMb',
+    'idleHostCpuPercent',
+  ]
+  const summary = Object.fromEntries(
+    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]),
+  )
+  const report = {
+    kind: 'idle-host',
+    environment: measurementEnvironment(),
+    runs,
+    summary,
+    results,
+  }
   if (values.out) log(`Wrote ${await writeJsonResult(values.out, 'idle-host.json', report)}`)
   process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
 }
@@ -148,7 +184,9 @@ async function main() {
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

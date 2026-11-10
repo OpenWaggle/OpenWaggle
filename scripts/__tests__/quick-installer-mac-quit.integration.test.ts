@@ -83,9 +83,7 @@ ${section(source, QUIT_START, QUIT_END)}
 quit_running_mac_app "$1"
 printf 'quit=%s\\n' "\${QUIT_MAC_APP}"`
   const result = await execFileAsync('bash', ['-c', script, 'installer-mac-quit-test', bundlePath])
-  const killedPids = (await fs.readFile(killed, 'utf8').catch(() => ''))
-    .split('\n')
-    .filter(Boolean)
+  const killedPids = (await fs.readFile(killed, 'utf8').catch(() => '')).split('\n').filter(Boolean)
   return { stdout: result.stdout.trim(), killedPids }
 }
 

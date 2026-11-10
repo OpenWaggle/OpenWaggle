@@ -231,9 +231,8 @@ function migrateOnce(projectPath: string | null, readOld: ReadOldSignIn | undefi
 
 /** An old MCP-off switch; a Session deleted since then has nothing to carry over. */
 async function carryOverSessionMcpOff(sessionId: string) {
-  const { disableSessionMcp, UnknownMcpSessionError } = await import(
-    '../../../store/session-mcp-switch'
-  )
+  const { disableSessionMcp, UnknownMcpSessionError } =
+    await import('../../../store/session-mcp-switch')
   await disableSessionMcp(sessionId).catch((error: unknown) => {
     if (!(error instanceof UnknownMcpSessionError)) throw error
   })

@@ -3,7 +3,8 @@
  * into one `file:line:col rule message` line per finding, and drops the trailing problem count.
  * A line that is not a finding, such as a crash or a config error, is kept as it is.
  */
-const UNIX_FINDING = /^(?<location>.+?:\d+:\d+): (?<message>.*) \[(?:Error|Warning)(?:\/(?<rule>[^\]]+))?\]$/u
+const UNIX_FINDING =
+  /^(?<location>.+?:\d+:\d+): (?<message>.*) \[(?:Error|Warning)(?:\/(?<rule>[^\]]+))?\]$/u
 const PROBLEM_COUNT = /^\d+ problems?$/u
 
 function compactRuleName(rule: string) {

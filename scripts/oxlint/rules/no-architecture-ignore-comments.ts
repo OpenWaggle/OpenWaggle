@@ -1,11 +1,6 @@
 import type { Rule } from '@oxlint/plugins'
 
-const FORBIDDEN_IGNORE_MARKERS = [
-  'eslint-disable',
-  'biome-ignore',
-  'fallow-ignore',
-  'SAFETY:',
-]
+const FORBIDDEN_IGNORE_MARKERS = ['eslint-disable', 'biome-ignore', 'fallow-ignore', 'SAFETY:']
 
 export const noArchitectureIgnoreCommentsRule: Rule = {
   meta: {

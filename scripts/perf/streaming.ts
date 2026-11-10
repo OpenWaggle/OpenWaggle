@@ -12,7 +12,12 @@
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import type { CDPSession, Page } from '@playwright/test'
-import { configureFakeProvider, FAKE_MODEL_REFERENCE, isTitleRequest, startFakeProvider } from './lib/fake-openai-provider'
+import {
+  configureFakeProvider,
+  FAKE_MODEL_REFERENCE,
+  isTitleRequest,
+  startFakeProvider,
+} from './lib/fake-openai-provider'
 import { summarizeIpc } from './lib/ipc-summary'
 import { IPC_LOG_INSTALL, IPC_LOG_READ, IPC_LOG_RESET } from './lib/main-inspector'
 import { resolvePerfApp } from './lib/perf-app'
@@ -34,8 +39,24 @@ const P50 = 0.5
 const P95 = 0.95
 const P99 = 0.99
 const USAGE_EXIT_CODE = 2
-const TRACE_CATEGORIES = ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute', 'blink.user_timing', 'toplevel']
-const METRICS = ['busyPercent', 'frameP50Ms', 'frameP95Ms', 'frameP99Ms', 'framesOver33Ms', 'framesOver100Ms', 'agentEventCount', 'agentEventBytes', 'domNodes']
+const TRACE_CATEGORIES = [
+  'devtools.timeline',
+  'disabled-by-default-devtools.timeline',
+  'v8.execute',
+  'blink.user_timing',
+  'toplevel',
+]
+const METRICS = [
+  'busyPercent',
+  'frameP50Ms',
+  'frameP95Ms',
+  'frameP99Ms',
+  'framesOver33Ms',
+  'framesOver100Ms',
+  'agentEventCount',
+  'agentEventBytes',
+  'domNodes',
+]
 
 const { values } = parseArgs({
   options: {
@@ -51,8 +72,11 @@ async function selectFakeModel(page: Page) {
   await page.evaluate(async (model) => {
     const api: unknown = Reflect.get(globalThis, 'api')
     const call = (name: string, argument: unknown) => {
-      const method: unknown = typeof api === 'object' && api !== null ? Reflect.get(api, name) : null
-      return typeof method === 'function' ? Promise.resolve(Reflect.apply(method, api, [argument])) : Promise.resolve()
+      const method: unknown =
+        typeof api === 'object' && api !== null ? Reflect.get(api, name) : null
+      return typeof method === 'function'
+        ? Promise.resolve(Reflect.apply(method, api, [argument]))
+        : Promise.resolve()
     }
     await call('setEnabledModels', [model])
     await call('updateSettings', { selectedModel: model })
@@ -65,8 +89,13 @@ async function selectFakeModel(page: Page) {
 async function traced(cdp: CDPSession, during: () => Promise<void>) {
   const events: unknown[] = []
   cdp.on('Tracing.dataCollected', (payload) => events.push(...payload.value))
-  const complete = new Promise<void>((resolve) => cdp.once('Tracing.tracingComplete', () => resolve()))
-  await cdp.send('Tracing.start', { transferMode: 'ReportEvents', traceConfig: { includedCategories: TRACE_CATEGORIES } })
+  const complete = new Promise<void>((resolve) =>
+    cdp.once('Tracing.tracingComplete', () => resolve()),
+  )
+  await cdp.send('Tracing.start', {
+    transferMode: 'ReportEvents',
+    traceConfig: { includedCategories: TRACE_CATEGORIES },
+  })
   await during()
   await cdp.send('Tracing.end')
   await complete
@@ -141,7 +170,9 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
           const value: unknown = Reflect.get(globalThis, '__owFrames')
           return value
         })
-        const ipc = summarizeIpc(JSON.parse(String(await inspector?.evaluate(IPC_LOG_READ) ?? 'null')))
+        const ipc = summarizeIpc(
+          JSON.parse(String((await inspector?.evaluate(IPC_LOG_READ)) ?? 'null')),
+        )
         const agentEvents = ipc.pushedChannels['agent:event'] ?? { count: 0, bytes: 0 }
         const bounds = traceBounds(trace)
         return {
@@ -149,7 +180,11 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
           throttle,
           providerRequests: provider.requests.length,
           ...rendererMainThreadBusy(trace, bounds.startUs, bounds.endUs),
-          ...frameStats(Array.isArray(frames) ? frames.filter((frame): frame is number => typeof frame === 'number') : []),
+          ...frameStats(
+            Array.isArray(frames)
+              ? frames.filter((frame): frame is number => typeof frame === 'number')
+              : [],
+          ),
           agentEventCount: agentEvents.count,
           agentEventBytes: agentEvents.bytes,
           domNodes: await page.evaluate(() => document.getElementsByTagName('*').length),
@@ -169,8 +204,13 @@ async function main() {
   }
   const runs = Number.parseInt(values.runs ?? String(DEFAULTS.runs), DECIMAL)
   const throttle = Number(values['cpu-throttle'] ?? DEFAULTS.throttle)
-  const indexed = apps.map((appPath, index) => ({ appPath, label: values.label?.[index] ?? path.basename(appPath) }))
-  const results: Record<string, object[]> = Object.fromEntries(indexed.map((entry) => [entry.label, []]))
+  const indexed = apps.map((appPath, index) => ({
+    appPath,
+    label: values.label?.[index] ?? path.basename(appPath),
+  }))
+  const results: Record<string, object[]> = Object.fromEntries(
+    indexed.map((entry) => [entry.label, []]),
+  )
   for (let run = 0; run < runs; run += 1) {
     for (const entry of run % ORDERS === 0 ? indexed : [...indexed].reverse()) {
       try {
@@ -183,16 +223,28 @@ async function main() {
       }
     }
   }
-  const summary = Object.fromEntries(Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, METRICS)]))
-  const report = { kind: 'streaming', environment: measurementEnvironment(), runs, throttle, summary, results }
-  if (values.out) log(`Wrote ${await writeJsonResult(values.out, `streaming-x${String(throttle)}.json`, report)}`)
+  const summary = Object.fromEntries(
+    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, METRICS)]),
+  )
+  const report = {
+    kind: 'streaming',
+    environment: measurementEnvironment(),
+    runs,
+    throttle,
+    summary,
+    results,
+  }
+  if (values.out)
+    log(`Wrote ${await writeJsonResult(values.out, `streaming-x${String(throttle)}.json`, report)}`)
   process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
 }
 
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

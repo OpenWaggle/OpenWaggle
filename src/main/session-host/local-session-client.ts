@@ -22,10 +22,7 @@ export {
   type LocalSessionClientConnectionInput,
   LocalSessionHostUpgradePendingError,
 } from './local-session-client-connection'
-export {
-  type LocalSessionWatchResult,
-  watchLocalSessionEvents,
-} from './local-session-event-client'
+export { type LocalSessionWatchResult, watchLocalSessionEvents } from './local-session-event-client'
 
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 

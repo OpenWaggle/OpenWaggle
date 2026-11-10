@@ -19,7 +19,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function traceEventOf(value: unknown): TraceEvent | null {
-  if (!isRecord(value) || typeof value.name !== 'string' || typeof value.ph !== 'string') return null
+  if (!isRecord(value) || typeof value.name !== 'string' || typeof value.ph !== 'string')
+    return null
   const args = isRecord(value.args) ? value.args : {}
   return {
     name: value.name,
@@ -36,14 +37,23 @@ function traceEventOf(value: unknown): TraceEvent | null {
  * The share of a window the renderer main thread spent running tasks, from a Chrome trace: the
  * busiest `CrRendererMain` thread's top-level tasks, without double-counting nested ones.
  */
-export function rendererMainThreadBusy(rawEvents: readonly unknown[], windowStartUs: number, windowEndUs: number) {
+export function rendererMainThreadBusy(
+  rawEvents: readonly unknown[],
+  windowStartUs: number,
+  windowEndUs: number,
+) {
   const events = rawEvents.flatMap((raw) => {
     const event = traceEventOf(raw)
     return event ? [event] : []
   })
   const mainThreads = new Set(
     events
-      .filter((event) => event.ph === 'M' && event.name === 'thread_name' && event.threadName === RENDERER_MAIN_THREAD)
+      .filter(
+        (event) =>
+          event.ph === 'M' &&
+          event.name === 'thread_name' &&
+          event.threadName === RENDERER_MAIN_THREAD,
+      )
       .map((event) => `${String(event.pid)}:${String(event.tid)}`),
   )
   const counts = new Map<string, number>()
@@ -53,7 +63,12 @@ export function rendererMainThreadBusy(rawEvents: readonly unknown[], windowStar
   }
   const busiest = [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0]
   const tasks = events
-    .filter((event) => `${String(event.pid)}:${String(event.tid)}` === busiest && event.ph === 'X' && TOP_LEVEL_TASKS.has(event.name))
+    .filter(
+      (event) =>
+        `${String(event.pid)}:${String(event.tid)}` === busiest &&
+        event.ph === 'X' &&
+        TOP_LEVEL_TASKS.has(event.name),
+    )
     .filter((event) => event.ts >= windowStartUs && event.ts <= windowEndUs)
     .sort((left, right) => left.ts - right.ts)
   let coveredUntil = 0

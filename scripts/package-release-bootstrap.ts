@@ -23,7 +23,9 @@ const USER_ARGUMENT_START_INDEX = 2
 
 function parseMode(args: readonly string[]) {
   if (args.some((arg) => /(?:auth|otp|token)/iu.test(arg))) {
-    throw new Error('Credential arguments are not supported; use authenticated npm and gh sessions.')
+    throw new Error(
+      'Credential arguments are not supported; use authenticated npm and gh sessions.',
+    )
   }
   if (args.length === 0) return 'preflight' as const
   if (args.length === 1 && args[0] === '--execute') return 'execute' as const

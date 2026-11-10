@@ -33,9 +33,7 @@ import type { WaggleConfig, WagglePreset } from './waggle'
 // Each entry defines: [channel name, args tuple, return type]
 
 export interface IpcIntegrationInvokeChannelMap
-  extends IpcWorkspaceFileInvokeChannelMap,
-    IpcGitInvokeChannelMap,
-    IpcTerminalInvokeChannelMap {
+  extends IpcWorkspaceFileInvokeChannelMap, IpcGitInvokeChannelMap, IpcTerminalInvokeChannelMap {
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
     return: PreparedAttachment[]

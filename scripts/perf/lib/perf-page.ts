@@ -64,7 +64,12 @@ function installBootProbe(conditions: BootProbeConditions) {
     // Observers are best effort; the milestones below do not depend on them.
   }
   let scheduled = false
-  const wanted = ['shell', 'composer', 'chatReady', ...(conditions.sessionListText ? ['sessionList'] : [])]
+  const wanted = [
+    'shell',
+    'composer',
+    'chatReady',
+    ...(conditions.sessionListText ? ['sessionList'] : []),
+  ]
   // Each check reads the whole page's text, which costs the renderer a layout and more per frame
   // the DOM changes: left watching, it was part of every later measurement, such as streaming.
   const observer = new MutationObserver(() => {
@@ -155,7 +160,10 @@ export async function waitForMilestones(page: Page, names: readonly string[], ti
   )
 }
 
-export async function readRendererBoot(page: Page, instrumentedFromStart: boolean): Promise<RendererBoot> {
+export async function readRendererBoot(
+  page: Page,
+  instrumentedFromStart: boolean,
+): Promise<RendererBoot> {
   const boot = await page.evaluate(() => {
     const probe: unknown = Reflect.get(globalThis, '__owPerf')
     const isState = (value: unknown): value is BootProbeState =>

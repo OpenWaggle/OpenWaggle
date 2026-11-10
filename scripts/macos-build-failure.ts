@@ -94,7 +94,9 @@ function everyReportMatches(reports: readonly string[], transientError: RegExp) 
 export function transientMacosBuildFailure(log: string): TransientMacosBuildFailure | null {
   const notaryReports = failureReports(log, NOTARYTOOL_FAILURE)
   if (notaryReports.length > 0) {
-    return everyReportMatches(notaryReports, TRANSIENT_NOTARY_ERROR) ? 'notarization-connection' : null
+    return everyReportMatches(notaryReports, TRANSIENT_NOTARY_ERROR)
+      ? 'notarization-connection'
+      : null
   }
   const stapleReports = failureReports(log, STAPLE_FAILURE)
   if (stapleReports.length > 0) {

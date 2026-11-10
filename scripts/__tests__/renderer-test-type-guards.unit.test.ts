@@ -8,9 +8,9 @@ describe('isRendererTestFile', () => {
      * also appear in `--listFiles`, so an unscoped count stayed in the hundreds even with every
      * renderer test excluded - measuring the wrong project's health.
      */
-    expect(isRendererTestFile('/repo/src/renderer/src/features/a/__tests__/a.component.test.tsx')).toBe(
-      true,
-    )
+    expect(
+      isRendererTestFile('/repo/src/renderer/src/features/a/__tests__/a.component.test.tsx'),
+    ).toBe(true)
     expect(isRendererTestFile('/repo/src/renderer/src/lib/b.unit.test.ts')).toBe(true)
     expect(isRendererTestFile('/repo/src/main/store/__tests__/c.unit.test.ts')).toBe(false)
     expect(isRendererTestFile('/repo/src/renderer/src/features/a/Component.tsx')).toBe(false)

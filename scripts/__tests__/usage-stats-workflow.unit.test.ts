@@ -15,9 +15,13 @@ describe('usage statistics snapshot workflow', () => {
   })
 
   it('runs daily and on demand, only in the OpenWaggle repository', () => {
-    expect(EXECUTABLE).toMatch(/^on:\n {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"\n {2}workflow_dispatch:$/mu)
+    expect(EXECUTABLE).toMatch(
+      /^on:\n {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"\n {2}workflow_dispatch:$/mu,
+    )
     expect(EXECUTABLE).toContain("if: github.repository == 'OpenWaggle/OpenWaggle'")
-    expect(EXECUTABLE).toContain('concurrency:\n  group: usage-stats-snapshot\n  cancel-in-progress: false')
+    expect(EXECUTABLE).toContain(
+      'concurrency:\n  group: usage-stats-snapshot\n  cancel-in-progress: false',
+    )
   })
 
   it('reads the repository and never writes to it', () => {

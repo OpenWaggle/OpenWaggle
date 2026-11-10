@@ -195,7 +195,9 @@ describe('OpenWaggle lint plugin', () => {
     )
 
     expect(messages).toHaveLength(1)
-    expect(messages.at(0)?.message).toContain('Source tests must live under a local __tests__ directory')
+    expect(messages.at(0)?.message).toContain(
+      'Source tests must live under a local __tests__ directory',
+    )
   })
 
   it('allows source tests under __tests__ directories', () => {
@@ -316,5 +318,4 @@ describe('OpenWaggle lint plugin', () => {
 
     expect(messages).toHaveLength(0)
   })
-
 })

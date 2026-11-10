@@ -10,7 +10,9 @@ const notarization = {
 
 describe('macOS signing', () => {
   it('keeps dev builds unsigned even when a certificate is present', () => {
-    expect(resolveMacSigning('dev', { ...certificate, ...notarization })).toEqual({ identity: null })
+    expect(resolveMacSigning('dev', { ...certificate, ...notarization })).toEqual({
+      identity: null,
+    })
   })
 
   it('leaves builds unsigned without a certificate, whatever the channel', () => {
@@ -24,6 +26,9 @@ describe('macOS signing', () => {
       hardenedRuntime: true,
       notarize: true,
     })
-    expect(resolveMacSigning('beta', certificate)).toEqual({ hardenedRuntime: true, notarize: false })
+    expect(resolveMacSigning('beta', certificate)).toEqual({
+      hardenedRuntime: true,
+      notarize: false,
+    })
   })
 })

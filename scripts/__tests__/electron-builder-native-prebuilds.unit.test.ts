@@ -6,7 +6,9 @@ const CONPTY = 'node_modules/**/node-pty/third_party/conpty'
 
 describe('foreign native prebuild exclusions', () => {
   it('keeps only the packaged architecture of the bundled ConPTY on Windows', () => {
-    expect(foreignNativePrebuildExclusions('win32')).toContain(`!${CONPTY}/*/!(win10-\${arch}){,/**/*}`)
+    expect(foreignNativePrebuildExclusions('win32')).toContain(
+      `!${CONPTY}/*/!(win10-\${arch}){,/**/*}`,
+    )
     expect(foreignNativePrebuildExclusions('win32')).not.toContain(`!${CONPTY}{,/**/*}`)
   })
 
@@ -18,8 +20,12 @@ describe('foreign native prebuild exclusions', () => {
 
   it('keys every other exclusion on the packaged platform and architecture macros', () => {
     const exclusions = foreignNativePrebuildExclusions('linux')
-    expect(exclusions).toContain('!node_modules/**/onnxruntime-node/bin/napi-v6/!(${platform}){,/**/*}')
-    expect(exclusions).toContain('!node_modules/**/better-sqlite3/prebuilds/!(${platform}-${arch}.node)')
+    expect(exclusions).toContain(
+      '!node_modules/**/onnxruntime-node/bin/napi-v6/!(${platform}){,/**/*}',
+    )
+    expect(exclusions).toContain(
+      '!node_modules/**/better-sqlite3/prebuilds/!(${platform}-${arch}.node)',
+    )
     expect(exclusions).toContain(
       '!node_modules/**/onnxruntime-node/bin/napi-v6/linux/*/libonnxruntime_providers_{cuda,tensorrt}.so',
     )

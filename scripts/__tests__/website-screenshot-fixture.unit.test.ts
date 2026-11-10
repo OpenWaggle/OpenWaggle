@@ -22,7 +22,10 @@ describe('website marketing Waggle fixture', () => {
 
   it('attributes every reply to a Waggle turn of an agent with its own model', () => {
     expect(
-      safeDecodeUnknown(waggleInvocationMetadataSchema, marketingPrompt(0).metadata.waggleInvocation),
+      safeDecodeUnknown(
+        waggleInvocationMetadataSchema,
+        marketingPrompt(0).metadata.waggleInvocation,
+      ),
     ).toMatchObject({ success: true })
 
     const turns = marketingReplies(0).map((reply) => {

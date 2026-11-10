@@ -17,7 +17,10 @@ async function currentPackageLine(slug: string) {
   const manifest: unknown = JSON.parse(
     await lifecycleFs.readFile(lifecyclePath.join('packages', slug, 'package.json'), 'utf8'),
   )
-  const version = typeof manifest === 'object' && manifest !== null && 'version' in manifest ? manifest.version : undefined
+  const version =
+    typeof manifest === 'object' && manifest !== null && 'version' in manifest
+      ? manifest.version
+      : undefined
   if (typeof version !== 'string') throw new Error(`packages/${slug}/package.json has no version.`)
   return documentationVersionFromPackageVersion(version)
 }
@@ -45,7 +48,13 @@ afterEach(async () => {
 describe('installed docs generator output', () => {
   it('fills in the install command placeholders the website fills in', async () => {
     const installation = await lifecycleFs.readFile(
-      lifecyclePath.join(outputRoot(), 'topics', 'openwaggle', 'getting-started', 'installation.md'),
+      lifecyclePath.join(
+        outputRoot(),
+        'topics',
+        'openwaggle',
+        'getting-started',
+        'installation.md',
+      ),
       'utf8',
     )
 
@@ -221,16 +230,12 @@ describe('installed docs generator output', () => {
         .filter((destination) => destination !== undefined)
 
       for (const destination of destinations) {
-        if (
-          destination.startsWith('#') ||
-          /^[a-z][a-z\d+.-]*:/iu.test(destination)
-        ) {
+        if (destination.startsWith('#') || /^[a-z][a-z\d+.-]*:/iu.test(destination)) {
           continue
         }
-        expect(
-          destination.startsWith('/'),
-          `${topic.topic} retains a website-root link`,
-        ).toBe(false)
+        expect(destination.startsWith('/'), `${topic.topic} retains a website-root link`).toBe(
+          false,
+        )
         const localPath = destination.split(/[?#]/u, 1)[0]
         if (!localPath) continue
         await expect(

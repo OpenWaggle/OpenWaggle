@@ -43,14 +43,12 @@ function renderWizard(
   const onClose = vi.fn()
   const onImport =
     options.onImport ??
-    vi.fn(
-      async (): Promise<GuidedBrowserImportResult> => ({
-        ok: true,
-        result: { imported: 1, skipped: 0, skippedDomains: [] },
-        targetName: 'Chrome',
-        createdProfile: null,
-      }),
-    )
+    vi.fn(async (): Promise<GuidedBrowserImportResult> => ({
+      ok: true,
+      result: { imported: 1, skipped: 0, skippedDomains: [] },
+      targetName: 'Chrome',
+      createdProfile: null,
+    }))
   const onRefreshSource = options.onRefreshSource ?? vi.fn(async () => readySource)
   const onOpenFullDiskAccessSettings =
     options.onOpenFullDiskAccessSettings ?? vi.fn(async () => true)
@@ -178,13 +176,11 @@ describe('BrowserImportWizard', () => {
 
   it('offers selection recovery when the profile cap changes during import', async () => {
     renderWizard({
-      onImport: vi.fn(
-        async (): Promise<GuidedBrowserImportResult> => ({
-          ok: false,
-          reason: 'profile-limit-reached',
-          message: 'Limit reached.',
-        }),
-      ),
+      onImport: vi.fn(async (): Promise<GuidedBrowserImportResult> => ({
+        ok: false,
+        reason: 'profile-limit-reached',
+        message: 'Limit reached.',
+      })),
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Import cookies' }))

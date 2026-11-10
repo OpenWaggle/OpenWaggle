@@ -120,8 +120,7 @@ function isBudgetMap(value: unknown): value is Readonly<Record<string, number>> 
 
 function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
   if (typeof value !== 'object' || value === null || !('metricBudgetsMs' in value)) return false
-  const medianBudgets =
-    'metricMedianBudgetsMs' in value ? value.metricMedianBudgetsMs : undefined
+  const medianBudgets = 'metricMedianBudgetsMs' in value ? value.metricMedianBudgetsMs : undefined
   return (
     isBudgetMap(value.metricBudgetsMs) &&
     (medianBudgets === undefined || isBudgetMap(medianBudgets))
@@ -208,7 +207,9 @@ async function main() {
       const metric = Object.entries(metrics).find(([metricName]) => metricName === name)?.[1]
       if (!metric) return [`${name} is configured but was not measured`]
       return metric[field] > budget
-        ? [`${name} ${label} ${metric[field].toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`]
+        ? [
+            `${name} ${label} ${metric[field].toFixed(DECIMAL_PLACES)} ms exceeded ${String(budget)} ms`,
+          ]
         : []
     })
   const failures = [

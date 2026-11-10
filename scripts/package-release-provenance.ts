@@ -17,10 +17,7 @@ function isJsonObject(value: unknown): value is { readonly [key: string]: unknow
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function packageReleaseAttestationVerificationArgs(
-  file: string,
-  repository: string,
-) {
+export function packageReleaseAttestationVerificationArgs(file: string, repository: string) {
   return [
     'attestation',
     'verify',
@@ -70,10 +67,8 @@ export function assertPackageReleaseAttestationIdentity(
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error('Artifact attestation verification returned no identity result.')
   }
-  const expectedWorkflowPrefix =
-    `https://github.com/${identity.repository}/.github/workflows/ci.yml@`
-  const expectedRunPrefix =
-    `https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/`
+  const expectedWorkflowPrefix = `https://github.com/${identity.repository}/.github/workflows/ci.yml@`
+  const expectedRunPrefix = `https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/`
   const sourceShas = new Set(
     value
       .map((entry) => attestationSourceSha(entry, expectedWorkflowPrefix, expectedRunPrefix))
@@ -129,9 +124,7 @@ function runGh(args: readonly string[]) {
   })
 }
 
-export async function verifyPackageReleaseArtifactProvenance(
-  input: PackageReleaseProvenanceInput,
-) {
+export async function verifyPackageReleaseArtifactProvenance(input: PackageReleaseProvenanceInput) {
   const sourceShas = new Set<string>()
   for (const artifactFile of input.artifactFiles) {
     const verification = await runGh(

@@ -37,7 +37,10 @@ async function main() {
   const vectors = await model.embedPassages(documents.map(([, document]) => document))
   const passageBatchMs = performance.now() - startedAt
   index.replace(
-    documents.map(([sessionId], index) => ({ sessionId, vector: vectors[index] ?? new Float32Array() })),
+    documents.map(([sessionId], index) => ({
+      sessionId,
+      vector: vectors[index] ?? new Float32Array(),
+    })),
   )
   const results = []
   for (const [query, expected] of queries) {
@@ -53,9 +56,7 @@ async function main() {
       passed: matches[0]?.sessionId === expected,
     })
   }
-  const passed = results.every(
-    (result) => result.passed && result.queryMs < QUERY_LATENCY_LIMIT_MS,
-  )
+  const passed = results.every((result) => result.passed && result.queryMs < QUERY_LATENCY_LIMIT_MS)
   process.stdout.write(
     `${JSON.stringify(
       {

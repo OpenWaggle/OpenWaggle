@@ -19,7 +19,8 @@ describe('package consumer tools', () => {
         runCommand: async (command, args) => {
           commands.push({ command, args })
           if (args[0] !== 'pack') return ''
-          const filename = args[1] === 'npm@11.18.0' ? 'npm-11.18.0.tgz' : 'yarnpkg-cli-dist-4.17.1.tgz'
+          const filename =
+            args[1] === 'npm@11.18.0' ? 'npm-11.18.0.tgz' : 'yarnpkg-cli-dist-4.17.1.tgz'
           return JSON.stringify([{ filename }])
         },
         appendSearchPath: async (filePath, contents) => {
@@ -34,47 +35,55 @@ describe('package consumer tools', () => {
     )
 
     expect(commands).toHaveLength(3)
-    expect(commands[0]?.args).toEqual(expect.arrayContaining([
-      'pack',
-      'npm@11.18.0',
-      '--json',
-      '--ignore-scripts',
-      '--pack-destination=/tmp/tools/downloads',
-      '--registry=https://registry.npmjs.org/',
-    ]))
-    expect(commands[1]?.args).toEqual(expect.arrayContaining([
-      'pack',
-      '@yarnpkg/cli-dist@4.17.1',
-      '--json',
-      '--ignore-scripts',
-      '--pack-destination=/tmp/tools/downloads',
-      '--registry=https://registry.npmjs.org/',
-    ]))
-    expect(commands[2]?.args).toEqual(expect.arrayContaining([
-      '--global',
-      '--ignore-scripts',
-      '--prefix=/tmp/tools',
-      '--registry=https://registry.npmjs.org/',
-      '/tmp/tools/downloads/npm-11.18.0.tgz',
-      '/tmp/tools/downloads/yarnpkg-cli-dist-4.17.1.tgz',
-    ]))
+    expect(commands[0]?.args).toEqual(
+      expect.arrayContaining([
+        'pack',
+        'npm@11.18.0',
+        '--json',
+        '--ignore-scripts',
+        '--pack-destination=/tmp/tools/downloads',
+        '--registry=https://registry.npmjs.org/',
+      ]),
+    )
+    expect(commands[1]?.args).toEqual(
+      expect.arrayContaining([
+        'pack',
+        '@yarnpkg/cli-dist@4.17.1',
+        '--json',
+        '--ignore-scripts',
+        '--pack-destination=/tmp/tools/downloads',
+        '--registry=https://registry.npmjs.org/',
+      ]),
+    )
+    expect(commands[2]?.args).toEqual(
+      expect.arrayContaining([
+        '--global',
+        '--ignore-scripts',
+        '--prefix=/tmp/tools',
+        '--registry=https://registry.npmjs.org/',
+        '/tmp/tools/downloads/npm-11.18.0.tgz',
+        '/tmp/tools/downloads/yarnpkg-cli-dist-4.17.1.tgz',
+      ]),
+    )
     expect(verifiedPackages).toHaveLength(2)
     expect(pathWrites).toEqual([{ filePath: '/tmp/github-path', contents: '/tmp/tools/bin\n' }])
   })
 
   it('fails before installation when downloaded package integrity changes', async () => {
-    await expect(installPackageConsumerTools(
-      { toolRoot: '/tmp/tools', githubPath: '/tmp/github-path' },
-      {
-        runCommand: async () => JSON.stringify([{ filename: 'package.tgz' }]),
-        appendSearchPath: async () => undefined,
-        prepareDirectory: async () => undefined,
-        verifyDownloadedPackage: async () => {
-          throw new Error('integrity mismatch')
+    await expect(
+      installPackageConsumerTools(
+        { toolRoot: '/tmp/tools', githubPath: '/tmp/github-path' },
+        {
+          runCommand: async () => JSON.stringify([{ filename: 'package.tgz' }]),
+          appendSearchPath: async () => undefined,
+          prepareDirectory: async () => undefined,
+          verifyDownloadedPackage: async () => {
+            throw new Error('integrity mismatch')
+          },
+          writeUserConfig: async () => undefined,
         },
-        writeUserConfig: async () => undefined,
-      },
-    )).rejects.toThrow('integrity mismatch')
+      ),
+    ).rejects.toThrow('integrity mismatch')
   })
 
   it('computes SHA-512 over the downloaded tarball bytes', async () => {
@@ -100,9 +109,8 @@ describe('package consumer tools', () => {
       ['bun', '1.3.14'],
     ])
     await verifyPackageConsumerTools('/tmp/tools', {
-      resolveExecutable: async (name) => name === 'npm' || name === 'yarn'
-        ? join('/tmp/tools', 'bin', name)
-        : `/usr/bin/${name}`,
+      resolveExecutable: async (name) =>
+        name === 'npm' || name === 'yarn' ? join('/tmp/tools', 'bin', name) : `/usr/bin/${name}`,
       runCommand: async (command) => versions.get(command.split('/').at(-1) ?? '') ?? '',
     })
   })

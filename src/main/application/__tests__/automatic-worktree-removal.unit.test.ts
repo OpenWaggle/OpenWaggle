@@ -21,9 +21,8 @@ const { listWorktreeInventoryMock, removeHostUiWorktreeMock } = vi.hoisted(() =>
 vi.mock('../worktree-inventory', () => ({ listWorktreeInventory: listWorktreeInventoryMock }))
 vi.mock('../host-ui-worktree-operation', () => ({ removeHostUiWorktree: removeHostUiWorktreeMock }))
 
-const { AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS, runAutomaticWorktreeRemovalPass } = await import(
-  '../automatic-worktree-removal'
-)
+const { AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS, runAutomaticWorktreeRemovalPass } =
+  await import('../automatic-worktree-removal')
 
 const NOW = 10 * AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS
 const MEASURED_BYTES = 2048
@@ -216,11 +215,10 @@ describe('Automatic worktree removal pass', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    removeHostUiWorktreeMock.mockImplementation(
-      (_projectPath: string, payload: { path: string }) =>
-        payload.path === '/wt/b'
-          ? Effect.promise(() => gate).pipe(Effect.as({ ok: true }))
-          : Effect.succeed({ ok: true }),
+    removeHostUiWorktreeMock.mockImplementation((_projectPath: string, payload: { path: string }) =>
+      payload.path === '/wt/b'
+        ? Effect.promise(() => gate).pipe(Effect.as({ ok: true }))
+        : Effect.succeed({ ok: true }),
     )
     const recorded: AutomaticWorktreeRemovalRun[] = []
     const checks: boolean[] = []
@@ -250,13 +248,12 @@ describe('Automatic worktree removal pass', () => {
       ],
     }
     listWorktreeInventoryMock.mockReturnValue(Effect.succeed(inventory))
-    removeHostUiWorktreeMock.mockImplementation(
-      (_projectPath: string, payload: { path: string }) =>
-        payload.path === '/wt/a'
-          ? Effect.succeed({ ok: true })
-          : payload.path === '/wt/d'
-            ? Effect.succeed({ ok: false, code: 'dirty-worktree', message: 'It changed.' })
-            : Effect.fail(new Error('Git crashed.')),
+    removeHostUiWorktreeMock.mockImplementation((_projectPath: string, payload: { path: string }) =>
+      payload.path === '/wt/a'
+        ? Effect.succeed({ ok: true })
+        : payload.path === '/wt/d'
+          ? Effect.succeed({ ok: false, code: 'dirty-worktree', message: 'It changed.' })
+          : Effect.fail(new Error('Git crashed.')),
     )
     const recorded: AutomaticWorktreeRemovalRun[] = []
     const checks: boolean[] = []

@@ -41,9 +41,8 @@ const fixture = setUpPiDiscoveryFixture(state)
 /** A Session OpenWaggle owns, with its Pi file, projected once. */
 async function openWaggleSession(prompt: string) {
   const cli = createPiCliSession(fixture.project, prompt)
-  const { SessionProjectionRepository } = await import(
-    '../../../ports/session-projection-repository'
-  )
+  const { SessionProjectionRepository } =
+    await import('../../../ports/session-projection-repository')
   const session = await run(
     Effect.flatMap(SessionProjectionRepository, (repository) =>
       repository.create({

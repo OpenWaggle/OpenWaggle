@@ -41,7 +41,7 @@ export function transcriptOrderViolations(
   // The pending previews end the list; one with a delivered message's text (a prompt) may repeat it.
   const pendingLeft = countKeys(pending)
   let end = shown.length
-  for (let key = shown[end - 1]; key !== undefined && (pendingLeft.get(key) ?? 0) > 0; ) {
+  for (let key = shown[end - 1]; key !== undefined && (pendingLeft.get(key) ?? 0) > 0;) {
     pendingLeft.set(key, (pendingLeft.get(key) ?? 0) - 1)
     end -= 1
     key = shown[end - 1]

@@ -9,7 +9,9 @@ import { BUNDLED_DEPS } from '../vite/main-externals'
 describe('main bundle dependencies', () => {
   it('bundles no renderer-only package', () => {
     const stale = BUNDLED_DEPS.filter((dependency) =>
-      prunedRuntimeIssues([`/node_modules/${dependency}/package.json`]).some((issue) => issue.startsWith('ships ')),
+      prunedRuntimeIssues([`/node_modules/${dependency}/package.json`]).some((issue) =>
+        issue.startsWith('ships '),
+      ),
     )
     expect(stale).toEqual([])
   })

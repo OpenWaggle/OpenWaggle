@@ -22,7 +22,8 @@ const TOOLSETS: Readonly<Record<string, Toolset>> = {
   generic: { count: 8, descriptionChars: 200, properties: 3 },
 }
 const GENERIC_TOOLSET: Toolset = { count: 8, descriptionChars: 200, properties: 3 }
-const FILLER = 'Returns the matching records with their identifiers, owners, status and timestamps. '
+const FILLER =
+  'Returns the matching records with their identifiers, owners, status and timestamps. '
 const NAME_PAD = 2
 const METHOD_NOT_FOUND = -32_601
 const PARSE_ERROR = -32_700
@@ -31,7 +32,10 @@ const TOOLSET_ARGUMENT = 2
 
 function toolsFor(name: string) {
   const set = TOOLSETS[name] ?? GENERIC_TOOLSET
-  const description = FILLER.repeat(Math.ceil(set.descriptionChars / FILLER.length)).slice(0, set.descriptionChars)
+  const description = FILLER.repeat(Math.ceil(set.descriptionChars / FILLER.length)).slice(
+    0,
+    set.descriptionChars,
+  )
   return Array.from({ length: set.count }, (_, index) => ({
     name: `${name}_operation_${String(index).padStart(NAME_PAD, '0')}`,
     description,
@@ -40,7 +44,10 @@ function toolsFor(name: string) {
       properties: Object.fromEntries(
         Array.from({ length: set.properties }, (_, property) => [
           `field${String(property)}`,
-          { type: 'string', description: `Filter value ${String(property)} for the ${name} operation.` },
+          {
+            type: 'string',
+            description: `Filter value ${String(property)} for the ${name} operation.`,
+          },
         ]),
       ),
       required: ['field0'],
@@ -49,11 +56,12 @@ function toolsFor(name: string) {
 }
 
 /** The `inventory` toolset answers from this table, so an evaluation can check the answer. */
-const INVENTORY: Readonly<Record<string, { readonly units: number; readonly warehouse: string }>> = {
-  'A-1042': { units: 17, warehouse: 'Lisbon' },
-  'B-2001': { units: 64, warehouse: 'Porto' },
-  'C-3003': { units: 5, warehouse: 'Faro' },
-}
+const INVENTORY: Readonly<Record<string, { readonly units: number; readonly warehouse: string }>> =
+  {
+    'A-1042': { units: 17, warehouse: 'Lisbon' },
+    'B-2001': { units: 64, warehouse: 'Porto' },
+    'C-3003': { units: 5, warehouse: 'Faro' },
+  }
 const INVENTORY_TOOLS = [
   {
     name: 'lookup_sku',
@@ -72,10 +80,12 @@ const INVENTORY_TOOLS = [
 ]
 
 const toolset = process.argv[TOOLSET_ARGUMENT] ?? 'generic'
-const tools = toolset === 'inventory' ? [...INVENTORY_TOOLS, ...toolsFor('generic')] : toolsFor(toolset)
+const tools =
+  toolset === 'inventory' ? [...INVENTORY_TOOLS, ...toolsFor('generic')] : toolsFor(toolset)
 
 function inventoryResult(name: string | undefined, args: Record<string, unknown> | null) {
-  if (name === 'list_warehouses') return [...new Set(Object.values(INVENTORY).map((entry) => entry.warehouse))].join(', ')
+  if (name === 'list_warehouses')
+    return [...new Set(Object.values(INVENTORY).map((entry) => entry.warehouse))].join(', ')
   const sku = stringField(args, 'sku') ?? ''
   const entry = INVENTORY[sku]
   return entry ? JSON.stringify({ sku, ...entry }) : `Unknown SKU ${sku}.`

@@ -18,7 +18,10 @@ function invokesOf(log: unknown): InvokeRecord[] {
   const invokes = isRecord(log) ? log.invokes : null
   if (!Array.isArray(invokes)) return []
   return invokes.flatMap((entry: unknown) =>
-    isRecord(entry) && typeof entry.channel === 'string' && typeof entry.bytes === 'number' && typeof entry.ms === 'number'
+    isRecord(entry) &&
+    typeof entry.channel === 'string' &&
+    typeof entry.bytes === 'number' &&
+    typeof entry.ms === 'number'
       ? [{ channel: entry.channel, bytes: entry.bytes, ms: entry.ms }]
       : [],
   )
@@ -56,6 +59,8 @@ export function summarizeIpc(log: unknown) {
         .sort((left, right) => right[1].bytes - left[1].bytes)
         .map(([channel, totals]) => [channel, { ...totals, ms: Math.round(totals.ms) }]),
     ),
-    pushedChannels: Object.fromEntries(pushed.map((entry) => [entry.channel, { count: entry.count, bytes: entry.bytes }])),
+    pushedChannels: Object.fromEntries(
+      pushed.map((entry) => [entry.channel, { count: entry.count, bytes: entry.bytes }]),
+    ),
   }
 }

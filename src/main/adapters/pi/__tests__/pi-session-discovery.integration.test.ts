@@ -87,9 +87,8 @@ describe('Pi session discovery', () => {
     await registerProjects([fixture.project])
     const own = createPiCliSession(fixture.project, 'Started in OpenWaggle')
     createPiCliSession(fixture.project, 'Being deleted')
-    const { SessionProjectionRepository } = await import(
-      '../../../ports/session-projection-repository'
-    )
+    const { SessionProjectionRepository } =
+      await import('../../../ports/session-projection-repository')
     await run(
       Effect.flatMap(SessionProjectionRepository, (repository) =>
         repository.create({

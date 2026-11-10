@@ -14,7 +14,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : '')).join('\n')
+  return content
+    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .join('\n')
 }
 
 export function systemSections(system: string) {
@@ -22,7 +24,8 @@ export function systemSections(system: string) {
   let consumed = 0
   for (const match of system.matchAll(SECTION_PATTERN)) {
     const before = system.slice(consumed, match.index).trim()
-    if (before.length > 0) sections.push({ name: sections.length === 0 ? 'preamble' : 'between-sections', text: before })
+    if (before.length > 0)
+      sections.push({ name: sections.length === 0 ? 'preamble' : 'between-sections', text: before })
     sections.push({ name: match[1] ?? 'section', text: match[0] })
     consumed = match.index + match[0].length
   }
@@ -34,10 +37,19 @@ export function systemSections(system: string) {
 function toolOf(value: unknown): PrefixTool[] {
   const fn = isRecord(value) && isRecord(value.function) ? value.function : null
   if (!fn || typeof fn.name !== 'string') return []
-  return [{ name: fn.name, description: typeof fn.description === 'string' ? fn.description : '', parameters: fn.parameters }]
+  return [
+    {
+      name: fn.name,
+      description: typeof fn.description === 'string' ? fn.description : '',
+      parameters: fn.parameters,
+    },
+  ]
 }
 
-export function prefixContentOfOpenAiRequest(body: Record<string, unknown>, prompt: string): PrefixContent {
+export function prefixContentOfOpenAiRequest(
+  body: Record<string, unknown>,
+  prompt: string,
+): PrefixContent {
   const messages = Array.isArray(body.messages) ? body.messages.filter(isRecord) : []
   const system = messages
     .filter((message) => message.role === 'system' || message.role === 'developer')

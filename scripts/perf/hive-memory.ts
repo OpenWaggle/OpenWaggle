@@ -35,7 +35,13 @@ const DRAIN_GRACE_MS = 120_000
 const DECIMAL = 10
 const ORDERS = 2
 const USAGE_EXIT_CODE = 2
-const METRICS = ['peakFootprintMb', 'medianFootprintMb', 'peakResidentMb', 'processCount', 'allActiveAfterMs']
+const METRICS = [
+  'peakFootprintMb',
+  'medianFootprintMb',
+  'peakResidentMb',
+  'processCount',
+  'allActiveAfterMs',
+]
 
 const { values } = parseArgs({
   options: {
@@ -47,7 +53,11 @@ const { values } = parseArgs({
   },
 })
 
-async function sampleWhileActive(guiPid: number | undefined, userData: string, appExecutable: string) {
+async function sampleWhileActive(
+  guiPid: number | undefined,
+  userData: string,
+  appExecutable: string,
+) {
   const samples: AppMemorySample[] = []
   for (let index = 0; index < SAMPLE_COUNT; index += 1) {
     samples.push(sampleAppMemory({ guiPid, userData, appExecutable }))
@@ -58,7 +68,11 @@ async function sampleWhileActive(guiPid: number | undefined, userData: string, a
 
 async function measureHive(appPath: string, label: string | undefined, workers: number) {
   const app = resolvePerfApp(appPath, label)
-  const hive = createScriptedHive({ workers, sleepSeconds: DEFAULTS.sleepSeconds, model: FAKE_MODEL_REFERENCE })
+  const hive = createScriptedHive({
+    workers,
+    sleepSeconds: DEFAULTS.sleepSeconds,
+    model: FAKE_MODEL_REFERENCE,
+  })
   const provider = await startFakeProvider(async (request, stream) =>
     isTitleRequest(request) ? stream.text('Memory Hive') : hive.respond(request, stream),
   )
@@ -84,13 +98,30 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
           yolo: true,
           environment: HEAVY_USER_MCP_ENVIRONMENT,
         })
-        const active = await Promise.race([hive.allActive.then(() => true), delay(ALL_ACTIVE_TIMEOUT_MS).then(() => false)])
+        const active = await Promise.race([
+          hive.allActive.then(() => true),
+          delay(ALL_ACTIVE_TIMEOUT_MS).then(() => false),
+        ])
         const allActiveAfterMs = Date.now() - startedAt
-        const samples = await sampleWhileActive(launched.child.pid, profile.userData, app.executable)
-        const settled = await Promise.race([run.exited, delay(DRAIN_GRACE_MS).then(() => 'timeout')])
+        const samples = await sampleWhileActive(
+          launched.child.pid,
+          profile.userData,
+          app.executable,
+        )
+        const settled = await Promise.race([
+          run.exited,
+          delay(DRAIN_GRACE_MS).then(() => 'timeout'),
+        ])
         if (settled === 'timeout') await stopProcessGroup(run.launched.child)
-        if (values.out) await writeJsonResult(values.out, `hive-provider-requests-${app.label}.json`, provider.requests)
-        const peak = samples.reduce((best, sample) => (sample.footprintMb > best.footprintMb ? sample : best))
+        if (values.out)
+          await writeJsonResult(
+            values.out,
+            `hive-provider-requests-${app.label}.json`,
+            provider.requests,
+          )
+        const peak = samples.reduce((best, sample) =>
+          sample.footprintMb > best.footprintMb ? sample : best,
+        )
         return {
           app: app.label,
           workers,
@@ -103,7 +134,12 @@ async function measureHive(appPath: string, label: string | undefined, workers: 
           processCount: peak.processCount,
           peakByRole: peak.byRole,
           providerRequests: provider.requests.length,
-          samples: samples.map(({ at, footprintMb, residentMb, processCount }) => ({ at, footprintMb, residentMb, processCount })),
+          samples: samples.map(({ at, footprintMb, residentMb, processCount }) => ({
+            at,
+            footprintMb,
+            residentMb,
+            processCount,
+          })),
         }
       },
     )
@@ -120,22 +156,38 @@ async function main() {
   }
   const runs = Number.parseInt(values.runs ?? String(DEFAULTS.runs), DECIMAL)
   const workers = Number.parseInt(values.workers ?? String(DEFAULTS.workers), DECIMAL)
-  const indexed = apps.map((appPath, index) => ({ appPath, label: values.label?.[index] ?? path.basename(appPath) }))
-  const results: Record<string, object[]> = Object.fromEntries(indexed.map((entry) => [entry.label, []]))
+  const indexed = apps.map((appPath, index) => ({
+    appPath,
+    label: values.label?.[index] ?? path.basename(appPath),
+  }))
+  const results: Record<string, object[]> = Object.fromEntries(
+    indexed.map((entry) => [entry.label, []]),
+  )
   for (let run = 0; run < runs; run += 1) {
     for (const entry of run % ORDERS === 0 ? indexed : [...indexed].reverse()) {
       try {
         const result = await measureHive(entry.appPath, entry.label, workers)
         results[entry.label]?.push(result)
-        log(`${entry.label} hive ${String(run + 1)}: ${JSON.stringify({ ...result, samples: undefined })}`)
+        log(
+          `${entry.label} hive ${String(run + 1)}: ${JSON.stringify({ ...result, samples: undefined })}`,
+        )
       } catch (error) {
         results[entry.label]?.push({ error: String(error) })
         log(`${entry.label} hive ${String(run + 1)} failed: ${String(error)}`)
       }
     }
   }
-  const summary = Object.fromEntries(Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, METRICS)]))
-  const report = { kind: 'hive-memory', environment: measurementEnvironment(), runs, workers, summary, results }
+  const summary = Object.fromEntries(
+    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, METRICS)]),
+  )
+  const report = {
+    kind: 'hive-memory',
+    environment: measurementEnvironment(),
+    runs,
+    workers,
+    summary,
+    results,
+  }
   if (values.out) log(`Wrote ${await writeJsonResult(values.out, 'hive-memory.json', report)}`)
   process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
 }
@@ -143,7 +195,9 @@ async function main() {
 main().then(
   () => exitWhenFlushed(typeof process.exitCode === 'number' ? process.exitCode : 0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     exitWhenFlushed(1)
   },
 )

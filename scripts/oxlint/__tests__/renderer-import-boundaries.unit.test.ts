@@ -18,7 +18,9 @@ describe('renderer import boundaries', () => {
     expect(isRendererImportAllowed('@/features/settings', importer)).toBe(true)
     expect(isRendererImportAllowed('@/features/settings/hooks', importer)).toBe(true)
     expect(isRendererImportAllowed('@/features/settings/hooks/useSettings', importer)).toBe(false)
-    expect(isRendererImportAllowed('@/features/settings/state/preferences-store', importer)).toBe(false)
+    expect(isRendererImportAllowed('@/features/settings/state/preferences-store', importer)).toBe(
+      false,
+    )
   })
 
   it('prevents shared modules from importing app features', () => {

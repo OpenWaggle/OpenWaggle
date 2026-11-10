@@ -27,7 +27,11 @@ export async function readCommitSubjects(cwd: string, from: string, to: string) 
   const fields = stdout.split('\0')
   const commits: CommitSubject[] = []
 
-  for (let index = 0; index + COMMIT_BODY_FIELD_OFFSET < fields.length; index += COMMIT_FIELD_COUNT) {
+  for (
+    let index = 0;
+    index + COMMIT_BODY_FIELD_OFFSET < fields.length;
+    index += COMMIT_FIELD_COUNT
+  ) {
     const hash = fields[index]
     const parents = fields[index + COMMIT_PARENTS_FIELD_OFFSET]
     const subject = fields[index + COMMIT_SUBJECT_FIELD_OFFSET]
@@ -44,7 +48,10 @@ export async function readCommitSubjects(cwd: string, from: string, to: string) 
     }
 
     const normalizedHash = hash.trim()
-    const parentHashes = parents.trim().split(' ').filter((parentHash) => parentHash.length > 0)
+    const parentHashes = parents
+      .trim()
+      .split(' ')
+      .filter((parentHash) => parentHash.length > 0)
     const firstParent = parentHashes[0]
     const changedPathsArgs =
       parentHashes.length > 1 && firstParent !== undefined
@@ -59,15 +66,16 @@ export async function readCommitSubjects(cwd: string, from: string, to: string) 
             '-z',
             normalizedHash,
           ]
-    const { stdout: changedPathsOutput } = await execFile(
-      'git',
-      changedPathsArgs,
-      { cwd, maxBuffer: GIT_LOG_MAX_BUFFER_BYTES },
-    )
+    const { stdout: changedPathsOutput } = await execFile('git', changedPathsArgs, {
+      cwd,
+      maxBuffer: GIT_LOG_MAX_BUFFER_BYTES,
+    })
 
     commits.push({
       body,
-      changedPaths: [...new Set(changedPathsOutput.split('\0').filter((entry) => entry.length > 0))],
+      changedPaths: [
+        ...new Set(changedPathsOutput.split('\0').filter((entry) => entry.length > 0)),
+      ],
       hash: normalizedHash,
       parentHashes,
       subject,

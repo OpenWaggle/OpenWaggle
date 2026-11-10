@@ -43,7 +43,9 @@ describe("a Pi package's host-provided dependencies", () => {
 
   it('ignores packages that are not Pi packages', () => {
     expect(() =>
-      assertPiHostPackagesArePeers('@openwaggle/waggle-core', { dependencies: { typebox: '1.3.32' } }),
+      assertPiHostPackagesArePeers('@openwaggle/waggle-core', {
+        dependencies: { typebox: '1.3.32' },
+      }),
     ).not.toThrow()
   })
 

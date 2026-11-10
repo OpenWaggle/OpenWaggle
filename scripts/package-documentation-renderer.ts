@@ -1,6 +1,5 @@
 const OPENWAGGLE_DOCS_ORIGIN = 'https://openwaggle.ai'
-const PACKAGE_INSTALL_PATTERN =
-  /<package-install packages="([^"]+)"><\/package-install>/gu
+const PACKAGE_INSTALL_PATTERN = /<package-install packages="([^"]+)"><\/package-install>/gu
 
 interface RenderPackageReadmeInput {
   readonly canonicalBody: string
@@ -47,11 +46,13 @@ export function packageInstallMarkdown(packages: string) {
 export function rewritePackageDocumentationLinks(markdown: string, docsUrl: string) {
   const versionedDocsUrl = ensureTrailingSlash(docsUrl)
   return markdown
-    .replaceAll(/\]\(\/docs\/([^\s)#]+)\)/gu, (_match, pathValue: string) =>
-      `](${OPENWAGGLE_DOCS_ORIGIN}/docs/${pathValue}/)`,
+    .replaceAll(
+      /\]\(\/docs\/([^\s)#]+)\)/gu,
+      (_match, pathValue: string) => `](${OPENWAGGLE_DOCS_ORIGIN}/docs/${pathValue}/)`,
     )
-    .replaceAll(/\]\(\.\/([^\s)#]+)\)/gu, (_match, pathValue: string) =>
-      `](${versionedDocsUrl}${pathValue}/)`,
+    .replaceAll(
+      /\]\(\.\/([^\s)#]+)\)/gu,
+      (_match, pathValue: string) => `](${versionedDocsUrl}${pathValue}/)`,
     )
 }
 

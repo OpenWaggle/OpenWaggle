@@ -6,12 +6,10 @@ export function effective<T extends { readonly id: string }>(
 ): EffectiveDefinition<T>[] {
   const personal = new Map(local.map((definition) => [definition.id, definition]))
   return [
-    ...shared.map(
-      (definition): EffectiveDefinition<T> => ({
-        definition: personal.get(definition.id) ?? definition,
-        source: personal.has(definition.id) ? 'override' : 'project',
-      }),
-    ),
+    ...shared.map((definition): EffectiveDefinition<T> => ({
+      definition: personal.get(definition.id) ?? definition,
+      source: personal.has(definition.id) ? 'override' : 'project',
+    })),
     ...local
       .filter((definition) => !shared.some((entry) => entry.id === definition.id))
       .map((definition): EffectiveDefinition<T> => ({ definition, source: 'local' })),

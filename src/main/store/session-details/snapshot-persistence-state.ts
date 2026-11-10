@@ -158,9 +158,10 @@ export function compareWithStoredNodes(input: {
         })
       }
     }
-    return input.existingNodes.map(
-      (node): ComparedSessionNodeRow => ({ ...node, content: contentById.get(node.id) ?? null }),
-    )
+    return input.existingNodes.map((node): ComparedSessionNodeRow => ({
+      ...node,
+      content: contentById.get(node.id) ?? null,
+    }))
   })
 }
 

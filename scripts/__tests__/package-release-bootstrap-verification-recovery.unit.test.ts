@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   commandKey,
   createDependencies,
@@ -46,11 +49,17 @@ describe('package release bootstrap verification recovery', () => {
     const metadataCommand = `npm view ${packageName}@0.0.0-bootstrap.0 --json`
     const compatibleMetadata = overrides.get(metadataCommand) ?? successful()
     const sequences = new Map<string, BootstrapCommandResult[]>([
-      [metadataCommand, [compatibleMetadata, {
-        exitCode: 1,
-        stderr: 'final verification failed',
-        stdout: '',
-      }]],
+      [
+        metadataCommand,
+        [
+          compatibleMetadata,
+          {
+            exitCode: 1,
+            stderr: 'final verification failed',
+            stdout: '',
+          },
+        ],
+      ],
       [`npm access set mfa=publish ${packageName}`, [successful(), successful()]],
     ])
     const { dependencies, requests } = createDependencies(overrides, sequences)

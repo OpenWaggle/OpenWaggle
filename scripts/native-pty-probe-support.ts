@@ -85,7 +85,8 @@ export interface PtyIdentity {
 
 function hasFunctionProperties(value: object, propertyNames: readonly string[]) {
   return propertyNames.every(
-    (propertyName) => propertyName in value && typeof Reflect.get(value, propertyName) === 'function',
+    (propertyName) =>
+      propertyName in value && typeof Reflect.get(value, propertyName) === 'function',
   )
 }
 
@@ -127,11 +128,7 @@ export function backends(
   ]
 }
 
-export function assertPatchedPty(
-  value: unknown,
-  backend: Backend,
-  platform: NodeJS.Platform,
-) {
+export function assertPatchedPty(value: unknown, backend: Backend, platform: NodeJS.Platform) {
   if (!isProbedPty(value)) {
     throw new Error(`${backend.label} did not expose the patched PTY lifecycle contract.`)
   }
@@ -201,7 +198,10 @@ export function createConsoleTerminal() {
   return new Terminal({
     cols: INITIAL_COLUMNS,
     rows: INITIAL_ROWS,
-    scrollback: Math.ceil((FINAL_PAYLOAD_BYTES + FINAL_PREFIX.length + FINAL_SUFFIX.length) / INITIAL_COLUMNS) + INITIAL_ROWS,
+    scrollback:
+      Math.ceil(
+        (FINAL_PAYLOAD_BYTES + FINAL_PREFIX.length + FINAL_SUFFIX.length) / INITIAL_COLUMNS,
+      ) + INITIAL_ROWS,
   })
 }
 
@@ -243,7 +243,9 @@ export async function assertFinalPayload(label: string, output: string, platform
   }
   const payload = text.slice(start + FINAL_PREFIX.length, end)
   if (payload.length !== FINAL_PAYLOAD_BYTES || payload.replaceAll(FINAL_CHARACTER, '') !== '') {
-    const unexpected = payload.replaceAll(FINAL_CHARACTER, '').slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT)
+    const unexpected = payload
+      .replaceAll(FINAL_CHARACTER, '')
+      .slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT)
     throw new Error(
       `${label} corrupted final PTY output (${payload.length}/${FINAL_PAYLOAD_BYTES} payload characters; ` +
         `${output.length} raw characters; unexpected ${JSON.stringify(unexpected)}).`,

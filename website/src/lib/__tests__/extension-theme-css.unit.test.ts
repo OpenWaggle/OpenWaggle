@@ -20,12 +20,18 @@ function ruleBody(css: string, selector: string) {
 
 describe('extension catalogue theme projection', () => {
   it('declares exactly the SDK default theme on docs extension roots', () => {
-    expect(ruleBody(themeCss, '.prose-docs .ow-extension-root')).toBe(extensionThemeCssVariableDeclarations())
+    expect(ruleBody(themeCss, '.prose-docs .ow-extension-root')).toBe(
+      extensionThemeCssVariableDeclarations(),
+    )
   })
 
   it('defines every variable the extension-react stylesheet reads', () => {
-    const declared = new Set([...themeCss.matchAll(/^\s+(--ow-[a-z0-9-]+):/gmu)].map((match) => match[1]))
-    const read = new Set([...extensionReactCss.matchAll(/var\((--ow-[a-z0-9-]+)\)/gu)].map((match) => match[1]))
+    const declared = new Set(
+      [...themeCss.matchAll(/^\s+(--ow-[a-z0-9-]+):/gmu)].map((match) => match[1]),
+    )
+    const read = new Set(
+      [...extensionReactCss.matchAll(/var\((--ow-[a-z0-9-]+)\)/gu)].map((match) => match[1]),
+    )
     expect([...read].filter((name) => !declared.has(name))).toEqual([])
   })
 

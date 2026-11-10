@@ -280,12 +280,10 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
             : {}),
         })
         .pipe(
-          Effect.map(
-            (result): NavigateTreeOutcome => ({
-              type: 'success',
-              result,
-            }),
-          ),
+          Effect.map((result): NavigateTreeOutcome => ({
+            type: 'success',
+            result,
+          })),
           Effect.catchAll((error) => {
             if (isAgentKernelMissingEntryError(error)) {
               logger.warn('Skipped Pi tree navigation because the target entry is absent', {

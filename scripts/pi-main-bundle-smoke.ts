@@ -39,11 +39,15 @@ async function buildSmokeBundle() {
 }
 
 async function runSmoke(label: string, command: string, env: NodeJS.ProcessEnv) {
-  const { stdout } = await execFileAsync(command, [path.join(SMOKE_OUT_DIR, SMOKE_BUNDLE_FILE_NAME)], {
-    env,
-    timeout: SMOKE_TIMEOUT_MS,
-    maxBuffer: MAX_OUTPUT_BYTES,
-  })
+  const { stdout } = await execFileAsync(
+    command,
+    [path.join(SMOKE_OUT_DIR, SMOKE_BUNDLE_FILE_NAME)],
+    {
+      env,
+      timeout: SMOKE_TIMEOUT_MS,
+      maxBuffer: MAX_OUTPUT_BYTES,
+    },
+  )
   const line = stdout.trim().split('\n').at(-1) ?? ''
   const result: unknown = JSON.parse(line)
   console.log(`${label}: ${line}`)
@@ -59,8 +63,13 @@ async function main() {
   }
   try {
     await runSmoke('node', process.execPath, { ...process.env, ELECTRON_RUN_AS_NODE: undefined })
-    await runSmoke('electron-as-node', electronBinary(), { ...process.env, ELECTRON_RUN_AS_NODE: '1' })
-    console.log('Pi main bundle smoke passed: codemode worker, QuickJS wasm, Photon image read, MCP extension load, every OAuth flow, and the pi-waggle extension and desktop loop.')
+    await runSmoke('electron-as-node', electronBinary(), {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+    })
+    console.log(
+      'Pi main bundle smoke passed: codemode worker, QuickJS wasm, Photon image read, MCP extension load, every OAuth flow, and the pi-waggle extension and desktop loop.',
+    )
   } finally {
     await rm(SMOKE_OUT_DIR, { recursive: true, force: true })
   }

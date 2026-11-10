@@ -77,11 +77,12 @@ function dependencyNamesFromPackageJson(value: unknown) {
 function mainExternalPackages() {
   const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
   const allDeps = dependencyNamesFromPackageJson(packageJson)
-  const externalDeps = allDeps.filter((dependency) =>
-    !BUNDLED_DEPS.some(
-      (bundledDependency) =>
-        dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
-    ),
+  const externalDeps = allDeps.filter(
+    (dependency) =>
+      !BUNDLED_DEPS.some(
+        (bundledDependency) =>
+          dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
+      ),
   )
   return new Set([...ALWAYS_EXTERNAL, ...externalDeps])
 }

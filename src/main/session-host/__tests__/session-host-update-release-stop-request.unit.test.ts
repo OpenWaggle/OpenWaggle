@@ -12,9 +12,8 @@ vi.mock('../local-session-paths', () => ({
   refreshLocalSessionHostEndpoint: async (paths: unknown) => paths,
 }))
 
-const { executeLocalSessionCommand, LocalSessionHostUpgradePendingError } = await import(
-  '../local-session-client'
-)
+const { executeLocalSessionCommand, LocalSessionHostUpgradePendingError } =
+  await import('../local-session-client')
 const { LocalSessionClientProtocolError } = await import('../local-session-client-protocol-error')
 const { defaultReleaseDependencies } = await import('../session-host-update-release')
 

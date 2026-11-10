@@ -17,9 +17,18 @@ const ROLE_CREDENTIALS = JSON.stringify({
   SessionToken: 'role-session',
   Expiration: '2026-10-28T12:00:00Z',
 })
-const LONG_LIVED = JSON.stringify({ Version: 1, AccessKeyId: 'AKIALONG', SecretAccessKey: 'long-secret' })
+const LONG_LIVED = JSON.stringify({
+  Version: 1,
+  AccessKeyId: 'AKIALONG',
+  SecretAccessKey: 'long-secret',
+})
 const SESSION_TOKEN = JSON.stringify({
-  Credentials: { AccessKeyId: 'ASIASTS', SecretAccessKey: 'sts-secret', SessionToken: 'sts-session', Expiration: '2026-10-28T12:00:00Z' },
+  Credentials: {
+    AccessKeyId: 'ASIASTS',
+    SecretAccessKey: 'sts-secret',
+    SessionToken: 'sts-session',
+    Expiration: '2026-10-28T12:00:00Z',
+  },
 })
 const MODE_BITS = 0o777
 const READ_ONLY_FILE = 0o400
@@ -38,7 +47,10 @@ function fakeAws(outputs: Record<string, string>) {
 
 describe('short-lived AWS environment for eval Runs', () => {
   it('replaces AWS_PROFILE with the profile role credentials and its region', () => {
-    const { aws } = fakeAws({ 'configure export-credentials': ROLE_CREDENTIALS, 'configure get': 'eu-west-1\n' })
+    const { aws } = fakeAws({
+      'configure export-credentials': ROLE_CREDENTIALS,
+      'configure get': 'eu-west-1\n',
+    })
     expect(shortLivedAwsEnvironment({ AWS_PROFILE: 'sso', OPENROUTER_API_KEY: 'k' }, aws)).toEqual({
       OPENROUTER_API_KEY: 'k',
       AWS_ACCESS_KEY_ID: 'ASIAROLE',
@@ -49,8 +61,14 @@ describe('short-lived AWS environment for eval Runs', () => {
   })
 
   it('exchanges long-lived keys for an STS session token and keeps a given region', () => {
-    const { aws, calls } = fakeAws({ 'configure export-credentials': LONG_LIVED, 'sts get-session-token': SESSION_TOKEN })
-    const environment = shortLivedAwsEnvironment({ AWS_PROFILE: 'keys', AWS_REGION: 'us-east-1' }, aws)
+    const { aws, calls } = fakeAws({
+      'configure export-credentials': LONG_LIVED,
+      'sts get-session-token': SESSION_TOKEN,
+    })
+    const environment = shortLivedAwsEnvironment(
+      { AWS_PROFILE: 'keys', AWS_REGION: 'us-east-1' },
+      aws,
+    )
     expect(environment).toEqual({
       AWS_REGION: 'us-east-1',
       AWS_ACCESS_KEY_ID: 'ASIASTS',
@@ -63,7 +81,9 @@ describe('short-lived AWS environment for eval Runs', () => {
 
   it('leaves an environment without AWS_PROFILE as it is', () => {
     const { aws, calls } = fakeAws({})
-    expect(shortLivedAwsEnvironment({ OPENROUTER_API_KEY: 'k' }, aws)).toEqual({ OPENROUTER_API_KEY: 'k' })
+    expect(shortLivedAwsEnvironment({ OPENROUTER_API_KEY: 'k' }, aws)).toEqual({
+      OPENROUTER_API_KEY: 'k',
+    })
     expect(calls).toEqual([])
   })
 })
@@ -83,7 +103,10 @@ describe('read-only AWS SSO configuration for the Bedrock test home', () => {
     const real = path.join(root, 'real')
     await mkdir(path.join(real, '.aws', 'sso', 'cache'), { recursive: true })
     await writeFile(path.join(real, '.aws', 'config'), '[profile sso]\n')
-    await writeFile(path.join(real, '.aws', 'credentials'), '[default]\naws_secret_access_key = long\n')
+    await writeFile(
+      path.join(real, '.aws', 'credentials'),
+      '[default]\naws_secret_access_key = long\n',
+    )
     await writeFile(path.join(real, '.aws', 'sso', 'cache', 'token.json'), '{}')
     const home = path.join(root, 'home')
 

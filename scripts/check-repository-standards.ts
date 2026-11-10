@@ -1,9 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
-import {
-  collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations,
-} from './standards/forbidden-references'
+import { collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations } from './standards/forbidden-references'
 import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'

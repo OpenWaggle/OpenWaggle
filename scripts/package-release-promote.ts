@@ -63,14 +63,16 @@ interface ArtifactContractModule {
 }
 
 interface ProvenanceModule {
-  readonly verifyPackageReleaseArtifactProvenance: (input: Readonly<{
-    artifactFiles: readonly string[]
-    artifactRoot: string
-    candidateSourceSha: string
-    repository: string
-    runId: string
-    sourceTree: string
-  }>) => Promise<void>
+  readonly verifyPackageReleaseArtifactProvenance: (
+    input: Readonly<{
+      artifactFiles: readonly string[]
+      artifactRoot: string
+      candidateSourceSha: string
+      repository: string
+      runId: string
+      sourceTree: string
+    }>,
+  ) => Promise<void>
 }
 
 interface CommandResult {
@@ -97,11 +99,13 @@ function isJsonObject(value: unknown): value is { readonly [key: string]: unknow
 }
 
 function isPromotionModule(value: unknown): value is PromotionModule {
-  return isJsonObject(value) &&
+  return (
+    isJsonObject(value) &&
     typeof value.promoteVerifiedPackageRelease === 'function' &&
     typeof value.readPackageReleasePlan === 'function' &&
     typeof value.verifyPromotionBundle === 'function' &&
     typeof value.verifyPackageReleasePublicationEnvironment === 'function'
+  )
 }
 
 async function loadPromotionModule() {
@@ -112,8 +116,7 @@ async function loadPromotionModule() {
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) &&
-    typeof value.releaseAssetRepairPlan === 'function'
+  return isJsonObject(value) && typeof value.releaseAssetRepairPlan === 'function'
 }
 
 async function loadArtifactContractModule() {
@@ -126,8 +129,7 @@ async function loadArtifactContractModule() {
 }
 
 function isProvenanceModule(value: unknown): value is ProvenanceModule {
-  return isJsonObject(value) &&
-    typeof value.verifyPackageReleaseArtifactProvenance === 'function'
+  return isJsonObject(value) && typeof value.verifyPackageReleaseArtifactProvenance === 'function'
 }
 
 async function loadProvenanceModule() {
@@ -140,10 +142,18 @@ async function loadProvenanceModule() {
 }
 
 async function readRegistryIntegrity(name: string, version: string) {
-  const result = await run('npm', [
-    'view', `${name}@${version}`, 'dist.integrity', '--json',
-    '--registry', 'https://registry.npmjs.org/',
-  ], true)
+  const result = await run(
+    'npm',
+    [
+      'view',
+      `${name}@${version}`,
+      'dist.integrity',
+      '--json',
+      '--registry',
+      'https://registry.npmjs.org/',
+    ],
+    true,
+  )
   if (result.exitCode !== 0) {
     if (/E404|404 Not Found/.test(result.stderr)) return null
     throw new Error(result.stderr.trim() || `Unable to inspect ${name}@${version} on npm.`)
@@ -161,7 +171,11 @@ async function ensureTag(tag: string, sourceSha: string) {
   const existing = await run('gh', ['api', `repos/${repository}/git/ref/tags/${tag}`], true)
   if (existing.exitCode === 0) {
     const response: unknown = JSON.parse(existing.stdout)
-    if (!isJsonObject(response) || !isJsonObject(response.object) || response.object.sha !== sourceSha) {
+    if (
+      !isJsonObject(response) ||
+      !isJsonObject(response.object) ||
+      response.object.sha !== sourceSha
+    ) {
       throw new Error(`Immutable package tag ${tag} points to a different commit.`)
     }
     return
@@ -170,12 +184,21 @@ async function ensureTag(tag: string, sourceSha: string) {
     throw new Error(existing.stderr.trim() || `Unable to inspect package tag ${tag}.`)
   }
   await run('gh', [
-    'api', '--method', 'POST', `repos/${repository}/git/refs`,
-    '-f', `ref=refs/tags/${tag}`, '-f', `sha=${sourceSha}`,
+    'api',
+    '--method',
+    'POST',
+    `repos/${repository}/git/refs`,
+    '-f',
+    `ref=refs/tags/${tag}`,
+    '-f',
+    `sha=${sourceSha}`,
   ])
 }
 
-async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
+async function ensureGitHubRelease({
+  artifact,
+  artifactRoot,
+}: Readonly<{
   artifact: PackageReleaseArtifact
   artifactRoot: string
   sourceSha: string
@@ -202,8 +225,13 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
     try {
       for (const assetName of repairPlan.presentNames) {
         await run('gh', [
-          'release', 'download', artifact.tag,
-          '--pattern', assetName, '--dir', temporaryDirectory,
+          'release',
+          'download',
+          artifact.tag,
+          '--pattern',
+          assetName,
+          '--dir',
+          temporaryDirectory,
         ])
         const [expected, downloaded] = await Promise.all([
           readFile(path.join(artifactRoot, assetName)),
@@ -235,9 +263,16 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
     const notesPath = path.join(temporaryDirectory, `${artifact.key}.md`)
     await writeFile(notesPath, `${artifact.releaseNotes}\n`)
     await run('gh', [
-      'release', 'create', artifact.tag,
+      'release',
+      'create',
+      artifact.tag,
       ...expectedPaths,
-      '--verify-tag', '--latest=false', '--title', `${artifact.name} ${artifact.version}`, '--notes-file', notesPath,
+      '--verify-tag',
+      '--latest=false',
+      '--title',
+      `${artifact.name} ${artifact.version}`,
+      '--notes-file',
+      notesPath,
     ])
   } finally {
     await rm(temporaryDirectory, { force: true, recursive: true })
@@ -270,8 +305,12 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   const repository = process.env.GITHUB_REPOSITORY
   const selectedRunId = process.env.EXPECTED_ARTIFACT_RUN_ID
   const selectedSourceSha = process.env.EXPECTED_ARTIFACT_SOURCE_SHA
-  if (repository === undefined || selectedRunId === undefined || selectedSourceSha === undefined ||
-    !/^[1-9]\d*$/.test(selectedRunId)) {
+  if (
+    repository === undefined ||
+    selectedRunId === undefined ||
+    selectedSourceSha === undefined ||
+    !/^[1-9]\d*$/.test(selectedRunId)
+  ) {
     throw new Error('Selected package artifact CI identity is incomplete.')
   }
   if (manifest.sourceSha !== selectedSourceSha) {
@@ -279,10 +318,7 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   }
   const provenance = await loadProvenanceModule()
   await provenance.verifyPackageReleaseArtifactProvenance({
-    artifactFiles: [
-      'release-artifacts.json',
-      ...manifest.packages.map(({ file }) => file),
-    ],
+    artifactFiles: ['release-artifacts.json', ...manifest.packages.map(({ file }) => file)],
     artifactRoot,
     candidateSourceSha: selectedSourceSha,
     repository,

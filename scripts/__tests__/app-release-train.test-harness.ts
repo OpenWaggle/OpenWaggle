@@ -19,8 +19,17 @@ import {
  * the tag, only a draft, or nothing (the tag of a build that failed, like `v1.0.0-beta.33`).
  */
 export type ReleaseTrainHistoryEntry =
-  | { readonly kind: 'change'; readonly subject: string; readonly path: string; readonly content?: string }
-  | { readonly kind: 'release'; readonly version: string; readonly release: 'published' | 'draft' | 'none' }
+  | {
+      readonly kind: 'change'
+      readonly subject: string
+      readonly path: string
+      readonly content?: string
+    }
+  | {
+      readonly kind: 'release'
+      readonly version: string
+      readonly release: 'published' | 'draft' | 'none'
+    }
 
 type ReleaseTrainRun =
   | { readonly kind: 'dispatch'; readonly targetVersion: string }
@@ -110,14 +119,21 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
       await commit({ [entry.path]: entry.content ?? `${entry.subject}\n` }, entry.subject)
       continue
     }
-    await commit(manifestFile(entry.version), `chore(release): v${entry.version} (#${FIRST_RELEASE_PR_NUMBER + index})`)
+    await commit(
+      manifestFile(entry.version),
+      `chore(release): v${entry.version} (#${FIRST_RELEASE_PR_NUMBER + index})`,
+    )
     await git(paths.author, 'tag', '-a', `v${entry.version}`, '-m', `Release v${entry.version}`)
     if (entry.release !== 'none') {
       githubReleases.push({ tag_name: `v${entry.version}`, draft: entry.release === 'draft' })
     }
   }
-  for (const tag of options.publishedWithoutTag ?? []) githubReleases.push({ tag_name: tag, draft: false })
-  await fs.writeFile(paths.releases, githubReleases.map((release) => `${JSON.stringify(release)}\n`).join(''))
+  for (const tag of options.publishedWithoutTag ?? [])
+    githubReleases.push({ tag_name: tag, draft: false })
+  await fs.writeFile(
+    paths.releases,
+    githubReleases.map((release) => `${JSON.stringify(release)}\n`).join(''),
+  )
 
   let mainSha = await git(paths.author, 'rev-parse', 'HEAD')
   if (options.run.kind === 'release-merge') {
@@ -137,7 +153,10 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
 /** Runs the bump step for an ordinary merge and returns its outputs, as the release step reads them. */
 async function runBump(paths: TrainPaths, stepEnv: NodeJS.ProcessEnv) {
   const bumpOutputsPath = path.join(paths.directory, 'bump-outputs')
-  const bump = await runStep(await workflowStep(BUMP_STEP), paths.runner, { ...stepEnv, GITHUB_OUTPUT: bumpOutputsPath })
+  const bump = await runStep(await workflowStep(BUMP_STEP), paths.runner, {
+    ...stepEnv,
+    GITHUB_OUTPUT: bumpOutputsPath,
+  })
   const outputs = await readIfPresent(bumpOutputsPath)
   return {
     succeeded: bump.succeeded,
@@ -210,17 +229,21 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
     const releaseVersion = releaseVersionOf(options.run, bump?.version ?? '')
     const releaseBranch = `app-release-v${releaseVersion}`
     // A failed bump step fails the job, so the release step never runs.
-    const result = bump?.succeeded === false ? bump : await runStep(await workflowStep(RELEASE_STEP), paths.runner, {
-      ...stepEnv,
-      BUMP_SHOULD_RELEASE: bump?.shouldRelease ?? '',
-      BUMP_VERSION: bump?.version ?? '',
-      RELEASE_TARGET_VERSION: options.run.kind === 'dispatch' ? options.run.targetVersion : '',
-      GITHUB_OUTPUT: paths.outputs,
-      MACOS_SIGNING_CONFIGURED: String(options.macosSigning ?? true),
-      MACOS_NOTARIZATION_CONFIGURED: String(options.macosNotarization ?? true),
-      TEST_BRANCH: releaseBranch,
-      TEST_VERSION: releaseVersion,
-    })
+    const result =
+      bump?.succeeded === false
+        ? bump
+        : await runStep(await workflowStep(RELEASE_STEP), paths.runner, {
+            ...stepEnv,
+            BUMP_SHOULD_RELEASE: bump?.shouldRelease ?? '',
+            BUMP_VERSION: bump?.version ?? '',
+            RELEASE_TARGET_VERSION:
+              options.run.kind === 'dispatch' ? options.run.targetVersion : '',
+            GITHUB_OUTPUT: paths.outputs,
+            MACOS_SIGNING_CONFIGURED: String(options.macosSigning ?? true),
+            MACOS_NOTARIZATION_CONFIGURED: String(options.macosNotarization ?? true),
+            TEST_BRANCH: releaseBranch,
+            TEST_VERSION: releaseVersion,
+          })
     const missing = () => null
     return {
       succeeded: result.succeeded,
@@ -231,8 +254,18 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
       tags: await remoteTags(git, paths.remote),
       outputs: await readIfPresent(paths.outputs),
       events: (await fs.readFile(paths.events, 'utf8')).trim().split('\n').filter(Boolean),
-      releaseBranchHead: await git(paths.remote, 'rev-parse', '--verify', '--quiet', `refs/heads/${releaseBranch}`).catch(missing),
-      releaseBranchManifest: await git(paths.remote, 'show', `refs/heads/${releaseBranch}:package.json`).catch(missing),
+      releaseBranchHead: await git(
+        paths.remote,
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        `refs/heads/${releaseBranch}`,
+      ).catch(missing),
+      releaseBranchManifest: await git(
+        paths.remote,
+        'show',
+        `refs/heads/${releaseBranch}:package.json`,
+      ).catch(missing),
     }
   } finally {
     await fs.rm(directory, { recursive: true, force: true })

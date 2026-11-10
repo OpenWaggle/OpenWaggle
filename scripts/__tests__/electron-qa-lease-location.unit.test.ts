@@ -24,7 +24,11 @@ describe('Electron QA lease location', () => {
     const shared = '/var/folders/host/T'
     // Created by a launcher whose own TMPDIR was a different Session's scratch directory.
     expect(
-      isOwnedQaTemporaryPath(`${shared}/openwaggle-qa-profile-abc`, 'openwaggle-qa-profile-', shared),
+      isOwnedQaTemporaryPath(
+        `${shared}/openwaggle-qa-profile-abc`,
+        'openwaggle-qa-profile-',
+        shared,
+      ),
     ).toBe(true)
     expect(
       isOwnedQaTemporaryPath(
@@ -41,7 +45,9 @@ describe('Electron QA lease location', () => {
     afterEach(async () => {
       vi.unstubAllEnvs()
       vi.resetModules()
-      await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })))
+      await Promise.all(
+        roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+      )
     })
 
     it('puts the lease, profile, and evidence in the Host temp directory, not TMPDIR', async () => {

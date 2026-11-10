@@ -3,7 +3,7 @@ import type { ChildProcess } from 'node:child_process'
 const STARTUP_DIAGNOSTIC_TEXT_LIMIT = 4_096
 
 export function electronStartupErrorMessage(error: unknown) {
-  return (error instanceof Error ? error.stack ?? error.message : String(error)).slice(
+  return (error instanceof Error ? (error.stack ?? error.message) : String(error)).slice(
     0,
     STARTUP_DIAGNOSTIC_TEXT_LIMIT,
   )

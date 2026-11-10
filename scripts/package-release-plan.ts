@@ -53,16 +53,12 @@ export const PACKAGE_RELEASE_DEFINITIONS = [
 
 type ReadPackageVersion = (revision: string, packagePath: string) => Promise<string>
 
-export function assertRequiredDependentReleases(
-  packages: readonly PackageReleasePlanItem[],
-) {
+export function assertRequiredDependentReleases(packages: readonly PackageReleasePlanItem[]) {
   const releasedNames = new Set(packages.map(({ name }) => name))
   for (const definition of PACKAGE_RELEASE_DEFINITIONS) {
     if (!('dependency' in definition) || !releasedNames.has(definition.dependency)) continue
     if (!releasedNames.has(definition.name)) {
-      throw new Error(
-        `${definition.dependency} requires a coordinated ${definition.name} release.`,
-      )
+      throw new Error(`${definition.dependency} requires a coordinated ${definition.name} release.`)
     }
   }
 }
@@ -106,7 +102,9 @@ export async function resolvePackageReleasePlan(
   for (const { beforeVersion, definition, version } of resolvedVersions) {
     const comparison = compareStableVersions(version, beforeVersion)
     if (comparison < 0) {
-      throw new Error(`${definition.name} version must increase, not move from ${beforeVersion} to ${version}.`)
+      throw new Error(
+        `${definition.name} version must increase, not move from ${beforeVersion} to ${version}.`,
+      )
     }
     if (comparison === 0) continue
     packages.push({ ...definition, tag: `${definition.key}-v${version}`, version })
@@ -138,13 +136,9 @@ function isJsonObject(value: unknown): value is { readonly [key: string]: unknow
 
 function decodePlanPackage(value: unknown): PackageReleasePlanItem {
   if (!isJsonObject(value)) throw new Error('Package release plan contains a non-object package.')
-  const definition = PACKAGE_RELEASE_DEFINITIONS.find(
-    ({ key }) => key === value.key,
-  )
+  const definition = PACKAGE_RELEASE_DEFINITIONS.find(({ key }) => key === value.key)
   const dependency =
-    definition !== undefined && 'dependency' in definition
-      ? definition.dependency
-      : undefined
+    definition !== undefined && 'dependency' in definition ? definition.dependency : undefined
   if (
     definition === undefined ||
     value.name !== definition.name ||

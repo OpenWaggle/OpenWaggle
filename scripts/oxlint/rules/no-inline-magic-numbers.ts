@@ -110,11 +110,17 @@ function unaryLiteralText(node: Node) {
 }
 
 function reportIfMagicNumber(node: Node, context: Context) {
-  if (isInTypePosition(node) || isInEnumDeclaration(node) || isWithinNamedConstantInitializer(node)) {
+  if (
+    isInTypePosition(node) ||
+    isInEnumDeclaration(node) ||
+    isWithinNamedConstantInitializer(node)
+  ) {
     return
   }
 
-  const literalText = isUnaryNegativeNumericLiteral(node) ? unaryLiteralText(node) : literalRaw(node)
+  const literalText = isUnaryNegativeNumericLiteral(node)
+    ? unaryLiteralText(node)
+    : literalRaw(node)
   if (!literalText || shouldIgnoreLiteralValue(literalText)) {
     return
   }

@@ -4,7 +4,6 @@ import type {
   BootstrapDependencies,
 } from '../package-release-bootstrap'
 
-
 export const PACKAGE_NAMES = [
   '@openwaggle/extension-sdk',
   '@openwaggle/extension-react',
@@ -54,13 +53,15 @@ export function successfulFirstPackageTransaction(packageName: string) {
     ],
     [
       `npm view ${packageName}@0.0.0-bootstrap.0 --json`,
-      successful(JSON.stringify({
-        deprecated: 'Namespace bootstrap placeholder; use a released version.',
-        files: [],
-        name: packageName,
-        openwaggleNamespaceBootstrap: true,
-        version: '0.0.0-bootstrap.0',
-      })),
+      successful(
+        JSON.stringify({
+          deprecated: 'Namespace bootstrap placeholder; use a released version.',
+          files: [],
+          name: packageName,
+          openwaggleNamespaceBootstrap: true,
+          version: '0.0.0-bootstrap.0',
+        }),
+      ),
     ],
     [
       `npm view ${packageName} dist-tags --json`,
@@ -81,9 +82,7 @@ export function compatibleRuleset(
   ],
 ): CompatibleRulesetFixture {
   return {
-    bypass_actors: [
-      { actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' },
-    ],
+    bypass_actors: [{ actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' }],
     conditions: { ref_name: { exclude: [], include: ['refs/heads/main'] } },
     enforcement: 'active',
     id: 42,
@@ -119,9 +118,7 @@ export function compatibleRuleset(
   }
 }
 
-export function addCompatibleGithubState(
-  overrides: Map<string, BootstrapCommandResult>,
-) {
+export function addCompatibleGithubState(overrides: Map<string, BootstrapCommandResult>) {
   overrides.set(
     'gh api --hostname github.com repos/OpenWaggle/OpenWaggle',
     successful(
@@ -162,9 +159,7 @@ export function addCompatibleGithubState(
   )
 }
 
-export function addCompatiblePackageState(
-  overrides: Map<string, BootstrapCommandResult>,
-) {
+export function addCompatiblePackageState(overrides: Map<string, BootstrapCommandResult>) {
   for (const packageName of PACKAGE_NAMES) {
     overrides.set(
       `npm view ${packageName} --json`,
@@ -189,9 +184,7 @@ export function addCompatiblePackageState(
     overrides.set(`npm access get status ${packageName} --json`, publicAccess(packageName))
     overrides.set(
       `npm trust list ${packageName} --json`,
-      successful(
-        JSON.stringify(compatibleTrustConfiguration()),
-      ),
+      successful(JSON.stringify(compatibleTrustConfiguration())),
     )
   }
 }
@@ -233,10 +226,7 @@ export function createDependencies(
     ['git branch --show-current', successful('main\n')],
     ['git remote get-url origin', successful('git@github.com:OpenWaggle/OpenWaggle.git\n')],
     ['git rev-parse HEAD', successful('abc123\n')],
-    [
-      'git ls-remote --exit-code origin refs/heads/main',
-      successful('abc123\trefs/heads/main\n'),
-    ],
+    ['git ls-remote --exit-code origin refs/heads/main', successful('abc123\trefs/heads/main\n')],
     ['npm whoami', successful('maintainer\n')],
     [
       'npm profile get --json',

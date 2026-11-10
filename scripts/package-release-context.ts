@@ -34,10 +34,7 @@ function assertCommitSha(value: string, label: string) {
   }
 }
 
-export async function readPackageReleaseParent(
-  sourceSha: string,
-  runGitCommand: RunGitCommand,
-) {
+export async function readPackageReleaseParent(sourceSha: string, runGitCommand: RunGitCommand) {
   const versionCommitSha = await runGitCommand([
     'rev-list',
     '--first-parent',
@@ -125,7 +122,10 @@ export async function runPackageReleaseContextCli(args: readonly string[]) {
   )
   const githubOutput = process.env.GITHUB_OUTPUT
   if (githubOutput !== undefined) {
-    await appendFile(githubOutput, `before_sha=${context.beforeSha}\nsource_sha=${context.sourceSha}\n`)
+    await appendFile(
+      githubOutput,
+      `before_sha=${context.beforeSha}\nsource_sha=${context.sourceSha}\n`,
+    )
   }
   return context
 }

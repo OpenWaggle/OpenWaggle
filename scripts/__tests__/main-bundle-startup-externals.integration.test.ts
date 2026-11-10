@@ -62,6 +62,8 @@ if (process.argv[2] !== '--version') throw new Error('argv ' + process.argv.slic
   it('fails a start the stubs could not complete, since it may hide later loads', async () => {
     const file = await bundle(`require('electron'); throw new Error('cut short')`)
     const failures = startupExternalFailures(probeStartupExternals(file, [['run', 'probe']]))
-    expect(failures).toEqual([expect.stringContaining('`openwaggle run probe` threw while the main bundle started')])
+    expect(failures).toEqual([
+      expect.stringContaining('`openwaggle run probe` threw while the main bundle started'),
+    ])
   })
 })

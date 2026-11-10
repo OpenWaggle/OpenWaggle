@@ -40,10 +40,14 @@ function changelogSections(value: unknown): readonly ChangelogSectionRule[] | un
   if (!Array.isArray(value)) return 'changelog-sections is not a list'
   const sections: ChangelogSectionRule[] = []
   for (const entry of value) {
-    const type: unknown = typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'type') : undefined
-    const section: unknown = typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'section') : undefined
-    const hidden: unknown = typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'hidden') : undefined
-    if (typeof type !== 'string' || typeof section !== 'string') return 'a changelog-sections entry has no type or section'
+    const type: unknown =
+      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'type') : undefined
+    const section: unknown =
+      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'section') : undefined
+    const hidden: unknown =
+      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'hidden') : undefined
+    if (typeof type !== 'string' || typeof section !== 'string')
+      return 'a changelog-sections entry has no type or section'
     sections.push(hidden === true ? { type, section, hidden } : { type, section })
   }
   return sections
@@ -78,7 +82,10 @@ function optionalVersion(value: unknown): { readonly version: string | undefined
  * The rules Release Please applies to one package, or why the guard cannot reproduce them. The
  * message names the setting so the guard can be taught it, instead of predicting the wrong line.
  */
-export function packageReleaseRules(packageConfig: object, topLevelConfig: object): PackageReleaseRules | string {
+export function packageReleaseRules(
+  packageConfig: object,
+  topLevelConfig: object,
+): PackageReleaseRules | string {
   const unsupported = unsupportedSetting(packageConfig, topLevelConfig)
   if (unsupported !== undefined) return unsupported
   const releaseAs = optionalVersion(setting(packageConfig, topLevelConfig, 'release-as'))
@@ -89,7 +96,8 @@ export function packageReleaseRules(packageConfig: object, topLevelConfig: objec
   if (typeof sections === 'string') return sections
   return {
     bumpMinorPreMajor: setting(packageConfig, topLevelConfig, 'bump-minor-pre-major') === true,
-    bumpPatchForMinorPreMajor: setting(packageConfig, topLevelConfig, 'bump-patch-for-minor-pre-major') === true,
+    bumpPatchForMinorPreMajor:
+      setting(packageConfig, topLevelConfig, 'bump-patch-for-minor-pre-major') === true,
     releaseAs: releaseAs.version,
     initialVersion: initialVersion.version ?? DEFAULT_INITIAL_VERSION,
     changelogSections: sections,

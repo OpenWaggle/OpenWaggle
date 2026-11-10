@@ -7,7 +7,9 @@ const RULE_NAME = 'openwaggle/renderer-design-token-guardrails'
 const FILENAME = 'src/renderer/src/features/chat/components/Example.tsx'
 
 function lint(code: string, filename = FILENAME, exemptFiles: readonly string[] = []) {
-  return lintWithRule(openwagglePlugin, RULE_NAME, code, filename, [{ exemptFiles: [...exemptFiles] }])
+  return lintWithRule(openwagglePlugin, RULE_NAME, code, filename, [
+    { exemptFiles: [...exemptFiles] },
+  ])
 }
 
 describe('renderer design-token guardrails', () => {

@@ -43,10 +43,9 @@ describe('renderer design-token exemption manifest', () => {
 
   it('rejects files ignored by the renderer ESLint configuration', () => {
     const ignoredFile = 'src/renderer/src/routeTree.gen.ts'
-    const violations = collectRendererDesignTokenExemptionViolations(
-      new Set([ignoredFile]),
-      [ignoredFile],
-    )
+    const violations = collectRendererDesignTokenExemptionViolations(new Set([ignoredFile]), [
+      ignoredFile,
+    ])
 
     expect(violations).toHaveLength(1)
     expect(violations.at(0)?.message).toContain('ESLint-ignored')

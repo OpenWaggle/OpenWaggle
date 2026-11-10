@@ -25,7 +25,9 @@ describe('usage statistics flush loop', () => {
     await runUsageStatsSnapshot({ ...options, dryRun: false })
 
     expect(requests.filter((request) => request.url === FLUSH_URL)).toHaveLength(2)
-    expect(lines.at(-1)).toBe('Flushed 57 buffered entries in 2 calls; 3 wait for more entries of their day.')
+    expect(lines.at(-1)).toBe(
+      'Flushed 57 buffered entries in 2 calls; 3 wait for more entries of their day.',
+    )
   })
 
   it('stops with a warning when a call makes no progress while entries remain', async () => {
@@ -44,7 +46,9 @@ describe('usage statistics flush loop', () => {
     const { options, lines } = job(FULL_ENV, { [FLUSH_URL]: done })
     await runUsageStatsSnapshot({ ...options, dryRun: false })
 
-    expect(lines.at(-1)).toBe('Flushed 5 buffered entries in 1 calls; 2 wait for more entries of their day.')
+    expect(lines.at(-1)).toBe(
+      'Flushed 5 buffered entries in 1 calls; 2 wait for more entries of their day.',
+    )
   })
 
   it('pauses between flush calls, since every call writes the same lease key', async () => {
@@ -75,7 +79,9 @@ describe('usage statistics flush loop', () => {
 
     const calls = requests.filter((request) => request.url === FLUSH_URL).length
     expect(calls).toBeLessThan(MAX_FLUSH_CALLS)
-    expect(calls * (5000 + FLUSH_CALL_INTERVAL_MS)).toBeLessThanOrEqual(FLUSH_TIME_LIMIT_MS + 10_000)
+    expect(calls * (5000 + FLUSH_CALL_INTERVAL_MS)).toBeLessThanOrEqual(
+      FLUSH_TIME_LIMIT_MS + 10_000,
+    )
     expect(FLUSH_TIME_LIMIT_MS).toBeLessThan(20 * 60_000 - 5 * 60_000)
     expect(lines.at(-1)).toContain('::warning::Stopped flushing after')
   })
@@ -85,18 +91,30 @@ describe('usage statistics flush loop', () => {
     const { options, lines } = job(FULL_ENV, { [FLUSH_URL]: skipped })
     await runUsageStatsSnapshot({ ...options, dryRun: false })
 
-    expect(lines.at(-1)).toBe('::warning::The endpoint flushed nothing: POSTHOG_PROJECT_KEY is not set.')
+    expect(lines.at(-1)).toBe(
+      '::warning::The endpoint flushed nothing: POSTHOG_PROJECT_KEY is not set.',
+    )
   })
 
   it('passes each cursor on to the next flush call', async () => {
     const flushes = sequence(
-      () => json({ processed: 0, remaining: 1, held: 10, discarded: 0, undeleted: 0, cursor: 'page-6' }),
+      () =>
+        json({
+          processed: 0,
+          remaining: 1,
+          held: 10,
+          discarded: 0,
+          undeleted: 0,
+          cursor: 'page-6',
+        }),
       () => json({ processed: 5, remaining: 0, held: 0, discarded: 0, undeleted: 0 }),
     )
     const { options, requests } = job(FULL_ENV, { [FLUSH_URL]: flushes })
     await runUsageStatsSnapshot({ ...options, dryRun: false })
 
-    const bodies = requests.filter((request) => request.url === FLUSH_URL).map((request) => request.init.body)
+    const bodies = requests
+      .filter((request) => request.url === FLUSH_URL)
+      .map((request) => request.init.body)
     expect(bodies).toEqual(['{}', '{"cursor":"page-6"}'])
   })
 

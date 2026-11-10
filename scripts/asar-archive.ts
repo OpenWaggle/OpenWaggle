@@ -46,7 +46,8 @@ function collectFiles(node: unknown, location: string, files: Map<string, AsarFi
     return
   }
   if (!isRecord(node.files)) throw new Error(`asar directory ${location || '/'} is malformed.`)
-  for (const [name, child] of Object.entries(node.files)) collectFiles(child, `${location}/${name}`, files)
+  for (const [name, child] of Object.entries(node.files))
+    collectFiles(child, `${location}/${name}`, files)
 }
 
 export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
@@ -55,7 +56,8 @@ export async function readAsarArchive(asarPath: string): Promise<AsarArchive> {
     const prefix = Buffer.alloc(JSON_OFFSET)
     await handle.read(prefix, 0, JSON_OFFSET, 0)
     const jsonLength = prefix.readUInt32LE(JSON_LENGTH_OFFSET)
-    if (jsonLength > MAX_HEADER_BYTES) throw new Error(`${asarPath} has an implausible header size.`)
+    if (jsonLength > MAX_HEADER_BYTES)
+      throw new Error(`${asarPath} has an implausible header size.`)
     const json = Buffer.alloc(jsonLength)
     await handle.read(json, 0, jsonLength, JSON_OFFSET)
     const dataBase = DATA_BASE_OFFSET + prefix.readUInt32LE(HEADER_PICKLE_SIZE_OFFSET)

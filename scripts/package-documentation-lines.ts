@@ -1,40 +1,17 @@
 import { access, copyFile, mkdir, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
-import {
-  resolvePackageDocumentationVersions,
-} from './package-documentation-model'
+import { resolvePackageDocumentationVersions } from './package-documentation-model'
 import type {
   PackageDocumentationDefinition,
   PackageDocumentationPage,
 } from './package-documentation-model'
 
-function documentationRoot(
-  projectRoot: string,
-  definition: PackageDocumentationDefinition,
-) {
-  return path.join(
-    projectRoot,
-    'website',
-    'src',
-    'content',
-    'docs',
-    'packages',
-    definition.slug,
-  )
+function documentationRoot(projectRoot: string, definition: PackageDocumentationDefinition) {
+  return path.join(projectRoot, 'website', 'src', 'content', 'docs', 'packages', definition.slug)
 }
 
-function pendingDocumentationRoot(
-  projectRoot: string,
-  definition: PackageDocumentationDefinition,
-) {
-  return path.join(
-    projectRoot,
-    'website',
-    'src',
-    'content',
-    'package-docs-next',
-    definition.slug,
-  )
+function pendingDocumentationRoot(projectRoot: string, definition: PackageDocumentationDefinition) {
+  return path.join(projectRoot, 'website', 'src', 'content', 'package-docs-next', definition.slug)
 }
 
 function authoredPagePath(

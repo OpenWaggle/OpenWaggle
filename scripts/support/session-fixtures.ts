@@ -256,18 +256,28 @@ function seedSessionRow(
         row.id,
       )
 
-    const workingPath = sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
-      ? sessionInput.worktreePath
-      : projectPath
+    const workingPath =
+      sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
+        ? sessionInput.worktreePath
+        : projectPath
     const workspaceKind = workingPath === projectPath ? 'local' : 'managed-worktree'
-    const workspaceId = fixtureWorkspaceId(workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`)
+    const workspaceId = fixtureWorkspaceId(
+      workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`,
+    )
     database
       .prepare(
         `INSERT OR IGNORE INTO workspace_resources (
            id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
          ) VALUES (?, ?, ?, ?, 'ready', ?, ?)`,
       )
-      .run(workspaceId, projectPath, workspaceKind, workingPath, row.createdAt, sessionInput.updatedAt)
+      .run(
+        workspaceId,
+        projectPath,
+        workspaceKind,
+        workingPath,
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
     database
       .prepare(
         `INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
@@ -422,12 +432,7 @@ function seedSessionRow(
             updated_at = excluded.updated_at
         `,
       )
-      .run(
-        row.id,
-        EXPANDED_NODE_IDS_DEFAULT_JSON,
-        TREE_SIDEBAR_EXPANDED,
-        sessionInput.updatedAt,
-      )
+      .run(row.id, EXPANDED_NODE_IDS_DEFAULT_JSON, TREE_SIDEBAR_EXPANDED, sessionInput.updatedAt)
 
     if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
 
@@ -591,7 +596,8 @@ function workerParent(
   const parentIndex = workers[index]?.input.parentWorkerIndex
   if (parentIndex === undefined) return queen
   const parent = parentIndex < index ? workers[parentIndex] : undefined
-  if (!parent) throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
+  if (!parent)
+    throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
   return parent.row
 }
 

@@ -8,14 +8,12 @@ vi.mock('../../../../logger', () => ({
   createLogger: () => ({ error: vi.fn(), warn: logger.warn, info: vi.fn(), debug: vi.fn() }),
 }))
 
-const { fileBackedMcpToolCatalogStore, memoryMcpToolCatalogStore } = await import(
-  '../mcp-connection-catalog'
-)
+const { fileBackedMcpToolCatalogStore, memoryMcpToolCatalogStore } =
+  await import('../mcp-connection-catalog')
 const { fileBackedPackageBinStore } = await import('../../runtime/mcp-package-runner-bin-store')
 const { McpSessionConnectionPool } = await import('../mcp-session-connection-pool')
-const { FakeUpstream, flush, INITIALIZE_RESULT, initializeRequest } = await import(
-  './fake-upstream'
-)
+const { FakeUpstream, flush, INITIALIZE_RESULT, initializeRequest } =
+  await import('./fake-upstream')
 
 let root = ''
 beforeEach(() => {

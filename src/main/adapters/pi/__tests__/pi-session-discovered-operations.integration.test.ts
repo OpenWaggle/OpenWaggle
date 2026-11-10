@@ -88,9 +88,8 @@ describe('Operations on a discovered Pi session', () => {
   it('forks from a prefixed node into a new Session', async () => {
     const { sessionId } = await discoveredSession(fixture)
     const [, secondUser] = await userNodeIds(sessionId)
-    const { forkAgentSessionToNewSession } = await import(
-      '../../../application/agent-session-service'
-    )
+    const { forkAgentSessionToNewSession } =
+      await import('../../../application/agent-session-service')
 
     const fork = await run(
       forkAgentSessionToNewSession({
@@ -135,9 +134,8 @@ describe('Operations on a discovered Pi session', () => {
       const { sessionId } = await discoveredSession(fixture)
       const [, secondUser] = await userNodeIds(sessionId)
       const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
-      const { forkSession } = await import(
-        '../../../application/host-ui-session-lifecycle-operations'
-      )
+      const { forkSession } =
+        await import('../../../application/host-ui-session-lifecycle-operations')
       const target = position === 'before' ? String(secondUser) : String(lastNode)
 
       const fork = await run(forkSession([sessionId, FAKE_PROVIDER_MODEL, target], position))
@@ -163,9 +161,8 @@ describe('Operations on a discovered Pi session', () => {
     const cwd = path.join(fixture.project, 'packages', 'core')
     const { sessionId } = await discoveredSession(fixture, { cwd })
     const [, secondUser] = await userNodeIds(sessionId)
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
+    const { forkSession } =
+      await import('../../../application/host-ui-session-lifecycle-operations')
     const { resolveSessionWorkingPath } = await import('../agent-kernel/session-manager')
 
     const fork = await run(

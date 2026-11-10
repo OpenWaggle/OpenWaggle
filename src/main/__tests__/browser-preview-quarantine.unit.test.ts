@@ -12,9 +12,8 @@ import {
 } from './browser-preview-test-harness'
 
 const electronMocks = getBrowserPreviewElectronMocks()
-const { browserPreviewAutomationStatusFor } = await import(
-  '../adapters/electron-browser-preview-automation-records'
-)
+const { browserPreviewAutomationStatusFor } =
+  await import('../adapters/electron-browser-preview-automation-records')
 
 describe('retired browser owner quarantine', () => {
   beforeEach(() => {

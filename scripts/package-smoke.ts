@@ -19,10 +19,7 @@ import {
   supportsPackageSmokeNodeVersion,
 } from './package-smoke-runtime-assertions'
 import { runPackageBrowserSmoke } from './package-browser-smoke'
-import {
-  readPackageSmokeEnvironment,
-  type PackageManagerName,
-} from './package-smoke-env'
+import { readPackageSmokeEnvironment, type PackageManagerName } from './package-smoke-env'
 import {
   assertRequiredPackageManagers,
   availablePackageManagers,
@@ -51,7 +48,10 @@ const FIXTURE_DIR = 'tests/fixtures/package-smoke'
 const SMOKE_PROJECT_DIR = 'package-smoke-project'
 const CLI_ARGUMENT_START_INDEX = 2
 
-interface SmokeDependencyVersion { readonly name: string; readonly version: string }
+interface SmokeDependencyVersion {
+  readonly name: string
+  readonly version: string
+}
 
 const PUBLISHABLE_PACKAGES: readonly PackageSpec[] = [
   { name: '@openwaggle/extension-sdk', directory: 'packages/extension-sdk' },
@@ -96,20 +96,16 @@ async function readJsonFile(filePath: string) {
 }
 
 async function packPackage(projectRoot: string, spec: PackageSpec, packDir: string) {
-  const result = await execFile(
-    'pnpm',
-    ['pack', '--pack-destination', packDir, '--json'],
-    { cwd: path.join(projectRoot, spec.directory), maxBuffer: EXEC_MAX_BUFFER_BYTES },
-  )
+  const result = await execFile('pnpm', ['pack', '--pack-destination', packDir, '--json'], {
+    cwd: path.join(projectRoot, spec.directory),
+    maxBuffer: EXEC_MAX_BUFFER_BYTES,
+  })
   return validatePackedPackage(spec, parsePnpmPackTarballPath(result.stdout))
 }
 
 async function canonicalPackedPackages(tarballDirectory: string) {
   const packageNames = new Set(PUBLISHABLE_PACKAGES.map((spec) => spec.name))
-  const tarballs = await readCanonicalPackageTarballs(
-    tarballDirectory,
-    packageNames,
-  )
+  const tarballs = await readCanonicalPackageTarballs(tarballDirectory, packageNames)
   return Promise.all(
     tarballs.map((tarball) => {
       const spec = PUBLISHABLE_PACKAGES.find((candidate) => candidate.name === tarball.name)
@@ -121,10 +117,7 @@ async function canonicalPackedPackages(tarballDirectory: string) {
 
 function packedPackageVersions(packedPackages: readonly PackedPackage[]) {
   return packedPackages.map((packedPackage) => {
-    if (
-      !isObject(packedPackage.manifest) ||
-      typeof packedPackage.manifest.version !== 'string'
-    ) {
+    if (!isObject(packedPackage.manifest) || typeof packedPackage.manifest.version !== 'string') {
       throw new Error(`${packedPackage.name} packed manifest must declare a version.`)
     }
 
@@ -295,15 +288,14 @@ async function main(args: readonly string[]) {
     if (tarballDirectory === undefined) {
       await runCommand('pnpm', ['build:packages'], projectRoot)
     }
-    const packDir = path.join(smokeRoot, 'tarballs'); await fs.mkdir(packDir, { recursive: true })
+    const packDir = path.join(smokeRoot, 'tarballs')
+    await fs.mkdir(packDir, { recursive: true })
     const packedPackages: PackedPackage[] = []
     const canonicalNames = new Set(canonicalPackages.map((packedPackage) => packedPackage.name))
 
     for (const spec of PUBLISHABLE_PACKAGES) {
       const canonicalPackage = canonicalPackages.find((candidate) => candidate.name === spec.name)
-      packedPackages.push(
-        canonicalPackage ?? (await packPackage(projectRoot, spec, packDir)),
-      )
+      packedPackages.push(canonicalPackage ?? (await packPackage(projectRoot, spec, packDir)))
     }
     if (canonicalNames.size !== canonicalPackages.length) {
       throw new Error('Canonical package smoke contains duplicate package tarballs.')

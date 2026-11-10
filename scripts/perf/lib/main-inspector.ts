@@ -31,7 +31,9 @@ export async function connectInspector(port: number, timeoutMs: number): Promise
   const socket = new WebSocket(await inspectorWebSocketUrl(port, Date.now() + timeoutMs))
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener('open', () => resolve(), { once: true })
-    socket.addEventListener('error', () => reject(new Error('Inspector connection failed.')), { once: true })
+    socket.addEventListener('error', () => reject(new Error('Inspector connection failed.')), {
+      once: true,
+    })
   })
   let nextId = 0
   const pending = new Map<number, (value: unknown) => void>()
@@ -48,7 +50,11 @@ export async function connectInspector(port: number, timeoutMs: number): Promise
       socket.send(JSON.stringify({ id: nextId, method, params }))
     })
   const evaluate = async (expression: string) => {
-    const response = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
+    const response = await send('Runtime.evaluate', {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    })
     const result = isRecord(response) ? response.result : null
     const remote = isRecord(result) ? result.result : null
     if (isRecord(result) && result.exceptionDetails) {

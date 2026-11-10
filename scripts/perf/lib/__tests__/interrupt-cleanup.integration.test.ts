@@ -43,13 +43,17 @@ describe.skipIf(process.platform === 'win32')('an interrupted perf harness', () 
           const line = output.split('\n').find((candidate) => candidate.startsWith('{'))
           if (line) resolve(JSON.parse(line))
         })
-        harness.once('exit', (code) => reject(new Error(`harness exited early with ${String(code)}`)))
+        harness.once('exit', (code) =>
+          reject(new Error(`harness exited early with ${String(code)}`)),
+        )
       })
       leftovers.push(started)
       expect(isAlive(started.pid)).toBe(true)
       expect(existsSync(started.root)).toBe(true)
 
-      const exited = new Promise<number | null>((resolve) => harness.once('exit', (code) => resolve(code)))
+      const exited = new Promise<number | null>((resolve) =>
+        harness.once('exit', (code) => resolve(code)),
+      )
       harness.kill('SIGINT')
 
       expect(await exited).toBe(SIGINT_EXIT_CODE)

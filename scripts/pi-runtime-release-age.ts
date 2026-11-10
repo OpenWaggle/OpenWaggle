@@ -27,18 +27,34 @@ function piReleaseAgeEntries(workspace: string) {
   try {
     parsed = parseYaml(workspace)
   } catch (error) {
-    return { exact: [], inexact: [], invalid: error instanceof Error ? error.message : String(error) }
+    return {
+      exact: [],
+      inexact: [],
+      invalid: error instanceof Error ? error.message : String(error),
+    }
   }
   const list: unknown =
-    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'minimumReleaseAgeExclude') : undefined
+    typeof parsed === 'object' && parsed !== null
+      ? Reflect.get(parsed, 'minimumReleaseAgeExclude')
+      : undefined
   const items = Array.isArray(list) ? list.filter((item) => typeof item === 'string') : []
   const exact: string[] = []
   const inexact: string[] = []
   for (const item of items.filter((candidate) => candidate.startsWith('@earendil-works/'))) {
     const separator = item.indexOf('@', 1)
     const name = separator > 0 ? item.slice(0, separator) : item
-    const versions = separator > 0 ? item.slice(separator + 1).split('||').map((part) => part.trim()) : []
-    if (!EXACT_PI_PACKAGE.test(name) || versions.length === 0 || !versions.every((part) => EXACT_VERSION.test(part))) {
+    const versions =
+      separator > 0
+        ? item
+            .slice(separator + 1)
+            .split('||')
+            .map((part) => part.trim())
+        : []
+    if (
+      !EXACT_PI_PACKAGE.test(name) ||
+      versions.length === 0 ||
+      !versions.every((part) => EXACT_VERSION.test(part))
+    ) {
       inexact.push(item)
     } else {
       exact.push(...versions.map((part) => `${name}@${part}`))
@@ -61,7 +77,9 @@ export function releaseAgeExclusionProblems(
   const { exact, inexact, invalid } = piReleaseAgeEntries(input.workspace)
   if (invalid) return [`pnpm-workspace.yaml is not valid YAML: ${invalid}`]
   const inexactProblems = inexact.length
-    ? [`minimumReleaseAgeExclude may name Pi packages only at one exact version: ${inexact.join(', ')}.`]
+    ? [
+        `minimumReleaseAgeExclude may name Pi packages only at one exact version: ${inexact.join(', ')}.`,
+      ]
     : []
   const ageEntries = new Set(exact)
   if (ageEntries.size === 0) {
@@ -93,7 +111,11 @@ function releaseAgeExclusionExpiryProblems(input: ReleaseAgeInput, version: stri
   // A bare date is midnight UTC; a rolled-over date such as 2026-02-30 does not round-trip.
   const expiry = date && `${date}${time ?? 'T00:00:00Z'}`
   const expiryTime = expiry ? Date.parse(expiry) : Number.NaN
-  if (!expiry || Number.isNaN(expiryTime) || new Date(expiryTime).toISOString().replace('.000Z', 'Z') !== expiry) {
+  if (
+    !expiry ||
+    Number.isNaN(expiryTime) ||
+    new Date(expiryTime).toISOString().replace('.000Z', 'Z') !== expiry
+  ) {
     return [
       `Temporary Pi minimumReleaseAgeExclude entries need a "# ${RELEASE_AGE_EXPIRY_MARKER}: YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SSZ" line naming when every ${version} package is seven days old.`,
     ]

@@ -201,7 +201,9 @@ function assertAsarEntries(header: AsarNode) {
 function assertPiPackageAssets(header: AsarNode) {
   const missing = missingPackagedPiAssets(collectAsarEntries(header))
   if (missing.length > 0) {
-    throw new Error(`Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`)
+    throw new Error(
+      `Packaged app asar is missing Pi documentation Pi names to the model: ${missing.join(', ')}.`,
+    )
   }
 }
 
@@ -233,9 +235,10 @@ export function packagedPtyProbeInvocation(
   projectRoot: string = process.cwd(),
   platform: NodeJS.Platform = process.platform,
 ) {
-  const executablePath = platform === 'darwin'
-    ? path.join(appPath, 'Contents', 'MacOS', 'OpenWaggle')
-    : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
+  const executablePath =
+    platform === 'darwin'
+      ? path.join(appPath, 'Contents', 'MacOS', 'OpenWaggle')
+      : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
   return {
     command: executablePath,
     args: [

@@ -72,7 +72,9 @@ export async function createPerfProfile(options: PerfProfileOptions): Promise<Pe
   // An interrupted harness still stops the profile's Host and removes the profile.
   liveProfiles.set(
     root,
-    interruptCleanup.register('profile', () => disposePerfProfile(profile, process.env.OWPERF_KEEP_PROFILE === '1')),
+    interruptCleanup.register('profile', () =>
+      disposePerfProfile(profile, process.env.OWPERF_KEEP_PROFILE === '1'),
+    ),
   )
   return profile
 }
@@ -149,7 +151,9 @@ export async function stopProfileHost(
   try {
     await shutdownSessionHostForQa(profile.userData, whileOwnershipHeld, HOST_DRAIN_TIMEOUT_MS)
   } catch (error) {
-    process.stderr.write(`Host drain did not finish (${String(error).slice(0, LOGGED_ERROR_CHARS)}); stopping the profile's Host.\n`)
+    process.stderr.write(
+      `Host drain did not finish (${String(error).slice(0, LOGGED_ERROR_CHARS)}); stopping the profile's Host.\n`,
+    )
     await forceStopProfileHost(profile.userData)
   }
 }

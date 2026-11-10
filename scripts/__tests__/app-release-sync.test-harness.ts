@@ -159,7 +159,8 @@ export function gitRunner(env: NodeJS.ProcessEnv) {
 
 export async function workflowStep(name: string, workflowText?: string) {
   const workflow: unknown = parse(
-    workflowText ?? await fs.readFile(path.join(PROJECT_ROOT, '.github/workflows/release.yml'), 'utf8'),
+    workflowText ??
+      (await fs.readFile(path.join(PROJECT_ROOT, '.github/workflows/release.yml'), 'utf8')),
   )
   assertMatching({ jobs: { version: { steps: P.array(P._) } } }, workflow)
   const step = workflow.jobs.version.steps.find((candidate) =>
@@ -224,7 +225,10 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
     const mainSha = await commitManifest(manifest, 'feat: project actions')
     await git(author, 'push', 'origin', 'main', RELEASE_BRANCH)
     const futureMain = options.advanceDuring
-      ? await commitManifest({ ...manifest, homepage: 'https://example.test/new' }, 'fix: app metadata')
+      ? await commitManifest(
+          { ...manifest, homepage: 'https://example.test/new' },
+          'fix: app metadata',
+        )
       : ''
     await git(directory, 'clone', remote, runner)
     const prExists = path.join(directory, 'pr-exists')
@@ -272,7 +276,11 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
       events: (await fs.readFile(eventsPath, 'utf8')).trim().split('\n').filter(Boolean),
       manifest: await git(runner, 'show', `${head}:package.json`),
       expectedManifest: JSON.stringify(
-        { ...manifest, ...(futureMain ? { homepage: 'https://example.test/new' } : {}), version: RELEASE_VERSION },
+        {
+          ...manifest,
+          ...(futureMain ? { homepage: 'https://example.test/new' } : {}),
+          version: RELEASE_VERSION,
+        },
         null,
         2,
       ),

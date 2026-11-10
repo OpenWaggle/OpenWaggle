@@ -2,20 +2,20 @@
 // without selecting it by hand. Without JavaScript or the Clipboard API, blocks stay plain text.
 // Diagrams rendered from ```mermaid are not <pre> blocks, so they get no button.
 
-export const CODE_COPY_CLASS = 'docs-code-copy';
-const COPIED_LABEL = 'Copied';
-const COPY_FAILED_LABEL = 'Copy failed';
-const COPY_LABEL = 'Copy';
-const RESET_AFTER_MS = 2000;
+export const CODE_COPY_CLASS = 'docs-code-copy'
+const COPIED_LABEL = 'Copied'
+const COPY_FAILED_LABEL = 'Copy failed'
+const COPY_LABEL = 'Copy'
+const RESET_AFTER_MS = 2000
 /**
  * A live region announces a change, so a repeated copy first clears the status, then sets it again
  * after this long, which screen readers hear as a new message.
  */
-const REANNOUNCE_AFTER_MS = 100;
+const REANNOUNCE_AFTER_MS = 100
 
 /** The text a Copy button puts on the clipboard: the block's code without the trailing newline. */
 export function codeBlockText(pre: HTMLPreElement) {
-  return (pre.querySelector('code') ?? pre).textContent?.replace(/\n+$/u, '') ?? '';
+  return (pre.querySelector('code') ?? pre).textContent?.replace(/\n+$/u, '') ?? ''
 }
 
 /**
@@ -29,45 +29,45 @@ export function enhanceDocsCodeCopy(
   root: Document | HTMLElement,
   clipboard: Pick<Clipboard, 'writeText'> | undefined = globalThis.navigator?.clipboard,
 ) {
-  if (!clipboard) return 0;
-  let added = 0;
+  if (!clipboard) return 0
+  let added = 0
   for (const pre of root.querySelectorAll<HTMLPreElement>('.prose-docs pre')) {
-    if (pre.parentElement?.classList.contains(`${CODE_COPY_CLASS}-wrap`)) continue;
+    if (pre.parentElement?.classList.contains(`${CODE_COPY_CLASS}-wrap`)) continue
     // A live extension example renders its own code view, line numbers included. It is not a snippet to copy.
-    if (pre.closest('.ow-extension-root')) continue;
-    const wrap = pre.ownerDocument.createElement('div');
-    wrap.className = `${CODE_COPY_CLASS}-wrap`;
-    pre.replaceWith(wrap);
-    wrap.append(pre);
-    const button = pre.ownerDocument.createElement('button');
-    button.type = 'button';
-    button.className = CODE_COPY_CLASS;
-    button.textContent = COPY_LABEL;
-    button.setAttribute('aria-label', 'Copy code to clipboard');
-    const status = pre.ownerDocument.createElement('span');
-    status.className = `${CODE_COPY_CLASS}-status`;
-    status.setAttribute('role', 'status');
-    status.setAttribute('aria-live', 'polite');
-    let reset: ReturnType<typeof setTimeout> | undefined;
-    let announce: ReturnType<typeof setTimeout> | undefined;
+    if (pre.closest('.ow-extension-root')) continue
+    const wrap = pre.ownerDocument.createElement('div')
+    wrap.className = `${CODE_COPY_CLASS}-wrap`
+    pre.replaceWith(wrap)
+    wrap.append(pre)
+    const button = pre.ownerDocument.createElement('button')
+    button.type = 'button'
+    button.className = CODE_COPY_CLASS
+    button.textContent = COPY_LABEL
+    button.setAttribute('aria-label', 'Copy code to clipboard')
+    const status = pre.ownerDocument.createElement('span')
+    status.className = `${CODE_COPY_CLASS}-status`
+    status.setAttribute('role', 'status')
+    status.setAttribute('aria-live', 'polite')
+    let reset: ReturnType<typeof setTimeout> | undefined
+    let announce: ReturnType<typeof setTimeout> | undefined
     const show = (label: string) => {
-      button.textContent = label;
-      clearTimeout(announce);
+      button.textContent = label
+      clearTimeout(announce)
       if (status.textContent === '') {
-        status.textContent = label;
+        status.textContent = label
       } else {
-        status.textContent = '';
+        status.textContent = ''
         announce = setTimeout(() => {
-          status.textContent = label;
-        }, REANNOUNCE_AFTER_MS);
+          status.textContent = label
+        }, REANNOUNCE_AFTER_MS)
       }
-      clearTimeout(reset);
+      clearTimeout(reset)
       reset = setTimeout(() => {
-        clearTimeout(announce);
-        button.textContent = COPY_LABEL;
-        status.textContent = '';
-      }, RESET_AFTER_MS);
-    };
+        clearTimeout(announce)
+        button.textContent = COPY_LABEL
+        status.textContent = ''
+      }, RESET_AFTER_MS)
+    }
     button.addEventListener('click', () => {
       // A clipboard that throws instead of rejecting (a denied permission in some browsers) fails
       // the same way.
@@ -76,10 +76,10 @@ export function enhanceDocsCodeCopy(
         .then(
           () => show(COPIED_LABEL),
           () => show(COPY_FAILED_LABEL),
-        );
-    });
-    wrap.append(button, status);
-    added += 1;
+        )
+    })
+    wrap.append(button, status)
+    added += 1
   }
-  return added;
+  return added
 }

@@ -1,11 +1,5 @@
 import { createHash } from 'node:crypto'
-import {
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'

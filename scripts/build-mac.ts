@@ -9,9 +9,13 @@ function currentMacBuildArch() {
   return process.arch === APPLE_SILICON_ARCH ? APPLE_SILICON_ARCH : INTEL_ARCH
 }
 
-const result = spawnSync('pnpm', ['exec', 'electron-builder', '--mac', `--${currentMacBuildArch()}`], {
-  stdio: 'inherit',
-})
+const result = spawnSync(
+  'pnpm',
+  ['exec', 'electron-builder', '--mac', `--${currentMacBuildArch()}`],
+  {
+    stdio: 'inherit',
+  },
+)
 
 if (result.error) {
   console.error(result.error.message)

@@ -1,7 +1,4 @@
-import {
-  redactBootstrapDiagnostic,
-  runRequired,
-} from './package-release-bootstrap-commands'
+import { redactBootstrapDiagnostic, runRequired } from './package-release-bootstrap-commands'
 import {
   createAndVerifyGithubEnvironment,
   createAndVerifyRuleset,
@@ -70,10 +67,9 @@ async function recoverPublishingRestriction(
     const causeMessage = cause instanceof Error ? cause.message : String(cause)
     const recoveryMessage =
       recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
-    throw new Error(
-      `${causeMessage} Restrictive MFA recovery also failed: ${recoveryMessage}`,
-      { cause: recoveryError },
-    )
+    throw new Error(`${causeMessage} Restrictive MFA recovery also failed: ${recoveryMessage}`, {
+      cause: recoveryError,
+    })
   }
   throw cause
 }
@@ -112,12 +108,7 @@ async function securePackage(
     packageProgress.state = 'complete'
   } catch (error) {
     if (packageMayExist) {
-      await recoverPublishingRestriction(
-        projectRoot,
-        packageProgress.name,
-        dependencies,
-        error,
-      )
+      await recoverPublishingRestriction(projectRoot, packageProgress.name, dependencies, error)
     }
     throw error
   }
@@ -164,12 +155,7 @@ export async function executeBootstrap(
       .filter((packageProgress) => packageProgress.nextAction !== NEXT_PUBLISH)
       .map((packageProgress) => packageProgress.name)
     if (existingPackageNames.length > 0) {
-      await verifyWriteAccess(
-        input.projectRoot,
-        username,
-        dependencies,
-        existingPackageNames,
-      )
+      await verifyWriteAccess(input.projectRoot, username, dependencies, existingPackageNames)
     }
     await securePackages(input.projectRoot, username, packages, dependencies)
     if (github.environment === 'pending') {

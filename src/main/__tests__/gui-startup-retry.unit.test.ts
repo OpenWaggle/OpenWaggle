@@ -18,15 +18,13 @@ interface HarnessState {
   desktopServices: Deferred<void> | null
 }
 
-const state = vi.hoisted(
-  (): HarnessState => ({
-    route: 'local',
-    liveBridges: 0,
-    settingsRequests: [],
-    preparation: null,
-    desktopServices: null,
-  }),
-)
+const state = vi.hoisted((): HarnessState => ({
+  route: 'local',
+  liveBridges: 0,
+  settingsRequests: [],
+  preparation: null,
+  desktopServices: null,
+}))
 
 const prepareGuiSessionHostLifecycle = vi.hoisted(() => vi.fn())
 const startAppGuiDesktopServices = vi.hoisted(() => vi.fn())

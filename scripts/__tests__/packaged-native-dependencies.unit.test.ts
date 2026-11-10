@@ -9,7 +9,9 @@ import { asarImage, packageJson } from './asar-fixtures'
 const temporaryRoots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })))
+  await Promise.all(
+    temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+  )
 })
 
 async function archive(files: Record<string, string>, unpacked: readonly string[] = []) {
@@ -24,8 +26,17 @@ async function archive(files: Record<string, string>, unpacked: readonly string[
   return readAsarArchive(asarPath)
 }
 
-const SHARP = ['@img/sharp-darwin-arm64', '@img/sharp-darwin-x64', '@img/sharp-linux-x64', '@img/sharp-linuxmusl-x64']
-const KEYRING = ['@napi-rs/keyring-darwin-x64', '@napi-rs/keyring-linux-x64-gnu', '@napi-rs/keyring-linux-x64-musl']
+const SHARP = [
+  '@img/sharp-darwin-arm64',
+  '@img/sharp-darwin-x64',
+  '@img/sharp-linux-x64',
+  '@img/sharp-linuxmusl-x64',
+]
+const KEYRING = [
+  '@napi-rs/keyring-darwin-x64',
+  '@napi-rs/keyring-linux-x64-gnu',
+  '@napi-rs/keyring-linux-x64-musl',
+]
 
 describe('readAsarArchive', () => {
   it('lists packed and unpacked files and reads both', async () => {
@@ -47,14 +58,19 @@ describe('isNativePackageFor', () => {
     expect(isNativePackageFor('@img/sharp-darwin-arm64', 'darwin', 'x64')).toBe(false)
     expect(isNativePackageFor('@napi-rs/keyring-linux-x64-musl', 'linux', 'x64')).toBe(false)
     expect(isNativePackageFor('@img/sharp-linuxmusl-x64', 'linux', 'x64')).toBe(false)
-    expect(isNativePackageFor('@mariozechner/clipboard-darwin-universal', 'darwin', 'x64')).toBe(false)
+    expect(isNativePackageFor('@mariozechner/clipboard-darwin-universal', 'darwin', 'x64')).toBe(
+      false,
+    )
   })
 })
 
 describe('missingNativeDependencies', () => {
   it('fails the Intel app that shipped only the arm64 sharp and keyring builds', async () => {
     const asar = await archive({
-      'package.json': packageJson('openwaggle', ['@img/sharp-darwin-arm64', '@img/sharp-darwin-x64']),
+      'package.json': packageJson('openwaggle', [
+        '@img/sharp-darwin-arm64',
+        '@img/sharp-darwin-x64',
+      ]),
       'node_modules/sharp/package.json': packageJson('sharp', SHARP),
       'node_modules/@img/sharp-darwin-arm64/package.json': packageJson('@img/sharp-darwin-arm64'),
       'node_modules/@napi-rs/keyring/package.json': packageJson('@napi-rs/keyring', KEYRING),

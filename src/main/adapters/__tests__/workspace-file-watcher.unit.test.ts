@@ -14,12 +14,10 @@ interface WatcherMocks {
   watch: ReturnType<typeof vi.fn>
 }
 
-const watcherMocks = vi.hoisted(
-  (): WatcherMocks => ({
-    instances: [],
-    watch: vi.fn(),
-  }),
-)
+const watcherMocks = vi.hoisted((): WatcherMocks => ({
+  instances: [],
+  watch: vi.fn(),
+}))
 
 watcherMocks.watch.mockImplementation(() => {
   type Listener = ((...args: unknown[]) => void) & { original?: (...args: unknown[]) => void }

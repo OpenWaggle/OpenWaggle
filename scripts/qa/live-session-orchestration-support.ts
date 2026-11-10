@@ -73,11 +73,9 @@ export async function findPackagedExecutable() {
   return selectPackagedExecutable(existing, process.platform)
 }
 
-export function selectPackagedExecutable(
-  existing: readonly string[],
-  platform: NodeJS.Platform,
-) {
-  const appImages = platform === 'linux' ? existing.filter((entry) => entry.endsWith('.AppImage')) : []
+export function selectPackagedExecutable(existing: readonly string[], platform: NodeJS.Platform) {
+  const appImages =
+    platform === 'linux' ? existing.filter((entry) => entry.endsWith('.AppImage')) : []
   const candidates = appImages.length > 0 ? appImages : existing
   if (candidates.length !== 1) {
     throw new Error(`Expected one packaged OpenWaggle executable, found ${candidates.length}.`)
@@ -159,7 +157,8 @@ export async function waitForHost(
   const now = options.now ?? Date.now
   const runCli = options.runCli ?? runJsonCli
   const wait =
-    options.wait ?? ((milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
+    options.wait ??
+    ((milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
   const deadline = now() + (options.timeoutMs ?? STARTUP_TIMEOUT_MS)
   let lastError: unknown
   while (now() < deadline) {
@@ -227,11 +226,7 @@ export function findWorker(listResponse: Record<string, unknown>, queenSessionId
   return worker.sessionId
 }
 
-async function callSessionTool(
-  client: Client,
-  args: Record<string, unknown>,
-  timeoutMs: number,
-) {
+async function callSessionTool(client: Client, args: Record<string, unknown>, timeoutMs: number) {
   const result = await client.callTool(
     { name: 'openwaggle_hive', arguments: args },
     { timeout: timeoutMs, maxTotalTimeout: timeoutMs },

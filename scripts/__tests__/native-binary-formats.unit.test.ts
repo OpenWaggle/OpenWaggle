@@ -62,7 +62,9 @@ describe('readNativeBinary', () => {
   })
 
   it('fails closed when an ELF has no section headers to read version needs from', async () => {
-    await expect(read(elfImage({ withoutSectionHeaders: true }))).rejects.toThrow(/section headers/u)
+    await expect(read(elfImage({ withoutSectionHeaders: true }))).rejects.toThrow(
+      /section headers/u,
+    )
   })
 
   it('reads the minimum macOS version from LC_BUILD_VERSION', async () => {
@@ -74,7 +76,9 @@ describe('readNativeBinary', () => {
 
   it('reads the minimum macOS version from LC_VERSION_MIN_MACOSX', async () => {
     expect(
-      await read(machOImage({ cpu: MACHO_CPU.x86_64, minos: '10.15.2', legacyVersionCommand: true })),
+      await read(
+        machOImage({ cpu: MACHO_CPU.x86_64, minos: '10.15.2', legacyVersionCommand: true }),
+      ),
     ).toEqual({
       format: 'mach-o',
       slices: [{ architecture: 'x64', platform: 'macos', minimumVersion: '10.15.2' }],
@@ -118,7 +122,9 @@ describe('readNativeBinary', () => {
 
   it('reads the Windows version a PE image requires', async () => {
     expect(
-      await read(peImage({ machine: PE_MACHINE.x64, osVersion: [6, 0], subsystemVersion: [10, 0] })),
+      await read(
+        peImage({ machine: PE_MACHINE.x64, osVersion: [6, 0], subsystemVersion: [10, 0] }),
+      ),
     ).toEqual({ format: 'pe', architecture: 'x64', minimumVersion: '10.0' })
     expect(await read(peImage({ machine: PE_MACHINE.arm64 }))).toEqual({
       format: 'pe',

@@ -38,7 +38,12 @@ export function cliProcessError(error: unknown) {
 }
 
 /** Arguments and raw stdout can contain credentials; only extract a bounded rejection code. */
-export function cliExitError(code: number | null, signal: string | null, stderr: string, stdout = '') {
+export function cliExitError(
+  code: number | null,
+  signal: string | null,
+  stderr: string,
+  stdout = '',
+) {
   const safeSignal = signal !== null && /^SIG[A-Z]{1,16}$/u.test(signal) ? signal : null
   const message = `OpenWaggle CLI exited with ${String(code ?? safeSignal)}.${rejectionDiagnostic(stdout)}`
   if (!stderr) return new Error(message)

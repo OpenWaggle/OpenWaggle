@@ -1,9 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import {
-  readReleaseCiWorkflowJobs,
-  type ReleaseCiWorkflowJob,
-} from './release-ci-policy-workflow'
+import { readReleaseCiWorkflowJobs, type ReleaseCiWorkflowJob } from './release-ci-policy-workflow'
 import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
 import {
   SESSION_PERFORMANCE_WORKFLOW_PATH,
@@ -94,7 +91,8 @@ function validateDispatchSupport(
   jobs: readonly ReleaseCiWorkflowJob[],
   violations: string[],
 ) {
-  const dispatchInput = /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
+  const dispatchInput =
+    /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
   if (!dispatchInput.test(workflow)) {
     violations.push('CI must accept a required workflow_dispatch head_sha input.')
   }
@@ -102,9 +100,7 @@ function validateDispatchSupport(
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
   const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
   const checkoutJobs = requiredJobs.filter((job) =>
-    readSteps(job).some(
-      (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
-    ),
+    readSteps(job).some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP),
   )
 
   if (checkoutJobs.length !== REQUIRED_CI_CHECKS.length) {
@@ -257,7 +253,10 @@ function validateRequiredChecks(
     const expected = EXPECTED_STEPS.get(job.name)
     if (expected === undefined) continue
     const actual = readSteps(job)
-    if (actual.length === expected.length && actual.every((step, index) => step === expected[index])) {
+    if (
+      actual.length === expected.length &&
+      actual.every((step, index) => step === expected[index])
+    ) {
       continue
     }
 
@@ -265,7 +264,9 @@ function validateRequiredChecks(
     if (requiredCommand !== undefined) {
       const exactStep = `      - run: ${requiredCommand}`
       if (!actual.includes(exactStep)) {
-        violations.push(`CI job ${job.name} must run ${requiredCommand} as an exact, fail-closed step.`)
+        violations.push(
+          `CI job ${job.name} must run ${requiredCommand} as an exact, fail-closed step.`,
+        )
       }
     }
     violations.push(`CI job ${job.name} steps must match the fail-closed required sequence.`)

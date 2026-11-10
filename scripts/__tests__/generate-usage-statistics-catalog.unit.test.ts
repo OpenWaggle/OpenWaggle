@@ -6,7 +6,10 @@ import {
   USAGE_STATISTICS_CATALOG_PROVIDER_MODELS,
   USAGE_STATISTICS_CATALOG_SKILLS,
 } from '../../src/shared/usage-statistics/catalog.generated'
-import { catalogIdentifiers, renderUsageStatisticsCatalog } from '../generate-usage-statistics-catalog'
+import {
+  catalogIdentifiers,
+  renderUsageStatisticsCatalog,
+} from '../generate-usage-statistics-catalog'
 
 describe('usage statistics catalog generator', () => {
   it('keeps only identifiers the wire contract can carry, unique and sorted', () => {

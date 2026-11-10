@@ -2,10 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  parseWindowsJobStatus,
-  waitForWindowsJobState,
-} from '../windows-job-object'
+import { parseWindowsJobStatus, waitForWindowsJobState } from '../windows-job-object'
 import {
   assertSingleInstanceLockDeniedMarker,
   singleInstanceLockDeniedArguments,
@@ -29,13 +26,18 @@ describe('Windows Job Object QA ownership', () => {
       status: 'root-exited',
       exitCode: 0,
     })
-    expect(parseWindowsJobStatus('assigned\t42\nroot-exited\t0\nempty\t0\n')).toEqual({ status: 'empty' })
+    expect(parseWindowsJobStatus('assigned\t42\nroot-exited\t0\nempty\t0\n')).toEqual({
+      status: 'empty',
+    })
     expect(
       parseWindowsJobStatus(
         `assigned\t42\nfailed\t${Buffer.from('assignment failed').toString('base64')}\n`,
       ),
     ).toEqual({ status: 'failed', message: 'assignment failed' })
-    expect(parseWindowsJobStatus('assigned\t42\nempty')).toEqual({ status: 'assigned', rootPid: 42 })
+    expect(parseWindowsJobStatus('assigned\t42\nempty')).toEqual({
+      status: 'assigned',
+      rootPid: 42,
+    })
   })
 
   it('waits deterministically for kernel-reported empty state', async () => {
@@ -144,7 +146,7 @@ describe('Windows Job Object QA ownership', () => {
     expect(LAUNCHER).toContain('return accounting.ActiveProcesses')
     expect(LAUNCHER).toContain('GetExitCodeProcess(rootProcess, out exitCode)')
     expect(LAUNCHER).toContain("Write-JobState 'root-exited' ([string]$rootExitCode)")
-    expect(LAUNCHER).toContain("if ($active -eq 0)")
+    expect(LAUNCHER).toContain('if ($active -eq 0)')
     expect(LAUNCHER).toContain("Write-JobState 'empty' '0'")
   })
 
@@ -152,12 +154,12 @@ describe('Windows Job Object QA ownership', () => {
     expect(PACKAGED_SMOKE).toContain("if (process.platform === 'win32')")
     expect(PACKAGED_SMOKE).toContain('launchInWindowsJobObject(')
     expect(PACKAGED_SMOKE).toContain('await secondGui.waitForNormalExit()')
-    expect(PACKAGED_SMOKE).toContain('await assertSingleInstanceLockDeniedMarker(lockDeniedMarkerPath)')
+    expect(PACKAGED_SMOKE).toContain(
+      'await assertSingleInstanceLockDeniedMarker(lockDeniedMarkerPath)',
+    )
     expect(PACKAGED_SMOKE).toContain('await secondGui.terminateAndWait()')
     expect(PACKAGED_SMOKE).not.toContain('trackWindowsProcessTreeThroughExit')
-    expect(MAIN_INDEX).toContain(
-      "'openwaggle-automation-single-instance-lock-denied-marker'",
-    )
+    expect(MAIN_INDEX).toContain("'openwaggle-automation-single-instance-lock-denied-marker'")
     expect(MAIN_INDEX).toContain("'single-instance-lock-denied\\n'")
     expect(MAIN_INDEX).toContain('quitAutomationSecondInstance()')
   })

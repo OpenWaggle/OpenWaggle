@@ -39,7 +39,8 @@ export interface HookPlacement {
   readonly source: string
 }
 
-const TEMPLATE_GLOB = 'node_modules/.pnpm/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
+const TEMPLATE_GLOB =
+  'node_modules/.pnpm/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
 const UNINSTALLER_DEFINE = 'BUILD_UNINSTALLER'
 const ALL_PASSES: readonly CompilePassName[] = ['installer', 'uninstaller']
 /** Templates the installer entry point includes only for one pass. */
@@ -222,7 +223,8 @@ function findPlacement(
        * An unguarded insertion in a file that is not pass-specific is compiled in both passes, which
        * is how electron-builder treats `installer.nsi` itself.
        */
-      passes: pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
+      passes:
+        pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
       context:
         withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[templateKey] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,

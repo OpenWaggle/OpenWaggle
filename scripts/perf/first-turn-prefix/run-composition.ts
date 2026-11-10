@@ -54,10 +54,7 @@ function mcpExtensions(input: FirstTurnRunInput) {
  * `prepareMcpExtensions` prepares it. Returns what those functions hand to the Run's Pi runtime.
  */
 export async function composeFirstTurnRun(input: FirstTurnRunInput) {
-  const execution = resolveSessionRunExecution(
-    identityRowForRole(input.role, input),
-    input.runId,
-  )
+  const execution = resolveSessionRunExecution(identityRowForRole(input.role, input), input.runId)
   const sessionId = SessionId(input.sessionId)
   const browserPreview = createBrowserPreviewRuntimeResources({
     enabled: input.browserPreview,
@@ -98,8 +95,15 @@ export async function composeFirstTurnRun(input: FirstTurnRunInput) {
     // here it is named without being created.
     systemPromptAppendices:
       runSystemPromptAppendices(
-        { scratchDirectory: input.scratchDirectory, systemPromptAppendices: browserPreview.systemPromptAppendices },
-        (scratchDirectory) => scratchDirectorySystemPrompt(scratchDirectory, sessionEvidenceDirectoryFor(scratchDirectory)),
+        {
+          scratchDirectory: input.scratchDirectory,
+          systemPromptAppendices: browserPreview.systemPromptAppendices,
+        },
+        (scratchDirectory) =>
+          scratchDirectorySystemPrompt(
+            scratchDirectory,
+            sessionEvidenceDirectoryFor(scratchDirectory),
+          ),
       ).systemPromptAppendices ?? [],
     visualizationDirectory: input.visualizationDirectory,
     runIdentityContext: execution.runIdentityContext,

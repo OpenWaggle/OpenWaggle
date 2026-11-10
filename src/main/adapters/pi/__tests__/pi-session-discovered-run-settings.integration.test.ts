@@ -73,9 +73,8 @@ async function admitSessionControlRun(
   thinkingLevel?: ThinkingLevel,
 ) {
   const { submitSessionMessage } = await import('../../../application/session-control-service')
-  const { SessionControlRunLifecycleRepository } = await import(
-    '../../../ports/session-control-run-lifecycle-repository'
-  )
+  const { SessionControlRunLifecycleRepository } =
+    await import('../../../ports/session-control-run-lifecycle-repository')
   return run(
     Effect.gen(function* () {
       const admitted = yield* submitSessionMessage({
@@ -214,9 +213,8 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     cliManager.appendModelChange('local', 'file-model')
     agePiFile(cli.file)
     const sessionId = SessionId(await discoverOne())
-    const { refreshPiSessionProjection } = await import(
-      '../../../application/pi-session-projection-refresh'
-    )
+    const { refreshPiSessionProjection } =
+      await import('../../../application/pi-session-projection-refresh')
     const { SessionSettingsRepository } = await import('../../../ports/session-settings-repository')
     let releaseReader: () => void = () => undefined
     const readerHolds = new Promise<void>((resolve) => {
@@ -262,9 +260,8 @@ describe('A Session Control Run in a discovered Pi session nobody opened', () =>
     agePiFile(cli.file)
     const sessionId = SessionId(await discoverOne())
     const runId = await admitSessionControlRun(sessionId, 'Go on')
-    const { refreshPiSessionProjection } = await import(
-      '../../../application/pi-session-projection-refresh'
-    )
+    const { refreshPiSessionProjection } =
+      await import('../../../application/pi-session-projection-refresh')
 
     // The sidebar opens it first; the admitted Run refuses the reader's change of its settings.
     await run(refreshPiSessionProjection(sessionId, 'reader'))

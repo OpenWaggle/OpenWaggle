@@ -55,7 +55,8 @@ async function waitForIdleHost(userData: string, attachedAt: number) {
     const percent = ((current - previous) / NANOSECONDS_PER_MILLISECOND / IDLE_SAMPLE_MS) * PERCENT
     previous = current
     quietSamples = percent < IDLE_CPU_PERCENT ? quietSamples + 1 : 0
-    if (quietSamples >= IDLE_SAMPLES_NEEDED && Date.now() - attachedAt >= MINIMUM_ATTACHED_MS) return true
+    if (quietSamples >= IDLE_SAMPLES_NEEDED && Date.now() - attachedAt >= MINIMUM_ATTACHED_MS)
+      return true
   }
   return false
 }
@@ -89,10 +90,14 @@ async function warmWithClientAttached(app: PerfApp, profile: PerfProfile) {
   const launched = launchApp(app, profileEnvironment(profile), ['--use-mock-keychain'])
   const attachedAt = Date.now()
   try {
-    const exited = new Promise<'exited'>((resolve) => launched.child.once('exit', () => resolve('exited')))
+    const exited = new Promise<'exited'>((resolve) =>
+      launched.child.once('exit', () => resolve('exited')),
+    )
     const idle = await Promise.race([waitForIdleHost(profile.userData, attachedAt), exited])
     if (idle === 'exited') {
-      throw new Error(`The app exited while warming ${profile.root}: ${launched.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`)
+      throw new Error(
+        `The app exited while warming ${profile.root}: ${launched.logLines.slice(-LOG_TAIL_LINES).join(' | ')}`,
+      )
     }
     return { backgroundIdle: idle, attachedMs: Date.now() - attachedAt }
   } finally {
@@ -104,7 +109,9 @@ async function warmWithClientAttached(app: PerfApp, profile: PerfProfile) {
 function isCurrentWarmMarker(file: string) {
   if (!existsSync(file)) return false
   const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
-  return typeof parsed === 'object' && parsed !== null && Reflect.get(parsed, 'method') === WARM_METHOD
+  return (
+    typeof parsed === 'object' && parsed !== null && Reflect.get(parsed, 'method') === WARM_METHOD
+  )
 }
 
 /**

@@ -148,7 +148,8 @@ type BundledSession = Awaited<ReturnType<PiSdk['createAgentSession']>>['session'
 function checkBundledWaggleExtension(session: BundledSession, waggle: BundledWaggle) {
   const commands = session.extensionRunner.getRegisteredCommands().map((command) => command.name)
   for (const name of ['waggle', 'standard']) {
-    if (!commands.includes(name)) fail(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
+    if (!commands.includes(name))
+      fail(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
   }
   if (!session.extensionRunner.getMessageRenderer(waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE)) {
     fail('pi-waggle did not register its turn renderer')
@@ -160,7 +161,10 @@ function checkBundledWaggleExtension(session: BundledSession, waggle: BundledWag
 function checkWaggleModeState(session: BundledSession, waggle: BundledWaggle) {
   waggle.modeState.appendPiWaggleModeState(
     session.sessionManager,
-    waggle.modeState.enabledPiWaggleModeState({ config: waggle.preset.config, presetId: waggle.preset.id }),
+    waggle.modeState.enabledPiWaggleModeState({
+      config: waggle.preset.config,
+      presetId: waggle.preset.id,
+    }),
   )
   const state = waggle.modeState.latestPiWaggleModeStateFromBranch(session.sessionManager)
   if (!state?.enabled || state.presetId !== waggle.preset.id) {
@@ -173,7 +177,11 @@ function checkWaggleModeState(session: BundledSession, waggle: BundledWaggle) {
  * The desktop loop in a session of its own: OpenWaggle never loads it beside the package's default
  * extension (`pi-waggle-package-dedupe.ts`), whose context handler would run a second loop.
  */
-async function runDesktopWaggleLoopSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
+async function runDesktopWaggleLoopSession(
+  pi: PiSdk,
+  waggle: BundledWaggle,
+  workDirectory: string,
+) {
   const loop = desktopWaggleLoop(waggle)
   const agentDir = path.join(workDirectory, 'waggle-agent')
   const settingsManager = pi.SettingsManager.inMemory()
@@ -263,9 +271,15 @@ async function resizeThroughImageWorker() {
  */
 function checkPiPackageAssets(pi: PiSdk) {
   const packageDirectory = pi.getPackageDir()
-  const manifest: unknown = JSON.parse(readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'))
-  const name = typeof manifest === 'object' && manifest !== null && 'name' in manifest ? manifest.name : undefined
-  if (name !== '@earendil-works/pi-coding-agent') fail(`Pi's package directory is ${packageDirectory} (${String(name)})`)
+  const manifest: unknown = JSON.parse(
+    readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'),
+  )
+  const name =
+    typeof manifest === 'object' && manifest !== null && 'name' in manifest
+      ? manifest.name
+      : undefined
+  if (name !== '@earendil-works/pi-coding-agent')
+    fail(`Pi's package directory is ${packageDirectory} (${String(name)})`)
   for (const asset of [
     path.join(pi.getDocsPath(), 'codemode.md'),
     pi.getReadmePath(),
@@ -358,7 +372,12 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
       {
         role: 'assistant',
         content: [
-          { type: 'toolCall', id: 'smoke-codemode', name: 'codemode', arguments: { code: CODEMODE_SCRIPT } },
+          {
+            type: 'toolCall',
+            id: 'smoke-codemode',
+            name: 'codemode',
+            arguments: { code: CODEMODE_SCRIPT },
+          },
         ],
         api: 'openai-responses',
         provider: 'smoke',
@@ -375,7 +394,9 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
         timestamp: Date.now(),
       },
     ]
-    const codemodeResult = await tool('codemode').execute('smoke-codemode', { code: CODEMODE_SCRIPT })
+    const codemodeResult = await tool('codemode').execute('smoke-codemode', {
+      code: CODEMODE_SCRIPT,
+    })
     const codemode = {
       result: resultText(codemodeResult),
       hasImage: codemodeResult.content.some((block) => block.type === 'image'),
@@ -414,11 +435,17 @@ async function main() {
     const pi = await loadPi()
     const packageAssets = checkPiPackageAssets(pi)
     const bundledWaggle = await loadBundledWaggle()
-    const { codemode, mcp, waggle: waggleExtension } = await runBundledSession(pi, bundledWaggle, workDirectory)
+    const {
+      codemode,
+      mcp,
+      waggle: waggleExtension,
+    } = await runBundledSession(pi, bundledWaggle, workDirectory)
     const waggle = `${waggleExtension}, ${await runDesktopWaggleLoopSession(pi, bundledWaggle, workDirectory)}`
     const outputFiles = await readdir(temporaryDirectory)
     if (!outputFiles.some((file) => /^pi-codemode-[0-9a-f]+\.png$/.test(file))) {
-      fail(`codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`)
+      fail(
+        `codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`,
+      )
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
@@ -432,7 +459,9 @@ async function main() {
 main().then(
   () => process.exit(0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     process.exit(1)
   },
 )

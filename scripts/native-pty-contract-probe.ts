@@ -105,12 +105,14 @@ async function probeActiveCloseWithSentinel(
     : undefined
   let descriptorClosed = false
   try {
-    await withTimeout(`${backend.label} identity`, output.waitFor(IDENTITY_SUFFIX)).catch((error: unknown) => {
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)} ` +
-          `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
-      )
-    })
+    await withTimeout(`${backend.label} identity`, output.waitFor(IDENTITY_SUFFIX)).catch(
+      (error: unknown) => {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} ` +
+            `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
+        )
+      },
+    )
     const identity = parseIdentity(output.readVisible())
     if (identity.pid !== pty.pid) {
       throw new Error(`${backend.label} reported PID ${pty.pid}, but spawned PID ${identity.pid}.`)
@@ -118,12 +120,14 @@ async function probeActiveCloseWithSentinel(
     resizePty(pty)
     output.resize(RESIZED_COLUMNS, RESIZED_ROWS)
     pty.write(PROMPT_INPUT)
-    await withTimeout(`${backend.label} prompt delivery`, output.waitFor(PROMPT_OUTPUT)).catch((error: unknown) => {
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)} ` +
-          `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
-      )
-    })
+    await withTimeout(`${backend.label} prompt delivery`, output.waitFor(PROMPT_OUTPUT)).catch(
+      (error: unknown) => {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} ` +
+            `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
+        )
+      },
+    )
     if (platform !== 'win32') signalOwnedPosixPty(nodePty, pty)
     pty.closeDescriptor()
     descriptorClosed = true
@@ -144,11 +148,16 @@ async function probeActiveCloseWithSentinel(
     }
     await withTimeout(`${backend.label} resource drain`, pty.waitForResourceDrain())
     stages.push('resources')
-    assertExitEvent(`${backend.label} public exit`, await withTimeout(`${backend.label} public exit`, publicExit))
+    assertExitEvent(
+      `${backend.label} public exit`,
+      await withTimeout(`${backend.label} public exit`, publicExit),
+    )
     if (platform === 'win32') assertTreeFirst(backend.label, stages)
     await wait(DESCENDANT_SETTLE_MS)
     if (await sentinelExists(sentinelPath)) {
-      throw new Error(`${backend.label} left descendant ${identity.descendantPid} alive after close.`)
+      throw new Error(
+        `${backend.label} left descendant ${identity.descendantPid} alive after close.`,
+      )
     }
   } finally {
     output.dispose()
@@ -186,7 +195,10 @@ async function probeNaturalFinalOutput(
       throw new Error(`${backend.label} final-output process exited with ${exitEvent.exitCode}.`)
     }
     if (platform === 'win32') assertTreeFirst(`${backend.label} natural exit`, stages)
-    await withTimeout(`${backend.label} final-output parsing`, assertFinalPayload(backend.label, output.read(), platform))
+    await withTimeout(
+      `${backend.label} final-output parsing`,
+      assertFinalPayload(backend.label, output.read(), platform),
+    )
     pty.closeDescriptor()
     pty.closeDescriptor()
   } finally {

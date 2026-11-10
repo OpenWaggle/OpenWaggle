@@ -52,7 +52,9 @@ esac
 const FAKE_UNAME = '#!/bin/sh\n[ "$1" = "-s" ] && echo "${FAKE_OS:-Linux}" || echo x86_64\n'
 
 async function createPaths(): Promise<HarnessPaths> {
-  const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'installer-reinstall-')))
+  const directory = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), 'installer-reinstall-')),
+  )
   const home = path.join(directory, 'home')
   const paths = {
     directory,
@@ -90,7 +92,11 @@ function releaseJson(tag: string) {
 }
 
 async function publish(paths: HarnessPaths, tags: readonly string[]) {
-  const list = JSON.stringify(tags.map((tag) => ({ tag_name: tag })), null, JSON_INDENT_SPACES)
+  const list = JSON.stringify(
+    tags.map((tag) => ({ tag_name: tag })),
+    null,
+    JSON_INDENT_SPACES,
+  )
   await fs.writeFile(path.join(paths.releases, 'list.json'), list)
   await Promise.all(
     tags.map((tag) => fs.writeFile(path.join(paths.releases, `${tag}.json`), releaseJson(tag))),

@@ -38,7 +38,10 @@ export function heavyUserGlobalMcpServers() {
 }
 
 /** Writes the global MCP file into the profile's Pi agent directory and a project `.mcp.json`. */
-export async function writeHeavyUserMcpConfig(input: { readonly agentDir: string; readonly projectPath: string }) {
+export async function writeHeavyUserMcpConfig(input: {
+  readonly agentDir: string
+  readonly projectPath: string
+}) {
   await mkdir(input.agentDir, { recursive: true })
   await writeFile(
     path.join(input.agentDir, 'mcp.json'),
@@ -46,10 +49,16 @@ export async function writeHeavyUserMcpConfig(input: { readonly agentDir: string
   )
   const project = {
     mcpServers: {
-      'electron-devtools': { command: 'npx', args: ['-y', CHROME_DEVTOOLS_MCP, `--browserUrl=${FIXTURE_BROWSER_URL}`] },
+      'electron-devtools': {
+        command: 'npx',
+        args: ['-y', CHROME_DEVTOOLS_MCP, `--browserUrl=${FIXTURE_BROWSER_URL}`],
+      },
     },
   }
-  await writeFile(path.join(input.projectPath, '.mcp.json'), `${JSON.stringify(project, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(input.projectPath, '.mcp.json'),
+    `${JSON.stringify(project, null, JSON_INDENT)}\n`,
+  )
 }
 
 /** Environment for an app whose Runs use the heavy-user MCP setup. */

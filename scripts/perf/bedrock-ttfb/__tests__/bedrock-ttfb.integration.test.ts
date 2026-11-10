@@ -46,7 +46,10 @@ const originalConnect = tls.connect
 vi.spyOn(tls, 'connect').mockImplementation((...args: Parameters<typeof tls.connect>) => {
   const socket = Reflect.apply(originalConnect, tls, args)
   const options: unknown = args[0]
-  const host = typeof options === 'object' && options !== null ? String(Reflect.get(options, 'servername') ?? Reflect.get(options, 'host') ?? '') : String(options)
+  const host =
+    typeof options === 'object' && options !== null
+      ? String(Reflect.get(options, 'servername') ?? Reflect.get(options, 'host') ?? '')
+      : String(options)
   const record: Handshake = { host, startedAt: performance.now(), ms: null }
   handshakes.push(record)
   socket.once('secureConnect', () => {
@@ -84,14 +87,17 @@ describe.skipIf(!modelId)('Bedrock time to first byte', () => {
           model,
           {
             systemPrompt: 'Answer with one word.',
-            messages: [{ role: 'user', content: `Say OK (${String(index)}).`, timestamp: Date.now() }],
+            messages: [
+              { role: 'user', content: `Say OK (${String(index)}).`, timestamp: Date.now() },
+            ],
           },
           { maxTokens: MAX_TOKENS, reasoning: 'minimal' },
         )
         for await (const event of stream) {
           firstEventMs ??= performance.now() - startedAt
           if (event.type === 'text_delta') firstTextMs ??= performance.now() - startedAt
-          if (event.type === 'error') throw new Error(event.error.errorMessage ?? 'Bedrock request failed.')
+          if (event.type === 'error')
+            throw new Error(event.error.errorMessage ?? 'Bedrock request failed.')
         }
         const opened = handshakes.slice(handshakesBefore)
         calls.push({
@@ -121,7 +127,10 @@ describe.skipIf(!modelId)('Bedrock time to first byte', () => {
       }
       if (outDirectory) {
         await mkdir(outDirectory, { recursive: true })
-        await writeFile(path.join(outDirectory, 'bedrock-ttfb.json'), `${JSON.stringify(report, null, JSON_INDENT)}\n`)
+        await writeFile(
+          path.join(outDirectory, 'bedrock-ttfb.json'),
+          `${JSON.stringify(report, null, JSON_INDENT)}\n`,
+        )
       }
       expect(calls).toHaveLength(CALLS)
     },

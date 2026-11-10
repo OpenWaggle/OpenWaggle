@@ -44,9 +44,8 @@ async function installQaExtension() {
 }
 
 async function listed(sessionId: string | null, projectPath?: string) {
-  const { listHostUiAgentExtensionCommands } = await import(
-    '../../../application/host-ui-agent-operation'
-  )
+  const { listHostUiAgentExtensionCommands } =
+    await import('../../../application/host-ui-agent-operation')
   return run(listHostUiAgentExtensionCommands(sessionId, FAKE_PROVIDER_MODEL, projectPath))
 }
 

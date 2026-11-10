@@ -24,7 +24,9 @@ function messagesOf(request: FakeProviderRequest) {
 function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : '')).join('\n')
+  return content
+    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .join('\n')
 }
 
 export function systemPromptOf(request: FakeProviderRequest) {
@@ -64,10 +66,17 @@ export function createScriptedHive(input: {
   const sleep = (stream: StreamWriter, sessionId: string) => {
     sleeping.add(sessionId)
     if (sleeping.size >= input.workers + 1) allSleeping()
-    stream.toolCalls([{ name: 'bash', arguments: { command: `sleep ${String(input.sleepSeconds)}` } }])
+    stream.toolCalls([
+      { name: 'bash', arguments: { command: `sleep ${String(input.sleepSeconds)}` } },
+    ])
   }
   /** Spawns `count` children first when it has to, then sleeps once, then answers. */
-  const script = (stream: StreamWriter, sessionId: string, answered: number, children: readonly ReturnType<typeof spawnCalls>[number][]) => {
+  const script = (
+    stream: StreamWriter,
+    sessionId: string,
+    answered: number,
+    children: readonly ReturnType<typeof spawnCalls>[number][],
+  ) => {
     const spawns = children.length > 0 ? 1 : 0
     if (answered < spawns) return stream.toolCalls(children)
     if (answered === spawns) return sleep(stream, sessionId)
@@ -81,8 +90,15 @@ export function createScriptedHive(input: {
     if (!PARENT_SESSION_PATTERN.test(system)) {
       return script(stream, sessionId, answered, spawnCalls(1, direct, input.model))
     }
-    const isFirstWorker = messages.some((message) => FIRST_WORKER_PATTERN.test(textOf(message.content)))
-    return script(stream, sessionId, answered, isFirstWorker ? spawnCalls(direct + 1, nested, input.model) : [])
+    const isFirstWorker = messages.some((message) =>
+      FIRST_WORKER_PATTERN.test(textOf(message.content)),
+    )
+    return script(
+      stream,
+      sessionId,
+      answered,
+      isFirstWorker ? spawnCalls(direct + 1, nested, input.model) : [],
+    )
   }
   return { respond, allActive, sleeping }
 }

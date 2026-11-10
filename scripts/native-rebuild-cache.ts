@@ -74,14 +74,16 @@ function hasNativeRebuildMarkerScalars(
 }
 
 export function parseNativeRebuildMarker(value: unknown): NativeRebuildMarker | null {
-  if (!(
-    typeof value === 'object' &&
-    value !== null &&
-    hasNativeRebuildMarkerScalars(value) &&
-    'artifacts' in value &&
-    Array.isArray(value.artifacts) &&
-    value.artifacts.every(isNativeArtifactSignature)
-  )) {
+  if (
+    !(
+      typeof value === 'object' &&
+      value !== null &&
+      hasNativeRebuildMarkerScalars(value) &&
+      'artifacts' in value &&
+      Array.isArray(value.artifacts) &&
+      value.artifacts.every(isNativeArtifactSignature)
+    )
+  ) {
     return null
   }
 
@@ -193,7 +195,10 @@ export async function writeNativeRebuildMarker(
   }
 
   await resetNativeRebuildCacheDirectory(paths)
-  await writeFile(markerPathForKey(paths, plan.key), `${JSON.stringify(marker, null, JSON_INDENT_SPACES)}\n`)
+  await writeFile(
+    markerPathForKey(paths, plan.key),
+    `${JSON.stringify(marker, null, JSON_INDENT_SPACES)}\n`,
+  )
 }
 
 async function getElectronVersion(paths: NativeRebuildCachePaths) {

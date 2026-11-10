@@ -68,5 +68,7 @@ export function withoutCommentLines(contents: string) {
  */
 function stripTrailingComments(lines: readonly string[]) {
   const insideTemplate = templateLiteralLineFlags(lines)
-  return lines.map((line, index) => (insideTemplate[index] === true ? line : withoutTrailingComment(line)))
+  return lines.map((line, index) =>
+    insideTemplate[index] === true ? line : withoutTrailingComment(line),
+  )
 }

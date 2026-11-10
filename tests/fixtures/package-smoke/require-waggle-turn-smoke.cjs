@@ -72,7 +72,12 @@ async function transientErrorContinues() {
   const { harness, settle } = await startedWaggle()
 
   await settle([
-    { role: 'assistant', content: [], stopReason: 'error', errorMessage: '503 Service Unavailable' },
+    {
+      role: 'assistant',
+      content: [],
+      stopReason: 'error',
+      errorMessage: '503 Service Unavailable',
+    },
   ])
   await settle([{ role: 'assistant', content: [{ type: 'text', text: 'Reviewed.' }] }])
 

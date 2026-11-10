@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   commandKey,
   compatibleTrustConfiguration,
@@ -81,10 +84,7 @@ describe('package release namespace bootstrap execution', () => {
     ])
 
     for (const packageName of PACKAGE_NAMES) {
-      overrides.set(
-        `npm publish --tag bootstrap --access public --ignore-scripts`,
-        successful(),
-      )
+      overrides.set(`npm publish --tag bootstrap --access public --ignore-scripts`, successful())
       overrides.set(
         `npm trust github ${packageName} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
         successful(),
@@ -152,7 +152,9 @@ describe('package release namespace bootstrap execution', () => {
     expect(result.ok).toBe(true)
     expect(result.packages.every((item) => item.state === 'complete')).toBe(true)
     expect(result.github).toEqual({ environment: 'complete', ruleset: 'complete' })
-    expect(result.nextAction).toBe('Merge the coordinated Release Please PR for the first 0.1.0 releases.')
+    expect(result.nextAction).toBe(
+      'Merge the coordinated Release Please PR for the first 0.1.0 releases.',
+    )
     expect(writtenFiles).toHaveLength(4)
     for (const { contents, filePath } of writtenFiles) {
       expect(filePath).toBe('/tmp/openwaggle-bootstrap-test/package.json')

@@ -121,24 +121,18 @@ function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<strin
 /** The entry with the ids it names expressed as node ids, for the content the projection keeps. */
 function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds): SessionEntry {
   return matchBy(entry, 'type')
-    .with(
-      'compaction',
-      (compaction): SessionEntry => ({
-        ...compaction,
-        firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
-      }),
-    )
-    .with(
-      'branch_summary',
-      (summary): SessionEntry => ({
-        ...summary,
-        fromId: nodeIds.toNodeId(summary.fromId),
-      }),
-    )
-    .with(
-      'label',
-      (label): SessionEntry => ({ ...label, targetId: nodeIds.toNodeId(label.targetId) }),
-    )
+    .with('compaction', (compaction): SessionEntry => ({
+      ...compaction,
+      firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
+    }))
+    .with('branch_summary', (summary): SessionEntry => ({
+      ...summary,
+      fromId: nodeIds.toNodeId(summary.fromId),
+    }))
+    .with('label', (label): SessionEntry => ({
+      ...label,
+      targetId: nodeIds.toNodeId(label.targetId),
+    }))
     .otherwise((other) => other)
 }
 

@@ -44,7 +44,13 @@ export async function readAppIdentity(appPath: string): Promise<AppIdentity> {
     }
   }
   return {
-    appVersion: field(await readOrNull(() => readFile(path.join(resolved, 'package.json'), 'utf8')), 'version'),
-    commit: field(await readOrNull(() => readFile(path.join(resolved, 'out', 'build-meta.json'), 'utf8')), 'commit'),
+    appVersion: field(
+      await readOrNull(() => readFile(path.join(resolved, 'package.json'), 'utf8')),
+      'version',
+    ),
+    commit: field(
+      await readOrNull(() => readFile(path.join(resolved, 'out', 'build-meta.json'), 'utf8')),
+      'commit',
+    ),
   }
 }

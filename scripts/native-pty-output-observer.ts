@@ -1,4 +1,8 @@
-import { createConsoleTerminal, readConsoleOutput, type ProbedPty } from './native-pty-probe-support'
+import {
+  createConsoleTerminal,
+  readConsoleOutput,
+  type ProbedPty,
+} from './native-pty-probe-support'
 
 export function observePtyOutput(source: Pick<ProbedPty, 'onData'>, consoleOutput = false) {
   let output = ''

@@ -15,7 +15,9 @@ describe('package release plan', () => {
           return '0.1.0'
         },
       ),
-    ).rejects.toThrow('@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release')
+    ).rejects.toThrow(
+      '@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release',
+    )
 
     expect(reads).toHaveLength(8)
   })
@@ -27,22 +29,30 @@ describe('package release plan', () => {
         async (revision, packagePath) =>
           packagePath === 'packages/waggle-core' && revision === 'source' ? '0.1.1' : '0.1.0',
       ),
-    ).rejects.toThrow('@openwaggle/waggle-core requires a coordinated @openwaggle/pi-waggle release')
+    ).rejects.toThrow(
+      '@openwaggle/waggle-core requires a coordinated @openwaggle/pi-waggle release',
+    )
   })
 
   it('rejects a decoded base-only plan', () => {
-    expect(() => decodePackageReleasePlan({
-      packages: [{
-        key: 'extension-sdk',
-        name: '@openwaggle/extension-sdk',
-        packagePath: 'packages/extension-sdk',
-        tag: 'extension-sdk-v0.1.1',
-        version: '0.1.1',
-      }],
-      schemaVersion: 1,
-      sourceSha: 'source',
-      sourceTree: 'tree',
-    })).toThrow('@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release')
+    expect(() =>
+      decodePackageReleasePlan({
+        packages: [
+          {
+            key: 'extension-sdk',
+            name: '@openwaggle/extension-sdk',
+            packagePath: 'packages/extension-sdk',
+            tag: 'extension-sdk-v0.1.1',
+            version: '0.1.1',
+          },
+        ],
+        schemaVersion: 1,
+        sourceSha: 'source',
+        sourceTree: 'tree',
+      }),
+    ).toThrow(
+      '@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release',
+    )
   })
 
   it('selects only packages whose stable version increased and preserves dependency order', async () => {

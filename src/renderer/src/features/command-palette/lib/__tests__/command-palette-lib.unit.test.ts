@@ -27,9 +27,8 @@ vi.mock('@/shell/ui-store', () => ({
   useUIStore: { getState: getUiStateMock },
 }))
 
-const { createOptionalCommandPaletteAction, openFeedbackModal } = await import(
-  '../command-palette-actions'
-)
+const { createOptionalCommandPaletteAction, openFeedbackModal } =
+  await import('../command-palette-actions')
 
 function item(id: string, section?: string): CommandPaletteItem {
   return {

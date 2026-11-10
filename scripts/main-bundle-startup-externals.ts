@@ -31,12 +31,47 @@ export const STARTUP_PROBE_ARGUMENTS: readonly (readonly string[])[] = [
 
 /** Electron's main-process exports, so `__toESM(require('electron'))` gets every name. */
 const ELECTRON_EXPORTS = [
-  'BaseWindow', 'BrowserView', 'BrowserWindow', 'ImageView', 'IpcMainServiceWorker', 'Menu', 'MenuItem',
-  'MessageChannelMain', 'Notification', 'ShareMenu', 'TouchBar', 'Tray', 'View', 'WebContentsView',
-  'WebSocket', 'app', 'autoUpdater', 'contentTracing', 'desktopCapturer', 'dialog', 'globalShortcut',
-  'inAppPurchase', 'ipcMain', 'nativeTheme', 'net', 'netLog', 'powerMonitor', 'powerSaveBlocker',
-  'protocol', 'pushNotifications', 'safeStorage', 'screen', 'session', 'systemPreferences',
-  'utilityProcess', 'webContents', 'webFrameMain', 'clipboard', 'crashReporter', 'nativeImage', 'shell',
+  'BaseWindow',
+  'BrowserView',
+  'BrowserWindow',
+  'ImageView',
+  'IpcMainServiceWorker',
+  'Menu',
+  'MenuItem',
+  'MessageChannelMain',
+  'Notification',
+  'ShareMenu',
+  'TouchBar',
+  'Tray',
+  'View',
+  'WebContentsView',
+  'WebSocket',
+  'app',
+  'autoUpdater',
+  'contentTracing',
+  'desktopCapturer',
+  'dialog',
+  'globalShortcut',
+  'inAppPurchase',
+  'ipcMain',
+  'nativeTheme',
+  'net',
+  'netLog',
+  'powerMonitor',
+  'powerSaveBlocker',
+  'protocol',
+  'pushNotifications',
+  'safeStorage',
+  'screen',
+  'session',
+  'systemPreferences',
+  'utilityProcess',
+  'webContents',
+  'webFrameMain',
+  'clipboard',
+  'crashReporter',
+  'nativeImage',
+  'shell',
 ]
 
 /** Runs as `node -e PROBE_SOURCE <bundle> <electron exports JSON> ...argv`. */
@@ -119,7 +154,8 @@ export function probeStartupExternals(
       )
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
-      if (!isRecord(parsed) || !Array.isArray(parsed.loaded)) throw new Error(`The startup probe printed ${line}.`)
+      if (!isRecord(parsed) || !Array.isArray(parsed.loaded))
+        throw new Error(`The startup probe printed ${line}.`)
       return {
         argv,
         loaded: parsed.loaded.filter((entry): entry is string => typeof entry === 'string'),
@@ -149,7 +185,9 @@ export function startupExternalFailures(
               '(a module whose initializer runs at startup loads its imports then).',
           ]
         : []),
-      ...(result.error ? [`${command} threw while the main bundle started under the probe: ${result.error}`] : []),
+      ...(result.error
+        ? [`${command} threw while the main bundle started under the probe: ${result.error}`]
+        : []),
     ]
   })
 }

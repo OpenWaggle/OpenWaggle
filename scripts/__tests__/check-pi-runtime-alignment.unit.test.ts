@@ -15,7 +15,10 @@ describe('Pi runtime alignment', () => {
       drift: 'catalog',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
-        workspace: input.workspace.replace(`"@earendil-works/pi-tui": ${version}`, '"@earendil-works/pi-tui": 0.86.0'),
+        workspace: input.workspace.replace(
+          `"@earendil-works/pi-tui": ${version}`,
+          '"@earendil-works/pi-tui": 0.86.0',
+        ),
       }),
       expected: 'must use 1.2.0 in catalogs.pi-runtime',
     },
@@ -65,7 +68,8 @@ describe('Pi runtime alignment', () => {
         ...input,
         workspace: input.workspace.replace(`  - "@earendil-works/pi-tui@${version}"\n`, ''),
       }),
-      expected: 'minimumReleaseAgeExclude must be empty or contain exactly the 7 matched Pi packages',
+      expected:
+        'minimumReleaseAgeExclude must be empty or contain exactly the 7 matched Pi packages',
     },
     {
       drift: 'release-age exclusion for a package the lockfile does not resolve',
@@ -168,9 +172,14 @@ describe('Pi runtime alignment', () => {
   it('pins the pi-extension-host catalog at the typebox Pi supplies to extensions', () => {
     const input = alignedInput()
     expect(
-      collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: { typebox: '1.3.32' } }),
+      collectPiRuntimeAlignmentProblems({
+        ...input,
+        piCodingAgentDependencies: { typebox: '1.3.32' },
+      }),
     ).toContainEqual("catalogs.pi-extension-host must pin typebox at pi-coding-agent's 1.3.32.")
-    expect(collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: {} })).toContainEqual(
+    expect(
+      collectPiRuntimeAlignmentProblems({ ...input, piCodingAgentDependencies: {} }),
+    ).toContainEqual(
       'pi-coding-agent no longer depends on typebox; update catalogs.pi-extension-host.',
     )
   })

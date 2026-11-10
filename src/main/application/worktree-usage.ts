@@ -194,17 +194,15 @@ export function gatherWorktreeUsageFacts(
     const rawOccupants = yield* repository.listWorkspaceOccupants()
     const occupants = yield* Effect.promise(() =>
       Promise.all(
-        rawOccupants.map(
-          async (occupant): Promise<CanonicalOccupant> => ({
-            ...occupant,
-            canonicalWorkingPath: occupant.workspace
-              ? await canonical(occupant.workspace.workingPath)
-              : null,
-            canonicalProjectPath: occupant.sessionProjectPath
-              ? await canonical(occupant.sessionProjectPath)
-              : null,
-          }),
-        ),
+        rawOccupants.map(async (occupant): Promise<CanonicalOccupant> => ({
+          ...occupant,
+          canonicalWorkingPath: occupant.workspace
+            ? await canonical(occupant.workspace.workingPath)
+            : null,
+          canonicalProjectPath: occupant.sessionProjectPath
+            ? await canonical(occupant.sessionProjectPath)
+            : null,
+        })),
       ),
     )
     // Only Sessions in one of these worktrees can block them; the rest need no further reads.

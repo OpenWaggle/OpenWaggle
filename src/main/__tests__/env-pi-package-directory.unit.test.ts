@@ -7,9 +7,8 @@ afterEach(() => {
 
 async function loadEnv() {
   const env = await import('../env')
-  const { applyPiPackageDirectoryTo, withShellPiPackageDirectory } = await import(
-    '../pi-package-directory-environment'
-  )
+  const { applyPiPackageDirectoryTo, withShellPiPackageDirectory } =
+    await import('../pi-package-directory-environment')
   return { ...env, applyPiPackageDirectoryTo, withShellPiPackageDirectory }
 }
 

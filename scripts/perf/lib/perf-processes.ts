@@ -41,7 +41,9 @@ function listProcesses(withEnvironment: boolean): ProcessRow[] {
 export function profileHostPids(userData: string) {
   const marker = `OPENWAGGLE_USER_DATA_DIR=${userData} `
   return listProcesses(true)
-    .filter((row) => row.command.includes('session-host-internal') && `${row.command} `.includes(marker))
+    .filter(
+      (row) => row.command.includes('session-host-internal') && `${row.command} `.includes(marker),
+    )
     .map((row) => row.pid)
 }
 
@@ -74,7 +76,9 @@ function isProcessSample(value: unknown): value is ProcessSample {
 /** Physical footprint, resident size and CPU time per pid (macOS `proc_pid_rusage`). */
 export function sampleProcesses(pids: readonly number[]): Map<number, ProcessSample> {
   if (pids.length === 0) return new Map()
-  const output = execFileSync('python3', [FOOTPRINT_SCRIPT, ...pids.map(String)], { encoding: 'utf8' })
+  const output = execFileSync('python3', [FOOTPRINT_SCRIPT, ...pids.map(String)], {
+    encoding: 'utf8',
+  })
   const parsed: unknown = JSON.parse(output)
   const samples = new Map<number, ProcessSample>()
   if (typeof parsed !== 'object' || parsed === null) return samples
@@ -87,7 +91,9 @@ export function sampleProcesses(pids: readonly number[]): Map<number, ProcessSam
 /** The `.app` bundle an executable belongs to, or its directory for a development Electron. */
 export function appBundleOf(executable: string) {
   const end = executable.indexOf(APP_BUNDLE_SUFFIX)
-  return end < 0 ? path.dirname(executable) : executable.slice(0, end + APP_BUNDLE_SUFFIX.length - 1)
+  return end < 0
+    ? path.dirname(executable)
+    : executable.slice(0, end + APP_BUNDLE_SUFFIX.length - 1)
 }
 
 function withoutPrivatePrefix(value: string) {

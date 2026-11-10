@@ -56,8 +56,7 @@ export interface McpRegistryServerRequest {
 }
 
 export interface McpRegistryInstallRequest
-  extends McpConfigurationScopeRequest,
-    McpRegistryServerRequest {
+  extends McpConfigurationScopeRequest, McpRegistryServerRequest {
   readonly scope: McpConfigFileScope
   /** Defaults to the hosted URL when there is one, else the first supported package. */
   readonly method?: McpRegistryInstallMethod

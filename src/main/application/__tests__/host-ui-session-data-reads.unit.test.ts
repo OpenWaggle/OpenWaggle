@@ -20,9 +20,8 @@ vi.mock('../pi-session-prompt-origin', () => ({
 }))
 vi.mock('../local-session-command-dispatcher', () => ({ dispatchLocalSessionCommand: vi.fn() }))
 
-const { dispatchHostBackedSessionGuiOperation } = await import(
-  '../host-ui-session-operation-dispatcher'
-)
+const { dispatchHostBackedSessionGuiOperation } =
+  await import('../host-ui-session-operation-dispatcher')
 
 const SESSION = SessionId('session-1')
 

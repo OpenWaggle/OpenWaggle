@@ -18,9 +18,8 @@ export async function createSession(
       settings.update({ enabledModels: [FAKE_PROVIDER_MODEL], selectedModel: FAKE_PROVIDER_MODEL }),
     ),
   )
-  const { dispatchLocalSessionCommand } = await import(
-    '../../../application/local-session-command-dispatcher'
-  )
+  const { dispatchLocalSessionCommand } =
+    await import('../../../application/local-session-command-dispatcher')
   const result = await run(
     dispatchLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: fixture.project },

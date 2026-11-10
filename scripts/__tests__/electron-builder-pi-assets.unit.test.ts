@@ -13,14 +13,14 @@ const PI_PACKAGE = path.join(
 )
 
 describe("packaging Pi's own documentation", () => {
-  it("force-includes the top-level files electron-builder drops from every module, for Pi only", () => {
+  it('force-includes the top-level files electron-builder drops from every module, for Pi only', () => {
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'README.md'))).toBe(true)
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'examples'))).toBe(true)
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'docs'))).toBe(true)
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'dist'))).toBe(false)
-    expect(forceIncludePiPackageAsset('/repo/node_modules/.pnpm/x/node_modules/left-pad/README.md')).toBe(
-      false,
-    )
+    expect(
+      forceIncludePiPackageAsset('/repo/node_modules/.pnpm/x/node_modules/left-pad/README.md'),
+    ).toBe(false)
     expect(forceIncludePiPackageAsset(path.join(PI_PACKAGE, 'examples', 'README.md'))).toBe(false)
   })
 

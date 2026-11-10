@@ -52,9 +52,8 @@ export async function recordSessionRun(taskId: string, sessionId: string, runId:
 }
 
 export async function runProfile(sessionId: string, runId: string) {
-  const { loadRunExecutionProfile } = await import(
-    '../../adapters/session-control-run-executor-profile'
-  )
+  const { loadRunExecutionProfile } =
+    await import('../../adapters/session-control-run-executor-profile')
   return run(
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       loadRunExecutionProfile(sql, { sessionId: SessionId(sessionId), runId: RunId(runId) }),
@@ -67,8 +66,7 @@ export async function settleRunEnd(
   runId: string,
   toolUses: readonly { readonly name: string; readonly args: Record<string, unknown> }[],
 ) {
-  const { settleHeartbeatRunOutcome } = await import(
-    '../../application/scheduled-task-heartbeat-commands'
-  )
+  const { settleHeartbeatRunOutcome } =
+    await import('../../application/scheduled-task-heartbeat-commands')
   await run(settleHeartbeatRunOutcome({ sessionId, runId, completed: true, toolUses }))
 }

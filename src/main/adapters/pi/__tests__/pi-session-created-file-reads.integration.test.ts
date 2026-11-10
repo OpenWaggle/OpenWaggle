@@ -48,9 +48,8 @@ async function recordedFile(sessionId: string) {
 }
 
 async function opened(sessionId: SessionId) {
-  const { dispatchHostBackedSessionGuiOperation } = await import(
-    '../../../application/host-ui-session-operation-dispatcher'
-  )
+  const { dispatchHostBackedSessionGuiOperation } =
+    await import('../../../application/host-ui-session-operation-dispatcher')
   return run(dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]))
 }
 
@@ -94,9 +93,8 @@ describe('A Session OpenWaggle created', () => {
       const file = await recordedFile(sessionId)
       const lastNode = (await sessionDetail(sessionId))?.messages.at(-1)?.id
       rmSync(file)
-      const { forkSession } = await import(
-        '../../../application/host-ui-session-lifecycle-operations'
-      )
+      const { forkSession } =
+        await import('../../../application/host-ui-session-lifecycle-operations')
 
       const fork = await run(
         forkSession([sessionId, FAKE_PROVIDER_MODEL, String(lastNode)], position).pipe(
@@ -110,9 +108,8 @@ describe('A Session OpenWaggle created', () => {
       expect(message).toMatch(CREATED_FILE_DELETED)
       expect(message).toMatch(new RegExp(`before ${action} it\\.$`))
       // A client is told that sentence alone, as a refusal it can act on, not an internal error.
-      const { sessionCommandFailureMessage } = await import(
-        '../../../session-host/session-command-failure-message'
-      )
+      const { sessionCommandFailureMessage } =
+        await import('../../../session-host/session-command-failure-message')
       expect(fork._tag === 'Left' ? fork.left : undefined).toMatchObject({
         code: 'pi_session_file_unusable',
       })

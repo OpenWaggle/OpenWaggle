@@ -9,8 +9,6 @@ describe('repository package boundaries', () => {
     expect(
       collectPackageBoundaryViolations('packages/waggle-core/src/index.ts', contents),
     ).toHaveLength(1)
-    expect(
-      collectPackageBoundaryViolations('packages/waggle-core/README.md', contents),
-    ).toEqual([])
+    expect(collectPackageBoundaryViolations('packages/waggle-core/README.md', contents)).toEqual([])
   })
 })

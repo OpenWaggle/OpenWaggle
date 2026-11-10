@@ -80,12 +80,7 @@ function apiReferencePath(projectRoot: string, slug: string, version: string) {
   )
 }
 
-function auxiliaryPagePath(
-  projectRoot: string,
-  slug: string,
-  version: string,
-  page: string,
-) {
+function auxiliaryPagePath(projectRoot: string, slug: string, version: string, page: string) {
   return path.join(
     projectRoot,
     'website',
@@ -124,11 +119,7 @@ async function generatedFilesForPackage(
   definition: VersionedPackageDocumentationDefinition,
   includeApiReference: boolean,
 ) {
-  const guidePath = canonicalGuidePath(
-    projectRoot,
-    definition.slug,
-    definition.currentVersion,
-  )
+  const guidePath = canonicalGuidePath(projectRoot, definition.slug, definition.currentVersion)
   const manifestPath = path.join(packageRoot(projectRoot, definition.slug), 'package.json')
   const [guide, rawManifest] = await Promise.all([
     readFile(guidePath, 'utf8'),
@@ -209,9 +200,7 @@ export async function checkPackageDocumentation(
     const deferGeneratedDocumentation =
       historicalVersions.includes(resolvedVersions.currentVersion) &&
       (await hasPendingPackageDocumentation(projectRoot, baseDefinition))
-    violations.push(
-      ...(await pendingPackageDocumentationViolations(projectRoot, baseDefinition)),
-    )
+    violations.push(...(await pendingPackageDocumentationViolations(projectRoot, baseDefinition)))
     if (resolvedVersions.versions.at(-1) !== resolvedVersions.currentVersion) {
       throw new Error(
         `${baseDefinition.packageName} package version ${manifest.version} precedes its latest documentation line.`,
@@ -252,7 +241,7 @@ export async function checkPackageDocumentation(
     }
 
     for (const pagePath of requiredAuthoredPackageDocumentationFiles(projectRoot, definition)) {
-      if (await readIfPresent(pagePath) === undefined) {
+      if ((await readIfPresent(pagePath)) === undefined) {
         violations.push(`${relativePath(projectRoot, pagePath)} is missing.`)
       }
     }

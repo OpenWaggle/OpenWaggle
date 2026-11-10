@@ -7,9 +7,8 @@ vi.mock('../../../services/source-control/working-tree-source-control', async (i
   openWorkingTreeSourceControl: openWorkingTreeMock,
 }))
 
-const { localSourceControlState, resolveOpenChangeRequest } = await import(
-  '../vcs-status-source-control'
-)
+const { localSourceControlState, resolveOpenChangeRequest } =
+  await import('../vcs-status-source-control')
 
 const REMOTE = { name: 'origin', url: 'git@git.acme.io:team/app.git' }
 const REPOSITORY = { provider: 'gitlab', host: 'git.acme.io', owner: 'team', repository: 'app' }

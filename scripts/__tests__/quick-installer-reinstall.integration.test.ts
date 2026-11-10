@@ -63,9 +63,9 @@ describe('quick installer downgrade refusal', () => {
     const result = await harness.runInstaller({ OPENWAGGLE_RELEASE_TAG: `v${INSTALLED_VERSION}` })
 
     expect(result.exitCode).toBe(0)
-    await expect(fs.readFile(path.join(harness.appDirectory(), 'OpenWaggle.AppImage'), 'utf8')).resolves.toBe(
-      DOWNLOADED_APPIMAGE,
-    )
+    await expect(
+      fs.readFile(path.join(harness.appDirectory(), 'OpenWaggle.AppImage'), 'utf8'),
+    ).resolves.toBe(DOWNLOADED_APPIMAGE)
     expect(await harness.calls()).toContain('appimage host --help')
   })
 

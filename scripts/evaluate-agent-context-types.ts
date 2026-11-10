@@ -25,7 +25,9 @@ export interface EvalOutcome {
   readonly sessionCount: number
   readonly compactions: number
   /** The output of `verify` commands the task runs in the project after the Run, by command. */
-  readonly verifications: Readonly<Record<string, { readonly exitCode: number; readonly output: string }>>
+  readonly verifications: Readonly<
+    Record<string, { readonly exitCode: number; readonly output: string }>
+  >
 }
 
 export interface EvalGrade {

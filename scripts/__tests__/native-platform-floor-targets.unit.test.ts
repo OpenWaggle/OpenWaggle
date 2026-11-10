@@ -7,7 +7,9 @@ import { discoverPackagedApps, parseFloorArguments } from '../native-platform-fl
 const temporaryRoots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })))
+  await Promise.all(
+    temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+  )
 })
 
 async function dist(paths: readonly string[]) {
@@ -27,7 +29,10 @@ async function dist(paths: readonly string[]) {
 
 describe('parseFloorArguments', () => {
   it('defaults to the host platform and takes app paths', () => {
-    expect(parseFloorArguments(['--', 'a.app'], 'darwin')).toEqual({ platform: 'darwin', paths: ['a.app'] })
+    expect(parseFloorArguments(['--', 'a.app'], 'darwin')).toEqual({
+      platform: 'darwin',
+      paths: ['a.app'],
+    })
   })
 
   it('accepts an explicit platform, for checking another platform from a local extract', () => {
@@ -54,7 +59,9 @@ describe('discoverPackagedApps', () => {
 
   it('inspects the shipped AppImage on Linux rather than the unpacked directory', async () => {
     const root = await dist(['linux-unpacked/', 'openwaggle-1.0.0-x86_64.AppImage'])
-    expect(await discoverPackagedApps('linux', root)).toEqual([path.join(root, 'openwaggle-1.0.0-x86_64.AppImage')])
+    expect(await discoverPackagedApps('linux', root)).toEqual([
+      path.join(root, 'openwaggle-1.0.0-x86_64.AppImage'),
+    ])
   })
 
   it('finds the unpacked Windows app', async () => {

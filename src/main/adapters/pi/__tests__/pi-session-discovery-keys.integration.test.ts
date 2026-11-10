@@ -38,9 +38,8 @@ const fixture = setUpPiDiscoveryFixture(state)
 
 /** A create sent to the Session Host, as `openwaggle hive create` sends one. */
 async function externalCreate(idempotencyKey: string) {
-  const { dispatchLocalSessionCommand } = await import(
-    '../../../application/local-session-command-dispatcher'
-  )
+  const { dispatchLocalSessionCommand } =
+    await import('../../../application/local-session-command-dispatcher')
   const result = await run(
     dispatchLocalSessionCommand({
       caller: { callerId: 'gui:local-user', workingDirectory: fixture.project },
@@ -102,9 +101,8 @@ describe("Pi session discovery's lifecycle keys", () => {
         WHERE operation = ${'create'}
       `,
     )
-    const { removeUnattachedDiscoveredSessions } = await import(
-      '../../../application/pi-session-discovery'
-    )
+    const { removeUnattachedDiscoveredSessions } =
+      await import('../../../application/pi-session-discovery')
 
     await run(removeUnattachedDiscoveredSessions())
 
@@ -115,9 +113,8 @@ describe("Pi session discovery's lifecycle keys", () => {
     await registerProjects([fixture.project])
     createPiCliSession(fixture.project, 'Interrupted attach')
     const { PiSessionDiscoveryRepository } = await import('../../../ports/pi-session-discovery')
-    const { discoverPiSessions, removeUnattachedDiscoveredSessions } = await import(
-      '../../../application/pi-session-discovery'
-    )
+    const { discoverPiSessions, removeUnattachedDiscoveredSessions } =
+      await import('../../../application/pi-session-discovery')
     const createSession = await lifecycleCreate()
 
     // The Host stops while the pass attaches the file to the Session it just created.

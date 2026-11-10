@@ -9,10 +9,7 @@ function stringProperty(value: unknown, key: string) {
   return isObject(value) && typeof value[key] === 'string' ? value[key] : undefined
 }
 
-export function assertPackedDocumentationMetadata(
-  manifest: unknown,
-  packageDirectory: string,
-) {
+export function assertPackedDocumentationMetadata(manifest: unknown, packageDirectory: string) {
   const packageSlug = packageDirectory.replace('packages/', '')
   const version = stringProperty(manifest, 'version')
   const docsVersion = version?.split('.').slice(0, DOCS_VERSION_PART_COUNT).join('.')
@@ -22,9 +19,9 @@ export function assertPackedDocumentationMetadata(
   }
 
   if (
-    !isObject(manifest)
-    || !isObject(manifest.bugs)
-    || manifest.bugs.url !== 'https://github.com/OpenWaggle/OpenWaggle/issues'
+    !isObject(manifest) ||
+    !isObject(manifest.bugs) ||
+    manifest.bugs.url !== 'https://github.com/OpenWaggle/OpenWaggle/issues'
   ) {
     throw new Error(`${packageDirectory} packed manifest must link to OpenWaggle issues.`)
   }

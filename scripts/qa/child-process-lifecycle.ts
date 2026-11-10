@@ -13,14 +13,8 @@ export interface StoppableChild {
   readonly exitCode: number | null
   readonly signalCode: NodeJS.Signals | null
   kill(signal?: NodeJS.Signals | number): boolean
-  once(
-    event: 'exit',
-    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
-  ): this
-  off(
-    event: 'exit',
-    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
-  ): this
+  once(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): this
+  off(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): this
 }
 
 interface StopChildDependencies {
@@ -33,9 +27,7 @@ interface StopChildDependencies {
     snapshot: readonly WindowsProcessIdentity[],
     force: boolean,
   ) => Promise<void>
-  readonly verifyWindowsTreeExit?: (
-    snapshot: readonly WindowsProcessIdentity[],
-  ) => Promise<boolean>
+  readonly verifyWindowsTreeExit?: (snapshot: readonly WindowsProcessIdentity[]) => Promise<boolean>
   readonly signalPosixTree?: (pid: number, signal: NodeJS.Signals) => void
   readonly waitForPosixTreeExit?: (pid: number, timeoutMs: number) => Promise<boolean>
 }
@@ -179,10 +171,7 @@ async function stopPosixProcessTree(
   throw new Error(`Could not prove process tree ${String(child.pid)} exited.`)
 }
 
-export async function stopChild(
-  child: StoppableChild,
-  dependencies: StopChildDependencies = {},
-) {
+export async function stopChild(child: StoppableChild, dependencies: StopChildDependencies = {}) {
   const platform = dependencies.platform ?? process.platform
 
   if (platform === 'win32') {

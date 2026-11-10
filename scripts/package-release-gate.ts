@@ -103,7 +103,9 @@ const RESULT_KEYS = [
  * other job must conclude with `success` or `skipped` — a conditional job that does not
  * apply to the event is legitimate, while a failed or cancelled job never is.
  */
-export function validatePackageReleaseGate(input: Readonly<{ results: PackageReleaseGateResults; tier: string }>) {
+export function validatePackageReleaseGate(
+  input: Readonly<{ results: PackageReleaseGateResults; tier: string }>,
+) {
   if (!isGateTier(input.tier)) {
     throw new Error(`Unknown package release gate tier: ${JSON.stringify(input.tier)}.`)
   }

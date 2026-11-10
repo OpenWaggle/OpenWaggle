@@ -63,7 +63,9 @@ async function main() {
     useDefaultOption: await page
       .locator('select[aria-label="Current project access mode"] option[value="inherit"]')
       .count(),
-    modeLabels: await page.locator('select[aria-label="Default access mode"] option').allInnerTexts(),
+    modeLabels: await page
+      .locator('select[aria-label="Default access mode"] option')
+      .allInnerTexts(),
     savedApprovalsHeading: await page.getByText('Saved approvals').count(),
     revocationCopy: await page
       .getByText('Revoking stops future use. It does not recall work already done.')

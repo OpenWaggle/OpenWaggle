@@ -79,9 +79,8 @@ vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 
 const { getMcpServerStatuses } = await import('../pi-mcp-server-status')
-const { forgetKnownMcpServerStates, recordMcpServerCheck } = await import(
-  '../mcp-server-status-registry'
-)
+const { forgetKnownMcpServerStates, recordMcpServerCheck } =
+  await import('../mcp-server-status-registry')
 const { forgetStatesOfSwitchedMcpServers } = await import('../mcp-server-status-freshness')
 const { mcpServerIdentity } = await import('../../../mcp/pool/mcp-connection-pool-api')
 
