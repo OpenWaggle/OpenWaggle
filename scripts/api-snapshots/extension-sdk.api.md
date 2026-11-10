@@ -1736,7 +1736,7 @@ export declare function isRuntimeRequirementBinary(value: string): string | true
 export declare function isNetworkOrigin(value: string): string | true;
 export declare function validateBrokerCapabilityDeclaration(declaration: {
     readonly id: string;
-    readonly methods?: readonly string[];
+    readonly methods?: readonly string[] | undefined;
 }): string | true;
 export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -2427,9 +2427,9 @@ export declare function createOpenWaggleExtensionSurfaceContext(input: CreateOpe
 export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'background';
 export interface OpenWaggleExtensionSyntaxHighlightInput {
     readonly source: string;
-    readonly language?: string;
-    readonly path?: string;
-    readonly priority?: OpenWaggleExtensionSyntaxPriority;
+    readonly language?: string | undefined;
+    readonly path?: string | undefined;
+    readonly priority?: OpenWaggleExtensionSyntaxPriority | undefined;
 }
 export interface OpenWaggleExtensionSyntaxToken {
     readonly content: string;
@@ -2453,8 +2453,8 @@ export interface OpenWaggleExtensionSyntaxSdk {
 }
 export declare function createPlainExtensionSyntaxResult(input: {
     readonly source: string;
-    readonly language?: string;
-    readonly diagnostic?: string;
+    readonly language?: string | undefined;
+    readonly diagnostic?: string | undefined;
 }): OpenWaggleExtensionSyntaxHighlightResult;
 ```
 
@@ -4648,7 +4648,7 @@ export declare function isRuntimeRequirementBinary(value: string): string | true
 export declare function isNetworkOrigin(value: string): string | true;
 export declare function validateBrokerCapabilityDeclaration(declaration: {
     readonly id: string;
-    readonly methods?: readonly string[];
+    readonly methods?: readonly string[] | undefined;
 }): string | true;
 export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -7112,7 +7112,7 @@ export declare function isRuntimeRequirementBinary(value: string): string | true
 export declare function isNetworkOrigin(value: string): string | true;
 export declare function validateBrokerCapabilityDeclaration(declaration: {
     readonly id: string;
-    readonly methods?: readonly string[];
+    readonly methods?: readonly string[] | undefined;
 }): string | true;
 export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -7728,9 +7728,9 @@ export {};
 export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'background';
 export interface OpenWaggleExtensionSyntaxHighlightInput {
     readonly source: string;
-    readonly language?: string;
-    readonly path?: string;
-    readonly priority?: OpenWaggleExtensionSyntaxPriority;
+    readonly language?: string | undefined;
+    readonly path?: string | undefined;
+    readonly priority?: OpenWaggleExtensionSyntaxPriority | undefined;
 }
 export interface OpenWaggleExtensionSyntaxToken {
     readonly content: string;
@@ -7754,8 +7754,8 @@ export interface OpenWaggleExtensionSyntaxSdk {
 }
 export declare function createPlainExtensionSyntaxResult(input: {
     readonly source: string;
-    readonly language?: string;
-    readonly diagnostic?: string;
+    readonly language?: string | undefined;
+    readonly diagnostic?: string | undefined;
 }): OpenWaggleExtensionSyntaxHighlightResult;
 ```
 
@@ -9682,7 +9682,7 @@ export declare function isRuntimeRequirementBinary(value: string): string | true
 export declare function isNetworkOrigin(value: string): string | true;
 export declare function validateBrokerCapabilityDeclaration(declaration: {
     readonly id: string;
-    readonly methods?: readonly string[];
+    readonly methods?: readonly string[] | undefined;
 }): string | true;
 export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -10948,7 +10948,7 @@ export declare function isRuntimeRequirementBinary(value: string): string | true
 export declare function isNetworkOrigin(value: string): string | true;
 export declare function validateBrokerCapabilityDeclaration(declaration: {
     readonly id: string;
-    readonly methods?: readonly string[];
+    readonly methods?: readonly string[] | undefined;
 }): string | true;
 export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
@@ -11735,9 +11735,9 @@ Types: `dist/syntax.d.ts`
 export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'background';
 export interface OpenWaggleExtensionSyntaxHighlightInput {
     readonly source: string;
-    readonly language?: string;
-    readonly path?: string;
-    readonly priority?: OpenWaggleExtensionSyntaxPriority;
+    readonly language?: string | undefined;
+    readonly path?: string | undefined;
+    readonly priority?: OpenWaggleExtensionSyntaxPriority | undefined;
 }
 export interface OpenWaggleExtensionSyntaxToken {
     readonly content: string;
@@ -11761,8 +11761,8 @@ export interface OpenWaggleExtensionSyntaxSdk {
 }
 export declare function createPlainExtensionSyntaxResult(input: {
     readonly source: string;
-    readonly language?: string;
-    readonly diagnostic?: string;
+    readonly language?: string | undefined;
+    readonly diagnostic?: string | undefined;
 }): OpenWaggleExtensionSyntaxHighlightResult;
 ```
 
@@ -13399,7 +13399,7 @@ export declare function isRuntimeRequirementBinary(value: string): string | true
 export declare function isNetworkOrigin(value: string): string | true;
 export declare function validateBrokerCapabilityDeclaration(declaration: {
     readonly id: string;
-    readonly methods?: readonly string[];
+    readonly methods?: readonly string[] | undefined;
 }): string | true;
 export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
 export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;

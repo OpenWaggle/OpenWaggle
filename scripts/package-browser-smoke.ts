@@ -93,7 +93,10 @@ export async function runPackageBrowserSmoke(projectRoot: string, executablePath
   const server = await startStaticServer(projectRoot)
 
   try {
-    const browser = await chromium.launch({ headless: true, executablePath })
+    const browser = await chromium.launch({
+      headless: true,
+      ...(executablePath === undefined ? {} : { executablePath }),
+    })
     const consoleErrors: string[] = []
     const pageErrors: string[] = []
 

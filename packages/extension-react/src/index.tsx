@@ -42,12 +42,12 @@ function syntaxTokenStyle(token: {
 export interface SyntaxBlockProps {
   readonly syntax: OpenWaggleExtensionSyntaxSdk
   readonly source: string
-  readonly language?: string
-  readonly path?: string
-  readonly className?: string
-  readonly wrap?: boolean
-  readonly showLineNumbers?: boolean
-  readonly ariaLabel?: string
+  readonly language?: string | undefined
+  readonly path?: string | undefined
+  readonly className?: string | undefined
+  readonly wrap?: boolean | undefined
+  readonly showLineNumbers?: boolean | undefined
+  readonly ariaLabel?: string | undefined
 }
 
 function useExtensionSyntaxResult({

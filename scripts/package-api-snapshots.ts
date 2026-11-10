@@ -8,7 +8,7 @@ interface JsonObject {
 }
 
 interface PackageJson {
-  readonly exports?: JsonObject
+  readonly exports?: JsonObject | undefined
   readonly name: string
 }
 
@@ -32,7 +32,7 @@ export interface CheckPackageApiSnapshotsResult {
 }
 
 interface TypedExport {
-  readonly declarationPath?: string
+  readonly declarationPath?: string | undefined
   readonly subpath: string
 }
 

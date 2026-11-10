@@ -81,7 +81,9 @@ async function runScenario() {
     hooks: (sessionId, serverName) => {
       const hooks = openWaggleMcpConnectionHooks(sessionId, serverName)
       return {
-        augmentInitializeParams: hooks.augmentInitializeParams,
+        ...(hooks.augmentInitializeParams
+          ? { augmentInitializeParams: hooks.augmentInitializeParams }
+          : {}),
         ...(hooks.adaptResult ? { adaptResult: hooks.adaptResult } : {}),
       }
     },

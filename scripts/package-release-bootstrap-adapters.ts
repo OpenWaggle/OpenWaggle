@@ -146,7 +146,7 @@ function executePseudoterminalCommand(
   return new Promise((resolve) => {
     const child = spawnPseudoterminal(request.command, [...request.args], {
       cols: process.stdout.columns ?? DEFAULT_TERMINAL_COLUMNS,
-      cwd: request.cwd,
+      ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
       env: pseudoterminalEnvironment(process.env),
       name: 'xterm-color',
       rows: process.stdout.rows ?? DEFAULT_TERMINAL_ROWS,

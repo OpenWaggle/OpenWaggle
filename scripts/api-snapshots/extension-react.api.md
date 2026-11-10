@@ -14,12 +14,12 @@ import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttr
 export interface SyntaxBlockProps {
     readonly syntax: OpenWaggleExtensionSyntaxSdk;
     readonly source: string;
-    readonly language?: string;
-    readonly path?: string;
-    readonly className?: string;
-    readonly wrap?: boolean;
-    readonly showLineNumbers?: boolean;
-    readonly ariaLabel?: string;
+    readonly language?: string | undefined;
+    readonly path?: string | undefined;
+    readonly className?: string | undefined;
+    readonly wrap?: boolean | undefined;
+    readonly showLineNumbers?: boolean | undefined;
+    readonly ariaLabel?: string | undefined;
 }
 export declare function SyntaxBlock({ syntax, source, language, path, className, wrap, showLineNumbers, ariaLabel, }: SyntaxBlockProps): import("react").JSX.Element;
 export type SourceViewProps = SyntaxBlockProps;

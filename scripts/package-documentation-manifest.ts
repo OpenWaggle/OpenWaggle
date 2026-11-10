@@ -4,18 +4,20 @@ import type {
 } from './package-documentation-model'
 
 export interface PackageManifest {
-  readonly bugs?: { readonly url?: string }
-  readonly description?: string
-  readonly exports?: Readonly<Record<string, unknown>>
-  readonly homepage?: string
-  readonly keywords?: readonly string[]
-  readonly name?: string
-  readonly repository?: {
-    readonly directory?: string
-    readonly type?: string
-    readonly url?: string
-  }
-  readonly version?: string
+  readonly bugs?: { readonly url?: string | undefined } | undefined
+  readonly description?: string | undefined
+  readonly exports?: Readonly<Record<string, unknown>> | undefined
+  readonly homepage?: string | undefined
+  readonly keywords?: readonly string[] | undefined
+  readonly name?: string | undefined
+  readonly repository?:
+    | {
+        readonly directory?: string | undefined
+        readonly type?: string | undefined
+        readonly url?: string | undefined
+      }
+    | undefined
+  readonly version?: string | undefined
 }
 
 interface JsonObject {

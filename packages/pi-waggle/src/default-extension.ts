@@ -112,7 +112,11 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     if (event.source === 'extension') return { action: 'continue' }
     if (activeRun) {
       clearRunStatus(ctx, setActiveRun)
-      return { action: 'transform', text: event.text, images: event.images }
+      return {
+        action: 'transform',
+        text: event.text,
+        ...(event.images ? { images: event.images } : {}),
+      }
     }
     if (event.text.trim().startsWith('/')) return { action: 'continue' }
     if (!ctx.isIdle()) return { action: 'continue' }

@@ -224,7 +224,7 @@ export async function saveConfigAsPreset(input: {
 
 export async function editPresetFromEditor(input: {
   readonly ctx: ExtensionCommandContext
-  readonly presetId?: string
+  readonly presetId?: string | undefined
 }) {
   try {
     const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(input.ctx.cwd))

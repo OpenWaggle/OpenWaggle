@@ -2,9 +2,9 @@ export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'b
 
 export interface OpenWaggleExtensionSyntaxHighlightInput {
   readonly source: string
-  readonly language?: string
-  readonly path?: string
-  readonly priority?: OpenWaggleExtensionSyntaxPriority
+  readonly language?: string | undefined
+  readonly path?: string | undefined
+  readonly priority?: OpenWaggleExtensionSyntaxPriority | undefined
 }
 
 export interface OpenWaggleExtensionSyntaxToken {
@@ -36,8 +36,8 @@ export interface OpenWaggleExtensionSyntaxSdk {
 
 export function createPlainExtensionSyntaxResult(input: {
   readonly source: string
-  readonly language?: string
-  readonly diagnostic?: string
+  readonly language?: string | undefined
+  readonly diagnostic?: string | undefined
 }): OpenWaggleExtensionSyntaxHighlightResult {
   return {
     status: 'plain-text',

@@ -14,7 +14,7 @@ const EXECUTABLE_MODE_MASK = 0o111
 
 interface NativePackageMetadata {
   readonly name: string
-  readonly version?: string
+  readonly version?: string | undefined
 }
 
 export type NativeArtifactSignature = {

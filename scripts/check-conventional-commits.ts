@@ -21,16 +21,16 @@ const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
 export type { CommitSubject } from './commit-subjects'
 
 export interface ConventionalCommitValidationOptions {
-  readonly baseline?: string
+  readonly baseline?: string | undefined
   readonly cwd?: string
-  readonly from?: string
+  readonly from?: string | undefined
   /**
    * Whether a missing package tag or a shallow clone fails the package documentation line check.
    * CI fetches full history and tags, so it fails there; the local pre-push check skips with a warning.
    */
   readonly missingReleaseHistory?: 'fail' | 'skip'
-  readonly prTitle?: string
-  readonly to?: string
+  readonly prTitle?: string | undefined
+  readonly to?: string | undefined
 }
 
 export function hasPackageReleaseIntent(title: string) {
