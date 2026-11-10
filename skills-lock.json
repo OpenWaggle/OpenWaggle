@@ -70,8 +70,8 @@
           "hash": "sha256-b3b9d6234098c865c2cc6cd8b6ef5a9d31ca6243688f29f38c1a47a21f2eb3e4"
         }
       ],
-      "hash": "sha256-f11cad1c6f4b24fd87e08a0287c652c8d38f375310762684a4c426aeffc6a412",
-      "localEdits": "Rewritten as a tool-neutral guardrail policy for any agent runtime; the upstream hook script for one agent is not vendored."
+      "hash": "sha256-42b395732a4e003428b9a89368a92aaa32f5f0ae2fb7891a452b16173fed3f5a",
+      "localEdits": "Rewritten as a tool-neutral guardrail policy for any agent runtime, with a section on how this repository enforces it; the upstream hook script for one agent is not vendored."
     },
     "grill-me": {
       "upstream": [
@@ -161,8 +161,8 @@
           "hash": "sha256-ab38cbec1a1ff86b7f9f03a40fce563495d824077552e85b597de72edb663d12"
         }
       ],
-      "hash": "sha256-37dec5983a39c615e4581cd822736294a4fbd4313607429d47b05ae1c5f50975",
-      "localEdits": "Rewritten for this repository's renderer paths, React Compiler checks and verification flow; references/common-fixes.md is local."
+      "hash": "sha256-5c910da4eaa578805c82967ed9d6aa34f731b4af09cbdcd82d5393e6fc9c9003",
+      "localEdits": "Rewritten for this repository's renderer paths, React Compiler checks and verification flow, running the pinned react-doctor through bun run check:react-doctor; references/common-fixes.md is local."
     },
     "repo-explorer": {
       "upstream": [
