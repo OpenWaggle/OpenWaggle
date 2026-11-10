@@ -4,7 +4,8 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../../env'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
+import { getEnvWithOverrides } from '../../env'
 
 const MODULE_VALUE_5 = 5
 

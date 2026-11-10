@@ -1,10 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import {
-  isUnnamedRunSeed,
-  type RenderSnapshotState,
-  type RunRenderSnapshot,
-} from './background-run-render-state'
+import type { RenderSnapshotState, RunRenderSnapshot } from './background-run-render-state'
+import { isUnnamedRunSeed } from './background-run-seed'
 
 /*
  * A Run that starts in a snapshot a route owns (`RunRenderSnapshot.startedRun`), and the

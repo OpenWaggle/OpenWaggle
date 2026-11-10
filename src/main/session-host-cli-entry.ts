@@ -2,14 +2,10 @@ import { existsSync } from 'node:fs'
 import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
+import { installDesktopShellEnvironment } from './desktop-shell-environment-process'
 import type { StartedDesktopShellEnvironment } from './desktop-shell-environment-start'
 import { installAutomationDesktopUiBlockers } from './desktop-ui'
-import {
-  env,
-  installDesktopShellEnvironment,
-  installLinuxSessionBusEnvironment,
-  takeShellEnvironmentRefreshedSince,
-} from './env'
+import { env, installLinuxSessionBusEnvironment, takeShellEnvironmentRefreshedSince } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'

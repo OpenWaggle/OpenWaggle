@@ -49,9 +49,11 @@ const prepareTerminalShellLaunchMock = vi.hoisted(() =>
 export const ptyExitListeners: Array<(event: { readonly exitCode: number }) => void> = []
 
 vi.mock('../../../env', () => ({
-  desktopShellEnvironmentReady: desktopShellEnvironmentReadyMock,
   getInteractiveTerminalEnv: getInteractiveTerminalEnvMock,
   logLevel: 'error',
+}))
+vi.mock('../../../desktop-shell-environment-process', () => ({
+  desktopShellEnvironmentReady: desktopShellEnvironmentReadyMock,
 }))
 
 vi.mock('../terminal-shell', () => ({

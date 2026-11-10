@@ -32,8 +32,8 @@ vi.mock('node:child_process', () => ({
   },
 }))
 
-vi.mock('../../env', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../env')>()),
+vi.mock('../../desktop-shell-environment-process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../desktop-shell-environment-process')>()),
   desktopShellEnvironmentReady: () => shell.ready,
 }))
 

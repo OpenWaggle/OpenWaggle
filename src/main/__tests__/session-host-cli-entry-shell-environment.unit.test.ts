@@ -71,10 +71,12 @@ vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 vi.mock('../env', () => ({
   env: {},
   logLevel: 'error',
-  installDesktopShellEnvironment: (options?: { readonly cacheFile?: string }) =>
-    mocks.installShellEnvironment(options),
   installLinuxSessionBusEnvironment: () => mocks.installSessionBus(),
   takeShellEnvironmentRefreshedSince: () => mocks.refreshedSince(),
+}))
+vi.mock('../desktop-shell-environment-process', () => ({
+  installDesktopShellEnvironment: (options?: { readonly cacheFile?: string }) =>
+    mocks.installShellEnvironment(options),
 }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,

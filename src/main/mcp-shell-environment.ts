@@ -11,7 +11,8 @@ import {
   runBoundedShellEnvironmentCommand,
   type ShellEnvironmentCommandRunner,
 } from './desktop-shell-environment-probes'
-import { desktopShellEnvironmentReady, getEnvWithOverrides } from './env'
+import { desktopShellEnvironmentReady } from './desktop-shell-environment-process'
+import { getEnvWithOverrides } from './env'
 
 const START = '__OPENWAGGLE_ENV_ALL_START__'
 const END = '__OPENWAGGLE_ENV_ALL_END__'

@@ -4,8 +4,9 @@ import { basename, delimiter, extname, isAbsolute, resolve } from 'node:path'
 import type { ResolvedActionInvocation } from '@shared/types/action-definitions'
 import { isEnoent } from '@shared/utils/node-error'
 import { quotePowerShellArgument as quotePowerShell } from '@shared/utils/shell-argument'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
 import type { PreparedEnvironment } from '../../domain/prepared-environment'
-import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
+import { getInteractiveTerminalEnv } from '../../env'
 import {
   type OwnedTerminalProcessTree,
   shutdownDetachedTerminal,

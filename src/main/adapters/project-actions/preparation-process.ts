@@ -3,11 +3,12 @@ import { mkdir, mkdtemp, open, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 import type { ActionInvocation } from '@shared/types/action-definitions'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
 import {
   capturePreparedEnvironment,
   type PreparedEnvironment,
 } from '../../domain/prepared-environment'
-import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
+import { getInteractiveTerminalEnv } from '../../env'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { type ActionProcessRunner, resolveActionShell } from './action-process'
 import { createPreparationLaunches } from './preparation-launch'

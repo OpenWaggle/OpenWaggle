@@ -1,10 +1,6 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
-import {
-  installProcessDesktopShellEnvironment,
-  type ProcessDesktopShellEnvironmentOptions,
-} from './desktop-shell-environment-process'
 import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
@@ -65,10 +61,6 @@ const envSchema = Schema.Struct({
   LOCALAPPDATA: Schema.optional(Schema.String),
 })
 
-export {
-  desktopShellEnvironmentReady,
-  desktopShellEnvironmentRefreshStartedAt,
-} from './desktop-shell-environment-process'
 export type Env = SchemaType<typeof envSchema>
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
@@ -102,10 +94,13 @@ const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
-/** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
-export const installDesktopShellEnvironment = (
-  options: ProcessDesktopShellEnvironmentOptions = {},
-) => installProcessDesktopShellEnvironment(process.env, options)
+/**
+ * This process's own environment, which `desktop-shell-environment-process` hydrates in place
+ * from the login shell.
+ */
+export function liveProcessEnvironment(): NodeJS.ProcessEnv {
+  return process.env
+}
 
 /** The launching app's login-shell refresh time, removed so no child of this Host inherits it. */
 export function takeShellEnvironmentRefreshedSince(): number | undefined {

@@ -8,7 +8,8 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
-import { type RunRenderSnapshot, UNNAMED_RUN_SEED } from './background-run-render-state'
+import type { RunRenderSnapshot } from './background-run-render-state'
+import { UNNAMED_RUN_SEED } from './background-run-seed'
 
 interface RunRenderState {
   readonly renderSnapshotsBySessionId: ReadonlyMap<SessionId, RunRenderSnapshot>

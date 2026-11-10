@@ -20,8 +20,8 @@ import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-cata
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { forgetMcpAppTools } from '../mcp-app-registry'
+import type { CachedMcpAppTools } from '../mcp-known-app-tools'
 import {
-  type CachedMcpAppTools,
   mcpCodemodeReach,
   withDirectKeptWithoutCodemode,
   withKnownMcpAppToolsOf,

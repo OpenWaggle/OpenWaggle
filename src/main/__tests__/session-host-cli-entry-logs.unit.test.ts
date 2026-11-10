@@ -29,9 +29,11 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../env', () => ({
   env: mocks.env,
-  installDesktopShellEnvironment: async () => undefined,
   installLinuxSessionBusEnvironment: () => undefined,
   takeShellEnvironmentRefreshedSince: () => undefined,
+}))
+vi.mock('../desktop-shell-environment-process', () => ({
+  installDesktopShellEnvironment: async () => undefined,
 }))
 vi.mock('../logger', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../logger')>()),

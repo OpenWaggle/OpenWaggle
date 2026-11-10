@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../env'
+import { desktopShellEnvironmentReady } from '../desktop-shell-environment-process'
+import { getEnvWithOverrides } from '../env'
 
 const GIT_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024
 const GIT_TIMEOUT_MS = 30_000

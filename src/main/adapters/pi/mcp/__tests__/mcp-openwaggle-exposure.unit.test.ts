@@ -4,8 +4,8 @@ import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { forgetMcpAppTools, recordMcpAppTools } from '../mcp-app-registry'
+import { knownMcpAppTools } from '../mcp-known-app-tools'
 import {
-  knownMcpAppTools,
   mcpCodemodeReach,
   withDirectKeptWithoutCodemode,
   withKnownMcpAppToolsOf,

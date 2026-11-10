@@ -5,6 +5,7 @@ import {
   type StartedDesktopShellEnvironment,
   startDesktopShellEnvironment,
 } from './desktop-shell-environment-start'
+import { liveProcessEnvironment } from './env'
 
 let desktopShellEnvironment: StartedDesktopShellEnvironment | null = null
 let cacheRefreshStartedAt: number | null = null
@@ -63,6 +64,13 @@ export function installProcessDesktopShellEnvironment(
         }),
   })
   return desktopShellEnvironment
+}
+
+/** Hydrates this process's environment from the login shell. */
+export function installDesktopShellEnvironment(
+  options: ProcessDesktopShellEnvironmentOptions = {},
+) {
+  return installProcessDesktopShellEnvironment(liveProcessEnvironment(), options)
 }
 
 /**
