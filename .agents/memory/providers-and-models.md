@@ -28,7 +28,7 @@ Load when touching provider auth, `features/providers`, model or thinking-level 
   next request uses the new key. The pi-ai patch gives each new client `credentialDefaultProvider:
   defaultProvider({ ...init, ignoreCache: true })`: the files are read again whenever a client
   resolves credentials, so once per client for static keys and on each refresh (about hourly) for
-  SSO or assume-role, never per request; `packageExtensions` in `pnpm-workspace.yaml` adds
+  SSO or assume-role, never per request; `packageExtensions` in package.json adds
   `@aws-sdk/credential-provider-node` to pi-ai with the Bedrock client's range, and
   `pi-bedrock-rotated-credentials.unit.test.ts` checks both resolve to one copy. A retry that also
   fails on its credentials (expired or refused) drops the clients again, before the Run sees the

@@ -7,13 +7,13 @@ Load when touching lint or format config, `tsconfig*`, `package.json` dependenci
 
 ## Tooling Memory
 
-- Package manager: `pnpm`.
+- Package manager: Bun (`bun install`, `bun.lock`, `bun run`; ADR 0064). pnpm was used until then.
 - TypeScript-first tooling is preferred; do not add JavaScript configs when `.ts` is practical.
 - No TypeScript `baseUrl`; preserve aliases through explicit `paths` entries.
 - `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are the target strictness posture, but enabling them in build or lint tsconfigs requires a dedicated source-modeling pass across the active Pi/session refactor; lint-only enablement can create TypeScript `error` types that surface as noisy Oxlint `typescript/no-unsafe-*` diagnostics.
 - Do not suppress Fallow complexity findings; refactor instead.
 - Fallow cannot see exports read through `vi.mock(path, async (importOriginal) => ({ ...actual }))` (for example `actual.heldEdit`), and `tsconfig.web.json` excludes `*.test.ts(x)`, so removing such an "unused" re-export passes typecheck and dead-code but fails the component tests. After removing unused exports or barrel entries, run the full component and unit suites, not only typecheck. Exports loaded by URL `import()` (the package-release scripts) are invisible to Fallow too; they are listed in `.fallowrc.jsonc` `ignoreExports`.
-- Dependency-update trap: `packages/*/dist` is gitignored but consumed by root typecheck. A stale dist built mid-bisection caused 185 phantom type errors (`AnyNoContext`/`TypeId` mismatches that looked like effect/typebox breakage). After changing any dependency version, run `pnpm build:package-dependencies` before trusting typecheck results.
+- Dependency-update trap: `packages/*/dist` is gitignored but consumed by root typecheck. A stale dist built mid-bisection caused 185 phantom type errors (`AnyNoContext`/`TypeId` mismatches that looked like effect/typebox breakage). After changing any dependency version, run `bun run build:package-dependencies` before trusting typecheck results.
 - Root `undici` is 8.x. `secure-fetch.ts` must wrap each DNS-pinned `Agent` in Undici's `Dispatcher1Wrapper` before passing it to Node's **global** fetch, whose bundled Undici uses the legacy dispatcher protocol. Keep `allowH2: false` on those Agents to preserve HTTP/1.1 behavior. The `@earendil-works/pi-coding-agent>undici` override remains independent.
 - TanStack internal overrides (`@tanstack/history`, `router-core`, `router-generator`, `router-utils`) must move in lockstep with `@tanstack/react-router`; a pinned older `router-core` breaks at runtime with `SyntaxError: ... does not provide an export named 'getUrlScheme'` in unit suites, not at typecheck time.
 - TanStack Query ≥5.102: `queryClient.query()` applies `select`, while the deprecated `fetchQuery` did not — a mechanical `fetchQuery`→`query` migration changes what test assertions receive (selected vs raw queryFn data).
@@ -34,7 +34,7 @@ that becomes clean fails as a stale exemption so the list can only shrink.
 function: it typechecked, its own test passed, and the feature was simply absent until the
 app was opened. The detail-side function is now `hydrateSessionDetailSummary`.
 
-`pnpm check:repository-standards` fails on any *new* duplicate exported type name under
+`bun run check:repository-standards` fails on any *new* duplicate exported type name under
 `src/`, against a checked-in `KNOWN_DUPLICATE_EXPORTED_TYPES` list that can only shrink
 (resolving one without removing it from the list also fails). `packages/extension-sdk`
 deliberately mirrors shared types as its public surface, so the check is scoped to `src/`.
@@ -55,7 +55,7 @@ One config, `oxlint.config.mts`, is run by `bun scripts/lint.ts` through a pinne
 
 ## Filed under "Session-owned Browser preview (ADR 0031, September 2026)"
 
-pnpm 11 can implicitly install before running scripts when workspace manifests change, including a version-only main merge. That install runs Electron's native postinstall and can collide with Node verification. Finish manifest synchronization before rebuilding for the intended runtime; use the scoped `pnpm_config_verify_deps_before_run=error` setting during coordinated checks to fail visibly instead of starting an unexpected install. Do not change global configuration or overlap native rebuilds and tests.
+Under pnpm 11 (before ADR 0064), a script run could implicitly install when workspace manifests changed, including a version-only main merge, and that install ran Electron's native postinstall in the middle of Node verification. The rule that outlived it: finish manifest synchronization before rebuilding native modules for the intended runtime, and do not overlap native rebuilds and tests.
 
 ## Filed under "Access Modes And Authorization Memory"
 
@@ -76,7 +76,7 @@ An Effect `Schema.Record` whose key schema is a refinement drops keys that fail 
 
 ## Filed under "Error reports (Sentry) and provider attribution"
 
-Adding a dependency with `pnpm add` runs the root `postinstall` (`electron-builder install-app-deps`), which rebuilds native modules for Electron in the shared checkout and can fail half way on node-pty; pass `--ignore-scripts` and run `pnpm prepare:native:node` or `prepare:native:electron` deliberately instead.
+Adding a dependency with `bun add` runs the root `postinstall` (`electron-builder install-app-deps`), which rebuilds native modules for Electron in the shared checkout and can fail half way on node-pty; pass `--ignore-scripts` and run `bun run prepare:native:node` or `prepare:native:electron` deliberately instead.
 
 ## Vendored skills and ADR numbers are checked offline (November 2026)
 

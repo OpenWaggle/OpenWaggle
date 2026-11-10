@@ -33,7 +33,7 @@ bun run prepare:native:electron
 
 - Packaged apps may not inherit the user's shell PATH.
 - Resources copied from `app.asar` may need `app.asar.unpacked` paths.
-- `electron-updater` needs the transitive `ms` runtime dependency explicitly present with pnpm packaging.
+- `electron-updater` needs its transitive `ms` runtime dependency declared explicitly: the isolated install layout (pnpm's before, Bun's `linker = "isolated"` now) does not hoist it into the packaged app.
 - Validate packaged-only regressions against the rebuilt `.app`, not only `bun run dev`.
 - On Apple silicon, use arm64 output for local performance checks.
 

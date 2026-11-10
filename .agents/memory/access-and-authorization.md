@@ -69,7 +69,7 @@ or `access-cli*`.
   server refuses `--authorization-ceiling`. `openwaggle_hive` advertises only the operations whose
   base capabilities (`openwaggle-mcp-session-operation-grants-v2.ts`) were granted; a new
   operation must be added to that table. Server-side conformance is
-  `pnpm test:mcp:server-conformance`, part of `pnpm test:mcp:conformance`.
+  `bun run test:mcp:server-conformance`, part of `bun run test:mcp:conformance`.
 
 ## Filed under "Session Host authority and subscriptions are live boundaries"
 
