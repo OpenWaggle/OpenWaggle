@@ -1,4 +1,5 @@
 import { createRendererLogger } from '@/shared/lib/logger'
+import { isReportableSendFailure, sendFailureText } from './message-delivery'
 
 const logger = createRendererLogger('chat-panel')
 
@@ -16,7 +17,9 @@ export async function sendStarterPrompt(input: {
   try {
     await input.handleSendText(input.content)
   } catch (sendError) {
-    const message = sendError instanceof Error ? sendError.message : String(sendError)
+    // The person's own Stop is no failure to report.
+    if (!isReportableSendFailure(sendError)) return
+    const message = sendFailureText(sendError)
     logger.error('Failed to send starter prompt', { error: message })
     input.showToast(message)
   }

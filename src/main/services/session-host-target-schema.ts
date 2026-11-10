@@ -1,4 +1,5 @@
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
+import { SESSION_AGENT_ORIGIN_SCHEMA_STATEMENTS } from './session-host-agent-origin-schema'
 import { SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS } from './session-host-attachment-schema'
 import { SESSION_DELEGATION_TARGET_SCHEMA_STATEMENTS } from './session-host-delegation-schema'
 import { SESSION_DISCOVERY_TERM_SCHEMA_STATEMENTS } from './session-host-discovery-term-schema'
@@ -105,6 +106,7 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
   ...SESSION_REPORT_REFERENCE_SCHEMA_STATEMENTS,
   ...SESSION_LIFECYCLE_RESOURCE_SCHEMA_STATEMENTS,
   ...SESSION_RUN_TARGET_SCHEMA_STATEMENTS,
+  ...SESSION_AGENT_ORIGIN_SCHEMA_STATEMENTS,
   `
   CREATE TABLE session_spawn_lineage (
     child_session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,

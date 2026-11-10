@@ -84,7 +84,8 @@ export const runDesktopNotificationsBackground = Effect.gen(function* () {
         // A held Ready to read whose expected Hive wake never started (ADR 0063).
         yield* Effect.gen(function* () {
           if (!observer.holdingReadyToRead) return
-          const active = yield* facts.hostActiveRunCount()
+          // Only Worker Runs use the limit; the person's own Runs never hold a wake back.
+          const active = yield* facts.activeWorkerRunCount()
           const { sessionHostRunCeiling } = yield* settings.get()
           yield* observer.settleHeldReadyToRead(Date.now(), active >= sessionHostRunCeiling)
         }).pipe(

@@ -13,6 +13,7 @@ function record(overrides: Partial<ScheduledTaskRecord> = {}): ScheduledTaskReco
     creator: { kind: 'local-user', label: 'You' },
     creatorWorkingDirectory: null,
     authorityLimits: null,
+    workByAgent: false,
     kind: 'heartbeat',
     name: 'Task',
     prompt: 'Prompt',

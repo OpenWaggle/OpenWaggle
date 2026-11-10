@@ -5,7 +5,6 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { RunId, SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { editSessionFollowUp } from '../../application/session-control-queue-edit-service'
 import { mutateSessionQueue } from '../../application/session-control-service'
 import { SessionControlRunLifecycleRepository } from '../../ports/session-control-run-lifecycle-repository'
 import {
@@ -26,21 +25,6 @@ let tmpRoot = ''
 function layer(name: string) {
   return followUpEditLayer(tmpRoot, name)
 }
-
-/** Fills the Host's Run ceiling of one with a Run in another Session. */
-const busyHost = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
-  yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'session-busy'}, ${'/project'})`
-  yield* sql`
-    INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
-    VALUES (${'run-busy'}, ${'session-busy'}, ${'active'}, ${null}, ${1}, ${1})
-  `
-  yield* sql`
-    INSERT INTO session_control_states (
-      session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
-    ) VALUES (${'session-busy'}, ${1}, ${'run-busy'}, ${'running'}, ${0}, ${1})
-  `
-})
 
 describe('Follow-up edit holds do not strand a queue', () => {
   beforeEach(async () => {
@@ -101,44 +85,6 @@ describe('Follow-up edit holds do not strand a queue', () => {
     expect(result.after.followUpQueue.items).toMatchObject([
       { id: 'held', editHold: { holdId: HOLD } },
     ])
-  })
-
-  it('pauses instead of starting when the Host cannot admit the next Run, and keeps the edit', async () => {
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        yield* idleQueue([{ id: 'held' }])
-        const begun = yield* beginEdit('held')
-        if (begun.outcome.effect !== 'follow-up-edit-held') throw new Error('expected a hold')
-        yield* busyHost
-        const saved = yield* editSessionFollowUp({
-          callerId: USER,
-          desktopUser: true,
-          hostRunCeiling: 1,
-          request: request({
-            operation: 'queue-edit-save',
-            sessionId: SESSION,
-            followUpId: 'held',
-            holdId: HOLD,
-            expectedQueueRevision: begun.outcome.queueRevision,
-            input: { text: 'Edited while busy', attachmentIds: [] },
-          }),
-        })
-        return { saved, after: yield* loadState() }
-      }).pipe(Effect.provide(layer('ceiling.sqlite'))),
-    )
-
-    expect(result.saved.outcome).toMatchObject({
-      operation: 'queue-edit-save',
-      effect: 'queue-updated',
-      queueState: 'paused',
-    })
-    // No pause reason: older binaries decode a missing reason, and none names the Host ceiling.
-    expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
-    expect(result.after.followUpQueue).toMatchObject({
-      state: 'paused',
-      items: [{ id: 'held', intent: { text: 'Edited while busy' } }],
-    })
-    expect(result.after.followUpQueue.items[0]?.editHold).toBeUndefined()
   })
 
   it('starts a failed Run’s retry that waited behind a hold once the hold is released', async () => {

@@ -13,6 +13,13 @@ export function logExpectedSendRefusal(cause: unknown) {
   })
 }
 
+/** A send that failed unexpectedly, though a toast already told the user. */
+export function logShownSendFailure(cause: unknown) {
+  logger.error('Composer send failed', {
+    message: cause instanceof Error ? cause.message : String(cause),
+  })
+}
+
 export function consumeSendResult(result: unknown): void {
   if (!isPromiseResult(result)) {
     return

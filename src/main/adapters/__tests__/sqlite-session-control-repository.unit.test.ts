@@ -62,7 +62,7 @@ describe('SqliteSessionControlRepositoryLive', () => {
     })
   })
 
-  it('atomically rejects a new independent Run when the app-wide ceiling is full', async () => {
+  it('starts the person’s Run in a root Session however many Runs are active', async () => {
     const layer = makeSessionControlTestLayer(path.join(tmpRoot, 'session-host-ceiling.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -94,7 +94,7 @@ describe('SqliteSessionControlRepositoryLive', () => {
             command: {
               operation: 'message',
               sessionId: 'session-target',
-              input: { text: 'Must wait for capacity.', attachmentIds: [] },
+              input: { text: 'Starts regardless of capacity.', attachmentIds: [] },
             },
           },
         })
@@ -105,13 +105,9 @@ describe('SqliteSessionControlRepositoryLive', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(result.response.outcome).toMatchObject({
-      operation: 'message',
-      effect: 'rejected',
-      code: 'host_run_ceiling_reached',
-      kind: 'conflict',
-    })
-    expect(result.targetRunCount).toBe(0)
+    // Only Worker Runs count toward the ceiling, and the person's Runs are never refused for it.
+    expect(result.response.outcome).toMatchObject({ operation: 'message', effect: 'started-run' })
+    expect(result.targetRunCount).toBe(1)
   })
 
   it('revalidates profile revocation inside durable Run admission', async () => {
