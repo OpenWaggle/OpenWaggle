@@ -1,3 +1,43 @@
+import { mcpCountWords } from './mcp-count-words'
+
+const SUBJECT_WORDS = {
+  one: { reads: 'It reads', uses: 'It uses', using: 'the server' },
+  many: { reads: 'The imported servers read', uses: 'They use', using: 'them' },
+} as const
+
+type McpSecretSubject = keyof typeof SUBJECT_WORDS
+
+function MissingSecretsLine({
+  missing,
+  subject,
+}: {
+  readonly missing: readonly string[]
+  readonly subject: McpSecretSubject
+}) {
+  const words = mcpCountWords(missing.length)
+  const subjectWords = SUBJECT_WORDS[subject]
+  return (
+    <p className="text-warning">
+      {`${subjectWords.reads} the secret${words.plural} ${missing.join(', ')}. Add ${words.object} under Secrets before using ${subjectWords.using}.`}
+    </p>
+  )
+}
+
+function ExistingSecretsLine({
+  existingSecrets,
+  subject,
+}: {
+  readonly existingSecrets: readonly string[]
+  readonly subject: McpSecretSubject
+}) {
+  const words = mcpCountWords(existingSecrets.length)
+  return (
+    <p>
+      {`${SUBJECT_WORDS[subject].uses} the secret${words.plural} ${existingSecrets.join(', ')}, which already ${words.exists} under Secrets; replace ${words.object} there if ${words.holds} another value.`}
+    </p>
+  )
+}
+
 /**
  * What a saved server reads from the vault: the secrets to add before using it, and those that
  * already exist and would be shared. `subject` is "one" for a Registry install, "many" for an
@@ -10,29 +50,15 @@ export function McpSecretLines({
 }: {
   readonly secrets: readonly string[]
   readonly existingSecrets: readonly string[]
-  readonly subject: 'one' | 'many'
+  readonly subject: McpSecretSubject
 }) {
   const stored = new Set(existingSecrets)
   const missing = secrets.filter((secret) => !stored.has(secret))
-  const one = subject === 'one'
   return (
     <>
-      {missing.length > 0 ? (
-        <p className="text-warning">
-          {one ? 'It reads' : 'The imported servers read'} the secret
-          {missing.length === 1 ? '' : 's'} {missing.join(', ')}. Add{' '}
-          {missing.length === 1 ? 'it' : 'them'} under Secrets before using{' '}
-          {one ? 'the server' : 'them'}.
-        </p>
-      ) : null}
+      {missing.length > 0 ? <MissingSecretsLine missing={missing} subject={subject} /> : null}
       {existingSecrets.length > 0 ? (
-        <p>
-          {one ? 'It uses' : 'They use'} the secret{existingSecrets.length === 1 ? '' : 's'}{' '}
-          {existingSecrets.join(', ')}, which already{' '}
-          {existingSecrets.length === 1 ? 'exists' : 'exist'} under Secrets; replace{' '}
-          {existingSecrets.length === 1 ? 'it' : 'them'} there if{' '}
-          {existingSecrets.length === 1 ? 'it holds' : 'they hold'} another value.
-        </p>
+        <ExistingSecretsLine existingSecrets={existingSecrets} subject={subject} />
       ) : null}
     </>
   )

@@ -216,6 +216,31 @@ const config: DoctorConfig = {
         files: ['.github/workflows/nightly.yml'],
         rules: ['react-doctor/plugin-update-trust-risk'],
       },
+      {
+        // The reset is in the `finally` block. It is guarded by the request id so a superseded
+        // request cannot clear the loading flag of the newer request that replaced it; the
+        // newer request, or cancel(), owns that flag. The analyzer only accepts an
+        // unconditional reset there.
+        files: ['src/renderer/src/shared/ui/useProjectCatalog.ts'],
+        rules: ['react-doctor/no-loading-flag-reset-outside-finally'],
+      },
+      {
+        // displayOwner cannot be derived from owner: while a draft becomes a Session it keeps
+        // the draft owner until migrateTerminalOwner has moved the draft's terminals, so the
+        // panel never shows the Session's owner key without them. Whether to hold is decided
+        // by takeDraftMaterialization, which consumes a one-shot receipt and so cannot run
+        // during render.
+        files: ['src/renderer/src/shell/WorkspaceTerminal.tsx'],
+        rules: ['react-doctor/no-derived-state'],
+      },
+      {
+        // No state goes to a parent. useSaveQueueValues and useSaveQueueLifecycle are two
+        // halves of one hook in one component; the `context` setters the effect calls are
+        // that component's own useState setters. The effect also writes the refs the save
+        // queue reads from timers and IPC callbacks, which render must not write.
+        files: ['src/renderer/src/features/workspace-files/hooks/useWorkspaceFileSaveQueue.ts'],
+        rules: ['react-doctor/no-pass-live-state-to-parent'],
+      },
     ],
   },
 }

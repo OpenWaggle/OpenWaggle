@@ -178,13 +178,10 @@ export function useCommitOrPushDialogController(
   const [stopRequested, setStopRequested] = useState(false)
   const [preparedBranch, setPreparedBranch] = useState<PreparedBranchState | null>(null)
   const repositoryRef = repositoryBranchName(repository)
+  // Once the repository leaves the ref the branch was prepared from, its own ref is current
+  // again for good. Forgetting it while rendering re-renders before anything commits.
+  if (preparedBranch && repositoryRef !== preparedBranch.previousRef) setPreparedBranch(null)
   const currentRef = currentBranchName(repository, preparedBranch)
-
-  useEffect(() => {
-    if (preparedBranch && repositoryRef !== preparedBranch.previousRef) {
-      setPreparedBranch(null)
-    }
-  }, [preparedBranch, repositoryRef])
 
   const validation = useBranchValidation(repository, target, branchName)
   const branch = resolveBranchReadiness(currentRef, target, validation)

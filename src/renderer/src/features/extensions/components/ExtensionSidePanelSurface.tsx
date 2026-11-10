@@ -12,6 +12,7 @@ import type {
 } from '../lib/extension-side-panel-resolution'
 import { resolveExtensionSidePanelContribution } from '../lib/extension-side-panel-resolution'
 import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
+import { ExtensionPanelStatusCard } from './ExtensionPanelStatusCard'
 
 function ExtensionSidePanelShell({
   title,
@@ -46,31 +47,6 @@ function ExtensionSidePanelShell({
         </Button>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">{children}</div>
-    </section>
-  )
-}
-
-function ExtensionSidePanelStatusCard({
-  icon,
-  title,
-  message,
-  action,
-}: {
-  readonly icon: ReactNode
-  readonly title: string
-  readonly message: string
-  readonly action?: ReactNode
-}) {
-  return (
-    <section role="alert" className="rounded-xl border border-border bg-bg-secondary p-4">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-accent">{icon}</div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-          <p className="mt-1 text-xs leading-5 text-text-tertiary">{message}</p>
-          {action ? <div className="mt-3">{action}</div> : null}
-        </div>
-      </div>
     </section>
   )
 }
@@ -138,7 +114,7 @@ function extensionSidePanelBody({
 
   if (error !== null && registry === null) {
     return (
-      <ExtensionSidePanelStatusCard
+      <ExtensionPanelStatusCard
         action={
           <Button onClick={onRefresh} size="xs" variant="accent">
             <RefreshCw className="size-3" />
@@ -173,7 +149,7 @@ function extensionSidePanelBody({
   }
 
   return (
-    <ExtensionSidePanelStatusCard
+    <ExtensionPanelStatusCard
       icon={<ShieldAlert className="size-4" />}
       message={formatDisplayPathsInText(resolution.message, projectPaths)}
       title={resolution.title}

@@ -41,76 +41,128 @@ function hostChoice(value: string): SourceControlHostChoice | null {
   return SOURCE_CONTROL_HOST_CHOICES.find((option) => option.id === value)?.id ?? null
 }
 
-export function SourceControlHostRow({ entry }: { readonly entry: SourceControlHostEntry }) {
-  const { configureOrToast, pending } = useSourceControlConfigure()
-  const [showSignIn, setShowSignIn] = useState(false)
+function SourceControlHostSummary({ entry }: { readonly entry: SourceControlHostEntry }) {
   const accounts = accountLabel(entry)
-  const provider = entry.provider
-  const choice: SourceControlHostChoice | '' = entry.unsupported ? 'unsupported' : (provider ?? '')
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="truncate text-xs font-medium text-text-primary">{entry.host}</div>
+      <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-text-tertiary">
+        <span>{sourceLabel(entry)}</span>
+        {accounts === null ? null : (
+          <span title={entry.accounts.map((account) => `@${account.login}`).join(', ')}>
+            {accounts}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+type SourceControlConfigure = ReturnType<typeof useSourceControlConfigure>
+
+function SourceControlProviderSelect({
+  entry,
+  configure,
+}: {
+  readonly entry: SourceControlHostEntry
+  readonly configure: SourceControlConfigure
+}) {
+  const { configureOrToast, pending } = configure
+  const choice: SourceControlHostChoice | '' = entry.unsupported
+    ? 'unsupported'
+    : (entry.provider ?? '')
+  return (
+    <Select
+      selectSize="xs"
+      aria-label={`Provider for ${entry.host}`}
+      value={choice}
+      aria-disabled={pending ? true : undefined}
+      onChange={(event) => {
+        // aria-disabled keeps keyboard focus here while a change is saving.
+        if (pending) return
+        const next = hostChoice(event.target.value)
+        if (next !== null && next !== choice) {
+          configureOrToast({ kind: 'set-host-provider', host: entry.host, provider: next })
+        }
+      }}
+    >
+      {choice === '' ? <option value="">Choose…</option> : null}
+      {SOURCE_CONTROL_HOST_CHOICES.map((option) => (
+        <option key={option.id} value={option.id}>
+          {option.label}
+        </option>
+      ))}
+    </Select>
+  )
+}
+
+function SourceControlSignInButton({
+  entry,
+  expanded,
+  onToggle,
+}: {
+  readonly entry: SourceControlHostEntry
+  readonly expanded: boolean
+  readonly onToggle: () => void
+}) {
   const signedIn = entry.accounts.length > 0
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      aria-label={signedIn ? `Add account for ${entry.host}` : `Sign in to ${entry.host}`}
+      aria-expanded={expanded}
+      onClick={onToggle}
+    >
+      {signedIn ? 'Add account' : 'Sign in'}
+    </Button>
+  )
+}
+
+function SourceControlForgetButton({
+  host,
+  configure,
+}: {
+  readonly host: string
+  readonly configure: SourceControlConfigure
+}) {
+  const { configureOrToast, pending } = configure
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      aria-label={`Forget ${host}`}
+      aria-disabled={pending ? true : undefined}
+      onClick={() => {
+        if (!pending) configureOrToast({ kind: 'set-host-provider', host, provider: null })
+      }}
+    >
+      Forget
+    </Button>
+  )
+}
+
+export function SourceControlHostRow({ entry }: { readonly entry: SourceControlHostEntry }) {
+  const configure = useSourceControlConfigure()
+  const [showSignIn, setShowSignIn] = useState(false)
+  const provider = entry.provider
   return (
     <li
       aria-label={entry.host}
       className="space-y-2 border-b border-border px-5 py-3 last:border-b-0"
     >
       <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-medium text-text-primary">{entry.host}</div>
-          <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-text-tertiary">
-            <span>{sourceLabel(entry)}</span>
-            {accounts === null ? null : (
-              <span title={entry.accounts.map((account) => `@${account.login}`).join(', ')}>
-                {accounts}
-              </span>
-            )}
-          </div>
-        </div>
-        <Select
-          selectSize="xs"
-          aria-label={`Provider for ${entry.host}`}
-          value={choice}
-          aria-disabled={pending ? true : undefined}
-          onChange={(event) => {
-            // aria-disabled keeps keyboard focus here while a change is saving.
-            if (pending) return
-            const next = hostChoice(event.target.value)
-            if (next !== null && next !== choice) {
-              configureOrToast({ kind: 'set-host-provider', host: entry.host, provider: next })
-            }
-          }}
-        >
-          {choice === '' ? <option value="">Choose…</option> : null}
-          {SOURCE_CONTROL_HOST_CHOICES.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
+        <SourceControlHostSummary entry={entry} />
+        <SourceControlProviderSelect entry={entry} configure={configure} />
         {provider !== null && entry.cliInstalled ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-label={signedIn ? `Add account for ${entry.host}` : `Sign in to ${entry.host}`}
-            aria-expanded={showSignIn}
-            onClick={() => setShowSignIn((open) => !open)}
-          >
-            {signedIn ? 'Add account' : 'Sign in'}
-          </Button>
+          <SourceControlSignInButton
+            entry={entry}
+            expanded={showSignIn}
+            onToggle={() => setShowSignIn((open) => !open)}
+          />
         ) : null}
         {isForgettable(entry) ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-label={`Forget ${entry.host}`}
-            aria-disabled={pending ? true : undefined}
-            onClick={() => {
-              if (!pending) {
-                configureOrToast({ kind: 'set-host-provider', host: entry.host, provider: null })
-              }
-            }}
-          >
-            Forget
-          </Button>
+          <SourceControlForgetButton host={entry.host} configure={configure} />
         ) : null}
       </div>
       {showSignIn && provider !== null ? (

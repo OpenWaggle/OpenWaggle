@@ -138,6 +138,79 @@ function SaveRecoveryActions({
   )
 }
 
+function EditorSaveStatus({
+  state,
+  actions,
+}: {
+  readonly state: EditorToolbarState
+  readonly actions: EditorToolbarActions
+}) {
+  if (!state.focusedEdit) return null
+  return (
+    <>
+      <Save className="size-3" />
+      <span
+        className={
+          state.status === 'conflict' || state.status === 'error' ? 'text-error' : undefined
+        }
+        title={state.errorMessage ?? undefined}
+      >
+        {saveStatusLabel(state.status)}
+      </span>
+      <span aria-hidden="true">·</span>
+      <EncodingMenu
+        encoding={state.encoding}
+        onReopen={actions.onReopenEncoding}
+        onSave={actions.onSaveEncoding}
+      />
+      <span aria-hidden="true">·</span>
+    </>
+  )
+}
+
+function indentationLabel(fidelity: WorkspaceTextFileReadResult['fidelity']) {
+  const size = String(fidelity.indentSize)
+  return fidelity.indentStyle === 'tab' ? `Tabs: ${size}` : `Spaces: ${size}`
+}
+
+function PreviewToggleButton({
+  preview,
+  onToggle,
+}: {
+  readonly preview: boolean
+  readonly onToggle: () => void
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      onClick={onToggle}
+      leftIcon={preview ? <Code2 className="size-3" /> : <Eye className="size-3" />}
+    >
+      {preview ? 'Edit' : 'Preview'}
+    </Button>
+  )
+}
+
+function EditToggleButton({
+  focusedEdit,
+  actions,
+}: {
+  readonly focusedEdit: boolean
+  readonly actions: EditorToolbarActions
+}) {
+  return (
+    <Button
+      variant={focusedEdit ? 'ghost' : 'accent'}
+      size="xs"
+      onClick={focusedEdit ? actions.onFinishEdit : actions.onBeginEdit}
+      leftIcon={focusedEdit ? <Check className="size-3" /> : <Pencil className="size-3" />}
+    >
+      {focusedEdit ? 'Done' : 'Edit'}
+    </Button>
+  )
+}
+
 export function WorkspaceFileEditorToolbar({
   state,
   actions,
@@ -150,33 +223,10 @@ export function WorkspaceFileEditorToolbar({
   return (
     <div className="flex h-9 min-w-0 shrink-0 items-center overflow-hidden border-b border-border px-2">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-text-muted">
-        {state.focusedEdit ? <Save className="size-3" /> : null}
-        {state.focusedEdit ? (
-          <>
-            <span
-              className={
-                state.status === 'conflict' || state.status === 'error' ? 'text-error' : undefined
-              }
-              title={state.errorMessage ?? undefined}
-            >
-              {saveStatusLabel(state.status)}
-            </span>
-            <span aria-hidden="true">·</span>
-            <EncodingMenu
-              encoding={state.encoding}
-              onReopen={actions.onReopenEncoding}
-              onSave={actions.onSaveEncoding}
-            />
-            <span aria-hidden="true">·</span>
-          </>
-        ) : null}
+        <EditorSaveStatus state={state} actions={actions} />
         <span>{state.lineEnding.toUpperCase()}</span>
         <span aria-hidden="true">·</span>
-        <span>
-          {file.fidelity.indentStyle === 'tab'
-            ? `Tabs: ${String(file.fidelity.indentSize)}`
-            : `Spaces: ${String(file.fidelity.indentSize)}`}
-        </span>
+        <span>{indentationLabel(file.fidelity)}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <WorkspaceLanguageMenu
@@ -197,25 +247,9 @@ export function WorkspaceFileEditorToolbar({
           <WrapText className="size-3.5" />
         </Button>
         {state.canPreview ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={actions.onTogglePreview}
-            leftIcon={state.preview ? <Code2 className="size-3" /> : <Eye className="size-3" />}
-          >
-            {state.preview ? 'Edit' : 'Preview'}
-          </Button>
+          <PreviewToggleButton preview={state.preview} onToggle={actions.onTogglePreview} />
         ) : null}
-        <Button
-          variant={state.focusedEdit ? 'ghost' : 'accent'}
-          size="xs"
-          onClick={state.focusedEdit ? actions.onFinishEdit : actions.onBeginEdit}
-          leftIcon={
-            state.focusedEdit ? <Check className="size-3" /> : <Pencil className="size-3" />
-          }
-        >
-          {state.focusedEdit ? 'Done' : 'Edit'}
-        </Button>
+        <EditToggleButton focusedEdit={state.focusedEdit} actions={actions} />
       </div>
     </div>
   )
