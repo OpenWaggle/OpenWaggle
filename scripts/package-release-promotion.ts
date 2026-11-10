@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { lstat, readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import type {
@@ -76,6 +75,10 @@ export interface PackageReleasePromotionDependencies {
 
 interface ArtifactContractModule {
   readonly decodePackageReleaseArtifactManifest: (value: unknown) => PackageReleaseArtifactManifest
+  readonly verifyReleaseArtifactFile: (
+    artifactRoot: string,
+    artifact: PackageReleaseArtifact,
+  ) => Promise<string>
 }
 
 interface PlanModule {
@@ -87,7 +90,11 @@ function isJsonObject(value: unknown): value is { readonly [key: string]: unknow
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) && typeof value.decodePackageReleaseArtifactManifest === 'function'
+  return (
+    isJsonObject(value) &&
+    typeof value.decodePackageReleaseArtifactManifest === 'function' &&
+    typeof value.verifyReleaseArtifactFile === 'function'
+  )
 }
 
 function isPlanModule(value: unknown): value is PlanModule {
@@ -155,20 +162,7 @@ export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRo
     throw new Error('Package release artifact bundle contains unexpected files.')
   }
   for (const artifact of manifest.packages) {
-    if (path.basename(artifact.file) !== artifact.file || !artifact.file.endsWith('.tgz')) {
-      throw new Error(`${artifact.name} artifact filename is invalid.`)
-    }
-    const tarballPath = path.join(artifactRoot, artifact.file)
-    if (!(await lstat(tarballPath)).isFile()) {
-      throw new Error(`${artifact.name} artifact must be a regular file.`)
-    }
-    const contents = await readFile(tarballPath)
-    if (createHash('sha256').update(contents).digest('hex') !== artifact.sha256) {
-      throw new Error(`${artifact.name} artifact SHA-256 is invalid.`)
-    }
-    if (`sha512-${createHash('sha512').update(contents).digest('base64')}` !== artifact.integrity) {
-      throw new Error(`${artifact.name} artifact npm integrity is invalid.`)
-    }
+    await artifactContract.verifyReleaseArtifactFile(artifactRoot, artifact)
   }
   return manifest
 }

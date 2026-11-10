@@ -163,7 +163,14 @@ function validatePackedManifest(value: unknown, artifact: PackageReleaseArtifact
   }
 }
 
-async function validateTarballContract(artifactRoot: string, artifact: PackageReleaseArtifact) {
+/**
+ * Checks that the artifact's tarball is a regular `.tgz` file at the bundle root whose bytes match
+ * the recorded SHA-256 and npm integrity, and returns its path.
+ */
+export async function verifyReleaseArtifactFile(
+  artifactRoot: string,
+  artifact: PackageReleaseArtifact,
+) {
   if (path.basename(artifact.file) !== artifact.file || !artifact.file.endsWith('.tgz')) {
     throw new Error(`${artifact.name} artifact filename is invalid.`)
   }
@@ -178,6 +185,11 @@ async function validateTarballContract(artifactRoot: string, artifact: PackageRe
   if (`sha512-${createHash('sha512').update(contents).digest('base64')}` !== artifact.integrity) {
     throw new Error(`${artifact.name} artifact npm integrity is invalid.`)
   }
+  return tarballPath
+}
+
+async function validateTarballContract(artifactRoot: string, artifact: PackageReleaseArtifact) {
+  const tarballPath = await verifyReleaseArtifactFile(artifactRoot, artifact)
   const entries = (await runTar(['-tf', tarballPath])).split('\n').filter(Boolean)
   const unexpectedEntry = entries.find((entry) => !isAllowedTarballEntry(entry))
   if (unexpectedEntry !== undefined) {

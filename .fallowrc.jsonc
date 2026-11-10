@@ -156,6 +156,10 @@
   "ignoreExports": [
     { "file": "scripts/package-release-promotion.ts", "exports": ["verifyPromotionBundle"] },
     {
+      "file": "scripts/package-release-artifact-contract.ts",
+      "exports": ["verifyReleaseArtifactFile"]
+    },
+    {
       "file": "scripts/package-release-provenance.ts",
       "exports": ["verifyPackageReleaseArtifactProvenance"]
     }
