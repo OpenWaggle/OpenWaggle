@@ -79,18 +79,19 @@ index f2d46a7b11404ce9909e66a316fd856ba751aa3e..1f2bf09b6949e892d94a1beb84a8e694
 +{"version":3,"file":"conout.js","sourceRoot":"","sources":["../../src/shared/conout.ts"],"names":[],"mappings":";AAAA;;GAEG;;;AAoBH,SAAgB,iBAAiB,CAAC,cAAsB;IACtD,OAAU,cAAc,YAAS,CAAC;AACpC,CAAC;AAFD,8CAEC"}
 \ No newline at end of file
 diff --git a/lib/unixTerminal.js b/lib/unixTerminal.js
-index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665f8c733d2 100644
+index 1ec12f796a822c78fba9ad7f6448c3987e325c23..e80e3f440c293b3f597a52e67196ecac2b300144 100644
 --- a/lib/unixTerminal.js
 +++ b/lib/unixTerminal.js
-@@ -22,6 +22,7 @@ exports.UnixTerminal = void 0;
+@@ -22,6 +22,8 @@ exports.UnixTerminal = void 0;
  var fs = require("fs");
  var path = require("path");
  var tty = require("tty");
++var stream_1 = require("stream");
 +var os_1 = require("os");
  var terminal_1 = require("./terminal");
  var utils_1 = require("./utils");
  var native = utils_1.loadNativeModule('pty');
-@@ -33,6 +34,33 @@ helperPath = helperPath.replace('node_modules.asar', 'node_modules.asar.unpacked
+@@ -33,6 +35,107 @@ helperPath = helperPath.replace('node_modules.asar', 'node_modules.asar.unpacked
  var DEFAULT_FILE = 'sh';
  var DEFAULT_NAME = 'xterm';
  var DESTROY_SOCKET_TIMEOUT_MS = 200;
@@ -116,6 +117,80 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
 +        // that the process can reuse.
 +    }
 +}
++var PTY_READ_BUFFER_BYTES = 64 * 1024;
++var PTY_READ_RETRY_MIN_MS = 1;
++var PTY_READ_RETRY_MAX_MS = 25;
++/**
++ * Bun's tty.ReadStream destroys itself when a read on the non-blocking PTY
++ * master returns EAGAIN, so no output arrives and exit never fires. On Bun the
++ * master is read with fs.read instead, retrying EAGAIN with a backoff from 1 ms
++ * to 25 ms. An EIO error and the close that follows match tty.ReadStream.
++ */
++function createPtyReadStream(fd) {
++    if (typeof process.versions.bun !== 'string')
++        return new tty.ReadStream(fd);
++    var buffer = Buffer.alloc(PTY_READ_BUFFER_BYTES);
++    var retryDelay = PTY_READ_RETRY_MIN_MS;
++    var retryTimer;
++    var reading = false;
++    var readInFlight = false;
++    var closeAfterRead;
++    var closeDescriptor = function (callback) {
++        fs.close(fd, function () { return callback(); });
++    };
++    var readable = new stream_1.Readable({
++        read: function () {
++            if (reading)
++                return;
++            reading = true;
++            readOnce();
++        },
++        destroy: function (error, callback) {
++            clearTimeout(retryTimer);
++            var finish = function () { return callback(error); };
++            // Closing while a read is in flight could let that read hit a reused fd.
++            if (readInFlight)
++                closeAfterRead = function () { return closeDescriptor(finish); };
++            else
++                closeDescriptor(finish);
++        }
++    });
++    function readOnce() {
++        if (readable.destroyed)
++            return;
++        readInFlight = true;
++        fs.read(fd, buffer, 0, buffer.length, null, function (error, bytesRead) {
++            readInFlight = false;
++            if (closeAfterRead !== undefined) {
++                closeAfterRead();
++                return;
++            }
++            if (readable.destroyed)
++                return;
++            if (error) {
++                if (error.code === 'EAGAIN' || error.code === 'EWOULDBLOCK') {
++                    retryTimer = setTimeout(readOnce, retryDelay);
++                    retryDelay = Math.min(retryDelay * 2, PTY_READ_RETRY_MAX_MS);
++                    return;
++                }
++                reading = false;
++                readable.destroy(error);
++                return;
++            }
++            retryDelay = PTY_READ_RETRY_MIN_MS;
++            if (bytesRead === 0) {
++                reading = false;
++                readable.push(null);
++                return;
++            }
++            if (readable.push(Buffer.from(buffer.subarray(0, bytesRead))))
++                readOnce();
++            else
++                reading = false;
++        });
++    }
++    return readable;
++}
 +function validateEncoding(encoding) {
 +    if (encoding !== null && !Buffer.isEncoding(encoding)) {
 +        throw new TypeError("Unknown encoding: " + encoding);
@@ -124,7 +199,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
  var UnixTerminal = /** @class */ (function (_super) {
      __extends(UnixTerminal, _super);
      function UnixTerminal(file, args, opt) {
-@@ -40,6 +68,8 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -40,6 +143,8 @@ var UnixTerminal = /** @class */ (function (_super) {
          var _this = _super.call(this, opt) || this;
          _this._boundClose = false;
          _this._emittedClose = false;
@@ -133,7 +208,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
          if (typeof args === 'string') {
              throw new Error('args as a string is not supported on unix.');
          }
-@@ -62,7 +92,11 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -62,7 +167,11 @@ var UnixTerminal = /** @class */ (function (_super) {
          env.TERM = name;
          var parsedEnv = _this._parseEnv(env);
          var encoding = (opt.encoding === undefined ? 'utf8' : opt.encoding);
@@ -145,7 +220,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
              // XXX Sometimes a data event is emitted after exit. Wait til socket is
              // destroyed.
              if (!_this._emittedClose) {
-@@ -75,8 +109,12 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -75,8 +184,12 @@ var UnixTerminal = /** @class */ (function (_super) {
                  // destroyed when this occurs.
                  var timeout_1 = setTimeout(function () {
                      timeout_1 = null;
@@ -160,7 +235,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
                  }, DESTROY_SOCKET_TIMEOUT_MS);
                  _this.once('close', function () {
                      if (timeout_1 !== null) {
-@@ -90,13 +128,38 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -90,13 +203,38 @@ var UnixTerminal = /** @class */ (function (_super) {
          };
          // fork
          var term = pty.fork(file, args, parsedEnv, cwd, _this._cols, _this._rows, uid, gid, (encoding === 'utf8'), helperPath, onexit);
@@ -168,7 +243,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
 -        if (encoding !== null) {
 -            _this._socket.setEncoding(encoding);
 +        try {
-+            _this._socket = new tty.ReadStream(term.fd);
++            _this._socket = createPtyReadStream(term.fd);
 +            if (encoding !== null) {
 +                _this._socket.setEncoding(encoding);
 +            }
@@ -203,7 +278,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
              // NOTE: fs.ReadStream gets EAGAIN twice at first:
              if (err.code) {
                  if (~err.code.indexOf('EAGAIN')) {
-@@ -104,6 +167,7 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -104,6 +242,7 @@ var UnixTerminal = /** @class */ (function (_super) {
                  }
              }
              // close
@@ -211,7 +286,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
              _this._close();
              // EIO on exit from fs.ReadStream:
              if (!_this._emittedClose) {
-@@ -127,11 +191,21 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -127,11 +266,21 @@ var UnixTerminal = /** @class */ (function (_super) {
          _this._pid = term.pid;
          _this._fd = term.fd;
          _this._pty = term.pty;
@@ -233,7 +308,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
              if (_this._emittedClose) {
                  return;
              }
-@@ -153,7 +227,10 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -153,7 +302,10 @@ var UnixTerminal = /** @class */ (function (_super) {
          configurable: true
      });
      UnixTerminal.prototype._write = function (data) {
@@ -245,7 +320,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
      };
      Object.defineProperty(UnixTerminal.prototype, "fd", {
          /* Accessors */
-@@ -181,19 +258,38 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -181,19 +333,38 @@ var UnixTerminal = /** @class */ (function (_super) {
          var cols = opt.cols || terminal_1.DEFAULT_COLS;
          var rows = opt.rows || terminal_1.DEFAULT_ROWS;
          var encoding = (opt.encoding === undefined ? 'utf8' : opt.encoding);
@@ -292,7 +367,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
          self._pid = -1;
          self._fd = term.master;
          self._pty = term.pty;
-@@ -201,6 +297,10 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -201,6 +372,10 @@ var UnixTerminal = /** @class */ (function (_super) {
          self._name = process.env.TERM || '';
          self._readable = true;
          self._writable = true;
@@ -303,7 +378,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
          self._socket.on('error', function (err) {
              self._close();
              if (self.listeners('error').length < 2) {
-@@ -208,24 +308,70 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -208,24 +383,70 @@ var UnixTerminal = /** @class */ (function (_super) {
              }
          });
          self._socket.on('close', function () {
@@ -382,7 +457,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
          }
          catch (e) { /* swallow */ }
      };
-@@ -234,6 +380,8 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -234,6 +455,8 @@ var UnixTerminal = /** @class */ (function (_super) {
           * Gets the name of the process.
           */
          get: function () {
@@ -391,7 +466,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
              if (process.platform === 'darwin') {
                  var title = pty.process(this._fd);
                  return (title !== 'kernel_task') ? title : this._file;
-@@ -250,6 +398,9 @@ var UnixTerminal = /** @class */ (function (_super) {
+@@ -250,6 +473,9 @@ var UnixTerminal = /** @class */ (function (_super) {
          if (cols <= 0 || rows <= 0 || isNaN(cols) || isNaN(rows) || cols === Infinity || rows === Infinity) {
              throw new Error('resizing must be done using positive cols and rows');
          }
@@ -401,7 +476,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
          pty.resize(this._fd, cols, rows);
          this._cols = cols;
          this._rows = rows;
-@@ -280,15 +431,45 @@ exports.UnixTerminal = UnixTerminal;
+@@ -280,15 +506,45 @@ exports.UnixTerminal = UnixTerminal;
   */
  var CustomWriteStream = /** @class */ (function () {
      function CustomWriteStream(_fd, _encoding) {
@@ -448,7 +523,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
          // Writes are put in a queue and processed asynchronously in order to handle
          // backpressure from the kernel buffer.
          var buffer = typeof data === 'string'
-@@ -304,14 +485,20 @@ var CustomWriteStream = /** @class */ (function () {
+@@ -304,14 +560,20 @@ var CustomWriteStream = /** @class */ (function () {
      CustomWriteStream.prototype._processWriteQueue = function () {
          var _this = this;
          this._writeImmediate = undefined;
@@ -470,7 +545,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
              if (err) {
                  if ('code' in err && err.code === 'EAGAIN') {
                      // `setImmediate` is used to yield to the event loop and re-attempt
-@@ -322,6 +509,7 @@ var CustomWriteStream = /** @class */ (function () {
+@@ -322,6 +584,7 @@ var CustomWriteStream = /** @class */ (function () {
                      // Stop processing immediately on unexpected error and log
                      _this._writeQueue.length = 0;
                      console.error('Unhandled pty write error', err);
@@ -478,7 +553,7 @@ index 1ec12f796a822c78fba9ad7f6448c3987e325c23..b81ea88951fe0af489a043a93f9ff665
                  }
                  return;
              }
-@@ -341,6 +529,34 @@ var CustomWriteStream = /** @class */ (function () {
+@@ -341,6 +604,34 @@ var CustomWriteStream = /** @class */ (function () {
              _this._processWriteQueue();
          });
      };
@@ -4751,18 +4826,19 @@ index 69647468b252ecb27842b5b5ae95e959c64619e3..0f73d94ff64cbfdc8eea36bd873657ed
        it('SIGINT - custom in parent and child', done => {
          // this test is cumbersome - we have to run it in a sub process to
 diff --git a/src/unixTerminal.ts b/src/unixTerminal.ts
-index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d323c26ecc 100644
+index 98733dc0cd752b554bd94e45904ca341ad141bba..908e9e7073a4aa4d53c872d48e5a1706cbef2ee8 100644
 --- a/src/unixTerminal.ts
 +++ b/src/unixTerminal.ts
-@@ -7,6 +7,7 @@ import * as fs from 'fs';
+@@ -7,6 +7,8 @@ import * as fs from 'fs';
  import * as net from 'net';
  import * as path from 'path';
  import * as tty from 'tty';
++import { Readable } from 'stream';
 +import { constants as osConstants } from 'os';
  import { Terminal, DEFAULT_COLS, DEFAULT_ROWS } from './terminal';
  import { IProcessEnv, IPtyForkOptions, IPtyOpenOptions } from './interfaces';
  import { ArgvOrCommandLine, IDisposable } from './types';
-@@ -23,6 +24,34 @@ const DEFAULT_FILE = 'sh';
+@@ -23,6 +25,103 @@ const DEFAULT_FILE = 'sh';
  const DEFAULT_NAME = 'xterm';
  const DESTROY_SOCKET_TIMEOUT_MS = 200;
  
@@ -4788,6 +4864,75 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
 +  }
 +}
 +
++const PTY_READ_BUFFER_BYTES = 64 * 1024;
++const PTY_READ_RETRY_MIN_MS = 1;
++const PTY_READ_RETRY_MAX_MS = 25;
++
++/**
++ * Bun's tty.ReadStream destroys itself when a read on the non-blocking PTY
++ * master returns EAGAIN, so no output arrives and exit never fires. On Bun the
++ * master is read with fs.read instead, retrying EAGAIN with a backoff from 1 ms
++ * to 25 ms. An EIO error and the close that follows match tty.ReadStream.
++ */
++function createPtyReadStream(fd: number): net.Socket {
++  if (typeof process.versions.bun !== 'string') return new tty.ReadStream(fd);
++  const buffer = Buffer.alloc(PTY_READ_BUFFER_BYTES);
++  let retryDelay = PTY_READ_RETRY_MIN_MS;
++  let retryTimer: NodeJS.Timeout | undefined;
++  let reading = false;
++  let readInFlight = false;
++  let closeAfterRead: (() => void) | undefined;
++  const closeDescriptor = (callback: () => void): void => {
++    fs.close(fd, () => callback());
++  };
++  const readable = new Readable({
++    read(): void {
++      if (reading) return;
++      reading = true;
++      readOnce();
++    },
++    destroy(error, callback): void {
++      clearTimeout(retryTimer);
++      const finish = (): void => callback(error);
++      // Closing while a read is in flight could let that read hit a reused fd.
++      if (readInFlight) closeAfterRead = () => closeDescriptor(finish);
++      else closeDescriptor(finish);
++    }
++  });
++  function readOnce(): void {
++    if (readable.destroyed) return;
++    readInFlight = true;
++    fs.read(fd, buffer, 0, buffer.length, null, (error, bytesRead) => {
++      readInFlight = false;
++      if (closeAfterRead !== undefined) {
++        closeAfterRead();
++        return;
++      }
++      if (readable.destroyed) return;
++      if (error) {
++        if (error.code === 'EAGAIN' || error.code === 'EWOULDBLOCK') {
++          retryTimer = setTimeout(readOnce, retryDelay);
++          retryDelay = Math.min(retryDelay * 2, PTY_READ_RETRY_MAX_MS);
++          return;
++        }
++        reading = false;
++        readable.destroy(error);
++        return;
++      }
++      retryDelay = PTY_READ_RETRY_MIN_MS;
++      if (bytesRead === 0) {
++        reading = false;
++        readable.push(null);
++        return;
++      }
++      if (readable.push(Buffer.from(buffer.subarray(0, bytesRead)))) readOnce();
++      else reading = false;
++    });
++  }
++  // Only the Readable half of the socket is used for a spawned terminal.
++  return readable as unknown as net.Socket;
++}
++
 +function validateEncoding(encoding: string | null): void {
 +  if (encoding !== null && !Buffer.isEncoding(encoding)) {
 +    throw new TypeError(`Unknown encoding: ${encoding}`);
@@ -4797,7 +4942,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
  export class UnixTerminal extends Terminal {
    protected _fd: number;
    protected _pty: string;
-@@ -35,12 +64,19 @@ export class UnixTerminal extends Terminal {
+@@ -35,12 +134,19 @@ export class UnixTerminal extends Terminal {
  
    private _boundClose: boolean = false;
    private _emittedClose: boolean = false;
@@ -4817,7 +4962,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
    public get master(): net.Socket | undefined { return this._master; }
    public get slave(): net.Socket | undefined { return this._slave; }
  
-@@ -74,8 +110,11 @@ export class UnixTerminal extends Terminal {
+@@ -74,8 +180,11 @@ export class UnixTerminal extends Terminal {
      const parsedEnv = this._parseEnv(env);
  
      const encoding = (opt.encoding === undefined ? 'utf8' : opt.encoding);
@@ -4829,7 +4974,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
        // XXX Sometimes a data event is emitted after exit. Wait til socket is
        // destroyed.
        if (!this._emittedClose) {
-@@ -88,8 +127,11 @@ export class UnixTerminal extends Terminal {
+@@ -88,8 +197,11 @@ export class UnixTerminal extends Terminal {
          // destroyed when this occurs.
          let timeout: NodeJS.Timeout | null = setTimeout(() => {
            timeout = null;
@@ -4843,7 +4988,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
          }, DESTROY_SOCKET_TIMEOUT_MS);
          this.once('close', () => {
            if (timeout !== null) {
-@@ -105,11 +147,35 @@ export class UnixTerminal extends Terminal {
+@@ -105,11 +217,35 @@ export class UnixTerminal extends Terminal {
      // fork
      const term = pty.fork(file, args, parsedEnv, cwd, this._cols, this._rows, uid, gid, (encoding === 'utf8'), helperPath, onexit);
  
@@ -4851,7 +4996,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
 -    if (encoding !== null) {
 -      this._socket.setEncoding(encoding);
 +    try {
-+      this._socket = new tty.ReadStream(term.fd);
++      this._socket = createPtyReadStream(term.fd);
 +      if (encoding !== null) {
 +        this._socket.setEncoding(encoding);
 +      }
@@ -4883,7 +5028,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
  
      // setup
      this._socket.on('error', (err: any) => {
-@@ -121,6 +187,7 @@ export class UnixTerminal extends Terminal {
+@@ -121,6 +257,7 @@ export class UnixTerminal extends Terminal {
        }
  
        // close
@@ -4891,7 +5036,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
        this._close();
        // EIO on exit from fs.ReadStream:
        if (!this._emittedClose) {
-@@ -147,6 +214,8 @@ export class UnixTerminal extends Terminal {
+@@ -147,6 +284,8 @@ export class UnixTerminal extends Terminal {
      this._pid = term.pid;
      this._fd = term.fd;
      this._pty = term.pty;
@@ -4900,7 +5045,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
  
      this._file = file;
      this._name = name;
-@@ -155,6 +224,13 @@ export class UnixTerminal extends Terminal {
+@@ -155,6 +294,13 @@ export class UnixTerminal extends Terminal {
      this._writable = true;
  
      this._socket.on('close', () => {
@@ -4914,7 +5059,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
        if (this._emittedClose) {
          return;
        }
-@@ -167,7 +243,8 @@ export class UnixTerminal extends Terminal {
+@@ -167,7 +313,8 @@ export class UnixTerminal extends Terminal {
    }
  
    protected _write(data: string | Buffer): void {
@@ -4924,7 +5069,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
    }
  
    /* Accessors */
-@@ -192,23 +269,37 @@ export class UnixTerminal extends Terminal {
+@@ -192,23 +339,37 @@ export class UnixTerminal extends Terminal {
      const cols = opt.cols || DEFAULT_COLS;
      const rows = opt.rows || DEFAULT_ROWS;
      const encoding = (opt.encoding === undefined ? 'utf8' : opt.encoding);
@@ -4971,7 +5116,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
      self._pid = -1;
      self._fd = term.master;
      self._pty = term.pty;
-@@ -218,6 +309,10 @@ export class UnixTerminal extends Terminal {
+@@ -218,6 +379,10 @@ export class UnixTerminal extends Terminal {
  
      self._readable = true;
      self._writable = true;
@@ -4982,7 +5127,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
  
      self._socket.on('error', err => {
        self._close();
-@@ -227,6 +322,8 @@ export class UnixTerminal extends Terminal {
+@@ -227,6 +392,8 @@ export class UnixTerminal extends Terminal {
      });
  
      self._socket.on('close', () => {
@@ -4991,7 +5136,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
        self._close();
      });
  
-@@ -234,21 +331,64 @@ export class UnixTerminal extends Terminal {
+@@ -234,21 +401,64 @@ export class UnixTerminal extends Terminal {
    }
  
    public destroy(): void {
@@ -5064,7 +5209,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
      } catch (e) { /* swallow */ }
    }
  
-@@ -256,6 +396,7 @@ export class UnixTerminal extends Terminal {
+@@ -256,6 +466,7 @@ export class UnixTerminal extends Terminal {
     * Gets the name of the process.
     */
    public get process(): string {
@@ -5072,7 +5217,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
      if (process.platform === 'darwin') {
        const title = pty.process(this._fd);
        return (title !== 'kernel_task') ? title : this._file;
-@@ -272,6 +413,9 @@ export class UnixTerminal extends Terminal {
+@@ -272,6 +483,9 @@ export class UnixTerminal extends Terminal {
      if (cols <= 0 || rows <= 0 || isNaN(cols) || isNaN(rows) || cols === Infinity || rows === Infinity) {
        throw new Error('resizing must be done using positive cols and rows');
      }
@@ -5082,7 +5227,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
      pty.resize(this._fd, cols, rows);
      this._cols = cols;
      this._rows = rows;
-@@ -315,19 +459,49 @@ class CustomWriteStream implements IDisposable {
+@@ -315,19 +529,49 @@ class CustomWriteStream implements IDisposable {
  
    private readonly _writeQueue: IWriteTask[] = [];
    private _writeImmediate: NodeJS.Immediate | undefined;
@@ -5133,7 +5278,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
      // Writes are put in a queue and processed asynchronously in order to handle
      // backpressure from the kernel buffer.
      const buffer = typeof data === 'string'
-@@ -345,7 +519,7 @@ class CustomWriteStream implements IDisposable {
+@@ -345,7 +589,7 @@ class CustomWriteStream implements IDisposable {
    private _processWriteQueue(): void {
      this._writeImmediate = undefined;
  
@@ -5142,7 +5287,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
        return;
      }
  
-@@ -354,7 +528,13 @@ class CustomWriteStream implements IDisposable {
+@@ -354,7 +598,13 @@ class CustomWriteStream implements IDisposable {
      // Write to the underlying file descriptor and handle it directly, rather
      // than using the `net.Socket`/`tty.WriteStream` wrappers which swallow and
      // mask errors like EAGAIN and can cause the thread to block indefinitely.
@@ -5156,7 +5301,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
        if (err) {
          if ('code' in err && err.code === 'EAGAIN') {
            // `setImmediate` is used to yield to the event loop and re-attempt
-@@ -364,6 +544,7 @@ class CustomWriteStream implements IDisposable {
+@@ -364,6 +614,7 @@ class CustomWriteStream implements IDisposable {
            // Stop processing immediately on unexpected error and log
            this._writeQueue.length = 0;
            console.error('Unhandled pty write error', err);
@@ -5164,7 +5309,7 @@ index 98733dc0cd752b554bd94e45904ca341ad141bba..4b14721d3ad37ae746169fb5acc560d3
          }
          return;
        }
-@@ -385,4 +566,26 @@ class CustomWriteStream implements IDisposable {
+@@ -385,4 +636,26 @@ class CustomWriteStream implements IDisposable {
        this._processWriteQueue();
      });
    }
