@@ -6,6 +6,7 @@ import { isDesktopAppRunning } from './desktop-instance-probe'
 import { stopHostForUpdate } from './host-cli'
 import { formatHostUpdateStopReport } from './host-update-stop'
 import type { ParsedArguments } from './mcp-cli-arguments'
+import { type UpdateCheckMachineOutput, writeUpdateCheckResult } from './update-cli-check-output'
 import {
   prepareWindowsInstaller,
   releaseForTag,
@@ -74,9 +75,17 @@ export async function installExactVersion(
   parsed: ParsedArguments,
   tag: string,
   checkOnly: boolean,
+  output: { readonly machine: UpdateCheckMachineOutput | null } = { machine: null },
 ) {
   refuseDowngrade(tag)
   const release = await releaseForTag(tag)
+  if (checkOnly && output.machine) {
+    return writeUpdateCheckResult({
+      savedChannel: output.machine.savedChannel,
+      status: 'available',
+      version: release.tag_name.replace(/^v/u, ''),
+    })
+  }
   if (checkOnly) {
     await writeCliStdout(`OpenWaggle ${release.tag_name} is available.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }

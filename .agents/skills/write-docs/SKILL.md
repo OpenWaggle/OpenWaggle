@@ -54,6 +54,7 @@ Every code block gets a **Copy** button, so a reader pastes the whole block. Wri
 - One command per block, or commands meant to run together in that order. Alternatives ("run one of these") go in separate blocks with a sentence before each.
 - No `$` or `>` prompts, no output, no `#` comments. Put the explanation in the sentence before the block.
 - Keep each command on one line.
+- Never type the install script's addresses. Write `{{install-command}}` for the whole command, `{{install-url}}` in a variant such as `curl -fsSL {{install-url}} | bash -s -- --no-launch`, and `{{install-script-raw-url}}` for the raw script. `website/src/lib/install-command.ts` defines them; the website, the bundled docs and the npm package READMEs fill them in, and `installer-url.unit.test.ts` rejects a typed address. In an `.mdx` page, put them only in code or inline code: MDX reads `{…}` in prose as a JavaScript expression.
 - Write a placeholder the reader must change in uppercase, such as `SESSION_ID` or `RUN_ID`, and name it in the sentence before the block ("replace `SESSION_ID` with the session's ID"). Never use angle brackets such as `<session-id>` in a shell block, because the shell reads `<` as a redirect when the reader pastes it. `docs-style.unit.test.ts` rejects them. Angle brackets stay fine in syntax tables and prose.
 
 ## Tables

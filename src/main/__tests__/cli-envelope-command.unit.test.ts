@@ -37,6 +37,7 @@ const { accessCliResponseText } = await import('../access-cli-output')
 const { writeAgentsCliResult } = await import('../agents-cli-output')
 const { mcpCliJsonResponse } = await import('../mcp-cli-io')
 const { recoveryCliResultText } = await import('../recovery-cli-output')
+const { writeUpdateCheckResult } = await import('../update-cli-check-output')
 
 type StatusDependencies = NonNullable<Parameters<typeof runStatusCli>[1]>
 
@@ -166,13 +167,14 @@ describe('CLI envelope command names (ADR 0063)', () => {
     ])
   })
 
-  it('names status, access, agents, mcp and recovery commands with their group', async () => {
+  it('names status and update whole, and access, agents, mcp and recovery commands with their group', async () => {
     const status: string[] = []
     await expect(runStatusCli(['--json'], statusDependencies(status))).resolves.toBe(0)
     const agents: string[] = []
     await writeAgentsCliResult('validate', { valid: true }, true, (text) => {
       agents.push(text)
     })
+    await writeUpdateCheckResult({ savedChannel: 'beta', channel: 'beta', status: 'up-to-date' })
 
     expect(
       [
@@ -189,6 +191,8 @@ describe('CLI envelope command names (ADR 0063)', () => {
         mcpCliJsonResponse('list', { servers: [] }),
         mcpCliJsonResponse('registry search', { servers: [] }),
         recoveryCliResultText('status', { ready: true }, true),
+        // `update --check --json`, which install.sh reads to keep the update channel.
+        mocks.stdout[0],
       ].map(envelopeCommand),
     ).toEqual([
       'status',
@@ -197,6 +201,7 @@ describe('CLI envelope command names (ADR 0063)', () => {
       'mcp list',
       'mcp registry search',
       'recovery status',
+      'update',
     ])
   })
 })

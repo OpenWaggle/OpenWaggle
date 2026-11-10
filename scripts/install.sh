@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # OpenWaggle installer — downloads the latest release for your platform.
-# Usage: curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+# Usage: curl -fsSL https://openwaggle.ai/install | bash
+# openwaggle.ai/install redirects to this file on main:
+# https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh
 # Opens the app when it finishes. Pass --no-launch (`bash -s -- --no-launch`) or set
 # OPENWAGGLE_NO_LAUNCH=1 to skip that; it is also skipped over SSH, in CI, and without a display.
 set -euo pipefail
@@ -18,6 +20,8 @@ REPO="${OPENWAGGLE_INSTALL_REPO:-${DEFAULT_REPO}}"
 RELEASE_TAG="${OPENWAGGLE_RELEASE_TAG:-}"
 REQUESTED_CHANNEL="${OPENWAGGLE_CHANNEL:-}"
 CHANNEL=""
+# Set when a re-run keeps the channel the installed app has saved.
+KEEP_INSTALLED_CHANNEL=""
 RELEASES_API_URL="${OPENWAGGLE_RELEASES_API_URL:-https://api.github.com/repos/${REPO}/releases}"
 RELEASE_API_URL="${OPENWAGGLE_RELEASE_API_URL:-}"
 READY_MESSAGE="Ready to waggle"
@@ -177,8 +181,10 @@ update_channel_intent_path() {
   printf '%s/openwaggle/install-update-channel\n' "${config_root}"
 }
 
+# A re-run keeps the channel the installed app has saved, so it writes nothing then.
 persist_selected_channel() {
   [ -n "${CHANNEL}" ] || return 0
+  [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ] && return 0
   local intent_path intent_directory temporary_path
   intent_path="$(update_channel_intent_path)"
   intent_directory="$(dirname "${intent_path}")"
@@ -523,6 +529,124 @@ stop_session_host_for_update() {
 }
 # END TESTABLE SESSION HOST STOP
 
+# BEGIN TESTABLE DOWNGRADE GUARD
+# The exit status of a refused downgrade, the status `openwaggle update --version` uses for it.
+DOWNGRADE_REFUSED_EXIT_CODE=2
+MAC_APP_BUNDLE_NAME="OpenWaggle.app"
+
+# The version of the macOS app at a bundle path, or nothing when none is installed there.
+# PlistBuddy reports a missing file on stdout, so it is only asked about a file that exists.
+mac_app_version() {
+  [ -f "$1/Contents/Info.plist" ] || return 0
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist" \
+    2>/dev/null || true
+}
+
+# The newer of two versions, either of which may be empty or unknown. On Linux the downgrade guard
+# compares with the newer of the version file a previous install wrote beside the AppImage and the
+# AppImage's own desktop entry: an update from the app or from `openwaggle update` replaces the
+# AppImage in place and leaves the file behind, and an AppImage from before the file has only its
+# desktop entry.
+newer_release_version() {
+  local first="$1" second="$2"
+  if [ -n "${first}" ] && { [ -z "${second}" ] || release_is_newer "${first}" "${second}"; }; then
+    printf '%s\n' "${first}"
+  else
+    printf '%s\n' "${second}"
+  fi
+}
+
+# Prints why the target must not replace the installed version, or nothing when it may. Downgrades
+# are unsupported (docs/release-and-versioning.md): the older Session Host refuses a database a
+# newer one has migrated, so the app would not open. The installed version reinstalls, and an
+# unknown installed version, such as a build from before the version file, installs as before.
+downgrade_refusal() {
+  local installed="${1#v}" target="$2"
+  release_tag_is_supported "${installed}" || return 0
+  if ! release_tag_is_supported "${target}"; then
+    printf '%s\n' "OpenWaggle cannot compare ${target} with the installed version ${installed}, so it does not install it."
+  elif release_is_newer "${installed}" "${target}"; then
+    printf '%s\n' "OpenWaggle ${target} is older than the installed ${installed}. Downgrades are unsupported: an older version may not open the data this version has already migrated."
+  fi
+}
+
+# Exits before anything is quit, stopped or replaced when the target would be a downgrade. A third
+# argument, when given, says how to pick another release.
+refuse_downgrade() {
+  local refusal
+  refusal="$(downgrade_refusal "$1" "$2")"
+  [ -n "${refusal}" ] || return 0
+  restore_installed_app
+  printf '\033[1;31merror:\033[0m %s OpenWaggle was not changed.%s\n' "${refusal}" "${3:+ $3}" >&2
+  exit "${DOWNGRADE_REFUSED_EXIT_CODE}"
+}
+# END TESTABLE DOWNGRADE GUARD
+
+# BEGIN TESTABLE INSTALLED UPDATE CHANNEL
+# The newest release without `openwaggle update --check --json`, which reports the saved channel.
+LAST_VERSION_WITHOUT_CHANNEL_CHECK="1.0.0-beta.37"
+# The check may start the installed version's Session Host and asks GitHub for releases.
+INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS=60
+# How long a stopped check may take to quit before it is killed.
+CHANNEL_READ_STOP_GRACE_SECONDS=3
+
+# Whether the installed app can report its saved channel: it exists and is newer than the last
+# version without `update --check --json`. Older and unknown versions are never run.
+installed_reports_update_channel() {
+  local executable="$1" version="$2"
+  [ -x "${executable}" ] && release_tag_is_supported "${version}" && \
+    release_is_newer "${version}" "${LAST_VERSION_WITHOUT_CHANNEL_CHECK}"
+}
+
+# Stops a channel read that is still running: a normal quit first, then a kill.
+stop_channel_read() {
+  local pid="$1" waited
+  kill -TERM "${pid}" 2>/dev/null || return 0
+  for ((waited = 0; waited < CHANNEL_READ_STOP_GRACE_SECONDS; waited++)); do
+    kill -0 "${pid}" 2>/dev/null || return 0
+    sleep 1
+  done
+  kill -KILL "${pid}" 2>/dev/null || true
+}
+
+# Sets INSTALLED_CHANNEL to the update channel the installed app has saved, or to nothing when it
+# cannot tell: nothing is installed, the version of its executable is unknown or too old to report
+# it, or the Session Host cannot read it in time. `--check` only reads, so asking never changes the
+# channel. The saved channel is in the response, or in the error envelope when only the release
+# check failed. The output goes to a file, not a pipe, so a CLI that is still running at the
+# deadline cannot keep the installer waiting. It runs in the installer's own shell, not in a
+# command substitution, so its traps see every signal the installer gets.
+installed_update_channel() {
+  local platform="$1" executable="$2" version="$3" output pid waited finished=""
+  INSTALLED_CHANNEL=""
+  installed_reports_update_channel "${executable}" "${version}" || return 0
+  output="$(mktemp "${TMPDIR:-/tmp}/openwaggle-channel.XXXXXX")" || return 0
+  info "Reading the update channel of the installed OpenWaggle…"
+  # As run_installed_cli: stdin closed, and the AppImage's CLI output on descriptor 3.
+  if [ "${platform}" = "linux" ]; then
+    env OPENWAGGLE_CLI_OUTPUT_FD=3 "${executable}" update --check --json \
+      3>"${output}" 1>/dev/null 2>&3 </dev/null &
+  else
+    "${executable}" update --check --json >"${output}" 2>&1 </dev/null &
+  fi
+  pid=$!
+  # A background command ignores Ctrl-C, so the installer stops it and removes its file itself.
+  trap 'stop_channel_read "${pid}"; rm -f "${output}"; exit 130' INT
+  trap 'stop_channel_read "${pid}"; rm -f "${output}"; exit 143' TERM
+  for ((waited = 0; waited < INSTALLED_CHANNEL_READ_TIMEOUT_SECONDS; waited++)); do
+    if ! kill -0 "${pid}" 2>/dev/null; then finished="1"; break; fi
+    sleep 1
+  done
+  # Only a CLI that is still ours: once it exited, its pid may belong to another process.
+  [ -n "${finished}" ] || stop_channel_read "${pid}"
+  wait "${pid}" 2>/dev/null || true
+  trap - INT TERM
+  INSTALLED_CHANNEL="$(sed -En 's/.*"savedChannel":[[:space:]]*"(stable|beta|alpha)".*/\1/p' \
+    "${output}" | head -1)"
+  rm -f "${output}"
+}
+# END TESTABLE INSTALLED UPDATE CHANNEL
+
 launch_installed_app() {
   local skip_reason
   skip_reason="$(launch_skip_reason "${PLATFORM}")"
@@ -591,9 +715,29 @@ case "${ARCH}" in
   *)             error "Unsupported architecture: ${ARCH}" ;;
 esac
 
+# --- Find the installed app ---
+# INSTALLED_VERSION is what the downgrade guard compares with. INSTALLED_CLI_VERSION is the version
+# of the executable itself, which decides whether it may be run.
+if [ "${PLATFORM}" = "mac" ]; then
+  APPLICATIONS_DIR="${OPENWAGGLE_APPLICATIONS_DIR:-/Applications}"
+  INSTALLED_EXECUTABLE="${APPLICATIONS_DIR}/${MAC_APP_BUNDLE_NAME}/Contents/MacOS/OpenWaggle"
+  INSTALLED_VERSION="$(mac_app_version "${APPLICATIONS_DIR}/${MAC_APP_BUNDLE_NAME}")"
+  INSTALLED_CLI_VERSION="${INSTALLED_VERSION}"
+else
+  APP_DIR="${HOME}/.local/lib/openwaggle"
+  INSTALLED_EXECUTABLE="${APP_DIR}/OpenWaggle.AppImage"
+  RECORDED_APPIMAGE_VERSION="$(cat "${APP_DIR}/version" 2>/dev/null || true)"
+  EMBEDDED_APPIMAGE_VERSION="$(appimage_version "${INSTALLED_EXECUTABLE}")"
+  INSTALLED_VERSION="$(newer_release_version \
+    "${EMBEDDED_APPIMAGE_VERSION}" "${RECORDED_APPIMAGE_VERSION}")"
+  INSTALLED_CLI_VERSION="${EMBEDDED_APPIMAGE_VERSION:-${RECORDED_APPIMAGE_VERSION}}"
+fi
+# Set when the target comes from a channel, to say how to pick another one if it is a downgrade.
+DOWNGRADE_HINT=""
+
 # --- Resolve and fetch release info ---
-info "Fetching release metadata…"
 if [ -n "${RELEASE_API_URL}" ]; then
+  info "Fetching release metadata…"
   RELEASE_JSON="$(curl_with_retry -fsSL "${RELEASE_API_URL}")" || error "Failed to fetch release info. Is the repo public?"
 elif [ -n "${RELEASE_TAG}" ]; then
   case "${RELEASE_TAG}" in
@@ -601,6 +745,7 @@ elif [ -n "${RELEASE_TAG}" ]; then
     *) RELEASE_TAG="v${RELEASE_TAG}" ;;
   esac
   release_tag_is_supported "${RELEASE_TAG}" || error "Invalid release version: ${RELEASE_TAG}"
+  info "Fetching release metadata…"
   RELEASE_JSON="$(curl_with_retry -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
     error "Failed to fetch release ${RELEASE_TAG}."
 else
@@ -608,18 +753,54 @@ else
     ''|stable|beta|alpha) ;;
     *) error "Invalid channel '${REQUESTED_CHANNEL}'. Use stable, beta, or alpha." ;;
   esac
+  # Only OPENWAGGLE_CHANNEL changes the channel, as `openwaggle update --channel` does. Without it a
+  # re-run keeps the installed app's channel, and a first install saves the default.
+  CHANNEL="${REQUESTED_CHANNEL}"
+  DEFAULT_CHANNEL_REASON=""
+  if [ -z "${CHANNEL}" ]; then
+    # Asks only an installed version that can answer, so a first install asks nothing.
+    installed_update_channel "${PLATFORM}" "${INSTALLED_EXECUTABLE}" "${INSTALLED_CLI_VERSION}"
+    CHANNEL="${INSTALLED_CHANNEL}"
+    if [ -n "${CHANNEL}" ]; then
+      KEEP_INSTALLED_CHANNEL="1"
+    elif installed_reports_update_channel "${INSTALLED_EXECUTABLE}" "${INSTALLED_CLI_VERSION}"; then
+      DEFAULT_CHANNEL_REASON="Could not read the update channel of the installed OpenWaggle"
+    elif [ -x "${INSTALLED_EXECUTABLE}" ] && [ -n "${INSTALLED_CLI_VERSION}" ]; then
+      DEFAULT_CHANNEL_REASON="OpenWaggle ${INSTALLED_CLI_VERSION} cannot report its update channel"
+    elif [ -x "${INSTALLED_EXECUTABLE}" ]; then
+      DEFAULT_CHANNEL_REASON="OpenWaggle is installed, but its version is unknown"
+    fi
+  fi
+  info "Fetching release metadata…"
   RELEASES_JSON="$(fetch_release_pages "${RELEASES_API_URL}")" || \
     error "Failed to list releases. Is the repo public?"
-  CHANNEL="${REQUESTED_CHANNEL:-$(resolve_default_channel "${RELEASES_JSON}")}"
-  RELEASE_TAG="$(resolve_release_tag "${RELEASES_JSON}" "${CHANNEL}")" || \
+  [ -n "${CHANNEL}" ] || CHANNEL="$(resolve_default_channel "${RELEASES_JSON}")"
+  if ! RELEASE_TAG="$(resolve_release_tag "${RELEASES_JSON}" "${CHANNEL}")"; then
+    # As `openwaggle update` reports it: up to date, not a failure, and nothing changes.
+    if [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ]; then
+      info "OpenWaggle is up to date on the ${CHANNEL} channel: no release is available on it yet. Set OPENWAGGLE_CHANNEL to install from another channel."
+      exit 0
+    fi
     error "No ${CHANNEL} release is available."
-  info "Update channel: ${CHANNEL}"
+  fi
+  if [ "${KEEP_INSTALLED_CHANNEL:-}" = "1" ]; then
+    info "Update channel: ${CHANNEL}, kept from the installed OpenWaggle"
+  elif [ -n "${DEFAULT_CHANNEL_REASON}" ]; then
+    # Saving the default changes the channel of an existing install, so say so.
+    info "${DEFAULT_CHANNEL_REASON}, so the installer will save the default channel, ${CHANNEL}. Set OPENWAGGLE_CHANNEL to choose another."
+  else
+    info "Update channel: ${CHANNEL}"
+  fi
+  DOWNGRADE_HINT="It is ahead of the ${CHANNEL} channel; set OPENWAGGLE_CHANNEL or OPENWAGGLE_RELEASE_TAG to install another release."
   RELEASE_JSON="$(curl_with_retry -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}")" || \
     error "Failed to fetch release ${RELEASE_TAG}."
 fi
 VERSION="$(printf '%s' "${RELEASE_JSON}" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
 [ -z "${VERSION:-}" ] && error "Release metadata did not include a version."
 info "Resolved version: ${VERSION}"
+
+# --- Refuse a downgrade, before the download ---
+refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}" "${DOWNGRADE_HINT}"
 
 # --- Determine asset name ---
 if [ "${PLATFORM}" = "mac" ]; then
@@ -672,11 +853,13 @@ if [ "${PLATFORM}" = "mac" ]; then
   APP_PATH="$(find "${MOUNT_POINT}" -maxdepth 1 -name '*.app' | head -1)"
   [ -z "${APP_PATH}" ] && error "No .app bundle found in DMG"
   INSTALLED_APP_PATH="${APPLICATIONS_DIR}/$(basename "${APP_PATH}")"
+  # The image decides the bundle name, so check the app it really replaces before quitting it.
+  INSTALLED_VERSION="$(mac_app_version "${INSTALLED_APP_PATH}")"
+  refuse_downgrade "${INSTALLED_VERSION}" "${VERSION}" "${DOWNGRADE_HINT}"
   # Quit the window first: stopping the Host under an open app would only make it start another.
   quit_running_mac_app "${INSTALLED_APP_PATH}"
   stop_session_host_for_update "${INSTALLED_APP_PATH}/Contents/MacOS/OpenWaggle" \
-    "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
-      "${INSTALLED_APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+    "${INSTALLED_VERSION}"
   rm -rf "${INSTALLED_APP_PATH}"
   cp -R "${APP_PATH}" "${APPLICATIONS_DIR}/"
   hdiutil detach "${MOUNT_POINT}" -quiet 2>/dev/null || true
@@ -705,7 +888,6 @@ if [ "${PLATFORM}" = "mac" ]; then
 
 elif [ "${PLATFORM}" = "linux" ]; then
   INSTALL_DIR="${HOME}/.local/bin"
-  APP_DIR="${HOME}/.local/lib/openwaggle"
   mkdir -p "${INSTALL_DIR}"
   mkdir -p "${APP_DIR}"
   INSTALL_PATH="${INSTALL_DIR}/openwaggle"
@@ -715,9 +897,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   DESKTOP_DIR="${HOME}/.local/share/applications"
   DESKTOP_PATH="${DESKTOP_DIR}/openwaggle.desktop"
   # An open app keeps running, and keeps its Host, until the user quits it and stops the Host.
-  INSTALLED_APPIMAGE_VERSION="$(cat "${APPIMAGE_VERSION_PATH}" 2>/dev/null || true)"
-  [ -n "${INSTALLED_APPIMAGE_VERSION}" ] || INSTALLED_APPIMAGE_VERSION="$(appimage_version "${APPIMAGE_PATH}")"
-  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_APPIMAGE_VERSION}"
+  stop_session_host_for_update "${APPIMAGE_PATH}" "${INSTALLED_CLI_VERSION}"
   install_executable_atomically "${DOWNLOAD_PATH}" "${APPIMAGE_PATH}"
   printf '%s\n' "${VERSION#v}" > "${APPIMAGE_VERSION_PATH}"
   ESCAPED_APPIMAGE_PATH="$(printf '%s' "${APPIMAGE_PATH}" | sed "s/'/'\"'\"'/g")"

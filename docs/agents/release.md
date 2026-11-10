@@ -22,6 +22,13 @@ The desktop app, `openwaggle update`, and `scripts/install.sh` use the same chan
 persisted channel. `openwaggle update --version` refuses a version older than the installed one
 (exit 2); downgrades are unsupported.
 - `openwaggle update --check` is read-only: with `--channel` it checks that channel without saving it.
+  `--check --json` prints `{schemaVersion, type: "response", command: "update", result}` with the
+  saved channel in `result.savedChannel`; a failed release check prints the error envelope with an
+  additive top-level `savedChannel`.
+- `install.sh` changes the saved channel only with `OPENWAGGLE_CHANNEL`. A re-run without it reads
+  the installed app's `savedChannel`, installs from that channel, and writes no intent; a fresh
+  install, an installed version up to `1.0.0-beta.37`, an unknown installed version, or a failed
+  read saves the default.
 - With no Stable release yet, `install.sh` defaults to Beta, never Alpha, and a Stable check reports
   "up to date", not an error.
 - A release counts only once it has the platform's channel metadata asset (for example

@@ -4,6 +4,7 @@ import lifecyclePath from 'node:path'
 import { safeDecodeUnknown } from '@shared/schema'
 import { installedDocsManifestSchema } from '@shared/schemas/docs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { INSTALL_COMMAND } from '../../website/src/lib/install-command'
 import {
   generateInstalledDocs,
   rewriteInstalledDocumentationLinks,
@@ -42,6 +43,16 @@ afterEach(async () => {
 })
 
 describe('installed docs generator output', () => {
+  it('fills in the install command placeholders the website fills in', async () => {
+    const installation = await lifecycleFs.readFile(
+      lifecyclePath.join(outputRoot(), 'topics', 'openwaggle', 'getting-started', 'installation.md'),
+      'utf8',
+    )
+
+    expect(installation).toContain(`\`\`\`bash\n${INSTALL_COMMAND}\n\`\`\``)
+    expect(installation).not.toContain('{{install-')
+  })
+
   it('preserves query and hash fragments when rewriting the documentation root', () => {
     expect(
       rewriteInstalledDocumentationLinks(

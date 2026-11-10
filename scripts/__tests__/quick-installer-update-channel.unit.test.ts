@@ -150,4 +150,24 @@ update_channel_intent_path`
       await fs.rm(home, { recursive: true, force: true })
     }
   })
+
+  it('writes no channel intent when a re-run keeps the installed app channel', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-installer-channel-'))
+    try {
+      const script = `set -euo pipefail
+${updateChannelPreference(source)}
+PLATFORM=linux
+HOME="$1"
+unset XDG_CONFIG_HOME
+CHANNEL=beta
+KEEP_INSTALLED_CHANNEL=1
+persist_selected_channel`
+      await execFileAsync('bash', ['-c', script, 'installer-channel-keep-test', home])
+
+      await expect(fs.readdir(home)).resolves.toEqual([])
+    } finally {
+      await fs.rm(home, { recursive: true, force: true })
+    }
+  })
 })
