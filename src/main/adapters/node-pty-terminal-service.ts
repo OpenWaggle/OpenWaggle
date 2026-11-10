@@ -11,7 +11,7 @@ import { TerminalEventSink } from '../ports/terminal-event-sink'
 import type { TerminalServiceShape } from '../ports/terminal-service'
 import { TerminalService } from '../ports/terminal-service'
 import { broadcastToWindows } from '../utils/broadcast'
-import { ElectronTerminalEventSinkLive } from './electron-terminal-event-sink'
+import { RendererSurfaceTerminalEventSinkLive } from './renderer-surface-terminal-event-sink'
 import {
   makeTerminalActivitySnapshotPublisher,
   terminalEventCanChangeActivitySummary,
@@ -216,4 +216,4 @@ export const NodePtyTerminalServiceLive = Layer.scoped(
     yield* Effect.addFinalizer(() => Effect.promise(() => service.dispose()))
     return TerminalService.of(service)
   }),
-).pipe(Layer.provide(ElectronTerminalEventSinkLive))
+).pipe(Layer.provide(RendererSurfaceTerminalEventSinkLive))

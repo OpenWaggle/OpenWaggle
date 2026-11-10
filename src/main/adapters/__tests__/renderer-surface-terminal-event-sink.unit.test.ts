@@ -11,7 +11,8 @@ vi.mock('electron', () => ({
   webContents: webContentsMock,
 }))
 
-const { ElectronTerminalEventSinkLive } = await import('../electron-terminal-event-sink')
+const { RendererSurfaceTerminalEventSinkLive } =
+  await import('../renderer-surface-terminal-event-sink')
 
 interface FakeWebContents {
   readonly send: ReturnType<typeof vi.fn>
@@ -46,11 +47,11 @@ async function buildSink() {
   return Effect.runPromise(
     Effect.gen(function* () {
       return yield* TerminalEventSink
-    }).pipe(Effect.provide(ElectronTerminalEventSinkLive)),
+    }).pipe(Effect.provide(RendererSurfaceTerminalEventSinkLive)),
   )
 }
 
-describe('ElectronTerminalEventSinkLive', () => {
+describe('RendererSurfaceTerminalEventSinkLive', () => {
   beforeEach(() => {
     surfaceRegistry.clear()
     webContentsMock.fromId.mockReset()

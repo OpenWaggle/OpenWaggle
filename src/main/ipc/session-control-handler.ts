@@ -11,7 +11,8 @@ import {
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
-import { powerMonitor, webContents } from 'electron'
+import { rendererSurfaces } from '../desktop-shell/renderer-surfaces'
+import { systemIntegration } from '../desktop-shell/system-integration'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { closedWindowFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-release-key'
 import { runGuiEffect } from '../gui-runtime'
@@ -34,7 +35,7 @@ const HOLD_GONE_CODES: ReadonlySet<string> = new Set([
 ])
 
 const windowGenerations = new WindowPageGenerations((windowId, events) => {
-  const contents = webContents.fromId(windowId)
+  const contents = rendererSurfaces.fromId(windowId)
   if (!contents || contents.isDestroyed()) return false
   contents.on('did-navigate', events.pageChanged)
   contents.on('render-process-gone', events.pageChanged)
@@ -81,7 +82,7 @@ function releaseHold(hold: WindowFollowUpEditHold) {
 
 /** A window is gone for its holds when it closes, crashes, reloads, or navigates to a new page. */
 function watchWindow(windowId: number, onGone: () => void) {
-  const contents = webContents.fromId(windowId)
+  const contents = rendererSurfaces.fromId(windowId)
   if (!contents || contents.isDestroyed()) {
     onGone()
     return
@@ -90,9 +91,9 @@ function watchWindow(windowId: number, onGone: () => void) {
   const release = () => {
     if (gone) return
     gone = true
-    contents.off('did-navigate', release)
-    contents.off('render-process-gone', release)
-    contents.off('destroyed', release)
+    contents.removeListener('did-navigate', release)
+    contents.removeListener('render-process-gone', release)
+    contents.removeListener('destroyed', release)
     onGone()
   }
   contents.on('did-navigate', release)
@@ -140,7 +141,7 @@ function trackFollowUpEditHold(
 
 export function registerSessionControlHandlers() {
   // Timers may fire late after a sleep; renew at once so an open edit keeps its hold.
-  powerMonitor.on('resume', () => {
+  systemIntegration.onResume(() => {
     void windowLeases.renewAll()
   })
   typedHandle('session-control:mutate', (event, rawRequest) =>

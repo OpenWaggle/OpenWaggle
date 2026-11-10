@@ -2,24 +2,23 @@ import type { TerminalEventPayload, TerminalKey } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { webContents } from 'electron'
+import { rendererSurfaces } from '../desktop-shell/renderer-surfaces'
 import { TerminalEventSink } from '../ports/terminal-event-sink'
 
 /**
- * Electron implementation of the terminal event sink: runtime events reach
- * only the WebContents attached to that terminal, never a broadcast to every
- * window (ADR 0030). Attachments whose WebContents died (window closed or
- * reloaded) are pruned lazily on the next emit.
+ * The terminal event sink of the desktop app: runtime events reach only the renderer surfaces
+ * attached to that terminal, never a broadcast to every window (ADR 0030). Attachments whose
+ * surface died (window closed or reloaded) are pruned lazily on the next emit.
  */
-export const ElectronTerminalEventSinkLive = Layer.effect(
+export const RendererSurfaceTerminalEventSinkLive = Layer.effect(
   TerminalEventSink,
   Effect.sync(() => {
     const attached = new Map<TerminalKey, Set<number>>()
 
     const send = (surfaceId: number, payload: TerminalEventPayload): boolean => {
       try {
-        const target = webContents.fromId(surfaceId)
-        if (target === undefined || target.isDestroyed()) return false
+        const target = rendererSurfaces.fromId(surfaceId)
+        if (target === null || target.isDestroyed()) return false
         target.send('terminal:event', payload)
         return true
       } catch {
