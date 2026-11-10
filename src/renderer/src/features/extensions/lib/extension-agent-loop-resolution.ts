@@ -6,6 +6,7 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export type ExtensionAgentLoopSurfaceKind =
   | 'tool'
@@ -73,37 +74,6 @@ function includesDeclaredMatch(
     values.length > 0 &&
     requested !== undefined &&
     values.includes(requested)
-  )
-}
-
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
   )
 }
 
@@ -210,7 +180,7 @@ export function resolveExtensionAgentLoopContribution({
   let firstInvalid: ExtensionAgentLoopResolution | null = null
 
   for (const entry of candidates) {
-    if (isBlockedEntry(entry, requestedProjectPaths)) {
+    if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
       firstBlocked ??= blockedResolution()
       continue
     }
@@ -248,7 +218,7 @@ export function resolveExtensionAgentLoopContributionEntries({
       continue
     }
 
-    if (isBlockedEntry(entry, requestedProjectPaths)) {
+    if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
       continue
     }
 
