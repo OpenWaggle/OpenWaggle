@@ -13,7 +13,7 @@ Before changing release, versioning, updater, changelog, GitHub workflow, instal
 
 1. Read `docs/release-and-versioning.md` and ADR 0040. Read ADR 0032 for Build identity and Build channel.
 2. Use the `CONTEXT.md` terms **Build channel** (the installed artifact's stage), **Update channel** (the user's saved update selection), **Compatibility promise**, **Covered surface**, and **Release blocker**.
-3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
+3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `scripts/app-release-promotion.ts` (the promotion guard's pure decisions), `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
 4. Preserve `AGENTS.md` rules: no commits without approval, no unknown-work reverts, Electron QA for renderer/preload/IPC changes, and `grill-with-docs` for any new release decision.
 
 ## Release domains
@@ -97,7 +97,8 @@ A **Release blocker** loses user data, prevents launch, or blocks updating. It b
 ## RC freeze and promotion
 
 - During RC, `main` is frozen for app code: merge only release-blocker fixes.
-- Stable promotion fails closed unless `main` matches the last RC tag's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md`; renames count on both sides. A new major (`X.0.0`) requires an RC tag. The guard blocks promotion, not merges.
+- Stable promotion fails closed unless `main` matches the last published RC's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md` (but not `THIRD_PARTY_NOTICES.md`, which ships in the app); renames count on both sides. The last published RC is the newest `vX.Y.Z-rc.N` tag with a non-draft GitHub release, read from the GitHub API (a failed read fails the guard), because the tag is pushed before the builds run and a failed build leaves a tag without a release. A new major (`X.0.0`) requires a published RC, and a minor or patch with rc tags but no published RC fails too. The guard blocks promotion, not merges.
+- RC and Stable versions fail in the version job when the macOS signing secrets are missing, before any release PR or tag exists.
 - Promote after a 7-day RC window with no open release blocker.
 
 ## After 1.0.0
@@ -161,7 +162,7 @@ Alpha  -> alpha, beta, rc, stable
 - Do not add release-intent files or a `release:none` classification.
 - Do not publish Beta or RC builds to Stable users, or Alpha builds to Beta users.
 - Do not support downgrades.
-- Do not promote Stable from content that differs from the last RC.
+- Do not promote Stable from content that differs from the last published RC.
 - Do not open a rolling Beta or maintenance branch without a new decision.
 - Do not create a side-by-side Canary app without a new decision.
 - Do not require scripts or manual downloads as the primary Beta/Alpha opt-in UX.

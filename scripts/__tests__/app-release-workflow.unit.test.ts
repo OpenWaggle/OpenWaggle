@@ -119,9 +119,7 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain(
       `if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"`,
     )
-    expect(WORKFLOW).toContain(
-      'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
-    )
+    expect(WORKFLOW).toContain('if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]')
     expect(WORKFLOW).toContain('write_no_release_output')
     expect(WORKFLOW).toContain('write_release_outputs')
     expect(WORKFLOW).toContain(
@@ -129,8 +127,11 @@ describe('desktop app release workflow', () => {
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
     expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
-    expect(WORKFLOW).toContain("grep -qE 'alpha|beta|rc'")
-    expect(WORKFLOW).toContain("sed 's/.*-\\(alpha\\|beta\\|rc\\)\\..*/\\1/'")
+    expect(WORKFLOW).toContain('if [[ "$CURRENT" =~ ^([0-9]+\\.[0-9]+\\.[0-9]+)-(alpha|beta|rc)\\.([0-9]+)$ ]]; then')
+    expect(WORKFLOW).toContain('echo "Unrecognized desktop app version ${CURRENT}." >&2')
+    const bump = WORKFLOW.slice(WORKFLOW.indexOf('name: Determine bump'), WORKFLOW.indexOf('name: Prepare release PR'))
+    expect(bump).toMatch(/CURRENT=\$\(node -p[\s\S]*Unrecognized desktop app version/u)
+    expect(bump).not.toMatch(/\bsed ['"]/u) // GNU sed alternation fails on macOS, where the train harness runs it
   })
 
   it('supports an explicit forward promotion through the same protected release PR', () => {
