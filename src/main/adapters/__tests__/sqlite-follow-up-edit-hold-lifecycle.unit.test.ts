@@ -185,6 +185,53 @@ describe('Follow-up edit holds across replays, Workers, and attachments', () => 
     expect(result).toBe('ready_for_review')
   })
 
+  // The person's held Follow-up starts past agents' capacity once the edit ends.
+  it('keeps a Worker’s Delegation working while the person’s held Follow-up waits past capacity', async () => {
+    const state = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* workerDelegation
+        yield* activeRunWithQueuedFollowUp
+        const agentIntent = {
+          text: 'Agent work',
+          attachmentIds: [],
+          callerId: 'transient-mcp:digest-agent',
+          acceptedAt: 0,
+          idempotencyKey: 'key-agent',
+        }
+        yield* sql`UPDATE session_follow_ups SET position = position + 1 WHERE session_id = ${SESSION}`
+        yield* sql`
+          INSERT INTO session_follow_ups (
+            id, session_id, position, delivery_state, intent_json, created_at, updated_at
+          ) VALUES (
+            ${'agent-ahead'}, ${SESSION}, ${0}, ${'pending'}, ${JSON.stringify(agentIntent)},
+            ${1}, ${1}
+          )
+        `
+        yield* sql`
+          UPDATE session_control_states
+          SET queue_state = ${'paused'}, queue_pause_reason = ${'parent-limit'}
+          WHERE session_id = ${SESSION}
+        `
+        yield* beginEdit(FOLLOW_UP)
+        const runs = yield* SessionControlRunLifecycleRepository
+        yield* runs.settle({
+          sessionId: SessionId(SESSION),
+          runId: RunId('run-next'),
+          nextRunId: RunId('run-after'),
+          terminalStatus: 'completed',
+          finalResponse: 'An intermediate answer',
+        })
+        const rows = yield* sql<{ readonly state: string }>`
+          SELECT state FROM delegation_contracts WHERE id = ${'delegation-1'}
+        `
+        return rows[0]?.state
+      }).pipe(Effect.provide(layer('worker-held-past-capacity.sqlite'))),
+    )
+
+    expect(state).toBe('working')
+  })
+
   it('withdraws a held Follow-up together with its hold', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {

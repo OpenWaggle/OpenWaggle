@@ -75,10 +75,10 @@ interface QueuedMessageRowProps {
   readonly reorderable: boolean
   readonly isStreaming: boolean
   /**
-   * "Send as me": `inFlight` while it runs for this row; `headSendsNow` when the queue would
-   * deliver its first message at once once that message no longer needs attention.
+   * "Send as me": `inFlight` while it runs for this row; `sendsNow` when the Host would deliver
+   * this message at once once it no longer needs attention.
    */
-  readonly sendAsMe: { readonly inFlight: boolean; readonly headSendsNow: boolean }
+  readonly sendAsMe: { readonly inFlight: boolean; readonly sendsNow: boolean }
   readonly edit: QueuedMessageRowEditState
   readonly actions: QueuedMessageRowActions
 }
@@ -107,7 +107,7 @@ export function QueuedMessageRow({
   actions,
 }: QueuedMessageRowProps) {
   const { previousId, nextId } = neighbours
-  const sendsNow = previousId === null && sendAsMe.headSendsNow
+  const { sendsNow } = sendAsMe
   const attention = attentionCopy(item, sendsNow)
   const label = itemLabel(item)
   const shortLabel = accessibleLabel(label)

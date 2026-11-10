@@ -24,3 +24,18 @@ export function isPersonStartedRun(caller: StartingRunCaller) {
   if (caller.hiveWake || isAgentScheduledRunKey(caller.idempotencyKey)) return false
   return isLocalUserCallerId(caller.callerId)
 }
+
+/**
+ * Whether a starting Run is an agent's work by its intent: started by an agent, a client profile
+ * or an agent's Scheduled task, wherever it runs. Such a Run counts toward Active Workers even in
+ * a Session the person made, so agents cannot fan out over the person's Sessions uncounted (ADR
+ * 0030, amended 2026-11-10). A Hive wake is the Host's and is judged by the Session it wakes, and
+ * the person's own queue action delivering an agent's Follow-up does not change whose work it is.
+ */
+export function isAgentWorkRun(intent: Omit<StartingRunCaller, 'personActed'>) {
+  if (intent.hiveWake) return false
+  return !isPersonStartedRun({
+    callerId: intent.callerId,
+    ...(intent.idempotencyKey === undefined ? {} : { idempotencyKey: intent.idempotencyKey }),
+  })
+}

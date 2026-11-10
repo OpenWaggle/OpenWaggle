@@ -57,7 +57,7 @@ A run is one turn of the agent working in a session, from your message to its fi
 
 `steer`, `replace`, `promote` and `interrupt` need the ID of the run they act on (`expectedRunId`, or `--expected-run` in the CLI). If that run has already ended, the call fails instead of reaching the wrong run. Steering does not cancel a tool that is already running.
 
-`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run, unless a run limit holds it back (see [run limits](#run-limits)).
+`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue, unless you send it and the queue waits only on agents' run limits: then it starts at once. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run, unless a run limit holds it back (see [run limits](#run-limits)).
 
 When you stop or interrupt a run before the agent wrote anything, the transcript gets no empty reply. Whatever the agent had already written stays.
 
@@ -196,7 +196,7 @@ The parent hears about every result and every request for help as an update from
 
 OpenWaggle starts that run only when all of these hold:
 
-- The parent has no active run and no queued follow-up.
+- The parent has no active run and no queued follow-up, apart from agents' follow-ups that a run limit holds back (`pauseReason` `parent-limit`).
 - The parent is not archived.
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.
@@ -292,17 +292,19 @@ A worker gets its parent's access by default. A spawn or an [agent definition](/
 
 ## Run limits
 
-Two settings in **Settings > Agents > Hive controls** cap how many worker runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active Workers** to 16 worker runs across the whole app. [Settings](/docs/reference/settings) lists both. A `spawn`, or a `message`, `follow_up` or `start` that would start a worker's run, fails at either limit with an error the caller can retry (`host_capacity_reached` or `parent_capacity_reached` for a `spawn`, and `host_run_ceiling_reached` or `parent_concurrency_limit_reached` for a run). It is not queued. An agent's `queue_resume` that would start such a run fails the same way, and an agent's withdraw or reorder that would start one pauses the queue instead. When a worker's run ends and the next follow-up in its queue is an agent's that would pass a limit, the queue pauses too: `pauseReason` is `parent-limit` at **Workers per parent**, and there is none at **Active Workers**. Nothing resumes it by itself. Call `queue_resume` once a slot frees. A follow-up you queued behind it waits with it. Your **Resume** starts the next follow-up whatever the limits. A run OpenWaggle starts for a parent whose workers reported is the exception, because it is retried when another run ends.
+Two settings in **Settings > Agents > Hive controls** cap how many worker runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active Workers** to 16 worker runs across the whole app. [Settings](/docs/reference/settings) lists both. A `spawn`, or a `message`, `follow_up` or `start` that would start a worker's run, fails at either limit with an error the caller can retry (`host_capacity_reached` or `parent_capacity_reached` for a `spawn`, and `host_run_ceiling_reached` or `parent_concurrency_limit_reached` for a run). It is not queued. An agent's `queue_resume` that would start such a run fails the same way, and an agent's withdraw or reorder that would start one pauses the queue instead. When a run ends and the next follow-up in its queue is an agent's that would pass a limit, the queue pauses too, with `pauseReason` `parent-limit` at either limit. Nothing resumes it by itself. Call `queue_resume` once a slot frees. A follow-up you queued never waits behind those. When the session is idle, your first follow-up in that queue starts ahead of the agents' ones, and the queue stays paused for theirs. A parent whose workers report is woken past them too. Your **Resume** starts the next follow-up whatever the limits. A run OpenWaggle starts for a parent whose workers reported is the exception, because it is retried when another run ends.
 
-The limits never hold back you, or a top-level session you made:
+The limits never hold back your own runs:
 
-- Runs of sessions you started, such as your Queen, never count toward the limits and are never refused by them, whoever starts them.
+- Your runs in sessions you made never count toward the limits. Your runs in a worker do count, but are never refused. In a top-level session you started, such as your Queen, OpenWaggle's run for a parent whose workers reported is never refused either.
 - A run you start yourself, from the app, the command line or another client running as you, is never refused, even in a worker. So is a run that your own **Resume**, withdraw, reorder or edit of a queue starts, whoever wrote the follow-up. A follow-up you queued in a worker runs next even when its parent is at **Workers per parent**.
 - A `launch` of yours has no run limit. A `spawn` always makes a worker, so it is held to the limits whoever asks for it.
 
 Sessions agents make count as workers for **Active Workers**: a top-level session that an agent or an access profile launched, created or forked, or that a scheduled task launched for an agent's work. An agent's `launch` fails with `host_run_ceiling_reached` when **Active Workers** is full, so launching instead of spawning does not get around the limit.
 
-The limits count active runs of sessions agents made, not saved sessions, queues, searches, exports, waits or watchers.
+A run an agent starts in a top-level session you made counts toward **Active Workers** too. That covers an agent's `message`, `follow_up` or `start`, the next follow-up in your queue when an agent wrote it, and a scheduled task's agent work firing there. At a full limit such a run fails with `host_run_ceiling_reached`, or pauses the queue, as for a worker. So an agent cannot get around the limit by sending work to your sessions.
+
+The limits count active runs of agents' work, not saved sessions, queues, searches, exports, waits or watchers.
 
 ## Worker cleanup timing
 

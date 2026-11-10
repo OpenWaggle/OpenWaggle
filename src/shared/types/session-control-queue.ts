@@ -32,6 +32,20 @@ export const FOLLOW_UP_QUEUE_PAUSE_REASONS = [
 
 export type FollowUpQueuePauseReason = (typeof FOLLOW_UP_QUEUE_PAUSE_REASONS)[number]
 
+/**
+ * The pause reasons that adopting the last Follow-up needing attention (**Send as me**) lifts: the
+ * ones the needs-attention paths leave (a revoked profile records `profile-revoked`, a head whose
+ * authority changed pauses with no reason). Any other reason, including `requested`, came from
+ * somewhere else and outlives the adoption. A queue waiting on agents' capacity (`parent-limit`)
+ * stays paused for theirs, but the adopted Follow-up, now the person's, starts ahead of them
+ * (ADR 0030, amended 2026-11-10). The Host (`follow-up-adopt.ts`) and the composer
+ * (`send-as-me.ts`) both read it.
+ */
+export const ADOPTION_LIFTED_PAUSE_REASONS: readonly (FollowUpQueuePauseReason | undefined)[] = [
+  undefined,
+  'profile-revoked',
+]
+
 export function isFollowUpQueuePauseReason(value: unknown): value is FollowUpQueuePauseReason {
   return FOLLOW_UP_QUEUE_PAUSE_REASONS.some((reason) => reason === value)
 }

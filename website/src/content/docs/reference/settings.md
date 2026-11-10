@@ -111,9 +111,9 @@ Has a project picker. Lists the skills found in the project's `.openwaggle/skill
 | --- | --- | --- | --- |
 | **Agent-created Workers** | On, off | On | Lets agents start worker sessions to share a task. |
 | **Workers per parent** | 1 or more | 4 | The most runs active at once by one parent session's direct workers. |
-| **Active Workers** | 1 or more | 16 | The most worker runs active at once across the app, in every Hive, counting sessions agents launch, create or fork. |
+| **Active Workers** | 1 or more | 16 | The most worker runs active at once across the app, in every Hive, counting sessions agents launch, create or fork and runs agents start in your sessions. |
 
-Both limits apply to workers only. Your own sessions never count toward them, and a message you send, a new session and a reply to a Queen are never refused because of them. OpenWaggle refuses a new worker run that would pass either limit, with an error the agent can retry. It does not queue the run. A run OpenWaggle starts for a parent whose workers reported is the exception and is retried when another run ends, as the [Hive reference](/docs/reference/hive#run-limits) describes. Saved sessions, queued follow-ups, searches, waits and exports do not count toward the limits. A project's `.openwaggle/settings.json` can set its own **Agent-created Workers** and **Workers per parent**, and the file wins.
+Both limits apply to agents' work only. Your runs in sessions you made never count toward them, and a message you send, a new session and a reply to a Queen are never refused because of them. OpenWaggle refuses a new worker run that would pass either limit, with an error the agent can retry. It does not queue the run. A run OpenWaggle starts for a parent whose workers reported is the exception and is retried when another run ends, as the [Hive reference](/docs/reference/hive#run-limits) describes. Saved sessions, queued follow-ups, searches, waits and exports do not count toward the limits. A project's `.openwaggle/settings.json` can set its own **Agent-created Workers** and **Workers per parent**, and the file wins.
 
 **Saved project overrides** appears only when an older version saved per-project values. **Clear saved value** removes one. It does not change a project file.
 

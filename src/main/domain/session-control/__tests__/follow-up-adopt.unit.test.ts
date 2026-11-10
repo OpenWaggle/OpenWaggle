@@ -125,6 +125,8 @@ describe('adoptFollowUp', () => {
   it.each([
     ['the user paused it', [revoked('stuck')], { pauseReason: 'requested' as const }],
     ['a failed Run paused it', [revoked('stuck')], { pauseReason: 'run-failed' as const }],
+    // Agents' Follow-ups still wait for a slot; the adopted one starts ahead of them on delivery.
+    ['it waits on agents’ capacity', [revoked('stuck')], { pauseReason: 'parent-limit' as const }],
     ['another Follow-up still needs attention', [revoked('stuck'), revoked('other')], {}],
   ])('keeps the queue paused when %s', (_case, items, queue) => {
     const result = adoptFollowUp({

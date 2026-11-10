@@ -104,4 +104,66 @@ describe('SQLite Local Session profile queue revocation', () => {
     ])
     expect(result.state).toEqual({ queue_state: 'running', queue_revision: 2, state_revision: 1 })
   })
+
+  // What waited only on agents' capacity now waits for the person's Resume.
+  it.each([
+    ['parent-limit', 'profile-revoked'],
+    ['requested', 'requested'],
+  ] as const)('stops the profile’s Run in a queue paused %s as %s', async (pausedFor, expected) => {
+    const layer = makeLocalSessionProfileTestLayer(
+      path.join(temporaryRoot, `revoke-paused-${pausedFor}.sqlite`),
+    )
+    const reason = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO sessions (
+            id, pi_session_id, project_path, title, archived, created_at, updated_at
+          ) VALUES (${'person-root'}, ${'pi-root'}, ${'/project'}, ${'Root'}, ${0}, ${10}, ${10})
+        `
+        yield* sql`
+          INSERT INTO session_execution_profiles (
+            session_id, profile_json, authority_origin_caller_id,
+            authorization_ceiling, created_at, updated_at
+          ) VALUES (
+            ${'person-root'}, ${'{"modelId":"provider/model","thinkingLevel":"medium"}'},
+            ${'gui:local-user'}, ${'yolo'}, ${10}, ${10}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (
+            ${'run-profile'}, ${'person-root'}, ${'active'},
+            ${JSON.stringify({ callerId: 'profile:profile-review' })}, ${10}, ${10}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_pause_reason,
+            queue_revision, updated_at
+          ) VALUES (
+            ${'person-root'}, ${1}, ${'run-profile'}, ${'paused'}, ${pausedFor}, ${2}, ${10}
+          )
+        `
+        const repository = yield* LocalSessionProfileRepository
+        yield* repository.executeManagement({
+          actorCallerId: 'local-user',
+          request: {
+            contractVersion: 1,
+            requestId: 'revoke-running',
+            idempotencyKey: 'revoke-running-key',
+            command: { operation: 'revoke', profileName: 'review-bot' },
+          },
+          now: 500,
+        })
+        const [state] = yield* sql<{ readonly queue_pause_reason: string | null }>`
+          SELECT queue_pause_reason FROM session_control_states
+          WHERE session_id = ${'person-root'}
+        `
+        return state?.queue_pause_reason
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(reason).toBe(expected)
+  })
 })

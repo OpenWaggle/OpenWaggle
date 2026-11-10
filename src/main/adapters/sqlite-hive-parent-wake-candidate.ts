@@ -6,6 +6,7 @@ import type {
   HiveParentWakeCandidate,
   HiveParentWakeQuery,
 } from '../ports/session-orchestration-update-repository'
+import { localUserFollowUpSql } from './sqlite-local-user-follow-up'
 
 interface WakeCandidateRow {
   readonly latest_run_id: string
@@ -72,8 +73,20 @@ export function selectHiveParentWakeCandidate(
       WHERE sessions.id = ${input.parentSessionId}
         AND sessions.archived = 0
         AND states.active_run_id IS NULL
+        -- Follow-ups run first, except agents' ones a Worker limit holds back: those wait for a
+        -- slot, and the wake meets the limits itself. The person's still come first, even while
+        -- an edit holds them (ADR 0030, amended 2026-11-10).
         AND NOT EXISTS (
-          SELECT 1 FROM session_follow_ups WHERE session_follow_ups.session_id = sessions.id
+          SELECT 1 FROM session_follow_ups AS follow_ups
+          WHERE follow_ups.session_id = sessions.id
+            AND (
+              states.queue_state IS NOT ${'paused'}
+              OR states.queue_pause_reason IS NOT ${'parent-limit'}
+              OR (
+                follow_ups.delivery_state = ${'pending'}
+                AND ${sql.literal(localUserFollowUpSql('follow_ups'))}
+              )
+            )
         )
         AND latest.status IN (${'completed'}, ${'failed'})
     )

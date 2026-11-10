@@ -6,6 +6,7 @@ import type {
   SessionControlIntentSnapshot,
   SessionControlSessionState,
 } from './message-aggregate'
+import { isPersonStartedRun } from './person-started-run'
 
 const STATE_REVISION_INCREMENT = 1
 
@@ -48,14 +49,23 @@ export interface ApplyExplicitFollowUpInput {
   readonly intent: SessionControlIntentSnapshot
 }
 
+/**
+ * An idle Session starts the Follow-up at once when nothing is queued ahead of it, or when the
+ * person sends it to a queue that waits only on agents' capacity (`parent-limit`): the person's
+ * work never waits behind agents' work, so it starts ahead of the held agents' Follow-ups, which
+ * stay paused (ADR 0030, amended 2026-11-10). Anything else joins the queue.
+ */
+function startsAtOnce(input: ApplyExplicitFollowUpInput) {
+  const { run, followUpQueue: queue } = input.state
+  if (run.state !== 'idle') return false
+  if (queue.state === 'running') return queue.items.length === 0
+  return queue.pauseReason === 'parent-limit' && isPersonStartedRun(input.intent)
+}
+
 export function applyExplicitFollowUp(
   input: ApplyExplicitFollowUpInput,
 ): ApplyExplicitFollowUpResult {
-  if (
-    input.state.run.state === 'idle' &&
-    input.state.followUpQueue.state === 'running' &&
-    input.state.followUpQueue.items.length === 0
-  ) {
+  if (startsAtOnce(input)) {
     const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
     return {
       accepted: true,

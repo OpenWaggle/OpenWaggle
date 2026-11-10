@@ -41,7 +41,8 @@ const AGENT = 'transient-mcp:digest-agent'
 
 /*
  * The Host's run ceiling limits what agents start (ADR 0030, amended 2026-11-09): the person's
- * launch never meets it, and a spawn or an agent's launch counts only agent-made Sessions' Runs.
+ * launch never meets it, and a spawn or an agent's launch counts agents' work only: agent-made
+ * Sessions' Runs and agents' Runs in the person's Sessions (amended 2026-11-10).
  */
 describe('SQLite Session lifecycle and the Worker ceiling', () => {
   beforeEach(async () => {
@@ -207,18 +208,30 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
         const rows = yield* sql<{ readonly session_id: string; readonly caller_id: string }>`
           SELECT session_id, caller_id FROM session_agent_origins ORDER BY session_id
         `
-        return rows.map((row) => [row.session_id, row.caller_id])
+        // A launch's first Run records whose work it is too.
+        const runs = yield* sql<{ readonly session_id: string; readonly work_by_agent: number }>`
+          SELECT session_id, work_by_agent FROM session_runs
+          WHERE session_id LIKE ${'session-launch-%'} ORDER BY session_id
+        `
+        return {
+          origins: rows.map((row) => [row.session_id, row.caller_id]),
+          runs: runs.map((row) => [row.session_id, row.work_by_agent]),
+        }
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(origins).toEqual([
+    expect(origins.origins).toEqual([
       ['session-create', AGENT],
       ['session-fork', AGENT],
       ['session-launch-agent', AGENT],
     ])
+    expect(origins.runs).toEqual([
+      ['session-launch-agent', 1],
+      ['session-launch-person', 0],
+    ])
   })
 
-  it('refuses a spawn at the Worker ceiling, counting Worker Runs only', async () => {
+  it('refuses a spawn at the Worker ceiling, counting agents’ work only', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'spawn-ceiling.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {

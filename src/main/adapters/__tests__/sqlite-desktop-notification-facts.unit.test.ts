@@ -83,7 +83,7 @@ describe('SqliteDesktopNotificationFactsLive', () => {
     })
   })
 
-  it("counts only agent-made Sessions toward Active Workers, never the person's running Sessions", async () => {
+  it("counts agent-made Sessions toward Active Workers, never the person's own running Sessions", async () => {
     const active = await withFacts(
       (sql) =>
         Effect.gen(function* () {

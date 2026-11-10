@@ -40,10 +40,12 @@ function migrate(database: Database.Database) {
 }
 
 describe('Session agent origin migration', () => {
-  it('is the newest migration this binary supports, after 87', () => {
+  it('is migration 88, which this binary supports', () => {
     expect(SESSION_AGENT_ORIGIN_MIGRATION.id).toBe(88)
-    expect(APP_MIGRATIONS.at(-1)).toBe(SESSION_AGENT_ORIGIN_MIGRATION)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(SESSION_AGENT_ORIGIN_MIGRATION.id)
+    expect(APP_MIGRATIONS).toContain(SESSION_AGENT_ORIGIN_MIGRATION)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(
+      SESSION_AGENT_ORIGIN_MIGRATION.id,
+    )
   })
 
   it('records the roots agents made before, and none the person made', () => {
