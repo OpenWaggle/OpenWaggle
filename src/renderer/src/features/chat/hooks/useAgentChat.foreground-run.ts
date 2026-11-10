@@ -194,9 +194,9 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
     previous = next
   }
 
-  /** Whether this send displaced an earlier send still waiting on its Run. */
   displacedOf.set(tracked, () => previous.waiter)
 
+  /** Whether this send displaced an earlier send still waiting on its Run. */
   function displacesPendingSend() {
     return previous.waiter !== null
   }

@@ -6,6 +6,7 @@ import { useForegroundSendStore } from '../../state/foreground-send-store'
 import {
   apiMock,
   createSession,
+  createSessionWithId,
   emitAgentEvent,
   emitRunCompleted,
   installUseAgentChatTestLifecycle,
@@ -86,4 +87,45 @@ describe('useAgentChat earlier send while a newer one ends without a Run', () =>
       expect(count).toBeUndefined()
     },
   )
+
+  // Switching away stops following Session A, so its earlier send settles with the newer one;
+  // left pending, A's send count stayed up and its pickers stayed locked.
+  it('settles the earlier send when the person switches away', async () => {
+    const other = SessionId('session-other')
+    apiMock.sendMessage
+      .mockResolvedValueOnce({ outcome: 'delivered', runId: 'run-1' })
+      .mockReturnValueOnce(new Promise<AgentSendReport>(() => {}))
+    useForegroundSendStore.setState({ counts: new Map() })
+    const { result, rerender } = renderHook(
+      ({ id }) => useAgentChat(id, createSessionWithId(id), MODEL),
+      { initialProps: { id: SESSION_ID } },
+    )
+    let earlier = 'pending'
+    await act(async () => {
+      void result.current.sendMessage(SEND_PAYLOAD).then(
+        () => {
+          earlier = 'resolved'
+        },
+        () => {
+          earlier = 'rejected'
+        },
+      )
+    })
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SESSION_ID,
+        event: { type: 'agent_start', runId: 'run-1', timestamp: 1 },
+      })
+    })
+    await act(async () => {
+      void result.current
+        .sendMessage({ ...SEND_PAYLOAD, text: 'A later message' })
+        .catch(() => undefined)
+    })
+    await act(async () => {
+      rerender({ id: other })
+    })
+
+    expect(earlier).toBe('resolved')
+  })
 })
