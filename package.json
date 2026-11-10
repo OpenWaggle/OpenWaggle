@@ -77,6 +77,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "check:repository-standards": "bun scripts/check-repository-standards.ts",
+    "skills-lock:drift": "bun scripts/skills-lock.ts drift",
     "check:waggle-dead-code": "bun scripts/check-waggle-dead-code.ts",
     "api:snapshot:check": "bun run build:packages && bun scripts/package-api-snapshots.ts --check",
     "api:snapshot:update": "bun run build:packages && bun scripts/package-api-snapshots.ts --update",

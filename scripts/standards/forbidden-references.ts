@@ -34,6 +34,9 @@ const forbiddenReferenceExemptFiles: string[] = [
   // results/ is untracked raw evidence; the curated copy is exempt below.
   'scripts/benchmark-docker/parse-results.py',
   'scripts/benchmark-docker/results/results.json',
+  // The skills lock records where each vendored skill came from, and one upstream keeps its skill
+  // under the legacy agent directory.
+  'skills-lock.json',
   'website/src/content/docs/using-openwaggle/token-benchmarks.mdx',
   'website/src/data/benchmark-results.json',
   'website/src/data/benchmarks.ts',

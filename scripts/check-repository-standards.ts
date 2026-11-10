@@ -28,6 +28,7 @@ import {
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
 import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
+import { collectRepositorySkillsLockViolations } from './standards/skills-lock'
 import { collectSqliteLibraryViolations } from './standards/sqlite-library'
 import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
@@ -169,6 +170,7 @@ async function main() {
       readRendererDesignTokenExemptions(),
     ),
   )
+  violations.push(...collectRepositorySkillsLockViolations(process.cwd()))
   violations.push(...collectRepositoryAdrNumberingViolations(process.cwd()))
 
   if (violations.length === 0) {
