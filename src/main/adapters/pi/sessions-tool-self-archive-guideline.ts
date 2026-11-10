@@ -1,0 +1,3 @@
+/** How archiving its own Session behaves, for an agent whose grant permits archive. */
+export const SELF_ARCHIVE_GUIDELINE =
+  "archive on your own Session answers session-archive-deferred and archives it once this Run completes, so you can still write your final reply after the call. It is skipped if a Follow-up or another Run comes first, a Worker update is still unread or a Worker is still working, someone unarchives the Session after your call, the Session is pinned when the archive runs, or this Run fails or is stopped. A steer into this Run does not skip it; unarchive if the user now wants to keep the Session. Archiving a Heartbeat's Session pauses that Heartbeat until the user restores the Session and turns it back on."

@@ -26,6 +26,7 @@ import { withSessionCommandSerialization } from './session-command-serialization
 import { publishControlResponse } from './session-control-event-projection'
 import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { refuseRestoreWhileRemovalFenced } from './session-restore-fence'
+import { hasPendingSelfArchive } from './session-self-archive'
 
 const logger = createLogger('hive-worker-cleanup')
 const HIVE_RESTORE_IDEMPOTENCY_PREFIX = 'hive-restore:'
@@ -43,6 +44,8 @@ function hasLiveWorkerActivity(sessionId: SessionId) {
   return (
     hasAnyActiveRun(sessionId) ||
     isSessionRemovalFenced(sessionId) ||
+    // The Worker's own agent asked to archive it; that explicit archive decides, not cleanup.
+    hasPendingSelfArchive(sessionId) ||
     listPendingAgentLoopInteractions(sessionId).length > 0
   )
 }

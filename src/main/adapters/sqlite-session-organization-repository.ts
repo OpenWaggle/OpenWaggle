@@ -26,6 +26,7 @@ import {
   type OrganizationWorkspaceRow,
   resolveHandoffWorkspace,
 } from './sqlite-session-organization-workspace'
+import { readSessionSelfArchiveState } from './sqlite-session-self-archive-state'
 
 interface OperationRow {
   readonly request_json: string
@@ -225,6 +226,7 @@ export const SqliteSessionOrganizationRepositoryLive = Layer.effect(
     return SessionOrganizationRepository.of({
       prepareArchive: (input) =>
         prepareSessionArchive(sql, input, () => executeOrganization(sql, input)),
+      readSelfArchiveState: (input) => readSessionSelfArchiveState(sql, input),
       execute: (input) => executeOrganization(sql, input),
       admitExistingHandoff: (input) => admitExistingHandoff(sql, input),
       completeExistingHandoff: (input) => completeExistingHandoff(sql, input),

@@ -72,6 +72,7 @@ export function dispatchAcceptedSessionControlRun(
       'export-cancellation-requested',
       'session-renamed',
       'session-archived',
+      'session-archive-deferred',
       'session-unarchived',
       'session-handed-off',
       'rejected',

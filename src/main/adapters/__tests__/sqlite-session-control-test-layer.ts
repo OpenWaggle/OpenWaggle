@@ -12,6 +12,7 @@ import {
 } from '../../ports/session-workspace-handoff-service'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from '../../services/database-session-lineage-schema'
+import { PINNED_SESSIONS_MIGRATION } from '../../services/pinned-sessions-migration'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
 import { SqliteExplicitWaggleOperationJournalLive } from '../sqlite-explicit-waggle-operation-journal'
 import { SqliteSessionControlOperationJournalLive } from '../sqlite-session-control-operation-journal'
@@ -47,6 +48,9 @@ export function makeSessionControlTestLayer(
         yield* sql.unsafe(statement)
       }
       for (const statement of CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      for (const statement of PINNED_SESSIONS_MIGRATION.statements) {
         yield* sql.unsafe(statement)
       }
       yield* sql`
