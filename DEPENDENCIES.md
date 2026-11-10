@@ -90,6 +90,7 @@ One row covers every manifest that pins the package at that version.
 | `mammoth` | `1.12.3` | Behind latest; next monthly batch (docs/dependency-updates.md) | `1.12.3` |
 | `node-gyp` | `12.4.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `12.4.0` |
 | `node-pty` | `1.1.0` | Native module, patched (`patches/node-pty@1.1.0.patch`); re-port the patch before moving | `1.1.0` |
+| `oxc-parser` | `0.148.0` | The version `react-doctor` `0.9.22` already installs, so the lint rule tests add no package; move with `react-doctor` | `0.148.0` |
 | `oxfmt` | `0.76.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `0.76.0` |
 | `oxlint` | `1.91.0` | Behind latest; next monthly batch (docs/dependency-updates.md) | `1.91.0` |
 | `oxlint-tsgolint` | `7.0.2005` | Behind latest; next monthly batch (docs/dependency-updates.md) | `7.0.2005` |

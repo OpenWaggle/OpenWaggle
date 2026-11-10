@@ -233,6 +233,7 @@
     "lucide-react": "1.46.0",
     "micromatch": "4.0.8",
     "node-gyp": "12.4.0",
+    "oxc-parser": "0.148.0",
     "oxfmt": "0.76.0",
     "oxlint": "1.91.0",
     "oxlint-tsgolint": "7.0.2005",

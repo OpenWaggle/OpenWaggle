@@ -1,5 +1,6 @@
 import type { Context, Plugin, Rule } from '@oxlint/plugins'
-import { RuleTester } from 'oxlint/plugins-dev'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { parseSync, Visitor, type VisitorObject } from 'oxc-parser'
 
 /** A finding as the rule tests assert on it: rule, resolved message and 1-based position. */
 export interface LintMessage {
@@ -9,12 +10,13 @@ export interface LintMessage {
   readonly column: number
 }
 
-interface ReportedPosition {
+interface LineColumn {
   readonly line: number
   readonly column: number
 }
 
 type ReportDescriptor = Parameters<Context['report']>[0]
+type Comment = ReturnType<Context['sourceCode']['getAllComments']>[number]
 
 /** A rule option as JSON, the form a lint config passes it in. */
 export type JsonValue =
@@ -24,15 +26,6 @@ export type JsonValue =
   | null
   | JsonValue[]
   | { [key: string]: JsonValue }
-
-// RuleTester registers a describe/it per case; run them inline so each `lint()` call parses and
-// lints synchronously inside the calling test.
-RuleTester.describe = (_name, run) => run()
-RuleTester.it = (_name, run) => run()
-
-const tester = new RuleTester({
-  languageOptions: { sourceType: 'module', parserOptions: { lang: 'tsx' } },
-})
 
 function messageTemplate(rule: Rule, descriptor: ReportDescriptor) {
   if (descriptor.messageId) {
@@ -49,20 +42,68 @@ function resolveMessage(rule: Rule, descriptor: ReportDescriptor) {
   )
 }
 
-function reportedStart(context: Context, descriptor: ReportDescriptor): ReportedPosition {
+/** oxlint's positions: 1-based lines, 0-based columns. */
+function locator(text: string) {
+  const lineStarts = [0]
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === '\n') lineStarts.push(index + 1)
+  }
+  return (offset: number): LineColumn => {
+    let line = lineStarts.length - 1
+    while (line > 0 && (lineStarts[line] ?? 0) > offset) line -= 1
+    return { line: line + 1, column: offset - (lineStarts[line] ?? 0) }
+  }
+}
+
+function isAstNode(value: unknown): value is object {
+  return (
+    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+  )
+}
+
+/** Sets `parent` on every node, as oxlint does for JS plugins; the Program's is null. */
+function linkParents(program: object) {
+  Reflect.set(program, 'parent', null)
+  const pending: Array<{ readonly parent: object; readonly value: unknown }> = [
+    { parent: program, value: Object.values(program) },
+  ]
+  while (true) {
+    const next = pending.pop()
+    if (next === undefined) return
+    const { parent, value } = next
+    if (Array.isArray(value)) {
+      const items: readonly unknown[] = value
+      for (const item of items) pending.push({ parent, value: item })
+      continue
+    }
+    if (!isAstNode(value)) continue
+    Reflect.set(value, 'parent', parent)
+    for (const [key, child] of Object.entries(value)) {
+      if (key !== 'parent') pending.push({ parent: value, value: child })
+    }
+  }
+}
+
+function reportedStart(
+  descriptor: ReportDescriptor,
+  locate: (offset: number) => LineColumn,
+): LineColumn {
   if (descriptor.loc) {
     return 'start' in descriptor.loc ? descriptor.loc.start : descriptor.loc
   }
   if (descriptor.node) {
-    return context.sourceCode.getLocFromIndex(descriptor.node.range[0])
+    return locate(descriptor.node.range[0])
   }
   return { line: 0, column: 0 }
 }
 
 /**
  * Lints `code` as `filename` with one rule of `plugin` and returns its findings sorted by
- * position. The rule runs inside oxlint's RuleTester; its reports are collected instead of
- * asserted, so tests keep asserting on messages the way they did with ESLint's Linter.
+ * position. The source is parsed as TSX with oxc, the parser oxlint uses, into the same ESTree
+ * shape oxlint gives JS plugins, and the rule's visitor runs over it in source order.
+ *
+ * oxlint's own RuleTester cannot run here: it shares a 6 GiB `ArrayBuffer` with the parser, which
+ * Bun, the test runtime, does not allow, so it refuses to start on Bun.
  */
 export function lintWithRule(
   plugin: Plugin,
@@ -78,45 +119,63 @@ export function lintWithRule(
     throw new Error(`Unknown rule ${ruleId}`)
   }
 
-  const messages: LintMessage[] = []
-  const collectingRule: Rule = {
-    ...rule,
-    create(context) {
-      // The context is frozen, so the proxy wraps a copy and forwards every other key to it.
-      const collectingContext = new Proxy<Context>(
-        { ...context },
-        {
-          get(_target, key) {
-            if (key === 'report') {
-              return (descriptor: ReportDescriptor) => {
-                const start = reportedStart(context, descriptor)
-                messages.push({
-                  ruleId,
-                  message: resolveMessage(rule, descriptor),
-                  line: start.line,
-                  column: start.column + 1,
-                })
-              }
-            }
-            const value: unknown = Reflect.get(context, key, context)
-            if (typeof value !== 'function') {
-              return value
-            }
-            return (...args: unknown[]) => {
-              const result: unknown = Reflect.apply(value, context, args)
-              return result
-            }
-          },
-        },
-      )
-      return create(collectingContext)
-    },
+  const parsed = parseSync(filename, code, {
+    lang: 'tsx',
+    sourceType: 'module',
+    range: true,
+    preserveParens: false,
+  })
+  const [parseError] = parsed.errors
+  if (parseError) {
+    throw new Error(`${filename} does not parse: ${parseError.message}`)
   }
 
-  tester.run(ruleId, collectingRule, {
-    valid: [options.length > 0 ? { code, filename, options: [...options] } : { code, filename }],
-    invalid: [],
+  const locate = locator(code)
+  const comments = parsed.comments.map((comment): Comment =>
+    fromPartial({
+      ...comment,
+      range: [comment.start, comment.end],
+      loc: { start: locate(comment.start), end: locate(comment.end) },
+    }),
+  )
+  const messages: LintMessage[] = []
+  const context = fromPartial<Context>({
+    id: ruleId,
+    filename,
+    physicalFilename: filename,
+    options: [...options],
+    sourceCode: fromPartial({
+      text: code,
+      getAllComments: () => comments,
+      getLocFromIndex: locate,
+    }),
+    report: (descriptor: ReportDescriptor) => {
+      const start = reportedStart(descriptor, locate)
+      messages.push({
+        ruleId,
+        message: resolveMessage(rule, descriptor),
+        line: start.line,
+        column: start.column + 1,
+      })
+    },
   })
+
+  const handlers: VisitorObject = Object.fromEntries(
+    Object.entries(create(context)).flatMap(([selector, handler]) =>
+      typeof handler === 'function'
+        ? [
+            [
+              selector,
+              (node: unknown) => {
+                Reflect.apply(handler, undefined, [node])
+              },
+            ],
+          ]
+        : [],
+    ),
+  )
+  linkParents(parsed.program)
+  new Visitor(handlers).visit(parsed.program)
 
   return messages.toSorted((left, right) => left.line - right.line || left.column - right.column)
 }
