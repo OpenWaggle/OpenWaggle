@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionHostRecoveryRepositoryError } from '../errors'
 import { SessionHostRecoveryRepository } from '../ports/session-host-recovery-repository'
+import { localUserFollowUpSql } from './sqlite-local-user-follow-up'
 
 interface RunRow {
   readonly id: string
@@ -90,6 +91,30 @@ function pauseRemainingPendingQueues(sql: SqlClient.SqlClient, now: number) {
   `
 }
 
+/**
+ * An idle queue waiting on agents' capacity still holding the person's pending Follow-up kept it
+ * for an edit or a failed Run's retry, both lost with the Host. Nothing delivers it now, so the
+ * queue waits for the person's Resume like any queue the loss paused.
+ */
+function pausePersonFollowUpsPastCapacity(sql: SqlClient.SqlClient, now: number) {
+  return sql`
+    UPDATE session_control_states
+    SET
+      queue_pause_reason = ${'host-lost'},
+      state_revision = state_revision + 1,
+      queue_revision = queue_revision + 1,
+      updated_at = ${now}
+    WHERE queue_state = ${'paused'}
+      AND queue_pause_reason = ${'parent-limit'}
+      AND EXISTS (
+        SELECT 1 FROM session_follow_ups AS follow_ups
+        WHERE follow_ups.session_id = session_control_states.session_id
+          AND follow_ups.delivery_state = ${'pending'}
+          AND ${sql.literal(localUserFollowUpSql('follow_ups'))}
+      )
+  `
+}
+
 function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
   return sql
     .withTransaction(
@@ -140,6 +165,7 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
           `
         }
         yield* pauseRemainingPendingQueues(sql, now)
+        yield* pausePersonFollowUpsPastCapacity(sql, now)
         const pendingOperations = yield* sql<PendingOperationRow>`
           SELECT id, caller_id, operation, target_scope, idempotency_key, request_json, status
           FROM session_operations

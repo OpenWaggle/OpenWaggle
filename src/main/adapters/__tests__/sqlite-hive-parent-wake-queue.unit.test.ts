@@ -17,7 +17,7 @@ const AGENT = 'transient-mcp:digest-agent'
 function wakeWithAgentFollowUp(
   root: string,
   queue: { readonly state: string; readonly reason?: string },
-  personFollowUp = false,
+  person?: { readonly callerId: string; readonly deliveryState: string },
 ) {
   return runHiveWakeTest(
     root,
@@ -44,14 +44,17 @@ function wakeWithAgentFollowUp(
           ${1}, ${1}
         )
       `
-      if (personFollowUp) {
+      if (person) {
         // The person's Follow-up behind it, which waits only while an edit holds it.
-        const mine = { ...intent, callerId: 'gui:local-user', idempotencyKey: 'mine' }
+        const mine = { ...intent, callerId: person.callerId, idempotencyKey: 'mine' }
         yield* sql`
           INSERT INTO session_follow_ups (
-            id, session_id, position, delivery_state, intent_json, created_at, updated_at
+            id, session_id, position, delivery_state, attention_reason, intent_json,
+            created_at, updated_at
           ) VALUES (
-            ${'mine'}, ${'session-parent'}, ${1}, ${'pending'}, ${JSON.stringify(mine)}, ${1}, ${1}
+            ${'mine'}, ${'session-parent'}, ${1}, ${person.deliveryState},
+            ${person.deliveryState === 'pending' ? null : 'profile_revoked'}, ${JSON.stringify(mine)},
+            ${1}, ${1}
           )
         `
       }
@@ -80,10 +83,22 @@ describe('Hive wake beside queued Follow-ups', () => {
     expect(woken).toMatchObject({ parentSessionId: 'session-parent', callerId: 'gui:local-user' })
   })
 
-  it('leaves the person’s Follow-up in a queue waiting on agents’ capacity to run first', async () => {
-    expect(
-      await wakeWithAgentFollowUp(root, { state: 'paused', reason: 'parent-limit' }, true),
-    ).toBeUndefined()
+  it.each(['gui:local-user', 'local-user:cli'])(
+    'leaves the person’s Follow-up (%s) in a queue waiting on agents’ capacity to run first',
+    async (callerId) => {
+      const waits = { state: 'paused', reason: 'parent-limit' }
+      expect(
+        await wakeWithAgentFollowUp(root, waits, { callerId, deliveryState: 'pending' }),
+      ).toBeUndefined()
+    },
+  )
+
+  it('passes the person’s Follow-up that needs attention, which does not deliver', async () => {
+    const waits = { state: 'paused', reason: 'parent-limit' }
+    const person = { callerId: 'gui:local-user', deliveryState: 'needs_attention' }
+    expect(await wakeWithAgentFollowUp(root, waits, person)).toMatchObject({
+      parentSessionId: 'session-parent',
+    })
   })
 
   it.each([

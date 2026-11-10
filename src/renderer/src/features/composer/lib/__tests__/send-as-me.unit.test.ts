@@ -119,6 +119,17 @@ describe('sendAsMeStartsNow mirrors the Host adoption rule', () => {
       ).toBe(false)
     })
 
+    it('waits behind this user’s CLI message, which the Host also starts first', () => {
+      const cli = { ...item('cli', 'pending'), callerId: 'local-user:cli' }
+      expect(
+        startsNow({
+          state: 'paused',
+          pauseReason: 'parent-limit',
+          items: [cli, item('a', 'needs_attention')],
+        }),
+      ).toBe(false)
+    })
+
     it('waits behind an edit up to it', () => {
       const held = {
         ...agents,

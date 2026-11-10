@@ -6,6 +6,7 @@ import type {
   HiveParentWakeCandidate,
   HiveParentWakeQuery,
 } from '../ports/session-orchestration-update-repository'
+import { localUserFollowUpSql } from './sqlite-local-user-follow-up'
 
 interface WakeCandidateRow {
   readonly latest_run_id: string
@@ -28,12 +29,6 @@ function triggerCallerIds(value: string): readonly (string | null)[] {
 function runAuthorizationOverride(value: string | null) {
   return AGENT_AUTHORIZATION_MODES.find((mode) => mode === value)
 }
-
-/** A Follow-up the local desktop user sent (`isLocalUserCallerId`). */
-const LOCAL_USER_FOLLOW_UP_SQL = `(
-  json_extract(follow_ups.intent_json, '$.callerId') IN ('local-user', 'gui:local-user')
-  OR json_extract(follow_ups.intent_json, '$.callerId') LIKE 'local-user:%'
-)`
 
 /**
  * The parent to wake, read in one statement (`hive-parent-wake.ts`). An update is pending until a
@@ -89,7 +84,7 @@ export function selectHiveParentWakeCandidate(
               OR states.queue_pause_reason IS NOT ${'parent-limit'}
               OR (
                 follow_ups.delivery_state = ${'pending'}
-                AND ${sql.literal(LOCAL_USER_FOLLOW_UP_SQL)}
+                AND ${sql.literal(localUserFollowUpSql('follow_ups'))}
               )
             )
         )

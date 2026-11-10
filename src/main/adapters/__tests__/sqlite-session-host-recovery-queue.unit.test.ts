@@ -135,4 +135,42 @@ describe('SQLite Session Host queue recovery', () => {
 
     expect(reason).toBe(expected)
   })
+
+  // A held or deferred Follow-up of the person's was lost with the Host: it waits for Resume.
+  it.each([
+    ['the person’s', 'local-user:cli', 'pending', 'host-lost'],
+    ['an agent’s', 'transient-mcp:digest-agent', 'pending', 'parent-limit'],
+    ['the person’s needing attention', 'gui:local-user', 'needs_attention', 'parent-limit'],
+  ] as const)(
+    'recovers an idle queue waiting on capacity with %s Follow-up',
+    async (_, callerId, deliveryState, expected) => {
+      const layer = makeQueueRecoveryLayer(
+        path.join(temporaryRoot, `idle-${expected}-${deliveryState}.sqlite`),
+      )
+      const reason = await Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`
+            UPDATE session_control_states
+            SET queue_state = ${'paused'}, queue_pause_reason = ${'parent-limit'}
+            WHERE session_id = ${'session-queued'}
+          `
+          yield* sql`
+            UPDATE session_follow_ups
+            SET intent_json = ${JSON.stringify({ callerId })}, delivery_state = ${deliveryState},
+              attention_reason = ${deliveryState === 'pending' ? null : 'profile_revoked'}
+          `
+          const repository = yield* SessionHostRecoveryRepository
+          yield* repository.recoverAfterHostLoss(10)
+          const [state] = yield* sql<{ readonly queue_pause_reason: string | null }>`
+            SELECT queue_pause_reason FROM session_control_states
+            WHERE session_id = ${'session-queued'}
+          `
+          return state?.queue_pause_reason
+        }).pipe(Effect.provide(layer)),
+      )
+
+      expect(reason).toBe(expected)
+    },
+  )
 })
