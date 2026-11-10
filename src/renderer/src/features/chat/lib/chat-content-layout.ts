@@ -1,4 +1,7 @@
-import type { CSSProperties } from 'react'
+import {
+  SESSION_SUMMARY_RIGHT_INSET_PX,
+  SESSION_SUMMARY_WIDTH_PX,
+} from '@/features/session-summary'
 
 /**
  * The shared horizontal frame for chat content and the composer.
@@ -6,30 +9,35 @@ import type { CSSProperties } from 'react'
  * Transcript rows used to keep a 48px gutter while the composer used 20px. Both had the same
  * outer cap, but the useful reading width drifted by 56px. Keeping the cap and gutter together
  * makes ordinary messages, Waggle turns, status rows, and the composer align as one conversation.
+ * `chat-content-frame` is the hook globals.css uses to move every frame clear of a docked Session
+ * Summary.
  */
 export const CHAT_CONTENT_MAX_WIDTH_PX = 720
-export const CHAT_CONTENT_FRAME_CLASS = 'mx-auto w-full max-w-180 px-5'
+export const CHAT_CONTENT_FRAME_CLASS = 'chat-content-frame mx-auto w-full max-w-180 px-5'
 
-/** The docked Session Summary's width, its inset from the right, and its gap to the chat. */
-export const SESSION_SUMMARY_FOOTPRINT_PX = 300 + 16 + 16
-/**
- * The conversation column a docked Summary must leave. Below it the Summary waits to be opened,
- * as an overlay, so a narrow window keeps its conversation.
- */
-export const SESSION_SUMMARY_MIN_CONVERSATION_WIDTH_PX = 400
+/** The gap between a docked Session Summary and the conversation frame. */
+const SESSION_SUMMARY_CONTENT_GAP_PX = 16
+/** The width a docked Session Summary takes from the right of the chat panel. */
+export const SESSION_SUMMARY_FOOTPRINT_PX =
+  SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX
 
-/**
- * Moves the conversation out from under a docked (persistent) Session Summary, which floats over
- * the chat panel's right side. The rule lives in globals.css (`.session-summary-docking`): a right
- * padding of `clamp(0px, 2 * footprint + max width - 100%, footprint)`, the least that keeps the
- * centered frame clear of the Summary, from the properties in `SESSION_SUMMARY_DOCKING_STYLE`.
- * A transient Summary still floats over the chat.
- */
+/** The chat panel's class while it can dock a Session Summary; globals.css keys on it. */
 export const SESSION_SUMMARY_DOCKED_CHAT_CLASS = 'session-summary-docking'
-export const SESSION_SUMMARY_DOCKING_STYLE: CSSProperties & {
-  readonly '--session-summary-footprint': string
-  readonly '--chat-content-max-width': string
-} = {
-  '--session-summary-footprint': `${SESSION_SUMMARY_FOOTPRINT_PX}px`,
-  '--chat-content-max-width': `${CHAT_CONTENT_MAX_WIDTH_PX}px`,
+/** The custom property, in px, by which the conversation frames move clear of the Summary. */
+export const SESSION_SUMMARY_RESERVE_PROPERTY = '--session-summary-reserve'
+
+/**
+ * The least width a docked Summary must take from the conversation for the centered frame to clear
+ * it: none where the panel has room beside the centered column, up to the whole footprint, where the
+ * frame fills what is left. A frame of width f centered in w - r ends at (w - r + f) / 2, which
+ * clears the Summary at w - footprint when r >= 2 * footprint + f - w.
+ */
+export function sessionSummaryReservePx(panelWidth: number) {
+  // The footprint counts on both sides of the centered frame.
+  const needed =
+    SESSION_SUMMARY_FOOTPRINT_PX +
+    SESSION_SUMMARY_FOOTPRINT_PX +
+    CHAT_CONTENT_MAX_WIDTH_PX -
+    panelWidth
+  return Math.min(SESSION_SUMMARY_FOOTPRINT_PX, Math.max(0, needed))
 }

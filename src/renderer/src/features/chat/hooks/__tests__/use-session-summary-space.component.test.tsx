@@ -3,15 +3,14 @@ import { useLayoutEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionSummarySpace } from '../use-session-summary-space'
 
-/** The 316px sidebar and the 44px panel rail beside the chat panel. */
-const WINDOW_CHROME_PX = 316 + 44
-
 describe('useSessionSummarySpace', () => {
   const observed: Element[] = []
+  const observedOptions: (ResizeObserverOptions | undefined)[] = []
   const callbacks: ResizeObserverCallback[] = []
 
   beforeEach(() => {
     observed.length = 0
+    observedOptions.length = 0
     callbacks.length = 0
     vi.stubGlobal(
       'ResizeObserver',
@@ -19,8 +18,9 @@ describe('useSessionSummarySpace', () => {
         constructor(callback: ResizeObserverCallback) {
           callbacks.push(callback)
         }
-        observe(element: Element) {
+        observe(element: Element, options?: ResizeObserverOptions) {
           observed.push(element)
+          observedOptions.push(options)
         }
         disconnect() {}
         unobserve() {}
@@ -35,7 +35,7 @@ describe('useSessionSummarySpace', () => {
    * passive effect, which React may run after paint, a narrow window first painted the docked
    * Summary. It has to observe the panel by the end of the commit's layout effects.
    */
-  it('observes the panel before the commit that mounts it can paint', () => {
+  it('observes the panel border box before the commit that mounts it can paint', () => {
     const observedDuringLayout: number[] = []
     function Panel() {
       const { panelRef } = useSessionSummarySpace(false)
@@ -57,38 +57,51 @@ describe('useSessionSummarySpace', () => {
     )
 
     expect(observedDuringLayout).toEqual([1])
+    // Docking moves the conversation frames, not the panel's border box, so it cannot feed back.
+    expect(observedOptions).toEqual([{ box: 'border-box' }])
   })
 
-  /** The chat panel of a `windowWidth` window, as measured in the app, reported to the hook. */
-  function measureWindow(windowWidth: number) {
-    let hasSpace = true
+  function renderPanel() {
+    let hasSpace: boolean | null = null
     function Panel() {
       const space = useSessionSummarySpace(false)
       hasSpace = space.hasSpace
       return <div ref={space.panelRef} data-testid="panel" />
     }
-    const view = render(<Panel />)
-    Object.defineProperty(view.getByTestId('panel'), 'clientWidth', {
-      configurable: true,
-      value: windowWidth - WINDOW_CHROME_PX,
-    })
-    const [callback] = callbacks
-    if (!callback) throw new Error('The panel is not observed.')
-    act(() => callback([], { observe() {}, unobserve() {}, disconnect() {} }))
-    return hasSpace
+    const panel = render(<Panel />).getByTestId('panel')
+    const resize = (width: number) => {
+      Object.defineProperty(panel, 'clientWidth', { configurable: true, value: width })
+      const [callback] = callbacks
+      if (!callback) throw new Error('The panel is not observed.')
+      act(() => callback([], { observe() {}, unobserve() {}, disconnect() {} }))
+      return {
+        hasSpace,
+        reserve: panel.style.getPropertyValue('--session-summary-reserve'),
+      }
+    }
+    return { resize }
   }
 
-  /*
-   * The Summary used to dock only where it fit beside the centered conversation column, a chat
-   * panel of about 1,384px, so it was hidden by default in the default 1,200px window and in
-   * laptop-width ones, including a 1,728px MacBook Pro window, 8px short.
-   */
-  it.each([1200, 1440, 1512, 1728])('docks the Summary by default in a %ipx window', (width) => {
-    expect(measureWindow(width)).toBe(true)
+  // The chat's minimum width beside the Summary's 332px footprint (300 + 16 inset + 16 gap).
+  it.each([
+    [440, false, '332px'],
+    [751, false, '332px'],
+    [752, true, '332px'],
+    [840, true, '332px'],
+    [1_080, true, '304px'],
+    [1_368, true, '16px'],
+    [1_560, true, '0px'],
+  ])('measures a %ipx chat panel: docks %s, reserve %s', (width, docks, reserve) => {
+    // Start on the other side of the threshold so the result is the measurement's, not the default.
+    const panel = renderPanel()
+    panel.resize(docks ? 440 : 1_560)
+    expect(panel.resize(width)).toEqual({ hasSpace: docks, reserve })
   })
 
-  it('leaves the Summary to be opened by hand where it would leave too little conversation', () => {
-    // The minimum 800px window leaves a 440px chat panel beside the sidebar.
-    expect(measureWindow(800)).toBe(false)
+  it('keeps its answer when the same width is reported again', () => {
+    const panel = renderPanel()
+    const first = panel.resize(900)
+    expect(panel.resize(900)).toEqual(first)
+    expect(first.hasSpace).toBe(true)
   })
 })

@@ -17,7 +17,9 @@ Click **Open Session Summary** in the header, or run **Toggle Session Summary** 
 
 The Summary appears once a session has something to show. For an ordinary session that means you have sent its first message. A session in a [Hive](/docs/using-openwaggle/hives-and-sessions), a session with project action or workspace setup activity, and a session with a scheduled Heartbeat show it before that.
 
-It opens by itself unless you hid it for that session. OpenWaggle remembers, for each session, whether you left the Summary open and which of its sections you expanded. The conversation and message box never sit under the open Summary. When the window is not wide enough for both side by side, they move left, or get narrower, and they move back when you hide it. In a narrow window, where the chat area is less than 732 pixels wide, it does not open by itself. Opening it there is temporary, and it floats over the conversation. Press `Escape` or click outside it to dismiss it, and your choice for wide windows stays as it was. Resizing the window does not clear your message draft, its command chips, or interactive visualizations.
+It opens by itself unless you hid it for that session. OpenWaggle remembers, for each session, whether you left the Summary open and which of its sections you expanded. When it opens by itself, the conversation and message box move left or get narrower so they never sit under it. They move back when you hide it.
+
+In a narrow window, where the chat area is less than 752 pixels wide (about 1,110 pixels of window with the sidebar open), the Summary does not open by itself. Opening it there is temporary, and it floats over the conversation. Press `Escape` or click outside it to dismiss it, and your choice for wide windows stays as it was. Resizing the window does not clear your message draft, its command chips, or interactive visualizations.
 
 A few things take the Summary's place:
 

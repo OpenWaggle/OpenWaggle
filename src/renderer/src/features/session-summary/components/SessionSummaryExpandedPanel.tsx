@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { SESSION_SUMMARY_PERSISTENT_MODE } from '../model/session-summary-layout'
 
 export interface SessionSummaryPanelSection {
   readonly id: string
@@ -51,7 +52,9 @@ export function SessionSummaryExpandedPanel({
       <aside
         id={input.panelId}
         aria-label="Session Summary"
-        data-session-summary-mode={input.transient ? 'transient' : 'persistent'}
+        // The chat panel keeps its conversation clear of a persistent Summary: globals.css
+        // `.session-summary-docking` matches this attribute (session-summary-layout.ts).
+        data-session-summary-mode={input.transient ? 'transient' : SESSION_SUMMARY_PERSISTENT_MODE}
         data-native-preview-occluder={input.sessionId}
         className={cn(
           animateEntrance && 'session-summary-panel-enter',
