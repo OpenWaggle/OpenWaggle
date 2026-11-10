@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mutateSessionQueue } from '../../application/session-control-service'
+import { ensureFollowUpEditHoldTable } from '../sqlite-follow-up-edit-holds'
 import {
   followUpEditLayer,
   idleQueue,
@@ -115,5 +117,44 @@ describe('Follow-up delivery at the Worker ceiling', () => {
       followUpId: 'agent-next',
     })
     expect(result.after.run).toMatchObject({ state: 'starting' })
+  })
+
+  it('holds a failed Run’s agent retry to the ceiling though the person’s Follow-up waits behind it', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        // The queue a failed Run left: paused, with an agent's retry sent after the failure.
+        yield* idleQueue([{ id: 'mine' }, { id: 'agent-retry', acceptedAt: 300 }], 'paused')
+        yield* busyWorkerHive
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE session_control_states SET queue_pause_reason = ${'run-failed'}
+          WHERE session_id = ${SESSION}
+        `
+        yield* ensureFollowUpEditHoldTable(sql)
+        yield* sql`
+          INSERT INTO temp.session_follow_up_deferred_retries (session_id, accepted_after)
+          VALUES (${SESSION}, ${200})
+        `
+        const before = yield* loadState()
+        const reordered = yield* mutateSessionQueue({
+          callerId: AGENT,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-reorder',
+            sessionId: SESSION,
+            expectedQueueRevision: before.followUpQueue.revision,
+            orderedFollowUpIds: ['agent-retry', 'mine'],
+          }),
+        })
+        return { reordered, after: yield* loadState() }
+      }).pipe(Effect.provide(layer('failed-retry-paused.sqlite'))),
+    )
+
+    // The retry leaves the queue paused, so it does not go on to the person's Follow-up.
+    expect(result.reordered.outcome).toMatchObject({
+      effect: 'queue-updated',
+      queueState: 'paused',
+    })
+    expect(result.after.run).toEqual({ state: 'idle' })
   })
 })

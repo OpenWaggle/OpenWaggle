@@ -295,7 +295,7 @@ Two settings in **Settings > Agents > Hive controls** cap how much agents' work 
 The limits never hold back you:
 
 - A message, follow-up or queue action (such as **Resume**) you send, from the app or the `openwaggle` command line, is never refused, even in a worker. Nor are a follow-up you queued, a `replace` of a run, your own `launch`, your tasks' scheduled firings and a **Run now** you ask for. A task that runs as an access profile runs as that profile even when you choose **Run now**, so it is held to the limits like the profile's other work. Starting a worker with `spawn` is the exception: it is agents' work, whoever asks.
-- Your runs outside workers never count toward the limits, so however busy your Hives are you can reply to a Queen, keep working in your sessions and start new ones.
+- Your runs outside workers never count toward the limits, so however busy your Hives are you can reply to a Queen, keep working in your sessions and start new ones. When you resume an agent's queued follow-up, it starts at once but counts as that agent's work.
 - A running queue delivers in order, so when a follow-up you queued waits behind one an agent queued, the agent's is delivered anyway and yours follows. A queue paused at the limits is delivered again when the session's run ends and it holds a follow-up of yours, and **Resume** sends it at once.
 - When your run ends and an agent's queued follow-up would start, or an agent replaces your run, that agent's run waits for the limits like any other.
 - MCP clients (including `openwaggle mcp serve --owner`) and access profiles are held to the limits like agents.

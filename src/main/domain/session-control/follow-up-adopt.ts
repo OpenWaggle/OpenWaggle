@@ -69,12 +69,15 @@ function adopted(item: SessionControlFollowUp, callerId: string): SessionControl
 
 /**
  * The pause reasons the needs-attention paths leave: a revoked profile pausing a running queue
- * records `profile-revoked`, and a head whose authority changed pauses it with no reason. Any
+ * records `profile-revoked`, and a head whose authority changed pauses it with no reason. A queue
+ * parked at the Worker limits (`parent-limit`) waits on agents' capacity, which the person's own
+ * work never does, so adopting its item lifts that pause too (ADR 0030, amended 2026-11-09). Any
  * other reason, including `requested`, came from somewhere else and outlives the adoption.
  */
 const ATTENTION_PAUSE_REASONS: readonly (FollowUpQueuePauseReason | undefined)[] = [
   undefined,
   'profile-revoked',
+  'parent-limit',
 ]
 
 function resumesAttentionPause(queue: SessionControlSessionState['followUpQueue']) {
