@@ -74,7 +74,11 @@ describe('runsAsAfterUpdate', () => {
   })
 
   it('keeps the limits when an edit sends the work it already has', async () => {
-    const kept = { creatorCallerId: 'profile:ci', authorityLimits: PROFILE_TASK.authorityLimits }
+    const kept = {
+      creatorCallerId: 'profile:ci',
+      authorityLimits: PROFILE_TASK.authorityLimits,
+      workByAgent: true,
+    }
     // What the app's editor sends when the owner only renames or reschedules a Heartbeat.
     expect(
       await runsAs(owner, {
@@ -102,11 +106,13 @@ describe('runsAsAfterUpdate', () => {
       expect(await runsAs(owner, { heartbeat }, task)).toEqual({
         creatorCallerId: 'profile:ci',
         authorityLimits: PROFILE_TASK.authorityLimits,
+        workByAgent: true,
       })
     }
     expect(await runsAs(owner, { heartbeat: { wakeCheck: { command: 'true' } } }, task)).toEqual({
       creatorCallerId: 'profile:ci',
       authorityLimits: null,
+      workByAgent: true,
     })
   })
 
@@ -121,6 +127,7 @@ describe('runsAsAfterUpdate', () => {
       expect(await runsAs(owner, { heartbeat })).toEqual({
         creatorCallerId: 'profile:ci',
         authorityLimits: null,
+        workByAgent: true,
       })
     }
     expect(
@@ -206,7 +213,11 @@ describe('runsAsAfterUpdate', () => {
         target: PROFILE_TASK.target,
         heartbeat: { stopWhen: ' CI is green. ', wakeCheck: { command: 'gh pr checks ' } },
       }),
-    ).toEqual({ creatorCallerId: 'profile:ci', authorityLimits: PROFILE_TASK.authorityLimits })
+    ).toEqual({
+      creatorCallerId: 'profile:ci',
+      authorityLimits: PROFILE_TASK.authorityLimits,
+      workByAgent: true,
+    })
   })
 })
 
