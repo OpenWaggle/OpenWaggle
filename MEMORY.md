@@ -1159,8 +1159,9 @@ attachment rows stay owned by the author: every resolve or release of a Follow-u
 `callerId` failed promotion of an adopted Follow-up with `attachment_resolution_failed`. Every
 needs-attention path also pauses the queue (`applyFollowUpAuthorizationState` with no pause reason,
 profile revocation with `profile-revoked`), so `adoptFollowUp` resumes the queue in the same
-mutation when it is paused with no reason or `profile-revoked` and no item still needs attention;
-`requested` (and run-failed, host-lost, parent-limit) stay paused. `queue-adopt` is a delivering
+mutation when it is paused with no reason, `profile-revoked` or `parent-limit` (the person's work never
+waits on agents' capacity) and no item still needs attention; `requested` (and run-failed, host-lost)
+stay paused. `queue-adopt` is a delivering
 operation, so an idle Session then starts its head through `deliverAfterQueueDecision` (head
 authorization; adopt is the desktop user's, so the Worker limits never refuse it) and the outcome is
 `started-run`. Clients gate `queue-adopt` (and every command) by the shared

@@ -169,7 +169,7 @@ export type SessionLifecycleOutcome =
       readonly retryable: boolean
       readonly parentConcurrencyLimit?: number
       readonly parentRunningChildren?: number
-      /** The Host's ceiling on active Runs of agents' work; the person's Runs never count. */
+      /** The Host's ceiling on active Runs of agents' work; the person's count only in Workers. */
       readonly hostRunCeiling?: number
       /** Active Runs of agents' work across the Host when the request was refused. */
       readonly hostActiveRuns?: number

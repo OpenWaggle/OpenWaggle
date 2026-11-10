@@ -16,6 +16,7 @@ import {
   USER,
 } from './sqlite-follow-up-edit-hold.test-support'
 import { AGENT, busyWorkerHive } from './sqlite-follow-up-worker-ceiling.test-support'
+import { adopt } from './sqlite-session-control-follow-up-adopt.test-support'
 
 let tmpRoot = ''
 
@@ -156,5 +157,39 @@ describe('Follow-up delivery at the Worker ceiling', () => {
       queueState: 'paused',
     })
     expect(result.after.run).toEqual({ state: 'idle' })
+  })
+
+  it('starts the Follow-up the person sends as their own from a queue parked at the limits', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue([{ id: 'follow-up-stuck' }], 'paused')
+        yield* busyWorkerHive
+        const sql = yield* SqlClient.SqlClient
+        // Parked at the limits, then its profile was revoked: the person may send it as theirs.
+        yield* sql`
+          UPDATE session_follow_ups
+          SET delivery_state = ${'needs_attention'}, attention_reason = ${'profile_revoked'}
+          WHERE id = ${'follow-up-stuck'}
+        `
+        yield* sql`
+          UPDATE session_control_states SET queue_pause_reason = ${'parent-limit'}
+          WHERE session_id = ${SESSION}
+        `
+        const before = yield* loadState()
+        const adopted = yield* adopt({
+          key: 'send-as-me',
+          desktopUser: true,
+          expectedQueueRevision: before.followUpQueue.revision,
+        })
+        return { adopted, after: yield* loadState() }
+      }).pipe(Effect.provide(layer('adopt-parked.sqlite'))),
+    )
+
+    expect(result.adopted.outcome).toMatchObject({
+      operation: 'queue-adopt',
+      effect: 'started-run',
+      followUpId: 'follow-up-stuck',
+    })
+    expect(result.after.run).toMatchObject({ state: 'starting', intent: { callerId: USER } })
   })
 })

@@ -8,7 +8,7 @@ export interface SpawnAdmissionInput {
     | { readonly state: 'active' | 'starting' | 'stopping'; readonly runId: RunId }
   readonly parentRunningChildren: number
   readonly parentConcurrencyLimit: number
-  /** Active Runs of agents' work across the Host. The person's Runs never use a slot. */
+  /** Active Runs of agents' work across the Host. The person's use a slot only in Workers. */
   readonly hostActiveRuns: number
   /** The Host's ceiling on those Runs (`sessionHostRunCeiling`). */
   readonly hostRunCeiling: number
