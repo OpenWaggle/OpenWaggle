@@ -55,7 +55,8 @@ async function collectMarkdownEntries(
 function docsMarkdownLoader(): Loader {
   return {
     name: 'openwaggle-docs-markdown-loader',
-    load: async ({ config, generateDigest, parseData, renderMarkdown, store }) => {
+    load: async (context) => {
+      const { config, store } = context
       const fs = process.getBuiltinModule('node:fs/promises')
       const path = process.getBuiltinModule('node:path')
       const url = process.getBuiltinModule('node:url')
@@ -74,12 +75,12 @@ function docsMarkdownLoader(): Loader {
           const id = entryIdFromPath(entry)
           const normalizedFilePath = toPosixPath(path.relative(rootPath, filePath))
           const [data, rendered] = await Promise.all([
-            parseData({
+            context.parseData({
               id,
               data: parsed.data,
               filePath: normalizedFilePath,
             }),
-            renderMarkdown(parsed.content, {
+            context.renderMarkdown(parsed.content, {
               fileURL: url.pathToFileURL(filePath),
             }),
           ])
@@ -89,7 +90,7 @@ function docsMarkdownLoader(): Loader {
             data,
             body: parsed.content,
             filePath: normalizedFilePath,
-            digest: generateDigest(source),
+            digest: context.generateDigest(source),
             rendered,
           }
         }),
@@ -99,7 +100,7 @@ function docsMarkdownLoader(): Loader {
         // MDX entries compile their own imports/components through the MDX
         // integration at render time; pre-rendering them here would emit raw
         // import statements as text. Markdown entries still pre-render.
-        const isMdx = /\.mdx$/u.test(entry.filePath ?? '')
+        const isMdx = (entry.filePath ?? '').endsWith('.mdx')
         store.set(isMdx ? { ...entry, rendered: undefined, deferredRender: true } : entry)
       }
     },

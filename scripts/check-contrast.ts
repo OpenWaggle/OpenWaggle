@@ -177,9 +177,11 @@ function compareContractKeys(label: string, values: ColorValues) {
 
 export function validatePublicColorContract(colors: ColorValues, sourceVariables: ColorValues) {
   const issues: string[] = []
-  if (PUBLIC_COLOR_ROLES.length !== PUBLIC_COLOR_ROLE_COUNT) {
+  // Typed as number so the check still runs, and reads, when the role list changes.
+  const definedRoleCount: number = PUBLIC_COLOR_ROLES.length
+  if (definedRoleCount !== PUBLIC_COLOR_ROLE_COUNT) {
     issues.push(
-      `Contrast gate defines ${PUBLIC_COLOR_ROLES.length} roles; ADR 0024 requires ${PUBLIC_COLOR_ROLE_COUNT}`,
+      `Contrast gate defines ${definedRoleCount} roles; ADR 0024 requires ${PUBLIC_COLOR_ROLE_COUNT}`,
     )
   }
   issues.push(...compareContractKeys('SDK color contract', colors))

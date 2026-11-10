@@ -138,13 +138,13 @@ export async function probeWindowsDetachedHandleIsolation() {
   parent.on('error', (error) => {
     processError = error
   })
-  parent.stderr?.on('data', (chunk: Buffer) => {
+  parent.stderr.on('data', (chunk: Buffer) => {
     stderr = `${stderr}${chunk.toString()}`.slice(-OUTPUT_LIMIT)
   })
   for (const [index, pipe] of parent.stdio.entries()) {
     pipe?.on('close', () => closedPipes.add(index))
   }
-  parent.stdout?.resume()
+  parent.stdout.resume()
 
   try {
     if (
@@ -178,7 +178,7 @@ export async function probeWindowsDetachedHandleIsolation() {
       exited,
       exitCode: parent.exitCode,
       pipesClosedBeforeChildRelease,
-      closedPipes: [...closedPipes].toSorted(),
+      closedPipes: [...closedPipes].toSorted((left, right) => left - right),
       childStoppedBeforeRelease,
       childAliveAfterParentClose,
       childArguments: parsedChildIdentity.arguments,

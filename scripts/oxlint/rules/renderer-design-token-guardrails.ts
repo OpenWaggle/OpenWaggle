@@ -69,7 +69,8 @@ function stripVariants(candidate: string) {
   let bracketDepth = 0
   let lastVariantSeparator = -1
 
-  for (const [index, character] of [...candidate].entries()) {
+  for (let index = 0; index < candidate.length; index += 1) {
+    const character = candidate.charAt(index)
     if (character === '[') bracketDepth += 1
     if (character === ']') bracketDepth -= 1
     if (character === ':' && bracketDepth === 0) lastVariantSeparator = index

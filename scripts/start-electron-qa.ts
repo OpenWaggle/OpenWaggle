@@ -217,7 +217,8 @@ async function run() {
   const childExitPromise = observeElectronQaChildExit(child)
   let connection: QaConnection | null = null
   let evidenceCaptured = false
-  let shutdownPromise: Promise<void> | null = null
+  // Held in an object because the signal handler, not this function's flow, starts the shutdown.
+  const shutdownState: { promise: Promise<void> | null } = { promise: null }
 
   const captureEvidence = async () => {
     if (evidenceCaptured) return
@@ -227,7 +228,7 @@ async function run() {
     console.info(`[electron-qa] screenshot: ${screenshotPath}`)
   }
   const shutdown = () => {
-    shutdownPromise ??= completeElectronQaShutdown({
+    shutdownState.promise ??= completeElectronQaShutdown({
       captureEvidence: connection === null ? async () => undefined : captureEvidence,
       closeConnection: async () => connection?.browser.close(),
       stopChild: () => stopElectronQaChild(child),
@@ -235,7 +236,7 @@ async function run() {
       // running with the profile's SQLite files open.
       stopSessionHost: () => stopElectronQaSessionHost(lease.metadata.profilePath),
     })
-    return shutdownPromise
+    return shutdownState.promise
   }
 
   const onSignal = () => {
@@ -258,7 +259,7 @@ async function run() {
     console.info(`[electron-qa] ready: http://${QA_HOST}:${QA_CDP_PORT}`)
     console.info(`[electron-qa] screenshots: ${lease.metadata.artifactsPath}`)
     const exitCode = await childExitPromise
-    await shutdownPromise
+    await shutdownState.promise
     if (process.exitCode === undefined) process.exitCode = exitCode
   } finally {
     process.removeListener('SIGINT', onSignal)

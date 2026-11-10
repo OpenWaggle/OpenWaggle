@@ -87,7 +87,7 @@ describe('build identity', () => {
     expect(identity.isolateUserData).toBe(true)
     // ASCII-only: a non-ASCII product name propagates into Electron's User-Agent
     // (an HTTP ByteString header) and throws on every request. Regression guard.
-    expect([...identity.productName].every((c) => c.charCodeAt(0) <= 127)).toBe(true)
+    expect(identity.productName).toMatch(/^[\x20-\x7e]*$/u)
   })
 })
 

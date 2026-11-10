@@ -55,12 +55,12 @@ const NATIVE_REBUILD_CACHE_PATHS = {
   storeDirectory: join(PROJECT_ROOT, 'node_modules', '.bun'),
 }
 
-type RebuildOptions = {
+interface RebuildOptions {
   readonly mode: RebuildMode
   readonly force: boolean
 }
 
-type NativeProbeRuntimeOptions = {
+interface NativeProbeRuntimeOptions {
   readonly projectRoot?: string
   readonly platform?: NodeJS.Platform
   readonly nodeExecutable?: string
@@ -284,7 +284,7 @@ async function rebuildNativeDependencies(options: RebuildOptions) {
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void rebuildNativeDependencies(parseRebuildOptions()).catch((error) => {
+  void rebuildNativeDependencies(parseRebuildOptions()).catch((error: unknown) => {
     console.error(errorMessage(error))
     process.exitCode = 1
   })

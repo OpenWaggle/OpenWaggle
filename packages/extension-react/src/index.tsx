@@ -2,6 +2,7 @@ import {
   createPlainExtensionSyntaxResult,
   OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+  type OpenWaggleExtensionSyntaxHighlightResult,
   type OpenWaggleExtensionSyntaxSdk,
   type OpenWaggleExtensionUiButtonVariant,
   type OpenWaggleExtensionUiTone,
@@ -60,36 +61,47 @@ function useExtensionSyntaxResult({
 }: Pick<SyntaxBlockProps, 'syntax' | 'source' | 'language' | 'path'> & {
   readonly enabled?: boolean
 }) {
-  const [result, setResult] = useState(() =>
-    enabled ? createPlainExtensionSyntaxResult({ source, language }) : undefined,
+  // Not built when disabled: large sources stay plain without a tokenized copy.
+  const plain = useMemo(
+    () => (enabled ? createPlainExtensionSyntaxResult({ source, language }) : undefined),
+    [enabled, source, language],
   )
+  // Keyed by its inputs, so a changed input shows plain text until its own highlight lands.
+  const [highlighted, setHighlighted] = useState<
+    | {
+        readonly syntax: OpenWaggleExtensionSyntaxSdk
+        readonly source: string
+        readonly language: string | undefined
+        readonly path: string | undefined
+        readonly result: OpenWaggleExtensionSyntaxHighlightResult
+      }
+    | undefined
+  >(undefined)
 
   useEffect(() => {
+    if (!enabled) return undefined
     let active = true
     const controller = new AbortController()
-    if (!enabled) {
-      return () => {
-        active = false
-        controller.abort()
-      }
+    const settle = (result: OpenWaggleExtensionSyntaxHighlightResult) => {
+      if (active) setHighlighted({ syntax, source, language, path, result })
     }
-    setResult(createPlainExtensionSyntaxResult({ source, language }))
     void syntax
       .highlight({ source, language, path, priority: 'visible' }, { signal: controller.signal })
-      .then(
-        (next) => {
-          if (active) setResult(next)
-        },
-        () => {
-          if (active) setResult(createPlainExtensionSyntaxResult({ source, language }))
-        },
-      )
+      .then(settle, () => {
+        settle(createPlainExtensionSyntaxResult({ source, language }))
+      })
     return () => {
       active = false
       controller.abort()
     }
   }, [enabled, language, path, source, syntax])
-  return enabled ? result : undefined
+  if (!plain) return undefined
+  const current =
+    highlighted?.syntax === syntax &&
+    highlighted.source === source &&
+    highlighted.language === language &&
+    highlighted.path === path
+  return current ? highlighted.result : plain
 }
 
 export function SyntaxBlock({

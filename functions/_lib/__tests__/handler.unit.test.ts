@@ -40,7 +40,8 @@ function sentryEnvelope(requests: readonly { url: string; init: RequestInit }[])
   const sentry = requests.find(
     ({ url }) => url === 'https://o42.ingest.de.sentry.io/api/4507/envelope/',
   )
-  return String(sentry?.init.body)
+  const body = sentry?.init.body
+  return typeof body === 'string' ? body : ''
 }
 
 async function handle(request: Request, overrides = {}) {

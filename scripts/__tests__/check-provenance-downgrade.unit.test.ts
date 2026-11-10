@@ -30,8 +30,9 @@ function readFixture(name: string): unknown {
 
 function fixtureRegistry(): Map<string, { readonly abbreviated: unknown; readonly full: unknown }> {
   const synthetic = readFixture('synthetic-registry.json')
-  if (typeof synthetic !== 'object' || synthetic === null)
+  if (typeof synthetic !== 'object' || synthetic === null) {
     throw new Error('Invalid registry fixture.')
+  }
   const registry = new Map<string, { readonly abbreviated: unknown; readonly full: unknown }>(
     Object.entries(synthetic).map(
       ([name, documents]: [string, { abbreviated: unknown; full: unknown }]) => [name, documents],
@@ -51,8 +52,9 @@ function recordingClient() {
     async fetchPackument(name, abbreviated) {
       requests.push(`${abbreviated ? 'abbreviated' : 'full'} ${name}`)
       const documents = registry.get(name)
-      if (!documents)
+      if (!documents) {
         throw new Error(`Could not read the registry metadata for ${name}: 404 Not Found`)
+      }
       return abbreviated ? documents.abbreviated : documents.full
     },
   }
@@ -268,9 +270,13 @@ describe('provenance downgrade check', () => {
     let calls = 0
     const fetchImpl: typeof fetch = async (input, init) => {
       calls += 1
-      requests.push({ url: String(input), accept: new Headers(init?.headers).get('accept') })
-      if (calls === 1)
+      requests.push({
+        url: input instanceof Request ? input.url : String(input),
+        accept: new Headers(init?.headers).get('accept'),
+      })
+      if (calls === 1) {
         return new Response('busy', { status: 503, statusText: 'Service Unavailable' })
+      }
       return Response.json({ versions: {} })
     }
 

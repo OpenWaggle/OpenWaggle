@@ -172,7 +172,7 @@ async function runLiveQaScenario(input: {
     throw new Error('Queen transcript omitted a native sessions spawn tool call.')
   }
   for (const expected of [workerSessionId, expectedPackage.name, expectedPackage.version]) {
-    if (!queenTranscript.includes(String(expected))) {
+    if (!queenTranscript.includes(expected)) {
       throw new Error(`Queen transcript omitted ${JSON.stringify(expected)}.`)
     }
   }

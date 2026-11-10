@@ -1,6 +1,5 @@
 import {
   packageDocumentationDefinitions,
-  packageDocumentationForSlug as findPackageDocumentationForSlug,
   packageDocumentationPage as resolvePackageDocumentationPage,
   packageDocumentationRoute,
   versionPackageDocumentation,

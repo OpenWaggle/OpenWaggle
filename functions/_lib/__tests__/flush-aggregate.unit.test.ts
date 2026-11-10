@@ -55,8 +55,9 @@ function contributors(store: MemoryKeyValueStore): Contributors {
   for (const [key, { value }] of store.entries) {
     const day = bufferKeyDay(key)
     const entry = day === undefined ? undefined : parseBufferEntry(value, day)
-    for (const [event, field, text] of entry?.counts ?? [])
+    for (const [event, field, text] of entry?.counts ?? []) {
       add(JSON.stringify([event, field, text]), key)
+    }
     for (const [event, field] of entry?.sums ?? []) add(JSON.stringify([event, field, SUM]), key)
   }
   return entries
@@ -71,8 +72,9 @@ function groupOf(
   counted: Contributors,
 ) {
   const field = String(record.properties.field)
-  if ('sum' in record.properties)
+  if ('sum' in record.properties) {
     return counted.get(JSON.stringify([record.event, field, SUM])) ?? new Set()
+  }
   if (record.properties.value !== OTHER_VALUE) {
     return (
       counted.get(JSON.stringify([record.event, field, String(record.properties.value)])) ??
@@ -100,7 +102,8 @@ function expectNoSmallCells(records: readonly PublishedRecord[], counted: Contri
   for (const record of records) {
     const field = String(record.properties.field)
     if (field === '_count') continue
-    const label = `${record.event} ${field} ${String(record.properties.value ?? SUM)}`
+    const value: unknown = record.properties.value ?? SUM
+    const label = `${record.event} ${field} ${String(value)}`
     const group = groupOf(record, records, counted)
     const eventEntries = counted.get(JSON.stringify([record.event, '_count', '1'])) ?? new Set()
     const lacking = [...eventEntries].filter((entry) => !group.has(entry)).length

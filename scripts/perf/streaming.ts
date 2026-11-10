@@ -168,9 +168,8 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
           const value: unknown = Reflect.get(globalThis, '__owFrames')
           return value
         })
-        const ipc = summarizeIpc(
-          JSON.parse(String((await inspector?.evaluate(IPC_LOG_READ)) ?? 'null')),
-        )
+        const ipcLog: unknown = await inspector?.evaluate(IPC_LOG_READ)
+        const ipc = summarizeIpc(JSON.parse(typeof ipcLog === 'string' ? ipcLog : 'null'))
         const agentEvents = ipc.pushedChannels['agent:event'] ?? { count: 0, bytes: 0 }
         const bounds = traceBounds(trace)
         return {

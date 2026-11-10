@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { execFailure } from '../test-support/exec-failure'
 
 const execFileAsync = promisify(execFile)
 const SECTION_START = '# BEGIN TESTABLE SESSION HOST STOP'
@@ -69,7 +70,7 @@ ${command} "$@"`
     if (error.code !== 'EPIPE') throw error
   })
   child.child.stdin?.end('rest of the install script\n')
-  const result = await child.catch((error: { stdout: string; code: number }) => error)
+  const result = await child.catch(execFailure)
   return { stdout: result.stdout.trim(), exitCode: 'code' in result ? result.code : 0 }
 }
 
