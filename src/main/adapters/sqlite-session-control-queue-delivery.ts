@@ -11,7 +11,10 @@ import {
 } from '../domain/session-control/follow-up-delivery'
 import { isHostFollowUpEditHoldReleaseKey } from '../domain/session-control/follow-up-edit-hold-release-key'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
-import type { StartingRunCaller } from '../domain/session-control/person-started-run'
+import {
+  queueHoldsPersonFollowUp,
+  type StartingRunCaller,
+} from '../domain/session-control/person-started-run'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
@@ -164,11 +167,15 @@ export function deliverAfterQueueDecision(
         outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
-    const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
-      callerId: input.callerId,
-      operation,
-      idempotencyKey: input.idempotencyKey,
-    })
+    // A running queue delivers in order: holding its agent head back would hold back the
+    // person's Follow-up behind it.
+    const refusal = queueHoldsPersonFollowUp(delivery.state.followUpQueue)
+      ? undefined
+      : yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
+          callerId: input.callerId,
+          operation,
+          idempotencyKey: input.idempotencyKey,
+        })
     if (refusal) {
       const paused = pauseUndeliveredQueue(
         authorized,

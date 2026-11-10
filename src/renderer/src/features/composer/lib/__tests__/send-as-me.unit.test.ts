@@ -51,7 +51,7 @@ describe('sendAsMeStartsNow mirrors the Host adoption rule', () => {
     expect(startsNow({ state: 'running', items: [held] })).toBe(false)
   })
 
-  it.each([undefined, 'profile-revoked'] as const)(
+  it.each([undefined, 'profile-revoked', 'parent-limit'] as const)(
     'resumes a queue attention paused (%s) when this is the only message needing attention',
     (pauseReason) => {
       expect(

@@ -4,6 +4,7 @@ import { DEFAULT_SESSION_TITLE, type SessionTitleSource } from '@shared/session-
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { buildDeterministicTitle } from '../agent/title-generator'
+import { isAgentWorkRun } from '../domain/session-control/person-started-run'
 import { SessionLifecycleRepositoryError } from '../errors'
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { encodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
@@ -269,10 +270,12 @@ export function persistLifecycleSession(
     const intent = initialRunIntent(input)
     if (runId && intent) {
       yield* sql`
-        INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+        INSERT INTO session_runs (
+          id, session_id, status, intent_json, created_at, updated_at, work_by_agent
+        )
         VALUES (
           ${runId}, ${input.session.sessionId}, ${'starting'},
-          ${JSON.stringify(intent)}, ${input.now}, ${input.now}
+          ${JSON.stringify(intent)}, ${input.now}, ${input.now}, ${isAgentWorkRun(intent) ? 1 : 0}
         )
       `
     }

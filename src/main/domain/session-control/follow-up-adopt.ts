@@ -15,7 +15,7 @@
  * the Host starts its head with the same admission checks as resumption.
  */
 import type { FollowUpId } from '@shared/types/brand'
-import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
+import { ADOPTION_LIFTED_PAUSE_REASONS } from '@shared/types/session-control-queue'
 import {
   followUpAttachmentOwner,
   type SessionControlFollowUp,
@@ -67,20 +67,10 @@ function adopted(item: SessionControlFollowUp, callerId: string): SessionControl
   }
 }
 
-/**
- * The pause reasons the needs-attention paths leave: a revoked profile pausing a running queue
- * records `profile-revoked`, and a head whose authority changed pauses it with no reason. Any
- * other reason, including `requested`, came from somewhere else and outlives the adoption.
- */
-const ATTENTION_PAUSE_REASONS: readonly (FollowUpQueuePauseReason | undefined)[] = [
-  undefined,
-  'profile-revoked',
-]
-
 function resumesAttentionPause(queue: SessionControlSessionState['followUpQueue']) {
   return (
     queue.state === 'paused' &&
-    ATTENTION_PAUSE_REASONS.includes(queue.pauseReason) &&
+    ADOPTION_LIFTED_PAUSE_REASONS.includes(queue.pauseReason) &&
     queue.items.every((item) => item.deliveryState === 'pending')
   )
 }

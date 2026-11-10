@@ -1,14 +1,5 @@
-import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
+import { ADOPTION_LIFTED_PAUSE_REASONS } from '@shared/types/session-control-queue'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
-
-/**
- * The pause reasons a needs-attention path leaves, which adopting the last message that needs
- * attention lifts. Mirrors `ATTENTION_PAUSE_REASONS` in the Host's `follow-up-adopt.ts`.
- */
-const ATTENTION_PAUSE_REASONS: readonly (FollowUpQueuePauseReason | undefined)[] = [
-  undefined,
-  'profile-revoked',
-]
 
 type SendAsMeQueue = Pick<
   SessionFollowUpQueueSnapshot,
@@ -33,7 +24,7 @@ export function sendAsMeStartsNow(input: {
   // The Host never delivers a held head, and adopting keeps the adopter's own edit hold.
   if (queue.items[0]?.editHold !== undefined) return false
   if (queue.state === 'running') return true
-  if (!ATTENTION_PAUSE_REASONS.includes(queue.pauseReason)) return false
+  if (!ADOPTION_LIFTED_PAUSE_REASONS.includes(queue.pauseReason)) return false
   return queue.items.every(
     (item) => item.id === followUpId || item.deliveryState !== 'needs_attention',
   )

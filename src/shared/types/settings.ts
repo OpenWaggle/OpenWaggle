@@ -150,9 +150,9 @@ export interface Settings {
   /** Optional project-specific parent concurrency limits keyed by canonical project path. */
   readonly sessionHostParentConcurrencyLimitsByProject: Readonly<Record<string, number>>
   /**
-   * App-global maximum number of active Runs of agent-made Sessions: Workers, and roots agents
-   * created, launched or forked. The person's own Sessions never count toward it and are never
-   * refused by it.
+   * App-global maximum number of active Runs of agents' work: every Run of a Worker or of a root
+   * agents created, launched or forked, and an agent's Run in a Session the person made. The
+   * person's own Runs never count toward it and are never refused by it.
    */
   readonly sessionHostRunCeiling: number
   /** How long an idle Session Host remains alive after its final liveness owner disappears. */

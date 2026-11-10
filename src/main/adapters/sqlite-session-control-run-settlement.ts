@@ -10,7 +10,10 @@ import type {
   SessionControlFollowUp,
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
-import { isPersonStartedRun } from '../domain/session-control/person-started-run'
+import {
+  isPersonStartedRun,
+  queueHoldsPersonFollowUp,
+} from '../domain/session-control/person-started-run'
 import { applyQueueMutation } from '../domain/session-control/queue-aggregate'
 import {
   settleAndScheduleNextFollowUp,
@@ -154,9 +157,10 @@ export function planRunSettlement(
 
 /**
  * Plans the settlement, deferring the next Run when a Worker limit is full: the parent's Workers
- * per parent for a Worker, and Active Workers for any agent-made Session, which a Run the person
- * started there may have passed. A Follow-up the person sent runs next whatever the limits (ADR
- * 0030, amended 2026-11-09). With no Run to start (an empty queue, or a head held for the
+ * per parent for a Worker, and Active Workers for an agent-made Session's Run or an agent's Run in
+ * the person's Session, which a Run the person started there may have passed. A Follow-up the
+ * person sent runs next whatever the limits, and so does an agent's queued ahead of one the
+ * person sent: a running queue delivers in order (ADR 0030, amended 2026-11-09 and 2026-11-10). With no Run to start (an empty queue, or a head held for the
  * person's edit) nothing waits, so the queue is not paused: a pause there outlived the limit, and
  * held back the person's edited or later Follow-ups, which are admitted when they are delivered.
  */
@@ -170,6 +174,7 @@ export function planRunSettlementWithinWorkerLimits(
     if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
     if (!nextRun || isPersonStartedRun(nextRun.intent)) return planned
+    if (queueHoldsPersonFollowUp(planned.state.followUpQueue)) return planned
     const refusal = yield* workerRunAdmissionRefusal(sql, {
       sessionId: input.sessionId,
       caller: nextRun.intent,

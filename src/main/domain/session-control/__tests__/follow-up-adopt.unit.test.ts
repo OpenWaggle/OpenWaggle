@@ -105,6 +105,8 @@ describe('adoptFollowUp', () => {
   it.each([
     ['no reason', {}],
     ['a revoked profile', { pauseReason: 'profile-revoked' as const }],
+    // A queue parked at Workers per parent waits on agents' capacity, never the person's.
+    ['Workers per parent', { pauseReason: 'parent-limit' as const }],
   ])(
     'resumes a queue its attention paused, with %s, once nothing needs attention',
     (_case, queue) => {

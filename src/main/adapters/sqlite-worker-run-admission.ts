@@ -2,6 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { SESSION_LIFECYCLE_OPERATIONS } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import {
+  isAgentWorkRun,
   isPersonStartedRun,
   type StartingRunCaller,
 } from '../domain/session-control/person-started-run'
@@ -50,17 +51,20 @@ export function recordAgentMadeSession(
 }
 
 /**
- * Active Runs of agent-made Sessions across the Host: the Runs the Active Workers ceiling counts.
- * `exceptSessionId` leaves out the Session whose Run is being admitted.
+ * The active Runs the Active Workers ceiling counts across the Host: every Run of an agent-made
+ * Session, and an agent's Run in a Session the person made (`session_runs.work_by_agent`, set by
+ * `isAgentWorkRun` when it started). `exceptSessionId` leaves out the Session whose Run is being
+ * admitted.
  */
 export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly count: number }>`
       SELECT COUNT(*) AS count
       FROM session_control_states AS states
+      LEFT JOIN session_runs AS runs ON runs.id = states.active_run_id
       WHERE states.active_run_id IS NOT NULL
         AND states.session_id <> ${exceptSessionId ?? ''}
-        AND ${sql.unsafe(AGENT_MADE_SESSION)}
+        AND (runs.work_by_agent = 1 OR ${sql.unsafe(AGENT_MADE_SESSION)})
     `
     return rows[0]?.count ?? 0
   })
@@ -93,10 +97,10 @@ export function hostWorkerCeilingRefusal(
 }
 
 /**
- * The capacity rule for a Run about to start in `sessionId`. Only an agent- or Host-started Run
- * of an agent-made Session is limited: a Worker's by its parent's Worker limit, then any by the
- * Host's Active Workers ceiling. The person's Sessions' Runs, and any Run the person starts, are
- * always admitted.
+ * The capacity rule for a Run about to start in `sessionId`. Any Run the person starts is always
+ * admitted. Otherwise a Worker's Run meets its parent's Workers per parent, and then the Host's
+ * Active Workers ceiling holds every agent-made Session's Run and an agent's Run in a Session the
+ * person made (`isAgentWorkRun`). The Host's Hive wake of a Queen the person made is never limited.
  */
 export function workerRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
@@ -112,8 +116,14 @@ export function workerRunAdmissionRefusal(
     const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
     const isWorker = 'parentSessionId' in parentAdmission
     if (isWorker && !parentAdmission.admitted) return 'parent_concurrency_limit_reached' as const
-    // A root Session the person made: no capacity limit applies.
-    if (!isWorker && !(yield* isAgentMadeSession(sql, input.sessionId))) return undefined
+    // A root Session the person made holds back only an agent's work, never the Host's wake of it.
+    if (
+      !isWorker &&
+      !isAgentWorkRun(input.caller) &&
+      !(yield* isAgentMadeSession(sql, input.sessionId))
+    ) {
+      return undefined
+    }
     const hostRunCeiling =
       typeof input.hostRunCeiling === 'number' ? input.hostRunCeiling : yield* input.hostRunCeiling
     const ceiling = yield* hostWorkerCeilingRefusal(sql, {
