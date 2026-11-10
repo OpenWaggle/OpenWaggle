@@ -1,17 +1,16 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
-
-const SESSION_SUMMARY_WIDTH_PX = 300
-const SESSION_SUMMARY_RIGHT_INSET_PX = 16
-const SESSION_SUMMARY_CONTENT_GAP_PX = 16
-const SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX =
-  CHAT_CONTENT_MAX_WIDTH_PX +
-  2 * (SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX)
+import {
+  SESSION_SUMMARY_FOOTPRINT_PX,
+  SESSION_SUMMARY_MIN_CONVERSATION_WIDTH_PX,
+} from '../lib/chat-content-layout'
 
 /**
- * Whether the chat panel has room to dock the Session Summary beside the conversation, measured
- * before the first paint of each size.
+ * Whether the chat panel is wide enough to dock the Session Summary, measured before the first
+ * paint of each size. A docked Summary moves the conversation out from under it
+ * (`SESSION_SUMMARY_DOCKED_CHAT_CLASS`), so it needs room for itself and a usable conversation
+ * column, not room beside the centered column: that took a chat panel of about 1,384px, more
+ * than a default or laptop-width window has, and left the Summary hidden by default.
  */
 export function useSessionSummarySpace(rightSidebarOpen: boolean) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -26,17 +25,7 @@ export function useSessionSummarySpace(rightSidebarOpen: boolean) {
       setHasSpace(true)
       return
     }
-
-    const contentFrame = container.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    const containerRect = container.getBoundingClientRect()
-    const contentRect = contentFrame?.getBoundingClientRect()
-    const hasMeasuredGeometry =
-      containerRect.width > 0 && contentRect !== undefined && contentRect.width > 0
-    const roomForSummary = hasMeasuredGeometry
-      ? containerRect.right - contentRect.right >=
-        SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX
-      : width >= SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX
-    setHasSpace(roomForSummary)
+    setHasSpace(width - SESSION_SUMMARY_FOOTPRINT_PX >= SESSION_SUMMARY_MIN_CONVERSATION_WIDTH_PX)
   }, [rightSidebarOpen])
 
   useLayoutEffect(() => {
@@ -52,8 +41,6 @@ export function useSessionSummarySpace(rightSidebarOpen: boolean) {
      */
     const observer = new ResizeObserver(() => flushSync(measure))
     observer.observe(element)
-    const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
-    if (contentFrame) observer.observe(contentFrame)
     return () => observer.disconnect()
   }, [measure])
 

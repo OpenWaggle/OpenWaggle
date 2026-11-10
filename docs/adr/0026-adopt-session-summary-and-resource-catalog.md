@@ -67,7 +67,7 @@ The app also spreads persistent session context across the composer, header, dif
 ### The Session Summary is host-owned
 
 - Show the Summary only after the first message. Before first send, the existing setup dock owns project, environment, and run target.
-- Render the same content in one top-right floating overlay after the first message. It never reserves transcript or composer width. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep a Layout list toggle in the header available so the user can explicitly reopen or hide the overlay at any width.
+- Render the same content in one top-right floating overlay after the first message. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep a Layout list toggle in the header available so the user can explicitly reopen or hide the overlay at any width. (Amended below: a docked Summary moves the conversation out from under it, and "too narrow" means too narrow for the Summary and a usable conversation.)
 - Initial first-party order is Environment, Hive, Outputs, Sources. Add future capabilities as explicitly named conditional sections. Do not add generic Activity or Usage buckets.
 - The order may include truthful named conditional capabilities around that spine. For this baseline, active event subscriptions appear as Subscriptions and declarative extension placements remain deterministic; absent product domains do not render empty sections.
 - Authorization mode and model context usage remain in the composer before and after first send.
@@ -109,6 +109,14 @@ The app also spreads persistent session context across the composer, header, dif
 ## Consequences
 
 The change adds a persistence port/adapter, migration, managed-file service, typed IPC, renderer resource feature, Summary shell, Resource Browser, image viewer, extension contract additions, and provider-aware change-request workflow UI. Tests must cover session isolation, branch provenance, idempotent backfill, archive/delete lifecycle, capture limits and SSRF protection, Session switching, floating-overlay responsiveness, sidebar yielding, extension isolation, image keyboard/zoom behavior, and GitHub/GitLab workflows. Real hidden Electron QA and end-to-end interaction tests are required because layout ownership, route state, and image rendering cannot be proven through unit tests alone.
+
+## Amendment: the Summary is shown by default
+
+The first rule docked the Summary only where it fit beside the centered 720px conversation column without covering it: a chat panel of 1,384px, or a window about 1,745px wide beside the sidebar and panel rail. The default 1,200px window and every common laptop width, including a maximized 1,728px MacBook Pro window (8px short), fell below it, so the Summary was hidden by default and opened only as a transient overlay. Floating a docked Summary over the conversation instead was tried and rejected: right-aligned user messages and the composer's send controls sat under it.
+
+- The Summary docks, and opens by itself unless the person hid it for that Session, whenever the chat panel leaves at least a 400px conversation column beside its 332px footprint (300px wide, 16px inset, 16px gap). Narrower, it stays hidden and opens on request as the transient overlay.
+- A docked Summary reserves the least width that keeps the conversation clear of it: the chat panel's right padding is `clamp(0, 2 × 332 + 720 − panel width, 332)` px. A wide window keeps the centered column unmoved, a medium one shifts it left at full width, and a narrow one narrows it to what is left. Hiding the Summary gives the width back.
+- A transient Summary still floats over the conversation and reserves nothing.
 
 ## Alternatives considered
 

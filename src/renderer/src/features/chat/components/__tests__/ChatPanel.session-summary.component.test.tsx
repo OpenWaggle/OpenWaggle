@@ -153,7 +153,7 @@ describe('ChatPanel session summary', () => {
     expect(await findSessionSummary()).toBeInTheDocument()
   })
 
-  it('auto-hides at a medium width where the panel would overlap centered chat content', async () => {
+  it('docks the panel by default at the default window width', async () => {
     const message = makeMessage({
       id: 'u1',
       role: 'user',
@@ -176,14 +176,23 @@ describe('ChatPanel session summary', () => {
     )
     const chatPanel = document.querySelector('[data-chat-panel-main="true"]')
     if (!(chatPanel instanceof HTMLElement)) throw new Error('Chat panel main element is missing.')
-    Object.defineProperty(chatPanel, 'clientWidth', { configurable: true, value: 1_200 })
+    // The chat panel of the default 1,200px window beside the sidebar and panel rail. The Summary
+    // used to wait for room beside the centered message column, about 1,384px of chat, so it never
+    // opened by itself in a default or laptop-width window.
+    Object.defineProperty(chatPanel, 'clientWidth', { configurable: true, value: 840 })
 
     act(() => notifyResize())
 
-    expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
-    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(chatPanel).toHaveAttribute('data-session-summary-space', 'available')
+    const summary = await findSessionSummary()
+    expect(summary).toHaveAttribute('data-session-summary-mode', 'persistent')
+    // The chat panel moves its conversation out from under a persistent Summary it contains.
+    expect(chatPanel).toContainElement(summary)
+    expect(chatPanel).toHaveClass('session-summary-docking')
+    expect(chatPanel.style.getPropertyValue('--session-summary-footprint')).toBe('332px')
+    expect(chatPanel.style.getPropertyValue('--chat-content-max-width')).toBe('720px')
     act(() => toggleSessionSummaryPanel('session-1'))
-    expect(await findSessionSummary()).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
   it('hides before paint when the chat mounts below the automatic summary width', async () => {

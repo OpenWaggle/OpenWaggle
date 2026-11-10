@@ -762,6 +762,21 @@
     animation: session-summary-panel-enter 180ms ease-out both;
   }
 
+  /*
+   * A docked (persistent) Session Summary floats over the chat panel's right side, so the panel
+   * reserves the least width that keeps the conversation clear of it (ADR 0026 amendment):
+   * 2 * footprint + conversation width - panel width, between none and the whole footprint. `100%`
+   * is the panel's width because its parent holds only the panel. The chat panel sets both
+   * properties (SESSION_SUMMARY_DOCKING_STYLE). A transient Summary reserves nothing.
+   */
+  .session-summary-docking:has([data-session-summary-mode="persistent"]) {
+    padding-right: clamp(
+      0px,
+      calc(2 * var(--session-summary-footprint) + var(--chat-content-max-width) - 100%),
+      var(--session-summary-footprint)
+    );
+  }
+
   .session-tree-active-dot {
     box-shadow:
       0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent),
