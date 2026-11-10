@@ -9,8 +9,8 @@ Review for bugs first. Summaries are secondary.
 
 ## Workflow
 
-1. Load `AGENTS.md`, the `MEMORY.md` index (then only the `.agents/memory/` topics the diff touches), `.agents/standards.md`, and `.agents/verification.md`.
-2. Inspect the diff and current dirty tree.
+1. Load `AGENTS.md`, the `MEMORY.md` index (then only the `.agents/memory/` topics the diff touches), `.agents/standards.md`, `.agents/rules.json` (the rule catalogue), and `.agents/verification.md`.
+2. Inspect the diff and current dirty tree, then run `bun scripts/agent-gate/check.ts --base <merge base>` once. It prints the mechanical findings for the changed files with their rule IDs; review effort goes to the rules whose `by` list includes `review`.
 3. Run the bundled analyzers when useful:
 
 ```bash
@@ -43,11 +43,16 @@ python3 .agents/skills/code-review/scripts/code_quality_checker.py --base origin
 - No stale legacy instruction files or vendor-specific agent config are reintroduced.
 - UI/IPC changes have Electron QA coverage or a clearly stated gap.
 
+## Independent Review
+
+For a review that must be independent (the `ready` skill, or any review of work you wrote), spawn a Hive Worker from the `standards-reviewer` Agent definition (`.agents/agents/standards-reviewer.md`) instead of reviewing yourself. It follows this skill with fresh context, cites rule IDs, and never edits.
+
 ## Output Contract
 
 - Findings first, ordered by severity.
 - Include concrete file and line references.
-- Explain the impact and violated rule/principle.
+- Cite the rule ID the finding breaks, such as `[ARCH-03]`, or `[none]` with the principle it breaks.
+- Explain the impact.
 - If no findings exist, state that and list residual risks/testing gaps.
 - Keep the summary short.
 

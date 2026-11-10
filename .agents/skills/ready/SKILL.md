@@ -9,7 +9,7 @@ Move a draft PR to ready for review once an independent reviewer has reviewed it
 
 ## Rules
 
-- The reviewer is a fresh Hive Worker Session with no memory of writing the code. Never review your own work and call it independent.
+- The reviewer is a fresh Hive Worker Session created from the `standards-reviewer` Agent definition (`.agents/agents/standards-reviewer.md`), with no memory of writing the code. It reviews against the rule catalogue (`.agents/rules.json`), reports only, and has no edit or write tools. Never review your own work and call it independent.
 - `bun run pr:ready` is the only way to mark ready. It refuses unless `--reviewed-sha` equals local `HEAD` and the PR head, runs `bun run check`, `test` and `build`, publishes the blast radius, posts the review evidence, then runs `gh pr ready`.
 - Any commit after a review makes it stale. Push, then review the new head.
 - Hooks always run; never skip them. When a hook or the gate fails, fix the cause. When the cause is outside the branch, stop and report it.
@@ -37,9 +37,11 @@ A fresh reviewer almost always finds one more P3, so a review with zero findings
 
    Ask before committing or pushing anything the maintainer has not seen.
 
-2. Run a review round. Spawn a Worker with the `hive` tool, `workspace: "share-parent"` so it reads this checkout, and an objective like:
+2. Run a review round. Spawn a Worker with the `hive` tool, `agent: "standards-reviewer"` and `workspace: "share-parent"` so it reads this checkout. The definition carries the role, so the objective only names the change:
 
-   > Review PR #N (`git diff origin/main...HEAD`) at HEAD `<full sha>`. Load `.agents/skills/code-review/SKILL.md` and follow it. Do not edit, commit or push. Return findings grouped P0, P1, P2, P3, each with file:line, impact and the rule it breaks. End with the line `reviewed-sha: <full sha of HEAD you reviewed>`.
+   > Review PR #N (`git diff origin/main...HEAD`) at HEAD `<full sha>`.
+
+   It returns findings grouped P0, P1, P2, P3, each with file:line, the rule ID it breaks, and the impact, and ends with `reviewed-sha: <sha>`. When the definition is not listed (`hive` `agent_definitions_list`), spawn without it and paste the definition's body into the objective.
 
    Add the blast-radius focus areas when you have them (`.tmp/pr/blast-radius.md` from a previous run). Wait with `hive` `wait` (timeoutMs up to 270000, repeat as needed), read the result, and accept the Delegation so the Worker archives.
 
