@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mutateSessionQueue } from '../../application/session-control-service'
@@ -116,5 +117,81 @@ describe('Queue delivery of agents’ work beside the person’s', () => {
     )
 
     expect(result.outcome).toMatchObject({ effect: 'started-run', followUpId: 'agent-next' })
+  })
+
+  it('starts the person’s Follow-up when an agent’s withdraw changes a queue paused already for capacity', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue([{ id: 'agent-first' }, { id: 'agent-next' }, { id: 'mine' }], 'paused')
+        yield* busyWorkerHive
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE session_control_states SET queue_pause_reason = ${'parent-limit'}
+          WHERE session_id = ${SESSION}
+        `
+        return yield* mutateSessionQueue({
+          callerId: AGENT,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-withdraw',
+            sessionId: SESSION,
+            followUpIds: ['agent-next'],
+          }),
+        })
+      }).pipe(Effect.provide(layer('agent-withdraw-paused-for-capacity.sqlite'))),
+    )
+
+    expect(result.outcome).toMatchObject({ effect: 'started-run', followUpId: 'mine' })
+  })
+
+  // A failed Run's pause is the person's to lift; a limit holding back an agent's retry only lets
+  // the person's own retry go.
+  it('keeps a failed Run’s pause when the agent’s deferred retry is refused, and starts the person’s', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* idleQueue(
+          [
+            { id: 'earlier', acceptedAt: 1 },
+            { id: 'agent-other', acceptedAt: 2 },
+            { id: 'agent-retry', acceptedAt: 11 },
+            { id: 'mine', acceptedAt: 12 },
+          ],
+          'paused',
+        )
+        yield* busyWorkerHive
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE session_control_states SET queue_pause_reason = ${'run-failed'}
+          WHERE session_id = ${SESSION}
+        `
+        // The failure's explicit retry (accepted after 10) waited behind a hold that has ended.
+        yield* sql`
+          CREATE TEMP TABLE IF NOT EXISTS session_follow_up_deferred_retries (
+            session_id TEXT PRIMARY KEY, accepted_after INTEGER NOT NULL
+          )
+        `
+        yield* sql`
+          INSERT INTO temp.session_follow_up_deferred_retries (session_id, accepted_after)
+          VALUES (${SESSION}, ${10})
+        `
+        const withdrawn = yield* mutateSessionQueue({
+          callerId: AGENT,
+          hostRunCeiling: 1,
+          request: request({
+            operation: 'queue-withdraw',
+            sessionId: SESSION,
+            followUpIds: ['agent-other'],
+          }),
+        })
+        return { withdrawn, after: yield* loadState() }
+      }).pipe(Effect.provide(layer('refused-deferred-retry.sqlite'))),
+    )
+
+    expect(result.withdrawn.outcome).toMatchObject({ effect: 'started-run', followUpId: 'mine' })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'run-failed',
+      items: [{ id: 'earlier' }, { id: 'agent-retry' }],
+    })
   })
 })

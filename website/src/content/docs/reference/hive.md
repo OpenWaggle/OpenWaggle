@@ -57,7 +57,7 @@ A run is one turn of the agent working in a session, from your message to its fi
 
 `steer`, `replace`, `promote` and `interrupt` need the ID of the run they act on (`expectedRunId`, or `--expected-run` in the CLI). If that run has already ended, the call fails instead of reaching the wrong run. Steering does not cancel a tool that is already running.
 
-`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run, unless a run limit holds it back (see [run limits](#run-limits)).
+`message` on an idle session whose queue is paused still starts the run, and the paused follow-ups stay queued. A `follow_up` sent to an idle session with a paused queue waits in the queue, unless you send it and the queue waits only on agents' run limits: then it starts at once. The result says so with `queueState` and, when known, `pauseReason`. A follow-up sent just as the current run ends starts as the next run, unless a run limit holds it back (see [run limits](#run-limits)).
 
 When you stop or interrupt a run before the agent wrote anything, the transcript gets no empty reply. Whatever the agent had already written stays.
 
@@ -296,7 +296,7 @@ Two settings in **Settings > Agents > Hive controls** cap how many worker runs g
 
 The limits never hold back your own runs:
 
-- Your own runs never count toward the limits. In a top-level session you started, such as your Queen, OpenWaggle's run for a parent whose workers reported is never refused either.
+- Your runs in sessions you made never count toward the limits. Your runs in a worker do count, but are never refused. In a top-level session you started, such as your Queen, OpenWaggle's run for a parent whose workers reported is never refused either.
 - A run you start yourself, from the app, the command line or another client running as you, is never refused, even in a worker. So is a run that your own **Resume**, withdraw, reorder or edit of a queue starts, whoever wrote the follow-up. A follow-up you queued in a worker runs next even when its parent is at **Workers per parent**.
 - A `launch` of yours has no run limit. A `spawn` always makes a worker, so it is held to the limits whoever asks for it.
 

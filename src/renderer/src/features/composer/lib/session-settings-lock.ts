@@ -4,6 +4,10 @@ import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
 export const SESSION_SETTINGS_LOCKED_BY_QUEUE_REASON =
   'Available when the Run ends, or pause the queue'
 
+/** Why they cannot change while the Host runs this user's queued messages past agents' ones. */
+export const SESSION_SETTINGS_LOCKED_BY_OWN_QUEUE_REASON =
+  'Available when your queued messages have run'
+
 /** Why the Session settings cannot change while a Run is going. */
 export const SESSION_SETTINGS_LOCKED_REASON = 'Available when the Run ends'
 
@@ -18,12 +22,23 @@ export interface SessionSettingsLock {
 
 const UNLOCKED: SessionSettingsLock = { locked: false, reason: null }
 
-type QueueState = Pick<SessionFollowUpQueueSnapshot, 'state' | 'items'>
+type QueueState = Pick<SessionFollowUpQueueSnapshot, 'state' | 'items' | 'pauseReason'>
 
 /** The queue starts its next message when the current Run ends: a chain of queued Runs. */
 function queueContinues(queue: QueueState) {
   const head = queue.items[0]
   return queue.state === 'running' && head?.deliveryState === 'pending' && !head.editHold
+}
+
+/**
+ * A queue waiting on agents' capacity still starts this user's first pending message when the Run
+ * ends, unless an edit up to it holds it (`deliverPersonFollowUpPastCapacity`); it cannot be
+ * paused, so only that message running gets there.
+ */
+function ownMessageContinues(queue: QueueState) {
+  if (queue.state !== 'paused' || queue.pauseReason !== 'parent-limit') return false
+  const index = queue.items.findIndex((item) => item.editable && item.deliveryState === 'pending')
+  return index >= 0 && queue.items.slice(0, index + 1).every((item) => !item.editHold)
 }
 
 /**
@@ -50,6 +65,8 @@ export function sessionSettingsLock(input: {
     locked: true,
     reason: queueContinues(input.queue)
       ? SESSION_SETTINGS_LOCKED_BY_QUEUE_REASON
-      : SESSION_SETTINGS_LOCKED_REASON,
+      : ownMessageContinues(input.queue)
+        ? SESSION_SETTINGS_LOCKED_BY_OWN_QUEUE_REASON
+        : SESSION_SETTINGS_LOCKED_REASON,
   }
 }

@@ -64,6 +64,15 @@ function findRunningPendingQueues(sql: SqlClient.SqlClient) {
   `
 }
 
+/**
+ * A queue paused already keeps its reason, except a wait on agents' capacity: what it held now
+ * waits for the person's Resume (ADR 0030, amended 2026-11-10).
+ */
+const RECOVERED_PAUSE_REASON_SQL = `CASE
+  WHEN queue_state = 'paused' AND queue_pause_reason IS NOT 'parent-limit' THEN queue_pause_reason
+  ELSE 'host-lost'
+END`
+
 function pauseRemainingPendingQueues(sql: SqlClient.SqlClient, now: number) {
   return sql`
     UPDATE session_control_states
@@ -108,10 +117,7 @@ function recoverAfterHostLoss(sql: SqlClient.SqlClient, now: number) {
             UPDATE session_control_states
             SET
               active_run_id = NULL,
-              queue_pause_reason = CASE
-                WHEN queue_state = 'paused' THEN queue_pause_reason
-                ELSE 'host-lost'
-              END,
+              queue_pause_reason = ${sql.literal(RECOVERED_PAUSE_REASON_SQL)},
               queue_state = 'paused',
               state_revision = state_revision + 1,
               queue_revision = queue_revision + 1,

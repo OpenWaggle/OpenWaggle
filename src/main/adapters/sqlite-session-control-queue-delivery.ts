@@ -7,7 +7,6 @@ import type {
 import * as Effect from 'effect/Effect'
 import {
   deliverIdleQueueHead,
-  deliverPersonFollowUpPastCapacity,
   type IdleQueueDelivery,
   pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
@@ -17,6 +16,7 @@ import type { StartingRunCaller } from '../domain/session-control/person-started
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
+import { deliverAuthorizedPersonFollowUpPastCapacity } from './session-person-follow-up-past-capacity'
 import { workerRunAdmissionRefusal } from './sqlite-worker-run-admission'
 
 /**
@@ -124,8 +124,10 @@ function withdrawnFollowUps(outcome: SessionControlMutationOutcome): WithdrawnFo
 /**
  * Applies the delivery rule to an accepted queue decision. The head's current authorization is
  * checked before it starts, and a Run the Host cannot admit pauses the queue instead, with
- * `parent-limit` for either Worker limit. The person's first Follow-up in a queue that waits on
- * capacity then starts ahead of the agents' ones (`deliverPersonFollowUpPastCapacity`).
+ * `parent-limit` for either Worker limit (a failed Run's paused queue keeps its reason). The
+ * person's first Follow-up in a queue that waits on capacity then starts ahead of the agents'
+ * ones, or after a refused retry the person's own retry does, each after its authority check
+ * (`deliverAuthorizedPersonFollowUpPastCapacity`).
  */
 export function deliverAfterQueueDecision(
   sql: SqlClient.SqlClient,
@@ -164,24 +166,39 @@ export function deliverAfterQueueDecision(
     },
   })
   // Nothing of agents' starts, but the person's Follow-up never waits on their capacity.
-  const undelivered = (state: SessionControlSessionState): SessionControlMutationDecision => {
-    const personal = deliverPersonFollowUpPastCapacity(state, nextRunId)
-    if (personal.delivered) return started({ state: personal.state, delivered: personal.delivered })
-    return { ...decision, state, outcome: queueUpdated(operation, state, withdrawn) }
-  }
+  const undelivered = (state: SessionControlSessionState, retriesAfter?: number) =>
+    deliverAuthorizedPersonFollowUpPastCapacity(sql, state, nextRunId, retriesAfter).pipe(
+      Effect.map(
+        (personal): SessionControlMutationDecision =>
+          personal.delivered
+            ? started({ state: personal.state, delivered: personal.delivered })
+            : {
+                ...decision,
+                state: personal.state,
+                outcome: queueUpdated(operation, personal.state, withdrawn),
+              },
+      ),
+    )
   return Effect.gen(function* () {
     const candidate = deliverIdleQueueHead(decision.state, nextRunId)
-    if (!candidate.delivered) return undelivered(candidate.state)
+    if (!candidate.delivered) return yield* undelivered(candidate.state)
     const authorized = yield* applyCurrentFollowUpAuthorization(sql, decision.state)
     const delivery = deliverIdleQueueHead(authorized, nextRunId)
-    if (!delivery.delivered) return undelivered(delivery.state)
+    if (!delivery.delivered) return yield* undelivered(delivery.state)
     const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
       callerId: input.callerId,
       operation,
       idempotencyKey: input.idempotencyKey,
     })
-    // Both Worker limits pause with `parent-limit`, a reason every binary decodes.
-    if (refusal) return undelivered(pauseUndeliveredQueue(authorized, 'parent-limit'))
+    // Both Worker limits pause with `parent-limit`. A failed Run's refused retry leaves its pause,
+    // and only the person's own retry starts past it.
+    if (refusal) {
+      const { deferredRetryAfter } = authorized.followUpQueue
+      return yield* undelivered(
+        pauseUndeliveredQueue(authorized, 'parent-limit'),
+        deferredRetryAfter,
+      )
+    }
     return started({ state: delivery.state, delivered: delivery.delivered })
   })
 }

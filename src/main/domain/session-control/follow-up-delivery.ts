@@ -122,23 +122,27 @@ export function deliverIdleQueueHead(
  * Starts the person's first pending Follow-up in an idle Session whose queue waits on agents'
  * capacity (`parent-limit`), ahead of the agents' Follow-ups the limit holds back: the person's
  * work never waits on agents' work (ADR 0030, amended 2026-11-10). The queue stays paused for the
- * rest. A held item up to it, or a failed Run's deferred retry, still comes first.
+ * rest. A held item up to it, or a failed Run's deferred retry, still comes first. With
+ * `retriesAfter` (a failed Run's agent retry was refused) the queue keeps its own pause, and only
+ * the person's explicit retry, accepted after that time, starts.
  */
 export function deliverPersonFollowUpPastCapacity(
   state: SessionControlSessionState,
   nextRunId: RunId,
+  retriesAfter?: number,
 ): IdleQueueDelivery {
   const queue = state.followUpQueue
-  if (
-    state.run.state !== 'idle' ||
-    queue.state !== 'paused' ||
-    queue.pauseReason !== 'parent-limit' ||
-    queue.deferredRetryAfter !== undefined
-  ) {
+  const waitsOnCapacity =
+    retriesAfter !== undefined ||
+    (queue.pauseReason === 'parent-limit' && queue.deferredRetryAfter === undefined)
+  if (state.run.state !== 'idle' || queue.state !== 'paused' || !waitsOnCapacity) {
     return { state }
   }
   const index = queue.items.findIndex(
-    (item) => item.deliveryState === 'pending' && isPersonStartedRun(item.intent),
+    (item) =>
+      item.deliveryState === 'pending' &&
+      isPersonStartedRun(item.intent) &&
+      (retriesAfter === undefined || item.intent.acceptedAt > retriesAfter),
   )
   if (index < 0 || queue.items.slice(0, index + 1).some(isFollowUpEditHeld)) return { state }
   return startItem(state, index, nextRunId)
@@ -146,22 +150,45 @@ export function deliverPersonFollowUpPastCapacity(
 
 /**
  * When the Host cannot admit the Run a delivery would start, the queue pauses instead, so it never
- * sits idle and runnable. Without a reason the pause is stored without one, which every binary
- * decodes. Both Worker limits pause with `parent-limit`.
+ * sits idle and runnable. Both Worker limits pause with `parent-limit`, a reason every binary
+ * decodes. A queue paused already (a failed Run's deferred retry) keeps its own reason: what it
+ * holds waits for the person's Resume, not for a slot.
  */
 export function pauseUndeliveredQueue(
   state: SessionControlSessionState,
-  reason?: FollowUpQueuePauseReason,
+  reason: FollowUpQueuePauseReason,
 ): SessionControlSessionState {
-  const { pauseReason: _pauseReason, ...queue } = withoutDeferredRetry(state).followUpQueue
+  const queue = withoutDeferredRetry(state).followUpQueue
   return {
     ...state,
     revision: state.revision + REVISION_INCREMENT,
     followUpQueue: {
       ...queue,
       state: 'paused',
-      ...(reason ? { pauseReason: reason } : {}),
+      pauseReason: queue.state === 'paused' ? queue.pauseReason : reason,
       revision: queue.revision + REVISION_INCREMENT,
+    },
+  }
+}
+
+/** Marks `followUpId` as needing attention for `reason`; delivery passes over it. */
+export function markFollowUpNeedsAttention(
+  state: SessionControlSessionState,
+  followUpId: FollowUpId,
+  reason: NonNullable<SessionControlFollowUp['attentionReason']>,
+): SessionControlSessionState {
+  const queue = state.followUpQueue
+  return {
+    ...state,
+    revision: state.revision + REVISION_INCREMENT,
+    followUpQueue: {
+      ...queue,
+      revision: queue.revision + REVISION_INCREMENT,
+      items: queue.items.map((item) =>
+        item.id === followUpId
+          ? { ...item, deliveryState: 'needs_attention' as const, attentionReason: reason }
+          : item,
+      ),
     },
   }
 }

@@ -152,8 +152,9 @@ export function recoverSessionAfterHostLoss(
     followUpQueue: {
       ...state.followUpQueue,
       state: 'paused',
+      // A wait on agents' capacity gives way to the loss: the queue waits for the person's Resume.
       pauseReason:
-        state.followUpQueue.state === 'paused'
+        state.followUpQueue.state === 'paused' && state.followUpQueue.pauseReason !== 'parent-limit'
           ? state.followUpQueue.pauseReason
           : ('host-lost' as const),
       revision: state.followUpQueue.revision + QUEUE_REVISION_INCREMENT,

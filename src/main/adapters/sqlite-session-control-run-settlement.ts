@@ -3,9 +3,8 @@ import type { FollowUpQueuePauseReason } from '@shared/types/session-control-que
 import * as Effect from 'effect/Effect'
 import {
   deliverIdleQueueHead,
-  deliverPersonFollowUpPastCapacity,
   isFollowUpEditHeld,
-  pauseUndeliveredQueue,
+  markFollowUpNeedsAttention,
 } from '../domain/session-control/follow-up-delivery'
 import type {
   SessionControlFollowUp,
@@ -20,6 +19,8 @@ import {
 import { pauseStrandedFollowUps } from '../domain/session-control/undelivered-steering'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { releaseDeliveredSteerAttachments } from './session-control-attachment-references'
+import { messageCallerBlockReason } from './session-follow-up-authorization'
+import { deliverAuthorizedPersonFollowUpPastCapacity } from './session-person-follow-up-past-capacity'
 import { persistSessionControlState } from './sqlite-session-control-state'
 import { hasPendingReplacementForRun } from './sqlite-session-follow-up-reservation'
 import { storedHostRunCeiling } from './sqlite-session-parent-run-admission'
@@ -64,14 +65,41 @@ function pauseRunningQueue(
 }
 
 /**
+ * Pauses for a Run's failure. A queue that waited only on agents' capacity (`parent-limit`) takes
+ * the failure's reason instead: the person's Follow-ups accepted before the failure wait for their
+ * Resume, never for a slot, which would start them on its own.
+ */
+function pauseForFailure(
+  state: SessionControlSessionState,
+  nextRunId: SettleInput['nextRunId'],
+  reason: FollowUpQueuePauseReason,
+) {
+  const queue = state.followUpQueue
+  if (queue.state !== 'paused' || queue.pauseReason !== 'parent-limit') {
+    return pauseRunningQueue(state, nextRunId, reason)
+  }
+  return {
+    ...state,
+    followUpQueue: {
+      ...queue,
+      pauseReason: reason,
+      revision: queue.revision + QUEUE_REVISION_INCREMENT,
+    },
+  }
+}
+
+/**
  * Settles a Run that did not complete. The rule for Follow-ups: the failure pauses those accepted
  * up to its terminal event, which were queued without knowing the Run would fail. One accepted
  * after it was sent by someone who had seen the Run end, so it is an explicit retry: the first such
  * Follow-up starts now, ahead of the paused ones, and the queue pauses only if earlier ones remain.
+ * With `personRetryOnly` (a Worker limit holds back agents' retries) the first retry the person
+ * sent starts instead, and agents' retries wait in a queue paused `parent-limit` if it still ran.
  */
 function settleUnsuccessfulRun(
   state: SessionControlSessionState,
   input: SettleInput & { readonly terminalStatus: keyof typeof PAUSE_REASON_BY_TERMINAL_STATUS },
+  personRetryOnly = false,
 ) {
   const settled = settleSessionRun(state, input.runId)
   if (!settled.accepted) return { ...settled, scheduled: undefined }
@@ -80,14 +108,17 @@ function settleUnsuccessfulRun(
     terminalEventAt !== undefined && item.intent.acceptedAt > terminalEventAt
   const items = settled.state.followUpQueue.items
   const hasEarlierFollowUps = terminalEventAt === undefined || items.some((item) => !isRetry(item))
-  const next = hasEarlierFollowUps
-    ? pauseRunningQueue(
+  const failed = hasEarlierFollowUps
+    ? pauseForFailure(
         settled.state,
         input.nextRunId,
         PAUSE_REASON_BY_TERMINAL_STATUS[input.terminalStatus],
       )
     : settled.state
-  const retryIndex = items.findIndex(isRetry)
+  const next = personRetryOnly ? pauseRunningQueue(failed, input.nextRunId, 'parent-limit') : failed
+  const retryIndex = items.findIndex(
+    (item) => isRetry(item) && (!personRetryOnly || isPersonStartedRun(item.intent)),
+  )
   const retry = items[retryIndex]
   if (retry?.deliveryState !== 'pending') {
     return { accepted: true as const, state: next, scheduled: undefined }
@@ -120,29 +151,28 @@ function settleUnsuccessfulRun(
 }
 
 /**
- * Why a settling Run's next Run waits: a Worker limit was full when it would have started. Both
- * pause with `parent-limit`, a reason every binary decodes.
+ * Plans a Run's settlement. `deferred` says a Worker limit holds back the agents' Run it would
+ * start next: a completed Run's queue then pauses with `parent-limit` (a reason every binary
+ * decodes) unless it was paused already, and an unsuccessful Run's starts only the person's retry.
  */
-type SettlementDeferral = 'parent-limit' | 'host-ceiling'
-
 export function planRunSettlement(
   state: SessionControlSessionState,
   input: SettleInput,
-  deferral?: SettlementDeferral,
+  deferred = false,
 ) {
   if (input.suppressFollowUpScheduling) {
     return { ...settleSessionRun(state, input.runId), scheduled: undefined }
   }
-  if (deferral) {
+  const { terminalStatus } = input
+  if (deferred && terminalStatus !== 'completed') {
+    return settleUnsuccessfulRun(state, { ...input, terminalStatus }, true)
+  }
+  if (deferred) {
     const settled = settleSessionRun(state, input.runId)
     if (!settled.accepted) return { ...settled, scheduled: undefined }
-    const paused =
-      deferral === 'parent-limit'
-        ? pauseRunningQueue(settled.state, input.nextRunId, 'parent-limit')
-        : pauseUndeliveredQueue(settled.state, 'parent-limit')
+    const paused = pauseRunningQueue(settled.state, input.nextRunId, 'parent-limit')
     return { ...settled, state: paused, scheduled: undefined }
   }
-  const { terminalStatus } = input
   const result =
     terminalStatus === 'completed'
       ? settleAndScheduleNextFollowUp(state, input.runId, input.nextRunId)
@@ -161,9 +191,11 @@ export function planRunSettlement(
  * the person's Session, which a Run the person started there may have passed. A Follow-up the
  * person sent runs next whatever the limits. After a completed Run, the person's first Follow-up
  * in a queue that waits on capacity starts ahead of the agents' ones the limit holds back
- * (`deliverPersonFollowUpPastCapacity`; ADR 0030, amended 2026-11-09 and 2026-11-10).
- * With no Run to start (an empty queue, or a head held for the person's edit) nothing waits, so the queue is not paused: a pause there outlived the limit, and
- * held back the person's edited or later Follow-ups, which are admitted when they are delivered.
+ * (`deliverPersonFollowUpPastCapacity`), and after an unsuccessful one the person's first retry
+ * does (ADR 0030, amended 2026-11-09 and 2026-11-10). With no Run to start (an empty queue, or a
+ * head held for the person's edit) nothing waits, so the queue is not paused: a pause there
+ * outlived the limit, and held back the person's edited or later Follow-ups, which are admitted
+ * when they are delivered.
  */
 export function planRunSettlementWithinWorkerLimits(
   sql: SqlClient.SqlClient,
@@ -183,29 +215,41 @@ export function planRunSettlementWithinWorkerLimits(
         })
       : undefined
     if (nextRun && !refusal) return planned
-    const settled = refusal
-      ? planRunSettlement(
-          state,
-          input,
-          refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : 'host-ceiling',
-        )
-      : planned
-    return input.terminalStatus === 'completed'
-      ? withPersonFollowUpPastCapacity(settled, input.nextRunId)
-      : settled
+    if (input.terminalStatus !== 'completed') {
+      return refusal ? yield* planPersonRetry(sql, state, input) : planned
+    }
+    const settled = refusal ? planRunSettlement(state, input, true) : planned
+    if (!settled.accepted) return settled
+    const delivery = yield* deliverAuthorizedPersonFollowUpPastCapacity(
+      sql,
+      settled.state,
+      input.nextRunId,
+    )
+    return delivery.delivered
+      ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }
+      : { ...settled, state: delivery.state }
   })
 }
 
-/** Starts the person's Follow-up past a capacity pause the settlement left, if one waits. */
-function withPersonFollowUpPastCapacity(
-  settled: ReturnType<typeof planRunSettlement>,
-  nextRunId: SettleInput['nextRunId'],
-): ReturnType<typeof planRunSettlement> {
-  if (!settled.accepted) return settled
-  const delivery = deliverPersonFollowUpPastCapacity(settled.state, nextRunId)
-  return delivery.delivered
-    ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }
-    : settled
+/**
+ * Settles an unsuccessful Run whose agents' retry a Worker limit holds back, starting the person's
+ * retry instead after the current-authority check (ADR 0057): one whose authority changed needs
+ * attention, and nothing starts.
+ */
+function planPersonRetry(
+  sql: SqlClient.SqlClient,
+  state: SessionControlSessionState,
+  input: SettleInput,
+) {
+  return Effect.gen(function* () {
+    const planned = planRunSettlement(state, input, true)
+    if (!planned.accepted || !planned.scheduled) return planned
+    const { followUpId, intent } = planned.scheduled
+    const reason = yield* messageCallerBlockReason(sql, input.sessionId, intent.callerId)
+    return reason
+      ? planRunSettlement(markFollowUpNeedsAttention(state, followUpId, reason), input, true)
+      : planned
+  })
 }
 
 /**

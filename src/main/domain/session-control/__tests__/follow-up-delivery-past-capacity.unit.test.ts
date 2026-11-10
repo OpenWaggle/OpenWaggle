@@ -55,4 +55,25 @@ describe('deliverPersonFollowUpPastCapacity', () => {
 
     expect(delivery.delivered?.followUpId).toBe('later')
   })
+
+  // A failed Run's agent retry was refused: only the person's own retry passes its pause.
+  it('starts only the person’s retry after `retriesAfter`, keeping the queue’s reason', () => {
+    const delivery = deliverPersonFollowUpPastCapacity(
+      state(
+        [
+          followUp('earlier', { acceptedAt: 1 }),
+          followUp('agent-retry', { callerId: AGENT, acceptedAt: 11 }),
+          followUp('retry', { acceptedAt: 12 }),
+        ],
+        IDLE,
+        'paused',
+        { pauseReason: 'run-failed' },
+      ),
+      NEXT_RUN,
+      10,
+    )
+
+    expect(delivery.delivered?.followUpId).toBe('retry')
+    expect(delivery.state.followUpQueue).toMatchObject({ pauseReason: 'run-failed' })
+  })
 })

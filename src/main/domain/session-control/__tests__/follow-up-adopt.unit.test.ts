@@ -105,8 +105,6 @@ describe('adoptFollowUp', () => {
   it.each([
     ['no reason', {}],
     ['a revoked profile', { pauseReason: 'profile-revoked' as const }],
-    // A queue parked at Workers per parent waits on agents' capacity, never the person's.
-    ['Workers per parent', { pauseReason: 'parent-limit' as const }],
   ])(
     'resumes a queue its attention paused, with %s, once nothing needs attention',
     (_case, queue) => {
@@ -127,6 +125,8 @@ describe('adoptFollowUp', () => {
   it.each([
     ['the user paused it', [revoked('stuck')], { pauseReason: 'requested' as const }],
     ['a failed Run paused it', [revoked('stuck')], { pauseReason: 'run-failed' as const }],
+    // Agents' Follow-ups still wait for a slot; the adopted one starts ahead of them on delivery.
+    ['it waits on agents’ capacity', [revoked('stuck')], { pauseReason: 'parent-limit' as const }],
     ['another Follow-up still needs attention', [revoked('stuck'), revoked('other')], {}],
   ])('keeps the queue paused when %s', (_case, items, queue) => {
     const result = adoptFollowUp({

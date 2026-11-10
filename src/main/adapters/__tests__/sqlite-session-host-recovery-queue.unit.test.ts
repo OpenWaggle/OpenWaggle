@@ -103,4 +103,36 @@ describe('SQLite Session Host queue recovery', () => {
       followUps: [{ id: 'follow-up-queued' }],
     })
   })
+
+  // What waited only on agents' capacity now waits for the person's Resume; their own pause stays.
+  it.each([
+    ['parent-limit', 'host-lost'],
+    ['requested', 'requested'],
+  ] as const)('recovers a Run in a queue paused %s as %s', async (pausedFor, expected) => {
+    const layer = makeQueueRecoveryLayer(path.join(temporaryRoot, `paused-${pausedFor}.sqlite`))
+    const reason = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (${'run-live'}, ${'session-queued'}, ${'active'}, ${null}, ${1}, ${1})
+        `
+        yield* sql`
+          UPDATE session_control_states
+          SET active_run_id = ${'run-live'}, queue_state = ${'paused'},
+            queue_pause_reason = ${pausedFor}
+          WHERE session_id = ${'session-queued'}
+        `
+        const repository = yield* SessionHostRecoveryRepository
+        yield* repository.recoverAfterHostLoss(10)
+        const [state] = yield* sql<{ readonly queue_pause_reason: string | null }>`
+          SELECT queue_pause_reason FROM session_control_states
+          WHERE session_id = ${'session-queued'}
+        `
+        return state?.queue_pause_reason
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(reason).toBe(expected)
+  })
 })

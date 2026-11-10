@@ -159,13 +159,27 @@ describe('deliverIdleQueueHead', () => {
   })
 
   it('pauses a queue whose delivery the Host cannot admit, with a reason older binaries decode', () => {
-    expect(pauseUndeliveredQueue(state([followUp('first')], IDLE)).followUpQueue).toEqual({
+    expect(
+      pauseUndeliveredQueue(state([followUp('first')], IDLE), 'parent-limit').followUpQueue,
+    ).toEqual({
       state: 'paused',
+      pauseReason: 'parent-limit',
       revision: 5,
       items: [followUp('first')],
     })
-    expect(
-      pauseUndeliveredQueue(state([followUp('first')], IDLE), 'parent-limit').followUpQueue,
-    ).toMatchObject({ state: 'paused', pauseReason: 'parent-limit' })
+  })
+
+  // A failed Run's refused retry: what the failure paused waits for the person's Resume.
+  it('keeps the reason of a queue paused already', () => {
+    const failed = state([followUp('first')], IDLE, 'paused', {
+      pauseReason: 'run-failed',
+      deferredRetryAfter: 200,
+    })
+    expect(pauseUndeliveredQueue(failed, 'parent-limit').followUpQueue).toEqual({
+      state: 'paused',
+      pauseReason: 'run-failed',
+      revision: 5,
+      items: [followUp('first')],
+    })
   })
 })

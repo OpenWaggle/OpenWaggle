@@ -51,7 +51,7 @@ describe('sendAsMeStartsNow mirrors the Host adoption rule', () => {
     expect(startsNow({ state: 'running', items: [held] })).toBe(false)
   })
 
-  it.each([undefined, 'profile-revoked', 'parent-limit'] as const)(
+  it.each([undefined, 'profile-revoked'] as const)(
     'resumes a queue attention paused (%s) when this is the only message needing attention',
     (pauseReason) => {
       expect(
@@ -92,5 +92,45 @@ describe('sendAsMeStartsNow mirrors the Host adoption rule', () => {
         items: [item('first', 'pending'), item('a', 'needs_attention')],
       }),
     ).toBe(false)
+  })
+
+  // Agents' Follow-ups wait for a slot; the adopted message is the person's and starts ahead.
+  describe('in a queue waiting on agents’ capacity', () => {
+    const agents = item('agents', 'pending')
+    const mine = { ...item('mine', 'pending'), editable: true }
+
+    it('starts the adopted message behind agents’ ones', () => {
+      expect(
+        startsNow({
+          state: 'paused',
+          pauseReason: 'parent-limit',
+          items: [agents, item('a', 'needs_attention')],
+        }),
+      ).toBe(true)
+    })
+
+    it('waits behind this user’s own earlier message, which starts first', () => {
+      expect(
+        startsNow({
+          state: 'paused',
+          pauseReason: 'parent-limit',
+          items: [mine, item('a', 'needs_attention')],
+        }),
+      ).toBe(false)
+    })
+
+    it('waits behind an edit up to it', () => {
+      const held = {
+        ...agents,
+        editHold: { heldByCurrentUser: false, acquiredAt: 1, leaseExpiresAt: 2 },
+      }
+      expect(
+        startsNow({
+          state: 'paused',
+          pauseReason: 'parent-limit',
+          items: [held, item('a', 'needs_attention')],
+        }),
+      ).toBe(false)
+    })
   })
 })

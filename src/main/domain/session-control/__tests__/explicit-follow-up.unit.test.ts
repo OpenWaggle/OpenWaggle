@@ -82,12 +82,12 @@ describe('Session Control explicit Follow-up', () => {
 
   // The person's work never waits behind agents' work held back by a full limit.
   it.each([
-    ['starts the person’s', 'gui:local-user', 'parent-limit', 'started-run'],
-    ['queues an agent’s', 'session-agent:queen:run-queen', 'parent-limit', 'queued-follow-up'],
-    ['queues the person’s', 'gui:local-user', 'requested', 'queued-follow-up'],
+    ['starts the person’s', 'parent-limit', 'gui:local-user', 'started-run'],
+    ['queues an agent’s', 'parent-limit', 'session-agent:queen:run-queen', 'queued-follow-up'],
+    ['queues the person’s', 'requested', 'gui:local-user', 'queued-follow-up'],
   ] as const)(
     '%s Follow-up in an idle Session paused for %s',
-    (_, callerId, pauseReason, effect) => {
+    (_, pauseReason, callerId, effect) => {
       const agentItem = {
         id: FollowUpId('agent-held'),
         deliveryState: 'pending' as const,
