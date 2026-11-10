@@ -182,6 +182,18 @@ describe('findings', () => {
     expect(tail.at(-1)).toBe('line 99')
   })
 
+  it('prefers the error line to the end of a noisy log', () => {
+    const log = [
+      '(!) Some chunks are larger than 500 kB after minification.',
+      '105 |     throw new Error(',
+      'error: initial renderer is 467002 bytes; budget is 393216 bytes.',
+      '      at initialRendererAssets (scripts/check-syntax-bundle.ts:105:15)',
+    ].join('\n')
+    expect(parseFindings('generic', log)).toEqual([
+      'error: initial renderer is 467002 bytes; budget is 393216 bytes.',
+    ])
+  })
+
   it('caps the printed findings and points at the log', () => {
     const many = Array.from({ length: MAX_PRINTED_FINDINGS + 5 }, (_, index) => `f:${index}:1 x`)
     const capped = capFindings(many, '.tmp/check/lint.log')

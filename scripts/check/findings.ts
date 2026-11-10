@@ -14,6 +14,10 @@ const TSC_ERROR =
   /^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\): error (?<code>TS\d+): (?<message>.*)$/u
 /** `path:line` or `path:line:col` at the start of a line, the shape most tools print. */
 const LOCATED_LINE = /^[^\s:]+:\d+(?::\d+)?(?:[:\s]|$)/u
+/** A line that states the error itself (`error: ...`, `Error: ...`, `TypeError: ...`). */
+const ERROR_LINE = /^\s*(?:[A-Z]\w*)?(?:error|Error|ERROR)\b:?\s/u
+/** Error lines beyond this are noise (a stack of rethrows); the tail is shown instead. */
+const MAX_ERROR_LINES = 10
 
 function logLines(log: string) {
   // Some tools colour their output even with NO_COLOR set.
@@ -44,7 +48,9 @@ export function parseFindings(format: FindingFormat, log: string): readonly stri
     return findings.length > 0 ? findings : tail(lines)
   }
   const located = nonEmpty.filter((line) => LOCATED_LINE.test(line))
-  return located.length > 0 ? located : tail(lines)
+  if (located.length > 0) return located
+  const errors = nonEmpty.filter((line) => ERROR_LINE.test(line))
+  return errors.length > 0 && errors.length <= MAX_ERROR_LINES ? errors : tail(lines)
 }
 
 /** Caps the findings and says where the rest are. */
