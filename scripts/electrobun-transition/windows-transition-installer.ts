@@ -93,6 +93,11 @@ export function nsisDefines(input: WindowsTransitionDefines) {
   }
 }
 
+function windowsTar() {
+  if (process.platform !== 'win32') return 'tar'
+  return path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+}
+
 /** The visible setup executable in Electrobun's Setup zip; its hidden payload sits beside it. */
 export function electrobunSetupExecutable(names: readonly string[]) {
   const executables = names.filter((name) => /setup.*\.exe$/iu.test(name))
@@ -114,8 +119,9 @@ export async function buildWindowsTransitionInstaller(input: {
 }) {
   const staging = await mkdtemp(path.join(tmpdir(), 'openwaggle-transition-'))
   try {
-    // Windows 10 and later ship bsdtar, which reads zip archives.
-    await run('tar', ['-xf', input.setupZip, '-C', staging])
+    // Windows 10 and later ship bsdtar, which reads zip archives. Name it: Git's GNU tar, first on
+    // PATH in Git Bash, reads `D:\…` as a remote host.
+    await run(windowsTar(), ['-xf', input.setupZip, '-C', staging])
     const setupExecutable = electrobunSetupExecutable(await readdir(staging))
     const defines = nsisDefines({ ...input, setupDirectory: staging, setupExecutable })
     const args = [

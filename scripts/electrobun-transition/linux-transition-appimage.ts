@@ -98,6 +98,8 @@ export async function buildLinuxTransitionAppImage(input: {
     await chmod(appRun, EXECUTABLE_MODE)
     await writeFile(path.join(appDir, 'openwaggle.desktop'), transitionDesktopEntry(input.version))
     await copyFile(path.join(BUILD_DIRECTORY, 'icon.png'), path.join(appDir, 'openwaggle.png'))
+    // mkdtemp creates 0700; every user who runs the AppImage must read and traverse its files.
+    await run('chmod', ['-R', 'a+rX', appDir])
     await rm(input.outFile, { force: true })
     const { stdout, stderr } = await run(
       input.appimagetool,
