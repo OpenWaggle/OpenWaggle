@@ -45,6 +45,13 @@ export const sessionArchivedOutcomeSchema = Schema.Struct({
   sessionId: Schema.String,
 })
 
+export const sessionArchiveDeferredOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('archive'),
+  effect: Schema.Literal('session-archive-deferred'),
+  sessionId: Schema.String,
+  runId: Schema.String,
+})
+
 export const sessionUnarchivedOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('unarchive'),
   effect: Schema.Literal('session-unarchived'),
@@ -70,6 +77,7 @@ export const sessionOrganizationCommandSchemas = [
 export const sessionOrganizationOutcomeSchemas = [
   sessionRenamedOutcomeSchema,
   sessionArchivedOutcomeSchema,
+  sessionArchiveDeferredOutcomeSchema,
   sessionUnarchivedOutcomeSchema,
   sessionHandedOffOutcomeSchema,
 ] as const

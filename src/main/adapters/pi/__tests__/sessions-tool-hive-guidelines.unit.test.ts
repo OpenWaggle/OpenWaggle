@@ -1,7 +1,9 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type { SessionCapability } from '@shared/types/session-capability'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { createSessionsToolExtension } from '../sessions-tool-extension'
+import { SELF_ARCHIVE_GUIDELINE } from '../sessions-tool-self-archive-guideline'
 import { hiveHelpText } from './hive-help.test-utils'
 
 describe('Hive tool Hive cleanup guidance', () => {
@@ -139,5 +141,25 @@ describe('Hive tool Agent-definition guidance', () => {
     const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
     expect(text).toMatch(/When an Agent definition fits a role, launch or create with agent/)
     expect(text).not.toContain('projectPath for another project')
+  })
+})
+
+describe('Hive tool self-archive guidance', () => {
+  it('explains a deferred self-archive only to a Session that may archive', async () => {
+    const helpFor = async (sessionCapabilities?: readonly SessionCapability[]) => {
+      const registerTool = vi.fn()
+      await createSessionsToolExtension({
+        sessionId: 'session-self',
+        runId: 'run-current',
+        workingDirectory: '/project',
+        ...(sessionCapabilities ? { sessionCapabilities } : {}),
+      })(fromPartial<ExtensionAPI>({ registerTool }))
+      return hiveHelpText(registerTool.mock.calls[0]?.[0])
+    }
+
+    expect(await helpFor()).toContain(SELF_ARCHIVE_GUIDELINE)
+    expect(await helpFor(['sessions:discover', 'sessions:read'])).not.toContain(
+      SELF_ARCHIVE_GUIDELINE,
+    )
   })
 })

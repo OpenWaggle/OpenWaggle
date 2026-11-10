@@ -30,6 +30,17 @@ export type SessionOrganizationOutcome =
       readonly sessionId: string
     }
   | {
+      /**
+       * A Session agent asked, from Run `runId`, to archive its own Session. Archiving stops the
+       * Session's Runs, so the Host archives it after that Run completes instead, unless the
+       * Session changed since.
+       */
+      readonly operation: 'archive'
+      readonly effect: 'session-archive-deferred'
+      readonly sessionId: string
+      readonly runId: string
+    }
+  | {
       readonly operation: 'unarchive'
       readonly effect: 'session-unarchived'
       readonly sessionId: string
