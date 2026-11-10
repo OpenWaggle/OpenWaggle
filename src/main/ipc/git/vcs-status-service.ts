@@ -71,7 +71,7 @@ async function resolveRefName(projectPath: string): Promise<string | null> {
   return result.ok ? result.value : null
 }
 
-export { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
+export { resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
 
 async function resolveWorkingTree(projectPath: string): Promise<LocalReadResult<VcsWorkingTree>> {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([

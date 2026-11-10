@@ -225,13 +225,6 @@ export async function updateProjectConfig(
   return parseProjectConfig(next)
 }
 
-export async function getProjectPreferences(
-  projectPath: string,
-): Promise<ProjectPreferences | undefined> {
-  const config = await loadProjectConfig(projectPath)
-  return config.preferences
-}
-
 /**
  * Reads project preferences, THROWING when the settings file exists but cannot be understood.
  *

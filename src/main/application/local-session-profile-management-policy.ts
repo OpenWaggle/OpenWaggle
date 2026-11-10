@@ -13,7 +13,6 @@ import {
   type LocalSessionProfileManagementOutcome,
   type LocalSessionProfileManagementRequest,
 } from '@shared/types/local-session-profile-management'
-import type { SessionCapability } from '@shared/types/session-capability'
 import { includesEvery } from '@shared/utils/set-membership'
 
 function arraySubset(
@@ -116,14 +115,4 @@ export function profileManagementTargetName(command: LocalSessionProfileManageme
     : 'profileName' in command
       ? command.profileName
       : undefined
-}
-
-export function canManageLocalSessionProfiles(
-  caller: LocalSessionCallerIdentity,
-  required: readonly SessionCapability[] = ['access:profiles'],
-) {
-  return (
-    caller.profileAuthority === undefined ||
-    includesEvery(caller.profileAuthority.capabilities, required)
-  )
 }

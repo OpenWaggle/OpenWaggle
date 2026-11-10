@@ -70,9 +70,3 @@ export async function hydrateAttachmentSources(
   // Independent per-attachment reads; Promise.all preserves input order.
   return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, true)))
 }
-
-export async function hydrateTrustedAttachmentSources(
-  attachments: readonly PreparedAttachment[],
-): Promise<HydratedAttachment[]> {
-  return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, false)))
-}

@@ -281,11 +281,3 @@ export async function removeFilesystemExtensionPackage(
     throw error
   }
 }
-
-export function getFilesystemExtensionPackagePath(input: {
-  readonly extensionId: string
-  readonly scope: ExtensionPackageScope
-  readonly globalRootPath: string
-}) {
-  return extensionPackagePath(input)
-}

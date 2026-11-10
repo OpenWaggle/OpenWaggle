@@ -161,10 +161,6 @@ export const HOST_UI_REVISION_9_REQUIRED_CHANNELS = [
   'inline-visualization:prepare-source',
 ] as const satisfies readonly IpcInvokeChannel[]
 
-export const HOST_UI_REVISION_7_REQUIRED_CHANNELS = [
-  'agent:list-active-runs',
-] as const satisfies readonly IpcInvokeChannel[]
-
 /** Channels introduced in revision 7. Changed channels may still have a legacy dispatcher. */
 export const HOST_UI_REVISION_7_NEW_CHANNELS = [
   'agent:list-active-runs',

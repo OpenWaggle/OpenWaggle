@@ -30,8 +30,6 @@ import type {
   SessionControlSessionState,
 } from './message-aggregate'
 
-export { isFollowUpEditHeld } from './follow-up-delivery'
-
 const REVISION_INCREMENT = 1
 
 export interface FollowUpEditContent {

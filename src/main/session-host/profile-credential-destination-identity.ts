@@ -27,14 +27,3 @@ export async function credentialDestinationIdentity(
     throw error
   }
 }
-
-export function sameCredentialDestination(
-  expected: CredentialDestinationIdentity,
-  actual: CredentialDestinationIdentity | undefined,
-) {
-  return (
-    actual?.device === expected.device &&
-    actual.inode === expected.inode &&
-    actual.contentHash === expected.contentHash
-  )
-}

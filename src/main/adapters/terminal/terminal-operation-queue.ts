@@ -167,8 +167,3 @@ export function terminalOperationBlockDisposition(
   }
   return 'none'
 }
-
-export const isTerminalOperationBlocked = (
-  queue: TerminalOperationQueue,
-  input: Parameters<typeof terminalOperationBlockDisposition>[1],
-) => terminalOperationBlockDisposition(queue, input) !== 'none'

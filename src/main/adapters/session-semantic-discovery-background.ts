@@ -1,6 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import { awaitHostBackgroundTurn } from '../application/host-background-turn'
 import { createLogger } from '../logger'
 import {
@@ -139,7 +138,3 @@ export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   yield* Effect.forkScoped(projectionLoop(projection))
   yield* Effect.forkScoped(transcriptProjectionLoop(transcriptProjection))
 })
-
-export const SessionSemanticDiscoveryBackgroundLive = Layer.scopedDiscard(
-  runSessionSemanticDiscoveryBackground,
-)

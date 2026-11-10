@@ -1,5 +1,4 @@
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionWorktreePlan } from '@shared/types/session'
 import {
   draftWorktreePlanKey,
   PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
@@ -22,20 +21,6 @@ export function stashDraftWorktreePlan(
   const store = useWorktreePlanStore.getState()
   store.takeOverride(PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY)
   store.setOverride(draftWorktreePlanKey(projectPath), plan)
-}
-
-/**
- * Flush a stashed draft plan onto a freshly-created session before its first run
- * births the worktree, so the user's pre-send choice is honoured.
- */
-export function consumeDraftWorktreePlan(projectPath: string): SessionWorktreePlan | undefined {
-  const override = useWorktreePlanStore.getState().takeOverride(draftWorktreePlanKey(projectPath))
-  if (!override?.envMode) return undefined
-  return {
-    environmentMode: override.envMode,
-    baseRef: override.baseRef ?? null,
-    startFromOrigin: override.startFromOrigin ?? false,
-  }
 }
 
 /** Capture the resolved plan before asynchronous session creation starts. */

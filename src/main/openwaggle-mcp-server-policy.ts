@@ -5,7 +5,6 @@ import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/sess
 export {
   assertProjectAllowed,
   canonicalizeExistingProjectPath,
-  sessionAllowed,
 } from './openwaggle-mcp-workspace-policy'
 
 export const OPENWAGGLE_MCP_SERVE_GRANTS = SESSION_CAPABILITIES
@@ -50,15 +49,6 @@ export interface OpenWaggleMcpServeOptions {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function toolResult(value: unknown, isError = false) {
-  const structuredContent = isRecord(value) ? value : { value }
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify(value) }],
-    structuredContent,
-    ...(isError ? { isError: true as const } : {}),
-  }
 }
 
 export type OpenWaggleMcpServer = McpServer

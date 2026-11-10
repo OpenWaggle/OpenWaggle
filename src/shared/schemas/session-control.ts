@@ -33,7 +33,6 @@ import { inlineVisualizationContextSchema } from './validation'
 import { waggleInvocationSchema } from './waggle'
 
 export { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
-export { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 
 const steeringInputSchema = Schema.Struct({
   text: sessionInputTextSchema,

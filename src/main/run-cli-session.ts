@@ -29,8 +29,6 @@ import type {
 import { sessionsCliStreamRecordLine } from './sessions-cli-output'
 import { watchEventRecord } from './sessions-cli-watch-records'
 
-export { RUN_CLI_INTERRUPTED_EXIT } from './run-cli-settlement'
-
 /** Events buffered before the launch response names the new Session. */
 export const RUN_CLI_PENDING_EVENT_LIMIT = 10_000
 

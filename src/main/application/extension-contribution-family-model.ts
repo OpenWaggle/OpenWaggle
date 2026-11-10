@@ -58,13 +58,6 @@ interface EntryFamilyDescriptor {
   ) => readonly ManifestEntryContribution[] | undefined
 }
 
-interface SessionSummaryFamilyDescriptor {
-  readonly family: typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS
-  readonly contributions: (
-    contributions: ExtensionContributions,
-  ) => readonly ManifestSessionSummaryContribution[] | undefined
-}
-
 const CONTRIBUTION_FAMILY = OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
 
 export const COMMAND_FAMILY_DESCRIPTORS = [
@@ -115,16 +108,6 @@ export const SESSION_SUMMARY_FAMILY_DESCRIPTOR = {
   family: CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
   contributions: (contributions: ExtensionContributions) => contributions.sessionSummarySections,
 } as const
-
-export const CONTRIBUTION_FAMILY_DESCRIPTORS = [
-  ...COMMAND_FAMILY_DESCRIPTORS,
-  ...ENTRY_FAMILY_DESCRIPTORS,
-  SESSION_SUMMARY_FAMILY_DESCRIPTOR,
-] satisfies readonly (
-  | CommandFamilyDescriptor
-  | EntryFamilyDescriptor
-  | SessionSummaryFamilyDescriptor
-)[]
 
 export function getManifestFamilyContributions(
   contributions: ExtensionContributions,

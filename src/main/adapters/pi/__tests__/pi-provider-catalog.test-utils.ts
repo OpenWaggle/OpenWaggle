@@ -1,11 +1,10 @@
-import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { onTestFinished } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 
-export { existsSync, fs, path }
+export { fs, path }
 
 /** A temporary project removed when the calling test finishes. */
 export async function createTempProject() {

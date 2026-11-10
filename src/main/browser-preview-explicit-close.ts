@@ -4,10 +4,6 @@ const CLOSE_TIMEOUT_MS = 2_000
 const requested = new WeakSet<BrowserPreviewRecord>()
 const pending = new WeakMap<BrowserPreviewRecord, Promise<void>>()
 
-export function hasRequestedBrowserPreviewClose(record: BrowserPreviewRecord): boolean {
-  return requested.has(record)
-}
-
 export function isBrowserPreviewClosePending(record: BrowserPreviewRecord): boolean {
   return pending.has(record)
 }

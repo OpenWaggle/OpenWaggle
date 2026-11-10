@@ -2,7 +2,6 @@ import * as NodeContext from '@effect/platform-node/NodeContext'
 import * as Deferred from 'effect/Deferred'
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
-import type { Exit as ExitType } from 'effect/Exit'
 import * as Fiber from 'effect/Fiber'
 import * as FiberId from 'effect/FiberId'
 import * as Layer from 'effect/Layer'
@@ -348,10 +347,4 @@ export async function resetAppRuntimeForTests(): Promise<void> {
 
 export function runAppEffect<A, E>(effect: EffectType<A, E, AppServices>): Promise<A> {
   return getAppRuntime().runPromise(effect)
-}
-
-export function runAppEffectExit<A, E>(
-  effect: EffectType<A, E, AppServices>,
-): Promise<ExitType<A, E | AppRuntimeError>> {
-  return getAppRuntime().runPromiseExit(effect)
 }

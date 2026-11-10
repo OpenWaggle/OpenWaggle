@@ -25,8 +25,6 @@ import { makeTerminalSpawner } from './terminal-spawn-controller'
 const logger = createLogger('terminal-runtime')
 const SPAWN_SETTLE_BEFORE_SHUTDOWN_MS = 250
 
-export { TERMINAL_RESOURCE_DRAIN_MS } from './terminal-retained-processes'
-
 export type { TerminalRecord }
 
 /** Registry, acknowledged output delivery, prompt readiness, and shell lifecycle. */

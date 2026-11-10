@@ -1,11 +1,6 @@
-import {
-  SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
-  sessionsCliResponseText,
-  writeSessionsCliError,
-} from './sessions-cli-output'
+import { sessionsCliResponseText, writeSessionsCliError } from './sessions-cli-output'
 
 const JSON_INDENT_SPACES = 2
-export const AGENTS_CLI_OUTPUT_SCHEMA_VERSION = SESSIONS_CLI_OUTPUT_SCHEMA_VERSION
 
 export interface CompactAgentCatalogItem {
   readonly name: string

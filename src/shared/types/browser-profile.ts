@@ -38,7 +38,3 @@ export function resolveBrowserProfiles(userProfiles: readonly BrowserProfile[]) 
 
   return profiles
 }
-
-export function findBrowserProfile(profiles: readonly BrowserProfile[], id: string | undefined) {
-  return id === undefined ? undefined : profiles.find((profile) => profile.id === id)
-}

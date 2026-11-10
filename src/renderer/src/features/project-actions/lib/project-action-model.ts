@@ -81,28 +81,6 @@ export const EMPTY_PROJECT_ACTION_DRAFT: ProjectActionDraft = {
   shortcutRules: [EMPTY_PROJECT_ACTION_SHORTCUT_RULE],
 }
 
-export function projectActionDraft(action: ProjectAction | null): ProjectActionDraft {
-  if (action === null) return EMPTY_PROJECT_ACTION_DRAFT
-  const shortcutRules = projectActionShortcutRules(action).map((rule, index) => ({
-    draftKey: `${action.id}-binding-${String(index)}`,
-    shortcut: rule.shortcut,
-    when: rule.when ?? '',
-    order: rule.order ?? null,
-  }))
-  return {
-    name: action.name,
-    command: action.command,
-    icon: action.icon,
-    runOnWorktreeCreate: action.runOnWorktreeCreate,
-    previewUrl: action.previewUrl ?? '',
-    autoOpenPreview: action.autoOpenPreview ?? false,
-    shortcutRules:
-      shortcutRules.length > 0
-        ? shortcutRules
-        : [emptyProjectActionShortcutRuleDraft(`${action.id}-binding-empty`)],
-  }
-}
-
 export function primaryProjectAction(
   actions: readonly ProjectAction[],
   lastInvokedId: string | null,

@@ -17,5 +17,3 @@ export function getSourceControlProvider(
   if (id === 'gitlab') return createGitlabProvider(repository)
   return null
 }
-
-export { createGithubProvider, createGitlabProvider }

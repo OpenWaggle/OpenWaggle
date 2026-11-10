@@ -79,8 +79,3 @@ export function buildHiveLineageIndex(input: {
   for (const member of input.members) entryFor(member, new Set())
   return index
 }
-
-/** The ancestry as a tooltip: `Queen › Worker › Worker`. */
-export function hiveAncestryLabel(entry: HiveLineageEntry | undefined) {
-  return entry === undefined ? '' : entry.ancestry.join(' › ')
-}

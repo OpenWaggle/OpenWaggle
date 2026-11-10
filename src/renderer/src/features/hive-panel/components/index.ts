@@ -4,4 +4,4 @@ export function loadHivePanel() {
   }))
 }
 
-export { HivePanel, type HivePanelProps } from './HivePanel'
+export type { HivePanelProps } from './HivePanel'

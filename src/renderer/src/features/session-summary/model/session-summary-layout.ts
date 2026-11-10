@@ -5,6 +5,4 @@
  */
 export const SESSION_SUMMARY_WIDTH_PX = 300
 export const SESSION_SUMMARY_RIGHT_INSET_PX = 16
-/** The attribute SessionSummaryExpandedPanel sets on the Summary, and its docked value. */
-export const SESSION_SUMMARY_MODE_ATTRIBUTE = 'data-session-summary-mode'
 export const SESSION_SUMMARY_PERSISTENT_MODE = 'persistent'

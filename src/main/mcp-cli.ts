@@ -206,11 +206,6 @@ function isServeHelp(arguments_: ParsedArguments) {
   )
 }
 
-export function getMcpCliArguments(argv: readonly string[]) {
-  const marker = argv.indexOf('mcp')
-  return marker < 0 ? null : argv.slice(marker + 1)
-}
-
 export async function runMcpCli(args: readonly string[]) {
   const [first, ...rest] = args
   if (isMcpManagementCommand(first)) {
@@ -245,8 +240,4 @@ export async function runMcpCli(args: readonly string[]) {
   } catch (error) {
     return cliExitCodeForKind(writeSessionsCliError(error, command === 'serve' ? false : json))
   }
-}
-
-export function mcpCliVersion() {
-  return app.getVersion()
 }

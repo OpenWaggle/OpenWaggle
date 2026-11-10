@@ -15,7 +15,6 @@ import {
 } from './browser-preview-favicon-image'
 
 export type { BrowserPreviewImageDimensions } from './browser-preview-favicon-image'
-export { safeBrowserPreviewImageDimensions } from './browser-preview-favicon-image'
 
 function pngDimensions(buffer: Buffer): BrowserPreviewImageDimensions | null {
   if (

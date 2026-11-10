@@ -9,18 +9,6 @@ function repositoryPath(repository: SourceControlRepositoryIdentity) {
   return `/${repository.owner}/${repository.repository}`
 }
 
-export function sameSourceControlRepository(
-  left: SourceControlRepositoryIdentity,
-  right: SourceControlRepositoryIdentity,
-) {
-  return (
-    left.provider === right.provider &&
-    left.host.toLowerCase() === right.host.toLowerCase() &&
-    left.owner.toLowerCase() === right.owner.toLowerCase() &&
-    left.repository.toLowerCase() === right.repository.toLowerCase()
-  )
-}
-
 /** Explicit selector accepted by GitHub CLI's repository-scoped commands. */
 export function githubRepositorySelector(repository: SourceControlRepositoryIdentity) {
   return `${repository.host}/${repository.owner}/${repository.repository}`

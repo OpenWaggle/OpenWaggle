@@ -14,7 +14,6 @@ import {
   BROWSER_IMPORT_SOURCES,
   type BrowserImportPathContext,
   type BrowserImportSourceDefinition,
-  browserImportSourceDefinition,
   cookieDatabaseCandidates,
   isSafeBrowserProfileDirectory,
   parseFirefoxProfiles,
@@ -295,5 +294,3 @@ export async function listBrowserImportSources(
 export function defaultBrowserImportPathContext(): BrowserImportPathContext {
   return { home: homedir(), platform: process.platform, ...getBrowserImportPathEnv() }
 }
-
-export { browserImportSourceDefinition }

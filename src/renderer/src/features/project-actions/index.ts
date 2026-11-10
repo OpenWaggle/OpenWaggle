@@ -12,8 +12,7 @@ export {
 export { ProjectActionsBackgroundEffects } from './components/ProjectActionsBackgroundEffects'
 export { WorktreePreparationChoice } from './components/WorktreePreparationChoice'
 export { useHasActiveProjectActionRun } from './hooks/useHasActiveProjectActionRun'
-export { useActionRuns, useActionScope, useNativeActions } from './hooks/useNativeActions'
-export { useProjectActionShortcutCapture } from './hooks/useProjectActionShortcutCapture'
+export { useActionRuns } from './hooks/useNativeActions'
 export {
   projectActionsQueryOptions,
   useProjectActionMutations,
@@ -38,4 +37,3 @@ export {
   isProjectActionQueryAffected,
   type ProjectActionSessionChange,
 } from './lib/project-action-query-scope'
-export { useProjectActionStore } from './state/project-action-store'

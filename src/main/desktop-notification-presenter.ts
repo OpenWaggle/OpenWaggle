@@ -294,12 +294,3 @@ export function sendTestDesktopNotification() {
   if (native) state.shown.set(sample.id, native)
   return state.permission
 }
-
-export function resetDesktopNotificationPresenterForTests() {
-  state.input = null
-  state.outstanding.clear()
-  state.shown.clear()
-  state.viewingSessionId = null
-  state.permission = 'not-asked'
-  state.overlayCount = 0
-}

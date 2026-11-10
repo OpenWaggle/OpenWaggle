@@ -114,13 +114,6 @@ function occurrenceMatchesView(
     : occurrence.activity === 'created' || occurrence.activity === 'updated'
 }
 
-export function latestResourceOccurrence(
-  resource: SessionResource,
-  view: SessionResourceBrowserView,
-): SessionResourceOccurrence | null {
-  return preferredResourceOccurrence(resource, new Set(), view)
-}
-
 function laterOccurrence(
   current: SessionResourceOccurrence | null,
   candidate: SessionResourceOccurrence,

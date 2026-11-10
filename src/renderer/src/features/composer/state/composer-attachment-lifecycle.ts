@@ -30,15 +30,6 @@ function abandonedAttachments(previous: ComposerState, current: ComposerState) {
   )
 }
 
-export function abandonedSessionResourceAttachments(
-  previous: ComposerState,
-  current: ComposerState,
-) {
-  return abandonedAttachments(previous, current).filter(
-    (attachment) => attachment.origin === 'session-resource',
-  )
-}
-
 /** The send/queue workflow owns these capabilities after the draft is cleared. */
 export function markAttachmentsSubmitted(attachments: readonly PreparedAttachment[]) {
   for (const attachment of attachments) submittedAttachmentIds.add(attachment.id)

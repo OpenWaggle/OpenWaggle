@@ -9,14 +9,7 @@ import {
   extensionContributionIdSchema,
   extensionRelativePathSchema,
 } from './extension-contributions'
-import { isNetworkOrigin } from './extension-network-origin'
-import {
-  isBuildCommand,
-  isExtensionId,
-  isNonEmptyTrimmed,
-  isRuntimeRequirementBinary,
-  isSemverVersion,
-} from './extension-schema-primitives'
+import { isExtensionId, isNonEmptyTrimmed } from './extension-schema-primitives'
 
 export type {
   ExtensionCapabilityDeclaration,
@@ -64,10 +57,6 @@ const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed)
 export const extensionIdSchema = Schema.String.pipe(
   Schema.minLength(1),
   Schema.filter(isExtensionId),
-)
-export const extensionSemverVersionSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.filter(isSemverVersion),
 )
 const extensionProposalHashSchema = Schema.String.pipe(
   Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),
@@ -170,52 +159,6 @@ export const extensionApplyPackageRemoveInputSchema = Schema.Struct({
   globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
 })
 
-export const extensionRuntimeRequirementSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  label: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  kind: Schema.optional(extensionRuntimeRequirementTypeSchema),
-  command: Schema.optional(extensionRelativePathSchema),
-  binary: Schema.optional(nonEmptyStringSchema.pipe(Schema.filter(isRuntimeRequirementBinary))),
-}).pipe(
-  Schema.filter((requirement) => {
-    const hasBinary = requirement.binary !== undefined
-    const hasCommand = requirement.command !== undefined
-
-    if (hasBinary === hasCommand) {
-      return 'Declare exactly one runtime requirement target: binary or command.'
-    }
-    if (
-      hasBinary &&
-      requirement.kind !== undefined &&
-      requirement.kind !== OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE.BINARY
-    ) {
-      return 'Runtime requirement kind must be "binary" when binary is declared.'
-    }
-    if (
-      hasCommand &&
-      requirement.kind !== undefined &&
-      requirement.kind !== OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE.COMMAND
-    ) {
-      return 'Runtime requirement kind must be "command" when command is declared.'
-    }
-
-    return true
-  }),
-)
-
-export const extensionNetworkSchema = Schema.Struct({
-  origins: Schema.mutable(Schema.Array(nonEmptyStringSchema.pipe(Schema.filter(isNetworkOrigin)))),
-})
-
-export const extensionInstallSchema = Schema.Struct({
-  source: extensionInstallSourceSchema,
-})
-
-export const extensionBuildSchema = Schema.Struct({
-  command: nonEmptyStringSchema.pipe(Schema.filter(isBuildCommand)),
-  outputs: Schema.optional(Schema.mutable(Schema.Array(extensionRelativePathSchema))),
-})
-
 export const extensionDocsTopicDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
@@ -225,10 +168,6 @@ export const extensionDocsTopicDeclarationSchema = Schema.Struct({
   ),
   aliases: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
   keywords: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-})
-
-export const extensionDocsSchema = Schema.Struct({
-  topics: Schema.optional(Schema.mutable(Schema.Array(extensionDocsTopicDeclarationSchema))),
 })
 
 export const openWaggleExtensionManifestSchema = publicOpenWaggleExtensionManifestSchema

@@ -12,7 +12,7 @@ export {
   sendFailureText,
   wasMessageDelivered,
 } from './message-delivery'
-export { focusPendingRequest, restoreFocusBeforeRequest } from './pending-request-focus'
+export { focusPendingRequest } from './pending-request-focus'
 export { isScrollContainerNearBottom, scrollElementToBottom } from './scroll-to-bottom'
 export { isSessionModelActionable } from './session-answered-by'
 export { runSessionCopyOnce } from './session-copy-in-flight'

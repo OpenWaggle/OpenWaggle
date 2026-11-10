@@ -2,7 +2,6 @@ import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionCapability } from './session-capability'
 
 export const LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH = 128
-export const LOCAL_SESSION_PROFILE_CREDENTIAL_LENGTH = 43
 export const LOCAL_SESSION_PROFILE_SCOPE_ENTRY_LIMIT = 128
 export const LOCAL_SESSION_PROFILE_SCOPE_VALUE_MAX_LENGTH = 4096
 const LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/

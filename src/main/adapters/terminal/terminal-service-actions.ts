@@ -29,8 +29,6 @@ import { validateTerminalCwd } from './terminal-shell'
 
 const logger = createLogger('terminal-service-actions')
 
-export { PREVIOUS_TERMINAL_SESSION_SEPARATOR } from './terminal-replay'
-
 export const CLOSED_SNAPSHOT: TerminalAttachResult = {
   history: '',
   outputBytes: 0,

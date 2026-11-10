@@ -37,7 +37,6 @@ export {
 } from './lib/terminal-owner'
 export { matchesTerminalShortcutBinding } from './lib/terminal-shortcuts'
 export { migrateTerminalSurfaceLeases } from './lib/terminal-surface-lease'
-export { useActionOutputViewStore } from './state/action-output-view-store'
 export {
   getRunningTerminalCount,
   getTerminalActivityStatus,

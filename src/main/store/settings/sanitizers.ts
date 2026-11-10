@@ -21,7 +21,6 @@ import {
   type ShortcutRule,
   type ShortcutRules,
   shortcutBindingKey,
-  shortcutRulesFromBindings,
   shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
 import {
@@ -302,10 +301,6 @@ export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
     rules.push({ command: candidate.command, shortcut, when })
   }
   return rules
-}
-
-export function resolveShortcutRules(raw: unknown, legacyBindings: ShortcutBindings) {
-  return sanitizeShortcutRules(raw) ?? shortcutRulesFromBindings(legacyBindings)
 }
 
 export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {

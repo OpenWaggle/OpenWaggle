@@ -39,8 +39,6 @@ export interface BranchListState {
   readonly names: readonly string[]
 }
 
-export const EMPTY_BRANCHES: BranchListState = { currentBranch: null, names: [] }
-
 export function resolveEffectivePlan(
   override: WorktreePlanOverride | undefined,
   session: UseSessionContextRowInput['session'],

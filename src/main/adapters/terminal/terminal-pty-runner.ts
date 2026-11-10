@@ -37,7 +37,6 @@ const logger = createLogger('terminal-pty-runner')
 
 const MIN_SPAWN_COLS = TERMINAL.MIN_COLS
 const MIN_SPAWN_ROWS = TERMINAL.MIN_ROWS
-export const SPAWN_FAILURE_EXIT_CODE = -1
 
 /**
  * node-pty 1.1.0 creates the master-side tty.ReadStream without resuming it.

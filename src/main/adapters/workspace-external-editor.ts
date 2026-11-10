@@ -308,8 +308,3 @@ export async function listAvailableWorkspaceExternalEditors(): Promise<Workspace
 
   return discoveryInFlight
 }
-
-export function clearWorkspaceExternalEditorDiscoveryCache() {
-  discoveryCache = null
-  discoveryInFlight = null
-}

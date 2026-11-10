@@ -14,16 +14,6 @@ export function isExtensionId(value: string) {
   )
 }
 
-export function isContributionId(value: string) {
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.CONTRIBUTION_ID_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.CONTRIBUTION_ID_MAX_LENGTH} characters.`
-  }
-  return (
-    OPENWAGGLE_EXTENSION.PATTERNS.CONTRIBUTION_ID.test(value) ||
-    'Use lowercase letters, numbers, dots, underscores, dashes, and forward slashes; start with a letter or number.'
-  )
-}
-
 export function isSemverVersion(value: string) {
   return (
     OPENWAGGLE_EXTENSION.PATTERNS.SEMVER_VERSION.test(value) ||

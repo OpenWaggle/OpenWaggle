@@ -31,9 +31,6 @@ export function withMigrationDatabase<A>(
 export function applyMigrations(_sql: SqlClient.SqlClient, upToId: number) {
   return runMigrations(APP_MIGRATIONS.filter((migration) => migration.id <= upToId))
 }
-export function sessionColumns(sql: SqlClient.SqlClient) {
-  return sql<ColumnInfo>`PRAGMA table_info(sessions)`
-}
 
 export function insertSession(sql: SqlClient.SqlClient, id: string) {
   return sql`

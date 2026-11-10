@@ -22,7 +22,6 @@ import {
   emptyActiveStreamBuffer,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
   MAX_DEGRADED_TOOL_CALL_IDS,
-  MAX_TOTAL_STREAM_BUFFER_BYTES,
   retainedStreamBufferBytes,
   startsAnotherRun,
   toStreamBufferSnapshot,
@@ -39,7 +38,7 @@ import {
   updateStreamBufferParts,
 } from './stream-buffer-updates'
 
-export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS, MAX_TOTAL_STREAM_BUFFER_BYTES }
+export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS }
 
 const activeBuffers = new Map<SessionId, ActiveStreamBuffer>()
 // The Local Session protocol sends all active snapshots in one 8 MiB frame.

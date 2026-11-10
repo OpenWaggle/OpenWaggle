@@ -10,7 +10,6 @@ import {
   USAGE_STATISTICS_CUSTOM_IDENTIFIER,
   type USAGE_STATISTICS_ENTRY_POINTS,
   USAGE_STATISTICS_EVENT_FIELDS,
-  USAGE_STATISTICS_FEATURE_FLAGS,
   USAGE_STATISTICS_MAX_EVENT_AGE_DAYS,
   USAGE_STATISTICS_MAX_LIST_ITEMS,
   type USAGE_STATISTICS_RUN_RESULTS,
@@ -121,10 +120,6 @@ export function usageStatisticsIdentifierOrCustom(value: string) {
 
 export function isUsageStatisticsVersion(value: string) {
   return usageStatisticsFieldError(VERSION_SPEC, value) === undefined
-}
-
-export function isUsageStatisticsFeatureFlag(value: string): value is UsageStatisticsFeatureFlag {
-  return USAGE_STATISTICS_FEATURE_FLAGS.some((flag) => flag === value)
 }
 
 function withItem<T extends string>(items: readonly T[], item: T, limit: number) {

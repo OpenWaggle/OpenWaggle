@@ -163,11 +163,6 @@ export function emitWorktreeLaunchFailure(
   if (launch) broadcastToWindows('agent:worktree-launch', { sessionId, launch })
 }
 
-export function clearWorktreeLaunch(sessionId: SessionId) {
-  setWorktreeLaunchSnapshot(sessionId, null)
-  broadcastToWindows('agent:worktree-launch', { sessionId, launch: null })
-}
-
 export function emitTransportEvent(
   sessionId: SessionId,
   event: AgentTransportEvent,

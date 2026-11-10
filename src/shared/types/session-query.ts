@@ -38,24 +38,6 @@ export {
   SESSION_QUERY_WAIT_TARGET_LIMIT,
   type SessionWaitState,
 } from './session-wait'
-export const SESSION_QUERY_OPERATIONS = [
-  'list',
-  'search',
-  'read',
-  'turns',
-  'items',
-  'export',
-  'exports-list',
-  'exports-read',
-  'exports-wait',
-  'status',
-  'queue-list',
-  'requests-list',
-  'delegations-list',
-  'delegations-read',
-  'delegations-conflicts',
-  'wait',
-] as const
 
 export const SESSION_QUERY_CONTRACT_VERSION = 2 as const
 // Keep query pages below the Local Session transport's 64 MiB logical-message ceiling.

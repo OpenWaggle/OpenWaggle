@@ -54,11 +54,6 @@ export function hiveNextActorGroup(next: HiveNextActorResult | null): HiveNextAc
     .exhaustive()
 }
 
-/** Whether only the person can unblock this member: the rail dot, sidebar and Summary rule. */
-export function hiveMemberNeedsYou(session: HiveSession, liveStatus?: SessionStatus) {
-  return hiveMemberNextActor(session, liveStatus)?.nextActor === 'user'
-}
-
 /** The Worker's parent, named in its labels; the Queen when the lineage does not say. */
 export function hiveParentName(session: HiveSession) {
   return session.lineage?.parentTitle?.trim() || 'its parent'
