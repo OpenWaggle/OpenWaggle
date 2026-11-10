@@ -35,13 +35,15 @@ class Scanner {
   readonly builder = new CommandBuilder()
   private parenDepth = 0
 
-  constructor(
-    private readonly text: string,
-    start: number,
-    private readonly closesOnParen: boolean,
-    private readonly depth: number,
-  ) {
+  private readonly text: string
+  private readonly closesOnParen: boolean
+  private readonly depth: number
+
+  constructor(text: string, start: number, closesOnParen: boolean, depth: number) {
+    this.text = text
     this.index = start
+    this.closesOnParen = closesOnParen
+    this.depth = depth
   }
 
   /** Scans to the end of the text, or to the `)` that closes a nested scan. */

@@ -47,32 +47,6 @@ export function executableWorkflowText(workflowText: string) {
     .join('\n')
 }
 
-function collectWorkflowRunCommands(node: unknown, commands: string[]) {
-  if (isMap(node)) {
-    for (const pair of node.items) {
-      if (
-        isScalar(pair.key) &&
-        pair.key.value === 'run' &&
-        isScalar(pair.value) &&
-        typeof pair.value.value === 'string'
-      ) {
-        commands.push(pair.value.value)
-      }
-      collectWorkflowRunCommands(pair.value, commands)
-    }
-    return
-  }
-  if (isSeq(node)) {
-    for (const item of node.items) collectWorkflowRunCommands(item, commands)
-  }
-}
-
-function workflowRunCommands(workflowText: string) {
-  const commands: string[] = []
-  collectWorkflowRunCommands(parsePackageReleaseWorkflow(workflowText).root, commands)
-  return commands
-}
-
 function collectWorkflowActionUses(node: unknown, uses: WorkflowActionUse[]) {
   if (isMap(node)) {
     for (const pair of node.items) {
