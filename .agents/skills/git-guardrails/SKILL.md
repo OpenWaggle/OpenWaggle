@@ -29,6 +29,10 @@ Centralize git safety policy for agentic coding environments. This skill does no
 
 When a tool has no hook/filter support, keep the policy in `AGENTS.md` and `.agents/standards.md`, and rely on review plus repository checks. Do not invent fragile shell wrappers without maintainer approval.
 
+## In This Repository
+
+`.pi/extensions/git-guardrails.ts` enforces the hook-skip and force-push part of this policy for Pi and OpenWaggle Sessions, without a prompt; the rules and their fixtures live in `scripts/agent-guardrails/`. Add a fixture to `scripts/agent-guardrails/__tests__/agent-guardrails.unit.test.ts` for every new bypass you find. The pre-push hook refuses force pushes for everyone.
+
 ## Future OpenWaggle Runtime
 
 OpenWaggle can implement this contract as command filtering for its own shell/tool execution. Keep the policy vendor-neutral so future OpenWaggle, Codex, or other agents can share the same guardrail semantics.

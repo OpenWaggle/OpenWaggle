@@ -37,7 +37,7 @@ bun run test:coverage    # Coverage report
 
 ## CI Gates
 
-CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Package Release Gate), a PR merges directly. There is no Electron E2E suite — it was removed and per-PR gating relies on unit + integration + MCP conformance (mirroring `pingdotgg/t3code`); a non-gating nightly cross-OS packaged canary (`.github/workflows/nightly.yml`) builds and smokes the app on macOS/Linux/Windows. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `bun run check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `bun run verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
+CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Package Release Gate), a PR merges directly. There is no Electron E2E suite — it was removed and per-PR gating relies on unit + integration + MCP conformance (mirroring `pingdotgg/t3code`); a non-gating nightly cross-OS packaged canary (`.github/workflows/nightly.yml`) builds and smokes the app on macOS/Linux/Windows. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `bun run check`) and the human-approved app-release flow in `release.yml` are unchanged. Git hooks: `pre-commit` formats staged files with oxfmt, `commit-msg` checks the Conventional Commit subject, and `pre-push` refuses force pushes, then runs `bun run verify` (the full gate for `main`) — run it before pushing instead of discovering deterministic failures from a red CI run. Never skip the hooks or force push; `.pi/extensions/git-guardrails.ts` blocks both.
 
 ## Repository Model
 
@@ -109,7 +109,7 @@ Agent-facing release and update-track guidance lives in `docs/agents/release.md`
 
 1. Scope is met without unapproved side effects.
 2. Types, lint, architecture, and relevant tests are green or reported with exact blockers.
-3. Renderer changes are checked with React Doctor when practical.
+3. Fallow (`bun run check:fallow`) and React Doctor (`bun run check:react-doctor`) report zero findings; both are required steps of `check` and CI, and `.pi/extensions/quality-gates.ts` runs them on the files an agent changed before its run ends. Fix findings in code; a false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry with its reason, never a suppression comment.
 4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `bun run dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
 5. Significant OpenWaggle technical findings are added to the matching `.agents/memory/<topic>.md` file (a new topic gets one line in the `MEMORY.md` index) or a focused skill, not to deleted legacy memory files.
 6. The final report states what changed, what was validated, and any remaining risk.

@@ -10,6 +10,27 @@ bun run verify
 
 `bun run verify` is the fast, deterministic pre-push contract: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. The husky pre-push hook runs it for every feature-branch push. Run it before pushing rather than discovering these failures from a red CI run.
 
+## Git Hooks And Agent Guardrails
+
+Husky runs three hooks (`.husky/`, logic in `scripts/git-hooks/`):
+
+- `pre-commit` formats the staged files with oxfmt and restages them. A file that also has unstaged changes is left alone and named.
+- `commit-msg` rejects a subject that is not a Conventional Commit (`scripts/check-conventional-commits.ts --message-file`).
+- `pre-push` refuses a push that drops commits from a remote ref, with no prompt or override, then runs `bun run verify` (`prepush:main` for a push to `main`). Opening or readying a PR is not gated.
+
+The project Pi extension `.pi/extensions/git-guardrails.ts` (`scripts/agent-guardrails/`) blocks agents, without a prompt, from skipping the hooks (`--no-verify`, `git commit -n`, `HUSKY=0`, `core.hooksPath` changes by `git config`, `git -c` or `GIT_CONFIG_*`, editing `.git/config` or `.husky/_`, removing or emptying a hook script) and from force pushing. It reads compound commands, wrappers, nested shells and here-documents; a script piped into a shell is blocked because it cannot be read. When a hook fails, fix what it reports; if the cause is outside the task, stop and report it.
+
+## Fallow And React Doctor
+
+```bash
+bun run check:fallow        # fallow dead-code + dupes, fails on any finding
+bun run check:react-doctor  # react-doctor, fails on warnings and errors
+```
+
+Both are required steps of `check` (the CI Typecheck & Lint job). Fix findings in code. A verified false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry scoped to the file and rule, with a comment giving the reason; never a `fallow-ignore` or other suppression comment. `fallow health` is advisory.
+
+The project Pi extension `.pi/extensions/quality-gates.ts` (`scripts/agent-quality-gates/`) runs both on the files an agent changed during a run, at Pi's `agent_before_settle` boundary. Findings come back as a follow-up message and the run continues so the agent fixes them; a clean run is silent. After three follow-ups in one run it lets the run end, and `check` still fails.
+
 ## CI Gate Tiers
 
 CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
@@ -79,10 +100,10 @@ For any `src/renderer/` change:
 ```bash
 bun run lint
 bun run test:component
-npx -y react-doctor@latest . --verbose --scope changed --base main
+bun run check:react-doctor
 ```
 
-Fix React Doctor errors. Warnings require judgment and should be reported if not fixed.
+React Doctor fails on warnings as well as errors; see Fallow And React Doctor above.
 
 ## Electron / IPC / Preload Work
 
