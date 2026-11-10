@@ -9,6 +9,7 @@
   "compilerOptions": {
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
+    "noImplicitOverride": true,
     "noUncheckedSideEffectImports": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,

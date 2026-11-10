@@ -28,11 +28,11 @@ export type SerializedWaggleMentionNode = Spread<
 export class WaggleMentionNode extends DecoratorNode<ReactNode> {
   __preset: WagglePreset
 
-  static getType() {
+  static override getType() {
     return 'waggle-mention'
   }
 
-  static clone(node: WaggleMentionNode) {
+  static override clone(node: WaggleMentionNode) {
     return new WaggleMentionNode(node.__preset, node.__key)
   }
 
@@ -41,27 +41,27 @@ export class WaggleMentionNode extends DecoratorNode<ReactNode> {
     this.__preset = preset
   }
 
-  createDOM(_config: EditorConfig) {
+  override createDOM(_config: EditorConfig) {
     const span = document.createElement('span')
     span.style.display = 'inline'
     return span
   }
 
-  updateDOM() {
+  override updateDOM() {
     return false
   }
 
-  exportDOM(): DOMExportOutput {
+  override exportDOM(): DOMExportOutput {
     const element = document.createElement('span')
     element.textContent = this.__preset.name
     return { element }
   }
 
-  static importDOM() {
+  static override importDOM() {
     return null
   }
 
-  static importJSON(serializedNode: SerializedWaggleMentionNode) {
+  static override importJSON(serializedNode: SerializedWaggleMentionNode) {
     return $createWaggleMentionNode({
       id: WagglePresetId(serializedNode.presetId),
       name: serializedNode.presetName,
@@ -73,7 +73,7 @@ export class WaggleMentionNode extends DecoratorNode<ReactNode> {
     })
   }
 
-  exportJSON() {
+  override exportJSON() {
     return {
       ...super.exportJSON(),
       presetId: this.__preset.id,
@@ -92,15 +92,15 @@ export class WaggleMentionNode extends DecoratorNode<ReactNode> {
     return this.getLatest().__preset
   }
 
-  getTextContent() {
+  override getTextContent() {
     return ''
   }
 
-  isInline() {
+  override isInline() {
     return true
   }
 
-  decorate(): ReactNode {
+  override decorate(): ReactNode {
     return createElement(WaggleMentionChip, { presetName: this.__preset.name })
   }
 }
