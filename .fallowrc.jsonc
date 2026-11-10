@@ -134,6 +134,13 @@
       "rules": { "unused-class-members": "off" }
     },
     {
+      // The desktop shell contract fakes stand in for the `electron` and `electron-updater`
+      // modules through vi.doMock (electron-shell.ts). The Electron adapters call their members
+      // through those module names, which fallow cannot follow to the fakes.
+      "files": ["src/main/adapters/electron/__tests__/contracts/fake-electron*.ts"],
+      "rules": { "unused-class-members": "off" }
+    },
+    {
       // Served by the extension frame protocol, which answers ./frame.css and
       // ./bootstrap.js itself (src/main/extension-frame-protocol.ts).
       "files": ["src/main/extension-frame-assets/extension-frame.html"],
