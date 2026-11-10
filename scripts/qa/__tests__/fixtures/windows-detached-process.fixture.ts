@@ -14,7 +14,7 @@ const CHILD_LIFETIME_MS = 25_000
 const POLL_INTERVAL_MS = 25
 
 const [mode, directoryArgument, ...receivedArguments] = process.argv.slice(2)
-prepareDesktopUi(app)
+prepareDesktopUi()
 if ((mode !== 'parent' && mode !== 'child') || !directoryArgument) {
   throw new Error('Detached-process probe requires its mode and private directory.')
 }

@@ -5,8 +5,8 @@ import { installDesktopShellEnvironment } from './desktop-shell-environment-proc
 import type { StartedDesktopShellEnvironment } from './desktop-shell-environment-start'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { appPaths } from './desktop-shell/app-paths'
+import { desktopWindows } from './desktop-shell/desktop-windows'
 import { systemIntegration } from './desktop-shell/system-integration'
-import { installAutomationDesktopUiBlockers } from './desktop-ui'
 import { env, installLinuxSessionBusEnvironment, takeShellEnvironmentRefreshedSince } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
@@ -192,7 +192,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
   appLifecycle.disableHardwareAcceleration()
   // The Host inherits OPENWAGGLE_AUTOMATION from the app that started it, so it blocks native UI
   // (dialogs, the browser) the same way, for example a sign-in page an MCP server asks to open.
-  installAutomationDesktopUiBlockers()
+  desktopWindows.installWindowPolicy()
   configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
   // Before ready: Electron's secret store reaches the Linux session bus through this process's
   // environment, which no longer comes from a GUI that hydrated before launching the Host.

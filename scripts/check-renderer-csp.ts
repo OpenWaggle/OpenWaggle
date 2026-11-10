@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { STARTUP_APPEARANCE_SCRIPT_HASH } from '../src/main/security/electron-security'
+import { STARTUP_APPEARANCE_SCRIPT_HASH } from '../src/main/security/web-security-policy'
 import { inlineScriptHashFailures } from './renderer-inline-scripts'
 
 const BUILT_RENDERER_PAGE = 'out/renderer/index.html'

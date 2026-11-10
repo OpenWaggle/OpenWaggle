@@ -1,7 +1,19 @@
 import path from 'node:path'
 import { withoutCommentLines } from './comment-stripping'
 
-const DESKTOP_UI_POLICY_OWNERS = ['src/main/desktop-ui.ts', 'src/main/desktop-window-policy.ts']
+/**
+ * The Electron desktop shell adapters that own native desktop UI (ADR 0064). Each one looks the
+ * Electron API up when it is called, after `installAutomationDesktopUiBlockers` replaced it under
+ * automation, and the rest of main reaches them only through the desktop shell ports.
+ */
+const DESKTOP_UI_POLICY_OWNERS = [
+  'src/main/adapters/electron/electron-window-policy.ts',
+  'src/main/adapters/electron/electron-desktop-windows.ts',
+  'src/main/adapters/electron/electron-dialogs.ts',
+  'src/main/adapters/electron/electron-menus.ts',
+  'src/main/adapters/electron/electron-os-shell.ts',
+  'src/main/adapters/electron/electron-system-notifications.ts',
+]
 /**
  * The detached-spawn primitive behind `desktop-ui.ts`: the boot shim launches the headless Session
  * Host through it before the main bundle (and the desktop UI policy) loads. External applications

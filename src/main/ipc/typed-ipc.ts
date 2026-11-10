@@ -11,12 +11,13 @@ import * as Cause from 'effect/Cause'
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Option from 'effect/Option'
-import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
 import { invokeConfiguredHostUiRaw } from '../application/gui-session-command-router'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
+import { ipcMainTransport } from '../desktop-shell/ipc-transport'
 import { isGuiBackendGateHeld, waitForGuiBackend } from '../gui-backend-gate'
 import { type GuiServices, runGuiEffect, runGuiEffectExit } from '../gui-runtime'
 import { createLogger } from '../logger'
+import type { IpcInvocation } from '../ports/desktop-shell/ipc-transport'
 import { GatedSenderGoneError, rememberGatedSender } from './gated-ipc-sender'
 
 const logger = createLogger('ipc')
@@ -27,16 +28,16 @@ type MaybeVoid<T> = T extends undefined ? ImplicitVoid : T
 
 /**
  * Generic IPC handler type — accepts the event + channel-specific args.
- * Used internally by typedHandle/safeHandle to bridge Electron's untyped
- * ipcMain to our typed channel maps.
+ * Used internally by typedHandle/safeHandle to bridge the desktop shell's IPC transport to our
+ * typed channel maps.
  */
 type IpcHandler<C extends IpcInvokeChannel> = (
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   ...args: IpcInvokeArgs<C>
 ) => unknown | Promise<unknown>
 
 type EffectIpcHandler<C extends IpcInvokeChannel> = (
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   ...args: IpcInvokeArgs<C>
 ) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, GuiServices>
 
@@ -139,12 +140,12 @@ const GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS: ReadonlySet<IpcSendChannel> = new S
 ])
 
 /**
- * Type-safe wrapper around `ipcMain.handle()`.
+ * Type-safe wrapper around the IPC transport's `handle`.
  * Internal — all public handlers should use the Effect-based `typedHandle`.
  */
 function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>) {
   const gated = !GUI_BACKEND_GATE_EXEMPT_CHANNELS.has(channel)
-  ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) => {
+  ipcMainTransport.handle(channel, async (event, ...args) => {
     if (gated && isGuiBackendGateHeld()) {
       const senderStillThere = rememberGatedSender(event)
       await waitForGuiBackend()
@@ -173,7 +174,7 @@ export class RelayedHostResult {
 export function relayingHandle<C extends IpcInvokeChannel>(
   channel: C,
   handler: (
-    event: IpcMainInvokeEvent,
+    event: IpcInvocation,
     ...args: IpcInvokeArgs<C>
   ) => EffectType<MaybeVoid<IpcInvokeReturn<C>> | RelayedHostResult, unknown, GuiServices>,
 ): void {
@@ -215,7 +216,7 @@ export function hostHandle<C extends HostBackedGuiChannel>(
   channel: C,
   options: {
     readonly prepareRemoteArgs?: (
-      event: IpcMainInvokeEvent,
+      event: IpcInvocation,
       ...args: IpcInvokeArgs<C>
     ) => readonly unknown[] | Promise<readonly unknown[]>
     /** Runs after the Session Host handled the call; a failure is logged, never returned. */
@@ -247,15 +248,15 @@ export function hostHandle<C extends HostBackedGuiChannel>(
 }
 
 /**
- * Type-safe wrapper around `ipcMain.on()`.
+ * Type-safe wrapper around the IPC transport's `on`.
  * Internal — all public listeners should use the Effect-based `typedOn`.
  */
 function rawOn<C extends IpcSendChannel>(
   channel: C,
-  listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
+  listener: (event: IpcInvocation, ...args: IpcSendArgs<C>) => void,
 ) {
   const gated = !GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS.has(channel)
-  ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => {
+  ipcMainTransport.on(channel, (event, ...args) => {
     if (!gated || !isGuiBackendGateHeld()) {
       listener(event, ...args)
       return
@@ -268,7 +269,7 @@ function rawOn<C extends IpcSendChannel>(
 }
 
 type EffectIpcOnHandler<C extends IpcSendChannel> = (
-  event: IpcMainEvent,
+  event: IpcInvocation,
   ...args: IpcSendArgs<C>
 ) => EffectType<void, unknown, GuiServices>
 

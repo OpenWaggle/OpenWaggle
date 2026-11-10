@@ -45,7 +45,7 @@ These assert properties that only exist in the real packaged/rendered app:
 | Removed E2E spec | Why it cannot become unit/integration | Compensating control |
 |---|---|---|
 | visual-regression | pixel baselines of six surfaces in a real renderer | **none** — dropped from CI; verify locally when doing UI work |
-| security-csp | CSP actually blocking inline script in the Electron renderer | **none in CI** for enforcement; CSP headers are unit-checked in `electron-security`; manual QA otherwise |
+| security-csp | CSP actually blocking inline script in the Electron renderer | **none in CI** for enforcement; CSP headers are unit-checked in `web-security-policy`; manual QA otherwise |
 | diff-performance / terminal-performance / workspace-editor (timing budgets) | wall-clock budgets on the main thread in the packaged app (the *logic* — e.g. off-main-thread parsing — is unit-covered; only the timing budget is E2E-only) | **none in CI** for the app timing budgets (local perf runs only). The renderer **syntax** performance budget runs in the nightly canary. |
 | inline-visualization (isolated frame lifecycle) | real isolated Electron `<iframe>` teardown/limits | **none** — dropped from CI; manual QA |
 | app (real boot) | the packaged app actually launching main+renderer+preload | **partial** — the nightly canary proves the packaged app builds and its native runtime loads (`packaged-app:smoke` runs the binary as Node via `ELECTRON_RUN_AS_NODE`); it does **not** launch a window (no main+renderer+preload boot) |

@@ -1,4 +1,9 @@
-import type { IpcInvokeChannel, IpcSendChannel } from '@shared/types/ipc'
+import type {
+  IpcInvokeArgs,
+  IpcInvokeChannel,
+  IpcSendArgs,
+  IpcSendChannel,
+} from '@shared/types/ipc'
 import { Context } from 'effect'
 import type { RendererSurface } from './renderer-surfaces'
 
@@ -14,16 +19,17 @@ export interface IpcInvocation {
  *
  * A channel has one `handle` handler; its result (or rejection) answers the page's `invoke`.
  * `on` listeners receive the page's fire-and-forget `send` messages. Arguments arrive as the
- * page sent them, structured-clone decoded and unvalidated; handlers decode them.
+ * page sent them, structured-clone decoded: typed by the contract the preload sends with, but
+ * unvalidated, so handlers still decode them.
  */
 export interface IpcMainTransportShape {
-  readonly handle: (
-    channel: IpcInvokeChannel,
-    handler: (invocation: IpcInvocation, ...args: unknown[]) => unknown,
+  readonly handle: <C extends IpcInvokeChannel>(
+    channel: C,
+    handler: (invocation: IpcInvocation, ...args: IpcInvokeArgs<C>) => unknown,
   ) => void
-  readonly on: (
-    channel: IpcSendChannel,
-    listener: (invocation: IpcInvocation, ...args: unknown[]) => void,
+  readonly on: <C extends IpcSendChannel>(
+    channel: C,
+    listener: (invocation: IpcInvocation, ...args: IpcSendArgs<C>) => void,
   ) => void
 }
 

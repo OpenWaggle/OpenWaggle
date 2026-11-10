@@ -36,13 +36,11 @@ vi.mock('node:child_process', () => ({
   execFile: execFileMock,
 }))
 
-vi.mock('electron', () => ({
-  BrowserWindow: {
-    fromWebContents: fromWebContentsMock,
-  },
-  dialog: {
-    showMessageBox: showMessageBoxMock,
-  },
+vi.mock('../../desktop-shell/desktop-windows', () => ({
+  desktopWindows: { fromSurface: fromWebContentsMock },
+}))
+vi.mock('../../desktop-shell/dialogs', () => ({
+  desktopDialogs: { showMessageBox: showMessageBoxMock },
 }))
 
 export function registeredHandler(name: string) {

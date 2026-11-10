@@ -20,6 +20,11 @@ export interface MainWindowRequest {
   readonly appIconPath: string
   /** Records startup milestones (`window-ready-to-show`, `renderer-dom-ready`, ...). */
   readonly startupMark: (label: string) => void
+  /**
+   * Opens a link the page navigated to, or opened in a new window, outside the app's own
+   * documents. The window never follows it; the app decides where it goes.
+   */
+  readonly openLink: (url: string) => void
 }
 
 /**
@@ -31,11 +36,18 @@ export interface MainWindowRequest {
  */
 export interface DesktopWindowsShape {
   /**
-   * Installs the window policy before the app is ready: under automation every OS-visible
-   * surface (windows, dialogs, external apps, menus, notifications) fails closed and macOS keeps
-   * the app out of the Dock.
+   * Installs the window policy before anything else runs, in the app and in the Session Host:
+   * under automation every OS-visible surface (windows, dialogs, external apps, menus,
+   * notifications) fails closed. Keeping the app out of the Dock is
+   * `SystemIntegrationShape.setActivationPolicy`.
    */
   readonly installWindowPolicy: () => void
+  /**
+   * After ready: the keyboard shortcuts of every window opened from now on. Unpackaged builds
+   * toggle DevTools with F12; packaged builds swallow reload (Cmd/Ctrl+R) and the DevTools
+   * chords; no build zooms with Cmd/Ctrl+Minus or Cmd/Ctrl+Shift+Equal.
+   */
+  readonly installWindowShortcuts: () => void
   /**
    * Opens the app's window on the renderer page, with the app's web security policy
    * (`WebSecurityShape`) applied, and shows it once it is ready (hidden under automation).

@@ -21,7 +21,7 @@ try {
 `
 
 const [directoryArgument] = process.argv.slice(2)
-prepareDesktopUi(app)
+prepareDesktopUi()
 if (!directoryArgument) throw new Error('Protected-staging probe requires its private directory.')
 const directory = directoryArgument
 app.setPath('userData', path.join(directory, 'profile'))

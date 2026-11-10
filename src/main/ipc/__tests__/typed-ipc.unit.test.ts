@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent } from 'electron'
+import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ValidationIssuesError } from '../../errors'
 
@@ -87,7 +87,7 @@ describe('typedHandle', () => {
   })
 
   it('registers a handler on ipcMain.handle', () => {
-    const handler = vi.fn(function handleSettingsGet(_event: IpcMainInvokeEvent) {
+    const handler = vi.fn(function handleSettingsGet(_event: IpcInvocation) {
       return Effect.succeed(DEFAULT_SETTINGS)
     })
     typedHandle('settings:get', handler)
@@ -98,7 +98,7 @@ describe('typedHandle', () => {
 
   it('runs the effect handler and returns its result', async () => {
     const handler = vi.fn(function handleSettingsUpdate(
-      _event: IpcMainInvokeEvent,
+      _event: IpcInvocation,
       _settings: Partial<Settings>,
     ) {
       return Effect.succeed(okResult())
@@ -284,8 +284,8 @@ describe('the backend gate (A-F2)', () => {
   })
 })
 
-function fromPartialEvent(): IpcMainInvokeEvent {
-  return fromAny<IpcMainInvokeEvent, { readonly sender: FakeSender }>({ sender: new FakeSender() })
+function fromPartialEvent(): IpcInvocation {
+  return fromAny<IpcInvocation, { readonly sender: FakeSender }>({ sender: new FakeSender() })
 }
 
 /** A window's webContents: it can reload (a new document) or close. */

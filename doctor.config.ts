@@ -276,7 +276,7 @@ const config: DoctorConfig = {
         // file I/O shares.
         files: [
           'src/main/boot/main-compile-cache.ts',
-          'src/main/chromium-disk-cache.ts',
+          'src/main/adapters/electron/electron-chromium-disk-cache.ts',
           'src/main/utils/model-download-temp-sweep.ts',
           'src/main/utils/session-scratch-sweep.ts',
         ],

@@ -33,9 +33,13 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../../browser-preview', () => ({ browserPreviewManager: manager }))
-vi.mock('../../browser-preview-owner-registry', () => ({
-  browserPreviewOwnerRegistry: ownerRegistry,
+vi.mock('../../desktop-shell/browser-preview-views', () => ({
+  browserPreviewViews: {
+    ...manager,
+    registerOwner: ownerRegistry.register,
+    unregisterOwner: ownerRegistry.unregister,
+    acknowledgeOpenRequest: ownerRegistry.acknowledge,
+  },
 }))
 
 vi.mock('../../logger', () => ({

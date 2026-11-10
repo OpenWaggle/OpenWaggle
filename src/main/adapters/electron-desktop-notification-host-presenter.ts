@@ -1,7 +1,6 @@
 import type { DesktopNotification } from '@shared/types/desktop-notification'
 import { sessionLink } from '@shared/utils/session-link'
 import * as Layer from 'effect/Layer'
-import type { Notification as NativeNotification } from 'electron'
 import {
   launchExternalApplication,
   removeDeliveredNativeNotification,
@@ -10,6 +9,7 @@ import {
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
 import { DesktopNotificationHostPresenter } from '../ports/desktop-notification-host-presenter'
+import type { SystemNotificationHandle } from '../ports/desktop-shell/system-notifications'
 import { desktopAppLaunchArguments, desktopAppOpenArguments } from '../session-link-forwarding'
 
 const logger = createLogger('desktop-notifications/host')
@@ -41,7 +41,7 @@ function openDesktopApp(notification: DesktopNotification) {
 }
 
 function makeHostPresenter() {
-  const shown = new Map<string, NativeNotification>()
+  const shown = new Map<string, SystemNotificationHandle>()
   return {
     show: (notification: DesktopNotification, sound: 'system' | 'none') => {
       shown.get(notification.id)?.close()

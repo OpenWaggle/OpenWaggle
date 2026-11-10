@@ -13,11 +13,17 @@ import type { RendererSurface } from './renderer-surfaces'
  * Electron applies this through `session.webRequest`, permission handlers and `will-navigate`;
  * Electrobun through loopback-server headers and `navigationRules`.
  */
+/** What pages stored in one web profile; it stays usable after the surface it came from closes. */
+export interface OriginStorage {
+  /** Deletes what pages of `origins` stored: cookies, IndexedDB, local storage. Never fails. */
+  readonly clear: (origins: readonly string[]) => void
+}
+
 export interface WebSecurityShape {
   /** Confines the inline visualization and MCP App frames of `surface` (call once per page). */
   readonly guardEmbeddedFrames: (surface: RendererSurface) => void
-  /** Deletes what pages of `origins` stored in `surface`'s profile: cookies, IndexedDB, storage. */
-  readonly clearOriginStorage: (surface: RendererSurface, origins: readonly string[]) => void
+  /** The storage of `surface`'s web profile; take it while the surface is open. */
+  readonly originStorageOf: (surface: RendererSurface) => OriginStorage
   /** Keeps the app profile's web caches within their caps, now and while the app runs. */
   readonly maintainCaches: () => void
 }

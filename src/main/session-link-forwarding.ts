@@ -35,7 +35,7 @@ export function desktopAppOpenArguments(executablePath: string) {
  * the running app through the single-instance lock and quits.
  */
 export function forwardSessionLinksFromBackgroundProcess(
-  host: Pick<SessionLinkProtocolHost, 'isPackaged' | 'on'>,
+  host: Pick<SessionLinkProtocolHost, 'isPackaged' | 'onOpenUrl'>,
   build: { readonly platform?: NodeJS.Platform; readonly channel?: BuildChannel } = {},
 ) {
   forwardSessionLinksToDesktopApp({

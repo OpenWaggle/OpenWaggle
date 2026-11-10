@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import { extname, join, posix, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { is } from '@electron-toolkit/utils'
 import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-automation'
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
@@ -9,6 +8,7 @@ import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualiz
 import { MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import { app, net, protocol } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { env } from './env'
 
 export { isTrustedRendererRequest } from './renderer-request-trust'
@@ -149,7 +149,7 @@ function resolveRendererFilePath(rendererRoot: string, requestUrl: string) {
 }
 
 export function devRendererUrl() {
-  return is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
+  return !appLifecycle.isPackaged() && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
 }
 
 export function rendererUrlWithAutomationIdentity(url: string) {

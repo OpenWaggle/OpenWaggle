@@ -6,6 +6,18 @@ const { typedHandleMock } = vi.hoisted(() => ({ typedHandleMock: vi.fn() }))
 
 vi.mock('electron', () => ({ protocol: { handle: vi.fn() } }))
 vi.mock('../typed-ipc', () => ({ typedHandle: typedHandleMock }))
+// The Electron adapter clears the storage of the sender's own web profile, as this stand-in does.
+vi.mock('../../desktop-shell/web-security', () => ({
+  webSecurity: {
+    originStorageOf: (surface: {
+      readonly session: { readonly clearStorageData: (input: { origin: string }) => unknown }
+    }) => ({
+      clear: (origins: readonly string[]) => {
+        for (const origin of origins) surface.session.clearStorageData({ origin })
+      },
+    }),
+  },
+}))
 
 import { mcpAppFrameResponse } from '../../mcp-app-frame-protocol'
 import { registerMcpAppFrameHandlers } from '../mcp-app-frame-handler'

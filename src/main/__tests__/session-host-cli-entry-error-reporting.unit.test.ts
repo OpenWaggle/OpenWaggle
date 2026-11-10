@@ -42,8 +42,8 @@ vi.mock('../env', () => ({
 vi.mock('../desktop-shell-environment-process', () => ({
   installDesktopShellEnvironment: async () => undefined,
 }))
-vi.mock('../desktop-ui', () => ({
-  installAutomationDesktopUiBlockers: mocks.installDesktopUiBlockers,
+vi.mock('../desktop-shell/desktop-windows', () => ({
+  desktopWindows: { installWindowPolicy: mocks.installDesktopUiBlockers },
 }))
 vi.mock('../error-reporting', () => ({
   startErrorReporting: mocks.startErrorReporting,

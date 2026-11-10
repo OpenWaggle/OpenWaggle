@@ -31,11 +31,10 @@ const {
   }
 })
 
-vi.mock('@electron-toolkit/utils', () => ({
-  get is() {
-    return { dev: mockIsDev.value }
-  },
-}))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !mockIsDev.value } }
+})
 
 vi.mock('@shared/build-identity-runtime', () => ({
   get BUILD_CHANNEL() {

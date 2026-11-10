@@ -1,4 +1,3 @@
-import { is } from '@electron-toolkit/utils'
 import {
   OPENWAGGLE_EXTENSION_FRAME_PROTOCOL,
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
@@ -11,6 +10,7 @@ import type {
   ExtensionFrameUnregisterInput,
 } from '@shared/types/extension-frame'
 import { protocol } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { env } from './env'
 import extensionFrameCss from './extension-frame-assets/extension-frame.css.raw?raw'
 import extensionFrameHtml from './extension-frame-assets/extension-frame.html?raw'
@@ -190,7 +190,7 @@ function normalizedNetworkOrigins(origins: readonly string[] | undefined) {
 }
 
 function devRendererOrigin() {
-  if (!is.dev || !env.ELECTRON_RENDERER_URL) {
+  if (appLifecycle.isPackaged() || !env.ELECTRON_RENDERER_URL) {
     return null
   }
 

@@ -6,7 +6,6 @@ import {
   inlineVisualizationFrameUnregisterInputSchema,
 } from '@shared/schemas/inline-visualization'
 import * as Effect from 'effect/Effect'
-import type { Event, WebContents, WebContentsDidStartNavigationEventParams } from 'electron'
 import { decodeInlineVisualizationDownload } from '../application/inline-visualization-download'
 import { browserWindowFromWebContents, showSaveDialog } from '../desktop-ui'
 import { shouldPurgeVisualizationFramesForNavigation } from '../inline-visualization-owner-lifecycle'
@@ -15,15 +14,19 @@ import {
   unregisterInlineVisualizationFrame,
   unregisterInlineVisualizationFramesForOwner,
 } from '../inline-visualization-protocol'
+import type {
+  RendererSurface,
+  RendererSurfaceNavigationStart,
+} from '../ports/desktop-shell/renderer-surfaces'
 import { typedHandle } from './typed-ipc'
 
-const monitoredRendererOwners = new Map<number, WebContents>()
+const monitoredRendererOwners = new Map<number, RendererSurface>()
 
-function monitorRendererOwner(sender: WebContents) {
+function monitorRendererOwner(sender: RendererSurface) {
   if (monitoredRendererOwners.has(sender.id)) return
   monitoredRendererOwners.set(sender.id, sender)
   const purge = () => unregisterInlineVisualizationFramesForOwner(sender.id)
-  const onNavigation = (details: Event<WebContentsDidStartNavigationEventParams>) => {
+  const onNavigation = (details: RendererSurfaceNavigationStart) => {
     if (shouldPurgeVisualizationFramesForNavigation(details)) purge()
   }
   const stopMonitoring = () => {

@@ -6,16 +6,15 @@ import {
   SESSION_LINK_SCHEME,
 } from '@shared/utils/session-link'
 import { createLogger } from './logger'
+import type { SystemIntegrationShape } from './ports/desktop-shell/system-integration'
 
 const logger = createLogger('session-link-protocol')
 
-export interface SessionLinkProtocolHost {
+export interface SessionLinkProtocolHost extends Pick<
+  SystemIntegrationShape,
+  'onOpenUrl' | 'setAsDefaultProtocolClient'
+> {
   readonly isPackaged: boolean
-  readonly on: (
-    event: 'open-url',
-    listener: (event: { readonly preventDefault: () => void }, url: string) => void,
-  ) => void
-  readonly setAsDefaultProtocolClient: (protocol: string) => boolean
 }
 
 /**
@@ -47,7 +46,7 @@ export function installSessionLinkProtocol(input: {
 }) {
   const platform = input.platform ?? process.platform
   if (platform === 'darwin') {
-    input.host.on('open-url', (event, url) => {
+    input.host.onOpenUrl((event, url) => {
       event.preventDefault()
       input.openLink(url)
     })
@@ -76,7 +75,7 @@ export function installSessionLinkProtocol(input: {
  * single-instance lock. Anything that is not a Session link is dropped.
  */
 export function forwardSessionLinksToDesktopApp(input: {
-  readonly host: Pick<SessionLinkProtocolHost, 'isPackaged' | 'on'>
+  readonly host: Pick<SessionLinkProtocolHost, 'isPackaged' | 'onOpenUrl'>
   readonly automation: boolean
   readonly launchDesktopApp: (link: string) => void
   readonly platform?: NodeJS.Platform
@@ -89,7 +88,7 @@ export function forwardSessionLinksToDesktopApp(input: {
     automation: input.automation,
   })
   if (!claimsLinks) return
-  input.host.on('open-url', (event, url) => {
+  input.host.onOpenUrl((event, url) => {
     event.preventDefault()
     if (parseSessionLink(url) === null) {
       logger.warn('Ignoring a link that is not a Session link', { length: url.length })

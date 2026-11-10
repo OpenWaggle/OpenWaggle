@@ -4,18 +4,18 @@ import {
   mcpAppFrameUnregisterInputSchema,
 } from '@shared/schemas/mcp-app-frame'
 import * as Effect from 'effect/Effect'
-import type {
-  Event,
-  Session,
-  WebContents,
-  WebContentsDidStartNavigationEventParams,
-} from 'electron'
+import { webSecurity } from '../desktop-shell/web-security'
 import { shouldPurgeVisualizationFramesForNavigation } from '../inline-visualization-owner-lifecycle'
 import {
   registerMcpAppFrame,
   unregisterMcpAppFrame,
   unregisterMcpAppFramesForOwner,
 } from '../mcp-app-frame-protocol'
+import type {
+  RendererSurface,
+  RendererSurfaceNavigationStart,
+} from '../ports/desktop-shell/renderer-surfaces'
+import type { OriginStorage } from '../ports/desktop-shell/web-security'
 import { typedHandle } from './typed-ipc'
 
 const monitoredOwners = new Set<number>()
@@ -24,18 +24,18 @@ const monitoredOwners = new Set<number>()
  * Each frame has its own origin, so what an App stored (cookies, IndexedDB, local storage) is
  * its frame's alone; it is cleared when the frame goes, so nothing persists between frames.
  */
-function clearFrameStorage(session: Session, origins: readonly string[]) {
-  for (const origin of origins) void session.clearStorageData({ origin }).catch(() => undefined)
+function clearFrameStorage(storage: OriginStorage, origins: readonly string[]) {
+  storage.clear(origins)
 }
 
 /** A renderer's App documents are dropped when it navigates away, crashes, or closes. */
-function monitorOwner(sender: WebContents) {
+function monitorOwner(sender: RendererSurface) {
   if (monitoredOwners.has(sender.id)) return
   monitoredOwners.add(sender.id)
   const ownerId = sender.id
-  const { session } = sender
-  const purge = () => clearFrameStorage(session, unregisterMcpAppFramesForOwner(ownerId))
-  const onNavigation = (details: Event<WebContentsDidStartNavigationEventParams>) => {
+  const storage = webSecurity.originStorageOf(sender)
+  const purge = () => clearFrameStorage(storage, unregisterMcpAppFramesForOwner(ownerId))
+  const onNavigation = (details: RendererSurfaceNavigationStart) => {
     if (shouldPurgeVisualizationFramesForNavigation(details)) purge()
   }
   const stop = () => {
@@ -63,7 +63,10 @@ export function registerMcpAppFrameHandlers() {
     Effect.gen(function* () {
       const decoded = safeDecodeUnknown(mcpAppFrameUnregisterInputSchema, input)
       if (!decoded.success) return yield* Effect.fail(new Error(decoded.issues.join('; ')))
-      clearFrameStorage(event.sender.session, unregisterMcpAppFrame(decoded.data, event.sender.id))
+      clearFrameStorage(
+        webSecurity.originStorageOf(event.sender),
+        unregisterMcpAppFrame(decoded.data, event.sender.id),
+      )
     }),
   )
 }

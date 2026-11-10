@@ -44,13 +44,15 @@ describe('session branch prefix detection', () => {
   })
 })
 
+const DESKTOP_UI_POLICY_OWNER = 'src/main/adapters/electron/electron-window-policy.ts'
+
 describe('non-disruptive Electron automation boundary', () => {
   it('keeps native context-menu presentation inside the desktop UI policy', () => {
     expect(
       collectUnguardedDesktopUiViolations('src/main/preview.ts', 'menu.popup({ window })'),
     ).toHaveLength(1)
     expect(
-      collectUnguardedDesktopUiViolations('src/main/desktop-ui.ts', 'menu.popup({ window })'),
+      collectUnguardedDesktopUiViolations(DESKTOP_UI_POLICY_OWNER, 'menu.popup({ window })'),
     ).toEqual([])
   })
   it('rejects native dialogs, external applications, and window activation in main code', () => {
@@ -159,7 +161,7 @@ describe('non-disruptive Electron automation boundary', () => {
   it('allows the audited policy owner and test stubs', () => {
     const source = 'dialog.showMessageBox({ message: "Continue?" }); mainWindow.show()'
 
-    expect(collectUnguardedDesktopUiViolations('src/main/desktop-ui.ts', source)).toEqual([])
+    expect(collectUnguardedDesktopUiViolations(DESKTOP_UI_POLICY_OWNER, source)).toEqual([])
     expect(
       collectUnguardedDesktopUiViolations('src/main/__tests__/desktop-ui.unit.test.ts', source),
     ).toEqual([])

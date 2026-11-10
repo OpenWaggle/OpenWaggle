@@ -38,8 +38,9 @@ describe('forwardSessionLinksFromBackgroundProcess', () => {
     forwardSessionLinksFromBackgroundProcess(
       {
         isPackaged: true,
-        on: (_event, listener) => {
+        onOpenUrl: (listener) => {
           deliver = (url) => listener({ preventDefault: vi.fn() }, url)
+          return () => undefined
         },
       },
       { platform: 'darwin', channel: 'stable' },

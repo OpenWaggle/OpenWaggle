@@ -1,8 +1,8 @@
-import { is } from '@electron-toolkit/utils'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { UPDATER_TIMING } from '@shared/constants/time'
 import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
 import { autoUpdater } from 'electron-updater'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { createLogger } from './logger'
 import type { UpdateFeedSelection } from './update-feed'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
@@ -14,8 +14,10 @@ export { getUpdateStatus, setUpdateWaitingForRuns } from './update-status'
 
 const logger = createLogger('updater')
 
+const isDevBuild = () => !appLifecycle.isPackaged()
+
 function updatesDisabled() {
-  return is.dev || BUILD_CHANNEL === 'dev'
+  return isDevBuild() || BUILD_CHANNEL === 'dev'
 }
 
 let checkInterval: ReturnType<typeof setInterval> | null = null
@@ -139,7 +141,7 @@ function checkConfiguredChannel(channel: UpdateChannel) {
 
 export function checkForUpdates(channel?: UpdateChannel): void {
   if (updatesDisabled()) {
-    logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: is.dev })
+    logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: isDevBuild() })
     return
   }
   if (install.isInstallingUpdate()) return
@@ -214,7 +216,7 @@ export function initAutoUpdater(
   environment?: install.UpdaterInstallEnvironment,
 ): void {
   if (updatesDisabled()) {
-    logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: is.dev })
+    logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: isDevBuild() })
     return
   }
 

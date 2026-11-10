@@ -45,13 +45,6 @@ vi.mock('electron', async () => {
   )
 })
 
-// It imports electron natively, past the mock above.
-vi.mock('@electron-toolkit/utils', () => ({
-  is: { dev: false },
-  electronApp: { setAppUserModelId: vi.fn() },
-  optimizer: { watchWindowShortcuts: vi.fn() },
-}))
-
 /*
  * Electron creates the default userData folder the first time it is looked up, so a lookup made
  * while modules load, before configureAppStoragePaths applies OPENWAGGLE_USER_DATA_DIR, left an

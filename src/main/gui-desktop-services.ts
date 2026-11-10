@@ -1,11 +1,10 @@
 import { Effect } from 'effect'
 import { makeGuiDesktopCleanup } from './application/gui-desktop-cleanup'
-import { browserPreviewManager } from './browser-preview'
-import { browserPreviewOwnerRegistry } from './browser-preview-owner-registry'
 import {
   DesktopNativeRecoveryUnavailableError,
   quarantineDesktopNativeAdmission,
 } from './desktop-native-admission'
+import { browserPreviewViews } from './desktop-shell/browser-preview-views'
 import { BrowserPreviewAutomationService } from './ports/browser-preview-automation-service'
 import { TerminalService } from './ports/terminal-service'
 import {
@@ -46,12 +45,12 @@ export async function startAppGuiDesktopServices(input: {
   )
   const executor = makeGuiDesktopServiceExecutor({
     ...services,
-    deleteBrowserOwner: (ownerKey) => browserPreviewManager.closeForOwner(ownerKey),
+    deleteBrowserOwner: (ownerKey) => browserPreviewViews.closeForOwner(ownerKey),
     inspectBrowserOwner: (ownerKey) => ({
-      registered: browserPreviewOwnerRegistry.isRegistered(ownerKey),
-      previews: browserPreviewManager.listOwnedPreviews(ownerKey).length,
+      registered: browserPreviewViews.isOwnerRegistered(ownerKey),
+      previews: browserPreviewViews.ownedPreviewCount(ownerKey),
     }),
-    acquireBrowserMutationFence: (scope) => browserPreviewManager.acquireMutationFence(scope),
+    acquireBrowserMutationFence: (scope) => browserPreviewViews.acquireMutationFence(scope),
   })
   let bridge: GuiDesktopServiceLifecycle | undefined
   let shuttingDown = false
@@ -79,10 +78,10 @@ export async function startAppGuiDesktopServices(input: {
       // Native shutdown begins next; this window can no longer host desktop tools.
       desktopToolsShutDown = true
     },
-    beginBrowserShutdown: () => browserPreviewManager.beginShutdown(),
+    beginBrowserShutdown: () => browserPreviewViews.beginShutdown(),
     closeTerminals: () => Effect.runPromise(services.terminal.closeAll()),
     disposeRuntime: input.disposeRuntime,
-    closeBrowsers: () => browserPreviewManager.closeAll(),
+    closeBrowsers: () => browserPreviewViews.closeAll(),
     // A quarantined process owns no cleanup receipt for the previous desktop.
     markClosed: () => bridge?.markClosed() ?? Promise.resolve(),
   })

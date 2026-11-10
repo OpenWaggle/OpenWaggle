@@ -115,6 +115,8 @@
       // getters, interface-typed refs or a stubbed global (MockWorker replaces
       // Worker), so every member it reports here is in use.
       "files": [
+        "src/main/adapters/electron/browser-preview/browser-preview-artifacts.ts",
+        "src/main/adapters/electron/browser-preview/browser-preview-automation-control.ts",
         "src/main/adapters/mcp/migration/migration-record.ts",
         "src/main/adapters/mcp/pool/mcp-connection-catalog.ts",
         "src/main/adapters/mcp/pool/mcp-connection-lease.ts",
@@ -124,8 +126,6 @@
         "src/main/application/desktop-notifications/desktop-notification-ledger.ts",
         "src/main/application/session-host-event-replay-views.ts",
         "src/main/application/session-host-event-subscription.ts",
-        "src/main/browser-preview-artifacts.ts",
-        "src/main/browser-preview-automation-control.ts",
         "src/renderer/src/features/browser-preview/lib/browser-preview-recording-controller.ts",
         "src/renderer/src/features/chat/hooks/useAgentChat.stream-signal.ts",
         "src/renderer/src/features/chat/lib/transcript-viewport-session.ts",
