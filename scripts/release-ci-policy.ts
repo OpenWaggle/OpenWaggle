@@ -205,7 +205,6 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
 }
 
 function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
-  const jobNames = new Set(jobs.map((job) => job.name))
   for (const requiredName of REQUIRED_CI_CHECKS) {
     if (ALLOWED_JOB_CONDITIONS.has(requiredName)) continue
     const job = jobs.find((candidate) => candidate.name === requiredName)

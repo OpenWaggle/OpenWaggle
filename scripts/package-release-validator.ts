@@ -18,7 +18,6 @@ import { validateReleasePleaseRuntimeContract } from './release-please-runtime-c
 
 const BOOTSTRAP_SOURCE_VERSION = '0.0.0'
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
-const CLI_ARGUMENT_START_INDEX = 2
 const CONFIG_PATH = 'release-please-config.json'
 const EMPTY_COUNT = 0
 const FAILURE_EXIT_CODE = 1

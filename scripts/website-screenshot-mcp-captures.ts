@@ -11,12 +11,7 @@ import {
   MCP_SECRET_SERVER,
   writeMcpFixture,
 } from './website-screenshot-mcp-fixture'
-import {
-  type CaptureContext,
-  leaveSettings,
-  UI_TIMEOUT_MS,
-  waitForUi,
-} from './website-screenshot-ui'
+import { type CaptureContext, leaveSettings, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
 const CHECK_TIMEOUT_MS = 60_000
 

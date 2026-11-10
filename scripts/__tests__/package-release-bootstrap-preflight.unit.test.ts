@@ -5,7 +5,6 @@ import {
 } from '../package-release-bootstrap'
 import {
   commandKey,
-  compatibleRuleset,
   createDependencies,
   PACKAGE_NAMES,
   successful,

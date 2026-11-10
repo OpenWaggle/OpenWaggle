@@ -1,11 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  DOWNLOADED_APPIMAGE,
-  INSTALLED_VERSION,
-  useInstallerHarness,
-} from '../test-support/quick-installer-harness'
+import { INSTALLED_VERSION, useInstallerHarness } from '../test-support/quick-installer-harness'
 
 const harness = useInstallerHarness()
 

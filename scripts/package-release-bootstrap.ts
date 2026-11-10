@@ -4,8 +4,6 @@ import { redactBootstrapDiagnostic } from './package-release-bootstrap-commands'
 import { executeBootstrap } from './package-release-bootstrap-execute'
 import { inspectBootstrapPreflight } from './package-release-bootstrap-preflight'
 import type {
-  BootstrapCommandRequest,
-  BootstrapCommandResult,
   BootstrapDependencies,
   PackageReleaseBootstrapInput,
   PackageReleaseBootstrapResult,
