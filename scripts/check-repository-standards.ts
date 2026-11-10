@@ -6,6 +6,7 @@ import {
   collectAgentMemoryFileViolations,
   collectAgentMemoryIndexViolations,
 } from './standards/agent-memory'
+import { collectRepositoryAdrNumberingViolations } from './standards/adr-numbering'
 import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
@@ -168,6 +169,7 @@ async function main() {
       readRendererDesignTokenExemptions(),
     ),
   )
+  violations.push(...collectRepositoryAdrNumberingViolations(process.cwd()))
 
   if (violations.length === 0) {
     return
