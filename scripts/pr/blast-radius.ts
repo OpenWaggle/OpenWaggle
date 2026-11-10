@@ -98,6 +98,10 @@ function verificationFor(files: readonly string[]) {
   return checks
 }
 
+function fileCount(count: number) {
+  return count === 1 ? '1 file' : `${String(count)} files`
+}
+
 function formatFile(file: ChangedFile) {
   const previous = file.previousPath === undefined ? '' : ` (from ${file.previousPath})`
   return `- ${file.status} \`${file.path}\`${previous}`
@@ -127,7 +131,7 @@ export function renderBlastRadius(input: BlastRadiusInput) {
     '### Changed areas',
     '',
     ...groups.flatMap((group) => [
-      `<details><summary>${group.label} (${group.risk}, ${String(group.files.length)} files)</summary>`,
+      `<details><summary>${group.label} (${group.risk}, ${fileCount(group.files.length)})</summary>`,
       '',
       ...group.files.map(formatFile),
       '',
@@ -144,9 +148,9 @@ export function renderBlastRadius(input: BlastRadiusInput) {
       BLAST_RADIUS_SECTION_START,
       '## Blast radius',
       '',
-      `- Risk: **${risk}** across ${String(input.changedFiles.length)} files at \`${shortSha}\``,
+      `- Risk: **${risk}** across ${fileCount(input.changedFiles.length)} at \`${shortSha}\``,
       ...groups.map(
-        (group) => `- ${group.label}: ${group.risk}, ${String(group.files.length)} files`,
+        (group) => `- ${group.label}: ${group.risk}, ${fileCount(group.files.length)}`,
       ),
       `- Full report: ${reportUrl}`,
       '- Written by `bun run pr:ready`; edits inside this section are replaced on the next run.',

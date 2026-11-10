@@ -152,8 +152,8 @@ describe('blast radius', () => {
       status: 'R100',
     })
     expect(report).toContain('<!-- openwaggle:blast-radius-report -->')
-    expect(report).toContain('Preload, IPC, auth and security (High, 1 files)')
-    expect(report).toContain('Tests and fixtures (Medium, 1 files)')
+    expect(report).toContain('Preload, IPC, auth and security (High, 1 file)')
+    expect(report).toContain('Tests and fixtures (Medium, 1 file)')
     expect(summary('https://example.test/c')).toMatch(
       /^<!-- openwaggle:blast-radius -->[\s\S]*Full report: https:\/\/example\.test\/c[\s\S]*<!-- \/openwaggle:blast-radius -->$/,
     )
