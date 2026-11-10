@@ -19,6 +19,8 @@
     { "path": "./tsconfig.scripts.json" },
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.web.json" },
-    { "path": "./tsconfig.renderer-tests.json" }
+    { "path": "./tsconfig.renderer-tests.json" },
+    { "path": "./tsconfig.shared.json" },
+    { "path": "./tsconfig.website.json" }
   ]
 }

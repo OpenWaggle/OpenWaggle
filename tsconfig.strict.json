@@ -1,0 +1,10 @@
+{
+  /*
+   * Strictness flags beyond `strict`, shared by every project that has been brought up to them:
+   * src/renderer (tsconfig.web.json, tsconfig.renderer-tests.json), src/shared with the
+   * runtime-neutral packages it imports (tsconfig.shared.json), and the website's TypeScript
+   * (tsconfig.website.json). tsconfig.node.json (src/main, src/preload, scripts) does not extend
+   * it yet.
+   */
+  "compilerOptions": {}
+}

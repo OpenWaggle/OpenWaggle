@@ -1,0 +1,37 @@
+{
+  /*
+   * src/shared and the two runtime-neutral packages it imports, checked as source under
+   * tsconfig.strict.json. tsconfig.node.json also includes these files, and the renderer projects
+   * read them as that project's declarations, so without this project they would only ever be
+   * checked under the main process's flags.
+   */
+  "extends": "./tsconfig.strict.json",
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": "./.typecheck/shared",
+    "rootDir": ".",
+    "paths": {
+      "@shared/*": ["./src/shared/*"],
+      "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
+      "@openwaggle/extension-sdk/*": ["./packages/extension-sdk/src/*"],
+      "@openwaggle/waggle-core": ["./packages/waggle-core/src/index.ts"],
+      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"]
+    }
+  },
+  "include": [
+    "src/shared/**/*",
+    "packages/extension-sdk/src/**/*",
+    "packages/waggle-core/src/**/*"
+  ],
+  /* Checks a shared schema against a main-process port, so it stays in tsconfig.node.json. */
+  "exclude": ["src/shared/schemas/__tests__/desktop-browser-service.unit.test.ts"]
+}

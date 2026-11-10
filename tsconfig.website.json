@@ -1,0 +1,31 @@
+{
+  /*
+   * The website's plain TypeScript (website/src/lib and the docs navigation), checked under
+   * tsconfig.strict.json. Astro components are checked by the website's own tooling. The scripts,
+   * functions and packages it imports are read as tsconfig.node.json's declarations.
+   */
+  "extends": "./tsconfig.strict.json",
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": "./.typecheck/website",
+    "rootDir": ".",
+    "paths": {
+      "@shared/*": ["./src/shared/*"],
+      "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
+      "@openwaggle/extension-sdk/*": ["./packages/extension-sdk/src/*"],
+      "@openwaggle/waggle-core": ["./packages/waggle-core/src/index.ts"],
+      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"]
+    }
+  },
+  "include": ["website/src/lib/**/*.ts", "website/src/data/docs-nav.ts"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
