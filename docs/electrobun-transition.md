@@ -213,9 +213,10 @@ Not wired yet. For each platform job, after the Electrobun build:
   `<identifier>.<channel>`, the completion dialog it closes, no arguments, since any argument
   switches Setup into its manager commands) and on the old uninstaller's flags (`/S /currentuser`, no
   `--delete-app-data`). Both are pinned in the bench.
-- **`APPIMAGE_EXIT_AFTER_INSTALL` and `--force-run` are ignored.** Electrobun's installers always
-  start the app. OpenWaggle always installs with relaunch (`quitAndInstall(true, true)`), so only a
-  manual quit-to-install would start the app unasked.
+- **`APPIMAGE_EXIT_AFTER_INSTALL` is ignored on Linux.** `AppRun` always starts the new app. The
+  Windows wrapper honors `--force-run`. OpenWaggle always installs with relaunch
+  (`quitAndInstall(true, true)`), so only a manual quit-to-install on Linux would start the app
+  unasked.
 - **The Electrobun build must keep the CLI entry points** existing installs use:
   `/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle <args>` (macOS shim), the AppImage path with
   `OPENWAGGLE_CLI_OUTPUT_FD=3` (Linux shim, now forwarded by `AppRun`), and `openwaggle.cmd` (Windows,
