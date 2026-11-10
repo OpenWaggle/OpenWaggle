@@ -56,7 +56,7 @@
     "mammoth",
     "tesseract.js",
     "unpdf",
-    // CLI binaries run through `pnpm exec` by check scripts; nothing imports them.
+    // CLI binaries run by check scripts; nothing imports them.
     "oxfmt",
     "react-doctor",
     // Per-platform native builds of sharp and Pi's clipboard addon, loaded by
@@ -82,7 +82,7 @@
   // The pi-runtime catalog pins Pi's whole matched release, including packages
   // OpenWaggle only gets transitively; check:pi-runtime requires every entry
   // (scripts/check-pi-runtime-alignment.ts). Overrides cannot scope this
-  // manifest-level rule to pnpm-workspace.yaml, so it is off.
+  // manifest-level rule to the package.json catalog, so it is off.
   "rules": {
     "duplicate-exports": "off",
     "dev-dependencies-in-production": "off",

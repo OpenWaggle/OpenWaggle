@@ -7,7 +7,7 @@
  * renderer main thread's busy share from a Chrome trace, rAF frame times, and the `agent:event`
  * traffic the main process pushed.
  *
- *   pnpm perf:streaming --app <before.app> --app <after.app> --runs 5 --cpu-throttle 4
+ *   bun run perf:streaming --app <before.app> --app <after.app> --runs 5 --cpu-throttle 4
  */
 import { parseArgs } from 'node:util'
 import type { CDPSession, Page } from '@playwright/test'

@@ -7,7 +7,7 @@
  * a Run active, with the heavy-user MCP setup (six servers per Session, four through `npx`).
  * A local fake provider scripts the Hive, so no model is called.
  *
- *   pnpm perf:hive-memory --app <before.app> --app <after.app> --runs 3
+ *   bun run perf:hive-memory --app <before.app> --app <after.app> --runs 3
  */
 import { parseArgs } from 'node:util'
 import { type AppMemorySample, sampleAppMemory } from './lib/app-memory'

@@ -7,7 +7,7 @@
  * keeps running for its idle grace period with no client. Its footprint (alone and with its
  * children) and CPU use are sampled at fixed times after the last client left.
  *
- *   pnpm perf:idle-host --app <before.app> --app <after.app> --runs 3
+ *   bun run perf:idle-host --app <before.app> --app <after.app> --runs 3
  */
 import { parseArgs } from 'node:util'
 import { sampleAppMemory } from './lib/app-memory'
