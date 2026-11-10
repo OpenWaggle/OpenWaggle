@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
+import { RAW_INSTALL_SCRIPT_URL } from '../../lib/install-command';
 import NotFound from '../404.astro';
 
 async function renderNotFound() {
@@ -18,8 +19,13 @@ describe('not-found page', () => {
     const page = readFileSync(new URL('404.html', DIST), 'utf8');
     expect(page).toContain('<title>Page not found | OpenWaggle</title>');
     expect(readFileSync(new URL('sitemap-0.xml', DIST), 'utf8')).not.toMatch(/<loc>[^<]*\/404\/?<\/loc>/u);
-    expect(existsSync(new URL('install.sh', DIST))).toBe(false);
-    expect(readFileSync(new URL('_redirects', DIST), 'utf8')).toMatch(/^\/install\.sh\s+https:\/\/raw\.githubusercontent\.com\/\S+\s+302$/mu);
+    for (const asset of ['install', 'install.sh', 'install.html', 'install/index.html']) {
+      expect(existsSync(new URL(asset, DIST)), asset).toBe(false);
+    }
+    const redirects = readFileSync(new URL('_redirects', DIST), 'utf8');
+    for (const source of ['/install', '/install/', '/install.sh']) {
+      expect(redirects).toContain(`\n${source} ${RAW_INSTALL_SCRIPT_URL} 302\n`);
+    }
   });
 
   it('says the page is missing and links back to the homepage and the docs', async () => {
