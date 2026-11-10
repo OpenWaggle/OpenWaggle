@@ -4,6 +4,8 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 import {
+  BUN_RUNTIME_ALIASES,
+  BUN_RUNTIME_SERVER,
   COMPONENT_TIER_TIMEOUTS,
   NODE_TIER_TIMEOUTS,
   TEST_TEMPORARY_ROOT_SETUP,
@@ -33,6 +35,7 @@ export default defineConfig({
   plugins: [svgStubPlugin(), react()],
   resolve: {
     alias: {
+      ...BUN_RUNTIME_ALIASES,
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
       '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
@@ -41,6 +44,7 @@ export default defineConfig({
     },
   },
   test: {
+    server: BUN_RUNTIME_SERVER,
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     coverage: {
       provider: 'v8',

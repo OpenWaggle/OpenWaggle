@@ -4,6 +4,8 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import {
+  BUN_RUNTIME_ALIASES,
+  BUN_RUNTIME_SERVER,
   COMPONENT_TIER_TIMEOUTS,
   TEST_REPORTERS,
   TEST_TEMPORARY_ROOT_SETUP,
@@ -43,6 +45,7 @@ export default defineConfig({
   plugins: [svgStubPlugin(), react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
     alias: {
+      ...BUN_RUNTIME_ALIASES,
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
       '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
@@ -53,6 +56,7 @@ export default defineConfig({
   },
   test: {
     reporters: TEST_REPORTERS,
+    server: BUN_RUNTIME_SERVER,
     environment: 'jsdom',
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     ...COMPONENT_TIER_TIMEOUTS,

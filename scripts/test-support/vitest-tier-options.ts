@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
 /**
  * Options the Vitest tier configs share, so `vitest.coverage.config.ts`, which runs the same tests
  * under instrumentation, takes them from the tiers instead of a copy that drifts. It had none of
@@ -59,3 +62,32 @@ export const TEST_REPORTERS = [
   './scripts/test-support/vitest-compact-reporter.ts',
   ...(process.env['GITHUB_ACTIONS'] === 'true' ? ['github-actions'] : []),
 ]
+
+/*
+ * The tiers run on the Bun runtime (`bun --bun vitest`, ADR 0064). The tier configs absorb three
+ * Bun differences that would otherwise break tests rather than the code they test:
+ *
+ * - Bun reports `'__esModule' in namespace` as true for every ES module namespace. Vitest's
+ *   interop for an external module then treats a package whose default export is a namespace
+ *   (zod's `export { z, z as default }`) as transpiled CommonJS and returns that namespace in
+ *   place of the module, so `import { z } from 'zod'` is undefined. Inlining zod sends it through
+ *   Vite's own transform, which has no such interop.
+ * - Bun resolves a bare `undici` to a partial builtin without `MockAgent` or
+ *   `Dispatcher1Wrapper`. The alias loads the npm package the app depends on.
+ * - Bun's `os.homedir()` ignores a HOME set after start; `node-os.ts` reads it at call time.
+ */
+// Through `package.json`: Bun's `require.resolve('undici')` answers with the builtin's name.
+const UNDICI_PACKAGE_ENTRY = path.join(
+  path.dirname(createRequire(import.meta.url).resolve('undici/package.json')),
+  'index.js',
+)
+
+const NODE_OS_MODULE = path.join(import.meta.dirname, 'node-os.ts')
+
+export const BUN_RUNTIME_ALIASES = {
+  undici: UNDICI_PACKAGE_ENTRY,
+  'node:os': NODE_OS_MODULE,
+  os: NODE_OS_MODULE,
+} as const
+
+export const BUN_RUNTIME_SERVER = { deps: { inline: ['zod'] } }
