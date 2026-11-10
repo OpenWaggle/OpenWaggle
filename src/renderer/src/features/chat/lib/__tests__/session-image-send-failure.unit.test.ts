@@ -4,7 +4,7 @@ import {
   FirstSendFailed,
   MessageDeliveredRunFailed,
   MessageNotDelivered,
-  SendFailedBehindLaterSend,
+  SendFailedOutOfView,
 } from '../message-delivery'
 import {
   PI_SESSION_FILE_REFUSAL_NOTICE,
@@ -195,7 +195,7 @@ describe('Session image send failure ownership', () => {
   // No error of the Session's shows it, so a toast does, without Electron's transport prefix,
   // and it is logged as the failure it is.
   it('says why a send failed behind a later one, as an unexpected failure', () => {
-    const failure = new SendFailedBehindLaterSend(
+    const failure = new SendFailedOutOfView(
       new Error("Error invoking remote method 'agent:send-message': Error: handler died"),
     )
     const notice = 'Could not send: handler died. Your message is back in the composer.'

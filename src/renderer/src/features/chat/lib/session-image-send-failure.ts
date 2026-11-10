@@ -7,7 +7,7 @@ import {
   MessageDeliveredRunFailed,
   MessageNotDelivered,
   refusalSummary,
-  SendFailedBehindLaterSend,
+  SendFailedOutOfView,
   sendRefusalOf,
 } from './message-delivery'
 
@@ -23,8 +23,8 @@ export function refusedSendNotice(refusal: MessageNotDelivered) {
   return `${refusalSummary(refusal)} Your message is back in the composer.`
 }
 
-/** The toast for a send whose call failed while a later send owned the Session's status. */
-export function failedBehindLaterSendNotice(failure: SendFailedBehindLaterSend) {
+/** The toast for a send whose call failed while another send's Run owned the Session's status. */
+export function failedOutOfViewNotice(failure: SendFailedOutOfView) {
   const reason = failure.message.replace(/\.$/u, '')
   return `Could not send: ${reason || 'the app could not reach the Session Host'}. Your message is back in the composer.`
 }
@@ -37,8 +37,8 @@ type RestoreNotice = Pick<
 /** What the person is told about an undelivered send the Session does not show, if anything. */
 function undeliveredNotice(cause: unknown): RestoreNotice {
   const failure = cause instanceof FirstSendFailed ? cause.cause : cause
-  if (failure instanceof SendFailedBehindLaterSend) {
-    return { notice: failedBehindLaterSendNotice(failure), unexpected: true }
+  if (failure instanceof SendFailedOutOfView) {
+    return { notice: failedOutOfViewNotice(failure), unexpected: true }
   }
   const refusal = sendRefusalOf(cause)
   return refusal ? { notice: refusedSendNotice(refusal) } : {}

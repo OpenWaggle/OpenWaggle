@@ -57,16 +57,17 @@ export class MessageNotDelivered extends Error {
 export const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
 
 /**
- * A send whose call to the main process failed before any Run while a later send owned the
- * Session's status, so no error of the Session's shows it. Not a refusal: the caller says why in
- * a toast and logs it as the failure it is. The message drops Electron's transport prefix.
+ * A send whose call to the main process failed before any Run while another send's Run owned the
+ * Session's status (a later send, or an earlier one still settling), so no error of the Session's
+ * shows it. Not a refusal: the caller says why in a toast and logs it as the failure it is. The
+ * message drops Electron's transport prefix.
  */
-export class SendFailedBehindLaterSend extends Error {
+export class SendFailedOutOfView extends Error {
   readonly cause: Error
 
   constructor(cause: Error) {
     super(ipcErrorMessage(cause))
-    this.name = 'SendFailedBehindLaterSend'
+    this.name = 'SendFailedOutOfView'
     this.cause = cause
   }
 }

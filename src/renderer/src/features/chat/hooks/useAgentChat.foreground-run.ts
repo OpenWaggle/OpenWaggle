@@ -194,7 +194,20 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
     previous = next
   }
 
-  return { promise, waiter: tracked, bind, handBack, spliceOut, replacePrevious }
+  /** Whether this send displaced an earlier send still waiting on its Run. */
+  function displacesPendingSend() {
+    return previous.waiter !== null
+  }
+
+  return {
+    promise,
+    waiter: tracked,
+    bind,
+    handBack,
+    spliceOut,
+    replacePrevious,
+    displacesPendingSend,
+  }
 }
 
 /** Each pending send's waiter, to the later send that displaced it from the foreground. */

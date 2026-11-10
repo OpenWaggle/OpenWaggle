@@ -3,7 +3,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { MessageNotDelivered, SendFailedBehindLaterSend } from '../../lib/message-delivery'
+import { MessageNotDelivered, SendFailedOutOfView } from '../../lib/message-delivery'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 import {
   apiMock,
@@ -199,7 +199,7 @@ describe('useAgentChat send the Session Host refused', () => {
       earlierError = await sends[0]
     })
 
-    expect(earlierError).toBeInstanceOf(SendFailedBehindLaterSend)
+    expect(earlierError).toBeInstanceOf(SendFailedOutOfView)
     expect(earlierError).toMatchObject({ message: 'handler died' })
     expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
     expect(visibleUserTexts(result.current.messages)).toContain('A later message')

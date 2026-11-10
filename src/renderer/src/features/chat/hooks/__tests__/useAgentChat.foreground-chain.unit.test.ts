@@ -1,9 +1,13 @@
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
+import { SendFailedOutOfView } from '../../lib/message-delivery'
 import { beginForegroundRun } from '../useAgentChat.foreground-run'
 import { createPendingRunWaiter } from '../useAgentChat.message-cache'
-import { forgetIfRefusedForPiSessionFile } from '../useAgentChat.send-without-run'
+import {
+  forgetIfFailedOutOfView,
+  forgetIfRefusedForPiSessionFile,
+} from '../useAgentChat.send-without-run'
 import type { AgentChatStatus, MutableValueRef, PendingRunWaiter } from '../useAgentChat.types'
 
 const SESSION = SessionId('session-chain')
@@ -143,5 +147,63 @@ describe('a send that ends without a Run after the earlier Run completed', () =>
 
     expect(refs.pendingRunWaiterRef.current).toBeNull()
     expect(refs.foregroundStreamActiveRef.current).toBe(false)
+  })
+})
+
+/*
+ * The newest send fails before any Run while an earlier send's Run still settles. Clearing the
+ * foreground then dropped the earlier Run's completion: that send never settled, and the
+ * Session's pickers stayed locked behind it. The failing send hands the earlier one back instead.
+ */
+describe('the newest send failing while an earlier Run still settles', () => {
+  function earlierRunStreaming() {
+    const { refs, setters } = foreground()
+    const earlier = createPendingRunWaiter()
+    let earlierSettled = false
+    void earlier.promise.then(() => {
+      earlierSettled = true
+    })
+    refs.pendingRunWaiterRef.current = earlier.waiter
+    refs.foregroundStreamActiveRef.current = true
+    refs.foregroundSessionIdRef.current = SESSION
+    refs.statusRef.current = 'streaming'
+    const send = beginForegroundRun(refs, setters, SESSION)
+    const sent = { refs, setters, targetSessionId: SESSION, run: send, optimisticMessageId: 'x' }
+    return { refs, earlier, sent, settled: () => earlierSettled }
+  }
+
+  it('hands back the earlier Run when its invoke fails', async () => {
+    const { refs, earlier, sent, settled } = earlierRunStreaming()
+
+    const failure = forgetIfFailedOutOfView(sent, new Error('handler died'))
+
+    expect(failure).toBeInstanceOf(SendFailedOutOfView)
+    expect(refs.pendingRunWaiterRef.current).toBe(earlier.waiter)
+    expect(refs.statusRef.current).toBe('streaming')
+    refs.pendingRunWaiterRef.current?.resolve()
+    await Promise.resolve()
+    expect(settled()).toBe(true)
+  })
+
+  it('hands back the earlier Run when the Host refuses it for its Pi file', async () => {
+    const { refs, earlier, sent, settled } = earlierRunStreaming()
+
+    const refusal = forgetIfRefusedForPiSessionFile(sent, new Error(PI_FILE_REFUSAL))
+
+    expect(refusal).toMatchObject({ outcome: 'refused' })
+    expect(refs.pendingRunWaiterRef.current).toBe(earlier.waiter)
+    expect(refs.statusRef.current).toBe('streaming')
+    refs.pendingRunWaiterRef.current?.resolve()
+    await Promise.resolve()
+    expect(settled()).toBe(true)
+  })
+
+  it('shows its own failure when it displaced no pending send', () => {
+    const { refs, setters } = foreground()
+    const send = beginForegroundRun(refs, setters, SESSION)
+    const sent = { refs, setters, targetSessionId: SESSION, run: send, optimisticMessageId: 'x' }
+
+    expect(forgetIfFailedOutOfView(sent, new Error('handler died'))).toBeUndefined()
+    expect(refs.pendingRunWaiterRef.current).toBe(send.waiter)
   })
 })

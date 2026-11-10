@@ -5,7 +5,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import {
   isPiSessionFileRefusal,
   MessageNotDelivered,
-  SendFailedBehindLaterSend,
+  SendFailedOutOfView,
 } from '../lib/message-delivery'
 import { useBackgroundRunStore } from '../state/background-run-store'
 import {
@@ -37,16 +37,23 @@ export function forgetSendWithoutRun(input: {
 }
 
 /**
- * A send whose invoke failed before any Run while a later send owns the foreground and its status.
- * It leaves the chain, or that send hands back its Thinking, and the transcript. No error of the
- * Session's will show it, so the caller's toast says why.
+ * A send whose invoke failed before any Run, unless it shows that failure itself: it owns the
+ * Session's status and displaced no earlier send still waiting on its Run. Otherwise another
+ * send's Run owns the status (a later send, or an earlier one still settling), and marking the
+ * Session failed would hide that Run or lose its completion. The send then leaves the chain and
+ * the transcript, handing back what it displaced, and as no error of the Session's shows it, the
+ * caller's toast says why. A delivered send's failure is the Run's, so it is never asked here.
  */
-export function forgetSendFailedBehind(
+export function forgetIfFailedOutOfView(
   sent: Parameters<typeof forgetSendWithoutRun>[0],
   error: Error,
 ) {
+  const pending = sent.refs.pendingRunWaiterRef.current
+  const showsOwn =
+    pending === null || (pending === sent.run.waiter && !sent.run.displacesPendingSend())
+  if (showsOwn) return undefined
   forgetSendWithoutRun(sent)
-  return new SendFailedBehindLaterSend(error)
+  return new SendFailedOutOfView(error)
 }
 
 /** A send's report that started no Run. */
@@ -101,6 +108,11 @@ export function forgetIfRefusedForPiSessionFile(
   if (!isPiSessionFileRefusal(refusal)) return undefined
   const { refs, setters, targetSessionId } = input
   const ownsForeground = refs.pendingRunWaiterRef.current === input.run.waiter
+  // An earlier send's Run still settles: hand its state back, so its completion is followed.
+  if (ownsForeground && input.run.displacesPendingSend()) {
+    forgetSendWithoutRun(input)
+    return new MessageNotDelivered('refused', refusal.message)
+  }
   if (ownsForeground) refs.pendingRunWaiterRef.current = null
   // A later send owns the foreground and the status: leave both to it.
   const laterSendOwnsForeground = !ownsForeground && refs.pendingRunWaiterRef.current !== null
@@ -147,7 +159,7 @@ function dropOptimisticSend(input: {
  */
 export function refusalLeavesNothingToRecover(sessionId: SessionId, error: unknown) {
   const refused = error instanceof MessageNotDelivered && error.outcome === 'refused'
-  if (!refused && !(error instanceof SendFailedBehindLaterSend)) return false
+  if (!refused && !(error instanceof SendFailedOutOfView)) return false
   return useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === null
 }
 

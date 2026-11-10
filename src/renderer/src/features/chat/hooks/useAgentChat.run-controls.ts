@@ -21,9 +21,9 @@ import {
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import {
+  forgetIfFailedOutOfView,
   forgetIfRefusedForPiSessionFile,
   forgetRefusedFirstSend,
-  forgetSendFailedBehind,
   type ReportWithoutRun,
   settleSendWithoutRun,
 } from './useAgentChat.send-without-run'
@@ -208,10 +208,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         void refreshSessionSnapshot(targetSessionId)
         throw refused
       }
-      // A later send may already own the foreground; its state is not this send's to clear or mark failed.
+      const outOfView = delivered ? undefined : forgetIfFailedOutOfView(sent, normalizedError)
+      if (outOfView) throw outOfView
       const ownsForeground =
         refs.pendingRunWaiterRef.current === null || refs.pendingRunWaiterRef.current === run.waiter
-      if (!ownsForeground && !delivered) throw forgetSendFailedBehind(sent, normalizedError)
       if (ownsForeground && refs.foregroundSessionIdRef.current === targetSessionId) {
         refs.pendingRunWaiterRef.current = null
         clearRunPointers(refs)
