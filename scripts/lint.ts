@@ -100,7 +100,7 @@ export function bunLintPlatformPackages(
 }
 
 /** The canary binary bun install placed for this platform (glibc first on Linux). */
-export function bunLintExecutable() {
+function bunLintExecutable() {
   const require = createRequire(BUN_LINT_PACKAGE_JSON)
   const binary = process.platform === 'win32' ? 'bun.exe' : 'bun'
   for (const packageName of bunLintPlatformPackages()) {

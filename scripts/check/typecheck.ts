@@ -2,14 +2,15 @@
  * Typechecks every project in one pass (tsconfig.json references node, web and renderer-tests) and
  * applies the renderer-test exemption ratchet (scripts/check-renderer-test-types.ts).
  *
- * Two engines, picked by measurement (November 2026, 14-core macOS, load 6-9): a local run uses
- * `tsc -b`, incremental in .typecheck/ (0.4s with nothing changed, about 2s after an edit, 11-13s
- * cold); CI has no .typecheck cache, so it uses `bun check -b` from the pinned Bun canary, which
- * checks all three projects in about 3.5s every time and reported the same errors as tsc, with the
- * same locations and messages, on a probe set covering each project, including declaration-emit
- * errors (TS4094).
+ * The checker is `bun check -b` (ADR 0064): it checks all three projects from source with no build
+ * cache and reports the same diagnostics as tsc. Measured in CI (4 vCPU, medians of 5) at 9.1s
+ * cold against 45s for `tsc -b --force`. Locally (14-core macOS, loaded) it takes 3.3-4.2s for any
+ * edit, where incremental `tsc -b` took 1.2-2.4s after a function-body or renderer edit but
+ * 8-13s after an edit that changes a main-process or shared export; one checker everywhere keeps
+ * local and CI results identical. tsc only reads the renderer-test project's config
+ * (`--showConfig`) for the ratchet's option and file-count guards.
  *
- *   bun scripts/check/typecheck.ts [--engine=tsc|bun] [--update]
+ *   bun scripts/check/typecheck.ts [--update]
  *
  * Prints one line when clean, otherwise one `file:line:col TSxxxx message` line per error.
  * `--update` rewrites the renderer-test exemption list from this run (after fixing files).
@@ -26,16 +27,12 @@ import {
   RENDERER_TEST_EXEMPTIONS_FILE,
   RENDERER_TEST_PROJECT,
 } from '../check-renderer-test-types'
-import { bunLintExecutable } from '../lint'
 import { compactTscLine } from './findings'
 
-const ROOT_PROJECT = 'tsconfig.json'
 const OUTPUT_MAX_BUFFER_BYTES = 64 * 1024 * 1024
 const JSON_INDENT = 2
 const MILLISECONDS_PER_SECOND = 1000
 const SCRIPT_ARGUMENTS_START = 2
-
-export type TypecheckEngine = 'tsc' | 'bun'
 
 interface ProcessResult {
   readonly output: string
@@ -64,16 +61,9 @@ function tscEntry() {
   return path.join(path.dirname(require.resolve('typescript/package.json')), 'bin', 'tsc')
 }
 
-/** CI checks out without .typecheck/, where `bun check` is about 3x faster than a cold `tsc -b`. */
-export function defaultEngine(environment: NodeJS.ProcessEnv = process.env): TypecheckEngine {
-  return environment.CI === 'true' || environment.CI === '1' ? 'bun' : 'tsc'
-}
-
-function runEngine(engine: TypecheckEngine) {
-  if (engine === 'bun') {
-    return run(bunLintExecutable(), ['check', '--no-script', '--no-pretty', '--all', '-b'])
-  }
-  return run('node', [tscEntry(), '-b', ROOT_PROJECT, '--emitDeclarationOnly', '--pretty', 'false'])
+/** `bun check` from the Bun running this script: every project in tsconfig.json's references. */
+function runChecker() {
+  return run(process.execPath, ['check', '--no-script', '--no-pretty', '--all', '-b'])
 }
 
 async function readProjectConfig() {
@@ -100,19 +90,10 @@ async function readExemptions() {
   }
 }
 
-function parseEngine(argv: readonly string[]): TypecheckEngine {
-  const flag = argv.find((argument) => argument.startsWith('--engine='))
-  if (flag === undefined) return defaultEngine()
-  const value = flag.slice('--engine='.length)
-  if (value !== 'tsc' && value !== 'bun') throw new Error(`unknown --engine=${value}`)
-  return value
-}
-
 async function main(argv: readonly string[]) {
-  const engine = parseEngine(argv)
   const started = performance.now()
   const [result, config, exemptions] = await Promise.all([
-    runEngine(engine),
+    runChecker(),
     readProjectConfig(),
     readExemptions(),
   ])
@@ -132,9 +113,7 @@ async function main(argv: readonly string[]) {
   const seconds = ((performance.now() - started) / MILLISECONDS_PER_SECOND).toFixed(1)
   if (verdict.ok) {
     const exempt = exemptions.length > 0 ? `, ${exemptions.length} exempt test files` : ''
-    console.log(
-      `typecheck: no errors (${engine === 'bun' ? 'bun check' : 'tsc'} -b${exempt}, ${seconds}s)`,
-    )
+    console.log(`typecheck: no errors (bun check -b${exempt}, ${seconds}s)`)
     return
   }
   for (const line of verdict.reportedErrors) console.log(compactTscLine(line) ?? line)

@@ -96,10 +96,13 @@ the package smoke. Findings that shaped it:
   `packages/*/dist/*.d.ts` whenever a package build had run, so the node program differed between
   a clean checkout (CI) and a local tree, and a typecheck running beside a package build could
   read half-written declarations. The dist folders are excluded now.
-- TypeScript 7 `tsc -b` over the three projects: 11-13 s cold, 0.4 s with nothing changed, about
-  2 s after an edit. The Bun canary's `bun check -b`: 3.1-3.8 s every time, and the same errors
+- TypeScript 7 `tsc -b` over the three projects: 11-13 s cold, 0.4 s with nothing changed,
+  1.2-2.4 s after a function-body or renderer edit, but 8-13 s after an edit that changes a
+  main-process or shared export (web and renderer-tests re-check against the new declarations).
+  `bun check -b`: 3.1-4.2 s for any of these, and the same errors
   with the same locations on a probe set across the projects, including declaration-emit errors
-  (TS4094). So CI, which has no `.typecheck/` cache, uses `bun check` and local runs use `tsc -b`.
+  (TS4094). CI (4 vCPU, medians of 5): `bun check -b` 9.1 s cold against 45 s for
+  `tsc -b --force`. So `bun check -b` is the one checker, locally and in CI (ADR 0064).
   The old `typecheck:tests` ran `tsc -b --force` twice (about 30 s).
 - The repository standards check spent most of its time stripping comments: five rules each
   stripped the same file. One shared result plus one `git ls-files` pass took it from 3.8 s to

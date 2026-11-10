@@ -31,7 +31,7 @@ export const STEPS: readonly CheckStep[] = [
   },
   {
     id: 'typecheck',
-    summary: 'tsc -b over the node, web and renderer-test projects',
+    summary: 'bun check -b over the node, web and renderer-test projects',
     commands: [bunScript('scripts/check/typecheck.ts')],
     inputs: TYPESCRIPT_INPUTS,
     findings: 'lines',

@@ -21,7 +21,7 @@ bun install              # Install from bun.lock (Bun version: packageManager / 
 bun run dev              # Electron dev app
 bun run dev:debug        # Hidden Electron dev app with CDP on port 9223
 bun run build            # Production build
-bun run typecheck        # One tsc -b over node, web and renderer tests
+bun run typecheck        # One bun check -b over node, web and renderer tests
 bun run lint             # oxfmt check + type-aware `bun lint` (oxlint.config.mts) + repository standards
 bun run lint:fix         # Format with oxfmt and apply lint fixes
 bun run lint:oxlint      # Same lint config through oxlint, the fallback runner
