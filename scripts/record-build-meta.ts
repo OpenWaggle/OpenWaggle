@@ -1,8 +1,8 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
+import { runWhenInvokedDirectly } from './support/direct-invocation'
 
 const execFileAsync = promisify(execFile)
 
@@ -112,12 +112,4 @@ async function main() {
   await writeBuildMeta()
 }
 
-const isDirectInvocation =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
-
-if (isDirectInvocation) {
-  void main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  })
-}
+runWhenInvokedDirectly(import.meta.url, main)
