@@ -214,6 +214,19 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
 
 /** Each pending send's waiter, to the later send that displaced it from the foreground. */
 const displacedBy = new WeakMap<PendingRunWaiter, ForegroundRun>()
+/** Each send's waiter, to the Session it was sent to. */
+const sentToSession = new WeakMap<PendingRunWaiter, SessionId>()
+
+/**
+ * Whether `waiter` is a send to a Session other than `sessionId`. A completion the send held
+ * (an earlier Run's, before the send knew its own) clears the foreground state while the send is
+ * still in flight, so a switch away has only this to know that the send belongs to another Session.
+ */
+export function isSendToOtherSession(waiter: PendingRunWaiter, sessionId: SessionId) {
+  const sentTo = sentToSession.get(waiter)
+  return sentTo !== undefined && sentTo !== sessionId
+}
+
 /** Each send's waiter, to the waiter of the earlier send it displaced, while that one waits. */
 const displacedOf = new WeakMap<PendingRunWaiter, () => PendingRunWaiter | null>()
 
@@ -283,6 +296,7 @@ export function beginForegroundRun(
     error: setters.error,
   })
   if (displacedWaiter) displacedBy.set(displacedWaiter, run)
+  sentToSession.set(run.waiter, targetSessionId)
   refs.pendingRunWaiterRef.current = run.waiter
   refs.foregroundStreamActiveRef.current = true
   refs.foregroundSessionIdRef.current = targetSessionId

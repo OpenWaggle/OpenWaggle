@@ -8,7 +8,7 @@ import {
 } from '../lib/useAgentChat.utils'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
-import { settleDisplacedSends } from './useAgentChat.foreground-run'
+import { isSendToOtherSession, settleDisplacedSends } from './useAgentChat.foreground-run'
 import {
   buildOptimisticMessagesKey,
   buildSessionSnapshotKey,
@@ -96,7 +96,12 @@ function shouldKeepForegroundHydration(
   keys: SessionHydrationKeys,
   context: SessionHydrationContext,
 ) {
+  const pending = context.pendingRunWaiterRef.current
   if (!context.foregroundStreamActiveRef.current) {
+    // A send still in flight to the Session left behind settles, with every send it displaced.
+    if (pending && isSendToOtherSession(pending, input.sessionId)) {
+      resolvePendingForegroundRun(context)
+    }
     return false
   }
   if (context.foregroundSessionIdRef.current !== input.sessionId) {
