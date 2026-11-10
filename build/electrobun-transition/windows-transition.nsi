@@ -39,8 +39,13 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 !define DOWNLOAD_URL "https://github.com/OpenWaggle/OpenWaggle/releases/latest"
 !define TRANSITION_LOG "$LOCALAPPDATA\openwaggle-updater\electrobun-transition.log"
 
+; Every channel installs the same executable name; only the display name (and so the
+; uninstaller's name, "Uninstall OpenWaggle Beta.exe") differs (ADR 0032).
+!define OLD_EXE "OpenWaggle.exe"
+
 Var NewLauncher
 Var OldInstallDir
+Var OldUninstaller
 Var LogHandle
 
 !macro Log TEXT
@@ -48,8 +53,8 @@ Var LogHandle
 !macroend
 
 Function RestartOldApp
-  ${If} ${FileExists} "$OldInstallDir\${PRODUCT_NAME}.exe"
-    Exec '"$OldInstallDir\${PRODUCT_NAME}.exe"'
+  ${If} ${FileExists} "$OldInstallDir\${OLD_EXE}"
+    Exec '"$OldInstallDir\${OLD_EXE}"'
   ${EndIf}
 FunctionEnd
 
@@ -92,12 +97,20 @@ Section "Install"
   ${EndIf}
   SetOutPath "$TEMP"
 
+  StrCpy $OldUninstaller ""
   ${If} $OldInstallDir != ""
-  ${AndIf} ${FileExists} "$OldInstallDir\Uninstall ${PRODUCT_NAME}.exe"
-    ; _?= runs the uninstaller in place, so ExecWait waits for it; it keeps %APPDATA%\openwaggle.
-    ExecWait '"$OldInstallDir\Uninstall ${PRODUCT_NAME}.exe" /S /currentuser _?=$OldInstallDir' $1
-    !insertmacro Log "Electron uninstaller exited with $1"
-    Delete "$OldInstallDir\Uninstall ${PRODUCT_NAME}.exe"
+    FindFirst $5 $6 "$OldInstallDir\Uninstall *.exe"
+    FindClose $5
+    ${If} $6 != ""
+      StrCpy $OldUninstaller "$OldInstallDir\$6"
+    ${EndIf}
+  ${EndIf}
+  ${If} $OldUninstaller != ""
+    ; _?= runs the uninstaller in place, so ExecWait waits for it. Without --delete-app-data it
+    ; keeps %APPDATA%\openwaggle; without --updated it also removes the old shortcuts.
+    ExecWait '"$OldUninstaller" /S /currentuser _?=$OldInstallDir' $1
+    !insertmacro Log "Electron uninstaller $OldUninstaller exited with $1"
+    Delete "$OldUninstaller"
   ${Else}
     StrCpy $OldInstallDir "$LOCALAPPDATA\Programs\openwaggle"
   ${EndIf}
