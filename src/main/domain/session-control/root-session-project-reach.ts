@@ -1,4 +1,7 @@
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
+import { isLocalUserCallerId } from '@shared/utils/local-user-caller'
+
+export { isLocalUserCallerId }
 
 const PROFILE_CALLER_PREFIX = 'profile:'
 const SESSION_AGENT_CALLER_PREFIX = 'session-agent:'
@@ -13,13 +16,6 @@ export const MAX_RUN_INITIATOR_CHAIN_DEPTH = 8
 export const MAX_RUN_INITIATOR_CHAIN_HOPS = 256
 
 type ReachScope = Pick<LocalSessionProfileScope, 'all'>
-
-/** The local desktop user: the GUI, or the `openwaggle` CLI authenticated as the local user. */
-export function isLocalUserCallerId(callerId: string) {
-  return (
-    callerId === 'local-user' || callerId === 'gui:local-user' || callerId.startsWith('local-user:')
-  )
-}
 
 /**
  * The Session Host stopping Runs as it shuts down. It acts with the desktop user's authority, but

@@ -36,6 +36,13 @@ describe('sessionSettingsLock in a queue waiting on agents’ capacity', () => {
     )
   })
 
+  it('counts a message adopted with Send as me as the user’s own', () => {
+    const adopted = { ...item('adopted', false), callerId: 'gui:local-user' }
+    expect(reason([item('agents', false), adopted])).toBe(
+      SESSION_SETTINGS_LOCKED_BY_OWN_QUEUE_REASON,
+    )
+  })
+
   it.each([
     ['only agents’ messages wait', [item('agents', false)]],
     ['an edit holds the user’s message', [item('agents', false, true), item('mine', true)]],

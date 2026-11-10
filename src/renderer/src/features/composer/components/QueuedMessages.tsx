@@ -198,10 +198,13 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     onDragEnd: arrangement.onDragEnd,
   }
 
-  // "Send as me" on the first message starts it at once only when the Host would (`sendAsMeStartsNow`).
-  const headId = queue[0]?.id
-  const headSendsNow =
-    headId !== undefined && sendAsMeStartsNow({ queue: snapshot, followUpId: headId, isStreaming })
+  // "Send as me" starts a message at once only when the Host would (`sendAsMeStartsNow`).
+  const sendsNowIds = new Set(
+    queue
+      .filter((item) => item.deliveryState === 'needs_attention')
+      .filter((item) => sendAsMeStartsNow({ queue: snapshot, followUpId: item.id, isStreaming }))
+      .map((item) => item.id),
+  )
   const queueUnavailable = sessionId !== null && error !== null
   const showDock = sessionId !== null && (queue.length > 0 || queueUnavailable)
 
@@ -253,7 +256,10 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                     }}
                     reorderable={queue.length > 1}
                     isStreaming={isStreaming}
-                    sendAsMe={{ inFlight: controls.adoptingId === item.id, headSendsNow }}
+                    sendAsMe={{
+                      inFlight: controls.adoptingId === item.id,
+                      sendsNow: sendsNowIds.has(item.id),
+                    }}
                     edit={{
                       canBegin: canBeginEdit,
                       phase: queuedEdit.edit?.followUpId === item.id ? queuedEdit.edit.phase : null,

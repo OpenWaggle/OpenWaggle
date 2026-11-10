@@ -229,4 +229,26 @@ describe('QueuedMessages "Send as me"', () => {
     )
     expect(onToast).not.toHaveBeenCalledWith(expect.stringContaining('Session Control'))
   })
+
+  // Agents' messages wait for a slot; the adopted message is the user's and starts past them.
+  it('says a message behind agents’ ones in a queue waiting on their capacity sends now', () => {
+    queueNeedingAttention('profile_revoked')
+    queueMock.snapshot.items = [
+      {
+        id: 'agents',
+        text: 'agents’ message',
+        attachmentCount: 0,
+        createdAt: 1,
+        deliveryState: 'pending',
+        attachments: [],
+        editable: false,
+      },
+      ...queueMock.snapshot.items,
+    ]
+    queueMock.snapshot.state = 'paused'
+    queueMock.snapshot.pauseReason = 'parent-limit'
+    renderQueue()
+
+    expect(sendAsMe()).toHaveAccessibleDescription(SENDS_NOW)
+  })
 })

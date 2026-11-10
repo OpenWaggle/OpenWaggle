@@ -35,17 +35,23 @@ export function isFollowUpEditHeld(item: SessionControlFollowUp | undefined) {
 }
 
 /**
- * The queue's next delivery waits on an edit: the queue runs and its head is a pending Follow-up
- * out for editing, so it is delivered once the edit ends. A paused queue, or a held item further
- * back, does not make the Session's work pending.
+ * The queue's next delivery waits on an edit, so it is delivered once the edit ends: the queue
+ * runs and its head is a pending Follow-up out for editing, or the queue waits on agents' capacity
+ * and an edit holds the person's first pending Follow-up, which then starts past it
+ * (`deliverPersonFollowUpPastCapacity`). Any other paused queue, or a held item further back,
+ * does not make the Session's work pending.
  */
 export function waitsOnHeldNextFollowUp(state: SessionControlSessionState) {
-  const head = state.followUpQueue.items[0]
-  return (
-    state.followUpQueue.state === 'running' &&
-    head?.deliveryState === 'pending' &&
-    isFollowUpEditHeld(head)
+  const queue = state.followUpQueue
+  const head = queue.items[0]
+  if (queue.state === 'running') {
+    return head?.deliveryState === 'pending' && isFollowUpEditHeld(head)
+  }
+  if (queue.pauseReason !== 'parent-limit' || queue.deferredRetryAfter !== undefined) return false
+  const index = queue.items.findIndex(
+    (item) => item.deliveryState === 'pending' && isPersonStartedRun(item.intent),
   )
+  return index >= 0 && queue.items.slice(0, index + 1).some(isFollowUpEditHeld)
 }
 
 function withoutDeferredRetry(state: SessionControlSessionState): SessionControlSessionState {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deliverPersonFollowUpPastCapacity } from '../follow-up-delivery'
+import { deliverPersonFollowUpPastCapacity, waitsOnHeldNextFollowUp } from '../follow-up-delivery'
 import { AGENT, followUp, HOLD, IDLE, NEXT_RUN, state } from './follow-up-edit.test-fixtures'
 
 const agents = followUp('agents', { callerId: AGENT })
@@ -75,5 +75,37 @@ describe('deliverPersonFollowUpPastCapacity', () => {
 
     expect(delivery.delivered?.followUpId).toBe('retry')
     expect(delivery.state.followUpQueue).toMatchObject({ pauseReason: 'run-failed' })
+  })
+})
+
+// A Worker's Delegation waits while the person's Follow-up will start once the edit ends.
+describe('waitsOnHeldNextFollowUp in a queue waiting on agents’ capacity', () => {
+  const heldMine = followUp('mine', {}, { editHold: HOLD })
+
+  it.each([
+    ['the person’s Follow-up is held', [agents, heldMine], true],
+    [
+      'an edit holds an item before it',
+      [followUp('agents', { callerId: AGENT }, { editHold: HOLD }), mine],
+      true,
+    ],
+    [
+      'only agents’ work waits',
+      [followUp('agents', { callerId: AGENT }, { editHold: HOLD })],
+      false,
+    ],
+    ['nothing is held', [agents, mine], false],
+  ] as const)('is %s: %s', (_, items, waits) => {
+    expect(
+      waitsOnHeldNextFollowUp(state([...items], IDLE, 'paused', { pauseReason: 'parent-limit' })),
+    ).toBe(waits)
+  })
+
+  it('does not wait on a queue paused for another reason', () => {
+    expect(
+      waitsOnHeldNextFollowUp(
+        state([agents, heldMine], IDLE, 'paused', { pauseReason: 'requested' }),
+      ),
+    ).toBe(false)
   })
 })

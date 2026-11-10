@@ -84,8 +84,10 @@ function interruptRuns(sql: SqlClient.SqlClient, runs: readonly RunRow[], now: n
       yield* sql`
         UPDATE session_control_states SET
           active_run_id = ${null},
+          -- A wait on agents' capacity gives way: what it held waits for the person's Resume.
           queue_pause_reason = CASE
-            WHEN queue_state = ${'paused'} THEN queue_pause_reason
+            WHEN queue_state = ${'paused'} AND queue_pause_reason IS NOT ${'parent-limit'}
+              THEN queue_pause_reason
             ELSE ${'profile-revoked'}
           END,
           queue_state = ${'paused'},

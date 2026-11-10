@@ -72,8 +72,13 @@ export function selectHiveParentWakeCandidate(
       WHERE sessions.id = ${input.parentSessionId}
         AND sessions.archived = 0
         AND states.active_run_id IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM session_follow_ups WHERE session_follow_ups.session_id = sessions.id
+        -- Follow-ups run first, except agents' ones a Worker limit holds back: those wait for a
+        -- slot, and the wake meets the limits itself (ADR 0030, amended 2026-11-10).
+        AND (
+          (states.queue_state = ${'paused'} AND states.queue_pause_reason = ${'parent-limit'})
+          OR NOT EXISTS (
+            SELECT 1 FROM session_follow_ups WHERE session_follow_ups.session_id = sessions.id
+          )
         )
         AND latest.status IN (${'completed'}, ${'failed'})
     )

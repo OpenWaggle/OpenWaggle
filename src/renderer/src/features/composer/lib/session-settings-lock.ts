@@ -1,3 +1,4 @@
+import { isLocalUserCallerId } from '@shared/utils/local-user-caller'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
 
 /** Why the Session settings cannot change while a Run is going and messages wait behind it. */
@@ -30,6 +31,11 @@ function queueContinues(queue: QueueState) {
   return queue.state === 'running' && head?.deliveryState === 'pending' && !head.editHold
 }
 
+/** A message the Host sends as this user: queued by them, or adopted with Send as me. */
+function isOwnMessage(item: QueueState['items'][number]) {
+  return item.editable || (item.callerId !== undefined && isLocalUserCallerId(item.callerId))
+}
+
 /**
  * A queue waiting on agents' capacity still starts this user's first pending message when the Run
  * ends, unless an edit up to it holds it (`deliverPersonFollowUpPastCapacity`); it cannot be
@@ -37,7 +43,9 @@ function queueContinues(queue: QueueState) {
  */
 function ownMessageContinues(queue: QueueState) {
   if (queue.state !== 'paused' || queue.pauseReason !== 'parent-limit') return false
-  const index = queue.items.findIndex((item) => item.editable && item.deliveryState === 'pending')
+  const index = queue.items.findIndex(
+    (item) => isOwnMessage(item) && item.deliveryState === 'pending',
+  )
   return index >= 0 && queue.items.slice(0, index + 1).every((item) => !item.editHold)
 }
 

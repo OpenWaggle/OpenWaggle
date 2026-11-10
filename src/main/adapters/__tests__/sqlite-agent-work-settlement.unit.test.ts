@@ -284,4 +284,22 @@ describe('an agent’s Follow-up in the person’s Session when a Run settles', 
       )
     },
   )
+
+  // Each of the person's Follow-ups gets the check, not just the first.
+  it('holds every person’s Follow-up whose authority changed', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'auth-each.sqlite'))
+    const result = await Effect.runPromise(
+      personRootEndingAtCeiling([AGENT_CALLER, 'gui:local-user', 'gui:local-user'], {
+        pausedFor: 'parent-limit',
+        authorityChanged: true,
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue.items).toMatchObject([
+      { id: 'next-0' },
+      { id: 'next-1', deliveryState: 'needs_attention' },
+      { id: 'next-2', deliveryState: 'needs_attention' },
+    ])
+  })
 })

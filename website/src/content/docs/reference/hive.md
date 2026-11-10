@@ -196,7 +196,7 @@ The parent hears about every result and every request for help as an update from
 
 OpenWaggle starts that run only when all of these hold:
 
-- The parent has no active run and no queued follow-up.
+- The parent has no active run and no queued follow-up, apart from agents' follow-ups that a run limit holds back (`pauseReason` `parent-limit`).
 - The parent is not archived.
 - The parent's last run completed or failed. A run you stopped leaves the parent alone until you send it something.
 - The parent was not last continued in the pi CLI.
@@ -292,7 +292,7 @@ A worker gets its parent's access by default. A spawn or an [agent definition](/
 
 ## Run limits
 
-Two settings in **Settings > Agents > Hive controls** cap how many worker runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active Workers** to 16 worker runs across the whole app. [Settings](/docs/reference/settings) lists both. A `spawn`, or a `message`, `follow_up` or `start` that would start a worker's run, fails at either limit with an error the caller can retry (`host_capacity_reached` or `parent_capacity_reached` for a `spawn`, and `host_run_ceiling_reached` or `parent_concurrency_limit_reached` for a run). It is not queued. An agent's `queue_resume` that would start such a run fails the same way, and an agent's withdraw or reorder that would start one pauses the queue instead. When a run ends and the next follow-up in its queue is an agent's that would pass a limit, the queue pauses too, with `pauseReason` `parent-limit` at either limit. Nothing resumes it by itself. Call `queue_resume` once a slot frees. A follow-up you queued never waits behind those. When the session is idle, your first follow-up in that queue starts ahead of the agents' ones, and the queue stays paused for theirs. Your **Resume** starts the next follow-up whatever the limits. A run OpenWaggle starts for a parent whose workers reported is the exception, because it is retried when another run ends.
+Two settings in **Settings > Agents > Hive controls** cap how many worker runs go at once. **Workers per parent** defaults to 4 runs at a time by one parent's direct workers, and **Active Workers** to 16 worker runs across the whole app. [Settings](/docs/reference/settings) lists both. A `spawn`, or a `message`, `follow_up` or `start` that would start a worker's run, fails at either limit with an error the caller can retry (`host_capacity_reached` or `parent_capacity_reached` for a `spawn`, and `host_run_ceiling_reached` or `parent_concurrency_limit_reached` for a run). It is not queued. An agent's `queue_resume` that would start such a run fails the same way, and an agent's withdraw or reorder that would start one pauses the queue instead. When a run ends and the next follow-up in its queue is an agent's that would pass a limit, the queue pauses too, with `pauseReason` `parent-limit` at either limit. Nothing resumes it by itself. Call `queue_resume` once a slot frees. A follow-up you queued never waits behind those. When the session is idle, your first follow-up in that queue starts ahead of the agents' ones, and the queue stays paused for theirs. A parent whose workers report is woken past them too. Your **Resume** starts the next follow-up whatever the limits. A run OpenWaggle starts for a parent whose workers reported is the exception, because it is retried when another run ends.
 
 The limits never hold back your own runs:
 
