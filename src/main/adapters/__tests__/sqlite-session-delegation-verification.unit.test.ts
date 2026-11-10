@@ -117,6 +117,7 @@ describe('SQLite Delegation verification', () => {
     expect(result.workerAttempt.outcome).toMatchObject({
       effect: 'rejected',
       code: 'parent_required',
+      kind: 'authorization',
     })
     expect(result.verified.outcome).toMatchObject({
       effect: 'delegation-verification-recorded',

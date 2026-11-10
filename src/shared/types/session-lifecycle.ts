@@ -1,3 +1,4 @@
+import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { ResolvedAgentDefinitionSnapshot } from './agent-definition'
 import type { SessionCapability } from './session-capability'
@@ -166,6 +167,8 @@ export type SessionLifecycleOutcome =
       readonly operation: SessionLifecycleCommand['operation']
       readonly effect: 'rejected'
       readonly code: string
+      /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
+      readonly kind: SessionHostErrorKind
       readonly retryable: boolean
       readonly parentConcurrencyLimit?: number
       readonly parentRunningChildren?: number

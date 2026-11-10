@@ -1,3 +1,7 @@
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import { FollowUpId } from '@shared/types/brand'
 import type {
   SessionControlMutationResponse,
@@ -32,13 +36,13 @@ export function adoptSessionFollowUp(input: AdoptSessionFollowUpInput) {
     const repository = yield* SessionControlRepository
     const nextRunId = yield* identities.nextRunId
     const command = input.request.command
-    const rejected = (code: string): SessionControlMutationDecision => ({
+    const rejected = (code: SessionHostRefusalCode): SessionControlMutationDecision => ({
       accepted: false,
       outcome: {
         operation: command.operation,
         effect: 'rejected',
         sessionId: command.sessionId,
-        code,
+        ...sessionHostRefusal(code),
       },
     })
     const execution = yield* repository.executeMutation({

@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { parseJsonUnknown } from '@shared/schema'
 import { decodeSessionLifecycleOutcome } from '@shared/schemas/session-lifecycle'
 import { RunId, SessionId } from '@shared/types/brand'
@@ -13,6 +14,7 @@ import { PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX } from '../ports/pi-session-dis
 import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
 import { loadSessionControlState } from './sqlite-session-control-state'
 import { lifecycleResponse, storeLifecycleOutcome } from './sqlite-session-lifecycle-support'
+import { withStoredRefusalKind } from './sqlite-stored-refusal-kind'
 import { countActiveWorkerRuns, isPersonCaller } from './sqlite-worker-run-admission'
 
 const DEFAULT_PARENT_CONCURRENCY_LIMIT = 4
@@ -65,7 +67,7 @@ export function reservedIdempotencyKeyRejection(sql: SqlClient.SqlClient, input:
     return lifecycleResponse(input, false, {
       operation: 'create',
       effect: 'rejected',
-      code: 'reserved_idempotency_key',
+      ...sessionHostRefusal('reserved_idempotency_key'),
       retryable: false,
     })
   })
@@ -108,7 +110,8 @@ export function findLifecycleReplay(
     }
     const outcomeJson = existing.outcome_json
     const outcome = yield* Effect.try({
-      try: () => decodeSessionLifecycleOutcome(parseJsonUnknown(outcomeJson)),
+      try: () =>
+        decodeSessionLifecycleOutcome(withStoredRefusalKind(parseJsonUnknown(outcomeJson))),
       catch: (cause) => repositoryError('decode-idempotent-outcome', cause),
     })
     return lifecycleResponse(input, true, outcome)
@@ -163,7 +166,7 @@ function launchTarget(
     const outcome: SessionLifecycleOutcome = {
       operation: 'launch',
       effect: 'rejected',
-      code: 'host_run_ceiling_reached',
+      ...sessionHostRefusal('host_run_ceiling_reached'),
       retryable: true,
       hostRunCeiling,
       hostActiveRuns,
@@ -220,7 +223,7 @@ function spawnTarget(
       const outcome: SessionLifecycleOutcome = {
         operation: 'spawn',
         effect: 'rejected',
-        code: admission.code,
+        ...sessionHostRefusal(admission.code),
         retryable: admission.retryable,
         parentConcurrencyLimit: admission.parentConcurrencyLimit,
         parentRunningChildren: admission.parentRunningChildren,

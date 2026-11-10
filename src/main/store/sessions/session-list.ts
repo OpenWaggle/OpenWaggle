@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import type { SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { attentionCauseSql, parentWillActSql } from '../../adapters/sqlite-hive-next-actor-facts'
@@ -88,8 +89,39 @@ function loadLatestRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string
   `
 }
 
+/**
+ * Each requested Session's Running Workers and when the last Run below it ended (ADR 0063): the
+ * whole Spawn-lineage subtree at any depth, never retired task-runner lineage. The Host counts so
+ * a Worker on a page the window never loaded still keeps its parent Working.
+ */
+function workerRunFactsCte(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+  return sql`
+    WITH RECURSIVE workers_below(ancestor_id, session_id) AS (
+      SELECT parent_session_id, child_session_id
+      FROM session_spawn_lineage
+      WHERE parent_session_id IN ${sql.in(sessionIds)}
+      UNION ALL
+      SELECT workers_below.ancestor_id, deeper.child_session_id
+      FROM session_spawn_lineage AS deeper
+      JOIN workers_below ON deeper.parent_session_id = workers_below.session_id
+    ),
+    worker_run_facts AS (
+      SELECT
+        workers_below.ancestor_id,
+        COUNT(DISTINCT CASE WHEN worker_runs.status IN ${sql.in([...LIVE_RUN_STATUSES])}
+          THEN worker_runs.session_id END) AS running_worker_count,
+        MAX(CASE WHEN worker_runs.status NOT IN ${sql.in([...LIVE_RUN_STATUSES])}
+          THEN worker_runs.updated_at END) AS workers_last_run_ended_at
+      FROM workers_below
+      JOIN session_runs AS worker_runs ON worker_runs.session_id = workers_below.session_id
+      GROUP BY workers_below.ancestor_id
+    )
+  `
+}
+
 export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   return sql<SessionLineageRow>`
+    ${workerRunFactsCte(sql, sessionIds)}
     SELECT
       sessions.id AS session_id,
       COALESCE(session_spawn_lineage.parent_session_id, legacy_lineage.parent_session_id)
@@ -108,6 +140,8 @@ export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: rea
         WHERE delegation_contracts.parent_session_id = sessions.id
           AND delegation_contracts.state NOT IN (${'ready_for_review'}, ${'accepted'}, ${'cancelled'}))
         AS active_direct_worker_count,
+      COALESCE(worker_run_facts.running_worker_count, 0) AS running_worker_count,
+      worker_run_facts.workers_last_run_ended_at,
       session_execution_profiles.profile_json
       , legacy_lineage.agent_definition_name AS legacy_agent_definition_name
       , (legacy_lineage.session_id IS NOT NULL
@@ -131,6 +165,7 @@ export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: rea
     LEFT JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
     LEFT JOIN session_derivations ON session_derivations.derived_session_id = sessions.id
     LEFT JOIN sessions AS source_sessions ON source_sessions.id = session_derivations.source_session_id
+    LEFT JOIN worker_run_facts ON worker_run_facts.ancestor_id = sessions.id
     WHERE sessions.id IN ${sql.in(sessionIds)}
   `
 }

@@ -124,3 +124,35 @@ export function desktopNotificationReplaces(
 export function desktopNotificationReadByVisit(category: DesktopNotificationCategory) {
   return category !== 'needs-you'
 }
+
+/** What still runs in a root Session's Hive, as Ready to read needs it (ADR 0063). */
+export interface ReadyToReadHiveWork {
+  readonly rootRunning: boolean
+  readonly workersRunning: boolean
+  readonly wakeComing: boolean
+  readonly runStartedWhileWorkersRan: boolean
+}
+
+/**
+ * When a root Session's completed Run is Ready to read (ADR 0063):
+ * - `now`: nothing runs in its Hive and no Hive wake is coming, so the work is finished;
+ * - `mid-work-answer`: the person asked while Workers ran, so the reply answers that question
+ *   now, and the request the Workers serve still waits;
+ * - `after-workers`: Workers still run or a wake is coming, so it waits for the Hive to settle.
+ *   A Hive wake Run never notifies on its own.
+ */
+export type ReadyToReadTiming = 'now' | 'mid-work-answer' | 'after-workers'
+
+/** Nothing runs in the Hive and no Hive wake is still coming: the work the person asked is done. */
+export function readyToReadHiveSettled(work: ReadyToReadHiveWork) {
+  return !work.rootRunning && !work.workersRunning && !work.wakeComing
+}
+
+export function readyToReadTiming(
+  work: ReadyToReadHiveWork,
+  run: { readonly hiveWake: boolean },
+): ReadyToReadTiming {
+  if (readyToReadHiveSettled(work)) return 'now'
+  if (!run.hiveWake && work.runStartedWhileWorkersRan) return 'mid-work-answer'
+  return 'after-workers'
+}

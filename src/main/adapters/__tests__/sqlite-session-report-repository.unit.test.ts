@@ -163,6 +163,7 @@ describe('SQLite Session report repository', () => {
       operation: 'report',
       effect: 'rejected',
       code: 'source_run_not_authorized',
+      kind: 'authorization',
     })
   })
 
@@ -198,6 +199,7 @@ describe('SQLite Session report repository', () => {
       operation: 'report',
       effect: 'rejected',
       code: 'source_run_not_authorized',
+      kind: 'authorization',
     })
   })
 
@@ -270,6 +272,7 @@ describe('SQLite Session report repository', () => {
       operation: 'report',
       effect: 'rejected',
       code: 'source_run_not_authorized',
+      kind: 'authorization',
     })
   })
 })

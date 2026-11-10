@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import { RunId, SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
@@ -51,7 +52,7 @@ describe('Session Control Run replacement and the Worker limits', () => {
                   operation: 'replace',
                   effect: 'rejected',
                   sessionId: 'session-target',
-                  code: 'host_run_ceiling_reached',
+                  ...sessionHostRefusal('host_run_ceiling_reached'),
                 },
               } as const
             }),

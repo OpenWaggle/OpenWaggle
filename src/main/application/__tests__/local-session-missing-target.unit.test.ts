@@ -120,7 +120,11 @@ describe('one not-found answer and scoped Delegation filters (#351)', () => {
         requestId: 'list',
         outcome: {
           operation: 'delegations-list',
-          error: { code: 'session_not_found', message: 'The Session was not found.' },
+          error: {
+            code: 'session_not_found',
+            kind: 'not_found',
+            message: 'The Session was not found.',
+          },
         },
       },
     })
@@ -150,6 +154,7 @@ describe('one not-found answer and scoped Delegation filters (#351)', () => {
           effect: 'rejected',
           sessionId: 'session-unknown',
           code: 'session_not_found',
+          kind: 'not_found',
         },
       },
     })

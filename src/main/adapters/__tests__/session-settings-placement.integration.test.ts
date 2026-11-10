@@ -142,10 +142,12 @@ describe('Session settings placement on SQLite Session Control', () => {
     expect(result.queuedWithThinking).toMatchObject({
       effect: 'rejected',
       code: 'thinking_level_requires_idle_session',
+      kind: 'conflict',
     })
     expect(result.queuedWithOverride).toMatchObject({
       effect: 'rejected',
       code: 'run_authorization_override_requires_idle_session',
+      kind: 'conflict',
     })
     expect(result.queued).toMatchObject({ effect: 'queued-follow-up' })
     expect(result.changeWhileActive).toMatchObject({ changed: false, code: 'session_run_active' })

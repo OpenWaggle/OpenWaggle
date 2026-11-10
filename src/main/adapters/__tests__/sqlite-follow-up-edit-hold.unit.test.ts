@@ -150,10 +150,12 @@ describe('Follow-up edit holds in SQLite', () => {
     expect(result.fromAgent.outcome).toMatchObject({
       effect: 'rejected',
       code: 'follow_up_edit_requires_desktop_user',
+      kind: 'authorization',
     })
     expect(result.othersFollowUp.outcome).toMatchObject({
       effect: 'rejected',
       code: 'follow_up_not_editable',
+      kind: 'conflict',
     })
   })
 

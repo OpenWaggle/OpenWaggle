@@ -165,9 +165,17 @@ function changeProfile(
   return Effect.gen(function* () {
     const existing = (yield* selectProfiles(sql, command.profileName))[0]
     if (!existing)
-      return rejectedProfileOutcome(command.operation, 'profile_not_found', command.profileName)
+      return rejectedProfileOutcome(
+        command.operation,
+        'target_profile_not_found',
+        command.profileName,
+      )
     if (command.operation !== 'revoke' && existing.revoked_at !== null) {
-      return rejectedProfileOutcome(command.operation, 'profile_revoked', command.profileName)
+      return rejectedProfileOutcome(
+        command.operation,
+        'target_profile_revoked',
+        command.profileName,
+      )
     }
     const immediate = yield* matchBy(command, 'operation')
       .with('update', (selected) => persistUpdatedProfile(sql, input, selected, existing))

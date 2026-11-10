@@ -3,6 +3,7 @@ import {
   resolveAgentDefinitionProject,
 } from './agent-definition-project'
 import { discoverAgentDefinitions } from './agents/agent-definition-discovery'
+import { mcpLocalRefusal } from './openwaggle-mcp-refusal-message'
 import type { SessionToolInputV2 } from './openwaggle-mcp-session-input-types-v2'
 import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
 
@@ -38,7 +39,10 @@ export async function queryMcpAgentDefinitions(
 ) {
   const requested = input.projectPath ?? options.workspaceRoots[0]
   if (options.workspaceRoots.length === 0 || requested === undefined) {
-    throw new Error('Agent-definition discovery requires an explicit MCP workspace grant.')
+    throw mcpLocalRefusal(
+      'target_scope_denied',
+      'Agent-definition discovery requires an explicit MCP workspace grant.',
+    )
   }
   const grantedPath = assertProjectAllowed(options, requested)
   if (input.operation === 'agent-definitions-search' && !input.message?.trim()) {

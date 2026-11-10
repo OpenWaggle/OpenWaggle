@@ -69,6 +69,7 @@ describe('Session lifecycle v2 boundary', () => {
           operation: 'spawn',
           effect: 'rejected',
           code: 'parent_capacity_reached',
+          kind: 'conflict',
           retryable: true,
           parentConcurrencyLimit: 0,
         },

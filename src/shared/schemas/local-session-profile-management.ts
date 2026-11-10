@@ -1,3 +1,4 @@
+import { SESSION_HOST_ERROR_KINDS } from '@shared/domain/session-host-refusals'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import {
@@ -128,6 +129,7 @@ const outcomeSchema = Schema.Union(
     operation: Schema.Literal('list', 'create', 'update', 'rotate', 'revoke'),
     effect: Schema.Literal('rejected'),
     code: Schema.String,
+    kind: Schema.Literal(...SESSION_HOST_ERROR_KINDS),
     profileName: Schema.optional(Schema.String),
   }),
 )

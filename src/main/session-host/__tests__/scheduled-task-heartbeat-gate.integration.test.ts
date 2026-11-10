@@ -217,7 +217,7 @@ describe('Heartbeat Wake check (#388)', () => {
         taskId: task.id,
         command: 'something else',
       }),
-    ).toMatchObject({ effect: 'rejected', code: 'wake_check_changed' })
+    ).toMatchObject({ effect: 'rejected', code: 'wake_check_changed', kind: 'conflict' })
     expect(
       await scheduledTasks({
         operation: 'approve-wake-check',

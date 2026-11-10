@@ -45,7 +45,12 @@ const REJECTED_RESPONSE = {
     requestId: 'create-reviewer',
     idempotencyKey: 'stable-key',
     replayed: false,
-    outcome: { operation: 'create', effect: 'rejected', code: 'profile_already_exists' },
+    outcome: {
+      operation: 'create',
+      effect: 'rejected',
+      code: 'profile_already_exists',
+      kind: 'conflict',
+    },
   },
 } as const
 
@@ -155,4 +160,38 @@ describe('Access CLI staged credential cleanup', () => {
       if (failure === 'preparation') expect(stderrText()).toContain('Cannot attach to local Host')
     },
   )
+
+  it('keeps the refusal kind when a rejection preserves an earlier staged credential', async () => {
+    mocks.stage.mockResolvedValue({
+      credential: 'test-bearer-secret',
+      metadata: { kind: 'file', location: '/tmp/reviewer.secret' },
+      recoveryLocation: '/state/worker.pending',
+      recoveredPending: true,
+      commit: mocks.commit,
+      discard: mocks.discard,
+    })
+    mocks.execute.mockResolvedValue({
+      ...REJECTED_RESPONSE,
+      response: {
+        ...REJECTED_RESPONSE.response,
+        outcome: {
+          operation: 'create',
+          effect: 'rejected',
+          code: 'management_envelope_exceeded',
+          kind: 'authorization',
+        },
+      },
+    })
+
+    // The Session Host's kind decides the exit code (ADR 0063), not `internal`.
+    await expect(runAccessCli(ARGUMENTS)).resolves.toBe(4)
+    expect(JSON.parse(stderrText())).toMatchObject({
+      type: 'error',
+      error: {
+        kind: 'authorization',
+        message: expect.stringContaining('management_envelope_exceeded'),
+      },
+    })
+    expect(stderrText()).toContain('/state/worker.pending')
+  })
 })

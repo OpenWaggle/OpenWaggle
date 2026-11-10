@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
-import { scheduledTaskInputSchema } from '@shared/schemas/scheduled-task'
 import {
   ISO_WEEKDAYS,
   type IsoWeekday,
@@ -23,6 +21,7 @@ import {
   assertHeartbeatCliCanFinish,
   heartbeatSettingsFromOptions,
 } from './schedules-cli-heartbeat'
+import { readImport } from './schedules-cli-import'
 
 const DAYS_PER_WEEK_PATTERN = /^[1-7](,[1-7])*$/
 const MINUTES_PER_HOUR = 60
@@ -227,26 +226,6 @@ async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTask
   if (Object.keys(patch).length === 0)
     throw new CommandCliUsageError('update needs at least one change.')
   return { operation: 'update', taskId: required(taskId, 'the task id'), patch }
-}
-
-const importedTasksSchema = Schema.Array(scheduledTaskInputSchema)
-
-async function readImport(source: string | undefined) {
-  const text =
-    source === undefined || source === '-'
-      ? await new Promise<string>((resolve, reject) => {
-          let data = ''
-          process.stdin.setEncoding('utf8')
-          process.stdin.on('data', (chunk) => {
-            data += String(chunk)
-          })
-          process.stdin.on('end', () => resolve(data))
-          process.stdin.on('error', reject)
-        })
-      : await readFile(source, 'utf8')
-  const parsed = parseJsonUnknown(text)
-  const list = Array.isArray(parsed) ? parsed : [parsed]
-  return decodeUnknownExactOrThrow(importedTasksSchema, list)
 }
 
 function listCommand(arguments_: ParsedArguments): ScheduledTasksCommand {

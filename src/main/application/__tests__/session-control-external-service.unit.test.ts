@@ -207,6 +207,7 @@ describe('Session Control external command service', () => {
       effect: 'rejected',
       sessionId: SessionId('session-target'),
       code: 'run_changed',
+      kind: 'conflict',
     })
   })
 
@@ -281,7 +282,11 @@ describe('Session Control external command service', () => {
       }).pipe(Effect.provide(setup.layer)),
     )
 
-    expect(response.outcome).toMatchObject({ effect: 'rejected', code: 'run_not_live' })
+    expect(response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'run_not_live',
+      kind: 'conflict',
+    })
     expect(setup.state()).toMatchObject({ revision: 6, run: { state: 'idle' } })
   })
 })

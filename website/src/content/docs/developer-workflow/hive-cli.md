@@ -201,12 +201,12 @@ A search for several words matches sessions that contain all of them, anywhere i
 
 ## JSON output
 
-With `--json`, a command that returns one response prints a `type: "response"` envelope with a schema version on stdout, and puts the command's result in `result`. When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error. It does not also print an error on stderr. Streams such as `read --full`, `watch` and `exports-watch` use `--jsonl`. Every stdout line then has `type: "record"` and puts the streamed value in `record`.
+With `--json`, a command that returns one response prints a `type: "response"` envelope with a schema version on stdout, and puts the command's result in `result`. Its `command` is the command as you typed it after `openwaggle`, without operands, such as `hive list`, `hive delegation-accept`, `schedules list` or `host stop`. When the Session Host refuses a request, the response still goes to stdout, and the command exits with the code for that kind of error. It does not also print an error on stderr. Streams such as `read --full`, `watch` and `exports-watch` use `--jsonl`. Every stdout line then has `type: "record"` and puts the streamed value in `record`.
 
 A failure that stops the command before it has a result prints a `type: "error"` envelope on stderr. That covers invalid usage, failed authentication or authorization, connection failures and internal errors.
 
 ```json
-{"schemaVersion":1,"type":"response","command":"list","result":{"contract":"session-query-v2","response":{"contractVersion":2,"requestId":"request-1","outcome":{"operation":"list","sessions":[]}}}}
+{"schemaVersion":1,"type":"response","command":"hive list","result":{"contract":"session-query-v2","response":{"contractVersion":2,"requestId":"request-1","outcome":{"operation":"list","sessions":[]}}}}
 {"schemaVersion":1,"type":"record","record":{"kind":"cursor","cursor":{"hostInstanceId":"host-1","sequence":42}}}
 {"schemaVersion":1,"type":"error","error":{"kind":"authorization","message":"An error has occurred"}}
 ```
@@ -215,29 +215,53 @@ A failure that stops the command before it has a result prints a `type: "error"`
 
 Every `openwaggle` command (`hive`, `access`, `agents`, `recovery`, `schedules`, `status`, `host`, `run`, `update` and `mcp`) reports a failure with one of the kinds below and exits with its code. With `--json` or `--jsonl` the kind is in the error envelope. Without them, the message starts with `error [<kind>]:`. The kind comes from what failed, never from the wording of the message.
 
+When the Session Host refuses a request, it names the kind itself. A rejected outcome and a query's `outcome.error` carry `kind` next to `code`, and the CLI exits with the code for that kind. From 1.0 a refusal code keeps its kind for the whole major version, and a later version may add kinds.
+
 | Kind | Exit code | Meaning |
 | --- | --- | --- |
-| `usage` | 2 | The command cannot run as typed. Nothing reached the Session Host. |
+| `usage` | 2 | The command or its request cannot run as typed. |
 | `authentication` | 3 | A credential is missing, unreadable or refused. |
 | `authorization` | 4 | The caller may not do this. |
 | `not_found` | 5 | The session, delegation or other target does not exist. |
 | `conflict` | 6 | The current state refuses it. |
 | `timeout` | 7 | A time limit ran out. |
 | `host_unavailable` | 8 | The Session Host cannot be reached, started or spoken to. |
+| `resync_required` | 9 | A stream lost its place in the Session Host's events. Reload the current state. |
 | `internal` | 1 | Anything else, an unexpected failure. |
 
 What each kind covers:
 
-- `usage` covers an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one.
+- `usage` covers an unknown option, a missing operand, a bad value, or an `update --version` older than the installed one. It also covers a request the Session Host finds incomplete, such as a delegation change without its required reason (`transition_reason_required`) or an empty report (`report_empty`).
 - `authentication` covers an unknown or revoked access profile, and one whose credential was rotated. It also comes back while the Session Host slows down repeated failed attempts, so retry later.
-- `authorization` covers a missing capability, a session outside the caller's scope (`target_scope_denied`), and an OpenWaggle agent that uses the CLI without a named profile.
-- `not_found` comes with `session_not_found` or `delegation_not_found`.
-- `conflict` covers a stale run or queue revision, an existing credential destination without `--replace`, a destination that changed after a repeatable operation, and any other refusal whose code this list does not name.
+- `authorization` covers a missing capability, a session outside the caller's scope (`target_scope_denied`), a delegation change only its parent or its worker may make (`parent_required`, `worker_required`), and an OpenWaggle agent that uses the CLI without a named profile.
+- `not_found` comes with `session_not_found`, `delegation_not_found` and the other codes for a target that does not exist.
+- `conflict` covers a stale run or queue revision, an existing credential destination without `--replace`, a destination that changed after a repeatable operation, and most other refusals of the current state.
 - `timeout` covers a `hive wait` or `hive exports-wait` that ended before its condition was met. Both still print their response on stdout. For `run`, it means a question went unanswered past `--interaction-timeout-ms`, so OpenWaggle stopped the run. `host stop` returns it when, with `--wait`, the Session Host's work outlasted `--timeout-ms`, or when, with `--update`, the Session Host had not exited after 20 seconds. It also covers an update download or a Session Host request that took too long.
+- `resync_required` comes from `hive watch` and `hive exports-watch` when the Session Host restarted, no longer has the cursor you passed, was passed a cursor for an event it has not sent, or dropped a subscriber that fell behind. The last stdout record is then the `resync-required` record. `hive export` stops with it when a transcript node changed between two of its pages; start the export again.
 
 An ID that does not exist gets the same answer from every action. A query's `outcome.error.code`, or a command's rejected outcome `code`, is `session_not_found` or `delegation_not_found`, and the CLI exits with 5. That holds for `read`, `status`, `follow-up`, `steer`, `wait`, `report` targets, `delegations-read`, `delegation-accept`, and the `--parent` and `--worker` filters of `delegations-list` and `delegations-conflicts`.
 
-An ID that exists outside the caller's scope answers `target_scope_denied` and exits with 4, also for those filters. A `report` to such a target answers `target_not_authorized`, also exit 4. OpenWaggle keeps the two answers apart on purpose. Session and delegation IDs are random, so the answer tells a caller nothing about an ID it did not already have, and it says whether more access would help. The agent's `hive` tool returns the same outcomes, and the `openwaggle_hive` MCP tool fails with a message that names the same code.
+An ID that exists outside the caller's scope answers `target_scope_denied` and exits with 4, also for those filters. A `report` to such a target answers `target_not_authorized`, also exit 4. OpenWaggle keeps the two answers apart on purpose. Session and delegation IDs are random, so the answer tells a caller nothing about an ID it did not already have, and it says whether more access would help. The agent's `hive` tool returns the same outcomes, and every refusal of the `openwaggle_hive` MCP tool, from the Session Host or from the server's own grants and scope, fails with a message that starts with the code and its kind, such as `session_not_found (not_found): Session not found.`
+
+### Exit codes that changed before 1.0
+
+Before 1.0 the CLI guessed some kinds from the words in a refusal code, and gave a refusal it could not place exit 6, or exit 1 when the refusal stopped the command. The Session Host now names the kind, so these refusals exit with a different code than in earlier betas. The rejected outcomes of `access` and `schedules` keep their exit codes, except the `access` case in the last row.
+
+| Exit code | Refusals |
+| --- | --- |
+| 1 → 9 | `hive watch` or `hive exports-watch` ending with a `resync-required` record, and `hive export` refused with `resync_required` because the transcript changed between pages |
+| 6 → 2 | `amendment_reason_required`, `claim_reason_required`, `conflict_acknowledgement_reason_required`, `dependency_reason_required`, `transition_reason_required`, `verification_summary_required` |
+| 6 → 2 | `submission_empty`, `report_empty`, `claim_target_invalid`, `delegation_dependency_invalid`, `delegation_specification_invalid` |
+| 6 → 2 | `invalid_cursor`, `reserved_idempotency_key`, `invalid-response-payload` |
+| 6 → 4 | `parent_required`, `worker_required`, `authority_changed`, `follow_up_adopt_requires_desktop_user`, `follow_up_edit_requires_desktop_user` |
+| 6 → 5 | `interaction-not-found` |
+| 4 → 6 | `run_authorization_override_requires_idle_session` |
+| 5 → 6 | `delegation_workspace_missing` |
+| 1 → 6 | `subscription_limit_exceeded`, and `profile_admission_changed` and `profile_credential_rate_limited`, which can also stop `access profiles` |
+| 1 → the refusal's code | Any other refusal of a later page of `hive export` or `hive read --full`, such as `record_too_large` (6) |
+| 1 → the refusal's code | `access profiles create` or `rotate` refused while it keeps a credential staged by an earlier attempt |
+
+Two `access profiles` codes were renamed, with the same exit codes. A change to a revoked profile answers `target_profile_revoked` (exit 6) instead of `profile_revoked`, and a profile name that does not exist answers `target_profile_not_found` (exit 5) instead of `profile_not_found`. `profile_revoked` and `profile_not_found` now mean only that the caller's own profile was revoked or deleted, which exits with 3.
 
 ## Search transcripts
 
@@ -309,7 +333,19 @@ A `report` returns the `reportId` and `correlationId` these conditions take. A r
 
 A wait is one check with a time limit, not a subscription. If it times out, it exits with 7, and the session may still be running. It answers from the Session Host's current state, so it never returns `resync_required`. When the Session Host drops its internal subscription under heavy event load, or `--after-host` and `--after-sequence` name a cursor it no longer has, it reloads that state and keeps waiting until the condition matches or `--timeout-ms` runs out. `exports-wait`, the `hive` tool's `wait` and `exports_wait`, and the MCP `wait` and `exports-wait` operations behave the same.
 
-`hive watch` subscribes to the Session Host's ordered event stream. Passing session IDs filters events inside the Session Host, before they take space in the subscription buffer. A watch without a filter receives every event the caller may see. JSONL output wraps every line in a versioned envelope. Inspect `line.record`. Cursor checkpoints have `line.record.kind === "cursor"` and carry the starting point of the subscription, or the latest progress past a filtered event.
+`hive watch` subscribes to the Session Host's ordered event stream. Passing session IDs filters events inside the Session Host, before they take space in the subscription buffer. A watch without a filter receives every event the caller may see. JSONL output wraps every line in a versioned envelope, `{"schemaVersion":1,"type":"record","record":{...}}`. Inspect `line.record.kind`:
+
+| `record.kind` | Fields | Meaning |
+| --- | --- | --- |
+| `cursor` | `cursor` | A checkpoint: where the subscription starts, or progress past an event the filter left out. |
+| `event` | `cursor`, `timestamp`, `event` | One Session Host event. `event.kind` names it, and `event.sessionId` names its session when it has one. |
+| `resync-required` | `reason`, `cursor` | The stream lost its place. The command then exits with 9. |
+
+```json
+{"schemaVersion":1,"type":"record","record":{"kind":"cursor","cursor":{"hostInstanceId":"host-1","sequence":42}}}
+{"schemaVersion":1,"type":"record","record":{"kind":"event","cursor":{"hostInstanceId":"host-1","sequence":43},"timestamp":1767225600000,"event":{"kind":"session-state-changed","sessionId":"session-1","stateRevision":7,"operation":"message"}}}
+{"schemaVersion":1,"type":"record","record":{"kind":"resync-required","reason":"cursor-expired","cursor":{"hostInstanceId":"host-1","sequence":90}}}
+```
 
 ```js
 const line = JSON.parse(rawLine)
@@ -318,7 +354,18 @@ if (line.type === 'record' && line.record.kind === 'cursor') {
 }
 ```
 
-Save the latest Session Host identity and sequence you saw, including the cursor inside visible event records, and reconnect with `--after-host` and `--after-sequence`. A `resync-required` record means the client must reload the current state.
+Save the latest Session Host identity and sequence you saw, including the cursor inside event records, and reconnect with `--after-host` and `--after-sequence`. A `cursor` is `{ hostInstanceId, sequence }`, and a watch resumed after it starts with the next event. A `resync-required` record means the client must reload the current state with `read` or `status`, then watch again from the record's `cursor`. Its `reason` is one of these:
+
+| `reason` | Meaning |
+| --- | --- |
+| `host-restarted` | A new Session Host instance runs. Its sequence starts again. |
+| `cursor-expired` | The Session Host no longer keeps events that old. |
+| `cursor-ahead` | The cursor names an event the Session Host has not sent. |
+| `slow-consumer` | The watch fell too far behind and the Session Host dropped it. |
+
+`openwaggle run --jsonl` prints its events as the same `event` records, next to its own `launch-rejected` and `run-settled` records.
+
+From 1.0 these are covered: the three record kinds and their fields, cursor and resume behavior, `timestamp`, `event.kind`, `event.sessionId`, and the `reason` values. Later versions may add event kinds, record kinds and fields, so skip a kind you do not know. The body of `session-transport` and `session-waggle-transport` events is not covered. It follows the Pi agent events and can change in any release. Use `read`, `status` or `turns` for a view that stays stable.
 
 ## Delegation history
 
@@ -343,7 +390,7 @@ if (exportLine.record === 'manifest') {
 }
 ```
 
-OpenWaggle saves a file export, and you can follow it with `exports-list`, `exports-read`, `exports-wait`, `export-cancel` and `exports-watch`. It checks the destination and which resources it may read, and refuses an existing destination unless you pass `--overwrite`. Export listings are split into pages by size too, so large manifests cannot make status checks hang. Export list, read and wait responses leave out the text of queued messages by default. Pass `--include-queue-bodies` to `exports-read`, `exports-list` or `exports-wait` only when the access profile in use grants both session read and queue access. `exports-watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, cursor checkpoint and `resync-required` records as `hive watch`, also when it filters out unrelated export events.
+OpenWaggle saves a file export, and you can follow it with `exports-list`, `exports-read`, `exports-wait`, `export-cancel` and `exports-watch`. It checks the destination and which resources it may read, and refuses an existing destination unless you pass `--overwrite`. Export listings are split into pages by size too, so large manifests cannot make status checks hang. Export list, read and wait responses leave out the text of queued messages by default. Pass `--include-queue-bodies` to `exports-read`, `exports-list` or `exports-wait` only when the access profile in use grants both session read and queue access. `exports-watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, record kinds, cursor checkpoints and `resync-required` records as `hive watch`, also when it filters out unrelated export events. Its events are `session-export-changed`.
 
 On Windows, a file export into a workspace currently fails. Windows lacks the file-system calls OpenWaggle uses to stop another process from swapping the path during the write. Use a streaming export to stdout instead, for example `openwaggle hive export <session-id> --format markdown > conversation.md`.
 
@@ -425,10 +472,12 @@ On Windows, starting a detached Session Host uses the built-in Windows PowerShel
 
 The installed Windows command adds Electron's `--` argument separator for you. If you run the executable directly, include it: `OpenWaggle.exe -- access profiles create ...`. For a development build, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read`, or URL arguments, before OpenWaggle starts.
 
-The current local session protocol revision is 30, and the Session Host accepts only revision 30. It refuses an older client when it connects, and that client must upgrade. `nextActor` is an added field of query outcomes, which clients do not decode strictly, so it needed no new revision.
+The current local session protocol revision is 32, and the Session Host accepts only revision 32. It refuses an older client when it connects, and that client must upgrade. `nextActor` is an added field of query outcomes, which clients do not decode strictly, so it needed no new revision.
 
 | Revision | What it added |
 | --- | --- |
+| 32 | Refusal kinds: every refusal names its error kind |
+| 31 | Desktop notifications |
 | 30 | **Settings > Worktrees** across every project |
 | 29 | Limits on what the desktop app reads of a session |
 | 28 | Cheap heartbeats that finish |
@@ -453,6 +502,10 @@ The current local session protocol revision is 30, and the Session Host accepts 
 | 9 | Workspace authorization and preparing visualization sources. |
 | 8 | Steering receipts. |
 | 7 | MCP authorization. |
+
+Revision 32 added refusal kinds. Every rejected outcome, query error and error frame carries the error kind the Session Host assigns to its code, so clients no longer guess it. See [Error kinds and exit codes](#error-kinds-and-exit-codes).
+
+Revision 31 added [desktop notifications](/docs/using-openwaggle/notifications) and their settings. The Session Host sends an event when it shows or withdraws a notification. When the app connects, it reads the notifications that are still waiting and sets its badge from them.
 
 Revision 30 added the worktree list in **Settings > Worktrees**, measuring the space a worktree frees, **Archive & remove**, and the record of automatic worktree removal.
 

@@ -56,6 +56,7 @@ const REJECTED = {
       operation: 'spawn' as const,
       effect: 'rejected' as const,
       code: 'parent_concurrency_limit',
+      kind: 'conflict' as const,
       retryable: true,
     },
   },

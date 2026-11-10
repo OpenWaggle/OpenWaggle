@@ -154,7 +154,8 @@ export function assertInstalledCliResponse(stdout: string, platform: NodeJS.Plat
     !isRecord(parsed) ||
     parsed.schemaVersion !== 1 ||
     parsed.type !== 'response' ||
-    parsed.command !== 'list' ||
+    // The envelope names the command by its path after `openwaggle` (ADR 0063).
+    parsed.command !== 'hive list' ||
     !isRecord(parsed.result)
   ) {
     throw new Error('Installed OpenWaggle CLI returned an invalid sessions list response.')

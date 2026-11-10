@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
 import type {
   LocalSessionCallerIdentity,
@@ -172,7 +173,10 @@ function answerRemovedSession(
         requestId: payload.request.requestId,
         outcome: {
           operation: payload.request.query.operation,
-          error: { code: 'session_not_found', message: 'The Session was not found.' },
+          error: {
+            ...sessionHostRefusal('session_not_found'),
+            message: 'The Session was not found.',
+          },
         },
       },
     } as const),

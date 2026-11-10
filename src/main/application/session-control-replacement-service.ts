@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { RunId } from '@shared/types/brand'
 import type {
@@ -81,7 +82,7 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
                 operation: 'replace',
                 effect: 'rejected',
                 sessionId: state.sessionId,
-                code: interruption.code,
+                ...sessionHostRefusal(interruption.code),
               },
             }
       },
@@ -128,7 +129,7 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
             operation: 'replace',
             effect: 'rejected',
             sessionId: input.request.command.sessionId,
-            code: interruption.code,
+            ...sessionHostRefusal(interruption.code),
           }
       const recorded = yield* journal.complete({
         callerId: input.callerId,

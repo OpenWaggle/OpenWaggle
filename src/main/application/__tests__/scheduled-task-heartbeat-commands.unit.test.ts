@@ -22,7 +22,11 @@ describe('Heartbeat commands (#388)', () => {
         command: 'true',
       }).pipe(Effect.provideService(ScheduledTaskRepository, fromPartial({ get }))),
     )
-    expect(outcome).toMatchObject({ effect: 'rejected', code: 'capability_denied' })
+    expect(outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'capability_denied',
+      kind: 'authorization',
+    })
     expect(get).not.toHaveBeenCalled()
   })
 
@@ -41,7 +45,11 @@ describe('Heartbeat commands (#388)', () => {
         outcome: 'done',
       }).pipe(Effect.provideService(ScheduledTaskRepository, repository)),
     )
-    expect(outcome).toMatchObject({ effect: 'rejected', code: 'run_not_scheduled' })
+    expect(outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'run_not_scheduled',
+      kind: 'conflict',
+    })
     expect(recordRunOutcome).not.toHaveBeenCalled()
   })
 })

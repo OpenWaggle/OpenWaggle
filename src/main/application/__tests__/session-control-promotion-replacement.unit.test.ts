@@ -118,7 +118,11 @@ describe('Session Control promotion and replacement', () => {
       }).pipe(Effect.provide(setup.layer)),
     )
 
-    expect(response.outcome).toMatchObject({ effect: 'rejected', code: 'run_not_live' })
+    expect(response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'run_not_live',
+      kind: 'conflict',
+    })
     expect(setup.release).not.toHaveBeenCalled()
     expect(setup.state().followUpQueue.items).toHaveLength(1)
   })

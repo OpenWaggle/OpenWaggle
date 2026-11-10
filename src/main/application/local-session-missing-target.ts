@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
@@ -45,7 +46,7 @@ export function missingTargetResult(
         requestId: payload.request.requestId,
         outcome: {
           operation: payload.request.query.operation,
-          error: { code, message: MISSING_TARGET_MESSAGE[code] },
+          error: { ...sessionHostRefusal(code), message: MISSING_TARGET_MESSAGE[code] },
         },
       },
     }
@@ -62,7 +63,7 @@ export function missingTargetResult(
           operation: payload.request.command.operation,
           effect: 'rejected',
           sessionId: payload.request.command.sessionId,
-          code,
+          ...sessionHostRefusal(code),
         },
       },
     }
@@ -78,7 +79,7 @@ export function missingTargetResult(
         outcome: {
           operation: payload.request.command.operation,
           effect: 'rejected',
-          code,
+          ...sessionHostRefusal(code),
           retryable: false,
         },
       },
