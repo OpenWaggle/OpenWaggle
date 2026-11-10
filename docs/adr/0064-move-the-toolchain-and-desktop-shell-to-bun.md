@@ -17,6 +17,26 @@ OpenWaggle's checks are slow, noisy and spread across overlapping tools: a green
 - **Linting uses a pinned Bun canary.** `bun lint` exists only in canary builds. A dated canary at least 7 days old is pinned for linting alone, on two conditions measured in CI: it is faster than oxlint on the same config, and it is stable (findings identical across runs, across Linux, macOS and Windows, and to oxlint's, with no crashes or hangs). The runtime, installer and test runtime stay on stable Bun. The config stays in oxlint format, so moving to a stable `bun lint` or back to oxlint is a one-line change.
 - **Project memory is loaded by topic.** `MEMORY.md` (549 KB, about 137k tokens, which agents were told to skim before non-trivial work) becomes a short index over topic files under `.agents/memory/`, each opening with a summary, and repository standards cap their size.
 
+### Electrobun shell
+
+A spike ran the real renderer on Electrobun 2.0.6 on macOS, Windows, Ubuntu 24.04 and Ubuntu 22.04. Compared with Electron, the download was 41–59 MB instead of 247–272 MB, before adding the main-process payload. Idle memory was roughly halved, and macOS packaging took 42–54s instead of 145–169s. Electrobun has no equivalent for 7 of the 25 Electron surfaces OpenWaggle uses, and 10 more need workarounds. Each one is solved as follows:
+
+- **Electron stays behind ports until the switch.** Main-process code reaches the shell only through OpenWaggle ports (windows, menus, dialogs, paths, secure storage, protocols, updater, system integration), and only one adapter directory may import the shell. The Electron adapter keeps the app shippable while the Electrobun adapters are built. Electron is removed in the same change.
+- **System webview by default.** The app uses WKWebView, WebView2 and WebKitGTK. CEF is used only where Chrome DevTools Protocol automation needs it, which today is the browser preview.
+- **Loopback origins replace custom schemes.** Each trust domain (renderer, each extension, each MCP app frame, inline visualizations, session resources) gets its own `Bun.serve` origin on `127.0.0.1`. This keeps origin isolation, real CSP and COOP/COEP headers, and streaming. Each request needs a per-launch token, and the Host checks the token. Sharing one `views://` origin is rejected because it loses isolation. An upstream scheme-handler patch can replace the servers later.
+- **The preload contract stays; only the transport changes.** The typed IPC channels run over Electrobun's typed RPC.
+- **Terminals use `Bun.spawn({ terminal })`.** It works on all three OSes, including ConPTY. That removes node-pty, which is unreliable under Bun and whose Linux prebuild already needs glibc 2.42.
+- **Secrets move to the OS keychain through Bun.** On first launch, an idempotent migrator re-encrypts the existing `safeStorage` data.
+- **User data stays where it is.** An `AppPaths` port resolves today's `openwaggle` userData directory on every channel. The first launch imports Electron's renderer `localStorage`, and the migration state is recorded so it can resume.
+- **Existing installs update through the feed they already read.** The release pipeline publishes transition artifacts in electron-updater's format:
+  - macOS: the Electrobun `.app`, signed with the same Team ID and bundle identifier.
+  - Windows: an NSIS wrapper.
+  - Linux: an AppImage wrapper.
+
+  After the transition, Electrobun's updater takes over with the same stable and beta channels.
+- **Platform minimums are kept.** Stock Electrobun needs macOS 14 and glibc 2.38. OpenWaggle builds the Electrobun native layer from a pinned upstream tag plus its own patches, targeting macOS 13.4 and glibc 2.35, and offers those patches upstream. Windows ships the WebView2 bootstrapper.
+- **Gaps with no Electrobun API get small native helpers:** single-instance lock, login items, dock badge, resume detection, protocol-client registration, renderer crash detection and system proxy. Sentry moves to `@sentry/bun` and `@sentry/browser`.
+
 ## Consequences
 
 - `AGENTS.md`, `.agents/standards.md`, `.agents/verification.md` and the "pnpm only" rule change to Bun; `pnpm-lock.yaml` and `pnpm-workspace.yaml` go away.
