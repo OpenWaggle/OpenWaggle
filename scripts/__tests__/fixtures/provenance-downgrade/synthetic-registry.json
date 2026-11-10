@@ -1,0 +1,171 @@
+{
+  "takeover-package": {
+    "abbreviated": {
+      "name": "takeover-package",
+      "dist-tags": {
+        "latest": "1.2.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "name": "takeover-package",
+          "version": "1.0.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/takeover-package/-/takeover-package-1.0.0.tgz",
+            "attestations": {
+              "url": "https://registry.npmjs.org/-/npm/v1/attestations/takeover-package@1.0.0",
+              "provenance": {
+                "predicateType": "https://slsa.dev/provenance/v1"
+              }
+            }
+          }
+        },
+        "1.1.0": {
+          "name": "takeover-package",
+          "version": "1.1.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/takeover-package/-/takeover-package-1.1.0.tgz",
+            "attestations": {
+              "url": "https://registry.npmjs.org/-/npm/v1/attestations/takeover-package@1.1.0",
+              "provenance": {
+                "predicateType": "https://slsa.dev/provenance/v1"
+              }
+            }
+          }
+        },
+        "1.2.0": {
+          "name": "takeover-package",
+          "version": "1.2.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/takeover-package/-/takeover-package-1.2.0.tgz"
+          }
+        }
+      }
+    },
+    "full": {
+      "name": "takeover-package",
+      "time": {
+        "created": "2026-09-01T00:00:00.000Z",
+        "1.0.0": "2026-09-01T00:00:00.000Z",
+        "1.1.0": "2026-10-01T00:00:00.000Z",
+        "1.2.0": "2026-10-30T00:00:00.000Z"
+      }
+    }
+  },
+  "never-attested": {
+    "abbreviated": {
+      "name": "never-attested",
+      "dist-tags": {
+        "latest": "3.1.0"
+      },
+      "versions": {
+        "3.0.0": {
+          "name": "never-attested",
+          "version": "3.0.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/never-attested/-/never-attested-3.0.0.tgz"
+          }
+        },
+        "3.1.0": {
+          "name": "never-attested",
+          "version": "3.1.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/never-attested/-/never-attested-3.1.0.tgz"
+          }
+        }
+      }
+    },
+    "full": {
+      "name": "never-attested",
+      "time": {
+        "created": "2025-01-01T00:00:00.000Z",
+        "3.0.0": "2025-01-01T00:00:00.000Z",
+        "3.1.0": "2026-10-30T00:00:00.000Z"
+      }
+    }
+  },
+  "attested-canary": {
+    "abbreviated": {
+      "name": "attested-canary",
+      "dist-tags": {
+        "latest": "2.0.0"
+      },
+      "versions": {
+        "0.0.0-canary.1": {
+          "name": "attested-canary",
+          "version": "0.0.0-canary.1",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/attested-canary/-/attested-canary-0.0.0-canary.1.tgz",
+            "attestations": {
+              "url": "https://registry.npmjs.org/-/npm/v1/attestations/attested-canary@0.0.0-canary.1",
+              "provenance": {
+                "predicateType": "https://slsa.dev/provenance/v1"
+              }
+            }
+          }
+        },
+        "2.0.0": {
+          "name": "attested-canary",
+          "version": "2.0.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/attested-canary/-/attested-canary-2.0.0.tgz"
+          }
+        }
+      }
+    },
+    "full": {
+      "name": "attested-canary",
+      "time": {
+        "created": "2026-09-01T00:00:00.000Z",
+        "0.0.0-canary.1": "2026-09-01T00:00:00.000Z",
+        "2.0.0": "2026-10-30T00:00:00.000Z"
+      }
+    }
+  },
+  "late-adopter": {
+    "abbreviated": {
+      "name": "late-adopter",
+      "dist-tags": {
+        "latest": "4.1.0"
+      },
+      "versions": {
+        "4.0.0": {
+          "name": "late-adopter",
+          "version": "4.0.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/late-adopter/-/late-adopter-4.0.0.tgz"
+          }
+        },
+        "4.1.0": {
+          "name": "late-adopter",
+          "version": "4.1.0",
+          "dist": {
+            "integrity": "sha512-fixture",
+            "tarball": "https://registry.npmjs.org/late-adopter/-/late-adopter-4.1.0.tgz",
+            "attestations": {
+              "url": "https://registry.npmjs.org/-/npm/v1/attestations/late-adopter@4.1.0",
+              "provenance": {
+                "predicateType": "https://slsa.dev/provenance/v1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "full": {
+      "name": "late-adopter",
+      "time": {
+        "created": "2026-10-01T00:00:00.000Z",
+        "4.0.0": "2026-10-01T00:00:00.000Z",
+        "4.1.0": "2026-10-20T00:00:00.000Z"
+      }
+    }
+  }
+}

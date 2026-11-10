@@ -1,0 +1,53 @@
+{
+  "name": "@pierre/theme",
+  "dist-tags": {
+    "latest": "2.0.0"
+  },
+  "modified": "2026-08-22T02:30:39.104Z",
+  "versions": {
+    "1.0.2": {
+      "name": "@pierre/theme",
+      "version": "1.0.2",
+      "dist": {
+        "integrity": "sha512-kBREiiZG3efR3a6hBLNNJmswXbQED45DxgEHXSod/K3BhysqTnUQiHRukggS43JS815hcwzd/W35CYNkN0hIJg==",
+        "tarball": "https://registry.npmjs.org/@pierre/theme/-/theme-1.0.2.tgz",
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@pierre%2ftheme@1.0.2",
+          "provenance": {
+            "predicateType": "https://slsa.dev/provenance/v1"
+          }
+        }
+      }
+    },
+    "1.0.3": {
+      "name": "@pierre/theme",
+      "version": "1.0.3",
+      "dist": {
+        "integrity": "sha512-sWHv11TMoqKxKDgTIk5VbhQjdPhs8DCcBxbjh3mRlS3YOM/OcrWoGX6MM8eBGn9cUu3M46Py0JnxsG2nJaFTuA==",
+        "tarball": "https://registry.npmjs.org/@pierre/theme/-/theme-1.0.3.tgz",
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@pierre%2ftheme@1.0.3",
+          "provenance": {
+            "predicateType": "https://slsa.dev/provenance/v1"
+          }
+        }
+      }
+    },
+    "1.1.0": {
+      "name": "@pierre/theme",
+      "version": "1.1.0",
+      "dist": {
+        "integrity": "sha512-GC2OWTAfTIIWWYhPCygwG8t2EtePQkRfON4MI2rwIkJylmiyqIttJID2dCL8sUD8cNdEvYkEyfEHHKMeCiDLoQ==",
+        "tarball": "https://registry.npmjs.org/@pierre/theme/-/theme-1.1.0.tgz"
+      }
+    },
+    "2.0.0": {
+      "name": "@pierre/theme",
+      "version": "2.0.0",
+      "dist": {
+        "integrity": "sha512-yNDd9GYLQl1mEUJR8AneJ5e4ohLIHQd/wZLWr4fagt78vS2RwwZNW530vVgHqXFAyFVcFlRmGUD5ramXH46OXw==",
+        "tarball": "https://registry.npmjs.org/@pierre/theme/-/theme-2.0.0.tgz"
+      }
+    }
+  }
+}
