@@ -3,8 +3,15 @@
 The Electron desktop shell: disk cache, native addons and ABIs, packaged PATH, platform
 quirks, non-disruptive hidden QA and `bun run dev:debug`, detached child handles, inline
 visualization iframes, and IPC error shapes.
-Load when touching `src/main/index.ts`, window or protocol code, packaging, or Electron QA.
+Load when touching `src/main/index.ts`, the desktop shell ports, bindings or `src/main/adapters/electron/`, window or protocol code, packaging, or Electron QA.
 Load `.agents/skills/electron-runtime/SKILL.md` as well.
+
+## Desktop shell ports (ADR 0064)
+
+- Main code reaches Electron only through the ports in `src/main/ports/desktop-shell/`, called through the bindings in `src/main/desktop-shell/`. Only `src/main/adapters/electron/` and `src/preload/electron-transport.ts` import Electron packages (`openwaggle/desktop-shell-boundary`; see the table in `docs/hexagonal-architecture.md`). A test that newly reaches an adapter fails with "Named export 'X' not found ... 'electron' is a CommonJS module" unless it mocks `electron` or the binding (`vi.mock('../desktop-shell/app-lifecycle')`).
+- An adapter must not import an app module that imports a binding, or it closes an import cycle back to itself that fallow reports. App policy goes in as a parameter instead: `MainWindowRequest.openLink` is `external-navigation.ts`'s `openExternalFromRenderer`.
+- The boot shim has a size budget (`check:main-bundle`, 57 KB). Startup modules use `BootShell` (`desktop-shell/boot-shell.ts`), not the full bindings. Going through `AppPaths` once pulled in the logger, `env` and Effect, and boot.js grew to 556 KB. Keep loggers out of anything `electron-boot-shell.ts` or `electron-web-profile.ts` imports.
+- Port contract suites are data (`definePortContract`), not `describe` blocks, so `jest/no-export` allows them. Each case gets a fresh fake: `prepareElectronShell()` runs `vi.resetModules()` and then `vi.doMock('electron', ...)`, and the runner imports the adapter after that.
 
 ## Electron Runtime Memory
 
@@ -12,7 +19,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` as well.
 
 Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
-- Electron 43 honours `--disk-cache-size` for every session, partitions included (`configureAppStoragePaths` appends it). It does not bound the V8 `Code Cache`; `chromium-disk-cache.ts` clears that, and an HTTP cache filled before the cap, by size: on each preview use (rate-limited, no timer, since preview tests count timers) and on a timer for the GUI's default session. The GUI and the Host share `session-data`, so only the GUI touches the default session's caches.
+- Electron 43 honours `--disk-cache-size` for every session, partitions included (`configureAppStoragePaths` appends it). It does not bound the V8 `Code Cache`; `adapters/electron/electron-chromium-disk-cache.ts` clears that, and an HTTP cache filled before the cap, by size: on each preview use (rate-limited, no timer, since preview tests count timers) and on a timer for the GUI's default session. The GUI and the Host share `session-data`, so only the GUI touches the default session's caches.
 - Native addons have separate Node and Electron ABI targets. Rebuild with the repo scripts before blaming app code.
 - Packaged apps may not inherit a shell PATH. Pi package/resource loading and Pi-run child processes that shell out to tools need an adapter-controlled npm-compatible PATH, including common user tool dirs such as `~/Library/pnpm` on macOS.
 - `electron-builder` with pnpm's isolated layout omitted transitive runtime modules unless they were explicit dependencies, so `ms` is declared for `electron-updater`; keep it explicit under Bun's isolated linker too.
