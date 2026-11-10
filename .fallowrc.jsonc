@@ -1,9 +1,18 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
-    "src/renderer/src/main.tsx"
+    "src/renderer/src/main.tsx",
+    // Project Pi extensions: Pi loads every file here by convention; nothing imports them.
+    ".pi/extensions/*.ts"
   ],
-  "ignorePatterns": ["out/**", "dist/**", "release/**", "node_modules/**"],
+  "ignorePatterns": [
+    "out/**",
+    "dist/**",
+    "release/**",
+    "node_modules/**",
+    // Discovery skips hidden directories; the project Pi extensions are source.
+    "!.pi/extensions/**"
+  ],
   "ignoreDependencies": [
     "babel-plugin-react-compiler",
     "better-sqlite3",

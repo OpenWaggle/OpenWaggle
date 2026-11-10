@@ -1,7 +1,9 @@
 node_modules/
 out/
-# pi agent harness working state (goals, session scratch) - never part of the repo
-.pi/
+# pi agent harness working state (goals, session scratch) - never part of the repo. The
+# project Pi extensions in .pi/extensions are tracked.
+.pi/*
+!.pi/extensions/
 
 # tsc typecheck byproducts (declarations + build info), namespaced per target. Kept
 # out of out/ so they are never packaged by electron-builder's `out/**/*` glob.
