@@ -17,6 +17,18 @@ OpenWaggle's checks are slow, noisy and spread across overlapping tools: a green
 - **Linting uses a pinned Bun canary.** `bun lint` exists only in canary builds. A dated canary at least 7 days old is pinned for linting alone, on two conditions measured in CI: it is faster than oxlint on the same config, and it is stable (findings identical across runs, across Linux, macOS and Windows, and to oxlint's, with no crashes or hangs). The runtime, installer and test runtime stay on stable Bun. The config stays in oxlint format, so moving to a stable `bun lint` or back to oxlint is a one-line change.
 - **Project memory is loaded by topic.** `MEMORY.md` (549 KB, about 137k tokens, which agents were told to skim before non-trivial work) becomes a short index over topic files under `.agents/memory/`, each opening with a summary, and repository standards cap their size.
 
+### Measured choices
+
+Medians of 5 runs on GitHub's 4-vCPU Ubuntu runners, comparing rows from the same job:
+
+- **Type checking uses `bun check`.** A cold check of every project took 9.1s, against 45.0s for `tsc -b --force` (macOS: 6.8s against 200s), with identical diagnostics. `tsc` remains only where declaration files are emitted.
+- **Linting uses `bun lint`.** It was 2 to 3.3 times faster than oxlint on the same config (7.4s against 25.9s on the current config). Findings were identical across runs, across Linux, macOS and Windows, and across two canaries a week apart. It never crashed; oxlint crashed once.
+- **Formatting uses oxfmt.** It took 0.54s, against 2.42s for Biome. `bun fmt` took 0.38s, but it is canary-only and the difference is negligible.
+- **The renderer stays on Vite.** A `bun build` renderer took 17.9s against Vite's 23.8s, but its JavaScript was 31% larger, and 16.4s of its time was the React Compiler's Babel pass, which both builds need.
+- **The main process moves to `bun build` together with the shell.** It builds in 0.92s against about 6s, but it loses Rolldown's lazy module initializers and leaves `import.meta` in CommonJS output. Both are fixed by emitting ESM for the Bun target.
+- **The `"*": ["./*"]` paths entry is removed.** It resolved nothing. Its only effect was hiding one declaration-emit error, which an explicit return type fixes.
+- **Vitest runs on the Bun runtime.** The unit suite took 502s against 769s on Node, once the Bun-specific failures (zod interop, home directory, read-only `node:` builtins, undici's `MockAgent`) are fixed.
+
 ### Electrobun shell
 
 A spike ran the real renderer on Electrobun 2.0.6 on macOS, Windows, Ubuntu 24.04 and Ubuntu 22.04. Compared with Electron, the download was 41–59 MB instead of 247–272 MB, before adding the main-process payload. Idle memory was roughly halved, and macOS packaging took 42–54s instead of 145–169s. Electrobun has no equivalent for 7 of the 25 Electron surfaces OpenWaggle uses, and 10 more need workarounds. Each one is solved as follows:
