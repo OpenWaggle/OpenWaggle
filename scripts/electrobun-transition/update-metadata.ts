@@ -69,10 +69,13 @@ function yamlString(value: string) {
   return JSON.stringify(value)
 }
 
-/** The primary file electron-updater's legacy `path`/`sha512` fields name: x64 on macOS. */
+/**
+ * The file electron-updater's legacy `path`/`sha512` fields name: on macOS the x64 zip, which an
+ * Intel Mac without an arm64 match falls back to (a single-architecture build names its own zip).
+ */
 function primaryFile(files: readonly UpdateFile[], platform: TransitionPlatform) {
-  const primary =
-    platform === 'mac' ? files.find((file) => file.url.endsWith('-x64.zip')) : files[0]
+  const intel = platform === 'mac' ? files.find((file) => file.url.endsWith('-x64.zip')) : undefined
+  const primary = intel ?? files[0]
   if (!primary) throw new Error(`No primary ${platform} transition artifact was given.`)
   return primary
 }
