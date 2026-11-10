@@ -41,7 +41,8 @@ const AGENT = 'transient-mcp:digest-agent'
 
 /*
  * The Host's run ceiling limits what agents start (ADR 0030, amended 2026-11-09): the person's
- * launch never meets it, and a spawn or an agent's launch counts only agent-made Sessions' Runs.
+ * launch never meets it, and a spawn or an agent's launch counts agents' work only: agent-made
+ * Sessions' Runs and agents' Runs in the person's Sessions (amended 2026-11-10).
  */
 describe('SQLite Session lifecycle and the Worker ceiling', () => {
   beforeEach(async () => {
@@ -230,7 +231,7 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
     ])
   })
 
-  it('refuses a spawn at the Worker ceiling, counting Worker Runs only', async () => {
+  it('refuses a spawn at the Worker ceiling, counting agents’ work only', async () => {
     const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'spawn-ceiling.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
