@@ -99,11 +99,11 @@ function collectIssues(results: readonly WaggleValidationResult<unknown>[]) {
   return results.flatMap((result) => (result.success ? [] : result.issues))
 }
 
-export function isWaggleInheritedModel(model: string) {
+export function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL {
   return model === WAGGLE_INHERIT_MODEL
 }
 
-export function isProviderQualifiedWaggleModel(model: string) {
+export function isProviderQualifiedWaggleModel(model: string): boolean {
   const separatorIndex = model.indexOf('/')
   return (
     model.trim() === model &&

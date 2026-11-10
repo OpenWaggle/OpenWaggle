@@ -25,7 +25,7 @@ export interface WaggleTurnDecision {
   readonly nextTurn?: WaggleTurn
 }
 
-export function getWaggleTurnAgentIndex(turnNumber: number) {
+export function getWaggleTurnAgentIndex(turnNumber: number): 0 | 1 {
   return turnNumber % WAGGLE_AGENT_COUNT === FIRST_AGENT_INDEX
     ? FIRST_AGENT_INDEX
     : SECOND_AGENT_INDEX
