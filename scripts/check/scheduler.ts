@@ -118,7 +118,8 @@ export async function executeSteps(
   const fingerprints = new Map<string, string>()
   const pending = new Map(planned.map((entry) => [entry.step.id, entry]))
   const active = new Map<string, Promise<void>>()
-  let interrupted = false
+  // Held in an object because the step runners, not this loop's flow, set it.
+  const run = { interrupted: false }
   const elapsed = () => performance.now() - started
 
   const finish = (id: string, report: Omit<StepReport, 'id' | 'log'>) => {
@@ -148,7 +149,7 @@ export async function executeSteps(
       return
     }
     const result = await runCommands(step, commands)
-    if (result.interrupted) interrupted = true
+    if (result.interrupted) run.interrupted = true
     const status = result.exitCode === 0 ? 'passed' : 'failed'
     finish(step.id, { ...base, status, durationMs: elapsed() - startMs, exitCode: result.exitCode })
     if (status === 'passed' && cached !== undefined) cache[step.id] = cached.print
@@ -196,7 +197,7 @@ export async function executeSteps(
     }
   }
 
-  while ((pending.size > 0 || active.size > 0) && !interrupted) {
+  while ((pending.size > 0 || active.size > 0) && !run.interrupted) {
     markBlocked()
     startReady()
     if (active.size === 0) break
@@ -204,5 +205,5 @@ export async function executeSteps(
   }
   await Promise.allSettled(active.values())
   if (options.cache) await writeStepCache(cache)
-  return { reports, interrupted }
+  return { reports, interrupted: run.interrupted }
 }

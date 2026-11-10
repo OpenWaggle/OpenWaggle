@@ -72,7 +72,7 @@ async function main() {
     await readJsonFile(REPORT_FILE),
     await readJsonFile(OUTPUT_TOKENS_FILE),
   )
-  const target = process.env.GITHUB_STEP_SUMMARY
+  const target = process.env['GITHUB_STEP_SUMMARY']
   if (target === undefined || target === '') {
     process.stdout.write(markdown)
     return

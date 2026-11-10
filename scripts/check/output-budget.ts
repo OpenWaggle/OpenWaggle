@@ -26,8 +26,9 @@ const SLACK_TOKENS = 8
 
 async function readBudgets(): Promise<Readonly<Record<string, number>>> {
   const parsed: unknown = JSON.parse(await readFile(BUDGET_FILE, 'utf8'))
-  if (parsed === null || typeof parsed !== 'object')
+  if (parsed === null || typeof parsed !== 'object') {
     throw new Error(`${BUDGET_FILE} is not an object`)
+  }
   return Object.fromEntries(
     Object.entries(parsed).filter(
       (entry): entry is [string, number] => typeof entry[1] === 'number',
@@ -61,16 +62,18 @@ export function budgetVerdict(
   budget: number | undefined,
   passed: boolean,
 ) {
-  if (!passed)
+  if (!passed) {
     return {
       ok: true,
       message: `output-budget: ${gate} failed with ${tokens} o200k tokens of output`,
     }
-  if (budget === undefined)
+  }
+  if (budget === undefined) {
     return {
       ok: false,
       message: `output-budget: no budget for "${gate}" in scripts/check/output-budget.json`,
     }
+  }
   if (tokens > budget) {
     return {
       ok: false,

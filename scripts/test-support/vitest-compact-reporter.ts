@@ -57,7 +57,7 @@ function formatError(error: SerializedError, moduleFile: string, title: string) 
   const name = error.name !== undefined && error.name !== 'Error' ? `${error.name}: ` : ''
   const lines = [`${where} FAIL ${title}`]
   for (const line of firstLines(`${name}${error.message}`, MESSAGE_LINES)) lines.push(`  ${line}`)
-  const diff = typeof error.diff === 'string' ? error.diff : ''
+  const diff = typeof error['diff'] === 'string' ? error['diff'] : ''
   for (const line of firstLines(diff, DIFF_LINES)) lines.push(`  ${line}`)
   return lines
 }
@@ -79,8 +79,8 @@ export default class CompactReporter implements Reporter {
   }
 
   onTestRunEnd(
-    testModules: ReadonlyArray<TestModule>,
-    unhandledErrors: ReadonlyArray<SerializedError>,
+    testModules: readonly TestModule[],
+    unhandledErrors: readonly SerializedError[],
     reason: TestRunEndReason,
   ) {
     const output: string[] = []
@@ -127,9 +127,7 @@ export default class CompactReporter implements Reporter {
     if (result.state === 'skipped') counts.skipped += 1
     if (result.state !== 'failed') return []
     counts.failed += 1
-    const lines = (result.errors ?? []).flatMap((error) =>
-      formatError(error, moduleFile, test.fullName),
-    )
+    const lines = result.errors.flatMap((error) => formatError(error, moduleFile, test.fullName))
     const logs = this.consoleByTask.get(test.id) ?? []
     if (logs.length > 0) lines.push('  console:', ...logs.map((line) => `    ${line}`))
     return lines

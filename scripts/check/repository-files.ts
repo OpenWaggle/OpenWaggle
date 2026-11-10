@@ -52,7 +52,7 @@ export async function listChangedFiles(base: string, cwd = process.cwd()) {
 
 /** Reads files with a bounded number of opens in flight; the map keeps the input order. */
 export async function readFiles(files: readonly string[], cwd = process.cwd()) {
-  const contents = new Array<string>(files.length)
+  const contents = Array.from({ length: files.length }, () => '')
   let next = 0
   const worker = async () => {
     while (next < files.length) {

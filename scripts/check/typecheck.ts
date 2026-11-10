@@ -1,6 +1,7 @@
 /**
- * Typechecks every project in one pass (tsconfig.json references node, web and renderer-tests) and
- * applies the renderer-test exemption ratchet (scripts/check-renderer-test-types.ts).
+ * Typechecks every project in one pass (tsconfig.json references packages, scripts, node, web and
+ * renderer-tests) and applies the renderer-test exemption ratchet
+ * (scripts/check-renderer-test-types.ts).
  *
  * The checker is `bun check -b` (ADR 0064): it checks all three projects from source with no build
  * cache and reports the same diagnostics as tsc. Measured in CI (4 vCPU, medians of 5) at 9.1s

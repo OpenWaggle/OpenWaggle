@@ -57,5 +57,5 @@ export const TEST_TIME_ZONE_ENV = { TZ: testTimeZone() } as const
  */
 export const TEST_REPORTERS = [
   './scripts/test-support/vitest-compact-reporter.ts',
-  ...(process.env.GITHUB_ACTIONS === 'true' ? ['github-actions'] : []),
+  ...(process.env['GITHUB_ACTIONS'] === 'true' ? ['github-actions'] : []),
 ]
