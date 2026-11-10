@@ -8,6 +8,10 @@ import {
   setUpPiDiscoveryFixture,
 } from '../../adapters/pi/__tests__/pi-session-discovery.test-support'
 import {
+  HEARTBEAT_AGENT_REMEDY,
+  HEARTBEAT_OWNER_REMEDY,
+} from '../../application/scheduled-task-authority'
+import {
   agentTaskFixture,
   dispatched,
   launchInput,
@@ -111,9 +115,16 @@ describe('what an agent may schedule within its own access', () => {
     if (created.effect !== 'created') throw new Error(JSON.stringify(created))
     const { caller } = await agentSession('ask-for-approval')
     for (const patch of [{ prompt: 'Do something else.' }, { heartbeat: { stopWhen: 'Never.' } }]) {
-      expect(
-        await scheduledTasks({ operation: 'update', taskId: created.task.id, patch }, caller),
-      ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied', kind: 'authorization' })
+      const refused = await scheduledTasks(
+        { operation: 'update', taskId: created.task.id, patch },
+        caller,
+      )
+      expect(refused).toMatchObject({
+        effect: 'rejected',
+        code: 'target_scope_denied',
+        kind: 'authorization',
+      })
+      expect(refused.effect === 'rejected' && refused.message).toContain(HEARTBEAT_AGENT_REMEDY)
     }
     expect((await storedRunsAs(created.task.id))?.authority_limits_json).toBeNull()
   })
@@ -123,9 +134,17 @@ describe('what an agent may schedule within its own access', () => {
     const { caller } = await agentSession('ask-for-approval')
     const target = await createIdleSession(fixture.project)
     await setCeiling(target, 'yolo')
-    expect(
-      await scheduledTasks({ operation: 'create', input: heartbeatInput(target) }, caller),
-    ).toMatchObject({ effect: 'rejected', code: 'target_scope_denied', kind: 'authorization' })
+    const refused = await scheduledTasks(
+      { operation: 'create', input: heartbeatInput(target) },
+      caller,
+    )
+    expect(refused).toMatchObject({
+      effect: 'rejected',
+      code: 'target_scope_denied',
+      kind: 'authorization',
+    })
+    // No task exists yet, so the agent is told who can set it up, not what to edit.
+    expect(refused.effect === 'rejected' && refused.message).toContain(HEARTBEAT_AGENT_REMEDY)
 
     await setCeiling(target, 'ask-for-approval')
     const created = await scheduledTasks(
@@ -135,9 +154,11 @@ describe('what an agent may schedule within its own access', () => {
     if (created.effect !== 'created') throw new Error(JSON.stringify(created))
     await setCeiling(target, 'yolo')
     await fire(created.task.id, Date.now(), 'run-now')
-    expect((await readTask(created.task.id)).task).toMatchObject({
+    const stopped = (await readTask(created.task.id)).task
+    expect(stopped).toMatchObject({
       enabled: false,
       attention: { reason: 'creator-authority-revoked' },
     })
+    expect(stopped.attention?.message).toContain(HEARTBEAT_OWNER_REMEDY)
   })
 })

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { heartbeatTask, scheduledTask } from '@/test-utils/scheduled-task-fixtures'
+import {
+  heartbeatSettings,
+  heartbeatTask,
+  scheduledTask,
+} from '@/test-utils/scheduled-task-fixtures'
 import {
   draftFromTask,
   nameFromPrompt,
@@ -116,6 +120,27 @@ describe('task editor draft', () => {
       maxRuns: 3,
       target: { kind: 'heartbeat', sessionId: 'session-1' },
     })
+  })
+
+  it('echoes a Heartbeat’s stored work unchanged when only its name changes', () => {
+    // The Session Host keeps an agent-created task's limits only when these equal the stored values.
+    const task = heartbeatTask({
+      target: { kind: 'heartbeat', sessionId: 'session-1', modelId: 'm', thinkingLevel: 'low' },
+      heartbeat: heartbeatSettings({
+        wakeCheck: {
+          command: 'gh pr checks',
+          onFailure: 'skip',
+          approval: 'approved',
+          pendingSince: null,
+        },
+      }),
+    })
+    const patch = taskPatchFromDraft({ ...draftFromTask(task), name: 'Renamed' }, task)
+    if (!patch.ok) throw new Error(patch.error)
+    expect(patch.value.prompt).toBe(task.prompt)
+    expect(patch.value.target).toEqual(task.target)
+    expect(patch.value.heartbeat?.stopWhen).toBe(task.heartbeat?.stopWhen)
+    expect(patch.value.heartbeat).not.toHaveProperty('wakeCheck')
   })
 
   it('keeps a Launch schedule target in its patch', () => {

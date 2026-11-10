@@ -26,6 +26,7 @@ import {
 import {
   desktopNotificationBadgeCount,
   desktopNotificationPresentation,
+  windowsBadgeOverlayUpdate,
 } from './domain/desktop-notifications/desktop-notification-presentation'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
@@ -48,7 +49,8 @@ interface PresenterState {
   readonly shown: Map<string, NativeNotification>
   viewingSessionId: string | null
   permission: DesktopNotificationPermissionStatus
-  overlayShown: boolean
+  /** The count the Windows overlay shows, 0 while it is hidden. */
+  overlayCount: number
 }
 
 const state: PresenterState = {
@@ -58,7 +60,7 @@ const state: PresenterState = {
   shown: new Map(),
   viewingSessionId: null,
   permission: 'not-asked',
-  overlayShown: false,
+  overlayCount: 0,
 }
 
 function settings(): DesktopNotificationSettings {
@@ -220,15 +222,15 @@ export function refreshDesktopNotificationBadge() {
 }
 
 function applyWindowsOverlay(window: BrowserWindow, count: number) {
-  const show = count > 0
-  if (show === state.overlayShown) return
-  state.overlayShown = show
+  const update = windowsBadgeOverlayUpdate(state.overlayCount, count)
+  if (!update) return
+  state.overlayCount = count
   setWindowOverlayIcon(
     window,
-    show
+    update.show
       ? nativeImageFromBitmap(badgeOverlayPixels(), BADGE_OVERLAY_SIZE, BADGE_OVERLAY_SIZE)
       : null,
-    show ? `${count} Sessions need you or are ready to read` : '',
+    update.description,
   )
 }
 
@@ -243,7 +245,7 @@ export function requestDesktopNotificationPermission(): DesktopNotificationPermi
       id: 'openwaggle:notifications-on',
       groupId: 'openwaggle:notifications-on',
       title: 'Notifications are on',
-      body: 'OpenWaggle tells you when a Session needs you or is ready to read. Change this in Settings → Notifications.',
+      body: 'OpenWaggle will tell you about your Sessions and Scheduled tasks. Choose what notifies in Settings → Notifications.',
       silent: true,
     },
     {
@@ -299,5 +301,5 @@ export function resetDesktopNotificationPresenterForTests() {
   state.shown.clear()
   state.viewingSessionId = null
   state.permission = 'not-asked'
-  state.overlayShown = false
+  state.overlayCount = 0
 }

@@ -68,3 +68,19 @@ export function desktopNotificationBadgeCount(
   }
   return count
 }
+
+/** What the Windows badge dot says to assistive technology: the count, as the Dock badge shows. */
+function desktopNotificationBadgeLabel(count: number) {
+  return count === 1 ? '1 notification' : `${String(count)} notifications`
+}
+
+/**
+ * What to set on the Windows taskbar overlay when the badge count goes from `shown` to `count`,
+ * or null to leave it. The dot's description carries the count, so any change sets it again.
+ */
+export function windowsBadgeOverlayUpdate(shown: number, count: number) {
+  if (count === shown) return null
+  return count > 0
+    ? { show: true, description: desktopNotificationBadgeLabel(count) }
+    : { show: false, description: '' }
+}
