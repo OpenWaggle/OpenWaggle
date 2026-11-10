@@ -198,6 +198,40 @@ describe('runsAsAfterUpdate', () => {
     })
   })
 
+  // Re-sending the task's own work writes nothing new, so whoever last wrote it still did.
+  it('keeps who wrote a task’s work when an edit re-sends the work it already has', async () => {
+    const personTask = {
+      ...PROFILE_TASK,
+      ownerKey: 'local-user',
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      workByAgent: false,
+    }
+    const agent = fromPartial<ScheduledTaskPrincipal>({
+      localUser: false,
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      creator: { kind: 'session-agent', label: 'Agent', sessionId: 'session-2' },
+    })
+    const person = fromPartial<ScheduledTaskPrincipal>({
+      localUser: true,
+      creatorCallerId: 'gui:local-user',
+      authorityLimits: null,
+      creator: { kind: 'local-user', label: 'You' },
+    })
+    // What the app's editor sends when only the name or schedule changed.
+    const echo = {
+      prompt: PROFILE_TASK.prompt,
+      target: PROFILE_TASK.target,
+      heartbeat: { stopWhen: ' CI is green. ', wakeCheck: { command: 'gh pr checks ' } },
+    }
+
+    expect(await runsAs(agent, echo, personTask)).toMatchObject({ workByAgent: false })
+    expect(await runsAs(person, echo, { ...personTask, workByAgent: true })).toMatchObject({
+      workByAgent: true,
+    })
+  })
+
   it('keeps the limits as they are when a limited Session agent re-sends the task’s work', async () => {
     const agent = fromPartial<ScheduledTaskPrincipal>({
       localUser: false,
