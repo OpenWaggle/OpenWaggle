@@ -7,7 +7,19 @@ import type {
   IpcSendArgs,
   IpcSendChannel,
 } from '@shared/types/ipc'
-import { ipcRenderer, webUtils } from 'electron'
+import { contextBridge, type IpcRendererEvent, ipcRenderer, webUtils } from 'electron'
+
+/**
+ * The preload's only link to the desktop shell (ADR 0064): the typed channel contract of
+ * `@shared/types/ipc` over Electron's `ipcRenderer`, the `contextBridge` that exposes `window.api`,
+ * and file paths of dropped files. Every other preload module builds on these, so an Electrobun
+ * preload replaces this module (and the crash-report SDK bridge in `error-reporting-bridge.ts`).
+ */
+
+/** Exposes `value` to the renderer page as `window[key]`, across context isolation. */
+export function exposeInMainWorld(key: string, value: unknown) {
+  contextBridge.exposeInMainWorld(key, value)
+}
 
 export function invoke<C extends IpcInvokeChannel>(
   channel: C,
@@ -25,7 +37,7 @@ export function on<C extends IpcEventChannel>(
   channel: C,
 ): (callback: (payload: IpcEventPayload<C>) => void) => () => void {
   return (callback: (payload: IpcEventPayload<C>) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload<C>) => {
+    const handler = (_event: IpcRendererEvent, payload: IpcEventPayload<C>) => {
       callback(payload)
     }
     ipcRenderer.on(channel, handler)

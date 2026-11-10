@@ -1,7 +1,7 @@
 import type { WorkspaceFilesChangedEvent } from '@shared/types/workspace-files'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 
 type NativeListener = (event: string, name: string | null) => void
 
@@ -31,7 +31,7 @@ describe('native workspace watcher events (review R5 P3-3)', () => {
   it('reports an event without a path (a Windows buffer overflow) as an overflow', async () => {
     setWorkspaceWatcherPlatformForTests('win32')
     const events: WorkspaceFilesChangedEvent[] = []
-    const subscriber = fromPartial<WebContents>({
+    const subscriber = fromPartial<RendererSurface>({
       id: 1,
       isDestroyed: () => false,
       once: vi.fn(),

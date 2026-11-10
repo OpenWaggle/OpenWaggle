@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { BrowserImportSource } from '@shared/types/browser-import'
 import type { BrowserProfile } from '@shared/types/browser-profile'
-import type { CookiesSetDetails } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createBrowserCookieImporter, writeImportedCookies } from '../browser-cookie-importer'
+import type { ImportedBrowserCookie } from '../browser-cookie-model'
 import { BrowserImportError } from '../browser-import-errors'
 
 const targetProfiles: readonly BrowserProfile[] = [
@@ -201,7 +201,7 @@ describe('browser cookie importer', () => {
   })
 
   it('reports expired and individually rejected writes without exposing cookie values', async () => {
-    const set = vi.fn(async (cookie: CookiesSetDetails) => {
+    const set = vi.fn(async (cookie: ImportedBrowserCookie) => {
       if (cookie.name === 'rejected') throw new Error('secret-value must stay internal')
     })
     const flushStore = vi.fn(async () => {

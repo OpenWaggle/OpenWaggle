@@ -1,4 +1,4 @@
-import { invoke, on } from './ipc-bindings'
+import { invoke, on } from './electron-transport'
 
 export const browserPreviewApi = {
   openBrowserPreview: invoke('browser-preview:open'),

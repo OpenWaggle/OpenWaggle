@@ -1,4 +1,4 @@
-import { invoke } from './ipc-bindings'
+import { invoke } from './electron-transport'
 
 /** Agent definitions: their sources, display, previews, and enablement. */
 export const agentDefinitionsApi = {

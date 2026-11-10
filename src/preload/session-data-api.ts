@@ -1,4 +1,4 @@
-import { invoke } from './ipc-bindings'
+import { invoke } from './electron-transport'
 
 /**
  * Bounded Session reads (v1 performance, B5) and the batched account read, kept beside api.ts for

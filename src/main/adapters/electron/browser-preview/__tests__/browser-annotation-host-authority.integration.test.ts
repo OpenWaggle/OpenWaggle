@@ -10,32 +10,32 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { Effect, Layer, ManagedRuntime } from 'effect'
 import type { NativeImage, WebContents } from 'electron'
 import { expect, it, vi } from 'vitest'
-import { annotationPayload } from '../../adapters/electron/browser-preview/__tests__/browser-preview-annotation.test-fixtures'
-import { sessionControlAttachmentServiceLayer } from '../../adapters/session-control-attachment-service'
-import { BrowserPreviewArtifactStorage } from '../../adapters/electron/browser-preview/browser-preview-artifact-storage'
-import { BrowserPreviewArtifactStore } from '../../adapters/electron/browser-preview/browser-preview-artifacts'
-import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
-import { runAppDatabaseMigrations } from '../../services/database-service'
-import { createLocalSessionAuthenticator } from '../../session-host/local-session-authenticator'
+import { annotationPayload } from './browser-preview-annotation.test-fixtures'
+import { sessionControlAttachmentServiceLayer } from '../../../session-control-attachment-service'
+import { BrowserPreviewArtifactStorage } from '../browser-preview-artifact-storage'
+import { BrowserPreviewArtifactStore } from '../browser-preview-artifacts'
+import { SessionControlAttachmentService } from '../../../../ports/session-control-attachment-service'
+import { runAppDatabaseMigrations } from '../../../../services/database-service'
+import { createLocalSessionAuthenticator } from '../../../../session-host/local-session-authenticator'
 import {
   type LocalSessionHostRuntime,
   startLocalSessionHost,
-} from '../../session-host/local-session-host-runtime'
+} from '../../../../session-host/local-session-host-runtime'
 import {
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
-} from '../../session-host/local-session-paths'
-import { ensureLocalUserCredential } from '../../session-host/local-user-credential'
+} from '../../../../session-host/local-session-paths'
+import { ensureLocalUserCredential } from '../../../../session-host/local-user-credential'
 import {
   configurePreparedAttachmentRegistry,
   resetPreparedAttachmentRegistryForTests,
   resolvePreparedAttachmentCapability,
-} from '../../utils/attachment-registry'
-import { configureGuiSessionCommandClient } from '../gui-session-command-router'
-import { prepareLocalGuiAttachments } from '../local-ui-session-service'
+} from '../../../../utils/attachment-registry'
+import { configureGuiSessionCommandClient } from '../../../../application/gui-session-command-router'
+import { prepareLocalGuiAttachments } from '../../../../application/local-ui-session-service'
 
 vi.mock('electron', () => ({ app: { getPath: () => '/unused' }, clipboard: {}, nativeImage: {} }))
-vi.mock('../../desktop-ui', () => ({ showItemInFolder: vi.fn() }))
+vi.mock('../../../../desktop-ui', () => ({ showItemInFolder: vi.fn() }))
 
 it('sends a browser annotation with a real Host capability and immutable provenance', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-browser-annotation-host-'))
