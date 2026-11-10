@@ -66,7 +66,15 @@ export function useGlobalCommandActions() {
     close()
     const selected = await selectFolder()
     if (!selected) return
-    await setProjectPath(selected)
+    try {
+      await setProjectPath(selected)
+    } catch (error) {
+      // The palette fires this action with `void`, so a transient Settings IPC failure would
+      // otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The
+      // Session is not started, so the failure is shown and the next attempt retries it.
+      showToast(ipcErrorMessage(error), 'error')
+      return
+    }
     const recent = sessions
       .filter((session) => session.projectPath === selected)
       .sort((left, right) => right.updatedAt - left.updatedAt)[0]
