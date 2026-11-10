@@ -161,8 +161,13 @@ function enforceRequestTarget(
   input.enforceTarget({ api, url: target.url })
 }
 
-function callHttpRequest(
+/**
+ * Calls the original `request` with the same overload the caller used. A call with neither a URL
+ * nor options keeps the module's own protocol. `https.request` accepts every `http.request` call.
+ */
+function callOriginalRequest(
   originalRequest: typeof http.request,
+  defaultProtocol: typeof HTTP_PROTOCOL | typeof HTTPS_PROTOCOL,
   args: readonly unknown[],
 ): http.ClientRequest {
   const first = args[FIRST_ARGUMENT_INDEX]
@@ -183,34 +188,8 @@ function callHttpRequest(
   }
 
   return isRequestCallback(first)
-    ? originalRequest({ protocol: HTTP_PROTOCOL }, first)
-    : originalRequest({ protocol: HTTP_PROTOCOL })
-}
-
-function callHttpsRequest(
-  originalRequest: typeof https.request,
-  args: readonly unknown[],
-): http.ClientRequest {
-  const first = args[FIRST_ARGUMENT_INDEX]
-  const second = args[SECOND_ARGUMENT_INDEX]
-  const third = args[THIRD_ARGUMENT_INDEX]
-
-  if (isUrlInput(first)) {
-    if (isRequestOptions(second)) {
-      return isRequestCallback(third)
-        ? originalRequest(first, second, third)
-        : originalRequest(first, second)
-    }
-    return isRequestCallback(second) ? originalRequest(first, second) : originalRequest(first)
-  }
-
-  if (isRequestOptions(first)) {
-    return isRequestCallback(second) ? originalRequest(first, second) : originalRequest(first)
-  }
-
-  return isRequestCallback(first)
-    ? originalRequest({ protocol: HTTPS_PROTOCOL }, first)
-    : originalRequest({ protocol: HTTPS_PROTOCOL })
+    ? originalRequest({ protocol: defaultProtocol }, first)
+    : originalRequest({ protocol: defaultProtocol })
 }
 
 function definePatchedFunction(
@@ -231,24 +210,28 @@ export function installTrustedMainHttpNetworkGuard(input: TrustedMainHttpNetwork
 
   definePatchedFunction(http, 'request', (...args) => {
     enforceRequestTarget(input, 'node:http.request', httpRequestTarget(HTTP_PROTOCOL, args))
-    return input.runWithInternalSocketBypass(() => callHttpRequest(originalHttpRequest, args))
+    return input.runWithInternalSocketBypass(() =>
+      callOriginalRequest(originalHttpRequest, HTTP_PROTOCOL, args),
+    )
   })
   definePatchedFunction(http, 'get', (...args) => {
     enforceRequestTarget(input, 'node:http.get', httpRequestTarget(HTTP_PROTOCOL, args))
     const request = input.runWithInternalSocketBypass(() =>
-      callHttpRequest(originalHttpRequest, args),
+      callOriginalRequest(originalHttpRequest, HTTP_PROTOCOL, args),
     )
     request.end()
     return request
   })
   definePatchedFunction(https, 'request', (...args) => {
     enforceRequestTarget(input, 'node:https.request', httpRequestTarget(HTTPS_PROTOCOL, args))
-    return input.runWithInternalSocketBypass(() => callHttpsRequest(originalHttpsRequest, args))
+    return input.runWithInternalSocketBypass(() =>
+      callOriginalRequest(originalHttpsRequest, HTTPS_PROTOCOL, args),
+    )
   })
   definePatchedFunction(https, 'get', (...args) => {
     enforceRequestTarget(input, 'node:https.get', httpRequestTarget(HTTPS_PROTOCOL, args))
     const request = input.runWithInternalSocketBypass(() =>
-      callHttpsRequest(originalHttpsRequest, args),
+      callOriginalRequest(originalHttpsRequest, HTTPS_PROTOCOL, args),
     )
     request.end()
     return request
