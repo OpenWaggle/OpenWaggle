@@ -1,7 +1,10 @@
 import type { DiffView } from '@shared/types/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
+import { createRendererLogger } from '@/shared/lib/logger'
 import type { DiffViewOptions } from '../components/DiffCodeView'
+
+const logger = createRendererLogger('diff-view')
 
 /**
  * Diff view preferences, read straight from persisted settings.
@@ -23,9 +26,20 @@ export function useDiffViewOptions() {
     wrapLines: diffWrapLines,
   }
 
+  /*
+   * The panel fires these with `void`, so a transient Settings IPC failure would otherwise
+   * float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The store keeps the
+   * previous value, so the failure is logged and the next toggle retries it.
+   */
   return {
     viewOptions,
-    setDiffView: (view: DiffView) => void setDiffView(view),
-    toggleWrapLines: () => void setDiffWrapLines(!diffWrapLines),
+    setDiffView: (view: DiffView) =>
+      void setDiffView(view).catch((error: unknown) => {
+        logger.warn('Failed to change the diff view', { error: String(error) })
+      }),
+    toggleWrapLines: () =>
+      void setDiffWrapLines(!diffWrapLines).catch((error: unknown) => {
+        logger.warn('Failed to change line wrapping', { error: String(error) })
+      }),
   }
 }
