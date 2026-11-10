@@ -6,7 +6,7 @@ import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
 import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { getSourceControlCliEnv } from '../env'
 import { createLogger, getLogFilePath, sessionHostLogPathFor } from '../logger'
 import { userFacingErrorDetail } from '../utils/describe-error'
@@ -52,7 +52,7 @@ function humanOsName() {
 function collectDiagnostics(): DiagnosticsInfo {
   return {
     os: humanOsName(),
-    appVersion: app.getVersion(),
+    appVersion: appLifecycle.version(),
     electronVersion: process.versions.electron,
     nodeVersion: process.versions.node,
     arch: process.arch,

@@ -22,6 +22,7 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    commandLine: { hasSwitch: vi.fn(() => false), appendSwitch: vi.fn() },
     disableHardwareAcceleration: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),

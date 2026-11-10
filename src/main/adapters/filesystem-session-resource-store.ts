@@ -4,7 +4,7 @@ import path from 'node:path'
 import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { SessionResourceStoreError } from '../errors'
 import {
   SessionResourceStore,
@@ -227,7 +227,7 @@ export function makeFilesystemSessionResourceStoreLayer(root: string) {
 export const FilesystemSessionResourceStoreLive = Layer.effect(
   SessionResourceStore,
   Effect.sync(() => {
-    const root = path.join(app.getPath('userData'), RESOURCE_DIRECTORY)
+    const root = path.join(appPaths.userData(), RESOURCE_DIRECTORY)
     return SessionResourceStore.of(makeStore(root))
   }),
 )

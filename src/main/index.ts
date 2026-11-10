@@ -294,7 +294,7 @@ function registerAppLifecycle() {
 }
 
 function startApp(launch: Extract<TopLevelCliLaunch, { readonly kind: 'gui' }>) {
-  configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+  configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
   prepareDesktopUi(app)
 
   const singleInstance = env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1'

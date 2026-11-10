@@ -20,7 +20,7 @@ import {
   errorReportingRelease,
 } from '@shared/error-reporting/error-report-constants'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
-import { app } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { env } from './env'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
@@ -90,7 +90,7 @@ async function startSdk(
   const { startSentryMainErrorReporter } = await importSentryMainErrorReporter()
   reporter = startSentryMainErrorReporter({
     process: processKind,
-    release: errorReportingRelease(app.getVersion()),
+    release: errorReportingRelease(appLifecycle.version()),
     environment: BUILD_CHANNEL,
     homeDirectory: homedir(),
     temporaryDirectory: tmpdir(),

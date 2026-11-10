@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { InlineVisualizationReadResult } from '@shared/types/inline-visualization'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import {
   InlineVisualizationService,
   type InlineVisualizationServiceShape,
@@ -195,8 +195,6 @@ export function makeFilesystemInlineVisualizationService(
 export const FilesystemInlineVisualizationLive = Layer.effect(
   InlineVisualizationService,
   Effect.sync(() =>
-    InlineVisualizationService.of(
-      makeFilesystemInlineVisualizationService(app.getPath('userData')),
-    ),
+    InlineVisualizationService.of(makeFilesystemInlineVisualizationService(appPaths.userData())),
   ),
 )

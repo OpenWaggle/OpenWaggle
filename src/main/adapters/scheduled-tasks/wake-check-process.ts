@@ -6,7 +6,7 @@ import {
   HEARTBEAT_WAKE_CHECK_TIMEOUT_MS,
 } from '@shared/types/scheduled-task-heartbeat'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../../desktop-shell/app-lifecycle'
 import type {
   WakeCheckExecution,
   WakeCheckRequest,
@@ -202,5 +202,5 @@ export async function runWakeCheckProcess(
 
 /** The Session Host's Wake check runner, with this app's version in the terminal environment. */
 export function runHostWakeCheck(request: WakeCheckRequest) {
-  return Effect.promise(() => runWakeCheckProcess(request, { appVersion: app.getVersion() }))
+  return Effect.promise(() => runWakeCheckProcess(request, { appVersion: appLifecycle.version() }))
 }

@@ -1,5 +1,6 @@
 import net from 'node:net'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import { desktopShellEnvironmentRefreshStartedAt } from '../desktop-shell-environment-process'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
@@ -30,11 +31,11 @@ export { sessionHostLaunchArguments, sessionHostLaunchCommand } from './session-
 export function currentSessionHostLaunchCommand() {
   return sessionHostLaunchCommandFor({
     platform: process.platform,
-    isPackaged: app.isPackaged,
+    isPackaged: appLifecycle.isPackaged(),
     executablePath: process.execPath,
-    appPath: app.getAppPath(),
+    appPath: appPaths.appRoot(),
     appImagePath: env.APPIMAGE,
-    commandLine: app.commandLine,
+    commandLine: appLifecycle.commandLine,
   })
 }
 
@@ -132,7 +133,7 @@ export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLaunch
     launchHeadlessBackgroundProcess({
       ...currentSessionHostLaunchCommand(),
       environment: sessionHostChildEnvironment({
-        userDataRoot: app.getPath('userData'),
+        userDataRoot: appPaths.userData(),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
         startupTimings: startupTimingsRequested(),
         ...shellEnvironmentRefresh(),

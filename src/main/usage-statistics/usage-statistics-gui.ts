@@ -1,4 +1,5 @@
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import {
   configureUsageStatisticsGuiRecorder,
   flushUsageStatisticsSync,
@@ -13,10 +14,10 @@ let quitFlushRegistered = false
  * Observations still waiting for their debounced write are saved when the app quits.
  */
 export function startGuiUsageStatistics(): void {
-  configureUsageStatisticsGuiRecorder({ userDataDirectory: app.getPath('userData') })
+  configureUsageStatisticsGuiRecorder({ userDataDirectory: appPaths.userData() })
   if (!quitFlushRegistered) {
     quitFlushRegistered = true
-    app.on('will-quit', flushUsageStatisticsSync)
+    appLifecycle.onWillQuit(flushUsageStatisticsSync)
   }
   recordUsageStatistics({ kind: 'app-opened' })
 }

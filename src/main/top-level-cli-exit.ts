@@ -1,6 +1,7 @@
-import { app } from 'electron'
 import { CLI_EXIT } from './cli-error'
 import { flushCliOutput } from './cli-output-flush'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { systemIntegration } from './desktop-shell/system-integration'
 
 /** A reader that stopped reading must not keep a finished command running. */
 const EXIT_FLUSH_TIMEOUT_MS = 2_000
@@ -19,7 +20,7 @@ function isBrokenPipe(error: unknown) {
  * regular app and show a Dock icon for as long as the command runs.
  */
 export function hideCliFromDock(platform: NodeJS.Platform) {
-  if (platform === 'darwin') app.setActivationPolicy('accessory')
+  if (platform === 'darwin') systemIntegration.setActivationPolicy('accessory')
 }
 
 export async function exitAfterCliOutput(exitCode: number) {
@@ -31,7 +32,7 @@ export async function exitAfterCliOutput(exitCode: number) {
     }),
   ])
   clearTimeout(timer)
-  app.exit(exitCode)
+  appLifecycle.exit(exitCode)
 }
 
 /**

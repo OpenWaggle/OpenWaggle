@@ -7,9 +7,9 @@ import {
   type ScheduledTaskStatusSummary,
 } from '@shared/types/scheduled-task'
 import { SESSION_QUERY_CONTRACT_VERSION, type SessionQuery } from '@shared/types/session-query'
-import { app } from 'electron'
 import { writeCliStdout } from './cli-stdout'
 import { validateCommandCliOptions } from './command-cli-option-contract'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import {
   type LocalSessionCliClientInput,
   prepareLocalSessionCliClientInput,
@@ -93,7 +93,7 @@ async function snapshotActiveRuns(input: ClientInput) {
 }
 
 export const defaultStatusCliDependencies: StatusCliDependencies = {
-  version: () => app.getVersion(),
+  version: () => appLifecycle.version(),
   now: Date.now,
   prepareClientInput: prepareLocalSessionCliClientInput,
   probe: async (input) =>

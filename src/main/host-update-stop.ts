@@ -1,5 +1,6 @@
-import { app } from 'electron'
 import { isDesktopAppRunning } from './desktop-instance-probe'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { systemIntegration } from './desktop-shell/system-integration'
 import {
   askRunHandling,
   openPromptTerminal,
@@ -61,13 +62,16 @@ const INTERRUPTED_EXIT_CODE = 130
 export async function cancelUpdateOnInterrupt<T>(task: () => Promise<T>): Promise<T> {
   const cancel = () => {
     process.stderr.write('\nUpdate cancelled. OpenWaggle was not updated.\n')
-    app.exit(INTERRUPTED_EXIT_CODE)
+    appLifecycle.exit(INTERRUPTED_EXIT_CODE)
   }
-  app.once('before-quit', cancel)
+  const stopCancelling = appLifecycle.onBeforeQuit(() => {
+    stopCancelling()
+    cancel()
+  })
   try {
     return await task()
   } finally {
-    app.off('before-quit', cancel)
+    stopCancelling()
   }
 }
 
@@ -148,7 +152,7 @@ export function defaultCliHostUpdateStopDependencies(
 ): HostUpdateStopDependencies {
   const status = defaultStatusCliDependencies
   return {
-    desktopAppRunning: () => isDesktopAppRunning(app),
+    desktopAppRunning: () => isDesktopAppRunning(systemIntegration),
     countActiveRuns: async () => {
       const host = await probeRunningHost(client, status.probe)
       if (host.state === 'not-running') return null

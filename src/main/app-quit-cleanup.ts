@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { showErrorBox } from './desktop-ui'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
@@ -15,7 +15,7 @@ export function registerAppQuitCleanup(input: {
 }) {
   let beforeQuitCleanupDone = false
   let beforeQuitCleanupInProgress = false
-  app.on('before-quit', (e) => {
+  appLifecycle.onBeforeQuit((e) => {
     input.disposeAutoUpdater()
     if (!beforeQuitCleanupDone) {
       e.preventDefault()
@@ -32,13 +32,13 @@ export function registerAppQuitCleanup(input: {
       })
         .then(() => {
           beforeQuitCleanupDone = true
-          app.quit()
+          appLifecycle.quit()
         })
         .catch((error: unknown) => {
           logger.error('App shutdown did not complete', describeError(error))
           if (terminalsCleaned) {
             beforeQuitCleanupDone = true
-            app.quit()
+            appLifecycle.quit()
             return
           }
           beforeQuitCleanupInProgress = false

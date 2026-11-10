@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
-import { app } from 'electron'
+import { appPaths } from '../../../desktop-shell/app-paths'
 
 /**
  * Where this build keeps its encrypted MCP state: its user data (ADR 0032), so a dev and a release
@@ -9,7 +9,7 @@ import { app } from 'electron'
  * secrets.
  */
 export function mcpBuildStateDirectory() {
-  return path.join(app.getPath('userData'), 'mcp')
+  return path.join(appPaths.userData(), 'mcp')
 }
 
 /** `~/.openwaggle/mcp`, which every build shared before; still the home of `mcp.log`. */

@@ -1,8 +1,9 @@
-import { app } from 'electron'
 import { CLI_EXIT, CliError } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { CommandCliUsageError } from './command-cli-option-contract'
 import { isDesktopAppRunning } from './desktop-instance-probe'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { systemIntegration } from './desktop-shell/system-integration'
 import { stopHostForUpdate } from './host-cli'
 import { formatHostUpdateStopReport } from './host-update-stop'
 import type { ParsedArguments } from './mcp-cli-arguments'
@@ -56,7 +57,7 @@ export async function stopSessionHostBeforeInstall(parsed: ParsedArguments) {
  * below it.
  */
 function refuseDowngrade(tag: string) {
-  const installed = app.getVersion()
+  const installed = appLifecycle.version()
   const order = compareReleaseVersions(tag, installed)
   if (order === undefined) {
     throw new UpdateCliUsageError(
@@ -91,7 +92,8 @@ export async function installExactVersion(
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   // Installing over a running app would stop its active agent runs without asking.
-  if (isDesktopAppRunning(app)) throw new CliError('conflict', DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
+  if (isDesktopAppRunning(systemIntegration))
+    throw new CliError('conflict', DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
   if (process.platform === 'win32') {
     const installer = await prepareWindowsInstaller(tag)
     await stopSessionHostBeforeInstall(parsed).catch(async (error: unknown) => {

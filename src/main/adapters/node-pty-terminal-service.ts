@@ -6,7 +6,7 @@ import type {
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { TerminalEventSink } from '../ports/terminal-event-sink'
 import type { TerminalServiceShape } from '../ports/terminal-service'
 import { TerminalService } from '../ports/terminal-service'
@@ -39,13 +39,10 @@ import { makeTerminalServiceFacade } from './terminal/terminal-service-facade'
 
 const FALLBACK_APP_VERSION = '0.0.0'
 
-function getElectronAppVersion() {
-  const getVersion: unknown = Reflect.get(app, 'getVersion')
-  if (typeof getVersion !== 'function') return FALLBACK_APP_VERSION
-
+function getAppVersion() {
   try {
-    const version: unknown = Reflect.apply(getVersion, app, [])
-    return typeof version === 'string' && version.length > 0 ? version : FALLBACK_APP_VERSION
+    const version = appLifecycle.version()
+    return version.length > 0 ? version : FALLBACK_APP_VERSION
   } catch {
     return FALLBACK_APP_VERSION
   }
@@ -209,7 +206,7 @@ export const NodePtyTerminalServiceLive = Layer.scoped(
       // Electron always supplies getVersion in production. The defensive
       // fallback keeps the service layer usable in Node-only test harnesses
       // and degraded Electron startup environments.
-      appVersion: getElectronAppVersion(),
+      appVersion: getAppVersion(),
       onRecordChanged: (snapshot) => {
         broadcastToWindows('terminal:activity-snapshot', snapshot)
       },

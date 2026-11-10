@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Context, Effect, Layer } from 'effect'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { DatabaseBootstrapError } from '../errors'
 import {
   type AppDatabaseAccess,
@@ -25,7 +25,7 @@ export class AppDatabase extends Context.Tag('@openwaggle/AppDatabase')<
 >() {}
 
 function getDatabasePath() {
-  return join(app.getPath('userData'), 'session-host', 'session-host.sqlite')
+  return join(appPaths.userData(), 'session-host', 'session-host.sqlite')
 }
 
 export type { AppDatabaseAccess } from './database-access-mode'

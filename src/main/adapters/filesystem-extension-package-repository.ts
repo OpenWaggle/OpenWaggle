@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { ExtensionPackageRepositoryError } from '../errors'
 import {
   ExtensionPackageRepository,
@@ -42,6 +42,6 @@ export function makeFilesystemExtensionPackageRepository(
 export const FilesystemExtensionPackageRepositoryLive = Layer.effect(
   ExtensionPackageRepository,
   Effect.sync(() =>
-    makeFilesystemExtensionPackageRepository(getGlobalExtensionRoot(app.getPath('userData'))),
+    makeFilesystemExtensionPackageRepository(getGlobalExtensionRoot(appPaths.userData())),
   ),
 )

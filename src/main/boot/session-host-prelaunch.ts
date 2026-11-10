@@ -89,7 +89,7 @@ export function sessionHostPrelaunchDecision(
   return { kind: 'launch' }
 }
 
-/** The part of Electron's `app` the prelaunch reads; `getPath` works before `ready`. */
+/** The app identity and paths the prelaunch reads (`AppLifecycle`, `AppPaths`); paths work before `ready`. */
 export interface SessionHostPrelaunchApp {
   readonly isPackaged: boolean
   readonly getAppPath: () => string

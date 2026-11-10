@@ -13,7 +13,6 @@ import './apply-build-identity'
 import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
-import { app } from 'electron'
 import {
   enableMainCompileCache,
   flushMainCompileCacheAfterLoad,
@@ -23,6 +22,8 @@ import {
 import { mainCompileCacheLocation } from './boot/main-compile-cache-location'
 import { startSessionHostPrelaunch } from './boot/session-host-prelaunch'
 import { answerTopLevelCliInBoot } from './boot-top-level-cli'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 
 function startCompileCache(): MainCompileCache | null {
   try {
@@ -49,7 +50,12 @@ if (outcome !== 'answered') {
   // The desktop app's Host starts now, while this process loads the main bundle.
   if (outcome === 'desktop-app') {
     startSessionHostPrelaunch({
-      app,
+      app: {
+        isPackaged: appLifecycle.isPackaged(),
+        getAppPath: () => appPaths.appRoot(),
+        getPath: () => appPaths.userData(),
+        commandLine: appLifecycle.commandLine,
+      },
       desktopApp: true,
       environment: process.env,
       platform: process.platform,

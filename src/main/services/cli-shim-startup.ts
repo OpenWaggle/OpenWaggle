@@ -1,5 +1,5 @@
 import type { CliShimMutationResult, CliShimStatus } from '@shared/types/cli-shim'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
 import {
@@ -60,7 +60,7 @@ export function beginAppCliShimSetupWhen(enabled: boolean): Promise<void> {
     .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
 }
 
-export function getAppCliShimStatus(isPackaged = app.isPackaged) {
+export function getAppCliShimStatus(isPackaged = appLifecycle.isPackaged()) {
   if (!isPackaged) return Promise.resolve(null)
   return getAppCliSetupGate().status()
 }

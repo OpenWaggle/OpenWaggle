@@ -1,8 +1,9 @@
 import path from 'node:path'
-import { app } from 'electron'
 import { asUsageErrorsSync, CLI_EXIT, cliExitCodeForKind } from './cli-error'
 import { resolveCliProjectPath } from './cli-project-path'
 import { writeCliStdout } from './cli-stdout'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 import {
   formatMcpCliOutput,
   hasFlag,
@@ -158,7 +159,7 @@ function readServeCommand(arguments_: ParsedArguments) {
 
 async function runServeCommand(arguments_: ParsedArguments) {
   const command = asUsageErrorsSync(() => readServeCommand(arguments_))
-  const userDataRoot = app.getPath('userData')
+  const userDataRoot = appPaths.userData()
   await serveOpenWaggleMcpServer({
     transport: command.stdio ? 'stdio' : 'streamable-http',
     ...(command.httpPort === undefined ? {} : { httpPort: command.httpPort }),
@@ -171,7 +172,7 @@ async function runServeCommand(arguments_: ParsedArguments) {
     ...(command.originSessionId ? { originSessionId: command.originSessionId } : {}),
     identity: await resolveServeIdentity(command.identity, userDataRoot),
     userDataRoot,
-    version: app.getVersion(),
+    version: appLifecycle.version(),
     stderr: process.stderr,
   })
 }

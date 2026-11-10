@@ -1,9 +1,11 @@
 import { createInterface } from 'node:readline/promises'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
-import { app } from 'electron'
 import { cliStdoutIsTerminal, writeCliStdout } from './cli-stdout'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag } from './mcp-cli-arguments'
+import type { AppLifecycleShape } from './ports/desktop-shell/app-lifecycle'
+import type { CancellableShellEvent } from './ports/desktop-shell/shell-events'
 import { parseRunCliArguments, RUN_CLI_USAGE, type RunCliInvocation } from './run-cli-arguments'
 import { PromptInterruptedError } from './run-cli-interactions'
 import { withTimeout } from './run-cli-output'
@@ -60,16 +62,7 @@ async function askFromTerminal(question: string, signal: AbortSignal) {
 
 export function listenForInterrupts(
   listener: () => void,
-  host: {
-    readonly on: (
-      event: 'before-quit',
-      handler: (event: { preventDefault(): void }) => void,
-    ) => void
-    readonly off: (
-      event: 'before-quit',
-      handler: (event: { preventDefault(): void }) => void,
-    ) => void
-  } = app,
+  host: Pick<AppLifecycleShape, 'onBeforeQuit'> = appLifecycle,
   now: () => number = Date.now,
 ) {
   let lastInterruptAt = Number.NEGATIVE_INFINITY
@@ -80,18 +73,18 @@ export function listenForInterrupts(
     listener()
   }
   // Electron turns SIGINT and SIGTERM into an app quit. Hold the quit so Ctrl-C interrupts the
-  // Run instead; the command still exits through app.exit(), which skips quit events.
-  const holdQuit = (event: { preventDefault(): void }) => {
+  // Run instead; the command still exits through appLifecycle.exit(), which skips quit events.
+  const holdQuit = (event: CancellableShellEvent) => {
     event.preventDefault()
     notify()
   }
   process.on('SIGINT', notify)
   process.on('SIGTERM', notify)
-  host.on('before-quit', holdQuit)
+  const stopHoldingQuit = host.onBeforeQuit(holdQuit)
   return () => {
     process.off('SIGINT', notify)
     process.off('SIGTERM', notify)
-    host.off('before-quit', holdQuit)
+    stopHoldingQuit()
   }
 }
 

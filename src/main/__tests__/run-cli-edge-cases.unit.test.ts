@@ -266,10 +266,10 @@ describe('interrupt signals', () => {
   it('counts one Ctrl-C once even when Electron also asks to quit', () => {
     const handlers: ((event: { preventDefault(): void }) => void)[] = []
     const host = {
-      on: (_event: 'before-quit', handler: (event: { preventDefault(): void }) => void) => {
+      onBeforeQuit: (handler: (event: { preventDefault(): void }) => void) => {
         handlers.push(handler)
+        return () => undefined
       },
-      off: () => undefined,
     }
     let time = 1_000
     const listener = vi.fn()

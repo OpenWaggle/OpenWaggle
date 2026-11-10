@@ -3,7 +3,6 @@ import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { SyntaxThemeImportPreview } from '@shared/types/syntax-resources'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import {
   applySyntaxThemePreview,
   listInstalledSyntaxThemes,
@@ -11,6 +10,7 @@ import {
   removeInstalledSyntaxTheme,
 } from '../adapters/syntax-theme-import'
 import { authorizeWorkspaceProject } from '../application/workspace-project-authorization'
+import { appPaths } from '../desktop-shell/app-paths'
 import { browserWindowFromWebContents, showOpenDialog } from '../desktop-ui'
 import { typedHandle } from './typed-ipc'
 
@@ -27,7 +27,7 @@ interface PendingPreview {
 const pendingPreviews = new Map<string, PendingPreview>()
 
 function resourcesDirectory() {
-  return path.join(app.getPath('userData'), 'syntax-resources')
+  return path.join(appPaths.userData(), 'syntax-resources')
 }
 
 function sweepExpiredPreviews() {

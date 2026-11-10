@@ -2,7 +2,8 @@ import { join } from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appLifecycle } from '../../desktop-shell/app-lifecycle'
+import { appPaths } from '../../desktop-shell/app-paths'
 import { ActionCatalogService } from '../../ports/action-catalog-service'
 import { GitWorktreeService } from '../../ports/git-worktree-service'
 import { WorkspaceExecutionAdmission } from '../../ports/workspace-execution-admission'
@@ -44,9 +45,9 @@ export const HostWorkspacePreparationServiceLive = Layer.scoped(
         ),
       execute: (input) => {
         execute ??= createPreparationExecutor(
-          createActionProcessRunner(app.getVersion()),
-          join(app.getPath('userData'), 'preparation'),
-          app.getVersion(),
+          createActionProcessRunner(appLifecycle.version()),
+          join(appPaths.userData(), 'preparation'),
+          appLifecycle.version(),
         )
         return execute(input)
       },

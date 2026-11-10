@@ -1,17 +1,15 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { type AppPathManager, configureAppStoragePaths } from '../session-data'
+import { type AppStoragePaths, configureAppStoragePaths } from '../session-data'
 import {
   configureSessionScratchNamespace,
   sessionScratchRoot,
 } from '../utils/session-scratch-directory'
 
 const SESSION_DATA_DIRECTORY_NAME = 'session-data'
-const REPAIR_MARKER_FILENAME = '.openwaggle-dips-repair-v1'
-const DIPS_FILENAMES = ['DIPS', 'DIPS-wal', 'DIPS-shm'] as const
 
 const tempDirectories: string[] = []
 
@@ -22,26 +20,17 @@ function createTempDirectory() {
 }
 
 function createAppPathManager(defaultUserDataPath: string): {
-  readonly appPathManager: AppPathManager
+  readonly appPathManager: AppStoragePaths
   readonly getRecordedPath: (name: 'userData' | 'sessionData' | 'logs') => string | undefined
 } {
   const recordedPaths = new Map<'userData' | 'sessionData' | 'logs', string>()
 
   return {
     appPathManager: {
-      getPath(name) {
-        if (name === 'userData') {
-          return defaultUserDataPath
-        }
-
-        throw new Error(`Unsupported path lookup: ${name}`)
-      },
-      setPath(name, value) {
-        recordedPaths.set(name, value)
-      },
-      setAppLogsPath(value) {
-        if (value !== undefined) recordedPaths.set('logs', value)
-      },
+      userData: () => defaultUserDataPath,
+      setUserData: (value) => recordedPaths.set('userData', value),
+      setLogs: (value) => recordedPaths.set('logs', value),
+      setWebProfileData: (value) => recordedPaths.set('sessionData', value),
     },
     getRecordedPath(name) {
       return recordedPaths.get(name)
@@ -63,7 +52,7 @@ describe('configureAppStoragePaths', () => {
     const { appPathManager } = createAppPathManager(userDataPath)
     const restore = configureSessionScratchNamespace('/some/other/profile')
     try {
-      configureAppStoragePaths(appPathManager)
+      configureAppStoragePaths(undefined, appPathManager)
       const configured = sessionScratchRoot('/base')
       configureSessionScratchNamespace(userDataPath)
 
@@ -79,65 +68,13 @@ describe('configureAppStoragePaths', () => {
     const userDataPath = createTempDirectory()
     const { appPathManager, getRecordedPath } = createAppPathManager(userDataPath)
 
-    configureAppStoragePaths(appPathManager)
+    configureAppStoragePaths(undefined, appPathManager)
 
     const sessionDataPath = join(userDataPath, SESSION_DATA_DIRECTORY_NAME)
     expect(existsSync(userDataPath)).toBe(true)
     expect(existsSync(sessionDataPath)).toBe(true)
     expect(getRecordedPath('userData')).toBe(userDataPath)
     expect(getRecordedPath('sessionData')).toBe(sessionDataPath)
-    expect(existsSync(join(sessionDataPath, REPAIR_MARKER_FILENAME))).toBe(true)
-  })
-
-  it("bounds the profile's Chromium HTTP disk cache before the app is ready", () => {
-    const userDataPath = createTempDirectory()
-    const { appPathManager } = createAppPathManager(userDataPath)
-    const switches = new Map<string, string | undefined>()
-
-    configureAppStoragePaths({
-      ...appPathManager,
-      commandLine: {
-        hasSwitch: (name) => switches.has(name),
-        appendSwitch: (name, value) => {
-          switches.set(name, value)
-        },
-      },
-    })
-
-    expect(Number(switches.get('disk-cache-size'))).toBeGreaterThan(0)
-  })
-
-  it('repairs existing Chromium DIPS files once for existing profiles', () => {
-    const userDataPath = createTempDirectory()
-    const sessionDataPath = join(userDataPath, SESSION_DATA_DIRECTORY_NAME)
-    const { appPathManager } = createAppPathManager(userDataPath)
-
-    mkdirSync(sessionDataPath, { recursive: true })
-    for (const filename of DIPS_FILENAMES) {
-      writeFileSync(join(sessionDataPath, filename), 'corrupt')
-    }
-
-    configureAppStoragePaths(appPathManager)
-
-    for (const filename of DIPS_FILENAMES) {
-      expect(existsSync(join(sessionDataPath, filename))).toBe(false)
-    }
-    expect(existsSync(join(sessionDataPath, REPAIR_MARKER_FILENAME))).toBe(true)
-  })
-
-  it('does not delete Chromium DIPS files again after the one-time repair marker exists', () => {
-    const userDataPath = createTempDirectory()
-    const sessionDataPath = join(userDataPath, SESSION_DATA_DIRECTORY_NAME)
-    const { appPathManager } = createAppPathManager(userDataPath)
-
-    configureAppStoragePaths(appPathManager)
-
-    const preservedDipsPath = join(sessionDataPath, 'DIPS')
-    writeFileSync(preservedDipsPath, 'healthy')
-
-    configureAppStoragePaths(appPathManager)
-
-    expect(existsSync(preservedDipsPath)).toBe(true)
   })
 
   // QA and test runs point OPENWAGGLE_USER_DATA_DIR at a scratch profile; Electron's logs, and the
@@ -146,7 +83,7 @@ describe('configureAppStoragePaths', () => {
     const userDataPath = createTempDirectory()
     const { appPathManager, getRecordedPath } = createAppPathManager('/default/profile')
 
-    configureAppStoragePaths(appPathManager, userDataPath)
+    configureAppStoragePaths(userDataPath, appPathManager)
 
     expect(getRecordedPath('logs')).toBe(join(userDataPath, 'logs'))
   })
@@ -155,7 +92,7 @@ describe('configureAppStoragePaths', () => {
     const userDataPath = createTempDirectory()
     const { appPathManager, getRecordedPath } = createAppPathManager(userDataPath)
 
-    configureAppStoragePaths(appPathManager)
+    configureAppStoragePaths(undefined, appPathManager)
 
     expect(getRecordedPath('logs')).toBeUndefined()
   })

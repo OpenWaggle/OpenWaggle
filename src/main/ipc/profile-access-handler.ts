@@ -10,8 +10,8 @@ import {
   type LocalSessionProfileUiCommand,
 } from '@shared/types/local-session-profile-management'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { appPaths } from '../desktop-shell/app-paths'
 import { resolveLocalSessionHostPaths } from '../session-host/local-session-paths'
 import {
   disconnectLocalSessionProfile,
@@ -216,7 +216,7 @@ export function registerProfileAccessHandlers() {
       const credential = generateCommandCredential(command)
       const idempotencyKey = randomUUID()
       const profileName = commandProfileName(command)
-      const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
+      const paths = resolveLocalSessionHostPaths({ userDataRoot: appPaths.userData() })
       const staged = yield* stageCommandCredential({
         command,
         credential,
