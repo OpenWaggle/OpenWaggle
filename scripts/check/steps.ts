@@ -7,6 +7,7 @@
  * failure output; a step only declares its command, dependencies, inputs and how its failures read.
  */
 import {
+  bunRuntimePackageBin,
   bunScript,
   LINT_CONFIG,
   LINT_FILES,
@@ -257,7 +258,7 @@ export const STEPS: readonly CheckStep[] = [
   {
     id: 'test-unit',
     summary: 'unit tests (vitest.unit.config.ts)',
-    commands: [[...packageBin('vitest', 'vitest'), 'run', '-c', 'vitest.unit.config.ts']],
+    commands: [[...bunRuntimePackageBin('vitest', 'vitest'), 'run', '-c', 'vitest.unit.config.ts']],
     dependsOn: ['native-node'],
     inputs: ['**'],
     findings: 'vitest',

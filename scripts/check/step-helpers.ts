@@ -9,17 +9,27 @@ const BUN = process.execPath
 const REPOSITORY_ROOT = path.join(import.meta.dirname, '..', '..')
 
 /**
- * A root dependency's CLI entry from its manifest's `bin`, run with Node like `node_modules/.bin`
- * would. Read from node_modules directly: some packages (react-doctor) export no package.json.
+ * A root dependency's CLI entry from its manifest's `bin`. Read from node_modules directly: some
+ * packages (react-doctor) export no package.json.
  */
-export function packageBin(packageName: string, bin: string): StepCommand {
+function packageBinEntry(packageName: string, bin: string) {
   const manifestPath = path.join(REPOSITORY_ROOT, 'node_modules', packageName, 'package.json')
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
   const bins: unknown =
     manifest !== null && typeof manifest === 'object' ? Reflect.get(manifest, 'bin') : undefined
   const entry: unknown = bins !== null && typeof bins === 'object' ? Reflect.get(bins, bin) : bins
   if (typeof entry !== 'string') throw new Error(`${packageName} has no "${bin}" bin`)
-  return ['node', path.join(path.dirname(manifestPath), entry)]
+  return path.join(path.dirname(manifestPath), entry)
+}
+
+/** The CLI run with Node, as `node_modules/.bin` would. */
+export function packageBin(packageName: string, bin: string): StepCommand {
+  return ['node', packageBinEntry(packageName, bin)]
+}
+
+/** The same CLI on the Bun runtime, where the Vitest tiers run (ADR 0064). */
+export function bunRuntimePackageBin(packageName: string, bin: string): StepCommand {
+  return [BUN, '--bun', packageBinEntry(packageName, bin)]
 }
 
 const TSC = packageBin('typescript', 'tsc')
