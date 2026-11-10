@@ -6,79 +6,19 @@
  * lists in `GATES`. The runner (`./run.ts`) handles parallelism, logs, the timing report and the
  * failure output; a step only declares its command, dependencies, inputs and how its failures read.
  */
-import { createRequire } from 'node:module'
-import path from 'node:path'
-import type { CheckGate, CheckStep, StepCommand } from './step-model'
-
-const BUN = process.execPath
-const require = createRequire(import.meta.url)
-
-/** A package's CLI entry from its manifest's `bin`, run with Node like `node_modules/.bin` would. */
-function packageBin(packageName: string, bin: string): StepCommand {
-  const manifestPath = require.resolve(`${packageName}/package.json`)
-  const manifest: unknown = require(manifestPath)
-  const bins: unknown =
-    manifest !== null && typeof manifest === 'object' ? Reflect.get(manifest, 'bin') : undefined
-  const entry: unknown = bins !== null && typeof bins === 'object' ? Reflect.get(bins, bin) : bins
-  if (typeof entry !== 'string') throw new Error(`${packageName} has no "${bin}" bin`)
-  return ['node', path.join(path.dirname(manifestPath), entry)]
-}
-
-const TSC = packageBin('typescript', 'tsc')
-
-function bunScript(script: string, ...args: string[]): StepCommand {
-  return [BUN, script, ...args]
-}
-
-const SOURCE_FILES = '**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'
-const LINT_FILES = [
-  `{src,packages,scripts,website,functions,fixtures}/${SOURCE_FILES}`,
-  'electron.vite.config.ts',
-]
-const LINT_CONFIG = [
-  'oxlint.config.mts',
-  'scripts/oxlint/**',
-  'scripts/lint.ts',
-  'tools/bun-lint/**',
-]
-const TYPESCRIPT_INPUTS = [SOURCE_FILES, 'tsconfig*.json', 'package.json', 'bun.lock']
-const STANDARDS_IMPLEMENTATION = [
-  'scripts/check-repository-standards.ts',
-  'scripts/repository-package-boundaries.ts',
-  'scripts/standards/**',
-  'scripts/renderer-design-token-exemptions.json',
-]
-
-/** A package build: ESM and CommonJS output, as the package's own `build` script produces. */
-function packageBuild(name: string, dependsOn: readonly string[] = []): CheckStep {
-  const directory = `packages/${name}`
-  return {
-    id: `build:${name}`,
-    summary: `build ${directory} (dist and dist-cjs) once for the steps that read it`,
-    commands: [
-      [...TSC, '-p', 'tsconfig.build.json'],
-      [...TSC, '-p', 'tsconfig.cjs.json'],
-      bunScript('../../scripts/write-cjs-package-json.ts'),
-    ],
-    cwd: directory,
-    ...(dependsOn.length === 0
-      ? {}
-      : { dependsOn: dependsOn.map((dependency) => `build:${dependency}`) }),
-    inputs: [`${directory}/src/**`, `${directory}/tsconfig*.json`, `${directory}/package.json`],
-    cache: { outputs: [`${directory}/dist`, `${directory}/dist-cjs/package.json`] },
-    findings: 'tsc',
-    hint: `bun run --filter @openwaggle/${name} build`,
-  }
-}
-
-const PACKAGE_BUILDS = [
-  'build:waggle-core',
-  'build:extension-sdk',
-  'build:pi-waggle',
-  'build:extension-react',
-]
-/** The packages type-aware analysis resolves through node_modules on a clean checkout. */
-const PACKAGE_DEPENDENCY_BUILDS = ['build:waggle-core', 'build:extension-sdk']
+import {
+  bunScript,
+  LINT_CONFIG,
+  LINT_FILES,
+  PACKAGE_BUILDS,
+  PACKAGE_DEPENDENCY_BUILDS,
+  packageBin,
+  packageBuild,
+  SOURCE_FILES,
+  STANDARDS_IMPLEMENTATION,
+  TYPESCRIPT_INPUTS,
+} from './step-helpers'
+import type { CheckGate, CheckStep } from './step-model'
 
 export const STEPS: readonly CheckStep[] = [
   {
@@ -198,6 +138,51 @@ export const STEPS: readonly CheckStep[] = [
     hint: 'bun run check:react-compiler',
   },
   {
+    id: 'fallow',
+    summary: 'fallow dead code and duplication: zero findings',
+    commands: [
+      [
+        ...packageBin('fallow', 'fallow'),
+        'dead-code',
+        '--fail-on-issues',
+        '--quiet',
+        '--format',
+        'compact',
+      ],
+      [
+        ...packageBin('fallow', 'fallow'),
+        '--only',
+        'dupes',
+        '--fail-on-issues',
+        '--quiet',
+        '--format',
+        'compact',
+      ],
+    ],
+    dependsOn: PACKAGE_DEPENDENCY_BUILDS,
+    inputs: [SOURCE_FILES, '.fallowrc.jsonc', 'package.json'],
+    findings: 'lines',
+    hint: 'fix it in code, or add a reasoned .fallowrc.jsonc entry (no suppression comments); bun run check:fallow',
+  },
+  {
+    id: 'react-doctor',
+    summary: 'React Doctor: no warnings or errors',
+    commands: [
+      [
+        ...packageBin('react-doctor', 'react-doctor'),
+        '.',
+        '--no-score',
+        '--no-supply-chain',
+        '--blocking',
+        'warning',
+        '-y',
+      ],
+    ],
+    inputs: ['src/renderer/src/**', 'packages/extension-react/src/**', 'doctor.config.ts'],
+    findings: 'generic',
+    hint: 'fix it in code, or add a reasoned doctor.config.ts entry; bun run check:react-doctor',
+  },
+  {
     id: 'waggle-dead-code',
     summary: 'no production-unused Waggle code (fallow)',
     commands: [bunScript('scripts/check-waggle-dead-code.ts')],
@@ -292,6 +277,8 @@ const STATIC_STEPS = [
   'lint',
   'repository-standards',
   'react-compiler',
+  'fallow',
+  'react-doctor',
   'waggle-dead-code',
   'renderer-bundle',
   'pi-main-bundle-smoke',
