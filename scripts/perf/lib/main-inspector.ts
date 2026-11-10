@@ -15,10 +15,13 @@ async function inspectorWebSocketUrl(port: number, deadline: number) {
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${String(port)}/json/list`)
-      const targets: unknown = await response.json()
-      const first: unknown = Array.isArray(targets) ? targets[0] : null
-      const url = isRecord(first) ? first.webSocketDebuggerUrl : null
-      if (typeof url === 'string') return url
+      // An inspector still starting can answer with an error status; poll again.
+      if (response.ok) {
+        const targets: unknown = await response.json()
+        const first: unknown = Array.isArray(targets) ? targets[0] : null
+        const url = isRecord(first) ? first.webSocketDebuggerUrl : null
+        if (typeof url === 'string') return url
+      }
     } catch {
       // The inspector is not listening yet.
     }

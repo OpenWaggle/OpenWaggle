@@ -200,6 +200,22 @@ const config: DoctorConfig = {
         files: ['src/main/adapters/project-actions/preparation-process.ts'],
         rules: ['react-doctor/async-defer-await'],
       },
+      {
+        // The Function body is the constant `return import(specifier)`; no input becomes
+        // code, only the specifier argument, which `import()` treats as a module name. It is
+        // the one way pi-waggle's CommonJS build gets a real `import()` for ESM-only pi-ai:
+        // TypeScript compiles a literal `import()` there to `require()`, which cannot load it.
+        files: ['packages/pi-waggle/src/esm-import.ts'],
+        rules: ['react-doctor/no-eval'],
+      },
+      {
+        // The flagged step runs the NSIS installer that the same job just built from this
+        // checkout with electron-builder (`dist/openwaggle-<version>-x64.exe`), to smoke it.
+        // Nothing is downloaded or fetched from another repository, so no trust boundary is
+        // crossed.
+        files: ['.github/workflows/nightly.yml'],
+        rules: ['react-doctor/plugin-update-trust-risk'],
+      },
     ],
   },
 }
