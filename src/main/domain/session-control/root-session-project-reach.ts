@@ -15,9 +15,14 @@ export const MAX_RUN_INITIATOR_CHAIN_HOPS = 256
 type ReachScope = Pick<LocalSessionProfileScope, 'all'>
 
 /** The local desktop user: the GUI, or the `openwaggle` CLI authenticated as the local user. */
+/** The person's exact caller ids; a `LOCAL_USER_CALLER_PREFIX` id is the person too. */
+export const LOCAL_USER_CALLER_IDS = ['local-user', 'gui:local-user'] as const
+export const LOCAL_USER_CALLER_PREFIX = 'local-user:'
+
 export function isLocalUserCallerId(callerId: string) {
   return (
-    callerId === 'local-user' || callerId === 'gui:local-user' || callerId.startsWith('local-user:')
+    LOCAL_USER_CALLER_IDS.some((id) => id === callerId) ||
+    callerId.startsWith(LOCAL_USER_CALLER_PREFIX)
   )
 }
 

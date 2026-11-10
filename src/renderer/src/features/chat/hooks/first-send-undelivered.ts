@@ -37,16 +37,15 @@ export function forgetUndeliveredFirstSend(
  * A refused first message in a Session that already exists goes back to the composer, which
  * restores it there whatever launch it had. So nothing else may offer to send it again: its
  * first-send recovery and its worktree launch row (Retry, Work locally) both go, or the message
- * could be sent twice. Returns whether the error was such a refusal.
+ * could be sent twice.
  */
 export function forgetRefusedFirstMessage(
   error: unknown,
   sessionId: SessionId,
   setFirstSendRecovery: (sessionId: SessionId, recovery: null) => void,
 ) {
-  if (!(error instanceof MessageNotDelivered) || error.outcome !== 'refused') return false
+  if (!(error instanceof MessageNotDelivered) || error.outcome !== 'refused') return
   setFirstSendRecovery(sessionId, null)
   const runs = useBackgroundRunStore.getState()
   if (runs.getWorktreeLaunch(sessionId) !== null) runs.setWorktreeLaunch(sessionId, null)
-  return true
 }

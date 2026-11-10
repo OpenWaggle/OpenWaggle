@@ -6,7 +6,11 @@ import {
   isScheduledTaskRunKey,
   scheduledTaskRunWork,
 } from '../domain/scheduled-tasks/scheduled-task-run-key'
-import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
+import {
+  isLocalUserCallerId,
+  LOCAL_USER_CALLER_IDS,
+  LOCAL_USER_CALLER_PREFIX,
+} from '../domain/session-control/root-session-project-reach'
 import { SETTINGS_KEY_SESSION_HOST_RUN_CEILING } from '../store/settings/keys'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
@@ -146,7 +150,7 @@ function isAgentsWorkRow(sql: SqlClient.SqlClient, row: ActiveRunRow) {
 
 interface ActiveRunRow {
   readonly session_id: string
-  /** An agent's `replace` is claimed and will start its Run here (`isLocalUserCallerId` in SQL). */
+  /** An agent's `replace` is claimed and will start its Run here (the person's ids, in SQL). */
   readonly agents_replacing: number
   readonly caller_id: string | null
   readonly idempotency_key: string | null
@@ -181,8 +185,8 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
             AND operations.operation = 'replace'
             AND operations.status = 'pending'
             AND NOT (
-              operations.caller_id IN ('local-user', 'gui:local-user')
-              OR operations.caller_id LIKE 'local-user:%'
+              operations.caller_id IN ${sql.in(LOCAL_USER_CALLER_IDS)}
+              OR operations.caller_id LIKE ${`${LOCAL_USER_CALLER_PREFIX}%`}
             )
         ) AS agents_replacing
       FROM session_control_states AS states

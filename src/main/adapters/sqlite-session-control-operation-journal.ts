@@ -150,13 +150,17 @@ function claimExternalOperation(
 
         const replaceRejection = yield* pendingPromotionReplaceRejection(sql, input)
         const state = yield* loadSessionControlState(sql, targetScope)
-        const capacityRejection = replaceRejection
-          ? undefined
-          : yield* replacementCapacityRejection(sql, input, targetScope)
-        const rejection = replaceRejection ?? capacityRejection
-        const decision = rejection
-          ? ({ accepted: false, outcome: rejection } as const)
+        const decided = replaceRejection
+          ? ({ accepted: false, outcome: replaceRejection } as const)
           : input.decide(state)
+        // Capacity is checked only for a claim that is otherwise valid, so a stale request gets
+        // its own code, not a retryable capacity one.
+        const capacityRejection = decided.accepted
+          ? yield* replacementCapacityRejection(sql, input, targetScope)
+          : undefined
+        const decision = capacityRejection
+          ? ({ accepted: false, outcome: capacityRejection } as const)
+          : decided
         const now = Date.now()
         if (decision.accepted) {
           if (decision.state) {

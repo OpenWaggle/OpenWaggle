@@ -108,6 +108,8 @@ export async function fire(
   taskId: string,
   now: number,
   trigger: 'schedule' | 'run-now' = 'schedule',
+  // Who asked for a Run now: the person, unless a test says an agent or profile did.
+  runNowBy: 'person' | 'agents' = 'person',
 ) {
   const { fireScheduledTask } = await import('../scheduled-task-firing')
   const { ScheduledTaskRepository } = await import('../../ports/scheduled-task-repository')
@@ -117,7 +119,10 @@ export async function fire(
       const repository = yield* ScheduledTaskRepository
       const record = yield* repository.get(taskId)
       if (!record) throw new Error('No such task.')
-      return yield* fireScheduledTask(sql, { record, trigger, now })
+      return yield* fireScheduledTask(
+        sql,
+        trigger === 'run-now' ? { record, trigger, now, runNowBy } : { record, trigger, now },
+      )
     }),
   )
 }

@@ -183,13 +183,11 @@ function dispatchFiring(
 /** One firing of a Scheduled task: its checks, its request, and its record (ADR 0057). */
 export function fireScheduledTask(
   sql: SqlClient.SqlClient,
-  input: {
-    readonly record: ScheduledTaskRecord
-    readonly trigger: 'schedule' | 'run-now'
-    readonly now: number
+  input: { readonly record: ScheduledTaskRecord; readonly now: number } & (
+    | { readonly trigger: 'schedule' }
     /** Whose work a Run now is: the person's, or the agent's or profile's that asked for it. */
-    readonly runNowBy?: ScheduledTaskRunWork
-  },
+    | { readonly trigger: 'run-now'; readonly runNowBy: ScheduledTaskRunWork }
+  ),
 ) {
   return Effect.gen(function* () {
     const repository = yield* ScheduledTaskRepository
@@ -207,7 +205,13 @@ export function fireScheduledTask(
       record,
       now,
       timing,
-      run: newRunStart(record, timing, now, previous, input.runNowBy),
+      run: newRunStart(
+        record,
+        timing,
+        now,
+        previous,
+        input.trigger === 'run-now' ? input.runNowBy : undefined,
+      ),
     }
     if (!resolution.live) {
       return yield* stopWithAttention(firing, 'creator-authority-revoked', resolution.message)

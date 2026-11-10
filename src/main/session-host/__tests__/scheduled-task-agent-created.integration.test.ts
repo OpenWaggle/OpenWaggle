@@ -61,6 +61,11 @@ describe('a Scheduled task a Session agent created', () => {
       callerId: 'local-user',
       workingDirectory: fixture.project,
     })
+    // The person asked for this Run now, so it is the person's work, though an agent made the
+    // task; an agent's Run now of it is the agent's (ADR 0030, amended 2026-11-09).
+    expect(JSON.stringify(dispatched.at(-1)?.payload)).toContain('scheduled-task-run:person:')
+    expect(await fire(task.id, Date.now() + 1, 'run-now', 'agents')).toBe('recorded')
+    expect(JSON.stringify(dispatched.at(-1)?.payload)).toContain('scheduled-task-run:agents:')
   })
 
   it('keeps a narrower agent authority as limits after its Session is gone', async () => {

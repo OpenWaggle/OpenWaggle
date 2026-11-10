@@ -249,4 +249,28 @@ describe('Worker limits when one Run hands a Session to the next', () => {
     })
     expect(result.activeWorkerRuns).toBe(3)
   })
+
+  it('counts an agent’s claimed replacement of the person’s Run, and never the person’s own', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'replace-count.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* personRunAtFullCeiling([])
+        const before = yield* countActiveWorkerRuns(sql)
+        const counted = (callerId: string) =>
+          Effect.gen(function* () {
+            yield* sql`DELETE FROM session_operations`
+            yield* replaceTarget(callerId, 'session-target', 'run-target', 100)
+            return yield* countActiveWorkerRuns(sql)
+          })
+        return {
+          before,
+          person: yield* counted('local-user:machine'),
+          app: yield* counted('gui:local-user'),
+          agent: yield* counted(AGENT_CALLER),
+        }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual({ before: 2, person: 2, app: 2, agent: 3 })
+  })
 })

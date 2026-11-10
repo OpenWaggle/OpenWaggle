@@ -21,13 +21,12 @@ describe('forgetRefusedFirstMessage', () => {
     })
     const setFirstSendRecovery = vi.fn()
 
-    const forgot = forgetRefusedFirstMessage(
+    forgetRefusedFirstMessage(
       new MessageNotDelivered('refused', 'git worktree add failed'),
       SESSION_ID,
       setFirstSendRecovery,
     )
 
-    expect(forgot).toBe(true)
     expect(setFirstSendRecovery).toHaveBeenCalledWith(SESSION_ID, null)
     expect(useBackgroundRunStore.getState().getWorktreeLaunch(SESSION_ID)).toBeNull()
   })
@@ -35,9 +34,7 @@ describe('forgetRefusedFirstMessage', () => {
   it('leaves a failure that was not a refusal alone', () => {
     const setFirstSendRecovery = vi.fn()
 
-    expect(forgetRefusedFirstMessage(new Error('boom'), SESSION_ID, setFirstSendRecovery)).toBe(
-      false,
-    )
+    forgetRefusedFirstMessage(new Error('boom'), SESSION_ID, setFirstSendRecovery)
     expect(setFirstSendRecovery).not.toHaveBeenCalled()
   })
 })
