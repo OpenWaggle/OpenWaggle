@@ -67,7 +67,7 @@ export type ReportWithoutRun = {
 /**
  * Ends a send whose report started no Run and says what the caller is owed. Queued: nothing, the
  * message is in the queue now. Refused: the reason, and the send ends here, since no Run will
- * report back. Cancelled: the reason only, as the user's Stop already reset the Session.
+ * report back. Cancelled: the reason, and the send ends here unless a Stop already reset it.
  */
 export function settleSendWithoutRun(
   sent: Parameters<typeof forgetSendWithoutRun>[0],
@@ -82,10 +82,12 @@ export function settleSendWithoutRun(
       forgetSendWithoutRun(sent)
       return new MessageNotDelivered(refused.outcome, refused.message, refused.code)
     })
-    .with(
-      'cancelled',
-      (cancelled) => new MessageNotDelivered(cancelled.outcome, cancelled.message, cancelled.code),
-    )
+    .with('cancelled', (cancelled) => {
+      // The person's Stop here already reset the Session. Cancelled elsewhere (another window,
+      // the CLI), the send is still followed: it leaves the chain, handing back what it displaced.
+      if (sent.refs.pendingRunWaiterRef.current !== null) forgetSendWithoutRun(sent)
+      return new MessageNotDelivered(cancelled.outcome, cancelled.message, cancelled.code)
+    })
     .exhaustive()
 }
 

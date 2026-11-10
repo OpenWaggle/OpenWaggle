@@ -108,4 +108,26 @@ describe('composer send the Session refused for a reason it already shows', () =
     await waitFor(() => expect(logged.error).toHaveBeenCalledOnce())
     expect(onToast).not.toHaveBeenCalled()
   })
+
+  it('toasts an unexpected failure it was told about, and logs it as an error', async () => {
+    const send = rejectedSend()
+    const onToast = vi.fn()
+    const notice = 'Could not send: handler died. Your message is back in the composer.'
+    const { result } = renderSubmission({
+      onSend: send.onSend,
+      onSendFailure: () => ({ kind: 'restore', notice, unexpected: true }),
+      onToast,
+    })
+
+    act(() => result.current.handleSubmit())
+    await act(async () => {
+      send.reject(new Error('handler died'))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(useComposerStore.getState().input).toBe('Are you there?'))
+    expect(onToast).toHaveBeenCalledExactlyOnceWith(notice)
+    expect(logged.error).toHaveBeenCalledOnce()
+    expect(logged.warn).not.toHaveBeenCalled()
+  })
 })

@@ -18,6 +18,7 @@ import {
   clearRunPointers,
   normalizeError,
   offerRunCompletion,
+  stopFollowingSends,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import {
@@ -224,12 +225,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       /*
        * Distinguished, because a caller cannot tell these apart otherwise and one of them must not be
        * treated as a lost message: the run failing says nothing about whether the message arrived.
-       *
-       * The evidence is the agent reporting the turn started, not this invoke resolving. Main recovers every
-       * run failure into a value and resolves - including a refusal raised before the message is recorded,
-       * such as a session whose worktree has gone - so "the send resolved" labelled undelivered messages
-       * delivered, and the caller that restores a review then discarded it. Absent that evidence the failure
-       * is reported as undelivered, which is the side that keeps the user's work.
+       * The evidence is the agent reporting the turn started, not this invoke resolving. Main recovers
+       * every run failure into a value and resolves - including a refusal raised before the message is
+       * recorded, such as a session whose worktree has gone - so "the send resolved" labelled
+       * undelivered messages delivered, and the caller that restores a review then discarded it.
+       * Absent that evidence the failure is reported as undelivered, which keeps the user's work.
        */
       /*
        * Delivered only if main said so. This catch also covers the invoke itself rejecting - a payload the
@@ -299,7 +299,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         refs.terminalRunErrorRef.current = normalizedError
       })
     }
-    settlePendingRun(refs)
+    stopFollowingSends(refs)
     resetRunUiState(params)
   }
 

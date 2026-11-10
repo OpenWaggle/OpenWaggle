@@ -155,5 +155,8 @@ export function sendFailureText(
   if (refusal) return refusalSummary(refusal, leads.refused)
   const cause = error instanceof FirstSendFailed ? error.cause : error
   const message = cause instanceof Error ? cause.message : String(cause)
-  return leads.failed ? `${leads.failed}: ${message}` : message
+  // A failure no Session error shows needs saying that the message did not go.
+  const failed =
+    leads.failed ?? (cause instanceof SendFailedOutOfView ? 'Could not send' : undefined)
+  return failed ? `${failed}: ${message}` : message
 }

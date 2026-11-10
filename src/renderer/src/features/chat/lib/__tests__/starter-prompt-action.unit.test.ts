@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MessageNotDelivered } from '../message-delivery'
+import { MessageNotDelivered, SendFailedOutOfView } from '../message-delivery'
 import { sendStarterPrompt } from '../starter-prompt-action'
 
 function send(error: unknown) {
@@ -25,5 +25,11 @@ describe('sendStarterPrompt', () => {
     )
 
     expect(showToast).toHaveBeenCalledWith(expect.stringContaining('(queue_capacity_reached)'))
+  })
+
+  it('says a send failed behind another send’s Run did not go', async () => {
+    const showToast = await send(new SendFailedOutOfView(new Error('handler died')))
+
+    expect(showToast).toHaveBeenCalledWith('Could not send: handler died')
   })
 })

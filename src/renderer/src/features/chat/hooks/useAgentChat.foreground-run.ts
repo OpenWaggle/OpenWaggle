@@ -195,6 +195,8 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
   }
 
   /** Whether this send displaced an earlier send still waiting on its Run. */
+  displacedOf.set(tracked, () => previous.waiter)
+
   function displacesPendingSend() {
     return previous.waiter !== null
   }
@@ -212,6 +214,35 @@ function createForegroundRunWaiter(displaced: ForegroundRunState) {
 
 /** Each pending send's waiter, to the later send that displaced it from the foreground. */
 const displacedBy = new WeakMap<PendingRunWaiter, ForegroundRun>()
+/** Each send's waiter, to the waiter of the earlier send it displaced, while that one waits. */
+const displacedOf = new WeakMap<PendingRunWaiter, () => PendingRunWaiter | null>()
+
+/**
+ * Settles every earlier send the followed `waiter` displaced, once the Session stops being
+ * followed (Stop, a switch away). Only the followed send was settled before, so an earlier one
+ * whose Run was still settling waited forever, and the Session's pickers stayed locked behind it.
+ */
+export function settleDisplacedSends(waiter: PendingRunWaiter | null) {
+  let next = waiter ? (displacedOf.get(waiter)?.() ?? null) : null
+  while (next) {
+    const earlier = next
+    next = displacedOf.get(earlier)?.() ?? null
+    earlier.resolve()
+  }
+}
+
+/** Stop: the followed send settles, and so does every earlier send it displaced. */
+export function stopFollowingSends(refs: Pick<ForegroundRunRefs, 'pendingRunWaiterRef'>) {
+  const pending = refs.pendingRunWaiterRef.current
+  if (!pending) return
+  if (
+    offerRunCompletion(pending, {}) === 'settled' &&
+    refs.pendingRunWaiterRef.current === pending
+  ) {
+    refs.pendingRunWaiterRef.current = null
+  }
+  settleDisplacedSends(pending)
+}
 
 function restoreVisibleRunState(
   refs: ForegroundRunRefs,

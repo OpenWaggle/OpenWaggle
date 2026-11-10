@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import { SendFailedOutOfView } from '../../lib/message-delivery'
-import { beginForegroundRun } from '../useAgentChat.foreground-run'
+import { beginForegroundRun, settleDisplacedSends } from '../useAgentChat.foreground-run'
 import { createPendingRunWaiter } from '../useAgentChat.message-cache'
 import {
   forgetIfFailedOutOfView,
@@ -205,5 +205,25 @@ describe('the newest send failing while an earlier Run still settles', () => {
 
     expect(forgetIfFailedOutOfView(sent, new Error('handler died'))).toBeUndefined()
     expect(refs.pendingRunWaiterRef.current).toBe(send.waiter)
+  })
+})
+
+// A switch away or Stop stops following the Session: every send in the chain settles.
+describe('settling the sends a followed send displaced', () => {
+  it('settles each earlier send, however far back', async () => {
+    const { refs, setters } = foreground()
+    const first = createPendingRunWaiter()
+    const settled: string[] = []
+    void first.promise.then(() => settled.push('first'))
+    refs.pendingRunWaiterRef.current = first.waiter
+    const second = beginForegroundRun(refs, setters, SESSION)
+    void second.promise.then(() => settled.push('second'))
+    const third = beginForegroundRun(refs, setters, SESSION)
+
+    settleDisplacedSends(third.waiter)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(settled.sort()).toEqual(['first', 'second'])
   })
 })

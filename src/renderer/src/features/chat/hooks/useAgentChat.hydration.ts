@@ -8,6 +8,7 @@ import {
 } from '../lib/useAgentChat.utils'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
+import { settleDisplacedSends } from './useAgentChat.foreground-run'
 import {
   buildOptimisticMessagesKey,
   buildSessionSnapshotKey,
@@ -25,6 +26,7 @@ function resolvePendingForegroundRun(context: SessionHydrationContext) {
   const pending = context.pendingRunWaiterRef.current
   context.pendingRunWaiterRef.current = null
   pending?.resolve()
+  settleDisplacedSends(pending)
 }
 
 function clearForegroundRunState(context: SessionHydrationContext) {
