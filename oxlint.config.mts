@@ -95,7 +95,11 @@ const UNSAFE_TYPE_RULES_OFF: DummyRuleMap = {
 }
 
 const TYPE_AWARE_RULES: DummyRuleMap = {
-  'typescript/ban-ts-comment': 'error',
+  // TS-08: no TypeScript directive comment, @ts-expect-error included.
+  'typescript/ban-ts-comment': [
+    'error',
+    { 'ts-expect-error': true, 'ts-ignore': true, 'ts-nocheck': true, 'ts-check': false },
+  ],
   'typescript/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
   'typescript/no-array-constructor': 'error',
   'typescript/no-deprecated': 'error',

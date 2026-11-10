@@ -27,6 +27,8 @@ import {
   packageBoundarySourceGlobs,
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
+import { GATE_CHECKS } from './agent-gate/gate-checks'
+import { collectRuleCatalogueViolations } from './standards/rule-catalogue'
 import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
 import { collectRepositorySkillsLockViolations } from './standards/skills-lock'
 import { collectSqliteLibraryViolations } from './standards/sqlite-library'
@@ -164,6 +166,7 @@ async function main() {
 
   violations.push(...collectDuplicateExportedTypes(contentsByFile))
   violations.push(...collectAgentMemoryIndexViolations(contentsByFile))
+  violations.push(...collectRuleCatalogueViolations(contentsByFile, new Set(GATE_CHECKS)))
   violations.push(
     ...collectRendererDesignTokenExemptionViolations(
       new Set(contentsByFile.keys()),
