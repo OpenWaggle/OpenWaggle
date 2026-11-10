@@ -10,7 +10,12 @@ import type {
   ExtensionPackageScope,
 } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
-import { SQLITE_BOOLEAN } from '../services/database-constants'
+import {
+  booleanToSqlite,
+  scopeFromColumns,
+  scopeToColumns,
+  sqliteToBoolean,
+} from './sqlite-extension-scope-columns'
 
 interface ExtensionLifecycleRow {
   readonly extension_id: string
@@ -47,33 +52,6 @@ const stringArraySchema = Schema.mutable(Schema.Array(Schema.String))
 const buildStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)
 const reloadStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.RELOAD_STATUSES)
 
-function booleanToSqlite(value: boolean) {
-  return value ? SQLITE_BOOLEAN.TRUE : SQLITE_BOOLEAN.FALSE
-}
-
-function sqliteToBoolean(value: number) {
-  return value === SQLITE_BOOLEAN.TRUE
-}
-
-function scopeToColumns(scope: ExtensionPackageScope) {
-  return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-    ? {
-        scopeKind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
-        scopeId: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_ID,
-      }
-    : { scopeKind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, scopeId: scope.projectPath }
-}
-
-function scopeFromColumns(scopeKind: string, scopeId: string): ExtensionPackageScope {
-  if (scopeKind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
-  }
-  if (scopeKind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: scopeId }
-  }
-  throw new Error(`Unknown extension lifecycle scope kind "${scopeKind}".`)
-}
-
 function decodeJsonField<A, I>(
   schema: Schema.Schema<A, I, never>,
   raw: string,
@@ -99,7 +77,7 @@ function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleStat
 
   return {
     extensionId: row.extension_id,
-    scope: scopeFromColumns(row.scope_kind, row.scope_id),
+    scope: scopeFromColumns(row.scope_kind, row.scope_id, 'extension lifecycle'),
     enabled: sqliteToBoolean(row.enabled),
     trusted: sqliteToBoolean(row.trusted),
     grantedCapabilities: decodeJsonField(
