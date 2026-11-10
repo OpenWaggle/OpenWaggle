@@ -219,7 +219,7 @@ describe('runsAsAfterUpdate', () => {
       authorityLimits: null,
       creator: { kind: 'local-user', label: 'You' },
     })
-    // What the app's editor sends when only the name or schedule changed.
+    // The task's own work again, padded as a CLI or agent caller might send it.
     const echo = {
       prompt: PROFILE_TASK.prompt,
       target: PROFILE_TASK.target,
