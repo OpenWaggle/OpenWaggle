@@ -38,6 +38,7 @@ export interface Fixture {
   running: Set<string>
   /** Idle parents a Hive wake is still coming for. */
   wakeComing: Set<string>
+  agentMade: Set<string>
   /** Root Runs the person started while Workers below were running. */
   midWorkRuns: Set<string>
   /** Each Session's latest Run as stored, when a test needs one. */
@@ -71,6 +72,7 @@ export function setup(overrides: Partial<Fixture> = {}) {
     parents: {},
     running: new Set(),
     wakeComing: new Set(),
+    agentMade: new Set(),
     midWorkRuns: new Set(),
     latestRuns: {},
     ...overrides,
@@ -95,11 +97,15 @@ export function setup(overrides: Partial<Fixture> = {}) {
           rootRunning: fixture.running.has(root),
           workersRunning: workers.some((id) => fixture.running.has(id)),
           wakeComing: [root, ...workers].some((id) => fixture.wakeComing.has(id)),
+          // Workers are agent-made; the root is the person's unless the fixture says otherwise.
+          limitedWakeComing: [root, ...workers].some(
+            (id) => fixture.wakeComing.has(id) && (id !== root || fixture.agentMade.has(id)),
+          ),
           runStartedWhileWorkersRan: runId !== null && fixture.midWorkRuns.has(runId),
         }
       }),
     latestRun: (id) => Effect.succeed(fixture.latestRuns[id] ?? null),
-    hostActiveRunCount: () => Effect.succeed(fixture.running.size),
+    activeWorkerRunCount: () => Effect.succeed(fixture.running.size),
     lastVisitedAt: (id) => Effect.succeed(fixture.visits[id] ?? null),
     stuckWorkerIds: () => Effect.succeed([...fixture.stuck]),
     runsInterruptedByHostLossSince: () => Effect.succeed([{ sessionId: 'root', runId: 'run-1' }]),

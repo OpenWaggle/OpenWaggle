@@ -1,4 +1,5 @@
 import { classifyErrorMessage } from '@shared/types/errors'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 
 /**
  * Whether a failed send had already delivered the message.
@@ -42,15 +43,34 @@ export function wasMessageDelivered(error: unknown) {
  */
 export class MessageNotDelivered extends Error {
   readonly outcome: 'refused' | 'cancelled'
+  /** The Host's refusal code, when it gave one (`queue_capacity_reached`, ...). */
+  readonly code: string | undefined
 
-  constructor(outcome: 'refused' | 'cancelled', message?: string) {
+  constructor(outcome: 'refused' | 'cancelled', message?: string, code?: string) {
     super(message ?? DEFAULT_NOT_DELIVERED_MESSAGE)
     this.name = 'MessageNotDelivered'
     this.outcome = outcome
+    this.code = code
   }
 }
 
-const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
+export const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
+
+/**
+ * A send whose call to the main process failed before any Run while another send's Run owned the
+ * Session's status (a later send, or an earlier one still settling), so no error of the Session's
+ * shows it. Not a refusal: the caller says why in a toast and logs it as the failure it is. The
+ * message drops Electron's transport prefix.
+ */
+export class SendFailedOutOfView extends Error {
+  readonly cause: Error
+
+  constructor(cause: Error) {
+    super(ipcErrorMessage(cause))
+    this.name = 'SendFailedOutOfView'
+    this.cause = cause
+  }
+}
 
 /** Whether this failure is worth showing the user, as opposed to one they caused by stopping the run. */
 export function isReportableSendFailure(error: unknown) {
@@ -87,4 +107,56 @@ export class FirstSendFailed extends Error {
 /** The session a failed first send created, or null when the failure was not a first send. */
 export function createdSessionIdOf(error: unknown) {
   return error instanceof FirstSendFailed ? error.createdSessionId : null
+}
+
+/** What the Session Host's refusal codes a person's send can still meet mean, in plain words. */
+const REFUSAL_REASONS = new Map([
+  ['queue_capacity_reached', 'this Session already has as many queued messages as it can hold'],
+  ['queue_byte_capacity_reached', 'this Session’s queued messages are already as large as allowed'],
+  ['follow_up_reserved', 'a steered message is still being delivered to the running agent'],
+])
+
+/**
+ * What a refused send says: the Host's own words when it wrote some, else what its code means.
+ * The code is kept for support.
+ */
+export function refusalSummary(refusal: MessageNotDelivered, lead = 'Not sent') {
+  const { code, message } = refusal
+  const readable = message !== DEFAULT_NOT_DELIVERED_MESSAGE && message !== code
+  const written = readable
+    ? midSentence(message.endsWith('.') ? message.slice(0, -1) : message)
+    : undefined
+  const reason = written ?? (code ? REFUSAL_REASONS.get(code) : undefined)
+  if (reason) return code ? `${lead}: ${reason} (${code}).` : `${lead}: ${reason}.`
+  return code ? `${lead}: the Session Host refused it (${code}).` : `${lead}.`
+}
+
+/** A sentence the Host wrote, to follow a colon: its capital goes, unless it starts an acronym. */
+function midSentence(sentence: string) {
+  const [first = '', second = ''] = sentence
+  return second === second.toLowerCase() ? first.toLowerCase() + sentence.slice(1) : sentence
+}
+
+/** The refusal behind a send that failed, a first send's too, or undefined. */
+export function sendRefusalOf(error: unknown) {
+  const cause = error instanceof FirstSendFailed ? error.cause : error
+  return cause instanceof MessageNotDelivered && cause.outcome === 'refused' ? cause : undefined
+}
+
+/**
+ * A send failure in words for a toast: a refusal says why after `leads.refused`, anything else
+ * gives its own message after `leads.failed` when there is one.
+ */
+export function sendFailureText(
+  error: unknown,
+  leads: { readonly refused?: string; readonly failed?: string } = {},
+) {
+  const refusal = sendRefusalOf(error)
+  if (refusal) return refusalSummary(refusal, leads.refused)
+  const cause = error instanceof FirstSendFailed ? error.cause : error
+  const message = cause instanceof Error ? cause.message : String(cause)
+  // A failure no Session error shows needs saying that the message did not go.
+  const failed =
+    leads.failed ?? (cause instanceof SendFailedOutOfView ? 'Could not send' : undefined)
+  return failed ? `${failed}: ${message}` : message
 }

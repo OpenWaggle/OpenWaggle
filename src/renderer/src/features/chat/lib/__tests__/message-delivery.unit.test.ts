@@ -4,6 +4,7 @@ import {
   isReportableSendFailure,
   MessageDeliveredRunFailed,
   MessageNotDelivered,
+  sendFailureText,
   wasMessageDelivered,
 } from '../message-delivery'
 
@@ -45,5 +46,36 @@ describe('message delivery reporting', () => {
 
     expect(isReportableSendFailure(cancelled)).toBe(false)
     expect(isReportableSendFailure(refused)).toBe(true)
+  })
+})
+
+// Retry, starter prompts and diff review toast it: a raw code told the person nothing.
+describe('sendFailureText', () => {
+  it('says why the Host refused a send in plain words, keeping the code', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'queue_capacity_reached',
+      'queue_capacity_reached',
+    )
+    expect(sendFailureText(refusal)).toBe(
+      'Not sent: this Session already has as many queued messages as it can hold (queue_capacity_reached).',
+    )
+  })
+
+  it('says why a new Session’s first send was refused, under the caller’s lead', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'queue_capacity_reached',
+      'queue_capacity_reached',
+    )
+    expect(
+      sendFailureText(new FirstSendFailed(refusal, 'created'), { refused: 'Review not sent' }),
+    ).toBe(
+      'Review not sent: this Session already has as many queued messages as it can hold (queue_capacity_reached).',
+    )
+  })
+
+  it('keeps any other failure’s own message', () => {
+    expect(sendFailureText(new Error('Network down'))).toBe('Network down')
   })
 })

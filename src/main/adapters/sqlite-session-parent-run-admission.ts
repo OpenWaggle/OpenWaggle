@@ -79,3 +79,16 @@ export function directWorkerRunAdmission(sql: SqlClient.SqlClient, sessionId: st
     } as const
   })
 }
+
+/** The stored **Active Workers** ceiling, for a path that has no settings snapshot (settlement). */
+export function storedHostRunCeiling(sql: SqlClient.SqlClient) {
+  return sql<SettingRow>`
+    SELECT key, value_json FROM settings_store WHERE key = ${'sessionHostRunCeiling'} LIMIT 1
+  `.pipe(
+    Effect.map(
+      (rows) =>
+        positiveSafeInteger(rows[0] ? parseJsonUnknown(rows[0].value_json) : undefined) ??
+        DEFAULT_SETTINGS.sessionHostRunCeiling,
+    ),
+  )
+}

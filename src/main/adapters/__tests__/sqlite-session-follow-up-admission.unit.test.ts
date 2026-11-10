@@ -19,13 +19,17 @@ describe('SQLite Session Follow-up admission', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('applies the app-wide Run ceiling when an idle Follow-up becomes the next Run', async () => {
+  it('applies the Worker ceiling when an agent’s idle Follow-up becomes a Worker’s next Run', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'host-ceiling.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS settings_store (
+          key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL
+        )`)
         yield* sql`
-          INSERT INTO sessions (id, project_path) VALUES (${'session-running'}, ${'/project'})
+          INSERT INTO sessions (id, project_path)
+          VALUES (${'queen'}, ${'/project'}), (${'session-running'}, ${'/project'})
         `
         yield* sql`
           INSERT INTO session_runs (
@@ -41,8 +45,21 @@ describe('SQLite Session Follow-up admission', () => {
             ${'session-running'}, ${1}, ${'run-running'}, ${'running'}, ${0}, ${1}
           )
         `
+        // The running Session and the target are both Workers of an idle Queen.
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (${'run-queen'}, ${'queen'}, ${'completed'}, ${null}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_spawn_lineage (
+            child_session_id, parent_session_id, parent_run_id,
+            hive_root_session_id, depth, created_at
+          ) VALUES
+            (${'session-running'}, ${'queen'}, ${'run-queen'}, ${'queen'}, ${1}, ${1}),
+            (${'session-target'}, ${'queen'}, ${'run-queen'}, ${'queen'}, ${1}, ${2})
+        `
         const response = yield* queueSessionFollowUp({
-          callerId: 'local-user',
+          callerId: 'transient-mcp:digest-agent',
           hostRunCeiling: 1,
           request: {
             contractVersion: SESSION_CONTROL_CONTRACT_VERSION,

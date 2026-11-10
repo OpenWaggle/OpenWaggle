@@ -13,6 +13,7 @@ import {
 import * as Effect from 'effect/Effect'
 import { powerMonitor, webContents } from 'electron'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { closedWindowFollowUpEditHoldKey } from '../domain/session-control/follow-up-edit-hold-release-key'
 import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import {
@@ -64,7 +65,7 @@ function renewHold(hold: WindowFollowUpEditHold) {
 }
 
 function releaseHold(hold: WindowFollowUpEditHold) {
-  const key = `follow-up-edit-window-closed:${hold.holdId}`
+  const key = closedWindowFollowUpEditHoldKey(hold.holdId)
   return runGuiEffect(
     dispatchGuiCommand({
       contract: 'session-control-v2',

@@ -8,6 +8,7 @@ import {
 } from '../lib/useAgentChat.utils'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
+import { isSendToOtherSession, settleDisplacedSends } from './useAgentChat.foreground-run'
 import {
   buildOptimisticMessagesKey,
   buildSessionSnapshotKey,
@@ -25,6 +26,7 @@ function resolvePendingForegroundRun(context: SessionHydrationContext) {
   const pending = context.pendingRunWaiterRef.current
   context.pendingRunWaiterRef.current = null
   pending?.resolve()
+  settleDisplacedSends(pending)
 }
 
 function clearForegroundRunState(context: SessionHydrationContext) {
@@ -33,8 +35,17 @@ function clearForegroundRunState(context: SessionHydrationContext) {
   context.terminalRunErrorRef.current = undefined
 }
 
-export function resetMissingSessionHydration(context: SessionHydrationContext) {
-  if (context.foregroundStreamActiveRef.current) {
+export function resetMissingSessionHydration(
+  context: SessionHydrationContext,
+  sessionId: SessionId | null,
+) {
+  const pending = context.pendingRunWaiterRef.current
+  // A send to the Session left behind settles, even when a completion it held cleared the flag.
+  // With no Session at all (New conversation), any followed send is elsewhere: first sends are
+  // never followed here.
+  const sentElsewhere =
+    pending !== null && (sessionId === null || isSendToOtherSession(pending, sessionId))
+  if (context.foregroundStreamActiveRef.current || sentElsewhere) {
     resolvePendingForegroundRun(context)
   }
   clearForegroundRunState(context)
@@ -94,7 +105,12 @@ function shouldKeepForegroundHydration(
   keys: SessionHydrationKeys,
   context: SessionHydrationContext,
 ) {
+  const pending = context.pendingRunWaiterRef.current
   if (!context.foregroundStreamActiveRef.current) {
+    // A send still in flight to the Session left behind settles, with every send it displaced.
+    if (pending && isSendToOtherSession(pending, input.sessionId)) {
+      resolvePendingForegroundRun(context)
+    }
     return false
   }
   if (context.foregroundSessionIdRef.current !== input.sessionId) {

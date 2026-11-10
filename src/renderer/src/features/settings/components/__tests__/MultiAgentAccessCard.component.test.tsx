@@ -24,11 +24,11 @@ describe('MultiAgentAccessCard', () => {
 
     expect(screen.getByRole('switch', { name: 'Allow agents to create Workers' })).toBeChecked()
     expect(screen.getByRole('button', { name: 'Increase Workers per parent' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Increase Active agent runs' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Increase Active Workers' })).toBeInTheDocument()
     expect(screen.queryByText('Host idle grace (ms)')).not.toBeInTheDocument()
     expect(screen.queryByText('Current project agents')).not.toBeInTheDocument()
 
-    const runs = screen.getByRole('spinbutton', { name: 'Active agent runs' })
+    const runs = screen.getByRole('spinbutton', { name: 'Active Workers' })
     fireEvent.change(runs, { target: { value: '100' } })
     fireEvent.blur(runs)
 
