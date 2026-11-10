@@ -26,6 +26,9 @@ const REFUSAL_REASONS: ReadonlyMap<string, string> = new Map([
   ['capability_denied', 'this client may not send messages to this Session.'],
   ['target_not_found', 'this Session no longer exists.'],
   ['host_draining', 'the Session Host is restarting; send it again in a moment.'],
+  // From a Session Host older than this app, which still limited the person's Runs.
+  ['host_run_ceiling_reached', "agents' work is at the Active Workers limit."],
+  ['parent_concurrency_limit_reached', "agents' work is at the Workers per parent limit."],
 ])
 
 /** Ends the Host's words with a full stop when they have none, so the toast reads as two sentences. */

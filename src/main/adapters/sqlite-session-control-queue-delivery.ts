@@ -143,14 +143,18 @@ export function deliverAfterQueueDecision(
         outcome: queueUpdated(operation, delivery.state, withdrawn),
       }
     }
-    const refusal = (yield* holdsPersonFollowUp(sql, delivery.state.followUpQueue.items))
-      ? undefined
-      : yield* newRunAdmissionRefusal(
-          sql,
-          delivery.state,
-          input.hostRunCeiling,
-          input.requestCaller,
-        )
+    // A running queue delivers in order: holding back its agent head would hold back the person's
+    // Follow-up behind it. A paused one (a failed Run's retry) does not go on to the person's.
+    const queueRuns = delivery.state.followUpQueue.state === 'running'
+    const refusal =
+      queueRuns && (yield* holdsPersonFollowUp(sql, delivery.state.followUpQueue.items))
+        ? undefined
+        : yield* newRunAdmissionRefusal(
+            sql,
+            delivery.state,
+            input.hostRunCeiling,
+            input.requestCaller,
+          )
     if (refusal) {
       // Both Worker limits pause as `parent-limit`, a reason every binary decodes: it marks a
       // queue that waits on capacity, delivered again when the Session's Run settles with the

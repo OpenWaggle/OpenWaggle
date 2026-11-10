@@ -127,14 +127,10 @@ describe('Session image send failure ownership', () => {
     })
   })
 
-  it('says why the Host refused a send, naming its code', () => {
-    const refusal = new MessageNotDelivered(
-      'refused',
-      'host_run_ceiling_reached',
-      'host_run_ceiling_reached',
-    )
+  it('says why the Host refused a send, naming a code it has no sentence for', () => {
+    const refusal = new MessageNotDelivered('refused', 'some_new_code', 'some_new_code')
     const notice =
-      'Not sent: the Session Host refused it (host_run_ceiling_reached). Your message is back in the composer.'
+      'Not sent: the Session Host refused it (some_new_code). Your message is back in the composer.'
 
     expect(disposition({ cause: refusal })).toEqual({ kind: 'restore', notice })
     expect(
@@ -212,6 +208,20 @@ describe('Session image send failure ownership', () => {
     ).toEqual({
       kind: 'restore',
       notice: 'Not sent: Session not found. Your message is back in the composer.',
+    })
+  })
+
+  it('explains an older Session Host’s capacity refusal in words', () => {
+    const refusal = new MessageNotDelivered(
+      'refused',
+      'host_run_ceiling_reached',
+      'host_run_ceiling_reached',
+    )
+
+    expect(disposition({ cause: refusal })).toEqual({
+      kind: 'restore',
+      notice:
+        "Not sent: agents' work is at the Active Workers limit. Your message is back in the composer.",
     })
   })
 })
