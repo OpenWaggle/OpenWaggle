@@ -47,6 +47,11 @@ export interface DesktopNotificationHiveActivity {
    */
   readonly wakeComing: boolean
   /**
+   * The wake coming is for an agent-made Session, a Worker or a root an agent made, so a full
+   * Active Workers limit defers it. A wake of the person's own Session is never held back.
+   */
+  readonly limitedWakeComing: boolean
+  /**
    * The message behind the Run asked about was sent while a Worker below the root was running:
    * the person asked about work in progress. It is judged by when the Host accepted the message,
    * so a queued Follow-up counts from when it was sent. False when no Run was named.

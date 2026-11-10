@@ -66,8 +66,8 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
   })
 }
 
-/** Whether an agent made `sessionId` (see `AGENT_MADE_SESSION`). */
-function isAgentMadeSession(sql: SqlClient.SqlClient, sessionId: string) {
+/** Whether an agent made `sessionId` (see `AGENT_MADE_SESSION`): only its Runs the Worker limits hold back. */
+export function isAgentMadeSession(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly agentMade: number }>`
       SELECT EXISTS (

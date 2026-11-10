@@ -2,7 +2,11 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSendReport } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import { isPiSessionFileRefusal, MessageNotDelivered } from '../lib/message-delivery'
+import {
+  isPiSessionFileRefusal,
+  MessageNotDelivered,
+  SendFailedBehindLaterSend,
+} from '../lib/message-delivery'
 import { useBackgroundRunStore } from '../state/background-run-store'
 import {
   clearRunPointers,
@@ -35,14 +39,14 @@ export function forgetSendWithoutRun(input: {
 /**
  * A send whose invoke failed before any Run while a later send owns the foreground and its status.
  * It leaves the chain, or that send hands back its Thinking, and the transcript. No error of the
- * Session's will show it, so it goes back undelivered, for the caller's toast to say why.
+ * Session's will show it, so the caller's toast says why.
  */
 export function forgetSendFailedBehind(
   sent: Parameters<typeof forgetSendWithoutRun>[0],
   error: Error,
 ) {
   forgetSendWithoutRun(sent)
-  return new MessageNotDelivered('refused', error.message)
+  return new SendFailedBehindLaterSend(error)
 }
 
 /** A send's report that started no Run. */
@@ -137,12 +141,13 @@ function dropOptimisticSend(input: {
 }
 
 /**
- * Whether a failed first send leaves nothing to recover: the Host refused it before any Run, so
- * the message goes back to the composer. A worktree launch that failed is reported refused too,
+ * Whether a failed first send leaves nothing to recover: the Host refused it, or its call failed
+ * behind a later send, before any Run, so the message goes back to the composer. A worktree launch that failed is reported refused too,
  * but its row offers Retry and keeps the draft, so its recovery stays.
  */
 export function refusalLeavesNothingToRecover(sessionId: SessionId, error: unknown) {
-  if (!(error instanceof MessageNotDelivered && error.outcome === 'refused')) return false
+  const refused = error instanceof MessageNotDelivered && error.outcome === 'refused'
+  if (!refused && !(error instanceof SendFailedBehindLaterSend)) return false
   return useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === null
 }
 

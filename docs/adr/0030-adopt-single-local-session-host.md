@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Amended 2026-11-06: an idle parent is woken when its Workers report (see the Amendment at the end).
+Amended 2026-11-06: an idle parent is woken when its Workers report. Amended 2026-11-09: the run ceiling counts and limits Worker Runs only, never refusing the person (see the Amendments at the end).
 
 OpenWaggle uses one per-user local process as the authority for live agent runs and cross-session control. Electron, CLI, MCP, and internal agents share that authority instead of coordinating through renderer memory, direct database writes, or loopback MCP.
 

@@ -161,7 +161,8 @@ export class ReadyToReadAfterWorkers {
    * A wake the Host refused for a reason the facts do not repeat (draining, the pi CLI wrote last,
    * a deferred wake dropped) leaves its update pending, so the Hive looks as if a wake were still
    * coming forever. The sweep waits out the observer's own lag first, so a Run that just settled
-   * is announced by its event, and while the Host's Run limit is full a wake is only deferred.
+   * is announced by its event, and while Active Workers is full an agent-made Session's wake is
+   * only deferred. The person's own Queen's wake never is, so its grace still runs out.
    */
   settleHeld(at: number, runLimitFull: boolean) {
     return Effect.forEach(
@@ -205,7 +206,7 @@ export class ReadyToReadAfterWorkers {
       if (!held) return
       const work = yield* this.dependencies.facts.hiveActivity(rootSessionId, null)
       if (this.held.get(rootSessionId) !== held) return
-      if (work.rootRunning || work.workersRunning || (work.wakeComing && runLimitFull)) {
+      if (work.rootRunning || work.workersRunning || (work.limitedWakeComing && runLimitFull)) {
         this.quietSince.delete(rootSessionId)
         return
       }

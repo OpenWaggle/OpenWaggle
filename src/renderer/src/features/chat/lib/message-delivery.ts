@@ -1,4 +1,5 @@
 import { classifyErrorMessage } from '@shared/types/errors'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 
 /**
  * Whether a failed send had already delivered the message.
@@ -54,6 +55,21 @@ export class MessageNotDelivered extends Error {
 }
 
 export const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this message.'
+
+/**
+ * A send whose call to the main process failed before any Run while a later send owned the
+ * Session's status, so no error of the Session's shows it. Not a refusal: the caller says why in
+ * a toast and logs it as the failure it is. The message drops Electron's transport prefix.
+ */
+export class SendFailedBehindLaterSend extends Error {
+  readonly cause: Error
+
+  constructor(cause: Error) {
+    super(ipcErrorMessage(cause))
+    this.name = 'SendFailedBehindLaterSend'
+    this.cause = cause
+  }
+}
 
 /** Whether this failure is worth showing the user, as opposed to one they caused by stopping the run. */
 export function isReportableSendFailure(error: unknown) {

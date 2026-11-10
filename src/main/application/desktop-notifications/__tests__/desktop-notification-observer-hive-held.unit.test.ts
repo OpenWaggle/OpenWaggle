@@ -116,12 +116,12 @@ describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0063)'
     expect(shownKinds(published)).toEqual(['shown:completed'])
   })
 
-  it('never gives up on a wake that a full Run limit only defers', async () => {
+  it('never gives up on a Worker’s wake that a full Active Workers limit only defers', async () => {
     const { emit, published, fixture, observer } = hive()
     fixture.running = new Set(['w1'])
     await emit(settled('run-1', 'completed'), 100)
     fixture.running.clear()
-    fixture.wakeComing.add('root')
+    fixture.wakeComing.add('w1')
     await emit(workerSettled('w1'), 110)
     await Effect.runPromise(observer.settleHeldReadyToRead(10_000, true))
     await Effect.runPromise(observer.settleHeldReadyToRead(90_000, true))
@@ -130,6 +130,34 @@ describe('DesktopNotificationObserver: held Ready to read edge cases (ADR 0063)'
     fixture.wakeComing.clear()
     await emit(settled('wake-1', 'completed', { hiveWake: true }), 95_000)
     expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  // A full limit never defers a wake of the person's own Queen, so a wake the Host skipped for
+  // another reason (the pi CLI wrote last) must not hold Ready to read while other Hives are busy.
+  it('gives up on the person’s Queen’s wake after the grace even while Active Workers is full', async () => {
+    const { emit, published, fixture, observer } = hive()
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    fixture.running.clear()
+    fixture.wakeComing.add('root')
+    await emit(workerSettled('w1'), 110)
+    await Effect.runPromise(observer.settleHeldReadyToRead(10_000, true))
+    expect(published).toEqual([])
+    await Effect.runPromise(observer.settleHeldReadyToRead(40_110, true))
+    expect(shownKinds(published)).toEqual(['shown:completed'])
+  })
+
+  it('keeps waiting on an agent-made root’s wake while Active Workers is full', async () => {
+    const { emit, published, fixture, observer } = hive()
+    fixture.agentMade.add('root')
+    fixture.running = new Set(['w1'])
+    await emit(settled('run-1', 'completed'), 100)
+    fixture.running.clear()
+    fixture.wakeComing.add('root')
+    await emit(workerSettled('w1'), 110)
+    await Effect.runPromise(observer.settleHeldReadyToRead(10_000, true))
+    await Effect.runPromise(observer.settleHeldReadyToRead(90_000, true))
+    expect(published).toEqual([])
   })
 
   it('keeps the person waiting on their request when an agent-started Run fails', async () => {

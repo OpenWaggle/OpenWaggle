@@ -77,6 +77,7 @@ describe('SqliteDesktopNotificationFactsLive', () => {
         rootRunning: false,
         workersRunning: false,
         wakeComing: false,
+        limitedWakeComing: false,
         runStartedWhileWorkersRan: false,
       },
     })

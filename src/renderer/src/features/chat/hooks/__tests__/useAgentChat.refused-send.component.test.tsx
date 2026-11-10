@@ -3,7 +3,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { MessageNotDelivered } from '../../lib/message-delivery'
+import { MessageNotDelivered, SendFailedBehindLaterSend } from '../../lib/message-delivery'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
 import {
   apiMock,
@@ -172,7 +172,7 @@ describe('useAgentChat send the Session Host refused', () => {
 
   // A later send owns the status, so no error of the Session's shows this failure: the message
   // leaves the transcript and goes back undelivered, for the composer's toast to say why.
-  it('drops an earlier send whose invoke fails behind a later one, and reports it undelivered', async () => {
+  it('drops an earlier send whose invoke fails behind a later one, and says it failed', async () => {
     let failEarlier: (error: Error) => void = () => {}
     const earlier = new Promise<AgentSendReport>((_resolve, reject) => {
       failEarlier = reject
@@ -193,12 +193,14 @@ describe('useAgentChat send the Session Host refused', () => {
     })
     let earlierError: unknown
     await act(async () => {
-      failEarlier(new Error('handler died'))
+      failEarlier(
+        new Error("Error invoking remote method 'agent:send-message': Error: handler died"),
+      )
       earlierError = await sends[0]
     })
 
-    expect(earlierError).toBeInstanceOf(MessageNotDelivered)
-    expect(earlierError).toMatchObject({ outcome: 'refused', message: 'handler died' })
+    expect(earlierError).toBeInstanceOf(SendFailedBehindLaterSend)
+    expect(earlierError).toMatchObject({ message: 'handler died' })
     expect(visibleUserTexts(result.current.messages)).not.toContain(SEND_PAYLOAD.text)
     expect(visibleUserTexts(result.current.messages)).toContain('A later message')
     expect(result.current.status).toBe('submitted')
