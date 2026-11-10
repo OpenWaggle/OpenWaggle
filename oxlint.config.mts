@@ -219,6 +219,7 @@ const ESLINT_RULES: DummyRuleMap = {
   'prefer-const': ['error', { destructuring: 'any', ignoreReadBeforeAssign: false }],
   'prefer-rest-params': 'error',
   'prefer-spread': 'error',
+  'openwaggle/desktop-shell-boundary': 'error',
   'openwaggle/function-name-convention': 'error',
   'openwaggle/no-architecture-ignore-comments': 'error',
   'openwaggle/main-architecture-boundaries': 'error',

@@ -87,6 +87,7 @@ OpenWaggle publishable packages must preserve their public contract boundaries.
 - Packaged runtime behavior must be validated in packaged app builds when the bug only appears after packaging. [SHELL-03]
 - Main process logging uses structured loggers, not raw `console.*` outside logger modules. [SHELL-04]
 - Automated Electron runs must route OS-visible actions through the centralized automation policy. Repository checks reject unguarded window-show/focus, native-dialog, and external-application calls outside that boundary. [SHELL-05]
+- Electron sits behind the desktop shell ports (`src/main/ports/desktop-shell/`, ADR 0064). Only `src/main/adapters/electron/` and `src/preload/electron-transport.ts` (plus preload tests) import `electron`, `electron-updater` or `@electron-toolkit/*`; only the crash-reporting adapter and bridges import `@sentry/electron`. Main code uses the bindings in `src/main/desktop-shell/`. [SHELL-06]
 
 Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native ABI, packaging, CDP, or Electron runtime startup issues.
 

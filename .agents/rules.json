@@ -34,6 +34,7 @@
     "SHELL-03": {"rule": "Native modules keep separate Node and desktop-runtime rebuild paths; packaging-only bugs are verified in a packaged build.", "by": ["review"]},
     "SHELL-04": {"rule": "Main-process code logs through structured loggers, not raw console.* outside logger modules.", "by": ["review"]},
     "SHELL-05": {"rule": "Automated runs route window show/focus, native dialogs and external applications through the automation policy.", "by": ["standards:electron-automation"]},
+    "SHELL-06": {"rule": "Only src/main/adapters/electron/ and the preload transport import Electron packages; main code reaches the shell through the desktop shell ports.", "by": ["openwaggle/desktop-shell-boundary"]},
     "REACT-01": {"rule": "No React.memo, React.FC or forwardRef; the React Compiler handles memoization.", "by": ["openwaggle/no-react-legacy-patterns"]},
     "REACT-02": {"rule": "useMemo and useCallback only for identity an external API needs, not render optimization.", "by": ["react-doctor", "review"]},
     "REACT-03": {"rule": "Prefer focused Zustand selectors and feature-owned hooks over prop-drilled controller objects.", "by": ["openwaggle/jsx-max-props", "review"]},

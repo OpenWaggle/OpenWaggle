@@ -1,4 +1,5 @@
 import type { Plugin } from '@oxlint/plugins'
+import { desktopShellBoundaryRule } from './rules/desktop-shell-boundary.ts'
 import { functionNameConventionRule } from './rules/function-name-convention.ts'
 import { jsxMaxPropsRule } from './rules/jsx-max-props.ts'
 import { mainArchitectureBoundariesRule } from './rules/main-architecture-boundaries.ts'
@@ -22,6 +23,7 @@ export const openwagglePlugin: Plugin = {
     name: 'openwaggle',
   },
   rules: {
+    'desktop-shell-boundary': desktopShellBoundaryRule,
     'function-name-convention': functionNameConventionRule,
     'jsx-max-props': jsxMaxPropsRule,
     'main-architecture-boundaries': mainArchitectureBoundariesRule,
