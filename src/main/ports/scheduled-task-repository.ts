@@ -154,6 +154,11 @@ export interface ScheduledTaskSessionActivity {
   readonly archived: boolean
   readonly activeRunId: string | null
   readonly followUpCount: number
+  /**
+   * The queue is paused because agents' work was at the Worker limits (`parent-limit`): its
+   * Follow-ups wait on capacity, not on the Session (ADR 0030, amended 2026-11-09).
+   */
+  readonly queueWaitsOnCapacity: boolean
   readonly pinned: boolean
   readonly runCount: number
   readonly latestRunStatus: string | null

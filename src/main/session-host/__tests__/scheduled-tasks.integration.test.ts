@@ -218,6 +218,28 @@ describe('Scheduled task runs', () => {
     })
   })
 
+  it('starts beside an agent’s Follow-up parked at the Worker limits', async () => {
+    await registerProjects([fixture.project])
+    const sessionId = await createIdleSession(fixture.project)
+    const task = await createHeartbeat(sessionId)
+    const due = Date.now()
+    await setTaskDue(task.id, due)
+    // Parked at the limits, the agent's item waits on agents' capacity, not on this Session.
+    await runSql((sql) =>
+      Effect.gen(function* () {
+        yield* sql`INSERT INTO session_follow_ups (id, session_id, position, delivery_state,
+          intent_json, created_at, updated_at) VALUES ('parked', ${sessionId}, 0, 'pending', '{}',
+          0, 0)`
+        yield* sql`UPDATE session_control_states
+          SET queue_state = 'paused', queue_pause_reason = 'parent-limit'
+          WHERE session_id = ${sessionId}`
+      }),
+    )
+
+    expect(await fire(task.id, due + 1000)).toBe('recorded')
+    expect((await readTask(task.id)).runs[0]).toMatchObject({ status: 'started', sessionId })
+  })
+
   it('collapses firings missed while the Host was down into one catch-up run', async () => {
     await registerProjects([fixture.project])
     const sessionId = await createIdleSession(fixture.project)

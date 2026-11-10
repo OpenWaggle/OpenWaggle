@@ -43,7 +43,10 @@ export type { ScheduledTaskFiringOutcome } from './scheduled-task-firing-records
 function heartbeatBusyReason(sessionId: string, activity: ScheduledTaskSessionActivity) {
   return Effect.gen(function* () {
     const active = activity.activeRunId !== null || hasAnyActiveRun(SessionId(sessionId))
-    if (active || activity.followUpCount > 0) {
+    // Follow-ups parked at the Worker limits wait on agents' capacity, not on this Session: a
+    // Heartbeat starts beside them, as a Hive wake does, and never waits on agents' work.
+    const queued = activity.followUpCount > 0 && !activity.queueWaitsOnCapacity
+    if (active || queued) {
       return 'session-busy' as const
     }
     if (!activity.piSessionFile) return null

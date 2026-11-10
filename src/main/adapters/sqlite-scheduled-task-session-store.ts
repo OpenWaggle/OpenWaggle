@@ -123,6 +123,7 @@ export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMe
         readonly archived: number
         readonly active_run_id: string | null
         readonly follow_up_count: number
+        readonly queue_waits_on_capacity: number
         readonly pinned: number
         readonly run_count: number
         readonly latest_run_status: string | null
@@ -133,6 +134,9 @@ export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMe
         SELECT sessions.archived, session_control_states.active_run_id,
           (SELECT COUNT(*) FROM session_follow_ups
             WHERE session_follow_ups.session_id = sessions.id) AS follow_up_count,
+          (session_control_states.queue_state = ${'paused'}
+            AND session_control_states.queue_pause_reason = ${'parent-limit'})
+            AS queue_waits_on_capacity,
           EXISTS (SELECT 1 FROM pinned_sessions
             WHERE pinned_sessions.session_id = sessions.id) AS pinned,
           (SELECT COUNT(*) FROM session_runs WHERE session_runs.session_id = sessions.id) AS run_count,
@@ -154,6 +158,7 @@ export function scheduledTaskSessionMethods(sql: SqlClient.SqlClient): SessionMe
                 archived: row.archived === 1,
                 activeRunId: row.active_run_id,
                 followUpCount: row.follow_up_count,
+                queueWaitsOnCapacity: row.queue_waits_on_capacity === 1,
                 pinned: row.pinned === 1,
                 runCount: row.run_count,
                 latestRunStatus: row.latest_run_status,
