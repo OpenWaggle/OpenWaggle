@@ -29,16 +29,22 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "packages/**/*.ts",
-    "scripts/**/*.ts",
-    "scripts/mcp-conformance-client.mts",
-    ".pi/extensions/**/*.ts",
+    /*
+     * The scripts that src/main tests, functions and the website import. The rest of scripts/,
+     * with electron.vite.config.ts and electron-builder.ts, is tsconfig.scripts.json.
+     */
+    "scripts/installed-docs-generator.ts",
+    "scripts/installed-docs-generator-model.ts",
+    "scripts/package-documentation-model.ts",
+    "scripts/package-documentation-renderer.ts",
+    "scripts/qa/child-process-lifecycle.ts",
+    "scripts/qa/windows-process-tree.ts",
+    "scripts/usage-stats-snapshot-endpoint.ts",
     "functions/**/*.ts",
     "website/src/lib/**/*.ts",
     "website/src/data/docs-nav.ts",
     "doctor.config.ts",
-    "oxlint.config.mts",
-    "electron.vite.config.ts",
-    "electron-builder.ts"
+    "oxlint.config.mts"
   ],
   "exclude": [
     "**/node_modules",
