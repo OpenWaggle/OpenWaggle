@@ -5,6 +5,7 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import {
   COMPONENT_TIER_TIMEOUTS,
+  TEST_REPORTERS,
   TEST_TEMPORARY_ROOT_SETUP,
   TEST_TIME_ZONE_ENV,
 } from './scripts/test-support/vitest-tier-options'
@@ -51,6 +52,7 @@ export default defineConfig({
     },
   },
   test: {
+    reporters: TEST_REPORTERS,
     environment: 'jsdom',
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     ...COMPONENT_TIER_TIMEOUTS,

@@ -22,3 +22,8 @@ minimumReleaseAgeExcludes = [
   # The author's own package (ADR-adopted pattern-matching library); every version is exempt.
   "@diegogbrisa/ts-match",
 ]
+
+[run]
+# `bun run <script>` does not echo `$ <command>`: agents read this output, and the script name
+# already says what runs.
+silent = true

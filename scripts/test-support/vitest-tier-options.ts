@@ -50,3 +50,12 @@ export function testTimeZone(environment: NodeJS.ProcessEnv = process.env) {
 
 /** The `test.env` entry that pins it; the machine's own `TZ` does not reach the tests. */
 export const TEST_TIME_ZONE_ENV = { TZ: testTimeZone() } as const
+
+/**
+ * The test tiers' reporters: the compact reporter (one line when green, `file:line:col` per
+ * failure), plus GitHub annotations in Actions. `--reporter=default` restores Vitest's own output.
+ */
+export const TEST_REPORTERS = [
+  './scripts/test-support/vitest-compact-reporter.ts',
+  ...(process.env.GITHUB_ACTIONS === 'true' ? ['github-actions'] : []),
+]

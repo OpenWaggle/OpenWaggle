@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 import {
   NODE_TIER_TIMEOUTS,
+  TEST_REPORTERS,
   TEST_TEMPORARY_ROOT_SETUP,
   TEST_TIME_ZONE_ENV,
 } from './scripts/test-support/vitest-tier-options'
@@ -18,6 +19,7 @@ export default defineConfig({
     },
   },
   test: {
+    reporters: TEST_REPORTERS,
     environment: 'node',
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     setupFiles: [
