@@ -18,7 +18,7 @@ import { type DummyRuleMap, defineConfig } from 'oxlint'
  * code or here.
  *
  * Not carried, because the oxlint rule reports code the earlier rule accepted and has no option
- * to match it (Biome had zero findings in each case; a later strictness pass decides):
+ * to match it (Biome had zero findings in each case; the strictness triage kept them off):
  * - Biome noForEach -> openwaggle/no-for-each (a port), not unicorn/no-array-for-each, which also
  *   reports callbacks that use the index and Effect.forEach.
  * - Biome useSemanticElements (jsx-a11y/prefer-tag-over-role reports more roles),
@@ -32,8 +32,10 @@ import { type DummyRuleMap, defineConfig } from 'oxlint'
  *   noMisrefactoredShorthandAssign, noSvgWithoutTitle, noImplicitAnyLet, noVoidTypeReturn.
  * - Biome's warning/info rules, its CSS rules, and its organizeImports assist (oxfmt's import
  *   sorter orders differently and would reorder module evaluation in about 170 files).
- * - ESLint import-x/no-cycle never resolved `.ts` files here, so it reported nothing; oxlint's
- *   import/no-cycle finds 126 real cycles and stays off until they are untangled.
+ *
+ * On top of those, the strictness triage adopted STRICT_RULES, REACT_COMPILER_RULES and the
+ * correctness category, and rejected the rules in STRICT_CORRECTNESS_OFF; .agents/standards.md,
+ * "Lint rule decisions", records each decision with its finding counts.
  */
 
 // Read as JSON so neither runner has to load a TypeScript module to build the config;
@@ -51,14 +53,48 @@ function readRendererDesignTokenExemptions() {
   return parsed
 }
 
+/**
+ * Files that still break an adopted rule, by rule, with their finding counts when the rule was
+ * adopted (.agents/standards.md, "Lint rule decisions"). Each listed file has that rule off until it
+ * is fixed; the list only shrinks. Read as JSON for the same reason as the exemptions above.
+ */
+function readPendingRuleExemptions() {
+  const parsed: unknown = JSON.parse(
+    readFileSync(new URL('./scripts/oxlint/pending-rule-exemptions.json', import.meta.url), 'utf8'),
+  )
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('scripts/oxlint/pending-rule-exemptions.json must map rules to files')
+  }
+  return Object.entries(parsed).map(([rule, files]: [string, unknown]) => {
+    if (typeof files !== 'object' || files === null || Array.isArray(files)) {
+      throw new Error(`pending-rule-exemptions.json: ${rule} must map files to counts`)
+    }
+    const rules: DummyRuleMap = { [rule]: 'off' }
+    return { files: Object.keys(files), rules }
+  })
+}
+
 const TYPE_AWARE_FILES = [
   'src/**',
   'packages/**',
   'scripts/**',
   'website/**',
   'functions/**',
+  '.pi/**',
   'electron.vite.config.ts',
+  'electron-builder.ts',
 ]
+
+/** Projects that check noUncheckedIndexedAccess, which no-unnecessary-condition needs. */
+const INDEX_CHECKED_FILES = [
+  'packages/**',
+  'scripts/**',
+  '.pi/**',
+  'electron.vite.config.ts',
+  'electron-builder.ts',
+]
+
+const REACT_COMPONENT_FILES = ['src/renderer/src/**/*.tsx', 'packages/extension-react/**/*.tsx']
 
 const ESLINT_FILES = [
   'src/**/*.{ts,tsx}',
@@ -326,12 +362,115 @@ const BIOME_RULES: DummyRuleMap = {
   'typescript/no-non-null-assertion': 'error',
   'typescript/no-unsafe-declaration-merging': 'error',
   'typescript/prefer-namespace-keyword': 'error',
-  'unicorn/no-thenable': 'error',
   'openwaggle/no-for-each': 'error',
 }
 
+/*
+ * Rules the strictness triage adopted (.agents/standards.md, "Lint rule decisions"), on every
+ * type-aware file. The correctness category is on as well; STRICT_CORRECTNESS_OFF lists the
+ * correctness rules the triage rejected.
+ */
+const STRICT_RULES: DummyRuleMap = {
+  // Promise and `this` bugs.
+  'typescript/no-floating-promises': 'error',
+  'typescript/no-misused-promises': 'error',
+  'typescript/await-thenable': 'error',
+  'typescript/return-await': ['error', 'error-handling-correctness-only'],
+  'typescript/unbound-method': 'error',
+  'typescript/only-throw-error': 'error',
+  'typescript/use-unknown-in-catch-callback-variable': 'error',
+  'typescript/no-implied-eval': 'error',
+  // Values that stringify or spread into something other than what was meant.
+  'typescript/no-base-to-string': 'error',
+  'typescript/restrict-template-expressions': [
+    'error',
+    { allowNumber: true, allowBoolean: true, allowNullish: true, allowRegExp: true },
+  ],
+  'typescript/no-misused-spread': 'error',
+  'typescript/require-array-sort-compare': ['error', { ignoreStringArrays: true }],
+  // Types that say less than they seem to.
+  'typescript/no-redundant-type-constituents': 'error',
+  'typescript/no-duplicate-type-constituents': 'error',
+  'typescript/no-unnecessary-type-parameters': 'error',
+  'typescript/no-meaningless-void-operator': 'error',
+  'typescript/no-unnecessary-boolean-literal-compare': 'error',
+  'typescript/no-unnecessary-template-expression': 'error',
+  'typescript/no-unnecessary-type-conversion': 'error',
+  'typescript/no-useless-default-assignment': 'error',
+  'typescript/no-inferrable-types': 'error',
+  // One spelling where the code base already has a dominant one.
+  'typescript/array-type': 'error',
+  'typescript/consistent-type-definitions': ['error', 'interface'],
+  'typescript/consistent-generic-constructors': 'error',
+  'typescript/prefer-for-of': 'error',
+  'typescript/prefer-includes': 'error',
+  'typescript/prefer-string-starts-ends-with': 'error',
+  'unicorn/no-new-array': 'error',
+  'unicorn/no-useless-fallback-in-spread': 'error',
+  'typescript/consistent-indexed-object-style': 'error',
+  'typescript/no-unnecessary-type-arguments': 'error',
+  'typescript/no-unnecessary-qualifier': 'error',
+  'typescript/non-nullable-type-assertion-style': 'error',
+  'typescript/prefer-optional-chain': 'error',
+  'typescript/prefer-reduce-type-parameter': 'error',
+  'typescript/prefer-return-this-type': 'error',
+  'typescript/dot-notation': ['error', { allowIndexSignaturePropertyAccess: true }],
+  // Braces on every body that spans lines; a one-line `if (x) return` stays as it is.
+  curly: ['error', 'multi-line'],
+  'import/no-cycle': ['error', { ignoreExternal: true }],
+}
+
+const STRICT_CORRECTNESS_OFF: DummyRuleMap = {
+  // Vitest takes a message argument and options objects, and the suite asserts through helpers.
+  'jest/expect-expect': 'off',
+  'jest/no-conditional-expect': 'off',
+  'jest/no-standalone-expect': 'off',
+  'jest/require-to-throw-message': 'off',
+  'jest/valid-describe-callback': 'off',
+  'jest/valid-expect': 'off',
+  // Its fix drops copies taken before a loop that mutates the collection.
+  'unicorn/no-useless-spread': 'off',
+  // Kept off for the reasons in the header comment.
+  'jsx-a11y/prefer-tag-over-role': 'off',
+  'jsx-a11y/no-autofocus': 'off',
+  'jsx-a11y/no-noninteractive-tabindex': 'off',
+  'jsx-a11y/no-noninteractive-element-interactions': 'off',
+  'jsx-a11y/interactive-supports-focus': 'off',
+  'react/exhaustive-deps': 'off',
+  // JSON Schema's if/then/else keyword is the only `then` property in the code base.
+  'unicorn/no-thenable': 'off',
+  // Reports state setters called from `.then`, and Vite's `?worker&url` default imports.
+  'promise/no-callback-in-promise': 'off',
+  'import/default': 'off',
+}
+
+const ROOT_RULES: DummyRuleMap = {
+  'openwaggle/no-lint-directive-comments': 'error',
+  ...STRICT_CORRECTNESS_OFF,
+}
+
+/** Needs noUncheckedIndexedAccess, or it reports every guard on an indexed read. */
+const INDEX_CHECKED_RULES: DummyRuleMap = {
+  'typescript/no-unnecessary-condition': [
+    'error',
+    { allowConstantLoopConditions: 'only-allowed-literals' },
+  ],
+}
+
+/** React Compiler rules: code the compiler cannot keep correct when it memoizes. */
+const REACT_COMPILER_RULES: DummyRuleMap = {
+  'react/refs': 'error',
+  'react/immutability': 'error',
+  'react/purity': 'error',
+  'react/globals': 'error',
+  'react/static-components': 'error',
+  'react/use-memo': 'error',
+  'react/preserve-manual-memoization': 'error',
+  'react/set-state-in-effect': 'error',
+}
+
 export default defineConfig({
-  plugins: ['typescript', 'unicorn', 'react', 'jsx-a11y', 'node', 'jest'],
+  plugins: ['typescript', 'unicorn', 'oxc', 'react', 'jsx-a11y', 'node', 'jest', 'import'],
   jsPlugins: [
     { name: 'openwaggle', specifier: './scripts/oxlint/openwaggle-plugin.ts' },
     { name: 'ts-match', specifier: './scripts/oxlint/ts-match-plugin.ts' },
@@ -339,7 +478,7 @@ export default defineConfig({
     { name: '@tanstack/router', specifier: '@tanstack/eslint-plugin-router' },
   ],
   categories: {
-    correctness: 'off',
+    correctness: 'error',
   },
   ignorePatterns: [
     'dist/**',
@@ -360,11 +499,33 @@ export default defineConfig({
     denyWarnings: true,
     reportUnusedDisableDirectives: 'error',
   },
-  rules: {
-    'openwaggle/no-lint-directive-comments': 'error',
-  },
+  rules: ROOT_RULES,
   overrides: [
     { files: TYPE_AWARE_FILES, rules: TYPE_AWARE_RULES },
+    { files: TYPE_AWARE_FILES, rules: STRICT_RULES },
+    { files: INDEX_CHECKED_FILES, rules: INDEX_CHECKED_RULES },
+    { files: REACT_COMPONENT_FILES, rules: REACT_COMPILER_RULES },
+    {
+      files: ['src/**/*.{ts,tsx}', 'functions/**/*.ts'],
+      rules: { 'no-console': 'error' },
+    },
+    {
+      // The logger sinks, and tests that assert on them.
+      files: [
+        'src/main/logger.ts',
+        'src/renderer/src/shared/lib/logger.ts',
+        'functions/_lib/dependencies.ts',
+        'src/**/__tests__/**',
+        'src/**/*.test.{ts,tsx}',
+        'functions/**/__tests__/**',
+      ],
+      rules: { 'no-console': 'off' },
+    },
+    {
+      // `expect(mock.method)` and `vi.mocked(api.method)` pass methods unbound on purpose.
+      files: [...TEST_FILES, 'scripts/**/__tests__/**', 'src/renderer/src/test-setup.ts'],
+      rules: { 'typescript/unbound-method': 'off' },
+    },
     { files: BIOME_FILES, rules: BIOME_RULES },
     { files: ESLINT_FILES, rules: ESLINT_RULES },
     // Where Biome and ESLint both applied, Biome's noAssignInExpressions was the stricter one.
@@ -487,5 +648,11 @@ export default defineConfig({
       files: ['src/main/env.ts', 'src/main/boot.ts'],
       rules: { 'node/no-process-env': 'off' },
     },
+    {
+      // Builds `import()` at run time so the CommonJS build loads ESM-only Pi modules.
+      files: ['packages/pi-waggle/src/esm-import.ts'],
+      rules: { 'typescript/no-implied-eval': 'off' },
+    },
+    ...readPendingRuleExemptions(),
   ],
 })

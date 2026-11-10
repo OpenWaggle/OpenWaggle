@@ -36,7 +36,9 @@ const LINT_PATHS = [
   'website',
   'functions',
   'fixtures',
+  '.pi',
   'electron.vite.config.ts',
+  'electron-builder.ts',
 ]
 const MILLISECONDS_PER_SECOND = 1000
 const SCRIPT_ARGUMENTS_START = 2

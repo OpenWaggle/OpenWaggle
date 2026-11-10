@@ -51,8 +51,9 @@ function readLock(): SkillsLock {
   const decoded = decodeSkillsLock(
     readFileSync(path.join(REPOSITORY_ROOT, SKILLS_LOCK_FILE), 'utf8'),
   )
-  if (!decoded.ok)
+  if (!decoded.ok) {
     throw new Error(`${SKILLS_LOCK_FILE} is malformed:\n${decoded.issues.join('\n')}`)
+  }
   return decoded.lock
 }
 

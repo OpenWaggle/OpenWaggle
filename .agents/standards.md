@@ -169,3 +169,40 @@ The end-of-turn gate (`.pi/extensions/quality-gates.ts`, logic in `scripts/agent
 - User docs in `website/src/content/docs/` follow the `write-docs` skill (ADR 0061). [DOC-02]
 - Significant technical findings go in the matching `.agents/memory/<topic>.md`, within its token cap. [DOC-03]
 - Prose follows the `unslop` skill. [DOC-04]
+
+## Lint Rule Decisions
+
+The strictness triage ran every oxlint rule, the correctness category and eslint-plugin-sonarjs over the code base, sampled the findings of each rule with more than about 50, and kept a rule when its findings were mostly real problems or one consistent spelling. Counts are the findings when the rule was decided.
+
+Adopted, at `error` on every type-aware file (`STRICT_RULES` and `REACT_COMPILER_RULES` in `oxlint.config.mts`, plus the correctness category). [TOOL-10] [TOOL-11] [TOOL-12]
+
+- Promise and `this` bugs: `no-floating-promises` (130), `no-misused-promises` (36), `await-thenable` (6), `return-await` with `error-handling-correctness-only` (8), `unbound-method` (80 outside tests), `only-throw-error` (10), `use-unknown-in-catch-callback-variable` (25), `no-implied-eval` (1).
+- Stringify and spread mistakes: `no-base-to-string` (38), `restrict-template-expressions` with numbers, booleans, nullish values and regexps allowed (6), `no-misused-spread` (22), `require-array-sort-compare` with string arrays allowed (9).
+- Types that say less than they seem to: `no-redundant-type-constituents`, `no-duplicate-type-constituents`, `no-unnecessary-type-parameters`, `no-unnecessary-type-arguments`, `no-unnecessary-boolean-literal-compare`, `no-unnecessary-template-expression`, `no-unnecessary-type-conversion`, `no-meaningless-void-operator`, `no-useless-default-assignment`, `no-inferrable-types`, `no-unnecessary-qualifier`, `non-nullable-type-assertion-style`.
+- One spelling: `array-type` (222), `consistent-type-definitions` set to `interface` (58), `consistent-indexed-object-style` (83), `consistent-generic-constructors`, `prefer-optional-chain` (55), `prefer-for-of`, `prefer-includes`, `prefer-string-starts-ends-with`, `prefer-reduce-type-parameter`, `prefer-return-this-type`, `dot-notation` with index-signature access allowed, `curly` set to `multi-line` (580), `unicorn/no-new-array`, `unicorn/no-useless-fallback-in-spread`.
+- `import/no-cycle` (0 after the Fallow cycle work).
+- `no-console` in `src/` and `functions/`, except the two logger sinks, the functions log sink and tests.
+- `no-unnecessary-condition` only on packages, scripts, `.pi` and the build configs, the projects that check `noUncheckedIndexedAccess`. Elsewhere it reports every guard on an indexed read. Node types `process.stdout.columns` and the DOM types `document.body` as always set, so code that guards them reads `isTTY` or `querySelector('body')` instead of `??`.
+- React Compiler rules on renderer and `extension-react` components: `refs` (33), `set-state-in-effect` (22), `immutability`, `purity`, `globals`, `static-components`, `use-memo`, `preserve-manual-memoization`.
+
+Rejected rules stay off, with the reason below. [TOOL-14]
+
+| Rule | Findings | Why |
+| --- | --- | --- |
+| `curly` (`all`) | 15,209 | Almost all single-line `if (x) return`. `multi-line` keeps the 580 real cases. |
+| `vitest/require-mock-type-parameters` | 7,446 | `vi.fn(impl)` already infers from its implementation. |
+| `no-confusing-void-expression` | 4,366; 133 with `ignoreArrowShorthand` | Mostly `vi.waitFor(() => expect(...))`; the rest return a void call from a void function, which is harmless. |
+| `require-await` | 2,782 | 2,700 are test doubles that must be `async` to fit a Promise-returning type. |
+| `no-empty-function` | 500 | Deliberate no-ops: `.catch(() => {})`, default callbacks. |
+| `no-invalid-void-type` | 227 | Reports `Promise.withResolvers<void>()` and `Deferred<void>`. |
+| `prefer-nullish-coalescing` | 93 | The `||` sites map empty strings to a fallback on purpose. |
+| `unicorn/no-array-for-each` | 94 | Style only. |
+| `no-dynamic-delete` | 72 | Deletes keys from JSON-shaped settings records on purpose. |
+| `unicorn/no-useless-spread` | 79 | Its fix drops copies taken before a loop that changes the collection. |
+| `unicorn/no-thenable` | 3 | All three are JSON Schema's `if`/`then`/`else`. |
+| `promise/no-callback-in-promise`, `import/default` | 8, 1 | State setters called in `.then`; Vite's `?worker&url` imports. |
+| `jest/*` test-shape rules (`expect-expect`, `valid-expect`, `no-conditional-expect`, `no-standalone-expect`, `require-to-throw-message`, `valid-describe-callback`) | 102–308 each | Vitest takes a message argument and an options object, and the suite asserts through helpers. The `jest` plugin also duplicates every `vitest/*` rule, so only one set runs. |
+| `jsx-a11y` `prefer-tag-over-role`, `no-autofocus`, `no-noninteractive-*`, `interactive-supports-focus`; `react/exhaustive-deps` | 1–78 each | Already covered or deliberately off, see the config header. |
+| `eslint-plugin-sonarjs` | 43,222 with everything on | Every rule with findings was a false positive or style here (`publicly-writable-directories` on `/tmp` test paths, `file-permissions` on test `chmod`, `updated-loop-counter` in scanners that skip ahead, `reduce-initial-value` behind an empty check). Nine of its rules added 2–4s locally; all of them doubled CI lint time. |
+
+Pending. [TOOL-13] `scripts/oxlint/pending-rule-exemptions.json` turns an adopted rule off for each file that still breaks it, with its finding count. All 917 entries (1,439 findings) are in `src/`, where other work was in flight when the rules landed; fix a file, then delete its entry. `check:repository-standards` rejects entries for missing files, so the list only shrinks. Also pending: `isolatedDeclarations` for `@openwaggle/extension-sdk` (380 findings), and the strict TypeScript flags for `scripts/check/**` once that runner lands.
