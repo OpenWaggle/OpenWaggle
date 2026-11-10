@@ -3,7 +3,7 @@ import type { ActionManagementScope } from '@shared/types/action-management'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
 import { SessionId } from '@shared/types/brand'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useChat } from '@/features/chat/hooks'
+import { useChatStore } from '@/features/chat/state'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { queryKeys } from '@/queries/query-keys'
 import type { OpenWaggleQueryOptions } from '@/queries/query-options'
@@ -50,7 +50,7 @@ export const actionQueryKey = (scope: ActionManagementScope | null) =>
   ] as const
 
 export function useActionScope(projectPath: string | null): ActionManagementScope | null {
-  const { activeSession } = useChat()
+  const activeSession = useChatStore((state) => state.activeSession)
   if (!projectPath) return null
   return {
     projectPath,

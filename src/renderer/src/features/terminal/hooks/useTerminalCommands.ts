@@ -1,4 +1,4 @@
-import { useChat } from '@/features/chat/hooks'
+import { useChatStore } from '@/features/chat/state'
 import { useProject } from '@/features/sessions/hooks'
 import { useUIStore } from '@/shell/ui-store'
 import {
@@ -55,7 +55,7 @@ export function useTerminalCommands(): {
   readonly toggleSidePanelMaximized: () => void
   readonly closeActiveTerminal: () => Promise<void>
 } {
-  const { activeSession } = useChat()
+  const activeSession = useChatStore((state) => state.activeSession)
   const { projectPath } = useProject()
   const owner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
   const drawerOpen = useTerminalStore((state) => state.groups[owner.ownerKey]?.panelOpen ?? false)

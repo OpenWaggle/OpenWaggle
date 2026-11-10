@@ -17,7 +17,10 @@ const mocks = vi.hoisted(() => ({
   maximizeUnavailable: vi.fn((): string | null => null),
 }))
 
-vi.mock('@/features/chat/hooks', () => ({ useChat: () => ({ activeSession: null }) }))
+vi.mock('@/features/chat/state', () => ({
+  useChatStore: (select: (state: { readonly activeSession: null }) => unknown) =>
+    select({ activeSession: null }),
+}))
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: '/repo' }),
 }))

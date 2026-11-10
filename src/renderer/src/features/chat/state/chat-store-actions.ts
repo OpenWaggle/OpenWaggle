@@ -8,7 +8,6 @@ import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
-import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { useBackgroundRunStore } from './background-run-store'
 import { customBranchSummaryDraft } from './branch-summary-store'
 import {
@@ -261,6 +260,8 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
     useBackgroundRunStore.getState().clearRunRenderSnapshot(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
+    // Loaded on use: the workspace cleanup reaches back into the chat store through its features.
+    const { deleteWorkspaceOwner } = await import('@/shell/workspace-panel-cleanup')
     await deleteWorkspaceOwner(String(id))
     void useSessionStore.getState().refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
   } catch (err) {

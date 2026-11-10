@@ -1,7 +1,7 @@
 import type { ActionDefinition } from '@shared/types/action-definitions'
 import type { ProjectAction } from '@shared/types/project-actions'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
-import { useChat } from '@/features/chat/hooks'
+import { useChatStore } from '@/features/chat/state'
 import { rendererQueryClient } from '@/queries/query-client'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
@@ -10,7 +10,7 @@ import { useProjectActionStore } from '../state/project-action-store'
 import { PROJECT_ACTIONS_QUERY_ROOT } from './useNativeActions'
 
 export function useRunProjectAction(projectPath: string | null) {
-  const { activeSession } = useChat()
+  const activeSession = useChatStore((state) => state.activeSession)
   const showToast = useUIStore((state) => state.showToast)
   return async (action: ActionDefinition | ProjectAction) => {
     if (!projectPath || !activeSession || activeSession.projectPath !== projectPath) {

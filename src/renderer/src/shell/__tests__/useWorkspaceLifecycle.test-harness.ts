@@ -165,6 +165,19 @@ vi.mock('@/features/chat/hooks', () => ({
   }),
 }))
 
+vi.mock('@/features/chat/state', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/features/chat/state')>()
+  // Hooks of other features read the active Session from the store; give them the mocked one.
+  const { useChat } = await import('@/features/chat/hooks')
+  return {
+    ...original,
+    useChatStore: Object.assign(
+      (select: (state: ReturnType<typeof useChat>) => unknown) => select(useChat()),
+      original.useChatStore,
+    ),
+  }
+})
+
 vi.mock('@/features/diff-panel/hooks', () => ({
   useDiffRouteNavigation: () => ({
     toggleDiff: lifecycleMocks.toggleDiff,

@@ -26,6 +26,17 @@ vi.mock('@/features/sessions/hooks', () => ({
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({ activeSession: { id: 'session', projectPath: '/repo' } }),
 }))
+vi.mock('@/features/chat/state', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/features/chat/state')>()
+  const chatState = { activeSession: { id: 'session', projectPath: '/repo' } }
+  return {
+    ...original,
+    useChatStore: Object.assign(
+      (select: (state: typeof chatState) => unknown) => select(chatState),
+      original.useChatStore,
+    ),
+  }
+})
 vi.mock('@/shared/lib/ipc', () => ({
   api: { manageProjectActions: mocks.manage, listSessionProjectPage: mocks.projectPage },
 }))
