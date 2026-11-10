@@ -121,7 +121,7 @@ export async function readPackageReleasePlan(planPath: string) {
   return planModule.decodePackageReleasePlan(await readJson(planPath))
 }
 
-async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRoot: string) {
+export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRoot: string) {
   const artifactContract = await loadArtifactContractModule()
   const manifest = artifactContract.decodePackageReleaseArtifactManifest(
     await readJson(path.join(artifactRoot, 'release-artifacts.json')),

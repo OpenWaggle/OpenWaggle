@@ -78,15 +78,17 @@
   // electron-vite bundles main, preload and renderer, and electron-builder ships
   // only `dependencies`, so bundled packages are devDependencies on purpose
   // (MEMORY.md; packaged-app:smoke rejects renderer-only packages that ship).
-  "rules": { "duplicate-exports": "off", "dev-dependencies-in-production": "off" },
+  //
+  // The pi-runtime catalog pins Pi's whole matched release, including packages
+  // OpenWaggle only gets transitively; check:pi-runtime requires every entry
+  // (scripts/check-pi-runtime-alignment.ts). Overrides cannot scope this
+  // manifest-level rule to pnpm-workspace.yaml, so it is off.
+  "rules": {
+    "duplicate-exports": "off",
+    "dev-dependencies-in-production": "off",
+    "unused-catalog-entries": "off"
+  },
   "overrides": [
-    {
-      // The pi-runtime catalog pins Pi's whole matched release, including the
-      // packages OpenWaggle only gets transitively; check:pi-runtime requires
-      // every one of them (scripts/check-pi-runtime-alignment.ts).
-      "files": ["pnpm-workspace.yaml"],
-      "rules": { "unused-catalog-entries": "off" }
-    },
     {
       // Served by the extension frame protocol, which answers ./frame.css and
       // ./bootstrap.js itself (src/main/extension-frame-protocol.ts).
@@ -112,5 +114,14 @@
   "health": {
     "maxCrap": 100
   },
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  // The package release scripts load these modules by URL (`await import(moduleUrl)`) so
+  // they run under plain Node type stripping; the loader checks each export by name.
+  "ignoreExports": [
+    { "file": "scripts/package-release-promotion.ts", "exports": ["verifyPromotionBundle"] },
+    {
+      "file": "scripts/package-release-provenance.ts",
+      "exports": ["verifyPackageReleaseArtifactProvenance"]
+    }
+  ]
 }
