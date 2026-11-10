@@ -61,13 +61,13 @@ describe('Electron safeStorage reader', () => {
     )
     await reader.decrypt(Buffer.from(fixture.blob, 'base64'))
     expect(readKeychainPassword).toHaveBeenCalledTimes(1)
-    expect(readKeychainPassword).toHaveBeenCalledWith('openwaggle Safe Storage', 'openwaggle')
+    expect(readKeychainPassword).toHaveBeenCalledWith('openwaggle Safe Storage', 'openwaggle Key')
   })
 
-  it('falls back to the account name older Electron builds used', async () => {
+  it('falls back to the account name older Electron dev builds used', async () => {
     const fixture = await macFixture()
     const readKeychainPassword = vi.fn(async (_service: string, account: string) =>
-      account === 'openwaggle Key' ? fixture.password : null,
+      account === 'openwaggle' ? fixture.password : null,
     )
     const reader = createElectronSafeStorageReader({
       platform: 'darwin',
@@ -78,8 +78,8 @@ describe('Electron safeStorage reader', () => {
       fixture.plaintext,
     )
     expect(readKeychainPassword.mock.calls).toEqual([
-      ['openwaggle Safe Storage', 'openwaggle'],
       ['openwaggle Safe Storage', 'openwaggle Key'],
+      ['openwaggle Safe Storage', 'openwaggle'],
     ])
   })
 
