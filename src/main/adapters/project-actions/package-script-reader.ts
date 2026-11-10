@@ -90,8 +90,11 @@ async function runnerFor(workspace: string, directory: string, declared: string 
       }),
     )
     for (const check of checks) {
-      if (check.status === 'fulfilled') runners.add(check.value)
-      else if (!isEnoent(check.reason)) throw check.reason
+      if (check.status === 'fulfilled') {
+        runners.add(check.value)
+        continue
+      }
+      if (!isEnoent(check.reason)) throw check.reason
     }
     if (runners.size > 1)
       return {

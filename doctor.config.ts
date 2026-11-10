@@ -194,7 +194,7 @@ const config: DoctorConfig = {
         // keychain is not asked again for the same server's other secrets.
         files: [
           'src/main/adapters/mcp/config/mcp-deferred-secrets.ts',
-          'src/main/adapters/mcp/config/mcp-runtime-config.ts',
+          'src/main/adapters/mcp/config/mcp-runtime-secret-resolution.ts',
         ],
         rules: ['react-doctor/async-await-in-loop'],
       },
