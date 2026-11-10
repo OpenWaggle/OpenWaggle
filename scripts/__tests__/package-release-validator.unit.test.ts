@@ -108,13 +108,15 @@ describe('package release validation', () => {
           'release-please': '17.6.1',
         },
         scripts: {
-          check: 'pnpm typecheck && pnpm lint',
+          check: 'bun run typecheck && bun run lint',
         },
       })
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
-      expect(result.violations).toContain('package.json scripts.check must run pnpm package:smoke.')
+      expect(result.violations).toContain(
+        'package.json scripts.check must run bun run package:smoke.',
+      )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }

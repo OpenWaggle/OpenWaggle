@@ -135,12 +135,12 @@ export async function writeMinimalPackageReleaseProject(
     },
     scripts: {
       'build:package-dependencies':
-        'pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build',
+        'bun run --filter @openwaggle/waggle-core build && bun run --filter @openwaggle/extension-sdk build',
       'build:packages':
-        'pnpm build:package-dependencies && pnpm --filter @openwaggle/pi-waggle build && pnpm --filter @openwaggle/extension-react build',
-      check: 'pnpm typecheck && pnpm package:smoke',
-      lint: 'pnpm build:package-dependencies && bun scripts/lint.ts && pnpm check:repository-standards',
-      'lint:fix': 'pnpm build:package-dependencies && bun scripts/lint.ts --fix',
+        'bun run build:package-dependencies && bun run --filter @openwaggle/pi-waggle build && bun run --filter @openwaggle/extension-react build',
+      check: 'bun run typecheck && bun run package:smoke',
+      lint: 'bun run build:package-dependencies && bun scripts/lint.ts && bun run check:repository-standards',
+      'lint:fix': 'bun run build:package-dependencies && bun scripts/lint.ts --fix',
       'package-release:publish': 'node scripts/package-release-publish.ts',
     },
   })

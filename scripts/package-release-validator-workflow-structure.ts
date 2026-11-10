@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const EMPTY_COUNT = 0
-const CI_WORKFLOW_AST_CONTRACT = '617834a81a39176050d525fd30535de8eb5ab95dbc70ac3ae82257e60b73d078'
+const CI_WORKFLOW_AST_CONTRACT = 'c3709305a56131cfdfb609e9d0f08951631e078bc862f64637a6ad9be68a2400'
 const SESSION_PERFORMANCE_WORKFLOW_AST_CONTRACT =
-  '4dddf7083f57775c15820de881ec33d25cbeede5a7cf2bcff58a88e7ecfa7f0f'
+  'c9309bd637262376cd1b56e6e16f484e85754874206da8498dc6c3dce84f1001'
 
 export interface WorkflowActionUse {
   readonly ref?: string

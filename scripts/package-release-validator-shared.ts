@@ -40,7 +40,7 @@ const APPROVED_ACTIONS = [
  * AST contract. This is not a blanket exemption for arbitrary local workflows.
  */
 const REPO_OWNED_ACTION_REFS: readonly string[] = [
-  './.github/actions/pnpm-install',
+  './.github/actions/bun-install',
   './.github/workflows/session-performance.yml',
 ]
 

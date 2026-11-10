@@ -22,9 +22,9 @@ const MANIFEST_PATH = '.release-please-manifest.json'
 const ROOT_PACKAGE_PATH = 'package.json'
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_DEPENDENCY_BUILD_SCRIPT =
-  'pnpm --filter @openwaggle/waggle-core build && pnpm --filter @openwaggle/extension-sdk build'
-const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'pnpm build:package-dependencies &&'
-const TYPE_AWARE_LINT_PREREQUISITE = 'pnpm build:package-dependencies && bun scripts/lint.ts'
+  'bun run --filter @openwaggle/waggle-core build && bun run --filter @openwaggle/extension-sdk build'
+const PACKAGE_DEPENDENCY_BUILD_PREFIX = 'bun run build:package-dependencies &&'
+const TYPE_AWARE_LINT_PREREQUISITE = 'bun run build:package-dependencies && bun scripts/lint.ts'
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 interface ExpectedPackage {
@@ -296,8 +296,8 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
     return
   }
   addViolation(
-    !checkScript.includes('pnpm package:smoke'),
-    `${ROOT_PACKAGE_PATH} scripts.check must run pnpm package:smoke.`,
+    !checkScript.includes('bun run package:smoke'),
+    `${ROOT_PACKAGE_PATH} scripts.check must run bun run package:smoke.`,
     violations,
   )
   addViolation(

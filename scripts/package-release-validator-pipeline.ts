@@ -15,7 +15,7 @@ import { validateCiWorkflow } from './package-release-validator-ci'
 
 const WORKFLOW_PATH = '.github/workflows/package-release.yml'
 const PACKAGE_RELEASE_WORKFLOW_AST_CONTRACT =
-  '0bff3042da820667bde285cdd0fb7c20f461265d9e9b342415791e24ecb24537'
+  '03beffcd6d96bf59172cd97ea9973188f107c6b6b34413e624de61aab748e3f5'
 
 const EXPECTED_PACKAGE_PATHS = [
   'packages/extension-sdk',
@@ -113,7 +113,7 @@ function validatePackageReleaseWorkflow(
         `${WORKFLOW_PATH} Release Please must expose the guarded release branch output.`,
       ],
       [
-        'pnpm package-docs:update',
+        'bun run package-docs:update',
         `${WORKFLOW_PATH} Release Please must generate the versioned documentation line before validation.`,
       ],
       [
@@ -271,14 +271,16 @@ function validatePackageReleaseWorkflow(
     )
   }
   for (const forbidden of [
+    'bun install',
+    'bun-install',
     'pnpm install',
-    'pnpm check',
+    'bun run check',
     'build:packages',
     'package:smoke',
     'website:',
     'docs:generate',
     'playwright',
-    'tsx ',
+    'bun scripts/',
   ]) {
     addViolation(
       publish.includes(forbidden),
