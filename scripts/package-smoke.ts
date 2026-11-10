@@ -231,28 +231,52 @@ async function runPackedPackageSmoke(root: string, packages: readonly PackedPack
   const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-smoke-'))
 
   try {
-    for (const packageManager of packageManagers) {
-      const managerRoot = path.join(smokeRoot, packageManager.name)
-      const smokeProjectRoot = await prepareSmokeProject(root, managerRoot, packages)
-      console.log(`running package consumer smoke with ${packageManager.name}`)
-      await runCommand(
-        packageManager.command,
-        ['install', ...packageManagerInstallArgs(packageManager.name)],
-        smokeProjectRoot,
-      )
-      for (const script of SMOKE_SCRIPTS_BEFORE_BROWSER) {
-        await runCommand(packageManager.command, ['run', script], smokeProjectRoot)
-      }
-      const bundlePath = path.join(smokeProjectRoot, 'dist/browser-smoke.js')
-      assertBrowserBundleContent(await fs.readFile(bundlePath, 'utf8'))
-      if (environment.browserSmokeEnabled) {
-        await runPackageBrowserSmoke(smokeProjectRoot, environment.browserExecutablePath)
-      }
-      await runCommand(packageManager.command, ['run', 'pi:discovery'], smokeProjectRoot)
+    // One consumer project per package manager, in parallel (own directory, ephemeral browser
+    // port): run in turn, mostly waiting on the registry, they were the longest check step.
+    const results = await Promise.allSettled(
+      packageManagers.map((packageManager) =>
+        smokeWithPackageManager(root, smokeRoot, packages, packageManager, environment),
+      ),
+    )
+    const failures: unknown[] = []
+    for (const result of results) {
+      if (result.status !== 'rejected') continue
+      const reason: unknown = result.reason
+      failures.push(reason)
+    }
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) {
+      throw new AggregateError(failures, `${failures.length} package consumer smokes failed.`)
     }
   } finally {
     await fs.rm(smokeRoot, { recursive: true, force: true })
   }
+}
+
+async function smokeWithPackageManager(
+  root: string,
+  smokeRoot: string,
+  packages: readonly PackedPackage[],
+  packageManager: Awaited<ReturnType<typeof availablePackageManagers>>[number],
+  environment: ReturnType<typeof readPackageSmokeEnvironment>,
+) {
+  const managerRoot = path.join(smokeRoot, packageManager.name)
+  const smokeProjectRoot = await prepareSmokeProject(root, managerRoot, packages)
+  console.log(`running package consumer smoke with ${packageManager.name}`)
+  await runCommand(
+    packageManager.command,
+    ['install', ...packageManagerInstallArgs(packageManager.name)],
+    smokeProjectRoot,
+  )
+  for (const script of SMOKE_SCRIPTS_BEFORE_BROWSER) {
+    await runCommand(packageManager.command, ['run', script], smokeProjectRoot)
+  }
+  const bundlePath = path.join(smokeProjectRoot, 'dist/browser-smoke.js')
+  assertBrowserBundleContent(await fs.readFile(bundlePath, 'utf8'))
+  if (environment.browserSmokeEnabled) {
+    await runPackageBrowserSmoke(smokeProjectRoot, environment.browserExecutablePath)
+  }
+  await runCommand(packageManager.command, ['run', 'pi:discovery'], smokeProjectRoot)
 }
 
 async function main(args: readonly string[]) {
