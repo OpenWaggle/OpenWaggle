@@ -26,6 +26,12 @@ package accepts from its host: `@openwaggle/extension-react` accepts `react: ^19
 
 `exact = true` in `bunfig.toml` makes `bun add` write exact versions.
 
+`DEPENDENCIES.md` has a row for each pin that is not npm's `latest` release or that something
+holds in place, such as a patch, an override or `check:pi-runtime`. `bun run check:dependency-pins`,
+part of `bun run check`, compares the manifests with the merge base of `origin/main`. It fails a new or
+changed pin behind `latest` without a row, and a row whose Pin or package no manifest uses. It asks
+the registry only about changed pins without a row.
+
 The `overrides` in the root `package.json` are not checked. Several of them are vulnerability
 floors, such as `"js-yaml@^4": ^4.3.2`, which force a transitive dependency up to a fixed release
 and on purpose still accept its later patches. Other overrides pin a transitive version exactly
@@ -89,6 +95,9 @@ before 1.0.
 
 A package listed under `patchedDependencies` needs its patch re-applied to the new version before
 the lockfile changes.
+
+Read the package's `DEPENDENCIES.md` row before moving it, and change or delete the row in the same
+commit.
 
 `node-pty`, `better-sqlite3` and `sharp` are native modules, and `electron` sets the ABI they are
 rebuilt for. An update to any of them needs
