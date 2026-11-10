@@ -12,6 +12,10 @@ import {
   transitionDesktopEntry,
 } from '../electrobun-transition/linux-transition-appimage'
 import {
+  prepareMacosTransitionBundle,
+  squirrelFrameworkInfoPlist,
+} from '../electrobun-transition/macos-transition-bundle'
+import {
   renderTransitionMetadata,
   transitionMetadataFilename,
   writeTransitionMetadata,
@@ -215,5 +219,54 @@ describe('macOS transition zip', () => {
         runner,
       }),
     ).rejects.toThrow(/has bundle identifier dev.electrobun.app/u)
+  })
+})
+
+describe('macOS transition bundle', () => {
+  it('renames the Electrobun launcher and adds the Squirrel.Mac relaunch path', async () => {
+    const root = await scratch()
+    const app = path.join(root, 'OpenWaggle.app')
+    await fs.mkdir(path.join(app, 'Contents', 'MacOS'), { recursive: true })
+    await fs.writeFile(path.join(app, 'Contents', 'Info.plist'), '<plist/>')
+    await fs.writeFile(path.join(app, 'Contents', 'MacOS', 'launcher'), 'launcher')
+    const runner = vi.fn<CommandRunner>(async (command, args) => {
+      if (command === 'clang') await fs.writeFile(args[args.indexOf('-o') + 1] ?? '', 'mach-o')
+      if (command === 'cp') await fs.copyFile(args[0] ?? '', args[1] ?? '')
+      return { stdout: command === 'plutil' ? 'launcher\n' : '', stderr: '' }
+    })
+    await expect(prepareMacosTransitionBundle({ app, runner })).resolves.toEqual({
+      previousExecutable: 'launcher',
+    })
+    await expect(
+      fs.readFile(path.join(app, 'Contents', 'MacOS', 'OpenWaggle'), 'utf8'),
+    ).resolves.toBe('launcher')
+    expect(
+      runner.mock.calls.find(
+        ([command, args]) => command === 'plutil' && args[0] === '-replace',
+      )?.[1],
+    ).toEqual([
+      '-replace',
+      'CFBundleExecutable',
+      '-string',
+      'OpenWaggle',
+      path.join(app, 'Contents', 'Info.plist'),
+    ])
+    // The path ShipIt starts, through the framework's symlinks.
+    const framework = path.join(app, 'Contents', 'Frameworks', 'Squirrel.framework')
+    await expect(fs.readFile(path.join(framework, 'Resources', 'ShipIt'), 'utf8')).resolves.toBe(
+      'mach-o',
+    )
+    await expect(fs.readlink(path.join(framework, 'Squirrel'))).resolves.toBe(
+      'Versions/Current/Squirrel',
+    )
+    expect(runner.mock.calls.find(([command]) => command === 'clang')?.[1]).toEqual(
+      expect.arrayContaining(['-arch', 'arm64', 'x86_64', '-mmacosx-version-min=11.0']),
+    )
+  })
+
+  it('declares the relauncher framework under the app identifier', () => {
+    expect(squirrelFrameworkInfoPlist('com.openwaggle.app')).toContain(
+      '<string>com.openwaggle.app.squirrel-relaunch</string>',
+    )
   })
 })
