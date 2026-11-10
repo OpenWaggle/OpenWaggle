@@ -4,14 +4,15 @@
 ; newest release offers this file as `openwaggle-<version>-x64.exe`, electron-updater downloads it,
 ; checks its sha512, and runs it as `<file> --updated /S --force-run` after the app quits.
 ; It then:
-;   1. runs the Electrobun setup (embedded) and waits for it. The setup installs the app into
-;      %LOCALAPPDATA%\<identifier>\<channel>\app, creates its shortcuts and starts the app;
+;   1. runs the Electrobun setup (embedded), which installs the app into
+;      %LOCALAPPDATA%\<identifier>\<channel>\app and creates its shortcuts and uninstall entry;
 ;   2. only when the new launcher exists, runs the old Electron uninstaller silently, which removes
 ;      the old files, Start menu and desktop shortcuts, uninstall entry, PATH entry and CLI shim.
 ;      It is run without --delete-app-data, so %APPDATA%\openwaggle (all user data) stays;
 ;   3. writes the `openwaggle` CLI shim back into the old install directory, which is the one on
 ;      the user's PATH, pointing at the new launcher, and registers the openwaggle: link scheme;
-;   4. on any failure leaves the Electron install untouched, restarts it, and says so.
+;   4. starts the new app (with --force-run, or when run by hand);
+;   5. on a failure before step 2 leaves the Electron install untouched, restarts it, and says so.
 ;
 ; Defines (scripts/electrobun-transition/windows-transition-installer.ts): OUTFILE, VERSION,
 ; VERSION_QUAD, PRODUCT_NAME, APP_GUID, SETUP_DIR, SETUP_EXE, EB_IDENTIFIER, EB_CHANNEL, ICON.
@@ -38,6 +39,10 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 
 !define DOWNLOAD_URL "https://github.com/OpenWaggle/OpenWaggle/releases/latest"
 !define TRANSITION_LOG "$LOCALAPPDATA\openwaggle-updater\electrobun-transition.log"
+!define EB_UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${EB_IDENTIFIER}.${EB_CHANNEL}"
+!define POLL_MS 1000
+; Ten minutes.
+!define MAX_POLLS 600
 
 ; Every channel installs the same executable name; only the display name (and so the
 ; uninstaller's name, "Uninstall OpenWaggle Beta.exe") differs (ADR 0032).
@@ -84,17 +89,45 @@ Section "Install"
   InitPluginsDir
   SetOutPath "$PLUGINSDIR\electrobun-setup"
   File /r "${SETUP_DIR}\*.*"
+  ; Electrobun's Setup installs, then shows "Installation complete" and waits for Close before it
+  ; starts the app (seen in the bench). So it is not waited for: the install is done once the
+  ; launcher exists and Setup has registered its uninstall entry, then Setup is closed and this
+  ; wrapper starts the app itself.
   ClearErrors
-  ExecWait '"$PLUGINSDIR\electrobun-setup\${SETUP_EXE}"' $0
+  Exec '"$PLUGINSDIR\electrobun-setup\${SETUP_EXE}"'
   ${If} ${Errors}
     Push "the setup did not start"
     Call Fail
   ${EndIf}
-  !insertmacro Log "Electrobun setup exited with $0"
-  ${IfNot} ${FileExists} "$NewLauncher"
-    Push "the new app was not installed, setup exit code $0"
-    Call Fail
-  ${EndIf}
+  StrCpy $8 0
+  wait_for_install:
+    Sleep ${POLL_MS}
+    IntOp $8 $8 + 1
+    ReadRegStr $7 HKCU "${EB_UNINSTALL_KEY}" "InstallLocation"
+    ${If} $7 != ""
+    ${AndIf} ${FileExists} "$NewLauncher"
+      Goto installed
+    ${EndIf}
+    nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq ${SETUP_EXE}" /NH'
+    Pop $0
+    Pop $1
+    ${StrStr} $2 $1 "No tasks"
+    ${If} $2 != ""
+      Push "the new app's setup ended before it finished installing"
+      Call Fail
+    ${EndIf}
+    ${If} $8 >= ${MAX_POLLS}
+      Push "the new app's setup did not finish in time"
+      Call Fail
+    ${EndIf}
+    Goto wait_for_install
+  installed:
+  !insertmacro Log "Electrobun installed at $7"
+  Sleep ${POLL_MS}
+  nsExec::ExecToStack 'taskkill /F /IM "${SETUP_EXE}"'
+  Pop $0
+  Pop $1
+  !insertmacro Log "closed Electrobun setup: $0"
   SetOutPath "$TEMP"
 
   StrCpy $OldUninstaller ""
@@ -136,6 +169,15 @@ Section "Install"
   WriteRegStr HKCU "Software\Classes\openwaggle" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\openwaggle\shell\open\command" "" '"$NewLauncher" "%1"'
 
+  ; electron-updater passes --force-run when the update should restart the app, as OpenWaggle's
+  ; Restart to update always does; a quit-to-install without it leaves the app closed.
+  ClearErrors
+  ${GetOptions} $R0 "--force-run" $R1
+  ${IfNot} ${Errors}
+  ${OrIfNot} ${Silent}
+    Exec '"$NewLauncher"'
+    !insertmacro Log "started $NewLauncher"
+  ${EndIf}
   !insertmacro Log "transition to ${VERSION} finished"
   FileClose $LogHandle
 SectionEnd
