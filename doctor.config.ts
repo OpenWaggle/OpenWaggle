@@ -173,10 +173,7 @@ const config: DoctorConfig = {
         // then decremented per file, so read order decides which file crosses the limit.
         // Reading the kinds concurrently would make the outcome depend on I/O timing.
         files: ['src/main/adapters/syntax-resource-persistence.ts'],
-        rules: [
-          'react-doctor/async-parallel',
-          'react-doctor/server-sequential-independent-await',
-        ],
+        rules: ['react-doctor/async-parallel', 'react-doctor/server-sequential-independent-await'],
       },
       {
         // Each file read draws on one shared budget, checked and then decremented per

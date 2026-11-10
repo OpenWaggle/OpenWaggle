@@ -274,7 +274,10 @@ export function validateCommitMessage(message: string): string[] {
   if (subject.length === 0) {
     return ['The commit message is empty.']
   }
-  if (GENERATED_SUBJECT_PATTERN.test(subject) || CONVENTIONAL_COMMIT_SUBJECT_PATTERN.test(subject)) {
+  if (
+    GENERATED_SUBJECT_PATTERN.test(subject) ||
+    CONVENTIONAL_COMMIT_SUBJECT_PATTERN.test(subject)
+  ) {
     return []
   }
   return [
