@@ -10,10 +10,13 @@ class FakeChild implements StoppableChild {
   readonly signalCode = null
   readonly kill = vi.fn(() => true)
 
-  constructor(
-    readonly pid: number,
-    readonly exitCode: number | null = null,
-  ) {}
+  readonly pid: number
+  readonly exitCode: number | null
+
+  constructor(pid: number, exitCode: number | null = null) {
+    this.pid = pid
+    this.exitCode = exitCode
+  }
 
   once() {
     return this
