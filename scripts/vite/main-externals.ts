@@ -24,7 +24,6 @@ export const BUNDLED_DEPS = [
   '@modelcontextprotocol/node',
   '@modelcontextprotocol/server',
   'typebox',
-  '@electron-toolkit/utils',
   'fast-glob',
   'diff',
   'smol-toml',
