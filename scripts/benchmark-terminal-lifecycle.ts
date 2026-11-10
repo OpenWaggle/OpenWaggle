@@ -31,15 +31,15 @@ export interface TerminalLifecycleBenchmarkContext {
   readonly service: BenchmarkTerminalService
 }
 
-function assertGate(condition: boolean, message: string): asserts condition {
+export function assertGate(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`Terminal benchmark gate failed: ${message}`)
 }
 
-function delay(milliseconds: number) {
+export function delay(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 }
 
-async function waitUntil(description: string, predicate: () => boolean) {
+export async function waitUntil(description: string, predicate: () => boolean) {
   const deadline = performance.now() + OUTPUT_TIMEOUT_MS
   while (!predicate()) {
     if (performance.now() >= deadline) throw new Error(`Timed out waiting for ${description}.`)
