@@ -12,9 +12,9 @@ import type {
   InlineVisualizationReadResult,
 } from '@shared/types/inline-visualization'
 import { inlineVisualizationFrameUrl } from '@shared/utils/inline-visualization'
-import { protocol } from 'electron'
 import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import baseStyles from './inline-visualization-assets/base.css.raw?raw'
 import hostStyles from './inline-visualization-assets/host.css.raw?raw'
 import hostRuntime from './inline-visualization-assets/host-runtime.js.raw?raw'
@@ -262,7 +262,7 @@ export function registerInlineVisualizationProtocolOnce(
   inlineVisualizationProtocolRegistered = true
   const readSource = dependencies.readSource ?? defaultReadSource
 
-  protocol.handle(INLINE_VISUALIZATION_PROTOCOL.SCHEME, async (request) => {
+  trustedOrigins.serve('inline-visualization', async (request) => {
     try {
       if (isLucideRuntimeRequest(request.url)) {
         return new Response(lucideRuntime, {

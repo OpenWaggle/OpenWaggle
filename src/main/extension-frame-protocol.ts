@@ -9,8 +9,8 @@ import type {
   ExtensionFrameRegisterResult,
   ExtensionFrameUnregisterInput,
 } from '@shared/types/extension-frame'
-import { protocol } from 'electron'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { env } from './env'
 import extensionFrameCss from './extension-frame-assets/extension-frame.css.raw?raw'
 import extensionFrameHtml from './extension-frame-assets/extension-frame.html?raw'
@@ -272,7 +272,7 @@ export function registerExtensionFrameProtocolOnce() {
   }
 
   extensionFrameProtocolRegistered = true
-  protocol.handle(OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME, (request) => {
+  trustedOrigins.serve('extension-frame', (request) => {
     try {
       const parsedRequest = parseFrameRequest(request.url)
       if (parsedRequest === null) {

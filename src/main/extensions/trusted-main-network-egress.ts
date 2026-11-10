@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { EventEmitter } from 'node:events'
-import { type ClientRequestConstructorOptions, net as electronNet } from 'electron'
+import { networkFetch } from '../desktop-shell/network-fetch'
 import {
   installTrustedMainNetworkCallbackGuard,
   type TrustedMainEventListener,
@@ -10,12 +10,7 @@ import { installTrustedMainHttpNetworkGuard } from './trusted-main-network-http-
 import { installTrustedMainSocketNetworkGuard } from './trusted-main-network-socket-guard'
 import type { DiscoveredExtensionPackage } from './types'
 
-const HTTP_PROTOCOL = 'http:'
 const HTTPS_PROTOCOL = 'https:'
-const HTTP_DEFAULT_HOST = 'localhost'
-const HTTP_DEFAULT_PATH = '/'
-const HTTP_DEFAULT_PORT = '80'
-const HTTPS_DEFAULT_PORT = '443'
 const UNSAFE_FETCH_TRANSPORT_PROPERTIES = [
   ['agent', 'Custom fetch agents can bypass the declared origin.'],
   ['dispatcher', 'Custom fetch dispatchers can bypass the declared origin.'],
@@ -228,25 +223,6 @@ function enforceFetchTarget(api: string, input: RequestInfo | URL, init?: Reques
   })
 }
 
-function optionString(value: string | number | null | undefined) {
-  return value === undefined || value === null ? null : String(value)
-}
-
-function defaultPort(protocol: string) {
-  return protocol === HTTPS_PROTOCOL ? HTTPS_DEFAULT_PORT : HTTP_DEFAULT_PORT
-}
-
-function hostWithPort(input: {
-  readonly host: string
-  readonly port: string | null
-  readonly protocol: string
-}) {
-  if (input.port === null || input.port === defaultPort(input.protocol)) {
-    return input.host
-  }
-  return `${input.host}:${input.port}`
-}
-
 function installFetchGuard() {
   const originalFetch = globalThis.fetch
   if (typeof originalFetch !== 'function') {
@@ -268,68 +244,6 @@ function installFetchGuard() {
   }
 }
 
-function electronRequestOptionsUrl(options: ClientRequestConstructorOptions | string) {
-  if (typeof options === 'string') {
-    return parseUrl(options)
-  }
-  if (options.url !== undefined) {
-    return parseUrl(options.url)
-  }
-
-  const protocol = options.protocol ?? HTTP_PROTOCOL
-  const host = options.hostname ?? options.host ?? HTTP_DEFAULT_HOST
-  const port = optionString(options.port)
-  const path = options.path ?? HTTP_DEFAULT_PATH
-  return parseUrl(`${protocol}//${hostWithPort({ host, port, protocol })}${path}`)
-}
-
-function electronRequestOptionsWithRedirectError(
-  options: ClientRequestConstructorOptions | string,
-): ClientRequestConstructorOptions {
-  if (typeof options === 'string') {
-    return {
-      url: options,
-      redirect: 'error',
-    }
-  }
-
-  return {
-    ...options,
-    redirect: 'error',
-  }
-}
-
-function installElectronNetGuard() {
-  if (typeof electronNet !== 'object' || electronNet === null) {
-    return
-  }
-
-  const originalElectronFetch = electronNet.fetch.bind(electronNet)
-  const originalElectronRequest = electronNet.request.bind(electronNet)
-
-  electronNet.fetch = (input: string | Request, init?: RequestInit) => {
-    if (currentPolicy() === null) {
-      return originalElectronFetch(input, init)
-    }
-
-    try {
-      enforceFetchTarget('electron.net.fetch', input, init)
-    } catch (error) {
-      return Promise.reject(error)
-    }
-
-    return originalElectronFetch(input, fetchInitWithRedirectError(init))
-  }
-  electronNet.request = (options) => {
-    if (currentPolicy() === null) {
-      return originalElectronRequest(options)
-    }
-
-    enforceUrl('electron.net.request', electronRequestOptionsUrl(options))
-    return originalElectronRequest(electronRequestOptionsWithRedirectError(options))
-  }
-}
-
 export function installTrustedMainNetworkGuard() {
   if (trustedMainNetworkGuardInstalled) {
     return
@@ -343,6 +257,10 @@ export function installTrustedMainNetworkGuard() {
   })
   installTrustedMainSocketNetworkGuard({ enforceRawSocket })
   installTrustedMainNetworkEscapeGuard({ enforceBlockedApi: enforceBlockedNetworkApi })
-  installElectronNetGuard()
+  networkFetch.guardExtensionEgress({
+    isActive: () => currentPolicy() !== null,
+    checkFetch: enforceFetchTarget,
+    checkUrl: enforceUrl,
+  })
   trustedMainNetworkGuardInstalled = true
 }

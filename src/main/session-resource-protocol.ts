@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionResourceContent } from '@shared/types/session-resource'
-import { protocol } from 'electron'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { isTrustedRendererRequest } from './renderer-request-trust'
 import { downloadContentDisposition } from './session-resource-content-disposition'
 
@@ -255,7 +255,7 @@ export function registerSessionResourceProtocolOnce(
     dependencies.maxRegistrationsPerOwner ?? DEFAULT_MAX_REGISTRATIONS_PER_OWNER
   isTrustedRequest = dependencies.isTrustedRequest ?? isTrustedRendererRequest
   const readContent = dependencies.readContent ?? defaultReadContent
-  protocol.handle(SESSION_RESOURCE_PROTOCOL.SCHEME, async (request) => {
+  trustedOrigins.serve('session-resource', async (request) => {
     try {
       if (request.method !== 'GET') return notFoundResponse()
       // Chromium omits referrers for custom schemes. The webRequest guard verifies the

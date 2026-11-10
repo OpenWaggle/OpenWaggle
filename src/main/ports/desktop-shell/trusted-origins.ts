@@ -10,7 +10,8 @@ import { Context } from 'effect'
  * - `mcp-app-frame`: each MCP App document (one host per frame, ADR 0053);
  * - `session-resource`: Session images and files the renderer displays.
  *
- * Electron serves a privileged custom scheme per domain through `protocol.handle`. Electrobun
+ * Electron serves a privileged custom scheme per domain (`TRUSTED_ORIGIN_SCHEMES`) through
+ * `protocol.handle`. Electrobun
  * serves a `Bun.serve` origin per domain on `127.0.0.1` that requires a per-launch token.
  */
 export type TrustedOriginDomain =
@@ -23,8 +24,6 @@ export type TrustedOriginDomain =
 
 export interface TrustedOriginDeclaration {
   readonly domain: TrustedOriginDomain
-  /** The scheme the domain's URLs use today (`openwaggle`, `openwaggle-ext`, ...). */
-  readonly scheme: string
   /** Pages of other origins may `fetch` it with CORS. */
   readonly corsEnabled: boolean
   /** The engine may keep compiled script for it between launches (A-F11). */
