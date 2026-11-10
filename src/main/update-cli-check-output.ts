@@ -2,7 +2,7 @@ import type { UpdateChannel } from '@shared/types/update-channel'
 import { CLI_EXIT, CliError } from './cli-error'
 import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './cli-output-schema'
 import { writeCliStdout } from './cli-stdout'
-import { classifySessionsCliError, sessionsCliResponseText } from './sessions-cli-output'
+import { cliErrorBody, sessionsCliResponseText } from './sessions-cli-output'
 
 const MS_PER_SECOND = 1_000
 /**
@@ -37,7 +37,7 @@ export async function writeUpdateCheckResult(result: UpdateCheckResult) {
 }
 
 /**
- * The CLI error envelope, `{schemaVersion, type: "error", error: {kind, message}}`, with an
+ * The CLI error envelope, `{schemaVersion, type: "error", error: {kind, message, code?}}`, with an
  * additive `savedChannel` once the Session Host has reported it. A failed release check then still
  * tells `install.sh` the channel to keep, instead of looking like an install with no channel.
  */
@@ -46,17 +46,16 @@ export function writeUpdateCheckError(
   savedChannel: UpdateChannel,
   stderr: (value: string) => unknown = (value) => process.stderr.write(value),
 ) {
-  const kind = classifySessionsCliError(error)
-  const message = error instanceof Error ? error.message : String(error)
+  const body = cliErrorBody(error)
   stderr(
     `${JSON.stringify({
       schemaVersion: SESSIONS_CLI_OUTPUT_SCHEMA_VERSION,
       type: 'error',
-      error: { kind, message },
+      error: body,
       savedChannel,
     })}\n`,
   )
-  return kind
+  return body.kind
 }
 
 /** Fails with a `timeout` CLI error when the release check of `--check --json` takes too long. */

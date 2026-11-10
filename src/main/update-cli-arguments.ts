@@ -1,5 +1,10 @@
 import { UPDATE_CHANNELS, type UpdateChannel } from '@shared/types/update-channel'
-import { isFlagValue, isOptionWithoutValue, option, type ParsedArguments } from './mcp-cli-arguments'
+import {
+  isFlagValue,
+  isOptionWithoutValue,
+  option,
+  type ParsedArguments,
+} from './mcp-cli-arguments'
 import { UpdateCliUsageError } from './update-cli-exact-version'
 
 export function usage() {
