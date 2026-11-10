@@ -31,6 +31,11 @@
       // Vitest mock specifiers intentionally point at virtual mock modules.
       "files": ["**/__tests__/**"],
       "rules": { "unresolved-imports": "off" }
+    },
+    {
+      // oxlint.config.mts loads the lint plugins by path (jsPlugins), which needs a default export.
+      "files": ["scripts/oxlint/openwaggle-plugin.ts", "scripts/oxlint/ts-match-plugin.ts"],
+      "rules": { "unused-exports": "off" }
     }
   ],
   "duplicates": {
