@@ -1,0 +1,190 @@
+import { describe, expect, it } from 'vitest'
+import { isTestCommand, bashRun } from '../commands'
+import { staleDocs } from '../doc-watch'
+import { findingSetKey, formatFinding, parseFindingLine, type Finding } from '../findings'
+import { ranGenerator } from '../generated-files'
+import { importsAny, resolveSpecifier } from '../importers'
+import { changedBetween } from '../snapshot'
+import { newSuppressions } from '../suppressions'
+import { parseJsonc, tsconfigWeakenings } from '../tsconfig-strictness'
+
+describe('new suppressions', () => {
+  it('reports only the directives the Session added', () => {
+    const before = '// @ts-expect-error old\nconst a = 1\n'
+    const after =
+      '// @ts-expect-error old\nconst a = 1\n/* eslint-disable no-console */\n// biome-ignore lint: x\n'
+    expect(newSuppressions('src/a.ts', before, after).map(formatFinding)).toEqual([
+      'src/a.ts:3:1 gate/suppressions [TS-08] new eslint-disable comment; fix the code or the shared config instead',
+      'src/a.ts:4:1 gate/suppressions [TS-08] new biome-ignore comment; fix the code or the shared config instead',
+    ])
+  })
+
+  it('counts a new file from empty and skips the rules that name the directives', () => {
+    expect(newSuppressions('src/b.tsx', undefined, '{/* @ts-nocheck */}')).toHaveLength(1)
+    expect(newSuppressions('scripts/oxlint/rules/x.ts', undefined, '// eslint-disable')).toEqual([])
+    expect(newSuppressions('docs/a.md', undefined, '// eslint-disable')).toEqual([])
+  })
+
+  it('ignores the words outside a comment', () => {
+    expect(newSuppressions('src/a.ts', '', "const name = 'ts-ignore'\n")).toEqual([])
+  })
+})
+
+describe('tsconfig weakening', () => {
+  const strict =
+    '{\n  // comment\n  "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true, },\n  "include": ["src/**/*"],\n}'
+
+  it('parses JSON with comments and trailing commas but keeps strings intact', () => {
+    expect(parseJsonc('{ "a": "http://x, }", /* c */ "b": [1,], }')).toEqual({
+      a: 'http://x, }',
+      b: [1],
+    })
+  })
+
+  it('reports flags turned off and scope changes', () => {
+    const weaker = strict
+      .replace('"strict": true', '"strict": true, "strictNullChecks": false')
+      .replace('"noUncheckedIndexedAccess": true', '"skipLibCheck": true')
+      .replace('["src/**/*"]', '["src/**/*", "legacy/**/*"]')
+    expect(tsconfigWeakenings(strict, weaker)).toEqual([
+      'noUncheckedIndexedAccess weakened',
+      'strictNullChecks weakened',
+      'skipLibCheck weakened',
+      'include changed',
+    ])
+  })
+
+  it('accepts a stricter config and a new config', () => {
+    const stricter = strict.replace('"strict": true', '"strict": true, "noImplicitOverride": true')
+    expect(tsconfigWeakenings(strict, stricter)).toEqual([])
+    expect(tsconfigWeakenings(undefined, strict)).toEqual([])
+  })
+
+  it('treats a family flag removed under strict as still strict', () => {
+    const before = strict.replace('"strict": true', '"strict": true, "strictNullChecks": true')
+    expect(tsconfigWeakenings(before, strict)).toEqual([])
+  })
+})
+
+describe('shell commands', () => {
+  it('recognizes test runs in compound commands', () => {
+    for (const command of [
+      'bunx vitest run -c vitest.unit.config.ts src/a.unit.test.ts',
+      'cd x && bun run test:unit 2>&1 | tail',
+      'node_modules/.bin/vitest run scripts/agent-gate',
+      'bun run verify',
+    ]) {
+      expect(isTestCommand(command)).toBe(true)
+    }
+    for (const command of [
+      'bun run lint',
+      'vitest --version',
+      'cat vitest.config.ts',
+      'git commit -m test',
+    ]) {
+      expect(isTestCommand(command)).toBe(false)
+    }
+  })
+
+  it('reads the exit status from the bash result', () => {
+    expect(bashRun({ command: 'false' }, { exit_code: 1 }, true)).toEqual({
+      command: 'false',
+      exitCode: 1,
+      failed: true,
+    })
+    expect(bashRun({ command: 'true' }, undefined, false)).toEqual({
+      command: 'true',
+      exitCode: undefined,
+      failed: false,
+    })
+    expect(bashRun({}, undefined, false)).toBeUndefined()
+  })
+
+  it('matches generated files to their generators', () => {
+    expect(ranGenerator('bun.lock', ['bun add zod'])).toBe(true)
+    expect(ranGenerator('bun.lock', ['sed -i s/a/b/ bun.lock'])).toBe(false)
+    expect(
+      ranGenerator('scripts/api-snapshots/waggle-core.api.md', ['bun run api:snapshot:update']),
+    ).toBe(true)
+    expect(ranGenerator('src/renderer/src/routeTree.gen.ts', ['bunx electron-vite build'])).toBe(
+      true,
+    )
+    expect(ranGenerator('src/a.ts', ['bun install'])).toBe(false)
+  })
+})
+
+describe('doc watch-list', () => {
+  const watches = [{ paths: ['scripts/lint.ts'], docs: ['.agents/standards.md'] }]
+
+  it('flags a watched file changed without its doc', () => {
+    expect(staleDocs(['scripts/lint.ts'], undefined, watches)).toEqual([
+      { file: 'scripts/lint.ts', touched: ['scripts/lint.ts'], docs: ['.agents/standards.md'] },
+    ])
+  })
+
+  it('passes when the doc changed too, now or earlier in the Session', () => {
+    expect(staleDocs(['scripts/lint.ts', '.agents/standards.md'], undefined, watches)).toEqual([])
+    expect(staleDocs(['scripts/lint.ts'], ['.agents/standards.md'], watches)).toEqual([])
+  })
+})
+
+describe('findings', () => {
+  const finding: Finding = {
+    file: 'src/a.ts',
+    line: 2,
+    column: 5,
+    rule: 'no-empty',
+    message: 'Empty.',
+    severity: 'block',
+  }
+
+  it('round-trips the one-line form', () => {
+    const line = 'src/a.ts:2:17 typescript/no-explicit-any [TS-05] Unexpected `any`.'
+    const parsed = parseFindingLine(line, 'block')
+    expect(parsed?.id).toBe('TS-05')
+    expect(parsed === undefined ? '' : formatFinding(parsed)).toBe(line)
+    expect(parseFindingLine('Error: oxlint crashed', 'block')).toBeUndefined()
+  })
+
+  it('keys a finding set without its positions', () => {
+    expect(findingSetKey([finding])).toBe(findingSetKey([{ ...finding, line: 40 }]))
+    expect(findingSetKey([finding])).not.toBe(findingSetKey([{ ...finding, message: 'Other.' }]))
+  })
+})
+
+describe('importers and snapshots', () => {
+  it('resolves relative and alias specifiers', () => {
+    expect(resolveSpecifier('src/main/x/b.ts', './a.js')).toContain('src/main/x/a.ts')
+    expect(resolveSpecifier('src/renderer/src/c.tsx', '@shared/types/json')).toContain(
+      'src/shared/types/json.ts',
+    )
+    expect(resolveSpecifier('src/a.ts', '@openwaggle/waggle-core')).toContain(
+      'packages/waggle-core/src/index.ts',
+    )
+    expect(resolveSpecifier('src/a.ts', 'node:fs')).toEqual([])
+  })
+
+  it('finds an import of a changed module', () => {
+    const text = "import { a } from './a'\nexport { b } from '../lib/b.ts'\n"
+    expect(importsAny('src/x/c.ts', text, new Set(['src/lib/b.ts']))).toBe(true)
+    expect(importsAny('src/x/c.ts', text, new Set(['src/lib/a.ts']))).toBe(false)
+  })
+
+  it('lists files whose fingerprint changed in either direction', () => {
+    const before = {
+      head: 'h',
+      files: new Map([
+        ['a', '1'],
+        ['b', '1'],
+      ]),
+    }
+    const after = {
+      head: 'h',
+      files: new Map([
+        ['a', '1'],
+        ['c', '1'],
+      ]),
+    }
+    expect(changedBetween(before, after)).toEqual(['b', 'c'])
+  })
+})
