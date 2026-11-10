@@ -128,6 +128,7 @@ describe('SQLite Session lifecycle repository', () => {
     expect(result.response.outcome).toMatchObject({
       effect: 'rejected',
       code: 'parent_capacity_reached',
+      kind: 'conflict',
     })
     expect(result.childCount).toBe(0)
   })
@@ -238,76 +239,5 @@ describe('SQLite Session lifecycle repository', () => {
       attachmentIds: ['attachment-schema'],
       callerId: 'local-user',
     })
-  })
-
-  it('rejects an independent launch when the app-wide Run ceiling is full', async () => {
-    const layer = makeSessionLifecycleTestLayer(path.join(temporaryRoot, 'launch-ceiling.sqlite'))
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const repository = yield* SessionLifecycleRepository
-        const response = yield* repository.execute({
-          ...rootLifecycleInput('launch'),
-          hostRunCeiling: 1,
-        })
-        const sql = yield* SqlClient.SqlClient
-        const rows = yield* sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count FROM sessions WHERE id = ${'session-launch'}
-        `
-        return { response, sessionCount: rows[0]?.count }
-      }).pipe(Effect.provide(layer)),
-    )
-
-    expect(result.response.outcome).toMatchObject({
-      operation: 'launch',
-      effect: 'rejected',
-      code: 'host_run_ceiling_reached',
-      hostRunCeiling: 1,
-      hostActiveRuns: 1,
-    })
-    expect(result.sessionCount).toBe(0)
-  })
-
-  it('admits only one of two concurrent roots into the final Host Run slot', async () => {
-    const layer = makeSessionLifecycleTestLayer(
-      path.join(temporaryRoot, 'launch-ceiling-race.sqlite'),
-    )
-    const responses = await Effect.runPromise(
-      Effect.gen(function* () {
-        const repository = yield* SessionLifecycleRepository
-        const first = rootLifecycleInput('launch')
-        const second = {
-          ...first,
-          request: {
-            ...first.request,
-            requestId: 'request-launch-second',
-            idempotencyKey: 'idempotency-launch-second',
-          },
-          session: {
-            sessionId: 'session-launch-second',
-            piSessionId: 'pi-launch-second',
-            piSessionFile: '/sessions/launch-second.jsonl',
-          },
-          runId: 'run-launch-second',
-        }
-        return yield* Effect.all(
-          [
-            repository.execute({ ...first, hostRunCeiling: 2 }),
-            repository.execute({ ...second, hostRunCeiling: 2 }),
-          ],
-          { concurrency: 'unbounded' },
-        )
-      }).pipe(Effect.provide(layer)),
-    )
-
-    expect(
-      responses.filter((response) => response.outcome.effect === 'launched-root'),
-    ).toHaveLength(1)
-    expect(
-      responses.filter(
-        (response) =>
-          response.outcome.effect === 'rejected' &&
-          response.outcome.code === 'host_run_ceiling_reached',
-      ),
-    ).toHaveLength(1)
   })
 })

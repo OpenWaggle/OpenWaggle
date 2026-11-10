@@ -99,6 +99,8 @@ The sidebar groups sessions by project. Each row shows a title, the session's st
 
 An idle session has no state label. Sessions that need you also have a colored marker on their edge, but the label alone tells you the state.
 
+A session with [workers](/docs/using-openwaggle/hives-and-sessions) also shows **Working** while any worker below it is running, and **Done** when the last of them finishes while you are away.
+
 ### What the icons mean
 
 Hover an icon for details about where the session works:

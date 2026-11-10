@@ -72,11 +72,13 @@ describe('Local Session authentication budget', () => {
     await expect(attempt(endpoint, 'worker')).resolves.toMatchObject({
       kind: 'error',
       code: 'authentication_failed',
+      errorKind: 'authentication',
     })
     // The per-profile throttle stays indistinguishable from a rejected credential.
     await expect(attempt(endpoint, 'worker')).resolves.toEqual({
       kind: 'error',
       code: 'authentication_failed',
+      errorKind: 'authentication',
       message: 'Local Session authentication failed.',
       retryable: false,
     })
@@ -107,14 +109,17 @@ describe('Local Session authentication budget', () => {
 
     await expect(attempt(endpoint, 'attacker-one')).resolves.toMatchObject({
       code: 'authentication_failed',
+      errorKind: 'authentication',
     })
     await expect(attempt(endpoint, 'attacker-two')).resolves.toMatchObject({
       code: 'authentication_failed',
+      errorKind: 'authentication',
     })
     // The Host-wide throttle says nothing about the profile, so it tells the client to retry.
     await expect(attempt(endpoint, 'worker')).resolves.toEqual({
       kind: 'error',
       code: 'authentication_throttled',
+      errorKind: 'authentication',
       message: 'Local Session authentication is temporarily throttled.',
       retryable: true,
     })

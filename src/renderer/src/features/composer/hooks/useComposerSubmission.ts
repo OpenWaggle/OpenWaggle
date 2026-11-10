@@ -4,7 +4,7 @@ import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
-import { consumeSendResult, logExpectedSendRefusal } from '../lib/send-result'
+import { consumeSendResult, logExpectedSendRefusal, logShownSendFailure } from '../lib/send-result'
 import { trackComposerSubmission } from '../state/composer-activity-store'
 import {
   discardSessionResourceAttachments,
@@ -53,12 +53,17 @@ interface UseComposerSubmissionInput {
 }
 
 /**
- * What becomes of the draft of a send that failed. `notice`: the failure is expected and already
- * explained where the user is, as by a Session's notice; it is said briefly in a toast and logged
- * as a warning, not an error.
+ * What becomes of the draft of a send that failed. `notice`: what a toast tells the user. The
+ * failure is logged as a warning, being expected, as a refusal the Host explained; `unexpected`
+ * logs it as an error, for a call that failed where the user is not otherwise told.
  */
 export type SendFailureDisposition =
-  | { readonly kind: 'restore'; readonly contextKey?: string | null; readonly notice?: string }
+  | {
+      readonly kind: 'restore'
+      readonly contextKey?: string | null
+      readonly notice?: string
+      readonly unexpected?: boolean
+    }
   | { readonly kind: 'discard' | 'retain' }
 
 type DispatchResult =
@@ -199,7 +204,8 @@ export function useComposerSubmission({
           }
           if (disposition.kind === 'restore' && disposition.notice) {
             onToast?.(disposition.notice)
-            logExpectedSendRefusal(cause)
+            if (disposition.unexpected) logShownSendFailure(cause)
+            else logExpectedSendRefusal(cause)
             return
           }
           throw cause

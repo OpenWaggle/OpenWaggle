@@ -1,3 +1,7 @@
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import type { DelegationState } from '@shared/types/session-collaboration'
 import {
   SESSION_CONTROL_CONTRACT_VERSION,
@@ -49,12 +53,15 @@ export function delegationOperationScope(input: ExecuteDelegationInput) {
   return `delegation:${input.request.command.delegationId}:actor:${input.request.command.sessionId}`
 }
 
-export function rejectedDelegationOutcome(input: ExecuteDelegationInput, code: string) {
+export function rejectedDelegationOutcome(
+  input: ExecuteDelegationInput,
+  code: SessionHostRefusalCode,
+) {
   return {
     operation: input.request.command.operation,
     effect: 'rejected',
     sessionId: input.request.command.sessionId,
-    code,
+    ...sessionHostRefusal(code),
   } as const
 }
 

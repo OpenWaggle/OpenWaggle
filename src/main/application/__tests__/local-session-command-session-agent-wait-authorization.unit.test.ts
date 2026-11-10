@@ -81,7 +81,11 @@ function testLayer(
             }
           : {
               operation,
-              error: { code: 'export_not_found' as const, message: 'irrelevant' },
+              error: {
+                code: 'export_not_found' as const,
+                kind: 'not_found' as const,
+                message: 'irrelevant',
+              },
             },
     })
   }

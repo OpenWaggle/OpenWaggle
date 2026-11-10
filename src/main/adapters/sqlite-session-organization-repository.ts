@@ -1,7 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -16,6 +15,7 @@ import {
   assertBoundSessionAuthoritySnapshot,
   refreshHandoffAuthority,
 } from './sqlite-session-authority-snapshot-refresh'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { admitExistingHandoff } from './sqlite-session-existing-workspace-handoff-admission'
 import {
   abortExistingHandoff,
@@ -161,9 +161,7 @@ export function executeOrganization(
               repositoryError('organization-idempotency-key-reused', command),
             )
           }
-          const outcome = decodeSessionControlMutationOutcome(
-            parseJsonUnknown(existing.outcome_json),
-          )
+          const outcome = decodeStoredSessionControlMutationOutcome(existing.outcome_json)
           return { outcome, replayed: true }
         }
         const sessions = yield* loadOrganizationSession(sql, command.sessionId)
@@ -179,16 +177,17 @@ export function executeOrganization(
                 operation: command.operation,
                 effect: 'rejected',
                 sessionId: command.sessionId,
-                code:
+                ...sessionHostRefusal(
                   input.preparationRejectionCode ??
-                  (session.active_run_id ? 'session_not_idle' : 'workspace_unavailable'),
+                    (session.active_run_id ? 'session_not_idle' : 'workspace_unavailable'),
+                ),
               })
             : organizationOutcome(command)
           : ({
               operation: command.operation,
               effect: 'rejected',
               sessionId: command.sessionId,
-              code: 'session_not_found',
+              ...sessionHostRefusal('session_not_found'),
             } satisfies SessionControlMutationOutcome)
         if (outcome.effect !== 'rejected') {
           if (command.operation !== 'handoff') yield* persistOrganizationMutation(sql, command, now)

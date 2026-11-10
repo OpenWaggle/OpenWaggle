@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { sessionsCliResponseText } from '../../src/main/sessions-cli-output'
 import { topLevelCliUsage } from '../../src/main/top-level-cli-usage'
 import {
   assertInstalledCliResponse,
@@ -12,12 +13,13 @@ import {
 } from '../verify-installed-cli'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
 
-const VALID_RESPONSE = JSON.stringify({
-  schemaVersion: 1,
-  type: 'response',
-  command: 'list',
-  result: { contract: 'local-session-v1', response: { outcome: { sessions: [] } } },
-})
+// What the installed `hive list --json` prints, from the CLI's own envelope writer, so this
+// check cannot drift from the CLI again.
+const VALID_RESPONSE = sessionsCliResponseText(
+  'hive list',
+  { contract: 'local-session-v1', response: { outcome: { sessions: [] } } },
+  true,
+).trimEnd()
 
 /** An installed CLI that answers the sessions list and the discovery checks correctly. */
 function installedCli(overrides: Partial<Record<string, { stdout: string; stderr: string }>> = {}) {
@@ -96,6 +98,10 @@ describe('installed CLI verification', () => {
   )
 
   it('rejects a successful process that does not return the versioned sessions response', () => {
+    // A beta CLI's bare `list` is not the 1.0 envelope.
+    expect(() =>
+      assertInstalledCliResponse(VALID_RESPONSE.replace('"hive list"', '"list"'), 'darwin'),
+    ).toThrow('invalid sessions list response')
     expect(() => assertInstalledCliResponse('{}', 'darwin')).toThrow(
       'invalid sessions list response',
     )

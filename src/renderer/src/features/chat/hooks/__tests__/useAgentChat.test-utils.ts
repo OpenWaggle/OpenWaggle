@@ -56,23 +56,27 @@ const {
   const setFirstSendRecoveryMock = vi.fn((id: SessionId, recovery: unknown) => {
     firstSendRecoveryCalls.push([id, recovery])
   })
-  const useBackgroundRunStoreMock = vi.fn(
-    (
-      selector: (state: {
-        getRunRenderSnapshot: (sessionId: SessionId) => unknown
-        hasActiveRun: (sessionId: SessionId) => boolean
-        setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
-        setRunCompactionStatus: (sessionId: SessionId, status: unknown) => void
-        setFirstSendRecovery: typeof setFirstSendRecoveryMock
-      }) => unknown,
-    ) =>
-      selector({
-        getRunRenderSnapshot: getRunRenderSnapshotMock,
-        hasActiveRun: hasActiveRunMock,
-        setRunRenderMessages: setRunRenderMessagesMock,
-        setRunCompactionStatus: setRunCompactionStatusMock,
-        setFirstSendRecovery: setFirstSendRecoveryMock,
-      }),
+  const useBackgroundRunStoreMock = Object.assign(
+    vi.fn(
+      (
+        selector: (state: {
+          getRunRenderSnapshot: (sessionId: SessionId) => unknown
+          hasActiveRun: (sessionId: SessionId) => boolean
+          setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
+          setRunCompactionStatus: (sessionId: SessionId, status: unknown) => void
+          setFirstSendRecovery: typeof setFirstSendRecoveryMock
+        }) => unknown,
+      ) =>
+        selector({
+          getRunRenderSnapshot: getRunRenderSnapshotMock,
+          hasActiveRun: hasActiveRunMock,
+          setRunRenderMessages: setRunRenderMessagesMock,
+          setRunCompactionStatus: setRunCompactionStatusMock,
+          setFirstSendRecovery: setFirstSendRecoveryMock,
+        }),
+    ),
+    // No worktree launch owns a send's recovery here.
+    { getState: () => ({ getWorktreeLaunch: () => null }) },
   )
   const upsertSessionMock = vi.fn()
   const useChatStoreMock = vi.fn(

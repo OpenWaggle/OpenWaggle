@@ -113,6 +113,7 @@ describe('Local Session profile workspace scope management', () => {
     expect(denied.outcome).toMatchObject({
       effect: 'rejected',
       code: 'management_envelope_exceeded',
+      kind: 'authorization',
     })
   })
 })

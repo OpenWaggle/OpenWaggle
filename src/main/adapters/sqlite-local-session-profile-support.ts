@@ -1,4 +1,8 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import { parseJsonUnknown } from '@shared/schema'
 import {
   decodeLocalSessionProfileCapabilities,
@@ -83,13 +87,13 @@ export function selectProfiles(sql: SqlClient.SqlClient, name?: string) {
 
 export function rejectedProfileOutcome(
   operation: LocalSessionProfileManagementOutcome['operation'],
-  code: string,
+  code: SessionHostRefusalCode,
   profileName?: string,
 ): LocalSessionProfileManagementOutcome {
   return {
     operation,
     effect: 'rejected',
-    code,
+    ...sessionHostRefusal(code),
     ...(profileName ? { profileName } : {}),
   }
 }

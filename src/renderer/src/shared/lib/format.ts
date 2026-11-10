@@ -1,18 +1,31 @@
 import { TRIPLE_FACTOR } from '@shared/constants/math'
 import { TIME_UNIT } from '@shared/constants/time'
 
-const FORMAT_DURATION_VALUE_60000 = 60000
+/**
+ * Format elapsed time at whole-second precision: "42s", "3m 5s", "1h 2m 3s".
+ *
+ * Minutes roll over into hours so long runs read "2h 5m 0s" instead of "125m 0s".
+ */
+export function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / TIME_UNIT.MILLISECONDS_PER_SECOND))
+  if (totalSeconds < TIME_UNIT.SECONDS_PER_MINUTE) return `${totalSeconds}s`
+  const totalMinutes = Math.floor(totalSeconds / TIME_UNIT.SECONDS_PER_MINUTE)
+  const seconds = totalSeconds % TIME_UNIT.SECONDS_PER_MINUTE
+  if (totalMinutes < TIME_UNIT.MINUTES_PER_HOUR) return `${totalMinutes}m ${seconds}s`
+  const hours = Math.floor(totalMinutes / TIME_UNIT.MINUTES_PER_HOUR)
+  const minutes = totalMinutes % TIME_UNIT.MINUTES_PER_HOUR
+  return `${hours}h ${minutes}m ${seconds}s`
+}
 
 /**
  * Format a duration in ms to a human readable string.
  */
 export function formatDuration(ms: number): string {
-  if (ms < TIME_UNIT.MILLISECONDS_PER_SECOND) return `${ms}ms`
-  if (ms < FORMAT_DURATION_VALUE_60000)
-    return `${(ms / TIME_UNIT.MILLISECONDS_PER_SECOND).toFixed(1)}s`
-  const mins = Math.floor(ms / FORMAT_DURATION_VALUE_60000)
-  const secs = Math.floor((ms % FORMAT_DURATION_VALUE_60000) / TIME_UNIT.MILLISECONDS_PER_SECOND)
-  return `${mins}m ${secs}s`
+  const value = Math.max(0, ms)
+  if (value < TIME_UNIT.MILLISECONDS_PER_SECOND) return `${value}ms`
+  if (value < TIME_UNIT.ONE_MINUTE_MS)
+    return `${(value / TIME_UNIT.MILLISECONDS_PER_SECOND).toFixed(1)}s`
+  return formatElapsed(value)
 }
 
 /**
@@ -22,7 +35,7 @@ export function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp
   const seconds = Math.floor(diff / TIME_UNIT.MILLISECONDS_PER_SECOND)
   const minutes = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
-  const hours = Math.floor(minutes / TIME_UNIT.SECONDS_PER_MINUTE)
+  const hours = Math.floor(minutes / TIME_UNIT.MINUTES_PER_HOUR)
   const days = Math.floor(hours / TIME_UNIT.HOURS_PER_DAY)
 
   if (days > 0) return `${days}d ago`
@@ -42,7 +55,7 @@ export function formatCompactRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp
   const seconds = Math.floor(diff / TIME_UNIT.MILLISECONDS_PER_SECOND)
   const minutes = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
-  const hours = Math.floor(minutes / TIME_UNIT.SECONDS_PER_MINUTE)
+  const hours = Math.floor(minutes / TIME_UNIT.MINUTES_PER_HOUR)
   const days = Math.floor(hours / TIME_UNIT.HOURS_PER_DAY)
 
   if (days > 0) return `${String(days)}d`

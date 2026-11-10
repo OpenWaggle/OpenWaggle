@@ -179,6 +179,7 @@ describe('SQLite Session report target selection', () => {
       operation: 'report',
       effect: 'rejected',
       code: 'target_ambiguous',
+      kind: 'conflict',
     })
   })
 

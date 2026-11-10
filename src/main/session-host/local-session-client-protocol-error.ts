@@ -1,9 +1,17 @@
+import {
+  isSessionHostErrorKind,
+  type SessionHostErrorKind,
+} from '@shared/domain/session-host-refusals'
+
 interface LocalSessionClientProtocolErrorOptions extends ErrorOptions {
   readonly retryable?: boolean
+  /** The kind the Session Host gave the failure (ADR 0063); absent from a client-side failure. */
+  readonly errorKind?: SessionHostErrorKind
 }
 
 export class LocalSessionClientProtocolError extends Error {
   readonly retryable: boolean | undefined
+  readonly errorKind: SessionHostErrorKind | undefined
 
   constructor(
     readonly code: string,
@@ -13,6 +21,7 @@ export class LocalSessionClientProtocolError extends Error {
     super(message, options)
     this.name = 'LocalSessionClientProtocolError'
     this.retryable = options?.retryable
+    this.errorKind = options?.errorKind
   }
 }
 
@@ -30,11 +39,12 @@ export function localSessionClientProtocolError(
       : fallbackMessage
   const retryable =
     'retryable' in value && typeof value.retryable === 'boolean' ? value.retryable : undefined
-  return new LocalSessionClientProtocolError(
-    code,
-    message,
-    retryable === undefined ? undefined : { retryable },
-  )
+  const errorKind =
+    'errorKind' in value && isSessionHostErrorKind(value.errorKind) ? value.errorKind : undefined
+  return new LocalSessionClientProtocolError(code, message, {
+    ...(retryable === undefined ? {} : { retryable }),
+    ...(errorKind === undefined ? {} : { errorKind }),
+  })
 }
 
 /** The Session Host cannot be reached, started, or spoken to by this client. */

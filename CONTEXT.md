@@ -152,6 +152,14 @@ _Avoid_: needs attention (in user-facing UI), You, Needs input
 A Worker whose last Run failed or was interrupted, or that asked its parent for help, while its parent has no active Run and nothing queued to deliver, so no agent will pick it up.
 _Avoid_: blocked, failed Worker, dead Worker
 
+**Running Workers**:
+The Workers below a Session, at any depth and pinned or not, that have an active or connecting Run right now. Every parent Session has them, a Queen and a Worker that spawned Workers alike; for a Queen they are the whole Hive apart from herself. They describe Runs, not **Delegation state**: a Worker whose Delegation is still `working` but has no active Run is not running, and queued Follow-ups do not count until their Run starts. User-facing text says "running" for this, never "working", which names the **Next actor** group.
+_Avoid_: Workers working, active Workers, busy Hive
+
+**Done below**:
+A parent Session's finished-while-away state: the last Run in that Session or anywhere below it ended after the person last visited that Session. Visiting the Session clears it; visiting one of its Workers does not. A failed last Worker Run still reads as done on the parent, because that Worker reaches the person through **Needs you** or waits for its parent.
+_Avoid_: Hive completed, all Workers accepted
+
 **Delegation submission**:
 An immutable revisioned result and evidence set offered by a child or captured by the Session Host for review against one Delegation Contract.
 _Avoid_: final message, mutable result, acceptance
@@ -241,8 +249,8 @@ The user-configurable maximum number of child sessions that one parent session m
 _Avoid_: hard-coded worker count, host-wide limit, queued spawn count
 
 **Host run ceiling**:
-The app-global user-configurable maximum number of active Pi agent runs owned by one Session Host across root and descendant sessions.
-_Avoid_: workspace limit, provider rate limit, session count, hidden run queue
+The app-global user-configurable maximum number of active runs of agent-made sessions owned by one Session Host: Workers some parent spawned, and top-level sessions an agent, a client profile or a **Scheduled task** firing an agent's work created, launched or forked. The person's own sessions' runs never count toward it, and a run the person starts is never refused by it. Settings calls it **Active Workers**.
+_Avoid_: workspace limit, provider rate limit, session count, hidden run queue, limit on the person's sessions
 
 **Live orchestration smoke suite**:
 The mandatory pre-release QA workflow that uses a real configured model provider to prove multi-session spawning, control, event projection, and completion across the OpenWaggle agent, GUI, CLI, and external MCP boundaries.
@@ -1758,9 +1766,10 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The effective **Parent concurrency limit** resolves from project `.openwaggle/settings.json`, then app-global SQLite settings, then the product default, with the first defined value winning.
 - Settings UI and CLI configuration commands update those existing OpenWaggle stores; OpenWaggle does not introduce Codex TOML as its configuration format.
 - A **Session spawn** that would exceed the **Parent concurrency limit** fails with a structured capacity result and is never silently queued.
-- The **Host run ceiling** defaults to sixteen active Pi runs and may be configured by the user to a higher or lower positive value in app-global SQLite settings.
-- The **Host run ceiling** counts active root and descendant runs across every session owned by the Session Host; idle sessions, completed runs, waits, watches, indexing, and exports do not consume a run slot.
-- A run-creating operation must satisfy both its parent-specific allowance and the remaining **Host run ceiling**; exhaustion returns structured retryable `host_capacity_reached` state and never creates a hidden run queue.
+- The **Host run ceiling** defaults to sixteen active Worker runs and may be configured by the user to a higher or lower positive value in app-global SQLite settings.
+- The **Host run ceiling** counts active runs of agent-made sessions across every Hive owned by the Session Host; the person's sessions' runs, idle sessions, completed runs, waits, watches, indexing, and exports do not consume a slot.
+- Only a run of an agent-made session that an agent, a client profile, a **Scheduled task** firing an agent's work or the Host starts can be refused for capacity. A spawn, whoever asks for it, must satisfy its parent's allowance and the remaining **Host run ceiling** (`host_capacity_reached`); an agent's launch, and a message, Follow-up, queue delivery or Hive wake that starts such a run, must satisfy the ceiling (`host_run_ceiling_reached`) and, for a Worker, the **Parent concurrency limit** (`parent_concurrency_limit_reached`). Exhaustion is structured and retryable and never creates a hidden run queue.
+- A run of a session the person made is always admitted, whoever starts it, including the Host waking a Queen. So is any run the person starts (app, CLI, or another local-user client), even a Worker's, and any run the person's own queue action (resume, withdraw, reorder, edit) delivers, whoever wrote its Follow-up. Agents' work never stops the person working in another session, replying to a Queen, or starting a new session (ADR 0030, amended 2026-11-09).
 - The **Host run ceiling** is resource admission only: it introduces no Workspace lock, session-count limit, lineage-depth limit, or restriction on reading and organizing sessions.
 - Settings and capacity responses show the effective parent allowance and remaining host slots so a raised **Parent concurrency limit** is not mistaken for immediately available host capacity.
 - CI uses a deterministic controllable Pi provider to cover Session Host ownership, spawn lineage, shared and isolated Workspaces, steering, Follow-up delivery, waits, interruption, authorization, event resynchronization, exports, crashes, and all boundary adapters without network or paid-provider variability.
@@ -2722,7 +2731,7 @@ _Avoid_: auto-disable, expiry, stop (the user's own pause)
 - The **Session Host** schedules every **Scheduled task**, and does not idle-exit while at least one is enabled; nothing fires while the Host is not running or the machine is asleep.
 - Firings missed while the **Session Host** was down or the machine was asleep produce at most one catch-up **Scheduled task run**, never one per missed firing.
 - A **Heartbeat** fires only into an idle Session: no active Run, nothing in its **Follow-up queue**, and no parked request. It never steers or queues; it waits, and a firing still waiting at the next fire time is recorded as skipped.
-- A **Scheduled task** has at most one **Scheduled task run** in progress. A **Launch schedule** whose previous Session still has an active Run, or that meets the Host's active-run ceiling, records a skipped run instead of waiting in a hidden queue.
+- A **Scheduled task** has at most one **Scheduled task run** in progress. A **Launch schedule** whose previous Session still has an active Run records a skipped run instead of waiting in a hidden queue. A task whose work a client profile or a Session agent wrote (it created the task, or last changed its prompt, target, stop condition or Wake check), and a Run now an agent asks for, is agent work, even when it runs as the person: its Heartbeat on an agent-made session may be skipped at either the **Host run ceiling** or the **Parent concurrency limit**, and its launch at the **Host run ceiling**. A task the person owns whose work they wrote, a Run now the person chooses of a task they own, and a Heartbeat on a session the person made never is. A client profile's task runs as the profile, so it may always be skipped.
 - Archiving a **Heartbeat**'s target Session pauses the **Heartbeat**; deleting the Session deletes it.
 - A **Scheduled task** records the caller that created it, and every **Scheduled task run** revalidates that authority as automatic Follow-up delivery does; **CLI client profile revocation** disables the profile's **Scheduled tasks** and marks them as needing attention rather than deleting them.
 - A **Scheduled task run** uses its target's **Effective authorization mode** and carries no **Run authorization override**; an **Authorization request** it raises parks for the user like any other.
@@ -2778,7 +2787,7 @@ _Avoid_: Desktop notification (that one stays on this computer)
 
 - A **Desktop notification** belongs to exactly one Session; a newer one for the same Session replaces the older one rather than stacking.
 - **Needs you** notifies for any Session, Workers included: a Run that parked an approval or a question for the person, or a Worker that became **Stuck**. A Stuck Worker notifies once, and again only after it stops being Stuck and becomes Stuck again.
-- Ready to read notifies when a root Session's Run completes, once per Run.
+- Ready to read notifies when the work the person asked a root Session for is finished, once per request. A message sent while nothing below the Session is running is answered when the Session's Run has completed and no **Running Workers** remain, whichever ends last: the Session's own Run or the last Worker Run, the moment its row becomes **Done below**. A message sent while Workers are already running is a question about work in progress, so its reply notifies as soon as that Run completes. A Hive wake Run, or a Run whose Workers are still running, does not notify on its own. Needs you and Failed or interrupted never wait for Workers.
 - Failed or interrupted notifies when a root Session's Run fails, stops waiting for an answer that never came, or is interrupted by losing the **Session Host**, except when the Host was stopped to install an update. A Run the person interrupted never notifies.
 - A Worker's completion, failure, review request or request for help never notifies the person, because its **Next actor** is its parent; pinning a Worker to the sidebar does not change that.
 - Agent errors notifies for an error-severity **Agent notification**; informational and warning ones never produce a **Desktop notification**.

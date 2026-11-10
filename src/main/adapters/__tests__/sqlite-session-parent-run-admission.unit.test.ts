@@ -44,7 +44,73 @@ describe('SQLite direct Worker Run admission', () => {
     ).rejects.toThrow()
   })
 
-  it('enforces the parent limit when an existing idle Worker starts again', async () => {
+  it('enforces the parent limit when an agent starts an existing idle Worker again', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'parent-admission.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`CREATE TABLE settings_store (
+          key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL
+        )`)
+        yield* sql`
+          INSERT INTO settings_store (key, value_json, updated_at)
+          VALUES (${'sessionHostParentConcurrencyLimit'}, ${'1'}, ${1})
+        `
+        yield* sql`
+          INSERT INTO sessions (id, project_path) VALUES
+            (${'queen'}, ${'/project'}), (${'worker-active'}, ${'/project'})
+        `
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES
+            (${'run-queen'}, ${'queen'}, ${'active'}, ${null}, ${1}, ${1}),
+            (${'run-worker-active'}, ${'worker-active'}, ${'active'}, ${null}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+          ) VALUES
+            (${'queen'}, ${1}, ${'run-queen'}, ${'running'}, ${0}, ${1}),
+            (${'worker-active'}, ${1}, ${'run-worker-active'}, ${'running'}, ${0}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_spawn_lineage (
+            child_session_id, parent_session_id, parent_run_id,
+            hive_root_session_id, depth, created_at
+          ) VALUES
+            (${'session-target'}, ${'queen'}, ${'run-queen'}, ${'queen'}, ${1}, ${1}),
+            (${'worker-active'}, ${'queen'}, ${'run-queen'}, ${'queen'}, ${1}, ${2})
+        `
+        const response = yield* submitSessionMessage({
+          callerId: 'transient-mcp:digest-agent',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'request-existing-worker',
+            idempotencyKey: 'idempotency-existing-worker',
+            command: {
+              operation: 'message',
+              sessionId: 'session-target',
+              input: { text: 'Start another Worker Run.', attachmentIds: [] },
+            },
+          },
+        })
+        const targetRuns = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM session_runs WHERE session_id = ${'session-target'}
+        `
+        return { response, targetRuns: targetRuns[0]?.count }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.response.outcome).toMatchObject({
+      operation: 'message',
+      effect: 'rejected',
+      code: 'parent_concurrency_limit_reached',
+      kind: 'conflict',
+    })
+    expect(result.targetRuns).toBe(0)
+  })
+
+  it('lets the person start an existing idle Worker at the parent limit', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'parent-admission.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -85,8 +151,8 @@ describe('SQLite direct Worker Run admission', () => {
           callerId: 'local-user',
           request: {
             contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-            requestId: 'request-existing-worker',
-            idempotencyKey: 'idempotency-existing-worker',
+            requestId: 'request-person-worker',
+            idempotencyKey: 'idempotency-person-worker',
             command: {
               operation: 'message',
               sessionId: 'session-target',
@@ -101,11 +167,7 @@ describe('SQLite direct Worker Run admission', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(result.response.outcome).toMatchObject({
-      operation: 'message',
-      effect: 'rejected',
-      code: 'parent_concurrency_limit_reached',
-    })
-    expect(result.targetRuns).toBe(0)
+    expect(result.response.outcome).toMatchObject({ operation: 'message', effect: 'started-run' })
+    expect(result.targetRuns).toBe(1)
   })
 })

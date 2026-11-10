@@ -10,6 +10,7 @@ import {
   markScheduledTaskWaiting,
 } from '../application/scheduled-task-bookkeeping'
 import { scheduledTaskHooks } from '../application/scheduled-task-hooks'
+import { scheduledTaskRunKey } from '../domain/scheduled-tasks/scheduled-task-run-key'
 import {
   type ScheduledTaskRecord,
   ScheduledTaskRepository,
@@ -34,8 +35,12 @@ export function newRunStart(
   record: ScheduledTaskRecord,
   timing: ReturnType<typeof firingTiming>,
   now: number,
-  previous: { readonly sessionId?: string; readonly firedAt: number } | null,
+  firing: {
+    readonly previous: { readonly sessionId?: string; readonly firedAt: number } | null
+    readonly byAgent: boolean
+  },
 ): ScheduledTaskRunStart {
+  const { previous } = firing
   const id = scheduledTaskHooks().newId()
   return {
     id,
@@ -45,7 +50,7 @@ export function newRunStart(
     nominalAt: timing.nominalAt,
     firedAt: now,
     missedCount: timing.missedCount,
-    idempotencyKey: `scheduled-task-run:${id}`,
+    idempotencyKey: scheduledTaskRunKey(id, firing.byAgent),
     callerId: record.creatorCallerId,
     previousSessionId: previous?.sessionId ?? null,
     previousFiredAt: previous?.firedAt ?? null,

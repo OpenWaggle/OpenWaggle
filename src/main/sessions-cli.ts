@@ -38,6 +38,11 @@ import {
 import { buildSessionsCliPayload } from './sessions-cli-payload'
 import { streamFullTranscript } from './sessions-cli-transcript'
 import { sessionsCliUsage } from './sessions-cli-usage'
+import {
+  watchCursorRecord,
+  watchEventRecord,
+  watchResyncRecord,
+} from './sessions-cli-watch-records'
 
 export { buildSessionsCliPayload } from './sessions-cli-payload'
 
@@ -56,7 +61,7 @@ async function runWatchCommand(
     const after = watchCursor(arguments_)
     const jsonl = hasFlag(arguments_, 'jsonl')
     const writeCursor = (cursor: { readonly hostInstanceId: string; readonly sequence: number }) =>
-      writeSessionsCliStreamRecord({ kind: 'cursor', cursor }, jsonl)
+      writeSessionsCliStreamRecord(watchCursorRecord(cursor), jsonl)
     const result = await watchLocalSessionEvents({
       ...clientInput,
       ...(after ? { after } : {}),
@@ -71,12 +76,12 @@ async function runWatchCommand(
           await writeCursor(event.cursor)
           return
         }
-        await writeSessionsCliStreamRecord(event, jsonl)
+        await writeSessionsCliStreamRecord(watchEventRecord(event), jsonl)
       },
     })
     if (result.status === 'resync-required') {
-      await writeSessionsCliStreamRecord(result, jsonl)
-      return EXIT.FAILURE
+      await writeSessionsCliStreamRecord(watchResyncRecord(result), jsonl)
+      return EXIT.RESYNC_REQUIRED
     }
     return EXIT.SUCCESS
   } finally {
@@ -94,7 +99,7 @@ async function runSessionCommand(
   if (command === 'watch') return runWatchCommand(arguments_, clientInput)
   if (command === 'exports-watch') {
     const result = await watchSessionExportOperations(arguments_, clientInput)
-    return result.status === 'resync-required' ? EXIT.FAILURE : EXIT.SUCCESS
+    return result.status === 'resync-required' ? EXIT.RESYNC_REQUIRED : EXIT.SUCCESS
   }
   const result = await executeLocalSessionCommand({
     ...clientInput,
@@ -102,7 +107,7 @@ async function runSessionCommand(
   })
   const resultError = sessionCliResultErrorKind(result)
   if (resultError) {
-    await writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
+    await writeSessionsCliResponse(`hive ${command}`, result, hasFlag(arguments_, 'json'))
     return sessionCliExitCodeForError(resultError)
   }
   if (command === 'read' && hasFlag(arguments_, 'full')) {
@@ -125,7 +130,7 @@ async function runSessionCommand(
     })
     return EXIT.SUCCESS
   }
-  await writeSessionsCliResponse(command, result, hasFlag(arguments_, 'json'))
+  await writeSessionsCliResponse(`hive ${command}`, result, hasFlag(arguments_, 'json'))
   return EXIT.SUCCESS
 }
 
@@ -143,7 +148,11 @@ async function resolveHostPayload(
     executeLocalSessionCommand({ ...clientInput, payload }),
   )
   if (resolution.status === 'refused') {
-    await writeSessionsCliResponse(command, resolution.result, hasFlag(arguments_, 'json'))
+    await writeSessionsCliResponse(
+      `hive ${command}`,
+      resolution.result,
+      hasFlag(arguments_, 'json'),
+    )
     const kind = sessionCliResultErrorKind(resolution.result) ?? 'internal'
     return { status: 'refused' as const, exitCode: sessionCliExitCodeForError(kind) }
   }

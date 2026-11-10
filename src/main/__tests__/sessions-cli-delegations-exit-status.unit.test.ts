@@ -44,7 +44,11 @@ describe('Hive CLI Delegation structured failure exit status', () => {
         requestId: 'request-read',
         outcome: {
           operation: 'delegations-read',
-          error: { code: 'delegation_not_found', message: 'Delegation not found.' },
+          error: {
+            code: 'delegation_not_found',
+            kind: 'not_found',
+            message: 'Delegation not found.',
+          },
         },
       },
     })
@@ -55,7 +59,7 @@ describe('Hive CLI Delegation structured failure exit status', () => {
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
       schemaVersion: 1,
       type: 'response',
-      command: 'delegations-read',
+      command: 'hive delegations-read',
       result: { response: { outcome: { error: { code: 'delegation_not_found' } } } },
     })
   })
@@ -73,6 +77,7 @@ describe('Hive CLI Delegation structured failure exit status', () => {
           effect: 'rejected',
           sessionId: 'queen',
           code: 'submission_revision_stale',
+          kind: 'conflict',
         },
       },
     })
@@ -83,9 +88,11 @@ describe('Hive CLI Delegation structured failure exit status', () => {
     expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
       schemaVersion: 1,
       type: 'response',
-      command: 'delegation-accept',
+      command: 'hive delegation-accept',
       result: {
-        response: { outcome: { effect: 'rejected', code: 'submission_revision_stale' } },
+        response: {
+          outcome: { effect: 'rejected', code: 'submission_revision_stale', kind: 'conflict' },
+        },
       },
     })
   })
@@ -119,7 +126,9 @@ describe('Hive CLI Delegation structured failure exit status', () => {
     },
     {
       name: 'profile authorization',
-      error: new LocalSessionClientProtocolError('capability_denied', 'Access rejected.'),
+      error: new LocalSessionClientProtocolError('capability_denied', 'Access rejected.', {
+        errorKind: 'authorization',
+      }),
       exitCode: 4,
       kind: 'authorization',
     },

@@ -97,7 +97,12 @@ describe('A query about a Session that was removed', () => {
     expect(followUp).toMatchObject({
       contract: 'session-control-v2',
       response: {
-        outcome: { operation: 'follow-up', effect: 'rejected', code: 'session_not_found' },
+        outcome: {
+          operation: 'follow-up',
+          effect: 'rejected',
+          code: 'session_not_found',
+          kind: 'not_found',
+        },
       },
     })
     expect(delegation).toMatchObject({

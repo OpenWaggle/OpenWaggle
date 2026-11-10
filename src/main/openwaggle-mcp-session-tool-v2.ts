@@ -11,7 +11,13 @@ import {
   isMcpAgentDefinitionOperation,
   queryMcpAgentDefinitions,
 } from './openwaggle-mcp-agent-definitions-v2'
+import {
+  assertSuccessfulMcpSessionResult,
+  mcpLocalRefusal,
+  mcpThrownRefusal,
+} from './openwaggle-mcp-refusal-message'
 import type { OpenWaggleMcpServeOptions, OpenWaggleMcpServer } from './openwaggle-mcp-server-policy'
+import { prepareMcpSessionFilesystemScope } from './openwaggle-mcp-session-filesystem-scope-v2'
 import {
   buildMcpSessionPayloadV2,
   sessionInputSchemaForGrantsV2,
@@ -21,7 +27,6 @@ import {
   prepareMcpSessionTargetScope,
   SCHEDULED_TASKS_UNAVAILABLE,
 } from './openwaggle-mcp-session-scope-v2'
-import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { ensureLocalSessionHost } from './session-host/local-session-host-launcher'
 import {
@@ -29,7 +34,6 @@ import {
   refreshLocalSessionHostEndpoint,
   resolveLocalSessionHostPaths,
 } from './session-host/local-session-paths'
-import { assertFilesystemWriteScope } from './utils/filesystem-write-scope'
 
 export {
   buildMcpSessionPayloadV2,
@@ -44,7 +48,8 @@ function requireGrant(
   grant: SessionCapability,
 ) {
   if (!options.grants.has(grant)) {
-    throw new Error(
+    throw mcpLocalRefusal(
+      'capability_denied',
       `This MCP server was started without --grant ${grant}, which ${operation} needs. Restart it with --grant ${grant} after reviewing the authority you grant.`,
     )
   }
@@ -57,23 +62,6 @@ function toolResult(value: unknown) {
     content: [{ type: 'text' as const, text: JSON.stringify(value) }],
     structuredContent,
   }
-}
-
-export function assertSuccessfulMcpSessionResult(
-  value: Awaited<ReturnType<typeof executeLocalSessionCommand>>,
-) {
-  if (value.contract === 'session-query-v2' && 'error' in value.response.outcome) {
-    throw new Error(`${value.response.outcome.error.code}: ${value.response.outcome.error.message}`)
-  }
-  if (
-    (value.contract === 'session-control-v2' || value.contract === 'session-lifecycle-v2') &&
-    value.response.outcome.effect === 'rejected'
-  ) {
-    throw new Error(
-      `${value.response.outcome.code}: ${value.response.outcome.operation} was rejected.`,
-    )
-  }
-  return value
 }
 
 function requiredCapabilities(payload: LocalSessionCommandPayload) {
@@ -103,70 +91,7 @@ function requiredCapabilities(payload: LocalSessionCommandPayload) {
       : requiredSessionQueryCapabilities(payload.request.query)
 }
 
-export async function prepareMcpSessionFilesystemScope(
-  options: Pick<OpenWaggleMcpServeOptions, 'workspaceRoots' | 'exportRoots' | 'sessionIds'>,
-  input: LocalSessionCommandPayload,
-) {
-  let payload = input
-  if (
-    payload.contract === 'session-lifecycle-v2' &&
-    (payload.request.command.operation === 'create' ||
-      payload.request.command.operation === 'launch')
-  ) {
-    if (options.workspaceRoots.length === 0) {
-      throw new Error('Creating or launching a Session requires an explicit MCP workspace grant.')
-    }
-    payload = {
-      ...payload,
-      request: {
-        ...payload.request,
-        command: {
-          ...payload.request.command,
-          projectPath: assertProjectAllowed(options, payload.request.command.projectPath),
-        },
-      },
-    }
-  }
-  if (payload.contract === 'session-query-v2' && 'projectPath' in payload.request.query) {
-    const projectPath = payload.request.query.projectPath
-    if (projectPath) {
-      if (options.workspaceRoots.length === 0) {
-        throw new Error('Project filters require an explicit MCP workspace grant.')
-      }
-      payload = {
-        ...payload,
-        request: {
-          ...payload.request,
-          query: {
-            ...payload.request.query,
-            projectPath: assertProjectAllowed(options, projectPath),
-          },
-        },
-      }
-    }
-  }
-  if (
-    payload.contract === 'session-control-v2' &&
-    payload.request.command.operation === 'export-create'
-  ) {
-    const scope = await assertFilesystemWriteScope({
-      roots: options.exportRoots ?? [],
-      destinationPath: payload.request.command.destinationPath,
-    })
-    payload = {
-      ...payload,
-      request: {
-        ...payload.request,
-        command: {
-          ...payload.request.command,
-          destinationPath: scope.destinationPath,
-          destinationRoot: scope.rootPath,
-        },
-      },
-    }
-  }
-  return payload
-}
+export { assertSuccessfulMcpSessionResult, prepareMcpSessionFilesystemScope }
 
 function payloadProjectPath(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'session-lifecycle-v2') {
@@ -234,7 +159,8 @@ export function assertMcpOriginProvenance(
   if (!originSessionId || payload.contract !== 'session-control-v2') return
   const command = payload.request.command
   if (command.operation === 'report' && command.sessionId !== originSessionId) {
-    throw new Error(
+    throw mcpLocalRefusal(
+      'target_scope_denied',
       `The report source must be the immutable --origin-session ${JSON.stringify(originSessionId)}.`,
     )
   }
@@ -300,9 +226,14 @@ export function registerOpenWaggleSessionToolV2(
         requireGrant(options, input.operation, capability)
       }
       payload = await prepareMcpSessionFilesystemScope(options, payload)
-      const scopedPayload = await prepareMcpSessionTargetScope(options, execute, payload)
-      const result = assertSuccessfulMcpSessionResult(await execute(scopedPayload))
-      return toolResult(await filterMcpSessionQueryResult(options, execute, result))
+      // Every Host call, the scope checks' reads included, reports a thrown refusal's kind.
+      const hostExecute: McpSessionHostExecutor = (hostPayload) =>
+        execute(hostPayload).catch((error: unknown) => {
+          throw mcpThrownRefusal(error)
+        })
+      const scopedPayload = await prepareMcpSessionTargetScope(options, hostExecute, payload)
+      const result = assertSuccessfulMcpSessionResult(await hostExecute(scopedPayload))
+      return toolResult(await filterMcpSessionQueryResult(options, hostExecute, result))
     },
   )
 }

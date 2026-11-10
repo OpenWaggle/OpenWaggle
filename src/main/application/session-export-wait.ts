@@ -1,3 +1,4 @@
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SessionExportOperationSummary } from '@shared/types/session-export-operation'
 import type { SessionQueryRequest, SessionQueryResponse } from '@shared/types/session-query'
@@ -72,7 +73,10 @@ function exportResponse(request: ExportWaitRequest, operation: SessionExportOper
 function exportNotFound(request: ExportWaitRequest) {
   return response(request, {
     operation: 'exports-wait',
-    error: { code: 'export_not_found', message: 'Session export operation not found.' },
+    error: {
+      ...sessionHostRefusal('export_not_found'),
+      message: 'Session export operation not found.',
+    },
   })
 }
 
@@ -112,7 +116,10 @@ export async function waitForSessionExport(
     if (observation.status === 'host-stopped') {
       return response(input.request, {
         operation: 'exports-wait',
-        error: { code: 'host_stopped', message: 'The Session Host stopped while waiting.' },
+        error: {
+          ...sessionHostRefusal('host_stopped'),
+          message: 'The Session Host stopped while waiting.',
+        },
       })
     }
     return exportResponse(input.request, observation.value)

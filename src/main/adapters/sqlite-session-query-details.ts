@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { SessionQueryRequest } from '@shared/types/session-query'
@@ -92,7 +93,7 @@ export function readSession(sql: SqlClient.SqlClient, request: SessionQueryReque
     if (!row) {
       return sessionQueryResponse(request, {
         operation: request.query.operation,
-        error: { code: 'session_not_found', message: 'Session not found.' },
+        error: { ...sessionHostRefusal('session_not_found'), message: 'Session not found.' },
       })
     }
     return sessionQueryResponse(request, {
@@ -170,7 +171,7 @@ export function readStatus(sql: SqlClient.SqlClient, request: SessionQueryReques
     if (!row) {
       return sessionQueryResponse(request, {
         operation: 'status',
-        error: { code: 'session_not_found', message: 'Session not found.' },
+        error: { ...sessionHostRefusal('session_not_found'), message: 'Session not found.' },
       })
     }
     const followUpEditHeldAt = (yield* listFollowUpEditHeldSessions(sql)).get(query.sessionId)
@@ -215,7 +216,7 @@ export function readQueue(
       if (!state) {
         return sessionQueryResponse(request, {
           operation: 'queue-list',
-          error: { code: 'session_not_found', message: 'Session not found.' },
+          error: { ...sessionHostRefusal('session_not_found'), message: 'Session not found.' },
         })
       }
       const rows = yield* sql<{

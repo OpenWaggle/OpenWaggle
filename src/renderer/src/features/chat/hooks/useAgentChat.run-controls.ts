@@ -6,7 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { requestDesktopNotificationPermissionOnce } from '@/features/desktop-notifications'
 import { api } from '@/shared/lib/ipc'
-import { MessageDeliveredRunFailed, MessageNotDelivered } from '../lib/message-delivery'
+import { MessageDeliveredRunFailed } from '../lib/message-delivery'
 import { sessionModelActionError } from '../lib/session-answered-by'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { withForegroundSend } from '../state/foreground-send-store'
@@ -16,12 +16,18 @@ import { settledSessionSettingWrites } from '../state/session-setting-writes'
 import {
   beginForegroundRun,
   clearRunPointers,
-  forgetIfRefusedForPiSessionFile,
-  forgetQueuedSend,
   normalizeError,
   offerRunCompletion,
+  stopFollowingSends,
 } from './useAgentChat.foreground-run'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
+import {
+  forgetIfFailedOutOfView,
+  forgetIfRefusedForPiSessionFile,
+  forgetRefusedFirstSend,
+  type ReportWithoutRun,
+  settleSendWithoutRun,
+} from './useAgentChat.send-without-run'
 import { createSessionSnapshotRefresh } from './useAgentChat.session-snapshot'
 import type {
   AgentChatStatus,
@@ -164,7 +170,6 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     const targetSessionId = sessionId
     const run = beginForegroundRun(refs, params, targetSessionId)
     const sent = { refs, setters: params, targetSessionId, run, optimisticMessageId }
-    const runPromise = run.promise
     // The Host reads the Session's model and thinking level at Run start: store a fresh pick first.
     await settledSessionSettingWrites(targetSessionId)
     requestDesktopNotificationPermissionOnce()
@@ -178,8 +183,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
      * being torn down may already have been *replaced* - stopping settles the run, a queued follow-up send
      * begins immediately, and the superseded send's reply arrives after that replacement has started.
      */
-    let notDelivered: MessageNotDelivered | null = null
-    let queued: boolean
+    let reportWithoutRun: ReportWithoutRun
     let delivered = false
     try {
       /*
@@ -192,15 +196,12 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       if (report.outcome === 'delivered') {
         delivered = true
         run.bind(report.runId)
-        await runPromise
+        await run.promise
         return
       }
       // Nothing is waiting on the run any more, but its rejection must not surface unhandled.
-      void runPromise.catch(() => undefined)
-      queued = report.outcome === 'queued'
-      if (report.outcome !== 'queued') {
-        notDelivered = new MessageNotDelivered(report.outcome, report.message)
-      }
+      void run.promise.catch(() => undefined)
+      reportWithoutRun = { ...report, outcome: report.outcome }
     } catch (runError) {
       const normalizedError = normalizeError(runError)
       const refused = forgetIfRefusedForPiSessionFile(sent, normalizedError)
@@ -208,8 +209,8 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         void refreshSessionSnapshot(targetSessionId)
         throw refused
       }
-      // A later send may already own the foreground: this Run's completion was passed back to it
-      // after that send began. Its state is not this send's to clear or to mark failed.
+      const outOfView = delivered ? undefined : forgetIfFailedOutOfView(sent, normalizedError)
+      if (outOfView) throw outOfView
       const ownsForeground =
         refs.pendingRunWaiterRef.current === null || refs.pendingRunWaiterRef.current === run.waiter
       if (ownsForeground && refs.foregroundSessionIdRef.current === targetSessionId) {
@@ -224,12 +225,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       /*
        * Distinguished, because a caller cannot tell these apart otherwise and one of them must not be
        * treated as a lost message: the run failing says nothing about whether the message arrived.
-       *
-       * The evidence is the agent reporting the turn started, not this invoke resolving. Main recovers every
-       * run failure into a value and resolves - including a refusal raised before the message is recorded,
-       * such as a session whose worktree has gone - so "the send resolved" labelled undelivered messages
-       * delivered, and the caller that restores a review then discarded it. Absent that evidence the failure
-       * is reported as undelivered, which is the side that keeps the user's work.
+       * The evidence is the agent reporting the turn started, not this invoke resolving. Main recovers
+       * every run failure into a value and resolves - including a refusal raised before the message is
+       * recorded, such as a session whose worktree has gone - so "the send resolved" labelled
+       * undelivered messages delivered, and the caller that restores a review then discarded it.
+       * Absent that evidence the failure is reported as undelivered, which keeps the user's work.
        */
       /*
        * Delivered only if main said so. This catch also covers the invoke itself rejecting - a payload the
@@ -238,14 +238,11 @@ export function createAgentRunControls(params: AgentRunControlParams) {
        */
       throw delivered ? new MessageDeliveredRunFailed(normalizedError) : normalizedError
     }
-    if (queued) {
-      forgetQueuedSend(sent)
-      return
-    }
     /*
-     * The caller is told, so work it submitted is not lost - a review is restored - but the session is left
-     * alone. Whether this is worth showing the user is the caller's decision, and a cancellation is not.
+     * The caller is told, so work it submitted is not lost - a review is restored - but whether this is
+     * worth showing the user is its decision, and a cancellation is not.
      */
+    const notDelivered = settleSendWithoutRun(sent, reportWithoutRun)
     if (notDelivered) throw notDelivered
   }
 
@@ -279,12 +276,15 @@ export function createAgentRunControls(params: AgentRunControlParams) {
       (currentMessages) => [...currentMessages, optimisticUserMessage],
       { cacheRunSnapshot: true },
     )
-    await withForegroundSend(sessionId, () =>
-      dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
-    )
-    if (params.isFirstMessage) {
-      params.setFirstSendRecovery(sessionId, null)
+    try {
+      await withForegroundSend(sessionId, () =>
+        dispatchAgentSend(payload, waggleConfig, model, optimisticUserMessage.id),
+      )
+    } catch (error) {
+      if (params.isFirstMessage) forgetRefusedFirstSend(sessionId, error, params)
+      throw error
     }
+    if (params.isFirstMessage) params.setFirstSendRecovery(sessionId, null)
   }
 
   function stop() {
@@ -299,7 +299,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
         refs.terminalRunErrorRef.current = normalizedError
       })
     }
-    settlePendingRun(refs)
+    stopFollowingSends(refs)
     resetRunUiState(params)
   }
 

@@ -130,6 +130,7 @@ describe('Session Summary › Scheduled', () => {
     mocks.deleteOutcome.mockReturnValue({
       effect: 'rejected',
       code: 'scheduler_unavailable',
+      kind: 'conflict',
       message: 'The Session Host is not running.',
     })
     renderWithQueryClient(<ScheduledSummarySection sessionId="session-1" />)

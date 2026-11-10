@@ -126,7 +126,11 @@ function readResult(
   if (!session) {
     return response({
       operation: 'read',
-      error: { code: 'session_not_found', message: 'The Session was not found.' },
+      error: {
+        code: 'session_not_found',
+        kind: 'not_found',
+        message: 'The Session was not found.',
+      },
     })
   }
   const target = { projectPath: session.projectPath, sessionId, hiveRootSessionId: sessionId }

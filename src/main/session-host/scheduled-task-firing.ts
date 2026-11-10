@@ -184,9 +184,11 @@ export function fireScheduledTask(
   sql: SqlClient.SqlClient,
   input: {
     readonly record: ScheduledTaskRecord
-    readonly trigger: 'schedule' | 'run-now'
     readonly now: number
-  },
+  } & (
+    | { readonly trigger: 'schedule' }
+    | { readonly trigger: 'run-now'; readonly requestedByAgent: boolean }
+  ),
 ) {
   return Effect.gen(function* () {
     const repository = yield* ScheduledTaskRepository
@@ -204,7 +206,11 @@ export function fireScheduledTask(
       record,
       now,
       timing,
-      run: newRunStart(record, timing, now, previous),
+      run: newRunStart(record, timing, now, {
+        previous,
+        // Run now fires as whoever asked; a scheduled firing as whoever wrote the work.
+        byAgent: input.trigger === 'run-now' ? input.requestedByAgent : record.workByAgent,
+      }),
     }
     if (!resolution.live) {
       return yield* stopWithAttention(firing, 'creator-authority-revoked', resolution.message)

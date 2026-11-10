@@ -151,6 +151,7 @@ describe('settling a Worker whose held Follow-up ended without a Run', () => {
         effect: 'rejected',
         sessionId: 'worker',
         code: 'queue_revision_changed',
+        kind: 'conflict',
       }),
     })
     expect(started.calls).toEqual([])

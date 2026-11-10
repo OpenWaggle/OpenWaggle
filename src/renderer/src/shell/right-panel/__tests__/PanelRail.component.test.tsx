@@ -80,6 +80,41 @@ describe('PanelRail', () => {
     expect(screen.getByRole('button', { name: 'Hive · needs you' })).toBeVisible()
   })
 
+  it('shows Workers running on the Hive dot, and lets Needs you win the dot', () => {
+    const running = entry('hive', Globe2, { title: 'Hive', running: true })
+    const { unmount } = render(
+      <PanelRail
+        model={model({
+          surfaces: [running],
+          railSurfaces: [running],
+          knownRailIds: ['hive'],
+          listedRailIds: ['hive'],
+        })}
+        actions={{
+          showSurface: vi.fn(),
+          toggleSurface: vi.fn(),
+          move: vi.fn(),
+          unpin: vi.fn(),
+          reset: vi.fn(),
+        }}
+      />,
+    )
+    const runningButton = screen.getByRole('button', { name: 'Hive · Workers running' })
+    expect(runningButton.querySelector('.bg-success')).not.toBeNull()
+    unmount()
+
+    const both = entry('hive', Globe2, { title: 'Hive', running: true, attention: true })
+    renderRail({
+      surfaces: [both],
+      railSurfaces: [both],
+      knownRailIds: ['hive'],
+      listedRailIds: ['hive'],
+    })
+    const button = screen.getByRole('button', { name: 'Hive · Workers running · needs you' })
+    expect(button.querySelector('.bg-warning')).not.toBeNull()
+    expect(button.querySelector('.bg-success')).toBeNull()
+  })
+
   it('lists All panels first, marks the shown surface and names shortcuts and reasons', () => {
     renderRail()
     const rail = screen.getByRole('navigation', { name: 'Panels' })

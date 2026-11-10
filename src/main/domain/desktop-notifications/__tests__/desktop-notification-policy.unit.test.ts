@@ -5,6 +5,8 @@ import {
   desktopNotificationOriginPermits,
   desktopNotificationPermitted,
   desktopNotificationReplaces,
+  readyToReadHiveSettled,
+  readyToReadTiming,
   runSettlementCandidate,
 } from '../desktop-notification-policy'
 
@@ -47,5 +49,25 @@ describe('Desktop notification policy', () => {
     expect(desktopNotificationReplaces('needs-you', 'ready-to-read')).toBe(false)
     expect(desktopNotificationReplaces('needs-you', 'needs-you')).toBe(true)
     expect(desktopNotificationReplaces('ready-to-read', 'agent-errors')).toBe(true)
+  })
+
+  it('holds Ready to read until the Hive settles, except for a question asked mid-work', () => {
+    const idle = {
+      rootRunning: false,
+      workersRunning: false,
+      wakeComing: false,
+      runStartedWhileWorkersRan: false,
+    }
+    const person = { hiveWake: false }
+    expect(readyToReadHiveSettled(idle)).toBe(true)
+    expect(readyToReadTiming(idle, person)).toBe('now')
+    expect(readyToReadTiming(idle, { hiveWake: true })).toBe('now')
+    expect(readyToReadTiming({ ...idle, workersRunning: true }, person)).toBe('after-workers')
+    expect(readyToReadTiming({ ...idle, wakeComing: true }, person)).toBe('after-workers')
+    expect(readyToReadTiming({ ...idle, rootRunning: true }, person)).toBe('after-workers')
+    const midWork = { ...idle, workersRunning: true, runStartedWhileWorkersRan: true }
+    expect(readyToReadTiming(midWork, person)).toBe('mid-work-answer')
+    // A Hive wake never notifies on its own.
+    expect(readyToReadTiming(midWork, { hiveWake: true })).toBe('after-workers')
   })
 })

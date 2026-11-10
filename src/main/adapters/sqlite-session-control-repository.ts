@@ -1,5 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
+import {
+  type SessionHostRefusalCode,
+  sessionHostRefusal,
+} from '@shared/domain/session-host-refusals'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -11,13 +15,10 @@ import {
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
 import { clearWorkerRequestOnParentDelivery } from './sqlite-delegation-attention'
-import { hiveWakeRefusal, startsHiveWake } from './sqlite-hive-wake-admission'
+import { startsHiveWake } from './sqlite-hive-wake-admission'
 import { persistAndRecordStop } from './sqlite-run-interrupter'
 import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
-import {
-  deliverAfterQueueDecision,
-  newRunAdmissionRefusal,
-} from './sqlite-session-control-queue-delivery'
+import { admittedMutationDecision } from './sqlite-session-control-run-admission'
 import { loadSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
@@ -43,6 +44,18 @@ function isQueueMutation(operation: string) {
   )
 }
 
+/** A mutation the Session Host refused before deciding it, with the refusal's kind. */
+function refusedMutation<Operation extends string>(
+  operation: Operation,
+  sessionId: string,
+  code: SessionHostRefusalCode,
+) {
+  return {
+    accepted: false,
+    outcome: { operation, effect: 'rejected', sessionId, ...sessionHostRefusal(code) },
+  } as const
+}
+
 function reservedQueueMutationRejection(
   sql: SqlClient.SqlClient,
   operation: string,
@@ -53,15 +66,7 @@ function reservedQueueMutationRejection(
     Effect.map((reservedIds) =>
       reservedIds.size === 0
         ? undefined
-        : ({
-            accepted: false,
-            outcome: {
-              operation,
-              effect: 'rejected',
-              sessionId,
-              code: 'follow_up_reserved',
-            },
-          } as const),
+        : refusedMutation(operation, sessionId, 'follow_up_reserved'),
     ),
   )
 }
@@ -171,38 +176,24 @@ function executeMutation(
         const decision = reservationBlock
           ? reservationBlock
           : authorityBlock
-            ? ({
-                accepted: false,
-                outcome: {
-                  operation,
-                  effect: 'rejected',
-                  sessionId: targetScope,
-                  code: authorityBlock,
-                },
-              } as const)
+            ? refusedMutation(operation, targetScope, authorityBlock)
             : input.decide(state)
         const now = Date.now()
         const startsNewRun =
           decision.accepted && state.run.state === 'idle' && decision.state.run.state === 'starting'
-        const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
         // This mutation starts the wake; any other one landing while a wake starts is ordinary.
         const startsWake = startsNewRun && startsHiveWake(decision.state)
-        const refusal = startsWake
-          ? yield* hiveWakeRefusal(sql, decision.state, input.callerId, hostRunCeiling)
-          : startsNewRun
-            ? yield* newRunAdmissionRefusal(sql, targetScope, hostRunCeiling)
-            : undefined
-        const admittedDecision = refusal
-          ? ({
-              accepted: false,
-              outcome: { operation, effect: 'rejected', sessionId: targetScope, code: refusal },
-            } as const)
-          : yield* deliverAfterQueueDecision(sql, {
-              decision,
-              operation,
-              nextRunId: input.nextRunId,
-              hostRunCeiling,
-            })
+        const admittedDecision = yield* admittedMutationDecision(sql, {
+          decision,
+          startsNewRun,
+          startsWake,
+          callerId: input.callerId,
+          operation,
+          idempotencyKey: input.request.idempotencyKey,
+          targetScope,
+          nextRunId: input.nextRunId,
+          hostRunCeiling: input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling,
+        })
         if (admittedDecision.accepted) {
           yield* persistAndRecordStop(sql, state, admittedDecision.state, input.callerId, now)
           // A Hive wake is the Host acting for the caller, not the parent answering a Worker.

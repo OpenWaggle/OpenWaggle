@@ -9,6 +9,7 @@ export {
   isReportableSendFailure,
   MessageDeliveredRunFailed,
   MessageNotDelivered,
+  sendFailureText,
   wasMessageDelivered,
 } from './message-delivery'
 export { focusPendingRequest, restoreFocusBeforeRequest } from './pending-request-focus'
