@@ -2,8 +2,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstat, open, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { safeStorage } from 'electron'
 import { CliError } from '../cli-error'
+import { secureStorage } from '../desktop-shell/secure-storage'
 import type {
   ProfileCredentialDestination,
   ProfileCredentialDestinationMetadata,
@@ -40,10 +40,10 @@ export function destinationMetadata(
 
 export function credentialContent(destination: ProfileCredentialDestination, credential: string) {
   if (destination.kind === 'file') return Buffer.from(`${credential}\n`, 'utf8')
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!secureStorage.isEncryptionAvailable()) {
     throw new Error('The platform credential store is unavailable on this machine.')
   }
-  return safeStorage.encryptString(credential)
+  return secureStorage.encryptString(credential)
 }
 
 export function decodeCredentialContent(
@@ -51,10 +51,10 @@ export function decodeCredentialContent(
   content: Buffer,
 ) {
   if (destination.kind === 'file') return content.toString('utf8').trim()
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!secureStorage.isEncryptionAvailable()) {
     throw new Error('The platform credential store is unavailable on this machine.')
   }
-  return safeStorage.decryptString(content)
+  return secureStorage.decryptString(content)
 }
 
 export function credentialFingerprint(credential: string) {

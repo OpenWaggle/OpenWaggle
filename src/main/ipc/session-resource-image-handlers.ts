@@ -5,12 +5,12 @@ import {
 } from '@shared/schemas/session-resource'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
-import { clipboard, nativeImage } from 'electron'
 import { GuiSessionCommandNotAttachedError } from '../application/gui-session-command'
 import {
   readHostSessionResourceContent,
   readHostSessionResourceThumbnail,
 } from '../application/host-ui-session-resource-content-client'
+import { clipboard } from '../desktop-shell/clipboard'
 import { preferredSessionResourceFileName } from '../session-resource-content-disposition'
 import {
   activateSessionResourceContentOwner,
@@ -118,9 +118,9 @@ export function registerSessionResourceImageHandlers() {
         }
         if (!request.isCurrent()) return yield* Effect.fail(inactiveSessionResourceError())
         yield* Effect.sync(() => {
-          const image = nativeImage.createFromBuffer(Buffer.from(content.bytes))
-          if (image.isEmpty()) throw new Error('The requested Session image could not be decoded.')
-          clipboard.writeImage(image)
+          if (clipboard.writeImage(content.bytes) === 'undecodable') {
+            throw new Error('The requested Session image could not be decoded.')
+          }
         })
       }),
   )

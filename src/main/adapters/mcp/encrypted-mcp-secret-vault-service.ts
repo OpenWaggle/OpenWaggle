@@ -2,7 +2,7 @@ import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import type { McpSecretSummary } from '@shared/types/mcp'
 import { Effect, Layer } from 'effect'
-import { safeStorage } from 'electron'
+import { secureStorage } from '../../desktop-shell/secure-storage'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { deferredMcpSecret } from './config/mcp-deferred-secrets'
@@ -103,7 +103,7 @@ function secretNotFound(name: string) {
 
 export function createEncryptedMcpSecretVault(
   filePath: string,
-  encryption: McpVaultEncryption = safeStorage,
+  encryption: McpVaultEncryption = secureStorage,
   options: EncryptedMcpSecretVaultOptions = {},
 ) {
   let writeQueue: Promise<void> = Promise.resolve()
@@ -228,7 +228,7 @@ let liveVault: ReturnType<typeof createEncryptedMcpSecretVault> | undefined
 function getLiveVault() {
   liveVault ??= createEncryptedMcpSecretVault(
     path.join(mcpBuildStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
-    safeStorage,
+    secureStorage,
     {
       legacyFilePath: path.join(sharedMcpStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
     },
