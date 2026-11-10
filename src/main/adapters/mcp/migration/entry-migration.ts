@@ -48,7 +48,8 @@ type PiCopyDecision =
   | { readonly kind: 'not-a-pi-copy' }
 
 function withoutKeys(entry: Record<string, unknown>, keys: readonly string[]) {
-  return Object.fromEntries(Object.entries(entry).filter(([key]) => !keys.includes(key)))
+  const omitted = new Set(keys)
+  return Object.fromEntries(Object.entries(entry).filter(([key]) => !omitted.has(key)))
 }
 
 function piProvenance(entry: JsonEntry) {

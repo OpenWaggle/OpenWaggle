@@ -102,11 +102,13 @@ const config: DoctorConfig = {
       },
       {
         // `String.prototype.includes`, not `Array.prototype.includes`: these do
-        // substring matching (a free-text tree-filter query, and error-message
-        // fragment matching). A Set gives O(1) equality lookups and cannot
-        // perform substring matching, so the suggested fix does not apply.
+        // substring matching (a free-text tree-filter query, error-message fragment
+        // matching, and a search needle inside a transcript node's folded text). A Set
+        // gives O(1) equality lookups and cannot perform substring matching, so the
+        // suggested fix does not apply.
         files: [
           'src/renderer/src/features/session-tree/lib/session-tree-filter.ts',
+          'src/main/store/sessions/session-node-search.ts',
           'src/shared/domain/error-classifier.ts',
         ],
         rules: ['react-doctor/js-set-map-lookups'],

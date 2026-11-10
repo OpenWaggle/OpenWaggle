@@ -9,6 +9,7 @@ import {
 } from '@shared/types/session-capability'
 import type { ResolvedSessionExecutionProfile } from '@shared/types/session-lifecycle'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import { valuesIn } from '@shared/utils/set-membership'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
 import { heartbeatRunIdentity } from '../domain/scheduled-tasks/heartbeat-run-context'
 import {
@@ -165,9 +166,7 @@ function decodeCapabilities(
   profile: ResolvedSessionExecutionProfile,
 ) {
   const granted = decodeGrantedCapabilities(value, isWorker)
-  return profile.sessionCapabilities
-    ? granted.filter((capability) => profile.sessionCapabilities?.includes(capability))
-    : granted
+  return profile.sessionCapabilities ? valuesIn(granted, profile.sessionCapabilities) : granted
 }
 
 function hiveRole(row: SessionRunExecutionProfileRow) {

@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH } from '@shared/types/local-session-profile'
+import { includesEvery } from '@shared/utils/set-membership'
 import {
   deriveProfileCredentialServerKey,
   type ProfileCredentialServerChallenge,
@@ -44,7 +45,7 @@ export type LocalSessionServerAuthenticator = (
 function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const actual = Object.keys(value)
-  return actual.length === keys.length && keys.every((key) => actual.includes(key))
+  return actual.length === keys.length && includesEvery(actual, keys)
 }
 
 function decodeRequest(value: unknown): LocalSessionServerAuthenticationRequest {

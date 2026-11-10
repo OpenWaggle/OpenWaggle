@@ -153,8 +153,9 @@ function mergeConjunction(root: FlatRoot, members: readonly MutableJsonSchema[])
 /** Only what every alternative requires can be required once they share one object. */
 function requiredByEvery(alternatives: readonly MutableJsonSchema[]) {
   const [first, ...others] = alternatives
+  const othersRequired = others.map((alternative) => new Set(requiredOf(alternative)))
   return (first ? requiredOf(first) : []).filter((key) =>
-    others.every((alternative) => requiredOf(alternative).includes(key)),
+    othersRequired.every((required) => required.has(key)),
   )
 }
 

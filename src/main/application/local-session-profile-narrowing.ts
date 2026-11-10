@@ -115,10 +115,11 @@ function intersectTargets(
       }
     }
     const profileSessionIds = yield* listAuthorizedSessionIds(profileScope)
+    const narrowingProjectSet = new Set(narrowingProjects)
     return {
       projectPaths: (profileScope.projectPaths ?? []).filter(
         (projectPath) =>
-          narrowingProjects.includes(projectPath) ||
+          narrowingProjectSet.has(projectPath) ||
           roots.some((root) => isPathInside(root, projectPath)),
       ),
       sessionIds: unique(profileSessionIds.filter((id) => reachableSessionIds.has(id))),

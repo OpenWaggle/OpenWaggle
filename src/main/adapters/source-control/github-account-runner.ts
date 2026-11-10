@@ -116,8 +116,9 @@ export function createGithubAccountRunner(
     const hosts = await readSourceControlCliHosts()
     const accounts = hosts.github.find((entry) => entry.host === host.toLowerCase())?.accounts ?? []
     // An account that was just refused is not asked again for this command.
+    const refusedLogins = new Set(refused)
     const candidates = orderedCandidates(accounts, preference.preferredLogin).filter(
-      (candidate) => !refused.includes(candidate.login),
+      (candidate) => !refusedLogins.has(candidate.login),
     )
     if (candidates.length === 0 && last === null) return runCli('gh', args, cwd)
     const tried: string[] = [...refused]

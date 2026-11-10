@@ -9,6 +9,7 @@ import type {
   ResolvedSessionExecutionProfile,
   SessionLifecycleCommand,
 } from '@shared/types/session-lifecycle'
+import { valuesIn } from '@shared/utils/set-membership'
 import * as Effect from 'effect/Effect'
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
@@ -154,9 +155,7 @@ export function resolveLifecycleSessionCapabilities(input: {
 }) {
   if (input.command.operation === 'spawn') return input.profile.sessionCapabilities
   const configured = input.profile.sessionCapabilities ?? DEFAULT_SESSION_AGENT_CAPABILITIES
-  return input.callerCapabilities
-    ? configured.filter((capability) => input.callerCapabilities?.includes(capability))
-    : [...configured]
+  return input.callerCapabilities ? valuesIn(configured, input.callerCapabilities) : [...configured]
 }
 
 export function reduceAuthorizationCeiling(

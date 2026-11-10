@@ -93,6 +93,7 @@ export function agentRunContextAllowlists(input: {
  */
 function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => boolean) {
   const active = pi.getActiveTools().filter(allows)
+  const activeNames = new Set(active)
   const named = pi
     .getAllTools()
     .filter(
@@ -100,7 +101,7 @@ function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => bool
         tool.exposure === 'deferred' &&
         tool.namespace?.name === OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE.name &&
         allows(tool.name) &&
-        !active.includes(tool.name),
+        !activeNames.has(tool.name),
     )
     .map((tool) => tool.name)
   return [...active, ...named]

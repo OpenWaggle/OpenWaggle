@@ -11,6 +11,7 @@ import { removeMcpServerEntry } from './mcp-config-writer'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
 
 const logger = createLogger('mcp-orphaned-overrides')
+const OVERRIDE_KEYS: ReadonlySet<string> = new Set(MCP_OVERRIDE_KEYS)
 
 interface OrphanContext {
   readonly roots: McpConfigFileRoots
@@ -26,8 +27,7 @@ function overrideOnlyEntry(context: OrphanContext, filePath: string, name: strin
   const servers = isJsonRecord(layer.content.value) ? layer.content.value.mcpServers : undefined
   const entry = isJsonRecord(servers) ? servers[name] : undefined
   if (!isJsonRecord(entry)) return undefined
-  const overrideKeys: readonly string[] = MCP_OVERRIDE_KEYS
-  return Object.keys(entry).every((key) => overrideKeys.includes(key)) ? entry : undefined
+  return Object.keys(entry).every((key) => OVERRIDE_KEYS.has(key)) ? entry : undefined
 }
 
 /**
