@@ -135,8 +135,7 @@ export function MultiAgentAccessCard() {
       <div className="flex flex-col gap-0.5">
         <h2 className="text-sm font-semibold text-text-primary">Hive controls</h2>
         <p className="text-xs text-text-tertiary">
-          Control agent-created Workers and how many run at once. Your own Sessions are never
-          limited.
+          Control agent-created Workers and how many run at once. Your own runs are never limited.
         </p>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-bg">

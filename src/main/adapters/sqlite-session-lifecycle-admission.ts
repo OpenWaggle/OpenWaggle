@@ -178,7 +178,7 @@ function spawnTarget(
           : { state: parentState.run.state, runId: parentState.run.runId },
       parentRunningChildren: runningChildRows[0]?.count ?? 0,
       parentConcurrencyLimit: input.parentConcurrencyLimit ?? DEFAULT_PARENT_CONCURRENCY_LIMIT,
-      // The Host's ceiling counts Worker Runs only; the person's Sessions never use a slot.
+      // The Host's ceiling counts agents' work only; the person's own Runs never use a slot.
       hostActiveRuns: yield* countActiveWorkerRuns(sql),
       hostRunCeiling: input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING,
     })

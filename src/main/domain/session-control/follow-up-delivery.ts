@@ -5,6 +5,7 @@ import type {
   SessionControlIntentSnapshot,
   SessionControlSessionState,
 } from './message-aggregate'
+import { isPersonStartedRun } from './person-started-run'
 
 /**
  * Queue delivery around Follow-up edit holds (ADR 0044).
@@ -118,9 +119,35 @@ export function deliverIdleQueueHead(
 }
 
 /**
+ * Starts the person's first pending Follow-up in an idle Session whose queue waits on agents'
+ * capacity (`parent-limit`), ahead of the agents' Follow-ups the limit holds back: the person's
+ * work never waits on agents' work (ADR 0030, amended 2026-11-10). The queue stays paused for the
+ * rest. A held item up to it, or a failed Run's deferred retry, still comes first.
+ */
+export function deliverPersonFollowUpPastCapacity(
+  state: SessionControlSessionState,
+  nextRunId: RunId,
+): IdleQueueDelivery {
+  const queue = state.followUpQueue
+  if (
+    state.run.state !== 'idle' ||
+    queue.state !== 'paused' ||
+    queue.pauseReason !== 'parent-limit' ||
+    queue.deferredRetryAfter !== undefined
+  ) {
+    return { state }
+  }
+  const index = queue.items.findIndex(
+    (item) => item.deliveryState === 'pending' && isPersonStartedRun(item.intent),
+  )
+  if (index < 0 || queue.items.slice(0, index + 1).some(isFollowUpEditHeld)) return { state }
+  return startItem(state, index, nextRunId)
+}
+
+/**
  * When the Host cannot admit the Run a delivery would start, the queue pauses instead, so it never
  * sits idle and runnable. Without a reason the pause is stored without one, which every binary
- * decodes; the Host has no pause reason for its own Run ceiling.
+ * decodes. Both Worker limits pause with `parent-limit`.
  */
 export function pauseUndeliveredQueue(
   state: SessionControlSessionState,

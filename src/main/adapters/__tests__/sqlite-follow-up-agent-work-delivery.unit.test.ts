@@ -26,8 +26,8 @@ function layer(name: string) {
 }
 
 /*
- * Agents' work counts wherever it runs, and a running queue delivers in order, so the person's
- * Follow-up never waits behind an agent's (ADR 0030, amended 2026-11-10).
+ * Agents' work counts wherever it runs, and the person's Follow-up never waits behind agents'
+ * held back by a limit (ADR 0030, amended 2026-11-10).
  */
 describe('Queue delivery of agents’ work beside the person’s', () => {
   beforeEach(async () => {
@@ -39,8 +39,8 @@ describe('Queue delivery of agents’ work beside the person’s', () => {
     if (tmpRoot) await fs.rm(tmpRoot, { recursive: true, force: true })
   })
 
-  // A running queue delivers in order: holding the agent's head back would hold the person's.
-  it('starts an agent’s Follow-up its withdraw delivers when the person’s waits behind it', async () => {
+  // The person's Follow-up never waits on agents' capacity, and agents' get no slot from it.
+  it('starts the person’s Follow-up ahead of the agent’s an agent’s withdraw cannot start', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         yield* idleQueue([{ id: 'agent-first' }, { id: 'agent-next' }, { id: 'mine' }])
@@ -61,9 +61,13 @@ describe('Queue delivery of agents’ work beside the person’s', () => {
     expect(result.withdrawn.outcome).toMatchObject({
       operation: 'queue-withdraw',
       effect: 'started-run',
-      followUpId: 'agent-next',
+      followUpId: 'mine',
     })
-    expect(result.after.followUpQueue).toMatchObject({ state: 'running', items: [{ id: 'mine' }] })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'parent-limit',
+      items: [{ id: 'agent-next' }],
+    })
   })
 
   // Agents cannot fan out over the person's Sessions uncounted (ADR 0030, amended 2026-11-10).
@@ -89,6 +93,7 @@ describe('Queue delivery of agents’ work beside the person’s', () => {
       effect: 'queue-updated',
       queueState: 'paused',
     })
+    expect(result.after.followUpQueue).toMatchObject({ pauseReason: 'parent-limit' })
     expect(result.after.run).toEqual({ state: 'idle' })
   })
 

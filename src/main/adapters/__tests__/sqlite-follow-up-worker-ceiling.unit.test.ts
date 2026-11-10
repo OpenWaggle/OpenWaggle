@@ -181,8 +181,8 @@ describe('Queue delivery and the Worker ceiling', () => {
       effect: 'queue-updated',
       queueState: 'paused',
     })
-    // No pause reason: older binaries decode a missing reason, and none names the Host ceiling.
-    expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
+    // Both Worker limits pause with `parent-limit`, a reason every binary decodes.
+    expect(result.after.followUpQueue).toMatchObject({ pauseReason: 'parent-limit' })
     expect(result.after.run).toEqual({ state: 'idle' })
   })
 

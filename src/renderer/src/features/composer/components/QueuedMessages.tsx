@@ -42,7 +42,7 @@ const PAUSE_REASON_COPY = {
   'run-timed-out':
     'Paused because the last Run timed out waiting for a response. Resume to send these messages.',
   'parent-limit':
-    'Paused because the parent Session has as many active Workers as it allows. Resume to send these now.',
+    'Paused because agents are running as many Workers as the limits allow. Resume to send these now.',
   'host-lost': 'Paused because OpenWaggle stopped during a Run. Resume to send these messages.',
   'profile-revoked':
     'Paused because the access profile that sent these messages was revoked. Send the first one as you, or dismiss it.',

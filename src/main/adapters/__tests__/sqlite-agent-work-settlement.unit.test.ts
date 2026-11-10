@@ -15,9 +15,10 @@ let temporaryRoot = ''
 
 /**
  * `session-target` as a root the person made, at a full Active Workers of one (the Queen's one
- * Worker): its Run ends with Follow-ups from `callers` queued behind it, in order.
+ * Worker): its Run ends with Follow-ups from `callers` queued behind it, in order, in a queue
+ * paused `pausedFor` when given.
  */
-function personRootEndingAtCeiling(callers: readonly string[]) {
+function personRootEndingAtCeiling(callers: readonly string[], pausedFor?: string) {
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* seedHive(sql, 1)
@@ -43,6 +44,12 @@ function personRootEndingAtCeiling(callers: readonly string[]) {
       UPDATE session_control_states SET active_run_id = ${'run-target'}, state_revision = ${1}
       WHERE session_id = ${'session-target'}
     `
+    if (pausedFor) {
+      yield* sql`
+        UPDATE session_control_states SET queue_state = ${'paused'}, queue_pause_reason = ${pausedFor}
+        WHERE session_id = ${'session-target'}
+      `
+    }
     for (const [position, callerId] of callers.entries()) {
       const intent = {
         text: `Follow-up ${position}`,
@@ -93,7 +100,11 @@ describe('an agent’s Follow-up in the person’s Session when a Run settles', 
 
     expect(result.settled).toMatchObject({ accepted: true })
     expect(result.after.run).toEqual({ state: 'idle' })
-    expect(result.after.followUpQueue).toMatchObject({ state: 'paused', items: [{ id: 'next-0' }] })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'parent-limit',
+      items: [{ id: 'next-0' }],
+    })
   })
 
   it('runs the person’s Follow-up next at a full Worker ceiling, uncounted', async () => {
@@ -106,18 +117,52 @@ describe('an agent’s Follow-up in the person’s Session when a Run settles', 
     expect(result.activeWorkerRuns).toBe(1)
   })
 
-  // Holding the agent's head back would hold back the person's Follow-up behind it.
-  it('runs an agent’s Follow-up the person’s waits behind, and counts it', async () => {
-    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'in-order.sqlite'))
+  // The person's Follow-up never waits on agents' capacity, and agents' get no slot from it.
+  it('runs the person’s Follow-up ahead of an agent’s the full ceiling holds back', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'person-ahead.sqlite'))
     const result = await Effect.runPromise(
       personRootEndingAtCeiling([AGENT_CALLER, 'gui:local-user']).pipe(Effect.provide(layer)),
     )
 
-    expect(result.after.run).toMatchObject({ state: 'starting', runId: 'run-after' })
-    expect(result.after.followUpQueue).toMatchObject({
-      state: 'running',
-      items: [{ id: 'next-1' }],
+    expect(result.after.run).toMatchObject({
+      state: 'starting',
+      runId: 'run-after',
+      intent: { text: 'Follow-up 1' },
     })
-    expect(result.activeWorkerRuns).toBe(2)
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'parent-limit',
+      items: [{ id: 'next-0' }],
+    })
+    expect(result.activeWorkerRuns).toBe(1)
+  })
+
+  // The person sent it while their Run was active, behind a queue already waiting on capacity.
+  it('runs the person’s Follow-up from a queue already waiting on capacity', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'parked.sqlite'))
+    const result = await Effect.runPromise(
+      personRootEndingAtCeiling([AGENT_CALLER, 'gui:local-user'], 'parent-limit').pipe(
+        Effect.provide(layer),
+      ),
+    )
+
+    expect(result.after.run).toMatchObject({ state: 'starting', intent: { text: 'Follow-up 1' } })
+    expect(result.after.followUpQueue).toMatchObject({
+      state: 'paused',
+      pauseReason: 'parent-limit',
+      items: [{ id: 'next-0' }],
+    })
+  })
+
+  it('keeps a queue the person paused waiting', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'requested.sqlite'))
+    const result = await Effect.runPromise(
+      personRootEndingAtCeiling([AGENT_CALLER, 'gui:local-user'], 'requested').pipe(
+        Effect.provide(layer),
+      ),
+    )
+
+    expect(result.after.run).toEqual({ state: 'idle' })
+    expect(result.after.followUpQueue).toMatchObject({ state: 'paused', pauseReason: 'requested' })
   })
 })

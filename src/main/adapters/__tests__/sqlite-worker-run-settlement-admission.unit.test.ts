@@ -147,8 +147,11 @@ describe('Worker Run admission when a Run settles', () => {
     expect(result.settled).toMatchObject({ accepted: true })
     expect(result.after.run.state).toBe(run)
     if (run === 'idle') {
-      expect(result.after.followUpQueue).toMatchObject({ state: 'paused', items: [{ id: 'next' }] })
-      expect(result.after.followUpQueue).not.toHaveProperty('pauseReason')
+      expect(result.after.followUpQueue).toMatchObject({
+        state: 'paused',
+        pauseReason: 'parent-limit',
+        items: [{ id: 'next' }],
+      })
     }
   })
 })

@@ -9,8 +9,8 @@
  * like every Follow-up. Revision-guarded like other queue changes.
  *
  * Every path that marks a Follow-up as needing attention also pauses its queue, so adopting the
- * last one also resumes the queue when that attention is what paused it (see
- * `resumesAttentionPause`). A queue the user paused, or one a failed Run or Host loss paused, stays
+ * last one also resumes the queue when that attention, or Workers per parent, is what paused it
+ * (see `resumesAttentionPause` and `ADOPTION_LIFTED_PAUSE_REASONS`). A queue the user paused, or one a failed Run or Host loss paused, stays
  * paused. The resumed queue then delivers like any accepted queue change: when the Session is idle
  * the Host starts its head with the same admission checks as resumption.
  */

@@ -8,9 +8,11 @@ type SendAsMeQueue = Pick<
 
 /**
  * Whether "Send as me" on `followUpId` starts it at once, mirroring the Host (`adoptFollowUp` and
- * its `resumesAttentionPause`): the message must be the queue's first and not held for an edit, the Session idle, and the
- * queue running after the adoption, either because it already runs or because it was paused only
- * for attention and this message is the last one that needs it. Otherwise it waits its turn.
+ * its `resumesAttentionPause`): the message must be the queue's first and not held for an edit,
+ * the Session idle, and the queue running after the adoption, either because it already runs or
+ * because its pause is one adoption lifts (`ADOPTION_LIFTED_PAUSE_REASONS`: attention, or
+ * Workers per parent) and this message is the last one that needs attention. Otherwise it waits
+ * its turn.
  */
 export function sendAsMeStartsNow(input: {
   readonly queue: SendAsMeQueue

@@ -7,14 +7,13 @@ import type {
 import * as Effect from 'effect/Effect'
 import {
   deliverIdleQueueHead,
+  deliverPersonFollowUpPastCapacity,
+  type IdleQueueDelivery,
   pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
 import { isHostFollowUpEditHoldReleaseKey } from '../domain/session-control/follow-up-edit-hold-release-key'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
-import {
-  queueHoldsPersonFollowUp,
-  type StartingRunCaller,
-} from '../domain/session-control/person-started-run'
+import type { StartingRunCaller } from '../domain/session-control/person-started-run'
 import { isLocalUserCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlMutationDecision } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
@@ -56,10 +55,10 @@ interface MutationActor {
 }
 
 /**
- * The capacity rule for the Run `state` is starting: only an agent-made Session's Run that an
- * agent or the Host starts can be refused (`sqlite-worker-run-admission.ts`). The person's Runs,
- * a Run the person's own queue action delivers, and the Runs of the person's Sessions are always
- * admitted.
+ * The capacity rule for the Run `state` is starting (`sqlite-worker-run-admission.ts`): only a Run
+ * that an agent or the Host starts can be refused, in an agent-made Session or, except for the
+ * Host's Hive wake, in a Session the person made. The person's Runs and a Run the person's own
+ * queue action delivers are always admitted.
  */
 export function newRunAdmissionRefusal(
   sql: SqlClient.SqlClient,
@@ -124,8 +123,9 @@ function withdrawnFollowUps(outcome: SessionControlMutationOutcome): WithdrawnFo
 
 /**
  * Applies the delivery rule to an accepted queue decision. The head's current authorization is
- * checked before it starts, and a Run the Host cannot admit pauses the queue instead (with
- * `parent-limit`, or with no reason for the Host's own ceiling).
+ * checked before it starts, and a Run the Host cannot admit pauses the queue instead, with
+ * `parent-limit` for either Worker limit. The person's first Follow-up in a queue that waits on
+ * capacity then starts ahead of the agents' ones (`deliverPersonFollowUpPastCapacity`).
  */
 export function deliverAfterQueueDecision(
   sql: SqlClient.SqlClient,
@@ -149,53 +149,39 @@ export function deliverAfterQueueDecision(
     return Effect.succeed(decision)
   }
   const withdrawn = withdrawnFollowUps(decision.outcome)
+  const started = (delivery: Required<IdleQueueDelivery>): SessionControlMutationDecision => ({
+    accepted: true,
+    state: delivery.state,
+    outcome: {
+      operation,
+      effect: 'started-run',
+      sessionId: delivery.state.sessionId,
+      runId: delivery.delivered.runId,
+      followUpId: delivery.delivered.followUpId,
+      ...withdrawn,
+      queueRevision: delivery.state.followUpQueue.revision,
+      stateRevision: delivery.state.revision,
+    },
+  })
+  // Nothing of agents' starts, but the person's Follow-up never waits on their capacity.
+  const undelivered = (state: SessionControlSessionState): SessionControlMutationDecision => {
+    const personal = deliverPersonFollowUpPastCapacity(state, nextRunId)
+    if (personal.delivered) return started({ state: personal.state, delivered: personal.delivered })
+    return { ...decision, state, outcome: queueUpdated(operation, state, withdrawn) }
+  }
   return Effect.gen(function* () {
     const candidate = deliverIdleQueueHead(decision.state, nextRunId)
-    if (!candidate.delivered) {
-      return {
-        ...decision,
-        state: candidate.state,
-        outcome: queueUpdated(operation, candidate.state, withdrawn),
-      }
-    }
+    if (!candidate.delivered) return undelivered(candidate.state)
     const authorized = yield* applyCurrentFollowUpAuthorization(sql, decision.state)
     const delivery = deliverIdleQueueHead(authorized, nextRunId)
-    if (!delivery.delivered) {
-      return {
-        ...decision,
-        state: delivery.state,
-        outcome: queueUpdated(operation, delivery.state, withdrawn),
-      }
-    }
-    // A running queue delivers in order: holding its agent head back would hold back the
-    // person's Follow-up behind it.
-    const refusal = queueHoldsPersonFollowUp(delivery.state.followUpQueue)
-      ? undefined
-      : yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
-          callerId: input.callerId,
-          operation,
-          idempotencyKey: input.idempotencyKey,
-        })
-    if (refusal) {
-      const paused = pauseUndeliveredQueue(
-        authorized,
-        refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : undefined,
-      )
-      return { ...decision, state: paused, outcome: queueUpdated(operation, paused, withdrawn) }
-    }
-    return {
-      accepted: true,
-      state: delivery.state,
-      outcome: {
-        operation,
-        effect: 'started-run',
-        sessionId: delivery.state.sessionId,
-        runId: delivery.delivered.runId,
-        followUpId: delivery.delivered.followUpId,
-        ...withdrawn,
-        queueRevision: delivery.state.followUpQueue.revision,
-        stateRevision: delivery.state.revision,
-      },
-    } satisfies SessionControlMutationDecision
+    if (!delivery.delivered) return undelivered(delivery.state)
+    const refusal = yield* newRunAdmissionRefusal(sql, delivery.state, input.hostRunCeiling, {
+      callerId: input.callerId,
+      operation,
+      idempotencyKey: input.idempotencyKey,
+    })
+    // Both Worker limits pause with `parent-limit`, a reason every binary decodes.
+    if (refusal) return undelivered(pauseUndeliveredQueue(authorized, 'parent-limit'))
+    return started({ state: delivery.state, delivered: delivery.delivered })
   })
 }

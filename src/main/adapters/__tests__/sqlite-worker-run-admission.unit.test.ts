@@ -187,7 +187,7 @@ describe('Worker Run admission', () => {
     expect(result.runs).toBe(0)
   })
 
-  it('does not count root Sessions’ Runs toward the Worker ceiling', async () => {
+  it('does not count the person’s Runs in root Sessions toward the Worker ceiling', async () => {
     const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'roots-free.sqlite'))
     const result = await Effect.runPromise(
       Effect.gen(function* () {

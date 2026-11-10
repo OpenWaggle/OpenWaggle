@@ -207,14 +207,26 @@ describe('SQLite Session lifecycle and the Worker ceiling', () => {
         const rows = yield* sql<{ readonly session_id: string; readonly caller_id: string }>`
           SELECT session_id, caller_id FROM session_agent_origins ORDER BY session_id
         `
-        return rows.map((row) => [row.session_id, row.caller_id])
+        // A launch's first Run records whose work it is too.
+        const runs = yield* sql<{ readonly session_id: string; readonly work_by_agent: number }>`
+          SELECT session_id, work_by_agent FROM session_runs
+          WHERE session_id LIKE ${'session-launch-%'} ORDER BY session_id
+        `
+        return {
+          origins: rows.map((row) => [row.session_id, row.caller_id]),
+          runs: runs.map((row) => [row.session_id, row.work_by_agent]),
+        }
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(origins).toEqual([
+    expect(origins.origins).toEqual([
       ['session-create', AGENT],
       ['session-fork', AGENT],
       ['session-launch-agent', AGENT],
+    ])
+    expect(origins.runs).toEqual([
+      ['session-launch-agent', 1],
+      ['session-launch-person', 0],
     ])
   })
 

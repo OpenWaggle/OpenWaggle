@@ -8,7 +8,7 @@ import {
 } from '../domain/session-control/person-started-run'
 import { directWorkerRunAdmission } from './sqlite-session-parent-run-admission'
 
-/** Why the Host would not start an agent-made Session's Run now. Both are retryable. */
+/** Why the Host would not start a Run of agents' work now. Both are retryable. */
 export type WorkerRunAdmissionRefusal =
   | 'parent_concurrency_limit_reached'
   | 'host_run_ceiling_reached'
@@ -70,7 +70,10 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
   })
 }
 
-/** Whether an agent made `sessionId` (see `AGENT_MADE_SESSION`): only its Runs the Worker limits hold back. */
+/**
+ * Whether an agent made `sessionId` (see `AGENT_MADE_SESSION`): every Run there but the person's
+ * is held to the Worker limits, a Hive wake included.
+ */
 export function isAgentMadeSession(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly agentMade: number }>`
@@ -83,7 +86,7 @@ export function isAgentMadeSession(sql: SqlClient.SqlClient, sessionId: string) 
   })
 }
 
-/** The Active Workers ceiling for one more agent-made Run, or undefined when there is room. */
+/** The Active Workers ceiling for one more Run of agents' work, or undefined when there is room. */
 export function hostWorkerCeilingRefusal(
   sql: SqlClient.SqlClient,
   input: { readonly exceptSessionId?: string; readonly hostRunCeiling: number },

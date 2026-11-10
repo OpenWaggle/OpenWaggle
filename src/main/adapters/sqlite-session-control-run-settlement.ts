@@ -3,6 +3,7 @@ import type { FollowUpQueuePauseReason } from '@shared/types/session-control-que
 import * as Effect from 'effect/Effect'
 import {
   deliverIdleQueueHead,
+  deliverPersonFollowUpPastCapacity,
   isFollowUpEditHeld,
   pauseUndeliveredQueue,
 } from '../domain/session-control/follow-up-delivery'
@@ -10,10 +11,7 @@ import type {
   SessionControlFollowUp,
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
-import {
-  isPersonStartedRun,
-  queueHoldsPersonFollowUp,
-} from '../domain/session-control/person-started-run'
+import { isPersonStartedRun } from '../domain/session-control/person-started-run'
 import { applyQueueMutation } from '../domain/session-control/queue-aggregate'
 import {
   settleAndScheduleNextFollowUp,
@@ -121,7 +119,10 @@ function settleUnsuccessfulRun(
   }
 }
 
-/** Why a settling Run's next Run waits: a Worker limit was full when it would have started. */
+/**
+ * Why a settling Run's next Run waits: a Worker limit was full when it would have started. Both
+ * pause with `parent-limit`, a reason every binary decodes.
+ */
 type SettlementDeferral = 'parent-limit' | 'host-ceiling'
 
 export function planRunSettlement(
@@ -135,11 +136,10 @@ export function planRunSettlement(
   if (deferral) {
     const settled = settleSessionRun(state, input.runId)
     if (!settled.accepted) return { ...settled, scheduled: undefined }
-    // No reason for the ceiling: older binaries decode a missing one, and none names it.
     const paused =
       deferral === 'parent-limit'
         ? pauseRunningQueue(settled.state, input.nextRunId, 'parent-limit')
-        : pauseUndeliveredQueue(settled.state)
+        : pauseUndeliveredQueue(settled.state, 'parent-limit')
     return { ...settled, state: paused, scheduled: undefined }
   }
   const { terminalStatus } = input
@@ -159,9 +159,10 @@ export function planRunSettlement(
  * Plans the settlement, deferring the next Run when a Worker limit is full: the parent's Workers
  * per parent for a Worker, and Active Workers for an agent-made Session's Run or an agent's Run in
  * the person's Session, which a Run the person started there may have passed. A Follow-up the
- * person sent runs next whatever the limits, and so does an agent's queued ahead of one the
- * person sent: a running queue delivers in order (ADR 0030, amended 2026-11-09 and 2026-11-10). With no Run to start (an empty queue, or a head held for the
- * person's edit) nothing waits, so the queue is not paused: a pause there outlived the limit, and
+ * person sent runs next whatever the limits. After a completed Run, the person's first Follow-up
+ * in a queue that waits on capacity starts ahead of the agents' ones the limit holds back
+ * (`deliverPersonFollowUpPastCapacity`; ADR 0030, amended 2026-11-09 and 2026-11-10).
+ * With no Run to start (an empty queue, or a head held for the person's edit) nothing waits, so the queue is not paused: a pause there outlived the limit, and
  * held back the person's edited or later Follow-ups, which are admitted when they are delivered.
  */
 export function planRunSettlementWithinWorkerLimits(
@@ -173,20 +174,38 @@ export function planRunSettlementWithinWorkerLimits(
     const planned = planRunSettlement(state, input)
     if (input.suppressFollowUpScheduling) return planned
     const nextRun = planned.accepted ? planned.scheduled : undefined
-    if (!nextRun || isPersonStartedRun(nextRun.intent)) return planned
-    if (queueHoldsPersonFollowUp(planned.state.followUpQueue)) return planned
-    const refusal = yield* workerRunAdmissionRefusal(sql, {
-      sessionId: input.sessionId,
-      caller: nextRun.intent,
-      hostRunCeiling: storedHostRunCeiling(sql),
-    })
-    if (!refusal) return planned
-    return planRunSettlement(
-      state,
-      input,
-      refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : 'host-ceiling',
-    )
+    if (nextRun && isPersonStartedRun(nextRun.intent)) return planned
+    const refusal = nextRun
+      ? yield* workerRunAdmissionRefusal(sql, {
+          sessionId: input.sessionId,
+          caller: nextRun.intent,
+          hostRunCeiling: storedHostRunCeiling(sql),
+        })
+      : undefined
+    if (nextRun && !refusal) return planned
+    const settled = refusal
+      ? planRunSettlement(
+          state,
+          input,
+          refusal === 'parent_concurrency_limit_reached' ? 'parent-limit' : 'host-ceiling',
+        )
+      : planned
+    return input.terminalStatus === 'completed'
+      ? withPersonFollowUpPastCapacity(settled, input.nextRunId)
+      : settled
   })
+}
+
+/** Starts the person's Follow-up past a capacity pause the settlement left, if one waits. */
+function withPersonFollowUpPastCapacity(
+  settled: ReturnType<typeof planRunSettlement>,
+  nextRunId: SettleInput['nextRunId'],
+): ReturnType<typeof planRunSettlement> {
+  if (!settled.accepted) return settled
+  const delivery = deliverPersonFollowUpPastCapacity(settled.state, nextRunId)
+  return delivery.delivered
+    ? { accepted: true as const, state: delivery.state, scheduled: delivery.delivered }
+    : settled
 }
 
 /**
