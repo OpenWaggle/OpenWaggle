@@ -201,6 +201,26 @@ describe('runElectronMigration', () => {
     expect(state?.steps['local-storage'].status).toBe('awaiting-renderer')
   })
 
+  it('runs only the selected steps, so the keychain step can wait for consent', async () => {
+    const install = await electronInstall()
+    const vaultBefore = await readFile(path.join(install.userData, 'mcp', 'vault.json'), 'utf8')
+    const withoutSecrets = await runElectronMigration({
+      ...migrationOptions(install),
+      steps: ['local-storage', 'browser-preview-reset'],
+    })
+    expect(withoutSecrets.state.steps.secrets.status).toBe('pending')
+    expect(withoutSecrets.state.steps['local-storage'].status).toBe('awaiting-renderer')
+    expect(await readFile(path.join(install.userData, 'mcp', 'vault.json'), 'utf8')).toBe(
+      vaultBefore,
+    )
+
+    const secretsOnly = await runElectronMigration({
+      ...migrationOptions(install),
+      steps: ['secrets'],
+    })
+    expect(secretsOnly.state.steps.secrets.status).toBe('done')
+  })
+
   it('blocks the secrets step without touching files when the old key is unavailable, then resumes', async () => {
     const install = await electronInstall()
     const secrets = memorySecrets()
