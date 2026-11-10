@@ -1,4 +1,5 @@
 import {
+  extensionIdSchema,
   type ExtensionDocsTopicDeclaration as PublicExtensionDocsTopicDeclaration,
   type OpenWaggleExtensionManifest as PublicOpenWaggleExtensionManifest,
   openWaggleExtensionManifestSchema as publicOpenWaggleExtensionManifestSchema,
@@ -6,7 +7,7 @@ import {
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema } from '@shared/schema'
 import { extensionRelativePathSchema } from './extension-contributions'
-import { isExtensionId, isNonEmptyTrimmed } from './extension-schema-primitives'
+import { isNonEmptyTrimmed } from './extension-schema-primitives'
 
 export type {
   ExtensionCapabilityDeclaration,
@@ -25,10 +26,9 @@ export {
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
-export const extensionIdSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.filter(isExtensionId),
-)
+// The manifest's id rule is the public SDK's.
+export { extensionIdSchema }
+
 const extensionProposalHashSchema = Schema.String.pipe(
   Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),
 )
