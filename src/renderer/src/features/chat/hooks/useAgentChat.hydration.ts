@@ -41,8 +41,10 @@ export function resetMissingSessionHydration(
 ) {
   const pending = context.pendingRunWaiterRef.current
   // A send to the Session left behind settles, even when a completion it held cleared the flag.
+  // With no Session at all (New conversation), any followed send is elsewhere: first sends are
+  // never followed here.
   const sentElsewhere =
-    pending !== null && sessionId !== null && isSendToOtherSession(pending, sessionId)
+    pending !== null && (sessionId === null || isSendToOtherSession(pending, sessionId))
   if (context.foregroundStreamActiveRef.current || sentElsewhere) {
     resolvePendingForegroundRun(context)
   }

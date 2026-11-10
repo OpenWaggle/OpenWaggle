@@ -133,11 +133,12 @@ describe('useAgentChat earlier send while a newer one ends without a Run', () =>
   // and the foreground state is cleared while the newer send is still in flight. Switching
   // away must still settle that send, or the Session's send count stays up.
   it.each([
-    ['a loaded Session', true],
-    ['a Session still loading', false],
-  ])(
+    ['a loaded Session', 'loaded'],
+    ['a Session still loading', 'loading'],
+    ['New conversation', 'none'],
+  ] as const)(
     'settles a newer send that held an earlier completion on a switch to %s',
-    async (_, loaded) => {
+    async (_, to) => {
       const other = SessionId('session-other')
       let resolveLater: (report: AgentSendReport) => void = () => {}
       apiMock.sendMessage
@@ -148,9 +149,14 @@ describe('useAgentChat earlier send while a newer one ends without a Run', () =>
           }),
         )
       useForegroundSendStore.setState({ counts: new Map() })
+      const initialProps: { readonly id: SessionId | null; readonly loading: boolean } = {
+        id: SESSION_ID,
+        loading: false,
+      }
       const { result, rerender } = renderHook(
-        ({ id, loading }) => useAgentChat(id, loading ? null : createSessionWithId(id), MODEL),
-        { initialProps: { id: SESSION_ID, loading: false } },
+        ({ id, loading }) =>
+          useAgentChat(id, loading || id === null ? null : createSessionWithId(id), MODEL),
+        { initialProps },
       )
       await act(async () => {
         void result.current.sendMessage(SEND_PAYLOAD).catch(() => undefined)
@@ -189,7 +195,7 @@ describe('useAgentChat earlier send while a newer one ends without a Run', () =>
         })
       })
       await act(async () => {
-        rerender({ id: other, loading: !loaded })
+        rerender({ id: to === 'none' ? null : other, loading: to === 'loading' })
       })
 
       expect(newer).toBe('resolved')

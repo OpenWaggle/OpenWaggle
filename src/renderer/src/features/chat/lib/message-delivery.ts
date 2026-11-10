@@ -43,7 +43,7 @@ export function wasMessageDelivered(error: unknown) {
  */
 export class MessageNotDelivered extends Error {
   readonly outcome: 'refused' | 'cancelled'
-  /** The Host's refusal code, when it gave one (`host_run_ceiling_reached`, ...). */
+  /** The Host's refusal code, when it gave one (`queue_capacity_reached`, ...). */
   readonly code: string | undefined
 
   constructor(outcome: 'refused' | 'cancelled', message?: string, code?: string) {
