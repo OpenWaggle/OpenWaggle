@@ -86,8 +86,9 @@ export function deadCodeFindings(report: string, changed: ReadonlySet<string>): 
             (value) => value !== undefined,
           )
           const parent = text(item.parent_name) ?? text(item.component_name)
+          const named = [parent, name].filter(Boolean).join('.')
           const subject =
-            cycle.length > 0 ? cycle.join(' -> ') : [parent, name].filter(Boolean).join('.')
+            cycle.length > 0 ? cycle.join(' -> ') : named || ruleName(key).replace(/-/g, ' ')
           return [
             {
               tool: 'fallow dead-code' as const,
@@ -136,23 +137,36 @@ export function reactDoctorFindings(report: string, changed: ReadonlySet<string>
     ...objects(parsed?.diagnostics),
     ...objects(parsed?.projects).flatMap((project) => objects(project.diagnostics)),
   ]
-  return diagnostics.flatMap((diagnostic) => {
-    const file = text(diagnostic.filePath)
-    if (file === undefined || !changed.has(file)) {
-      return []
-    }
-    const plugin = text(diagnostic.plugin)
-    const rule = text(diagnostic.rule) ?? 'unknown'
-    const help = text(diagnostic.help)
-    return [
-      {
-        tool: 'react-doctor' as const,
-        rule: plugin === undefined ? rule : `${plugin}/${rule}`,
-        file,
-        line: lineOf(diagnostic.line),
-        message: [text(diagnostic.message), help].filter(Boolean).join(' '),
-      },
-    ]
+  return unique(
+    diagnostics.flatMap((diagnostic) => {
+      const file = text(diagnostic.filePath)
+      if (file === undefined || !changed.has(file)) {
+        return []
+      }
+      const plugin = text(diagnostic.plugin)
+      const rule = text(diagnostic.rule) ?? 'unknown'
+      const help = text(diagnostic.help)
+      return [
+        {
+          tool: 'react-doctor' as const,
+          rule: plugin === undefined ? rule : `${plugin}/${rule}`,
+          file,
+          line: lineOf(diagnostic.line),
+          message: [text(diagnostic.message), help].filter(Boolean).join(' '),
+        },
+      ]
+    }),
+  )
+}
+
+/** One finding per file, line and rule: a report can list a file under several projects. */
+function unique(findings: readonly Finding[]) {
+  const seen = new Set<string>()
+  return findings.filter((finding) => {
+    const key = `${finding.file}:${finding.line ?? ''}:${finding.rule}`
+    const fresh = !seen.has(key)
+    seen.add(key)
+    return fresh
   })
 }
 

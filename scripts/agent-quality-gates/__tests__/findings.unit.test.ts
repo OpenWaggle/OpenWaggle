@@ -17,6 +17,7 @@ const DEAD_CODE_REPORT = JSON.stringify({
     { path: 'src/changed.ts', export_name: 'helper', line: 12 },
     { path: 'src/untouched.ts', export_name: 'other', line: 3 },
   ],
+  unused_files: [{ path: 'src/changed.ts' }],
   unused_class_members: [
     { path: 'src/changed.ts', parent_name: 'Store', member_name: 'reset', line: 40 },
   ],
@@ -66,6 +67,12 @@ const REACT_DOCTOR_REPORT = JSON.stringify({
         },
       ],
     },
+    // The same file can appear again under a second workspace project.
+    {
+      diagnostics: [
+        { filePath: 'src/view.tsx', plugin: 'react-doctor', rule: 'no-derived-state', line: 7 },
+      ],
+    },
   ],
 })
 
@@ -78,6 +85,13 @@ describe('quality gate reports', () => {
         file: 'src/changed.ts',
         line: 12,
         message: 'helper',
+      },
+      {
+        tool: 'fallow dead-code',
+        rule: 'unused-file',
+        file: 'src/changed.ts',
+        line: undefined,
+        message: 'unused file',
       },
       {
         tool: 'fallow dead-code',
@@ -136,7 +150,7 @@ describe('quality gate reports', () => {
   it('writes one line per finding and caps the list', () => {
     const findings = deadCodeFindings(DEAD_CODE_REPORT, CHANGED)
     const message = feedbackMessage(findings)
-    expect(message).toContain('Quality gates found 4 issues in files you changed.')
+    expect(message).toContain('Quality gates found 5 issues in files you changed.')
     expect(message).toContain('- src/changed.ts:12 fallow dead-code unused-export: helper')
     expect(message).toContain('never a suppression comment')
 
