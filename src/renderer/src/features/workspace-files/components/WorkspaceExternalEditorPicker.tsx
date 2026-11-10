@@ -170,7 +170,10 @@ export function WorkspaceExternalEditorPicker({
         title={preferredEditor ? `Open in ${preferredLabel}` : 'Choose an external editor'}
         aria-label="Open file in external editor"
         onClick={() => {
-          if (preferredEditor && (!hasLoaded.current || editorIsAvailable(editors, preferredEditor))) {
+          if (
+            preferredEditor &&
+            (!hasLoaded.current || editorIsAvailable(editors, preferredEditor))
+          ) {
             void openEditor(preferredEditor)
             return
           }
