@@ -15,7 +15,7 @@ const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8da
 const ACTION_SETUP_BUN = 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2'
 export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, ACTION_SETUP_BUN, ACTION_SETUP_NODE] as const
 export const REQUIRED_COMMANDS = new Map<string, string>([
-  ['Typecheck & Lint', 'bun run check'],
+  ['Typecheck & Lint', 'bun scripts/check/output-budget.ts check'],
   ['Unit Tests', 'bun run test:unit'],
   ['Integration & Component Tests', 'bun run test:integration && bun run test:component'],
   ['MCP Conformance', 'bun run prepare:native:node && bun run test:mcp:conformance'],
@@ -139,6 +139,14 @@ const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
           fi
           bun scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
 
+/**
+ * Publishes the check runner's per-step times (.tmp/check/report.json) to the job summary, also
+ * when the check failed.
+ */
+const CHECK_JOB_SUMMARY_STEP = `      - name: Publish check step times
+        if: always()
+        run: bun scripts/check/job-summary.ts`
+
 export const EXPECTED_STEPS = new Map<string, readonly string[]>([
   [
     'Commit Policy',
@@ -161,7 +169,8 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
       NSIS_INSTALL_STEP,
-      '      - run: bun run check',
+      '      - run: bun scripts/check/output-budget.ts check',
+      CHECK_JOB_SUMMARY_STEP,
     ],
   ],
   [

@@ -136,7 +136,11 @@ jobs:
           done
           makensis -VERSION
 
-      - run: bun run check
+      - run: bun scripts/check/output-budget.ts check
+
+      - name: Publish check step times
+        if: always()
+        run: bun scripts/check/job-summary.ts
 
   test-unit:
     name: Unit Tests

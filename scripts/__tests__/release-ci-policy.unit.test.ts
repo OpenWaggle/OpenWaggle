@@ -263,26 +263,32 @@ describe('release CI policy', () => {
 
   it('rejects a required command moved into a differently named job', () => {
     const redistributedCommandWorkflow = compliantWorkflow
-      .replace('      - run: bun run check', '      - run: echo skipped')
+      .replace('      - run: bun scripts/check/output-budget.ts check', '      - run: echo skipped')
       .replace(
         '      - run: bun run test:unit',
-        '      - run: bun run check\n      - run: bun run test',
+        '      - run: bun scripts/check/output-budget.ts check\n      - run: bun run test',
       )
 
     expect(validateReleaseCiPolicy(redistributedCommandWorkflow)).toContain(
-      'CI job Typecheck & Lint must run bun run check as an exact, fail-closed step.',
+      'CI job Typecheck & Lint must run bun scripts/check/output-budget.ts check as an exact, fail-closed step.',
     )
   })
 
   it.each([
-    ['shell fallback', '      - run: bun run check || true'],
-    ['comment-only match', '      # run: bun run check'],
-    ['continued execution', '      - run: |\n          bun run check\n          echo ignored'],
+    ['shell fallback', '      - run: bun scripts/check/output-budget.ts check || true'],
+    ['comment-only match', '      # run: bun scripts/check/output-budget.ts check'],
+    [
+      'continued execution',
+      '      - run: |\n          bun scripts/check/output-budget.ts check\n          echo ignored',
+    ],
   ])('rejects %s instead of the exact required command', (_name, replacement) => {
-    const weakenedWorkflow = compliantWorkflow.replace('      - run: bun run check', replacement)
+    const weakenedWorkflow = compliantWorkflow.replace(
+      '      - run: bun scripts/check/output-budget.ts check',
+      replacement,
+    )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must run bun run check as an exact, fail-closed step.',
+      'CI job Typecheck & Lint must run bun scripts/check/output-budget.ts check as an exact, fail-closed step.',
     )
   })
 

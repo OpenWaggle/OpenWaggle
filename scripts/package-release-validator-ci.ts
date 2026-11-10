@@ -52,7 +52,10 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
         'bun run package-release:validate',
         `${CI_WORKFLOW_PATH} must validate package release policy before merge.`,
       ],
-      ['bun run check', `${CI_WORKFLOW_PATH} must run full repository checks before merge.`],
+      [
+        'bun scripts/check/output-budget.ts check',
+        `${CI_WORKFLOW_PATH} must run full repository checks before merge.`,
+      ],
       [
         'bun run api:snapshot:check',
         `${CI_WORKFLOW_PATH} must check package API snapshots before merge.`,
