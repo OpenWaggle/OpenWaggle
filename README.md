@@ -23,7 +23,7 @@ Ask questions about a project, request changes, and review the results. OpenWagg
 On macOS and Linux, you can also use the installer script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+curl -fsSL https://openwaggle.ai/install | bash
 ```
 
 See [Installation](https://openwaggle.ai/docs/getting-started/installation) for platform-specific steps, signing and first-launch warnings, and updates.

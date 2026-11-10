@@ -37,7 +37,8 @@ Platform trust for v1:
 - Required GitHub Actions secrets: `MACOS_CERTIFICATE_P12_BASE64` (the Developer ID Application
   certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
   `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
-  unsigned; the release workflow refuses to build RC and Stable macOS artifacts without them. The
+  unsigned. The release workflow refuses an RC or Stable version without them in the version job,
+  before it opens a release PR or pushes a tag, and `build-macos` checks again before it builds. The
   electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
   because every electron-builder command, including `postinstall`, loads it. When configured,
   the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
@@ -85,16 +86,21 @@ builds already served as the alpha stage.
 
 During RC, `main` is frozen for app code: merge only release-blocker fixes, each of which cuts the
 next `1.0.0-rc.N` and restarts the validation window. The Stable promotion dispatch fails closed
-unless the content of `main` equals the content of the last RC tag, except for the root
+unless the content of `main` equals the content of the last published RC, except for the root
 `package.json` version and non-app paths (`website/**` except the bundled user docs under
-`website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md`). Renames count on both
-sides, so moving app code into an ignored path still blocks. A non-release change to app code
-during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
-released as the next RC. A new major version (`X.0.0`) cannot be released without a
-`X.0.0-rc.N` tag, including one computed from a breaking-change merge; later minors and patches may
-release straight to Stable. The guard runs before any Stable release PR exists and again before
-tagging. The guard blocks
-promotion only; it does not block merges.
+`website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md` except
+`THIRD_PARTY_NOTICES.md`, which ships inside the app). Renames count on both sides, so moving app
+code into an ignored path still blocks. The last published RC is the newest `vX.Y.Z-rc.N` tag with a
+published (non-draft) GitHub release. The workflow pushes a release tag before its builds run, so a
+tag can exist for a build that never shipped: `v1.0.0-beta.33` through `beta.35` have tags and no
+releases. The guard reads the release list from the GitHub API and fails if it cannot. A minor or
+patch with `X.Y.Z-rc.N` tags but no published RC also fails, so an RC train whose builds never
+shipped cannot drop its freeze; publish an RC or delete the stray tags. A non-release change to app
+code during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
+released as the next RC. A new major version (`X.0.0`) cannot be released without a published
+`X.0.0-rc.N` release, including one computed from a breaking-change merge; later minors and patches
+may release straight to Stable. The guard runs before any Stable release PR exists and again before
+tagging. The guard blocks promotion only; it does not block merges.
 
 ### After 1.0.0
 
@@ -139,7 +145,7 @@ default; there is no `post-v1` label.
 | Surface | Covered | Rule within one major version |
 |---------|---------|-------------------------------|
 | User data (sessions, settings, projects, credentials, Session Host database) | Yes | Every later release opens data written by any earlier release of the same major, migrating forward automatically. Downgrades are unsupported. |
-| `openwaggle` CLIs (`hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status`, `host`), including machine output. `run` and `update` are covered by the error kinds row, and `run --jsonl` events by the watch records row | Yes | Commands, flags, and the `--json`/`--jsonl` envelopes stay compatible, including the envelope `command` (the command path after `openwaggle`, such as `hive list`). Additive fields are allowed; removing or renaming one is breaking. See [ADR 0063](adr/0063-cli-machine-output-contract.md). |
+| `openwaggle` CLIs (`hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status`, `host`), including machine output, and `update --check --json`, which `install.sh` reads. `run` and the rest of `update` are covered by the error kinds row, and `run --jsonl` events by the watch records row | Yes | Commands, flags, and the `--json`/`--jsonl` envelopes stay compatible, including the envelope `command` (the command path after `openwaggle`, such as `hive list`). Additive fields are allowed; removing or renaming one is breaking. See [ADR 0063](adr/0063-cli-machine-output-contract.md). |
 | CLI error kinds and exit codes | Yes | Every refusal carries the `kind` the Session Host assigns. A refusal code keeps its kind, and so its exit code, within a major. New kinds and new codes may be added. |
 | `hive watch --jsonl` and `hive exports-watch --jsonl` records, and the `event` records of `run --jsonl` | Partly | Covered: the `cursor`, `event` and `resync-required` record kinds, cursor and resume behavior, `timestamp`, `event.kind`, `event.sessionId`, and the resync `reason` values. New kinds may be added and consumers ignore unknown ones. Not covered: the bodies of `session-transport` and `session-waggle-transport` events, which follow Pi; use `hive read` or `hive status` for a stable view. |
 | Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
@@ -197,13 +203,36 @@ the cross-channel aliases for its GitHub provider. The app and
 CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
 authoritative channel before installing a downloaded release and invalidates a release that is no
 longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
-downloads pass through the explicit, authoritative restart action. The shell installer persists its
-selected policy channel as a one-time Session Host intent instead of inferring future policy from
-the downloaded artifact's version. With no Stable release yet it selects Beta, so an install during
-Beta or RC never saves Alpha. A channel with no eligible release, such as Stable before `1.0.0`, is
-reported as up to date rather than as a failed check. `openwaggle update --check` never changes
-the saved channel, and `openwaggle update --version` refuses a version older than the installed
-one.
+downloads pass through the explicit, authoritative restart action.
+
+The shell installer (`curl -fsSL https://openwaggle.ai/install | bash`; `/install`, `/install/` and
+`/install.sh` are `302` redirects in `website/public/_redirects` to `scripts/install.sh` on `main`)
+changes the saved channel only when `OPENWAGGLE_CHANNEL` is set, the same rule as
+`openwaggle update --channel`. On a re-run without it, the script asks the installed app for its
+saved channel with `openwaggle update --check --json` (the `savedChannel` field of the result, or of
+the error envelope when only the release check failed or passed its 30 second limit), installs the
+newest release on that channel, and writes no channel intent. The check reads the channel from the
+Session Host first, so it may start the installed version's Host; the script stops waiting after 60
+seconds, and Ctrl-C stops the check too. A kept channel with no release yet (Stable before `1.0.0`)
+reports up to date and exits 0 without changes. A fresh install, an installed version up to
+`1.0.0-beta.37` (which has no `--json` check), an installed version the script cannot read, or a
+failed or timed-out read uses the default channel and saves it, and for an existing install the
+script says so. A saved channel is a one-time Session Host intent, the selected policy channel
+rather than one inferred from the downloaded artifact's version. With no Stable release yet the
+default is Beta, so an install during Beta or RC never saves Alpha. `OPENWAGGLE_RELEASE_TAG` is a
+one-time install that never reads or changes the channel. A channel with no eligible release, such
+as Stable before `1.0.0`, is reported as up to date rather than as a failed check.
+`openwaggle update --check` never changes the saved channel, with or without `--json`, and
+`openwaggle update --version` refuses a version older than the installed one.
+
+`install.sh` refuses an older version too, after it resolves the channel or from
+`OPENWAGGLE_RELEASE_TAG`, and exits with status 2 before it downloads anything, quits the app, or
+stops the Session Host, because the older Session Host refuses a database a newer one has migrated
+and the app would not open. It reads the installed version from `Info.plist` on macOS. On Linux it
+takes the newer of the `version` file beside the AppImage and the AppImage's own
+`X-AppImage-Version`, because an in-app update replaces the AppImage in place and leaves the file
+behind. The installed version reinstalls, and an install whose version is unknown proceeds as
+before.
 
 ### Supported platform minimums
 

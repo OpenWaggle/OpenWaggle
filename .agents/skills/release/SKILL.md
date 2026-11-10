@@ -13,7 +13,7 @@ Before changing release, versioning, updater, changelog, GitHub workflow, instal
 
 1. Read `docs/release-and-versioning.md` and ADR 0040. Read ADR 0032 for Build identity and Build channel.
 2. Use the `CONTEXT.md` terms **Build channel** (the installed artifact's stage), **Update channel** (the user's saved update selection), **Compatibility promise**, **Covered surface**, and **Release blocker**.
-3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
+3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `scripts/app-release-promotion.ts` (the promotion guard's pure decisions), `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
 4. Preserve `AGENTS.md` rules: no commits without approval, no unknown-work reverts, Electron QA for renderer/preload/IPC changes, and `grill-with-docs` for any new release decision.
 
 ## Release domains
@@ -75,7 +75,7 @@ Meanings:
 
 ## Compatibility promise
 
-From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` CLIs and their machine output (additive fields allowed), CLI error kinds and exit codes (a code keeps its kind), the watch and `run --jsonl` event records except Pi transport bodies (ADR 0063), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, Scheduled tasks (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start), and supported platforms (macOS 13.4+, Windows 10+ x64, Linux x64 with glibc 2.35+). Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
+From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` CLIs and their machine output, plus `update --check --json`, which `install.sh` reads (additive fields allowed), CLI error kinds and exit codes (a code keeps its kind), the watch and `run --jsonl` event records except Pi transport bodies (ADR 0063), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, Scheduled tasks (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start), and supported platforms (macOS 13.4+, Windows 10+ x64, Linux x64 with glibc 2.35+). Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
 
 Raising a stated platform minimum is breaking unless the OS vendor has ended support for that version or the Electron/Chromium upgrade that drops it is needed to stay on a supported Electron line; such a raise ships in a minor with release notes that name it, announced in the previous release's notes when possible. `LSMinimumSystemVersion` stays 12.0 so auto-updated macOS 12 installs still launch (12 to 13.3 is unsupported; onnxruntime needs 13.4). The thresholds live in `scripts/supported-platform-floor.ts`; `scripts/check-native-platform-floor.ts` fails each release build whose native binaries need a newer OS, and the Linux build stays on `ubuntu-22.04` for glibc 2.35.
 
@@ -97,7 +97,8 @@ A **Release blocker** loses user data, prevents launch, or blocks updating. It b
 ## RC freeze and promotion
 
 - During RC, `main` is frozen for app code: merge only release-blocker fixes.
-- Stable promotion fails closed unless `main` matches the last RC tag's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md`; renames count on both sides. A new major (`X.0.0`) requires an RC tag. The guard blocks promotion, not merges.
+- Stable promotion fails closed unless `main` matches the last published RC's tree except the root `package.json` version and `website/**` (but not the bundled `website/src/content/docs/**`), `docs/**`, `.agents/**`, and top-level `*.md` (but not `THIRD_PARTY_NOTICES.md`, which ships in the app); renames count on both sides. The last published RC is the newest `vX.Y.Z-rc.N` tag with a non-draft GitHub release, read from the GitHub API (a failed read fails the guard), because the tag is pushed before the builds run and a failed build leaves a tag without a release. A new major (`X.0.0`) requires a published RC, and a minor or patch with rc tags but no published RC fails too. The guard blocks promotion, not merges.
+- RC and Stable versions fail in the version job when the macOS signing secrets are missing, before any release PR or tag exists.
 - Promote after a 7-day RC window with no open release blocker.
 
 ## After 1.0.0
@@ -122,7 +123,9 @@ Alpha  -> alpha, beta, rc, stable
 
 - The app selects the newest eligible non-downgrade release itself (`src/main/update-feed.ts`) and points a generic feed at that release; release packaging writes the metadata aliases each eligible channel reads.
 - Channel changes affect future updates only and never permit a downgrade.
+- `install.sh` and `openwaggle update --version` refuse a version older than the installed one with exit 2, before anything is downloaded, quit, or stopped; the installed version reinstalls.
 - The desktop app, `openwaggle update`, and `install.sh` share one saved Update channel. Exact versions are one-time installs.
+- `install.sh` (`curl -fsSL https://openwaggle.ai/install | bash`) changes the saved channel only with `OPENWAGGLE_CHANNEL`, as `openwaggle update --channel` does. A re-run without it reads `savedChannel` from the installed app's `openwaggle update --check --json` (also present on its error envelope when only the release check failed; 60 s limit), installs from that channel, and writes no intent; a kept channel with no release reports up to date and exits 0; a fresh install, an installed version up to `1.0.0-beta.37`, an unknown installed version, or a failed read saves the default (Stable once it exists, otherwise Beta). The Linux installed version is the newer of the `version` file and `X-AppImage-Version`, since in-app updates replace the AppImage in place.
 - A build with no saved choice defaults to its own prerelease stream; an RC build defaults to Beta.
 - Switching into Alpha requires confirmation every time.
 - Build channel (installed artifact) and Update channel (saved preference) are separate; never infer the Update channel from the installed version once a choice exists.
@@ -159,7 +162,7 @@ Alpha  -> alpha, beta, rc, stable
 - Do not add release-intent files or a `release:none` classification.
 - Do not publish Beta or RC builds to Stable users, or Alpha builds to Beta users.
 - Do not support downgrades.
-- Do not promote Stable from content that differs from the last RC.
+- Do not promote Stable from content that differs from the last published RC.
 - Do not open a rolling Beta or maintenance branch without a new decision.
 - Do not create a side-by-side Canary app without a new decision.
 - Do not require scripts or manual downloads as the primary Beta/Alpha opt-in UX.

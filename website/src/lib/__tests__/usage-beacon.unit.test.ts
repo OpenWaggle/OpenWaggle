@@ -114,6 +114,9 @@ describe('download links', () => {
     ['https://github.com/OpenWaggle/OpenWaggle/releases/latest/download/latest-mac.yml', 'release_asset'],
     ['https://github.com/OpenWaggle/OpenWaggle/blob/main/scripts/install.sh', 'install_script'],
     ['https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh', 'install_script'],
+    ['https://openwaggle.ai/install', 'install_script'],
+    ['/install/', 'install_script'],
+    ['/install.sh', 'install_script'],
     ['/docs/getting-started/installation/', 'installation_page'],
     ['https://openwaggle.ai/docs/getting-started/installation', 'installation_page'],
   ])('classifies %s as %s', (href, target) => {
@@ -124,6 +127,8 @@ describe('download links', () => {
     'https://github.com/OpenWaggle/OpenWaggle',
     'https://github.com/someone/else/releases',
     'https://evil.example/docs/getting-started/installation/',
+    'https://evil.example/install',
+    '/installer',
     '/docs/getting-started/first-run/',
     'mailto:privacy@openwaggle.ai',
   ])('ignores %s', (href) => {

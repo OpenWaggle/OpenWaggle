@@ -137,7 +137,7 @@ OpenWaggle keeps compiled code between launches so the app starts faster. AppIma
 | Linux | `~/.local/lib/openwaggle/OpenWaggle.AppImage`, with a desktop entry in `~/.local/share/applications/openwaggle.desktop` | `~/.local/bin/openwaggle` |
 | Windows | Where the installer puts it | Registered by the installer |
 
-The install script saves the update channel you chose in `install-update-channel`, in `~/Library/Application Support/openwaggle/` on macOS or `$XDG_CONFIG_HOME/openwaggle/` (`~/.config/openwaggle/`) on Linux. See [Installation](/docs/getting-started/installation).
+The install script saves an update channel in `install-update-channel`, in `~/Library/Application Support/openwaggle/` on macOS or `$XDG_CONFIG_HOME/openwaggle/` (`~/.config/openwaggle/`) on Linux. It saves the channel `OPENWAGGLE_CHANNEL` names, or the default when there is no installed channel to keep. A re-run that keeps the installed app's channel writes nothing. See [Installation](/docs/getting-started/installation).
 
 ## Project folders
 

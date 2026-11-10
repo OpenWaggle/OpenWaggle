@@ -26,6 +26,7 @@ import {
   WEBSITE_DOCS_ROOT,
   withoutMarkdownExtension,
 } from './installed-docs-generator-model'
+import { substituteInstallPlaceholders } from '../website/src/lib/install-command'
 import { renderPackageInstallElements } from './package-documentation-renderer'
 
 interface GenerateInstalledDocsOptions {
@@ -157,7 +158,8 @@ async function buildOpenWaggleTopics(outputRoot: string) {
   for (const file of files) {
     const rawContent = await readFile(file.filePath, 'utf8')
     const installedContent = rewriteInstalledDocumentationLinks(
-      renderPackageInstallElements(rawContent),
+      // As the website's remark plugin does, so the bundled docs show the real install command.
+      substituteInstallPlaceholders(renderPackageInstallElements(rawContent)),
       websiteDocumentationRoute(file.slug),
       file.bundlePath,
       routes,
