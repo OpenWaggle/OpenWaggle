@@ -64,9 +64,20 @@ export function useGlobalCommandActions() {
 
   async function selectProject(mode: 'new' | 'open') {
     close()
-    const selected = await selectFolder()
+    // The palette fires this action with `void`, so a transient IPC failure in either await
+    // would otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+    // The Session is not started, so the failure is shown and the next attempt retries it.
+    const selected = await selectFolder().catch((error: unknown) => {
+      showToast(ipcErrorMessage(error), 'error')
+      return null
+    })
     if (!selected) return
-    await setProjectPath(selected)
+    try {
+      await setProjectPath(selected)
+    } catch (error) {
+      showToast(ipcErrorMessage(error), 'error')
+      return
+    }
     const recent = sessions
       .filter((session) => session.projectPath === selected)
       .sort((left, right) => right.updatedAt - left.updatedAt)[0]

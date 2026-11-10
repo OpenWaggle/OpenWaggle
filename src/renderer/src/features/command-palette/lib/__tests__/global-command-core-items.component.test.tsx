@@ -1,14 +1,21 @@
 import { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import {
   type CoreCommandActions,
   createCoreCommandItems,
+  createRecentProjectItems,
   createRecentSessionItems,
 } from '../global-command-core-items'
 
-function actions(): CoreCommandActions {
+const loggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@/shared/lib/logger', () => ({
+  createRendererLogger: () => ({ warn: loggerWarn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+}))
+
+function actions(overrides: Partial<CoreCommandActions> = {}): CoreCommandActions {
   return {
     compactSession: vi.fn().mockResolvedValue(undefined),
     copySessionLink: vi.fn(),
@@ -31,6 +38,7 @@ function actions(): CoreCommandActions {
     splitTerminalVertical: vi.fn(),
     toggleSidePanelMaximized: vi.fn(),
     closeActiveTerminal: vi.fn(async () => undefined),
+    ...overrides,
   }
 }
 
@@ -137,5 +145,28 @@ describe('global command core items', () => {
       '2 terminals running',
     )
     expect(items.find((item) => item.id === 'session:session-idle')?.trailingBadge).toBeUndefined()
+  })
+
+  it('settles a failed recent-project open instead of floating its rejection', async () => {
+    // The palette fires setProjectPath with `void`, so a transient Settings IPC failure used
+    // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+    const commandActions = actions({
+      setProjectPath: vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443')),
+    })
+    const settings = { ...DEFAULT_SETTINGS, recentProjects: ['/other-project'] }
+    const item = createRecentProjectItems(settings, [], commandActions).find(
+      (entry) => entry.id === 'project:/other-project',
+    )
+
+    item?.action()
+
+    await waitFor(() =>
+      expect(loggerWarn).toHaveBeenCalledWith('Failed to open the recent project', {
+        error: expect.stringContaining('ECONNREFUSED'),
+      }),
+    )
+    // The Session is neither routed nor started, so nothing else runs.
+    expect(commandActions.routeToSession).not.toHaveBeenCalled()
+    expect(commandActions.newSession).not.toHaveBeenCalled()
   })
 })

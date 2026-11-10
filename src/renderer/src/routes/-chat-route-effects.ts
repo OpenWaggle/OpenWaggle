@@ -6,6 +6,9 @@ import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useGitStore } from '@/features/git/state'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { createRendererLogger } from '@/shared/lib/logger'
+
+const logger = createRendererLogger('chat-route')
 
 interface ChatRouteEffectsParams {
   readonly branchId: string | null
@@ -196,7 +199,12 @@ export function useChatRouteEffects({
 
   useEffect(() => {
     if (draftSession === null && routeProjectPath !== null && routeProjectPath !== projectPath) {
-      void setProjectPath(routeProjectPath)
+      // The route fires this action with `void`, so a transient Settings IPC failure would
+      // otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The
+      // store keeps the previous project and the next route change retries the write.
+      void setProjectPath(routeProjectPath).catch((error: unknown) => {
+        logger.warn('Failed to follow the routed Session project', { error: String(error) })
+      })
     }
   }, [draftSession, projectPath, routeProjectPath, setProjectPath])
 

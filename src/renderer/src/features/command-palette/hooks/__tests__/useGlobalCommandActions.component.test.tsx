@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   refreshSession: vi.fn(),
   refreshSessionWorkspace: vi.fn(),
+  selectFolder: vi.fn(),
+  setProjectPath: vi.fn(),
   showToast: vi.fn(),
 }))
 
@@ -24,7 +26,11 @@ vi.mock('@/features/chat/hooks', () => ({
   }),
 }))
 vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({ projectPath: '/repo', selectFolder: vi.fn(), setProjectPath: vi.fn() }),
+  useProject: () => ({
+    projectPath: '/repo',
+    selectFolder: mocks.selectFolder,
+    setProjectPath: mocks.setProjectPath,
+  }),
   useSessions: () => ({ refreshSessionWorkspace: mocks.refreshSessionWorkspace }),
   useViewedSessionId: () => null,
 }))
@@ -117,5 +123,33 @@ describe('useGlobalCommandActions', () => {
       'Send the first message before opening Session Summary.',
       'error',
     )
+  })
+
+  it('settles a failed project-path write instead of floating its rejection', async () => {
+    // The palette fires selectProject with `void`, so a transient Settings IPC failure used
+    // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+    mocks.selectFolder.mockResolvedValue('/chosen-project')
+    mocks.setProjectPath.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+    const { result } = renderHook(() => useGlobalCommandActions())
+
+    await act(() => result.current.actions.selectProject('new'))
+
+    expect(mocks.showToast).toHaveBeenCalledWith('connect ECONNREFUSED 127.0.0.1:443', 'error')
+    // The Session is not started, so nothing else runs.
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('settles a failed folder pick instead of floating its rejection', async () => {
+    // The palette fires selectProject with `void`, so the folder pick's own IPC failure used
+    // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+    mocks.selectFolder.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+    const { result } = renderHook(() => useGlobalCommandActions())
+
+    await act(() => result.current.actions.selectProject('open'))
+
+    expect(mocks.showToast).toHaveBeenCalledWith('connect ECONNREFUSED 127.0.0.1:443', 'error')
+    // The dialog never produced a path, so nothing else runs.
+    expect(mocks.setProjectPath).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 })

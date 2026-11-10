@@ -17,11 +17,14 @@ import {
   Waypoints,
 } from 'lucide-react'
 import { projectName } from '@/shared/lib/format'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import type { CommandPaletteItem } from '../model'
 import { createTerminalCommandItems } from './global-command-terminal-items'
 
 const RECENT_SESSION_LIMIT = 12
+
+const logger = createRendererLogger('command-palette')
 
 export interface CoreCommandActions {
   readonly compactSession: () => Promise<void>
@@ -262,13 +265,19 @@ export function createRecentProjectItems(
     section: 'Recent projects',
     action: () => {
       actions.finish(() => {
-        void actions.setProjectPath(path).then(() => {
-          const recent = sessions
-            .filter((session) => session.projectPath === path)
-            .sort((left, right) => right.updatedAt - left.updatedAt)[0]
-          if (recent) actions.routeToSession(String(recent.id))
-          else actions.newSession(path)
-        })
+        // void-fired: a Settings IPC failure must not float (Sentry OPENWAGGLE-6).
+        void actions
+          .setProjectPath(path)
+          .then(() => {
+            const recent = sessions
+              .filter((session) => session.projectPath === path)
+              .sort((left, right) => right.updatedAt - left.updatedAt)[0]
+            if (recent) actions.routeToSession(String(recent.id))
+            else actions.newSession(path)
+          })
+          .catch((error: unknown) => {
+            logger.warn('Failed to open the recent project', { error: String(error) })
+          })
       })
     },
   }))

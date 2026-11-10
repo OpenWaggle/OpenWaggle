@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings/state'
+import { useUIStore } from '@/shell/ui-store'
 import { AppearanceSection } from '../sections/AppearanceSection'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -150,5 +151,26 @@ describe('Appearance settings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Reduce motion' }))
 
     expect(setAppearanceMotion).toHaveBeenCalledWith('reduced')
+  })
+
+  it('settles a failed diff-view write instead of floating its rejection', async () => {
+    // The controls fire their Settings write with `void`, so a transient Settings IPC failure
+    // used to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+    const showToast = vi.fn()
+    const originalToast = useUIStore.getState().showToast
+    useUIStore.setState({ showToast })
+    onTestFinished(() => useUIStore.setState({ showToast: originalToast }))
+    usePreferencesStore.setState({
+      setDiffView: vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443')),
+    })
+
+    render(<AppearanceSection />)
+    fireEvent.click(screen.getByRole('button', { name: /Side by side/ }))
+
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith('connect ECONNREFUSED 127.0.0.1:443', 'error'),
+    )
+    // The store keeps the previous value, so the control stays truthful and can retry.
+    expect(screen.getByRole('button', { name: /Unified/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })
