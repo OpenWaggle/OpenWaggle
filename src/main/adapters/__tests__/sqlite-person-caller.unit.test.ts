@@ -80,11 +80,16 @@ describe('isPersonCaller', () => {
           isPersonCaller(sql, { callerId: 'profile:ci' }),
           isPersonCaller(sql, { callerId: AGENT_CALLER }),
           isPersonCaller(sql, { callerId: 'gui:local-user', hiveWake: true }),
+          // A profile's request gains nothing from a key marked as the person's.
+          isPersonCaller(sql, {
+            callerId: 'profile:ci',
+            idempotencyKey: scheduledTaskRunKey('forged', 'person'),
+          }),
         ])
       }).pipe(Effect.provide(layer('not-person.sqlite'))),
     )
 
-    expect(results).toEqual([false, false, false, false])
+    expect(results).toEqual([false, false, false, false, false])
   })
 
   it('holds an agent-created Heartbeat to the Worker limits, though it fires as the owner', async () => {

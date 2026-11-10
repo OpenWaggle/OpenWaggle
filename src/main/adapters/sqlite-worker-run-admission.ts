@@ -186,7 +186,8 @@ export function countActiveWorkerRuns(sql: SqlClient.SqlClient, exceptSessionId?
             AND operations.status = 'pending'
             AND NOT (
               operations.caller_id IN ${sql.in(LOCAL_USER_CALLER_IDS)}
-              OR operations.caller_id LIKE ${`${LOCAL_USER_CALLER_PREFIX}%`}
+              OR substr(operations.caller_id, 1, ${LOCAL_USER_CALLER_PREFIX.length})
+                = ${LOCAL_USER_CALLER_PREFIX}
             )
         ) AS agents_replacing
       FROM session_control_states AS states

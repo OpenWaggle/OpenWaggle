@@ -105,7 +105,7 @@ A Heartbeat with a wake check leads with its last check, such as **Last check 07
 ## When a task cannot fire
 
 - If the computer slept or the Session Host was not running, the task runs once when the Session Host is back, marked as a catch-up, not once per missed time.
-- If the Heartbeat's session is busy, because a run is active, messages are queued or a question waits for you, the Heartbeat waits and checks again every minute. Messages paused at the worker limits do not count: the Heartbeat runs beside them. It never steers or jumps the queue. If it is still waiting at its next time, OpenWaggle records the earlier firing as skipped.
+- If the Heartbeat's session is busy, because a run is active, messages are queued or a question waits for you, the Heartbeat waits and checks again every minute. Messages paused at the worker limits do not count: the Heartbeat runs beside them, and ahead of them. Otherwise it never steers or jumps the queue. If it is still waiting at its next time, OpenWaggle records the earlier firing as skipped.
 - If the `pi` command line wrote to the Heartbeat's session last, the Heartbeat waits as if the session were busy. Continue the session in OpenWaggle to let it run.
 - If a Launch schedule's previous session is still running, OpenWaggle skips that firing. A task has at most one run in progress.
 - If an agent or a command-line access profile created the task, or asked for this run with **Run now**, and the run would pass the [worker limits](/docs/reference/hive#run-limits), OpenWaggle skips that firing and records it. Scheduled firings of tasks you created, and a **Run now** you choose, are never skipped for this, unless the task runs as an access profile: then it is that profile's work, whoever chooses **Run now**.
