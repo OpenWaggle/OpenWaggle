@@ -21,19 +21,22 @@ bun install              # Install from bun.lock (Bun version: packageManager / 
 bun run dev              # Electron dev app
 bun run dev:debug        # Hidden Electron dev app with CDP on port 9223
 bun run build            # Production build
-bun run typecheck        # Node + web typecheck
+bun run typecheck        # One tsc -b over node, web and renderer tests
 bun run lint             # oxfmt check + type-aware `bun lint` (oxlint.config.mts) + repository standards
 bun run lint:fix         # Format with oxfmt and apply lint fixes
 bun run lint:oxlint      # Same lint config through oxlint, the fallback runner
 bun run format           # Format with oxfmt (.oxfmtrc.json)
+bun run check:changed    # Format, lint and standards on files changed vs origin/main: run after each edit
 bun run check            # Full static verification
-bun run verify           # Fast pre-push verification: commit policy, typecheck, lint, unit tests
+bun run verify           # Pre-push verification: commit policy, typecheck, lint, unit tests
 bun run test             # Unit + integration + component tests
 bun run test:unit        # Unit tests
 bun run test:integration # Integration tests
 bun run test:component   # Component tests
 bun run test:coverage    # Coverage report
 ```
+
+`check`, `verify`, `lint`, `typecheck` and `check:changed` run `scripts/check/run.ts` (steps in `scripts/check/steps.ts`): parallel steps, one line when green, `file:line:col` findings plus a `fix:` hint when not, full logs in `.tmp/check/<step>.log`. `bun scripts/check/run.ts --list` shows the steps; `--only <ids>` runs some.
 
 ## CI Gates
 

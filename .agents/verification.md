@@ -2,13 +2,25 @@
 
 Run the narrowest meaningful checks first, then broaden before handoff.
 
+## The check runner
+
+`check`, `verify`, `lint`, `check:fast`, `check:changed` and `typecheck` all run `scripts/check/run.ts`, which runs the step graph declared in `scripts/check/steps.ts` in parallel. A green run prints one line; a failed step prints its `file:line:col` findings, a `fix:` hint and its log. Every step's full output is in `.tmp/check/<step>.log` and the timings are in `.tmp/check/report.json`.
+
+```bash
+bun run check:changed                        # format, lint, standards on files changed vs origin/main
+bun scripts/check/run.ts --only lint,typecheck   # chosen steps and their dependencies
+bun scripts/check/run.ts --list              # the check gate's steps (verify --list for verify)
+```
+
+Run `bun run check:changed` after each edit (a few seconds), then `bun run verify` before pushing. Package builds are cached in `.tmp/check/cache.json` by their inputs; `--no-cache` rebuilds them. `CHECK_CONCURRENCY` or `--concurrency n` caps parallel steps (default: half the cores); cap it when the machine is busy.
+
 ## Pre-Push Baseline
 
 ```bash
 bun run verify
 ```
 
-`bun run verify` is the fast, deterministic pre-push contract: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. The husky pre-push hook runs it for every feature-branch push. Run it before pushing rather than discovering these failures from a red CI run.
+`bun run verify` is the fast, deterministic pre-push contract: conventional-commit policy against the `origin/main` merge base, typecheck, format, lint, repository standards, and unit tests. The husky pre-push hook runs it for every feature-branch push. Run it before pushing rather than discovering these failures from a red CI run.
 
 ## Git Hooks And Agent Guardrails
 
@@ -87,7 +99,7 @@ bun run lint
 bun run check
 ```
 
-`bun run check` runs typecheck plus the full static verification (installer script, contrast, Pi runtime alignment, the provenance downgrade check, test typecheck, lint, renderer bundle budget, package release validation, API snapshots, package docs, package smoke). The renderer bundle budget (`bun run check:renderer-bundle`) runs `electron-vite build`, `scripts/check-syntax-bundle.ts`, `bun run check:main-bundle`, and `bun run check:renderer-csp` (the built page's inline script against its CSP hash), so an oversized initial renderer graph fails the required Typecheck & Lint job on the PR instead of failing the release build after the version PR merges. Lint runs the oxfmt format check, the type-aware lint config (`oxlint.config.mts`) through a pinned Bun canary `bun lint` (`scripts/lint.ts`; `bun run lint:oxlint` runs the same config through oxlint), and the repository-standards and instruction-reference checks. A clean run prints one summary line; a failing one prints one `file:line:col rule message` line per finding. `bun run check:react-compiler` (part of `bun run check`) recompiles `features/chat` and `features/composer` with the React Compiler the build uses and fails on any function it leaves uncompiled; the build itself never fails on one (`panicThreshold: 'none'`).
+`bun run check` runs typecheck plus the full static verification (installer script, contrast, Pi runtime alignment, the provenance downgrade check, format, lint, renderer bundle budget, package release validation, API snapshots, package docs, package smoke). The renderer bundle budget (`bun run check:renderer-bundle`) runs `electron-vite build`, `scripts/check-syntax-bundle.ts`, `bun run check:main-bundle`, and `bun run check:renderer-csp` (the built page's inline script against its CSP hash), so an oversized initial renderer graph fails the required Typecheck & Lint job on the PR instead of failing the release build after the version PR merges. Typecheck is one pass over the node, web and renderer-test projects with the renderer-test exemption ratchet (`scripts/check/typecheck.ts`): incremental `tsc -b` locally, `bun check -b` in CI, which has no cache. Lint runs the oxfmt format check, the type-aware lint config (`oxlint.config.mts`) through a pinned Bun canary `bun lint` (`scripts/lint.ts`; `bun run lint:oxlint` runs the same config through oxlint), and the repository-standards and instruction-reference checks. Each prints one `file:line:col rule message` line per finding. CI runs the check gate through `scripts/check/output-budget.ts`, which fails a green run that prints more o200k tokens than `scripts/check/output-budget.json` allows, and publishes the step times to the job summary. `bun run check:react-compiler` (part of `bun run check`) recompiles `features/chat` and `features/composer` with the React Compiler the build uses and fails on any function it leaves uncompiled; the build itself never fails on one (`panicThreshold: 'none'`).
 
 `bun run check:dependency-pins` fails a new or changed pin behind npm's `latest` that has no `DEPENDENCIES.md` row, and a row whose pin no manifest uses [DEP-03].
 

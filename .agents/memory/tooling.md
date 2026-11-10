@@ -84,3 +84,29 @@ Adding a dependency with `bun add` runs the root `postinstall` (`electron-builde
 - Finding the vendored ref: list every blob id in the upstream's history (`git rev-list --all --objects`) and look up the local files' `git hash-object` ids; the commit where all of a skill's files match is the ref. Several upstreams had moved or renamed the skill since (`skill-creator` to `skills/skill-creator`, `diagnose` to `diagnosing-bugs`), which `drift` reports as moved or removed.
 - The lock's upstream path for one skill sits under the legacy agent directory, so `skills-lock.json` is in the forbidden-reference exemptions.
 - ADR numbers: twelve numbers were already shared by two ADRs each before the check existed. Those pairs are frozen in `scripts/standards/adr-numbering.ts` because code comments and docs cite them by number; renumbering would change what those citations mean. The 0063 pair was renumbered (parents-show-their-running-workers became 0065) because its references could be told apart by topic: refusal kinds and CLI machine output stay 0063, Running Workers, Done below and Ready to read moved to 0065.
+
+## The check runner and its measurements (November 2026)
+
+`scripts/check/run.ts` runs `check` and `verify` as a step graph (`scripts/check/steps.ts`; add a
+step there and list it in a gate). Measured on a 14-core Mac at load 6-13: the old `check` chain
+took 83-97 s plus 54-75 s of package smoke, run one after another; the graph's critical path is
+the package smoke. Findings that shaped it:
+
+- `tsconfig.node.json` included `packages/**/*.ts`, which matched the built
+  `packages/*/dist/*.d.ts` whenever a package build had run, so the node program differed between
+  a clean checkout (CI) and a local tree, and a typecheck running beside a package build could
+  read half-written declarations. The dist folders are excluded now.
+- TypeScript 7 `tsc -b` over the three projects: 11-13 s cold, 0.4 s with nothing changed, about
+  2 s after an edit. The Bun canary's `bun check -b`: 3.1-3.8 s every time, and the same errors
+  with the same locations on a probe set across the projects, including declaration-emit errors
+  (TS4094). So CI, which has no `.typecheck/` cache, uses `bun check` and local runs use `tsc -b`.
+  The old `typecheck:tests` ran `tsc -b --force` twice (about 30 s).
+- The repository standards check spent most of its time stripping comments: five rules each
+  stripped the same file. One shared result plus one `git ls-files` pass took it from 3.8 s to
+  2.1 s here.
+- Vite prints a four-line `configLoader: 'native'` notice on every Vitest run because the root
+  package.json has no `"type": "module"`; the test scripts and the runner set
+  `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` rather than changing the module type.
+- The package smoke's Bun consumer install once failed with `No version matching "^3.981.0" found
+  for specifier "@aws-sdk/core"` and passed on the next run: a registry or cache hiccup, not a gate
+  regression.
