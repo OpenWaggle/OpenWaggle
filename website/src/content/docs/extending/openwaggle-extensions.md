@@ -237,7 +237,7 @@ export async function mount(context) {
 }
 ```
 
-Install a compatible SDK version and bundle the helper code into your extension. The first-party fixtures in this repository use the internal `@shared/extension-ui` alias instead. An extension you distribute must not depend on that alias. Whether your extension runs still depends only on the mount context and the SDK capabilities.
+Install a compatible SDK version and bundle the helper code into your extension. An extension you distribute must not depend on internal aliases from an OpenWaggle checkout. Whether your extension runs still depends only on the mount context and the SDK capabilities.
 
 For install commands, entry points, and more import examples, see [Packages](/docs/packages/overview), in particular [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) and [`@openwaggle/extension-react`](/docs/packages/extension-react).
 
