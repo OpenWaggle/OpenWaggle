@@ -29,7 +29,23 @@ bun run check:react-doctor  # react-doctor, fails on warnings and errors
 
 Both are required steps of `check` (the CI Typecheck & Lint job). Fix findings in code. A verified false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry scoped to the file and rule, with a comment giving the reason; never a `fallow-ignore` or other suppression comment. `fallow health` is advisory.
 
-The project Pi extension `.pi/extensions/quality-gates.ts` (`scripts/agent-quality-gates/`) runs both on the files an agent changed during a run, at Pi's `agent_before_settle` boundary. Findings come back as a follow-up message and the run continues so the agent fixes them; a clean run is silent. After three follow-ups in one run it lets the run end, and `check` still fails.
+The end-of-turn agent gate (next section) runs both on the files an agent changed.
+
+## End-Of-Turn Agent Gate
+
+```bash
+bun scripts/agent-gate/check.ts [--base <ref>] [files...]   # the same verdict by hand
+```
+
+The project Pi extension `.pi/extensions/quality-gates.ts` (logic in `scripts/agent-gate/` and `scripts/agent-quality-gates/`) checks an agent's work at Pi's `agent_before_settle` boundary, before the run ends. It records the files each tool call changed: from the path of `edit` and `write` calls, and from content hashes of the dirty files before and after shell and `codemode` calls, so a change made from the shell counts too. At the boundary it checks the files changed since the last passing gate:
+
+- oxfmt and the type-aware lint config on the changed files, and a type check of each affected project (`tsconfig.node.json`, incremental `tsc -b tsconfig.web.json`). Type errors in changed files block; errors elsewhere block when the Session-start type check did not have them.
+- New inline suppressions compared with the Session start [TS-08]; added dependencies without the user's approval [DEP-02], range specs [DEP-01], and changed pins behind `latest` without a `DEPENDENCIES.md` row [DEP-03]; weakened tsconfigs [TS-01]; generated files changed by anything but their generator [TOOL-07] (`scripts/agent-gate/generated-files.ts` lists them); source changes with no passing test run since [TEST-05]; Fallow and React Doctor findings [GATE-02] [REACT-07].
+- Watched docs that did not change with the files they describe [DOC-01] (`scripts/agent-gate/doc-watch.ts`). Advisory only.
+
+Each finding is one `file:line:col rule [ID] message` line; a clean gate is silent. Blocking findings go back to the agent and the run continues once. The same set at the next stop goes to the user and the run ends, and so does any set after three continuations in one run [GATE-01]. Advisory findings never block. A tool that times out, is missing or cannot reach the registry is one advisory line, and its files stay pending for the next gate. Adding a dependency or weakening a tsconfig asks the user right after the tool call (with no UI it blocks instead); naming the package in a prompt approves it. `OPENWAGGLE_AGENT_GATE=off` in the app's environment turns the gate off.
+
+Measured on a 14-core machine at load average 20 to 27 (10 agents sharing it): 4.3 to 7.7 s for a 1 to 3 file change without Fallow and React Doctor, 5.2 to 8 s for 10 files, and 10 to 13 s with them. A clean verdict is one line (17 o200k tokens from the manual check); a failing one costs about 35 tokens per finding. Each shell call adds 0.1 to 0.7 s for the two hash snapshots.
 
 ## CI Gate Tiers
 
@@ -72,6 +88,8 @@ bun run check
 ```
 
 `bun run check` runs typecheck plus the full static verification (installer script, contrast, Pi runtime alignment, the provenance downgrade check, test typecheck, lint, renderer bundle budget, package release validation, API snapshots, package docs, package smoke). The renderer bundle budget (`bun run check:renderer-bundle`) runs `electron-vite build`, `scripts/check-syntax-bundle.ts`, `bun run check:main-bundle`, and `bun run check:renderer-csp` (the built page's inline script against its CSP hash), so an oversized initial renderer graph fails the required Typecheck & Lint job on the PR instead of failing the release build after the version PR merges. Lint runs the oxfmt format check, the type-aware lint config (`oxlint.config.mts`) through a pinned Bun canary `bun lint` (`scripts/lint.ts`; `bun run lint:oxlint` runs the same config through oxlint), and the repository-standards and instruction-reference checks. A clean run prints one summary line; a failing one prints one `file:line:col rule message` line per finding. `bun run check:react-compiler` (part of `bun run check`) recompiles `features/chat` and `features/composer` with the React Compiler the build uses and fails on any function it leaves uncompiled; the build itself never fails on one (`panicThreshold: 'none'`).
+
+`bun run check:dependency-pins` fails a new or changed pin behind npm's `latest` that has no `DEPENDENCIES.md` row, and a row whose pin no manifest uses [DEP-03].
 
 `bun run check:provenance` reads npm registry metadata for every package in `bun.lock`. Its answers are cached under `node_modules/.cache/openwaggle`, so only the first run, or a run after a lockfile change, needs the network.
 
