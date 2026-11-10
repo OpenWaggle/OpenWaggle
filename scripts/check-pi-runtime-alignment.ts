@@ -167,6 +167,7 @@ function changedPatchPaths(patch: string) {
   for (const match of patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)) {
     const before = match[BEFORE_PATCH_PATH_CAPTURE]
     const after = match[AFTER_PATCH_PATH_CAPTURE]
+    if (before === undefined || after === undefined) continue
     paths.push(before === after ? before : `${before} -> ${after}`)
   }
   return paths

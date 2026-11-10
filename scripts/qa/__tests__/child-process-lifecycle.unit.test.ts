@@ -68,7 +68,7 @@ describe('QA child-process lifecycle', () => {
 
     expect(terminateWindowsTree).toHaveBeenCalledWith(44, snapshot, false)
     expect(terminateWindowsTree.mock.invocationCallOrder[0]).toBeLessThan(
-      waitForExit.mock.invocationCallOrder[0],
+      waitForExit.mock.invocationCallOrder[0] ?? 0,
     )
     expect(verifyWindowsTreeExit).toHaveBeenCalledWith(snapshot)
     expect(child.kill).not.toHaveBeenCalled()

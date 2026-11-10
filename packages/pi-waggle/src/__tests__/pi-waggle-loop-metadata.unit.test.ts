@@ -46,7 +46,9 @@ function config(): WaggleConfig {
 }
 
 function metadata(waggleConfig: WaggleConfig, turnNumber: number, agentIndex: number): TestMeta {
-  return { turnNumber, agentIndex, label: waggleConfig.agents[agentIndex].label }
+  const agent = waggleConfig.agents[agentIndex]
+  if (!agent) throw new Error(`Expected Waggle agent ${String(agentIndex)}`)
+  return { turnNumber, agentIndex, label: agent.label }
 }
 
 function modelFor(modelReference: string): PiWaggleModel {

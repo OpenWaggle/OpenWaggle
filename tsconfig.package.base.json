@@ -9,6 +9,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "noUncheckedSideEffectImports": true,

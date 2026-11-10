@@ -43,9 +43,12 @@ function textMessage(id: string, role: 'user' | 'assistant', createdAt: number, 
 async function seed(context: CaptureContext, conversation: VisualizationConversation) {
   const { project } = await prepareEssentials(context)
   const now = Date.now()
-  const [asked, replied, next, answered] = SENT_MINUTES_AGO.map(
-    (minutes) => now - minutes * MINUTE_MS,
-  )
+  const sentAt = (minutesAgo: number) => now - minutesAgo * MINUTE_MS
+  const [askedAgo, repliedAgo, nextAgo, answeredAgo] = SENT_MINUTES_AGO
+  const asked = sentAt(askedAgo)
+  const replied = sentAt(repliedAgo)
+  const next = sentAt(nextAgo)
+  const answered = sentAt(answeredAgo)
   const replyId = `website-${conversation.file.replace(/\.html$/, '')}-reply`
   const sessionId = await seedSingleSession(context.userDataDir, {
     title: conversation.sessionTitle,

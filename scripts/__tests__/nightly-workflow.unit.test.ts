@@ -43,7 +43,7 @@ describe('nightly packaged canary workflow', () => {
   })
 
   it('pins every third-party action to a commit SHA, like the other workflows', () => {
-    const actionUses = [...WORKFLOW.matchAll(/uses:\s*(\S+)/gu)].map((match) => match[1])
+    const actionUses = [...WORKFLOW.matchAll(/uses:\s*(\S+)/gu)].flatMap((match) => match[1] ?? [])
     expect(actionUses.length).toBeGreaterThan(0)
     for (const use of actionUses) {
       // Local composite actions are path refs; third-party actions must be SHA-pinned.

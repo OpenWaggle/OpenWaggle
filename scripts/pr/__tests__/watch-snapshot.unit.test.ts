@@ -154,8 +154,10 @@ describe('pr:watch review comments', () => {
 
   it('closes a thread whose latest comment is a babysit reply, and reopens it on a later reply', () => {
     const base = thread()
+    const [firstComment] = base.comments
+    if (!firstComment) throw new Error('Expected the fixture thread to have a comment')
     const babysitReply = {
-      ...base.comments[0],
+      ...firstComment,
       author: person(VIEWER),
       body: BABYSIT_REPLY,
       id: 901,
