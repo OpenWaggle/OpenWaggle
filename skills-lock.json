@@ -282,7 +282,7 @@
           "hash": "sha256-434a0326cf9f6c5be5049efaef776509687134151c6be7caed94ac63bc58cb4f"
         }
       ],
-      "hash": "sha256-94ec26a94e4be8264f9fa034d4e20c9782a8de7ecab93b932cb64c3a4ceeed3d",
+      "hash": "sha256-44aa5d798172d71e7b860abd2e7832c1a33b259188c7acf47b0dd4915216b028",
       "localEdits": "SKILL.md is this repository's own: it merges the skill-creator packaging workflow (whose scripts and license are vendored unchanged) with guidance on descriptions, triggers and the token cost of always-loaded text."
     },
     "zoom-out": {

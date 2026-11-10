@@ -63,8 +63,8 @@ Skill metadata, tool declarations and `AGENTS.md` are in the prompt of every mod
 Measure before and after an edit with the o200k tokenizer that the first-turn prefix budget in `scripts/perf/first-turn-prefix` and the memory caps use:
 
 ```bash
-bun scripts/count-o200k-tokens.ts AGENTS.md MEMORY.md .agents/skills/<skill>/SKILL.md
-printf '%s' "<description text>" | bun scripts/count-o200k-tokens.ts
+bun run tokens:count AGENTS.md MEMORY.md .agents/skills/<skill>/SKILL.md
+printf '%s' "<description text>" | bun run tokens:count
 ```
 
 Report the token delta of every change to always-loaded text. A new pointer has to save more reading than it costs on every turn.

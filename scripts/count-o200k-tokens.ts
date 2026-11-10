@@ -1,8 +1,8 @@
 /**
  * Counts o200k tokens, the tokenizer the first-turn prefix budget and the memory caps use.
  *
- *   bun scripts/count-o200k-tokens.ts <file...>
- *   printf '%s' "<text>" | bun scripts/count-o200k-tokens.ts
+ *   bun run tokens:count <file...>
+ *   printf '%s' "<text>" | bun run tokens:count
  *
  * Prints one `<tokens> <file>` line per file and a total line when there is more than one.
  * Use it to price text that every turn loads: AGENTS.md, MEMORY.md, skill descriptions and rules.

@@ -44,7 +44,7 @@ Prefer a check over a sentence, and editing an existing line over adding a new o
 
 ## 4. Propose concrete edits
 
-For each edit give the file, the exact text to add, replace or remove, the finding it answers, and its cost. Text that every turn loads (`AGENTS.md`, skill descriptions, the `MEMORY.md` index) is priced with `bun scripts/count-o200k-tokens.ts`. Text behind a pointer costs only when it is read.
+For each edit give the file, the exact text to add, replace or remove, the finding it answers, and its cost. Text that every turn loads (`AGENTS.md`, skill descriptions, the `MEMORY.md` index) is priced with `bun run tokens:count`. Text behind a pointer costs only when it is read.
 
 Propose three to seven edits. If there are more, keep the ones that would have saved the most time.
 
