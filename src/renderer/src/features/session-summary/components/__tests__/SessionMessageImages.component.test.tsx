@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { SessionMessageImages, SessionMessageResourcesProvider } from '../SessionMessageImages'
+import { required } from '@/test-utils/required'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
@@ -133,7 +134,7 @@ describe('SessionMessageImages', () => {
     )
     expect(buttons[0]).toHaveClass('aspect-[4/3]')
 
-    fireEvent.click(buttons[1])
+    fireEvent.click(required(buttons[1]))
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'second',
@@ -162,7 +163,7 @@ describe('SessionMessageImages', () => {
       'Open image agent-first.png',
       'Open image agent-second.png',
     ])
-    fireEvent.click(buttons[1])
+    fireEvent.click(required(buttons[1]))
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'agent-second',

@@ -16,6 +16,10 @@ describe('voice-utils', () => {
     expect(Array.from(result)).toEqual([0, 0])
   })
 
+  it('downsamples an empty recording to one silent sample', () => {
+    expect(Array.from(downsampleAudio(new Float32Array([]), 4, 2))).toEqual([0])
+  })
+
   it('trims leading and trailing silence while preserving padding', () => {
     const samples = new Float32Array([0, 0.001, 0.5, 0.25, 0.001, 0])
     const result = trimSilence(samples, 1000, 0.01, 1)

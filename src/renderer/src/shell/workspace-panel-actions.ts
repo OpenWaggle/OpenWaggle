@@ -160,8 +160,11 @@ export function toggleWorkspacePreview(ownerKey: string) {
   const group = store.groups[ownerKey]
   const previewId = activeBrowserTabId(ownerKey)
   if (previewId === null) return newWorkspaceBrowser(ownerKey)
-  if (group.panelOpen && group.activeSurface?.kind === 'browser') store.hidePanel(ownerKey)
-  else store.showBrowser(ownerKey, previewId)
+  if (group?.panelOpen === true && group.activeSurface?.kind === 'browser') {
+    store.hidePanel(ownerKey)
+  } else {
+    store.showBrowser(ownerKey, previewId)
+  }
   return true
 }
 

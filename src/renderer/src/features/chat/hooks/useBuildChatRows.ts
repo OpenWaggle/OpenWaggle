@@ -150,9 +150,8 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   }
 
   appendCardsAfter(BEFORE_FIRST_MESSAGE)
-  for (let index = 0; index < params.messages.length; index += 1) {
+  for (const [index, message] of params.messages.entries()) {
     appendCompactionRowsAt(index)
-    const message = params.messages[index]
     if (message.role === 'assistant') appendLaunchRows()
     appendMessage(message, index)
     appendCardsAfter(index)

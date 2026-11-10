@@ -10,7 +10,8 @@ export function isRenderableTextPart(
 
 export function getLastRenderableTextPartIndex(parts: UIMessage['parts']): number {
   for (let index = parts.length - 1; index >= 0; index -= 1) {
-    if (isRenderableTextPart(parts[index])) {
+    const part = parts[index]
+    if (part !== undefined && isRenderableTextPart(part)) {
       return index
     }
   }
@@ -31,13 +32,5 @@ export function hasRenderableTextPartBeforeIndex(
   parts: UIMessage['parts'],
   index: number,
 ): boolean {
-  if (index <= 0) {
-    return false
-  }
-  for (let currentIndex = 0; currentIndex < index; currentIndex += 1) {
-    if (isRenderableTextPart(parts[currentIndex])) {
-      return true
-    }
-  }
-  return false
+  return parts.slice(0, Math.max(0, index)).some(isRenderableTextPart)
 }

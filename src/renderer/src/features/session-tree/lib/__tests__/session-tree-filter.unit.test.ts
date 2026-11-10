@@ -117,7 +117,7 @@ describe('searchSessionTreeNodes', () => {
     expect(
       searchSessionTreeNodes({
         nodes,
-        filteredNodes: [nodes[0], nodes[2]],
+        filteredNodes: nodes.filter((item) => item.id !== 'hidden-tool'),
         query: 'needle',
       }).map((item) => String(item.id)),
     ).toEqual(['root', 'leaf'])

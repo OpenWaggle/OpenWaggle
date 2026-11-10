@@ -10,6 +10,7 @@
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
     "noUncheckedSideEffectImports": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,

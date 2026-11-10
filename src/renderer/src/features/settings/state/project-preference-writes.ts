@@ -55,8 +55,9 @@ async function reconcileProjectIdentity(
   // The aliased path is the identity the user just interacted through, so its entry wins on
   // conflict; entries that only existed under the canonical key are preserved by the merge.
   function rekeyFlat<V>(record: Record<string, V>): Record<string, V> {
-    if (!(requestedPath in record)) return record
-    const next = { ...record, [canonicalPath]: record[requestedPath] }
+    const value = record[requestedPath]
+    if (value === undefined) return record
+    const next = { ...record, [canonicalPath]: value }
     delete next[requestedPath]
     return next
   }

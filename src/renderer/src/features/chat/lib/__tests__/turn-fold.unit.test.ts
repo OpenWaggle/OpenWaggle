@@ -211,7 +211,7 @@ describe('applyTurnFolds', () => {
 
     expect(result).toHaveLength(2)
     const foldedWaggle = result[1]
-    if (foldedWaggle.type !== 'waggle-turn') throw new Error('expected waggle row')
+    if (foldedWaggle?.type !== 'waggle-turn') throw new Error('expected waggle row')
     expect(foldedWaggle.folded).toBe(true)
     expect(foldedWaggle.foldRow).toMatchObject({
       type: 'turn-fold',

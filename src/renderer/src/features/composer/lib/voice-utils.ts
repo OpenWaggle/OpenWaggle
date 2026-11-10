@@ -19,9 +19,8 @@ function toMono(buffer: AudioBuffer) {
   const mono = new Float32Array(buffer.length)
   const weight = 1 / buffer.numberOfChannels
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
-    const samples = buffer.getChannelData(channel)
-    for (let index = 0; index < samples.length; index += 1) {
-      mono[index] += samples[index] * weight
+    for (const [index, sample] of buffer.getChannelData(channel).entries()) {
+      mono[index] = (mono[index] ?? 0) + sample * weight
     }
   }
   return mono
@@ -41,7 +40,7 @@ export function downsampleAudio(
     const lowIndex = Math.floor(sourceIndex)
     const highIndex = Math.min(samples.length - 1, lowIndex + 1)
     const t = sourceIndex - lowIndex
-    downsampled[index] = samples[lowIndex] * (1 - t) + samples[highIndex] * t
+    downsampled[index] = (samples[lowIndex] ?? 0) * (1 - t) + (samples[highIndex] ?? 0) * t
   }
   return downsampled
 }
@@ -68,10 +67,12 @@ export function trimSilence(
 ): Float32Array {
   if (samples.length === 0) return samples
   let startIndex = 0
-  while (startIndex < samples.length && Math.abs(samples[startIndex]) < threshold) startIndex += 1
+  while (startIndex < samples.length && Math.abs(samples[startIndex] ?? 0) < threshold) {
+    startIndex += 1
+  }
   if (startIndex === samples.length) return samples
   let endIndex = samples.length - 1
-  while (endIndex > startIndex && Math.abs(samples[endIndex]) < threshold) endIndex -= 1
+  while (endIndex > startIndex && Math.abs(samples[endIndex] ?? 0) < threshold) endIndex -= 1
   const paddingSamples = Math.round((paddingMs / TIME_UNIT.MILLISECONDS_PER_SECOND) * sampleRate)
   return samples.slice(
     Math.max(0, startIndex - paddingSamples),
@@ -82,8 +83,8 @@ export function trimSilence(
 export function toPcm16(samples: Float32Array): Uint8Array {
   const bytes = new Uint8Array(samples.length * DOUBLE_FACTOR)
   const view = new DataView(bytes.buffer)
-  for (let index = 0; index < samples.length; index += 1) {
-    const sample = Math.max(-1, Math.min(1, samples[index]))
+  for (const [index, value] of samples.entries()) {
+    const sample = Math.max(-1, Math.min(1, value))
     view.setInt16(
       index * DOUBLE_FACTOR,
       sample < 0

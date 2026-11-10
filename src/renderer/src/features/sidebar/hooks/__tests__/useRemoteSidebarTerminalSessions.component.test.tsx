@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
+import { required } from '@/test-utils/required'
 import { useRemoteSidebarSessions } from '../useRemoteSidebarSessions'
 import { useSidebarRowStates } from '../useSidebarRowStates'
 import { hookInput, listResponse, summary } from './useRemoteSidebarSessions.test-support'
@@ -80,6 +81,7 @@ describe('remote terminal Session filtering', () => {
       ...summary(`completed-${String(index).padStart(3, '0')}`, `Completed ${String(index)}`),
       latestRun: { status: 'completed' as const, updatedAt: index + 1 },
     }))
+    const first = required(remote[0], 'the first remote session')
     apiMocks.querySessionControl.mockImplementation(async (request) => {
       if (request.query.unreadTerminalStatus !== 'completed') {
         return listResponse([], { totalCount: 0 })
@@ -97,11 +99,11 @@ describe('remote terminal Session filtering', () => {
     )
 
     const { result } = renderHook(() => {
-      const rowStates = useSidebarRowStates([remote[0]], 0)
+      const rowStates = useSidebarRowStates([first], 0)
       return useRemoteSidebarSessions(
         hookInput({
           filterState: 'completed',
-          loadedSessions: [remote[0]],
+          loadedSessions: [first],
           stateBySessionId: rowStates.stateBySessionId,
         }),
       )
@@ -126,7 +128,8 @@ describe('remote terminal Session filtering', () => {
       ...summary(`visited-${String(index).padStart(3, '0')}`, `Completed ${String(index)}`),
       latestRun: { status: 'completed' as const, updatedAt: index + 1 },
     }))
-    useSessionStatusStore.getState().setStatus(remote[0].id, 'completed', 1)
+    const first = required(remote[0], 'the first remote session')
+    useSessionStatusStore.getState().setStatus(first.id, 'completed', 1)
     apiMocks.querySessionControl.mockImplementation(async (request) => {
       if (request.query.unreadTerminalStatus !== 'completed') return listResponse([])
       if (request.query.limit === 1) return listResponse([], { totalCount: remote.length })
@@ -150,14 +153,14 @@ describe('remote terminal Session filtering', () => {
     act(() => result.current.loadMore())
     await waitFor(() => expect(result.current.sessions).toHaveLength(400))
 
-    act(() => useSessionStatusStore.getState().markVisited(remote[0].id))
+    act(() => useSessionStatusStore.getState().markVisited(first.id))
     await waitFor(() => expect(result.current.sessions).toHaveLength(399))
-    expect(result.current.sessions.some((session) => session.id === remote[0].id)).toBe(false)
+    expect(result.current.sessions.some((session) => session.id === first.id)).toBe(false)
     expect(result.current.hasMore).toBe(true)
-    act(() => useSessionStatusStore.getState().markUnread(remote[0].id))
+    act(() => useSessionStatusStore.getState().markUnread(first.id))
     await waitFor(() => expect(result.current.sessions).toHaveLength(400))
     expect(result.current.hasMore).toBe(true)
-    act(() => useSessionStatusStore.getState().markVisited(remote[0].id))
+    act(() => useSessionStatusStore.getState().markVisited(first.id))
     await waitFor(() => expect(result.current.sessions).toHaveLength(399))
     act(() => result.current.loadMore())
     await waitFor(() => expect(result.current.sessions).toHaveLength(400))

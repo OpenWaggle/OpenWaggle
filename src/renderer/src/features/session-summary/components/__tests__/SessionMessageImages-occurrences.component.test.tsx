@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { SessionMessageImages, SessionMessageResourcesProvider } from '../SessionMessageImages'
+import { required } from '@/test-utils/required'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
@@ -129,7 +130,7 @@ describe('SessionMessageImages occurrence ordering', () => {
       'Open image middle.png',
       'Open image same.png',
     ])
-    fireEvent.click(buttons[2])
+    fireEvent.click(required(buttons[2]))
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'same',

@@ -120,7 +120,7 @@ describe('UserMessageBubble', () => {
     expect(ol).toBeInTheDocument()
     const items = container.querySelectorAll('li')
     expect(items).toHaveLength(3)
-    expect(items[0].textContent).toBe('First item')
+    expect(items[0]?.textContent).toBe('First item')
   })
 
   it('renders a fenced code block via markdown', () => {

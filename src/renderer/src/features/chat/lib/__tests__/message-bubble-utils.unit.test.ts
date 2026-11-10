@@ -98,4 +98,9 @@ describe('hasRenderableTextPartBeforeIndex', () => {
     const parts: UIMessage['parts'] = [textPart('first')]
     expect(hasRenderableTextPartBeforeIndex(parts, -1)).toBe(false)
   })
+
+  it('checks every part when the index is past the end', () => {
+    expect(hasRenderableTextPartBeforeIndex([toolCallPart('run'), textPart('only')], 5)).toBe(true)
+    expect(hasRenderableTextPartBeforeIndex([toolCallPart('run')], 5)).toBe(false)
+  })
 })

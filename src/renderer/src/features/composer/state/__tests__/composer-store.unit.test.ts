@@ -78,7 +78,7 @@ describe('composer-store', () => {
       useComposerStore.getState().removeAttachment('a1')
       const remaining = useComposerStore.getState().attachments
       expect(remaining).toHaveLength(1)
-      expect(remaining[0].id).toBe('a2')
+      expect(remaining[0]?.id).toBe('a2')
     })
 
     it('setAttachmentError sets and clears errors', () => {
