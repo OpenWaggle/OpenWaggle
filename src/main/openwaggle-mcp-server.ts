@@ -24,7 +24,6 @@ import {
 export {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
-  type OpenWaggleMcpServeIdentity,
   type OpenWaggleMcpServeOptions,
 } from './openwaggle-mcp-server-policy'
 

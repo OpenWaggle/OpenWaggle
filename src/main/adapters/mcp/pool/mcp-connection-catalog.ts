@@ -19,7 +19,6 @@ export {
   type McpToolCatalog,
   type McpToolCatalogStore,
   memoryMcpToolCatalogStore,
-  pruneMcpToolCatalogs,
 } from './mcp-tool-catalog-store'
 
 /** Hex characters of a catalog key: its file name. */

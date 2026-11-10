@@ -34,11 +34,6 @@ export interface SessionContextRowCoreState {
   readonly switchToLocalMode: () => void
 }
 
-export interface BranchListState {
-  readonly currentBranch: string | null
-  readonly names: readonly string[]
-}
-
 export function resolveEffectivePlan(
   override: WorktreePlanOverride | undefined,
   session: UseSessionContextRowInput['session'],

@@ -93,8 +93,6 @@ const extensionMountInvokeInputSchema = Schema.Struct({
   scope: extensionInvokeScopeSchema,
   payload: Schema.optional(Schema.Unknown),
 })
-
-export type ExtensionFrameMessage = SchemaType<typeof extensionFrameMessageSchema>
 export type ExtensionFrameInvokeMessage = SchemaType<typeof extensionFrameInvokeMessageSchema>
 
 export function extensionFrameConfig(input: {

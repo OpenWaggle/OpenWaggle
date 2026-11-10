@@ -304,4 +304,4 @@ export async function verifyExternalMcp(input: {
 }
 
 export { runProcess } from './bounded-child-process'
-export { type StoppableChild, stopChild } from './child-process-lifecycle'
+export { stopChild } from './child-process-lifecycle'

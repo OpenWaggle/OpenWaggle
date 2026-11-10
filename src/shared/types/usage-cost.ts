@@ -16,10 +16,6 @@ export type UsageCostOriginFilter = (typeof USAGE_COST_ORIGIN_FILTERS)[number]
 export const USAGE_COST_SESSION_ORIGINS = ['openwaggle', 'other-pi-clients'] as const
 export type UsageCostSessionOrigin = (typeof USAGE_COST_SESSION_ORIGINS)[number]
 
-/** How a cost number was obtained (CONTEXT.md: Cost tier). */
-export const USAGE_COST_TIERS = ['recorded', 'estimated', 'unpriced'] as const
-export type UsageCostTier = (typeof USAGE_COST_TIERS)[number]
-
 export interface UsageCostQuery {
   readonly preset: UsageCostRangePreset
   readonly origin: UsageCostOriginFilter

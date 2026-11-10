@@ -44,7 +44,6 @@ export {
 export type {
   ClaimedSessionWorktreeSetup,
   PendingSessionWorktreeSetup,
-  SessionWorktreeSetupDispatch,
 } from './session-details/session-worktree-setup'
 export {
   adoptSessionWorktreeForSetup,
@@ -58,11 +57,6 @@ export {
 } from './session-details/session-worktree-setup'
 export {
   MAX_NAMED_CONFLICTS,
-  type SessionNodeIdConflict,
   SessionNodeIdConflictError,
 } from './session-details/snapshot-node-ownership'
-export type {
-  CreateSessionInput,
-  SessionNodeRow,
-  UpdateSessionRuntimeInput,
-} from './session-details/types'
+export type { SessionNodeRow } from './session-details/types'

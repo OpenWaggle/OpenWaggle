@@ -1,16 +1,11 @@
 import * as Effect from 'effect/Effect'
 import { isExtensionRuntimeEnabled } from '../extensions/runtime-eligibility'
 import { hasTrustedMainRuntime } from '../extensions/trusted-main-runtime'
-import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
+import type { DiscoveredExtensionPackage } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
 import { AppLogger } from '../services/logger-service'
-
-export interface RuntimeEnabledTrustedMainPackage {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly lifecycle: ExtensionLifecycleState
-}
 
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : String(error)

@@ -10,7 +10,6 @@ import { docsPath } from '../lib/site-paths'
 export {
   packageDocumentationPageRoute,
   packageDocumentationRoute,
-  packageDocumentationUrl,
 } from '../../../scripts/package-documentation-model'
 export type {
   PackageDocumentationPage,

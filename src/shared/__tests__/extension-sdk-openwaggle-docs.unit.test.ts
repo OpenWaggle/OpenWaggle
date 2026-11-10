@@ -1,11 +1,11 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { createExtensionBrokerSdk, type ExtensionBrokerTransport } from '@shared/extension-sdk'
 import type {
   ExtensionCapabilityAuditEntry,
   ExtensionInvokeInput,
   ExtensionInvokeResult,
 } from '@shared/types/extension-broker'
 import { describe, expect, it, vi } from 'vitest'
-import { createExtensionBrokerSdk, type ExtensionBrokerTransport } from '../extension-sdk'
 
 const PROJECT_SCOPE = { kind: 'project', projectPath: '/tmp/project' } as const
 const APP_SCOPE = { kind: 'app' } as const

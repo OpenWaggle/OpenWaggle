@@ -31,21 +31,12 @@ export type {
 export type {
   ExtensionLifecycleMutationTarget,
   ExtensionPackageLifecycleScope,
-  ExtensionPackageScopeKind,
   ExtensionPackageScopeView,
 } from './extension-package-scope'
 export type {
   ExtensionApplyPackageRemoveInput,
   ExtensionApplyPackageWriteInput,
-  ExtensionPackageFileWrite,
-  ExtensionPackageRemoveOperation,
   ExtensionPackageRemoveProposalView,
-  ExtensionPackageWorkflowActor,
-  ExtensionPackageWorkflowGlobalConfirmation,
-  ExtensionPackageWorkflowUserApproval,
-  ExtensionPackageWriteMode,
-  ExtensionPackageWriteOperation,
-  ExtensionPackageWriteProposalFileView,
   ExtensionPackageWriteProposalView,
   ExtensionProposePackageRemoveInput,
   ExtensionProposePackageWriteInput,
@@ -97,14 +88,6 @@ export interface ExtensionManifestSummary {
 export type ExtensionInstallSource = ConstantValue<typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCE>
 export type ExtensionBuildRunStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS>
 export type ExtensionReloadStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.RELOAD_STATUS>
-export type ExtensionRequirementKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND>
-export type ExtensionRuntimeRequirementDeclarationKind = ConstantValue<
-  typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE
->
-export type ExtensionRuntimeRequirementResolution = ConstantValue<
-  typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_RESOLUTION
->
-export type ExtensionPrivilegeGrantId = ConstantValue<typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT>
 export type ExtensionNetworkAccessMode = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.NETWORK_ACCESS_MODE
 >
@@ -117,7 +100,6 @@ export type ExtensionContributionRuntime = ConstantValue<
 export type ExtensionExecutionPlacement = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT
 >
-export type ExtensionCapabilityScope = (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number]
 
 export interface ExtensionBuildPlanView {
   readonly installSource: ExtensionInstallSource

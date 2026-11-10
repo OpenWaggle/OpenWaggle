@@ -95,8 +95,6 @@ export type SourceControlAttention =
       readonly accounts: readonly string[]
     }
 
-export type SourceControlAttentionKind = SourceControlAttention['kind']
-
 /** One Provider account a CLI holds for a host. */
 export interface SourceControlProviderAccount {
   readonly login: string

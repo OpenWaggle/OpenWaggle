@@ -5,7 +5,6 @@ import type { SessionBranchId, SessionId } from './brand'
  * Settings > Archived items lists, searches, and restores as one collection.
  */
 export const ARCHIVED_ITEM_KINDS = ['session', 'branch'] as const
-export type ArchivedItemKind = (typeof ARCHIVED_ITEM_KINDS)[number]
 
 /** The Type facet: one kind, or both. */
 export const ARCHIVED_ITEM_KIND_FILTERS = ['all', ...ARCHIVED_ITEM_KINDS] as const

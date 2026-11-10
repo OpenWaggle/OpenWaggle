@@ -131,11 +131,6 @@ export type SessionlessHostEventPayload = Extract<
   }
 >
 
-export type SessionScopedHostEventPayload = Exclude<
-  SessionHostEventPayload,
-  SessionlessHostEventPayload
->
-
 export function isSessionlessHostEvent(
   payload: SessionHostEventPayload,
 ): payload is SessionlessHostEventPayload {

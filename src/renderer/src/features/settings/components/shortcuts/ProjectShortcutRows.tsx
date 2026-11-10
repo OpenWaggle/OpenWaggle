@@ -23,7 +23,6 @@ import {
 import type { UpdateProjectShortcutRules } from './AddShortcutBinding'
 import { ShortcutSourceBadge } from './ShortcutRowParts'
 
-export type { UpdateProjectShortcutRules } from './AddShortcutBinding'
 export { AddShortcutBinding } from './AddShortcutBinding'
 
 interface ProjectShortcutRowProps {

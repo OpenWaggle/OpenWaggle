@@ -23,8 +23,6 @@ import type {
 export type {
   BrowserPreviewRecordingEnvironment,
   BrowserPreviewRecordingOperations,
-  BrowserPreviewRecordingPhase,
-  BrowserPreviewRecordingSnapshot,
 } from './browser-preview-recording-types'
 
 const RECORDING_TIMESLICE_MS = 1_000

@@ -255,5 +255,3 @@ export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
     if (orphanHoldId && visibleKey) void adopt()
   }, [orphanHoldId, visibleKey])
 }
-
-export type QueuedMessageEditController = ReturnType<typeof useQueuedMessageEdit>

@@ -1,6 +1,2 @@
 export { useSessionTurns } from './hooks/useSessionTurns'
-export {
-  type DiffScopeSelection,
-  selectThreadDiffScopeSelection,
-  useDiffScopeStore,
-} from './state/diff-scope-store'
+export { useDiffScopeStore } from './state/diff-scope-store'

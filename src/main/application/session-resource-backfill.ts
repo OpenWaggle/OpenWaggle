@@ -221,7 +221,4 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
   )
 }
 
-export {
-  ATTACHMENT_BACKFILL_LIMITS,
-  advanceAttachmentBackfillBudget,
-} from './session-resource-backfill-budget'
+export { ATTACHMENT_BACKFILL_LIMITS } from './session-resource-backfill-budget'

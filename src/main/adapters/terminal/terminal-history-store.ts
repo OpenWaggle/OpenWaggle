@@ -33,7 +33,7 @@ import type {
   TerminalHistoryStore,
 } from './terminal-history-store-types'
 
-export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
+export type { TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
 

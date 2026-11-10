@@ -14,13 +14,6 @@ export function isExtensionId(value: string) {
   )
 }
 
-export function isSemverVersion(value: string) {
-  return (
-    OPENWAGGLE_EXTENSION.PATTERNS.SEMVER_VERSION.test(value) ||
-    'Must be a semantic version such as 1.2.3.'
-  )
-}
-
 export function isPortableRelativePath(value: string) {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
@@ -60,41 +53,5 @@ export function isPortableRelativePath(value: string) {
     return 'Must not contain empty, "." or ".." path segments.'
   }
 
-  return true
-}
-
-export function isBuildCommand(value: string) {
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.BUILD_COMMAND_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.BUILD_COMMAND_MAX_LENGTH} characters.`
-  }
-  if (value.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
-    return 'Must not contain NUL bytes.'
-  }
-  if (value.includes('\n') || value.includes('\r')) {
-    return 'Must be a single command line.'
-  }
-  return true
-}
-
-export function isRuntimeRequirementBinary(value: string) {
-  const trimmed = value.trim()
-  if (value !== trimmed) {
-    return 'Must not have leading or trailing whitespace.'
-  }
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH} characters.`
-  }
-  if (value.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
-    return 'Must not contain NUL bytes.'
-  }
-  if (value.includes('\n') || value.includes('\r')) {
-    return 'Must be a single executable name.'
-  }
-  if (
-    value.includes(OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR) ||
-    value.includes(OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR)
-  ) {
-    return 'Must be an executable name, not a path.'
-  }
   return true
 }

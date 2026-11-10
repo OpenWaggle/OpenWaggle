@@ -12,7 +12,7 @@ export type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
-export type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+export type { PackageReleasePlan } from './package-release-plan'
 
 /*
  * npm can take well over a minute to serve a version it has accepted: the 0.2.0 release
@@ -121,7 +121,7 @@ export async function readPackageReleasePlan(planPath: string) {
   return planModule.decodePackageReleasePlan(await readJson(planPath))
 }
 
-export async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRoot: string) {
+async function verifyPromotionBundle(plan: PackageReleasePlan, artifactRoot: string) {
   const artifactContract = await loadArtifactContractModule()
   const manifest = artifactContract.decodePackageReleaseArtifactManifest(
     await readJson(path.join(artifactRoot, 'release-artifacts.json')),

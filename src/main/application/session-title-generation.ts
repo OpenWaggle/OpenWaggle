@@ -1,4 +1,4 @@
-import { SESSION_TITLE_MODEL_OFF, type SessionTitleModelSetting } from '@shared/session-title-model'
+import { SESSION_TITLE_MODEL_OFF } from '@shared/session-title-model'
 import type { SessionTitleSource } from '@shared/session-title-source'
 import { type SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
@@ -55,8 +55,6 @@ export function claimTitleWork(kind: TitleWorkKind, sessionId: SessionId) {
 export function publishTitleChanged(sessionId: SessionId) {
   publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
 }
-
-export type EnabledTitleModel = Exclude<SessionTitleModelSetting, typeof SESSION_TITLE_MODEL_OFF>
 
 /**
  * The current Title model, or null when it is Off. Callers read it before starting title work, and

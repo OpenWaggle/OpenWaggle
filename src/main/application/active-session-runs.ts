@@ -17,14 +17,12 @@ import {
 
 export {
   type ActiveSessionRunReservation,
-  type ClaimedSessionWriterSuccessor,
   claimSessionWriterSuccessor,
   claimSessionWriterSuccessorAndWait,
   currentSessionWriterRunId,
   hasClaimedSessionWriterSuccessor,
   interruptSessionWriterAndWait,
   releaseClaimedSessionWriterSuccessor,
-  type SessionWriterKind,
 } from './session-writer-reservations'
 
 interface AgentRunMetadata {

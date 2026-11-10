@@ -2,13 +2,9 @@ import type {
   OpenWaggleExtensionSdk,
   OpenWaggleExtensionSharedModules,
   OpenWaggleExtensionSurfaceContext,
-  OpenWaggleExtensionSurfaceSdk,
 } from '@shared/extension-context'
-import type { ExtensionSdkInvokeRequest } from '@shared/extension-sdk'
 
-export type ExtensionMountInvokeInput = ExtensionSdkInvokeRequest
-
-export type { OpenWaggleExtensionSdk, OpenWaggleExtensionSurfaceSdk }
+export type { OpenWaggleExtensionSdk }
 
 export interface OpenWaggleExtensionMountContext extends OpenWaggleExtensionSurfaceContext {
   readonly root: HTMLElement
@@ -24,10 +20,6 @@ export interface OpenWaggleFederatedModule {
     context: OpenWaggleExtensionMountContext,
   ) => ExtensionFederatedModuleMountResult | Promise<ExtensionFederatedModuleMountResult>
 }
-
-export type ExtensionFederatedModuleLoader = (
-  moduleUrl: string,
-) => Promise<OpenWaggleFederatedModule>
 
 function moduleMountExport(value: object): unknown {
   return Object.getOwnPropertyDescriptor(value, 'mount')?.value

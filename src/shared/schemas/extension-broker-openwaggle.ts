@@ -120,10 +120,6 @@ export const extensionSettingsViewSchema = Schema.Struct({
   projectDisplayNames: Schema.Record({ key: Schema.String, value: Schema.String }),
 })
 
-export const extensionSettingsKeySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION_BROKER.SETTING_KEYS,
-)
-
 export const extensionModelPreferencesSettingsPatchSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),

@@ -1,5 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { Schema, type SchemaType } from '@shared/schema'
+import { Schema } from '@shared/schema'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 const EXTENSION_TOPIC_PREFIX = 'extension:'
@@ -117,6 +117,3 @@ export const docsDiscoveryViewSchema = Schema.Struct({
 })
 
 export const docsResolveTopicResultSchema = Schema.NullOr(firstPartyDocsTopicSummarySchema)
-
-export type InstalledDocsTopic = SchemaType<typeof installedDocsTopicSchema>
-export type InstalledDocsManifest = SchemaType<typeof installedDocsManifestSchema>

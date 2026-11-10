@@ -60,9 +60,6 @@ export const extensionInvokeFailureCodeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODES,
 )
 export const extensionInvokeOutcomeSchema = Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.OUTCOMES)
-export const extensionBrokerCapabilitySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION_BROKER.CAPABILITIES,
-)
 export const extensionBrokerMethodSchema = Schema.Literal(...OPENWAGGLE_EXTENSION_BROKER.METHODS)
 
 export const extensionCapabilityAuditEntrySchema = Schema.Struct({

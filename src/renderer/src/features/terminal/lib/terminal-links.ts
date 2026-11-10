@@ -9,16 +9,9 @@ export { parseTerminalFileReference, resolveTerminalOsc8Target } from './termina
 export type {
   TerminalBufferCellLike,
   TerminalBufferLineLike,
-  TerminalFileActivationTarget,
   TerminalLinkActivationTarget,
-  TerminalLinkBufferPosition,
-  TerminalLinkBufferRange,
   TerminalLinkMatch,
   TerminalLinkResolutionContext,
-  TerminalLinkSource,
-  TerminalUrlActivationTarget,
-  WrappedTerminalLinkLine,
-  WrappedTerminalLinkLineSegment,
 } from './terminal-link-types'
 export {
   collectWrappedTerminalLinkLine,

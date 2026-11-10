@@ -36,8 +36,6 @@ import {
 } from './scheduled-task-heartbeat-gate'
 import { settlementOfDispatch, settlementOfFailure } from './scheduled-task-settlement'
 
-export type { ScheduledTaskFiringOutcome } from './scheduled-task-firing-records'
-
 /** Why a Heartbeat's Session cannot take a run now, or null when it is idle. */
 function heartbeatBusyReason(sessionId: string, activity: ScheduledTaskSessionActivity) {
   return Effect.gen(function* () {

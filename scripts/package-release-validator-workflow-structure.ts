@@ -67,7 +67,7 @@ function collectWorkflowRunCommands(node: unknown, commands: string[]) {
   }
 }
 
-export function workflowRunCommands(workflowText: string) {
+function workflowRunCommands(workflowText: string) {
   const commands: string[] = []
   collectWorkflowRunCommands(parsePackageReleaseWorkflow(workflowText).root, commands)
   return commands

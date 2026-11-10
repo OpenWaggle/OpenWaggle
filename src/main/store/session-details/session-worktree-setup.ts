@@ -13,7 +13,6 @@ import {
 } from './session-worktree-setup-record'
 
 export type {
-  AcceptedSessionWorktreeSetup,
   ClaimedSessionWorktreeSetup,
   PendingSessionWorktreeSetup,
   SessionWorktreeSetupDispatch,

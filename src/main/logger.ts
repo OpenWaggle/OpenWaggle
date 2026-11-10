@@ -25,7 +25,7 @@ interface LogEntry {
   readonly data?: object
 }
 
-export type { Logger, LogLevel }
+export type { Logger }
 
 function safeSerialize(data: object) {
   try {

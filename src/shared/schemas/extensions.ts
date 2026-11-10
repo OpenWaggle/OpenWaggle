@@ -5,51 +5,22 @@ import {
 } from '@openwaggle/extension-sdk'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema } from '@shared/schema'
-import {
-  extensionContributionIdSchema,
-  extensionRelativePathSchema,
-} from './extension-contributions'
+import { extensionRelativePathSchema } from './extension-contributions'
 import { isExtensionId, isNonEmptyTrimmed } from './extension-schema-primitives'
 
 export type {
   ExtensionCapabilityDeclaration,
-  ExtensionCommandContribution,
   ExtensionContributionRegistration,
   ExtensionContributions,
   ExtensionContributionUnregistration,
-  ExtensionEntryContribution,
   ExtensionSessionSummaryContribution,
-  ExtensionSidePanelContribution,
   ExtensionSidePanelIcon,
 } from './extension-contributions'
 export {
-  extensionCapabilityDeclarationSchema,
-  extensionCapabilityScopeSchema,
-  extensionCommandContributionFamilySchema,
-  extensionCommandContributionRegistrationSchema,
-  extensionCommandContributionSchema,
   extensionContributionFamilySchema,
   extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
-  extensionContributionRuntimeSchema,
-  extensionContributionsSchema,
   extensionContributionUnregistrationSchema,
-  extensionExecutionPlacementSchema,
-  extensionRelativePathSchema,
-  extensionRouteContributionRegistrationSchema,
-  extensionRouteContributionSchema,
-  extensionSessionSummaryActionSchema,
-  extensionSessionSummaryContributionRegistrationSchema,
-  extensionSessionSummaryContributionSchema,
-  extensionSessionSummaryDisclosureSchema,
-  extensionSessionSummaryRowSchema,
-  extensionSessionSummaryStateSchema,
-  extensionSidePanelContributionRegistrationSchema,
-  extensionSidePanelContributionSchema,
-  extensionSidePanelIconSchema,
-  extensionSlotContributionFamilySchema,
-  extensionSlotContributionRegistrationSchema,
-  extensionSlotContributionSchema,
 } from './extension-contributions'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
@@ -61,12 +32,7 @@ export const extensionIdSchema = Schema.String.pipe(
 const extensionProposalHashSchema = Schema.String.pipe(
   Schema.length(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH),
 )
-
-export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
 export const extensionPackageWriteModeSchema = Schema.Literal('create', 'update')
-export const extensionRuntimeRequirementTypeSchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPES,
-)
 export const extensionLifecycleScopeSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal(OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND),
@@ -157,17 +123,6 @@ export const extensionApplyPackageRemoveInputSchema = Schema.Struct({
   actor: extensionPackageWorkflowActorSchema,
   userApproval: extensionPackageWorkflowUserApprovalSchema,
   globalConfirmation: Schema.optional(extensionPackageWorkflowGlobalConfirmationSchema),
-})
-
-export const extensionDocsTopicDeclarationSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  path: extensionRelativePathSchema,
-  description: Schema.optional(
-    nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH)),
-  ),
-  aliases: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-  keywords: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
 })
 
 export const openWaggleExtensionManifestSchema = publicOpenWaggleExtensionManifestSchema

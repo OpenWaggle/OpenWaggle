@@ -9,60 +9,19 @@ export {
   CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID,
   ExtensionAgentLoopSurface,
   type ExtensionAgentLoopSurfaceInput,
-  type ExtensionCustomMessageView,
-  type ExtensionInteractionActionView,
   type ExtensionInteractionView,
-  type ExtensionStatusView,
-  type ExtensionToolResultView,
 } from './components/ExtensionAgentLoopSurface'
 export { ExtensionPanelIcon } from './components/ExtensionPanelIcon'
 export { useExtensionSidePanelContributions } from './hooks/useExtensionSidePanelContributions'
 export {
   agentLoopAuxiliarySurfacePayload,
   agentLoopInputKey,
-  type ExtensionAgentLoopAuxiliaryContribution,
-  type ExtensionAgentLoopAuxiliaryPlacement,
-  resolveExtensionAgentLoopAuxiliaryContributions,
 } from './lib/extension-agent-loop-auxiliary-surfaces'
-export type {
-  ExtensionAgentLoopResolution,
-  ExtensionAgentLoopSurfaceKind,
-  ExtensionAgentLoopTarget,
-  ResolvedExtensionAgentLoopContribution,
-} from './lib/extension-agent-loop-resolution'
-export {
-  extensionAgentLoopEntryMatchesTarget,
-  resolveExtensionAgentLoopContribution,
-  resolveExtensionAgentLoopContributionEntries,
-} from './lib/extension-agent-loop-resolution'
-export {
-  surfaceLabel,
-  surfacePayload,
-  surfaceTarget,
-} from './lib/extension-agent-loop-surface-model'
+export { resolveExtensionAgentLoopContributionEntries } from './lib/extension-agent-loop-resolution'
+export { surfaceLabel, surfaceTarget } from './lib/extension-agent-loop-surface-model'
 export { invokeBoundExtension } from './lib/extension-contribution-invocation'
-export type {
-  ExtensionDialogResolution,
-  ExtensionDialogTarget,
-  ResolvedExtensionDialogContribution,
-} from './lib/extension-dialog-resolution'
-export type {
-  ExtensionFederatedModuleLoader,
-  OpenWaggleExtensionMountContext,
-  OpenWaggleExtensionSdk,
-  OpenWaggleExtensionSurfaceSdk,
-  OpenWaggleFederatedModule,
-} from './lib/extension-federated-module'
-export { isFederatedModule } from './lib/extension-federated-module'
-export type {
-  ExtensionRouteResolution,
-  ResolvedExtensionRouteContribution,
-} from './lib/extension-route-resolution'
-export type {
-  ExtensionSidePanelResolution,
-  ExtensionSidePanelTarget,
-  ResolvedExtensionSidePanelContribution,
-} from './lib/extension-side-panel-resolution'
+export type { ExtensionDialogTarget } from './lib/extension-dialog-resolution'
+export type { ExtensionSidePanelTarget } from './lib/extension-side-panel-resolution'
 export {
   type ExtensionSidePanelSurfaceEntry,
   extensionSidePanelSurfaces,

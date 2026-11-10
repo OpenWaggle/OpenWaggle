@@ -18,8 +18,6 @@ import {
   type ScheduledTaskRunStart,
 } from '../ports/scheduled-task-repository'
 
-export type ScheduledTaskFiringOutcome = 'recorded' | 'waiting'
-
 export interface Firing {
   readonly record: ScheduledTaskRecord
   readonly now: number

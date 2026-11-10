@@ -147,5 +147,3 @@ export function createActionOutputFeed(options: ActionOutputFeedOptions) {
     },
   }
 }
-
-export type ActionOutputFeed = ReturnType<typeof createActionOutputFeed>

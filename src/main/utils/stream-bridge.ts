@@ -19,10 +19,7 @@ import {
 export {
   clearStreamBuffer,
   getStreamBuffer,
-  listStreamBufferSnapshots,
-  listStreamBuffers,
   replaceStreamBufferSnapshots,
-  setWorktreeLaunchSnapshot,
   startStreamBuffer,
   startStreamBufferFromAgentStart,
   upsertStreamBufferRunIdentity,

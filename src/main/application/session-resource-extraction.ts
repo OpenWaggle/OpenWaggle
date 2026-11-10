@@ -15,8 +15,6 @@ export {
   type CapturedImage,
   type CapturedLink,
   type CapturedLocalImage,
-  type CapturedResourceOrder,
-  type CapturedSite,
   type MarkdownImageOrigin,
   SESSION_RESOURCE_EXTRACTION_LIMITS,
 } from './session-resource-extraction-types'

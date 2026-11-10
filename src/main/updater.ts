@@ -9,7 +9,7 @@ import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed
 import * as install from './update-install-tracker'
 import { getUpdateStatus, setUpdateStatus as setStatus } from './update-status'
 
-export { isInstallingUpdate, type UpdaterInstallEnvironment } from './update-install-tracker'
+export { isInstallingUpdate } from './update-install-tracker'
 export { getUpdateStatus, setUpdateWaitingForRuns } from './update-status'
 
 const logger = createLogger('updater')

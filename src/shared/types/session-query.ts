@@ -27,9 +27,7 @@ import type { SessionWaitState, SessionWaitTarget } from './session-wait'
 export type { DelegationQuerySummary } from './session-delegation-query'
 export type {
   SemanticDiscoveryReadiness,
-  SessionDiscoveryEvidence,
   SessionDiscoveryMode,
-  SessionLineageRole,
   SessionQuerySummary,
 } from './session-query-discovery'
 export type { SessionQueryResponse } from './session-query-response'

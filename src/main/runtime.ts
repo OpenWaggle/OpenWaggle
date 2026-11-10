@@ -256,8 +256,6 @@ installStoreEffectRunner()
 
 export type AppServices =
   typeof AppLayer extends Layer.Layer<infer R, infer _E, infer _RIn> ? R : never
-export type AppRuntimeError =
-  typeof AppLayer extends Layer.Layer<infer _R, infer E, infer _RIn> ? E : never
 
 function getAppRuntime() {
   return currentRuntime

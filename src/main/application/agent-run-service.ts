@@ -31,7 +31,7 @@ import {
   type PersistedRunResourceNodes,
 } from './session-resource-node-mapping'
 
-export type { AgentRunInput, AgentRunResult } from './agent-run/types'
+export type { AgentRunInput } from './agent-run/types'
 
 const logger = createLogger('agent-run-service')
 

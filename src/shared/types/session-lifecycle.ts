@@ -1,6 +1,5 @@
 import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentAuthorizationMode } from './agent-authorization'
-import type { ResolvedAgentDefinitionSnapshot } from './agent-definition'
 import type { SessionCapability } from './session-capability'
 import type { ThinkingLevel } from './settings'
 
@@ -50,12 +49,6 @@ export interface ResolvedSessionExecutionProfile {
   readonly skills?: readonly string[]
   readonly mcpServers?: readonly string[]
   readonly sessionCapabilities?: readonly SessionCapability[]
-}
-
-export interface SessionExecutionProfileSnapshot {
-  readonly profile: ResolvedSessionExecutionProfile
-  readonly resolvedAgentSnapshot?: ResolvedAgentDefinitionSnapshot
-  readonly authorizationCeiling: AgentAuthorizationMode
 }
 
 export interface DelegationSpecificationInput {

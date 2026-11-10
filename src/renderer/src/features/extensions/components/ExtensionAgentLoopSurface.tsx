@@ -11,11 +11,7 @@ import {
 } from '../lib/extension-agent-loop-resolution'
 import type {
   ExtensionAgentLoopSurfaceInput,
-  ExtensionCustomMessageView,
-  ExtensionInteractionActionView,
   ExtensionInteractionView,
-  ExtensionStatusView,
-  ExtensionToolResultView,
 } from '../lib/extension-agent-loop-surface-model'
 import {
   CUSTOM_INTERACTION_RESPONSE_ACTION_ID,
@@ -28,14 +24,7 @@ import {
 import { ExtensionAgentLoopFallback } from './ExtensionAgentLoopFallback'
 import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
-export type {
-  ExtensionAgentLoopSurfaceInput,
-  ExtensionCustomMessageView,
-  ExtensionInteractionActionView,
-  ExtensionInteractionView,
-  ExtensionStatusView,
-  ExtensionToolResultView,
-}
+export type { ExtensionAgentLoopSurfaceInput, ExtensionInteractionView }
 export { CUSTOM_INTERACTION_RESPONSE_ACTION_ID, CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID }
 
 const TRANSCRIPT_RENDERER_MAX_HEIGHT = 360

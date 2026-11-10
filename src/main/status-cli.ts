@@ -39,7 +39,6 @@ export {
   formatStatusReport,
   type HostProbe,
   mapWithConcurrency,
-  type StatusActiveRun,
   type StatusReport,
 } from './status-cli-report'
 

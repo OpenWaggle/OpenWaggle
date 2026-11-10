@@ -4,11 +4,7 @@ export {
   createOptimisticUserMessage,
   formatAttachmentPreview,
 } from './chat-attachment-preview'
-export {
-  buildPartialAssistantMessage,
-  messagePartToUIParts,
-  sessionToUIMessages,
-} from './chat-message-conversion'
+export { sessionToUIMessages } from './chat-message-conversion'
 export {
   appendMissingOptimisticUserMessages,
   appendUnpersistedAssistantTail,

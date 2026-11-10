@@ -19,8 +19,6 @@ export type GuiStartupStatus =
       readonly message: string
     }
 
-export type GuiStartupState = GuiStartupStatus['state']
-
 /** How long the window waits for the Host before it shows the error screen. */
 export const GUI_STARTUP_SLOW_AFTER_MS = 10_000
 

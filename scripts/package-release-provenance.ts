@@ -124,7 +124,7 @@ function runGh(args: readonly string[]) {
   })
 }
 
-export async function verifyPackageReleaseArtifactProvenance(input: PackageReleaseProvenanceInput) {
+async function verifyPackageReleaseArtifactProvenance(input: PackageReleaseProvenanceInput) {
   const sourceShas = new Set<string>()
   for (const artifactFile of input.artifactFiles) {
     const verification = await runGh(

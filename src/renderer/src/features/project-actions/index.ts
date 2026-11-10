@@ -13,11 +13,7 @@ export { ProjectActionsBackgroundEffects } from './components/ProjectActionsBack
 export { WorktreePreparationChoice } from './components/WorktreePreparationChoice'
 export { useHasActiveProjectActionRun } from './hooks/useHasActiveProjectActionRun'
 export { useActionRuns } from './hooks/useNativeActions'
-export {
-  projectActionsQueryOptions,
-  useProjectActionMutations,
-  useProjectActions,
-} from './hooks/useProjectActions'
+export { useProjectActionMutations, useProjectActions } from './hooks/useProjectActions'
 export { useRunProjectAction } from './hooks/useRunProjectAction'
 export { useWorkspaceActivityAvailable } from './hooks/useWorkspaceActivityAvailable'
 export { actionRunLabel } from './lib/native-action-display'
@@ -26,14 +22,5 @@ export {
   validateDraftWorkspacePreparation,
 } from './lib/prepare-draft-workspace'
 export { createProjectActionCommandItems } from './lib/project-action-command-items'
-export {
-  primaryProjectAction,
-  projectActionHasShortcutConflicts,
-  projectActionShortcutConflictLabels,
-  projectActionShortcutSummary,
-  projectActionUnknownWhenVariables,
-} from './lib/project-action-model'
-export {
-  isProjectActionQueryAffected,
-  type ProjectActionSessionChange,
-} from './lib/project-action-query-scope'
+export { projectActionUnknownWhenVariables } from './lib/project-action-model'
+export { isProjectActionQueryAffected } from './lib/project-action-query-scope'

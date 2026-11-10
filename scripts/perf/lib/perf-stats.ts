@@ -53,6 +53,6 @@ export function summarizeRuns(runs: readonly object[], keys: readonly string[]) 
 }
 
 /** Rounds to a tenth, which is finer than any timing here can resolve. */
-export function roundTenth(value: number) {
+function roundTenth(value: number) {
   return Math.round(value * TENTHS_PER_UNIT) / TENTHS_PER_UNIT
 }

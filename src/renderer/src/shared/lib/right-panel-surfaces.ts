@@ -27,7 +27,6 @@ export type BuiltInRightPanelSurfaceId = (typeof BUILT_IN_RIGHT_PANEL_SURFACE_ID
 
 export {
   type ExtensionRightPanelSurfaceId,
-  type ExtensionSidePanelIdentity,
   extensionRightPanelSurfaceId,
   isExtensionRightPanelSurfaceId,
   parseExtensionRightPanelSurfaceId,

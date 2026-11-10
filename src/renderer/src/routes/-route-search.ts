@@ -34,22 +34,6 @@ export interface ChatRouteSearch {
   readonly changeRequestSessionId?: string
 }
 
-export interface ChatBuiltInRouteSearch extends ChatRouteSearch {
-  readonly panel?: ChatBuiltInRightPanel
-  readonly sidePanelExtensionId?: undefined
-  readonly sidePanelId?: undefined
-  readonly sidePanelPackagePath?: undefined
-  readonly sidePanelContentHash?: undefined
-}
-
-export interface ChatExtensionSidePanelRouteSearch extends ChatRouteSearch {
-  readonly panel: typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
-  readonly sidePanelExtensionId: string
-  readonly sidePanelId: string
-  readonly sidePanelPackagePath?: string
-  readonly sidePanelContentHash?: string
-}
-
 function parseSearchString(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
 }

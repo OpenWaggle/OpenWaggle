@@ -7,8 +7,3 @@ export const SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY = {
   queuedNodeLimit: 10_000,
   perSessionNodeLimit: 5_000,
 } as const
-
-export type SessionTranscriptSemanticCoverageLimitReason =
-  | 'per-session-node-limit'
-  | 'storage-budget'
-  | 'per-session-node-limit-and-storage-budget'
