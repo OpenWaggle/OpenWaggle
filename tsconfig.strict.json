@@ -6,5 +6,12 @@
    * (tsconfig.website.json). tsconfig.node.json (src/main, src/preload, scripts) does not extend
    * it yet.
    */
-  "compilerOptions": {}
+  "compilerOptions": {
+    "verbatimModuleSyntax": true,
+    "noUncheckedSideEffectImports": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
+  }
 }
