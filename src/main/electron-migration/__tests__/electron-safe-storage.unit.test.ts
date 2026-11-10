@@ -61,7 +61,26 @@ describe('Electron safeStorage reader', () => {
     )
     await reader.decrypt(Buffer.from(fixture.blob, 'base64'))
     expect(readKeychainPassword).toHaveBeenCalledTimes(1)
-    expect(readKeychainPassword).toHaveBeenCalledWith('openwaggle Safe Storage', 'openwaggle Key')
+    expect(readKeychainPassword).toHaveBeenCalledWith('openwaggle Safe Storage', 'openwaggle')
+  })
+
+  it('falls back to the account name older Electron builds used', async () => {
+    const fixture = await macFixture()
+    const readKeychainPassword = vi.fn(async (_service: string, account: string) =>
+      account === 'openwaggle Key' ? fixture.password : null,
+    )
+    const reader = createElectronSafeStorageReader({
+      platform: 'darwin',
+      appName: 'openwaggle',
+      readKeychainPassword,
+    })
+    await expect(reader.decrypt(Buffer.from(fixture.blob, 'base64'))).resolves.toBe(
+      fixture.plaintext,
+    )
+    expect(readKeychainPassword.mock.calls).toEqual([
+      ['openwaggle Safe Storage', 'openwaggle'],
+      ['openwaggle Safe Storage', 'openwaggle Key'],
+    ])
   })
 
   it('reports a refused or missing keychain item as an unavailable key', async () => {

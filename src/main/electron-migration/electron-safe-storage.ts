@@ -2,7 +2,8 @@
  * Decrypts what Electron's `safeStorage.encryptString` sealed, without Electron, so the first
  * Electrobun launch can re-seal it. The formats are Chromium OSCrypt's:
  * - macOS `v10`: AES-128-CBC, key PBKDF2-SHA1(keychain password, "saltysalt", 1003), IV of spaces.
- *   The password is the login keychain item `<app name> Safe Storage` / `<app name> Key`.
+ *   The password is the login keychain item `<app name> Safe Storage`, account `<app name>` (what
+ *   Electron 43 writes, seen on a real install), or `<app name> Key` (older Electron builds).
  * - Linux `v10`: the same cipher keyed by PBKDF2-SHA1("peanuts", 1): Electron's `basic_text` store.
  * - Linux `v11`: keyed by the Secret Service (libsecret) or KWallet password, 1 iteration; Chromium
  *   also falls back to an empty password when the keyring answered with nothing.
@@ -128,7 +129,9 @@ function macKeys(sources: ElectronSafeStorageKeySources) {
     const service = `${sources.appName} Safe Storage`
     let password: string | null
     try {
-      password = await read(service, `${sources.appName} Key`)
+      // A missing item never prompts, so trying the older account name costs nothing.
+      password =
+        (await read(service, sources.appName)) ?? (await read(service, `${sources.appName} Key`))
     } catch (cause) {
       throw unavailable(`The login keychain did not provide "${service}".`, cause)
     }
