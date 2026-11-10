@@ -16,5 +16,3 @@ export const GATE_CHECKS = [
   // The git guardrails extension (.pi/extensions/git-guardrails.ts) blocks hook bypasses per call.
   'git-guardrails',
 ] as const
-
-export type GateCheck = (typeof GATE_CHECKS)[number]

@@ -151,9 +151,19 @@ describe('manual check and plugins', () => {
       message: 'x',
       severity: 'block',
     })
-    expect(qualityFinding({ tool: 'react-doctor', rule: 'r', file: 'src/b.tsx' })?.id).toBe(
-      'REACT-07',
-    )
-    expect(qualityFinding({ tool: 1 })).toBeUndefined()
+    const doctor = {
+      tool: 'react-doctor',
+      rule: 'r',
+      file: 'src/b.tsx',
+      line: undefined,
+      message: 'm',
+    } as const
+    expect(qualityFinding(doctor)).toEqual({
+      file: 'src/b.tsx',
+      rule: 'react-doctor/r',
+      id: 'REACT-07',
+      message: 'm',
+      severity: 'block',
+    })
   })
 })

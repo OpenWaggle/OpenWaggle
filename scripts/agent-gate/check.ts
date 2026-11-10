@@ -18,8 +18,8 @@ import { runGate } from './gate'
 import { generatedFilesFor } from './generated-files'
 import { qualityGatesPlugin } from './quality-gates-plugin'
 import { checkReport } from './report'
-import { git, runProcess } from './run-process'
-import { repositoryRoot } from './snapshot'
+import { runProcess } from '../agent-quality-gates/process'
+import { git, repositoryRoot } from './git'
 import type { LintRunner } from './tool-checks'
 
 const GIT_TIMEOUT_MS = 15_000

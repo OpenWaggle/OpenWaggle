@@ -19,7 +19,12 @@ export const DOC_WATCHES: readonly DocWatch[] = [
     ],
   },
   {
-    paths: ['scripts/agent-gate/', '.pi/extensions/'],
+    paths: [
+      'scripts/agent-gate/',
+      'scripts/agent-quality-gates/',
+      'scripts/agent-guardrails/',
+      '.pi/extensions/',
+    ],
     docs: ['.agents/verification.md', '.agents/memory/tooling.md'],
   },
   { paths: ['.agents/rules.json'], docs: ['.agents/standards.md'] },

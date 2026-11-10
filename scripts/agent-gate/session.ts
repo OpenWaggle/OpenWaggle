@@ -1,6 +1,6 @@
 /**
  * The agent gate for one Pi Session, kept apart from Pi so it can be tested. It records what each
- * tool call changed (from git snapshots around shell and script calls, from the path for edit and
+ * tool call changed (content hashes of the dirty files around shell and script calls, from the path for edit and
  * write calls), asks the user when a change needs their approval, and when the agent is about to
  * stop runs the gate on the files changed since the last passing gate.
  */
@@ -12,8 +12,13 @@ import { type CommandRun, bashRun } from './commands'
 import { type FetchLatest, dependencyCheck } from './dependencies'
 import { type GatePlugin, runGate } from './gate'
 import { type GateDecision, type LoopState, decide, nextLoopState } from './report'
-import { type RunProcess, runProcess } from './run-process'
-import { type WorkspaceSnapshot, changesBetween, repositoryRoot, takeSnapshot } from './snapshot'
+import {
+  type WorkspaceSnapshot,
+  changedFiles,
+  takeSnapshot,
+} from '../agent-quality-gates/changed-files'
+import { type RunProcess, runProcess } from '../agent-quality-gates/process'
+import { repositoryRoot } from './git'
 import type { LintRunner } from './tool-checks'
 import { typecheckProjects, typeErrorKey } from './typecheck'
 import { type ApprovalAsk, Approvals } from './approvals'
@@ -43,6 +48,11 @@ export interface AgentGateOptions {
   readonly latest?: FetchLatest
 }
 
+/**
+ * Continuations one run may get. The loop guard ends a repeated set after one; this bounds a run
+ * whose set keeps changing.
+ */
+export const MAX_FEEDBACK_ROUNDS = 3
 const PATH_TOOLS = new Set(['edit', 'write'])
 const SHELL_TOOLS = new Set(['bash', 'powershell'])
 /** Tools that never change files in the checkout; no snapshot around them. */
@@ -70,6 +80,7 @@ export class AgentGateSession {
   private typeBaseline: Promise<ReadonlySet<string> | undefined> | undefined = undefined
   private readonly activity = new SessionActivity()
   private loop: LoopState = { blocked: undefined, handedOff: undefined }
+  private rounds = 0
   private readonly run: RunProcess
   private readonly approvals: Approvals
 
@@ -84,8 +95,17 @@ export class AgentGateSession {
     this.root = await repositoryRoot(this.run, cwd)
     if (this.root === undefined) return
     this.snapshot = await takeSnapshot(this.run, this.root)
-    if (this.snapshot !== undefined)
-      this.baseline = await captureBaseline(this.run, this.root, this.snapshot)
+    if (this.snapshot === undefined) return
+    this.baseline = await captureBaseline(this.run, this.root, this.snapshot)
+    // In the background: by the agent's first change it has usually finished.
+    this.typeBaseline = typecheckProjects(this.run, this.root, ['node', 'web']).then((result) =>
+      result.failures.length > 0 ? undefined : new Set(result.errors.map(typeErrorKey)),
+    )
+  }
+
+  /** The run settled; the next run gets a new round budget. */
+  settled() {
+    this.rounds = 0
   }
 
   /** A user prompt; naming a package in one approves adding it. */
@@ -153,7 +173,9 @@ export class AgentGateSession {
       ...(signal === undefined ? {} : { signal }),
     })
     if (signal?.aborted === true) return undefined
-    const decision = decide(verdict.findings, verdict.failures, this.loop, state.canContinue)
+    const canContinue = state.canContinue && this.rounds < MAX_FEEDBACK_ROUNDS
+    const decision = decide(verdict.findings, verdict.failures, this.loop, canContinue)
+    if (decision.kind === 'block') this.rounds += 1
     this.loop = nextLoopState(this.loop, decision)
     if (decision.kind === 'pass')
       this.activity.passed(verdict.failures.flatMap((failure) => failure.files))
@@ -183,10 +205,12 @@ export class AgentGateSession {
       this.snapshot === undefined
     )
       return []
-    const after = await takeSnapshot(this.run, root)
-    if (after === undefined) return []
-    const changed = await changesBetween(this.run, root, this.snapshot, after)
-    this.snapshot = after
+    // Content hashes against the snapshot before the call: a shell edit counts, a touch does not.
+    const changed = await changedFiles(this.run, this.snapshot)
+    // Only an overlapping call still measures from the old snapshot; the next call takes its own.
+    if (this.inFlight.size > 1 && changed.length > 0) {
+      this.snapshot = (await takeSnapshot(this.run, root)) ?? this.snapshot
+    }
     return changed
   }
 }

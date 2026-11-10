@@ -6,7 +6,8 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { compactLintOutput } from '../oxlint/compact-output'
 import { type Finding, type ToolFailure, parseFindingLine } from './findings'
-import type { RunProcess } from './run-process'
+import type { RunProcess } from '../agent-quality-gates/process'
+import { failureReason } from './git'
 
 export type LintRunner = 'oxlint' | 'bun'
 
@@ -30,7 +31,6 @@ const LINTED =
 const FORMAT_TIMEOUT_MS = 30_000
 const LINT_TIMEOUT_MS = 90_000
 const FINDINGS_EXIT_CODE = 1
-const MAX_REASON_LENGTH = 160
 const BUN_LINT_CANARY = 'tools/bun-lint/package.json'
 
 function packageBin(root: string, name: string) {
@@ -49,12 +49,6 @@ function bunLintBinary(root: string) {
 
 function failure(check: string, files: readonly string[], reason: string): ToolCheckResult {
   return { findings: [], failures: [{ check, files, reason }] }
-}
-
-function reasonOf(result: { readonly timedOut: boolean; readonly stderr: string }) {
-  if (result.timedOut) return 'timed out'
-  const firstLine = result.stderr.trim().split('\n')[0] ?? ''
-  return firstLine === '' ? 'exited unexpectedly' : firstLine.slice(0, MAX_REASON_LENGTH)
 }
 
 export async function formatCheck(input: ToolCheckInput): Promise<ToolCheckResult> {
@@ -77,7 +71,7 @@ export async function formatCheck(input: ToolCheckInput): Promise<ToolCheckResul
     .map((line) => line.trim())
     .filter((line) => line !== '')
   if (result.code !== FINDINGS_EXIT_CODE || listed.length === 0) {
-    return failure('format', files, reasonOf(result))
+    return failure('format', files, failureReason(result))
   }
   return {
     findings: listed.map((file) => ({
@@ -133,7 +127,7 @@ export async function lintCheck(input: ToolCheckInput): Promise<ToolCheckResult>
   )
   const findings = parsed.flatMap((finding) => (finding === undefined ? [] : [finding]))
   if (result.code !== 0 && (result.code !== FINDINGS_EXIT_CODE || findings.length === 0)) {
-    return failure('lint', changed, reasonOf(result))
+    return failure('lint', changed, failureReason(result))
   }
   return { findings, failures: [] }
 }

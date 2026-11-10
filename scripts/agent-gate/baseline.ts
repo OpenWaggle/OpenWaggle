@@ -7,8 +7,9 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { isSuppressionCandidate } from './suppressions'
-import { type RunProcess, git } from './run-process'
-import type { WorkspaceSnapshot } from './snapshot'
+import type { WorkspaceSnapshot } from '../agent-quality-gates/changed-files'
+import type { RunProcess } from '../agent-quality-gates/process'
+import { git } from './git'
 import { TSCONFIG_FILE } from './tsconfig-strictness'
 
 export interface Baseline {
@@ -41,7 +42,7 @@ export async function captureBaseline(
 ): Promise<Baseline> {
   const dirty = new Map<string, string | undefined>()
   await Promise.all(
-    [...start.files.keys()].filter(needsBaseline).map(async (file) => {
+    [...start.dirty.keys()].filter(needsBaseline).map(async (file) => {
       const text = await readFile(path.join(root, file), 'utf8').catch(() => undefined)
       dirty.set(file, text !== undefined && text.length <= MAX_BASELINE_BYTES ? text : undefined)
     }),

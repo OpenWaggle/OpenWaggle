@@ -15,6 +15,7 @@ import {
 export const GATE_MESSAGE_TYPE = 'openwaggle-agent-gate'
 /** Findings shown per message; the manual check prints the rest. */
 export const MAX_SHOWN_FINDINGS = 30
+const QUALITY_RULE = /^(?:fallow|react-doctor)\//u
 
 export type GateDecision =
   | { readonly kind: 'pass'; readonly content: string | undefined }
@@ -79,6 +80,11 @@ export function decide(
     content: [
       `Agent gate: ${plural(blocking.length, 'finding')} in files you changed. Fix them before you stop; if you cannot, say why [GATE-01]:`,
       ...findingLines(blocking),
+      ...(blocking.some((finding) => QUALITY_RULE.test(finding.rule))
+        ? [
+            'A Fallow or React Doctor false positive gets a commented entry in .fallowrc.jsonc or doctor.config.ts, never a suppression comment [GATE-02].',
+          ]
+        : []),
       ...advisory,
     ].join('\n'),
   }

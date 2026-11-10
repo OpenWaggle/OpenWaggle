@@ -169,26 +169,3 @@ function unique(findings: readonly Finding[]) {
     return fresh
   })
 }
-
-// One follow-up message stays short enough to read; the rest are counted.
-export const MAX_REPORTED_FINDINGS = 40
-
-/** The follow-up message an agent gets when its changes have findings. */
-export function feedbackMessage(findings: readonly Finding[]) {
-  const shown = findings.slice(0, MAX_REPORTED_FINDINGS)
-  const lines = shown.map(
-    (finding) =>
-      `- ${finding.file}${finding.line === undefined ? '' : `:${finding.line}`} ${finding.tool} ${finding.rule}: ${finding.message}`,
-  )
-  const hidden = findings.length - shown.length
-  return [
-    `Quality gates found ${findings.length} issue${findings.length === 1 ? '' : 's'} in files you changed. Fix them before you finish:`,
-    '',
-    ...lines,
-    ...(hidden > 0
-      ? [`- and ${hidden} more; run \`bun run check:fallow\` and \`bun run check:react-doctor\`.`]
-      : []),
-    '',
-    'Fix the code. A false positive gets a config fix with a comment giving the reason (.fallowrc.jsonc or doctor.config.ts), never a suppression comment. If you cannot fix one, say so in your final answer.',
-  ].join('\n')
-}

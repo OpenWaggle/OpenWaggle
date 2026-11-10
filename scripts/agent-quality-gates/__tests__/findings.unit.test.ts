@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  MAX_REPORTED_FINDINGS,
-  deadCodeFindings,
-  duplicationFindings,
-  feedbackMessage,
-  reactDoctorFindings,
-} from '../findings'
+import { deadCodeFindings, duplicationFindings, reactDoctorFindings } from '../findings'
 
 const CHANGED = new Set(['src/changed.ts', 'src/view.tsx', 'package.json'])
 
@@ -145,18 +139,5 @@ describe('quality gate reports', () => {
     expect(deadCodeFindings('', CHANGED)).toEqual([])
     expect(duplicationFindings('not json', CHANGED)).toEqual([])
     expect(reactDoctorFindings('[]', CHANGED)).toEqual([])
-  })
-
-  it('writes one line per finding and caps the list', () => {
-    const findings = deadCodeFindings(DEAD_CODE_REPORT, CHANGED)
-    const message = feedbackMessage(findings)
-    expect(message).toContain('Quality gates found 5 issues in files you changed.')
-    expect(message).toContain('- src/changed.ts:12 fallow dead-code unused-export: helper')
-    expect(message).toContain('never a suppression comment')
-
-    const many = Array.from({ length: MAX_REPORTED_FINDINGS + 2 }, () => findings[0]).filter(
-      (finding) => finding !== undefined,
-    )
-    expect(feedbackMessage(many)).toContain('- and 2 more;')
   })
 })

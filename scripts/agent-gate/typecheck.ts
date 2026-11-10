@@ -11,7 +11,8 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { Finding, ToolFailure } from './findings'
-import type { RunProcess } from './run-process'
+import type { RunProcess } from '../agent-quality-gates/process'
+import { failureReason } from './git'
 
 export type Project = 'node' | 'web'
 
@@ -99,9 +100,7 @@ async function checkProject(
   ) {
     return { errors, failures: [] }
   }
-  const reason = result.timedOut
-    ? 'timed out'
-    : (result.stdout || result.stderr).trim().split('\n')[0] || 'failed'
+  const reason = failureReason(result)
   return { errors: [], failures: [{ check: `typecheck ${project}`, files: [], reason }] }
 }
 

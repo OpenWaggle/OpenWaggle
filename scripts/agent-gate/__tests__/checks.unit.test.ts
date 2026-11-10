@@ -3,7 +3,6 @@ import { isTestCommand, bashRun } from '../commands'
 import { staleDocs } from '../doc-watch'
 import { findingSetKey, formatFinding, parseFindingLine, type Finding } from '../findings'
 import { ranGenerator } from '../generated-files'
-import { changedBetween } from '../snapshot'
 import { newSuppressions } from '../suppressions'
 import { parseJsonc, tsconfigWeakenings } from '../tsconfig-strictness'
 import { affectedProjects, parseTscErrors, typeErrorFindings, typeErrorKey } from '../typecheck'
@@ -180,25 +179,5 @@ describe('project type check', () => {
     expect(
       typeErrorFindings(errors, ['src/main/a.ts'], undefined).map((finding) => finding.severity),
     ).toEqual(['block', 'advisory', 'advisory'])
-  })
-})
-
-describe('snapshots', () => {
-  it('lists files whose fingerprint changed in either direction', () => {
-    const before = {
-      head: 'h',
-      files: new Map([
-        ['a', '1'],
-        ['b', '1'],
-      ]),
-    }
-    const after = {
-      head: 'h',
-      files: new Map([
-        ['a', '1'],
-        ['c', '1'],
-      ]),
-    }
-    expect(changedBetween(before, after)).toEqual(['b', 'c'])
   })
 })

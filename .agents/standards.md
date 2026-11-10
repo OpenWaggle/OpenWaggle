@@ -158,7 +158,7 @@ Mechanical enforcement:
 
 ## Agent gate
 
-The end-of-turn gate (`.pi/extensions/agent-gate.ts`, logic in `scripts/agent-gate/`) checks the files a Session changed before the agent stops, and `bun scripts/agent-gate/check.ts` prints the same verdict by hand. `.agents/verification.md` describes its checks.
+The end-of-turn gate (`.pi/extensions/quality-gates.ts`, logic in `scripts/agent-gate/` and `scripts/agent-quality-gates/`) checks the files a Session changed before the agent stops, and `bun scripts/agent-gate/check.ts` prints the same verdict by hand. `.agents/verification.md` describes its checks.
 
 - Fix its findings before you stop. When you cannot, say why in the final answer; the gate hands a finding it already blocked once to the user. [GATE-01]
 - Fallow dead-code and duplication findings in changed files are fixed; a false positive gets a config entry with its reason, never a suppression comment. [GATE-02]
