@@ -4,8 +4,19 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/features/chat/state'
 import { useSessionStore } from '@/features/sessions/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { useChatRouteEffects } from '../-chat-route-effects'
 import { testRouterStatus as router } from './-chat-route-router-status'
+
+const loggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@/shared/lib/logger', () => ({
+  createRendererLogger: () => ({
+    warn: loggerWarn,
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}))
 
 vi.mock('@tanstack/react-router', async () => ({
   useNavigate: () => vi.fn(),
@@ -29,6 +40,10 @@ function sessionDetail(id: string): SessionDetail {
     createdAt: 1,
     updatedAt: 2,
   }
+}
+
+function sessionDetailIn(projectPath: string): SessionDetail {
+  return { ...sessionDetail('route-session'), projectPath }
 }
 
 describe('the chat store and the routed Session', () => {
@@ -77,5 +92,36 @@ describe('the chat store and the routed Session', () => {
     act(() => router.set('idle'))
 
     await waitFor(() => expect(setActiveSession).toHaveBeenCalledWith(routed))
+  })
+
+  it('settles a failed project-path follow instead of floating its rejection', async () => {
+    // The route fires setProjectPath with `void`, so a transient Settings IPC failure used to
+    // surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The store keeps
+    // the previous project and the next route change retries the write.
+    const routed = SessionId('route-session')
+    const setProjectPath = vi
+      .fn()
+      .mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+    useChatStore.setState({
+      activeSessionId: SessionId('previous-session'),
+      sessionById: new Map([[routed, sessionDetailIn('/route-project')]]),
+    })
+    usePreferencesStore.setState({ setProjectPath })
+
+    renderHook(() =>
+      useChatRouteEffects({
+        branchId: null,
+        diffOpen: false,
+        nodeId: null,
+        sessionId: String(routed),
+      }),
+    )
+
+    await waitFor(() => expect(setProjectPath).toHaveBeenCalledWith('/route-project'))
+    await waitFor(() =>
+      expect(loggerWarn).toHaveBeenCalledWith('Failed to follow the routed Session project', {
+        error: expect.stringContaining('ECONNREFUSED'),
+      }),
+    )
   })
 })

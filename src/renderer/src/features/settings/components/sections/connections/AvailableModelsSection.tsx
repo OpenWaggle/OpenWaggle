@@ -10,14 +10,27 @@ import {
   type ModelFilterId,
   type ProviderScope,
 } from '@/features/settings/lib/available-models-filter'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { ModelFilterChips } from './ModelFilterChips'
 import { ModelListPanel } from './ModelListPanel'
 import { ModelProviderSidebar } from './ModelProviderSidebar'
 import { ModelMatchActions, ModelSearchField } from './ModelSearchControls'
 
+const logger = createRendererLogger('settings/available-models')
+
 function useEnabledModelSelection() {
   const { settings, setEnabledModels } = usePreferences()
   const enabledModels = settings.enabledModels
+
+  // The toggles fire this action with `void`, so a transient Settings IPC failure would
+  // otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The
+  // store keeps the previous selection and the next toggle retries it, so the failure is
+  // only logged.
+  const apply = (next: string[]) => {
+    void setEnabledModels(next).catch((error: unknown) => {
+      logger.warn('Failed to change the enabled models', { error: String(error) })
+    })
+  }
 
   return {
     enabledSet: new Set<string>(enabledModels),
@@ -25,15 +38,15 @@ function useEnabledModelSelection() {
       const next = enabled
         ? [...new Set([...enabledModels, modelRef])]
         : enabledModels.filter((model) => model !== modelRef)
-      void setEnabledModels(next)
+      apply(next)
     },
     select(models: readonly ModelDisplayInfo[]) {
       const refs = models.map((model) => String(model.id))
-      void setEnabledModels([...new Set([...enabledModels, ...refs])])
+      apply([...new Set([...enabledModels, ...refs])])
     },
     deselect(models: readonly ModelDisplayInfo[]) {
       const refs = new Set(models.map((model) => String(model.id)))
-      void setEnabledModels(enabledModels.filter((model) => !refs.has(model)))
+      apply(enabledModels.filter((model) => !refs.has(model)))
     },
   }
 }

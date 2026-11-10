@@ -3,9 +3,12 @@ import { useChatStore } from '@/features/chat/state'
 import { ModelSelector } from '@/features/providers/components'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { createRendererLogger } from '@/shared/lib/logger'
 import { useComposerModel } from '../hooks/useComposerModel'
 import { useRoutedModelName } from '../hooks/useRoutedModelName'
 import { useSessionSettingsLock } from '../hooks/useSessionSettingsLock'
+
+const logger = createRendererLogger('composer-model-picker')
 
 /**
  * A Session's model the picker does not offer, such as a continued `pi` CLI Session's model the
@@ -47,7 +50,12 @@ export function ComposerModelPicker() {
       setDraftSelectedModel(model)
       return
     }
-    void setSelectedModel(model)
+    // The picker fires this action with `void`, so a transient Settings IPC failure would
+    // otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The pick
+    // stays unapplied and the next selection retries it, so the failure is only logged.
+    void setSelectedModel(model).catch((error: unknown) => {
+      logger.warn('Failed to pick the model', { error: String(error) })
+    })
   }
 
   return (

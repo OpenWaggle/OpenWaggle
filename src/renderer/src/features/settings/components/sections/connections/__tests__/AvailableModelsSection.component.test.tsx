@@ -18,6 +18,11 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
+const loggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@/shared/lib/logger', () => ({
+  createRendererLogger: () => ({ warn: loggerWarn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+}))
+
 const SONNET = SupportedModelId('anthropic/claude-sonnet')
 const HAIKU = SupportedModelId('anthropic/claude-haiku')
 const GPT = SupportedModelId('openrouter/openai/gpt-5')
@@ -161,6 +166,23 @@ describe('AvailableModelsSection', () => {
     fireEvent.click(within(providersNav()).getByRole('button', { name: /Anthropic/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Claude Sonnet/ }))
     await waitFor(() => expect(setEnabledModelsMock).toHaveBeenLastCalledWith([CODER]))
+  })
+
+  it('settles a failed model toggle instead of floating its rejection', async () => {
+    // The toggles fire the store action with `void`, so a transient Settings IPC failure used
+    // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
+    setEnabledModelsMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+    render(<AvailableModelsSection />)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Qwen: Qwen3 Coder/ }))
+
+    await waitFor(() =>
+      expect(loggerWarn).toHaveBeenCalledWith('Failed to change the enabled models', {
+        error: expect.stringContaining('ECONNREFUSED'),
+      }),
+    )
+    // The store kept the previous selection, so the checkbox stays truthful and can retry.
+    expect(screen.getByRole('checkbox', { name: /Qwen: Qwen3 Coder/ })).not.toBeChecked()
   })
 
   it("selects and clears one provider's models, keeping models enabled elsewhere", async () => {
