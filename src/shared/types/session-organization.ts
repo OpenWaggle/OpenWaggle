@@ -3,8 +3,8 @@ export type SessionHandoffWorkspaceSelection =
   | { readonly mode: 'existing'; readonly workspaceId: string }
   | {
       readonly mode: 'new-worktree'
-      readonly baseRef?: string
-      readonly startFromOrigin?: boolean
+      readonly baseRef?: string | undefined
+      readonly startFromOrigin?: boolean | undefined
     }
 
 export type SessionOrganizationCommand =

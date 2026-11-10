@@ -20,12 +20,12 @@ export const PROJECT_ACTION_LIMITS = {
 
 export interface ProjectActionShortcutRule {
   readonly shortcut: ShortcutBinding
-  readonly when?: string
+  readonly when?: string | undefined
   /**
    * Global precedence among this project's action shortcuts. Later orders win.
    * Optional so pre-rule and hand-authored project settings remain readable.
    */
-  readonly order?: number
+  readonly order?: number | undefined
 }
 
 /** A saved project action from `.openwaggle/settings.json`. */

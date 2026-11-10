@@ -31,12 +31,12 @@ export interface SessionExportCreateCommand {
   readonly format: SessionExportFormat
   readonly destinationPath: string
   /** Canonical root injected by a scoped adapter; never populated from user-facing CLI flags. */
-  readonly destinationRoot?: string
-  readonly overwriteExisting?: boolean
-  readonly branchScope?: SessionExportBranchScope
-  readonly branchId?: string
-  readonly includeQueueBodies?: boolean
-  readonly resources?: readonly SessionExportResourceInput[]
+  readonly destinationRoot?: string | undefined
+  readonly overwriteExisting?: boolean | undefined
+  readonly branchScope?: SessionExportBranchScope | undefined
+  readonly branchId?: string | undefined
+  readonly includeQueueBodies?: boolean | undefined
+  readonly resources?: readonly SessionExportResourceInput[] | undefined
 }
 
 export interface SessionExportCancelCommand {
@@ -94,23 +94,23 @@ export type SessionExportOperationQuery =
       readonly operation: 'exports-list'
       readonly sessionId: string
       readonly limit: number
-      readonly cursor?: string
-      readonly statuses?: readonly SessionExportOperationStatus[]
-      readonly includeQueueBodies?: boolean
+      readonly cursor?: string | undefined
+      readonly statuses?: readonly SessionExportOperationStatus[] | undefined
+      readonly includeQueueBodies?: boolean | undefined
     }
   | {
       readonly operation: 'exports-read'
       readonly sessionId: string
       readonly exportOperationId: string
-      readonly includeQueueBodies?: boolean
+      readonly includeQueueBodies?: boolean | undefined
     }
   | {
       readonly operation: 'exports-wait'
       readonly sessionId: string
       readonly exportOperationId: string
       readonly timeoutMs: number
-      readonly after?: SessionHostEventCursor
-      readonly includeQueueBodies?: boolean
+      readonly after?: SessionHostEventCursor | undefined
+      readonly includeQueueBodies?: boolean | undefined
     }
 
 export type SessionExportOperationQueryOutcome =

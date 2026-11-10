@@ -23,7 +23,7 @@ export interface ProjectTaskReference {
   readonly source: string
   readonly task: string
   readonly directory: string
-  readonly environment?: string
+  readonly environment?: string | undefined
 }
 
 export type ActionInvocation =
@@ -38,8 +38,8 @@ export interface ActionDefinition {
   readonly kind: 'task' | 'service'
   readonly allowConcurrent: boolean
   readonly autoOpenPreview: boolean
-  readonly previewUrl?: string
-  readonly shortcutRules?: readonly ProjectActionShortcutRule[]
+  readonly previewUrl?: string | undefined
+  readonly shortcutRules?: readonly ProjectActionShortcutRule[] | undefined
 }
 
 export interface PreparationProfile {

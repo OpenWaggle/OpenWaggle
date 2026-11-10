@@ -33,11 +33,11 @@ export type ShortcutCommand = (typeof SHORTCUT_COMMANDS)[number]
 
 export interface ShortcutBinding {
   readonly key: string
-  readonly mod?: boolean
-  readonly ctrl?: boolean
-  readonly shift?: boolean
-  readonly alt?: boolean
-  readonly meta?: boolean
+  readonly mod?: boolean | undefined
+  readonly ctrl?: boolean | undefined
+  readonly shift?: boolean | undefined
+  readonly alt?: boolean | undefined
+  readonly meta?: boolean | undefined
 }
 
 export type ShortcutBindings = Readonly<Record<ShortcutCommand, ShortcutBinding | null>>

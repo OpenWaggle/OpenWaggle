@@ -10,8 +10,8 @@ import type { WaggleInvocationInput } from './waggle'
 export interface SessionControlFollowUpInput {
   readonly text: string
   readonly attachmentIds: readonly string[]
-  readonly waggle?: WaggleInvocationInput
-  readonly visualizationContext?: InlineVisualizationContext
+  readonly waggle?: WaggleInvocationInput | undefined
+  readonly visualizationContext?: InlineVisualizationContext | undefined
 }
 
 /**
@@ -22,13 +22,13 @@ export interface SessionControlFollowUpInput {
  * would be queued instead is refused with `thinking_level_requires_idle_session`.
  */
 export interface SessionControlMessageInput extends SessionControlFollowUpInput {
-  readonly thinkingLevel?: ThinkingLevel
+  readonly thinkingLevel?: ThinkingLevel | undefined
 }
 
 export interface SessionControlSteeringInput {
   readonly text: string
   readonly attachmentIds: readonly string[]
-  readonly visualizationContext?: InlineVisualizationContext
+  readonly visualizationContext?: InlineVisualizationContext | undefined
 }
 
 /**
@@ -39,7 +39,7 @@ export interface SessionControlSteeringInput {
 export interface SessionControlMessageCommand {
   readonly operation: 'message'
   readonly sessionId: string
-  readonly runAuthorizationOverride?: AgentAuthorizationMode
+  readonly runAuthorizationOverride?: AgentAuthorizationMode | undefined
   readonly input: SessionControlMessageInput
 }
 
@@ -53,8 +53,8 @@ export interface SessionControlSteerCommand {
 export interface SessionControlStartCommand {
   readonly operation: 'start'
   readonly sessionId: string
-  readonly runAuthorizationOverride?: AgentAuthorizationMode
-  readonly interactionTimeoutMs?: number
+  readonly runAuthorizationOverride?: AgentAuthorizationMode | undefined
+  readonly interactionTimeoutMs?: number | undefined
   readonly input: SessionControlMessageInput
 }
 

@@ -14,7 +14,7 @@ export interface LocalSessionProfileSummary {
   readonly capabilities: readonly SessionCapability[]
   readonly scope: LocalSessionProfileScope
   readonly authorizationCeiling: AgentAuthorizationMode
-  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
+  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
   readonly revokedAt: number | null
   readonly lastAuthenticatedAt: number | null
   readonly createdAt: number
@@ -30,7 +30,7 @@ export type LocalSessionProfileManagementCommand =
       readonly capabilities: readonly SessionCapability[]
       readonly scope: LocalSessionProfileScope
       readonly authorizationCeiling: AgentAuthorizationMode
-      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
+      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
     }
   | {
       readonly operation: 'update'
@@ -38,7 +38,7 @@ export type LocalSessionProfileManagementCommand =
       readonly capabilities: readonly SessionCapability[]
       readonly scope: LocalSessionProfileScope
       readonly authorizationCeiling: AgentAuthorizationMode
-      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
+      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
     }
   | {
       readonly operation: 'rotate'
@@ -87,7 +87,7 @@ export type LocalSessionProfileManagementOutcome =
       readonly code: string
       /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
       readonly kind: SessionHostErrorKind
-      readonly profileName?: string
+      readonly profileName?: string | undefined
     }
 
 export interface LocalSessionProfileManagementResponse {
@@ -106,7 +106,7 @@ export type LocalSessionProfileUiCommand =
       readonly capabilities: readonly SessionCapability[]
       readonly scope: LocalSessionProfileScope
       readonly authorizationCeiling: AgentAuthorizationMode
-      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
+      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
     }
   | {
       readonly operation: 'update'
@@ -114,7 +114,7 @@ export type LocalSessionProfileUiCommand =
       readonly capabilities: readonly SessionCapability[]
       readonly scope: LocalSessionProfileScope
       readonly authorizationCeiling: AgentAuthorizationMode
-      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
+      readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
     }
   | { readonly operation: 'rotate'; readonly profileName: string }
   | { readonly operation: 'revoke'; readonly profileName: string }

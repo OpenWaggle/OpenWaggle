@@ -1,8 +1,8 @@
 import type { SessionExportBranchScope } from './types/session-export'
 
 interface SessionExportBranchSelection {
-  readonly branchScope?: SessionExportBranchScope
-  readonly branchId?: string
+  readonly branchScope?: SessionExportBranchScope | undefined
+  readonly branchId?: string | undefined
 }
 
 export function sessionExportBranchSelectionIsValid(input: SessionExportBranchSelection) {

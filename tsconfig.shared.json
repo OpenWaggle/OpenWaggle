@@ -8,6 +8,7 @@
   "extends": "./tsconfig.strict.json",
   "compilerOptions": {
     "composite": true,
+    "exactOptionalPropertyTypes": true,
     "target": "ES2024",
     "module": "ESNext",
     "moduleResolution": "bundler",

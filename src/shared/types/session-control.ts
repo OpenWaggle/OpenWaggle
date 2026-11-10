@@ -188,9 +188,9 @@ export type SessionControlMutationOutcome =
       readonly sessionId: string
       readonly followUpId: string
       /** Absent only in outcomes recorded before 1.0.0-rc.1. */
-      readonly queueState?: 'running' | 'paused'
+      readonly queueState?: 'running' | 'paused' | undefined
       /** Why a paused queue holds the Follow-up, when the Host recorded it. */
-      readonly pauseReason?: FollowUpQueuePauseReason
+      readonly pauseReason?: FollowUpQueuePauseReason | undefined
       readonly queueRevision: number
       readonly stateRevision: number
     }
@@ -256,9 +256,9 @@ export type SessionControlMutationOutcome =
       readonly sessionId: string
       readonly followUpId: string
       /** Absent only in outcomes recorded before 1.0.0-rc.1. */
-      readonly queueState?: 'running' | 'paused'
+      readonly queueState?: 'running' | 'paused' | undefined
       /** Why a paused queue holds the Follow-up, when the Host recorded it. */
-      readonly pauseReason?: FollowUpQueuePauseReason
+      readonly pauseReason?: FollowUpQueuePauseReason | undefined
       readonly queueRevision: number
       readonly stateRevision: number
     }

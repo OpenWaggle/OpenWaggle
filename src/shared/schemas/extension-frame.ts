@@ -38,7 +38,8 @@ export const extensionFrameMountContextSchema: Schema.Schema<ExtensionFrameConfi
     surface: Schema.Struct({
       family: Schema.String,
       execution: Schema.String,
-      payload: Schema.optional(jsonValueSchema),
+      // Exact, as OpenWaggleExtensionSurfaceContext declares it: a JSON payload or no key at all.
+      payload: Schema.optionalWith(jsonValueSchema, { exact: true }),
     }),
     packagePath: Schema.String,
     projectPaths: Schema.Array(Schema.String),

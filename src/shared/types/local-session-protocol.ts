@@ -14,10 +14,10 @@ export interface LocalSessionClientHello {
   readonly supportedRevisions: readonly number[]
   readonly clientKind: 'gui' | 'cli' | 'mcp' | 'internal'
   readonly clientVersion: string
-  readonly workingDirectory?: string
-  readonly profile?: string
-  readonly transientAuthority?: LocalSessionProfileAuthority
-  readonly credential?: string
+  readonly workingDirectory?: string | undefined
+  readonly profile?: string | undefined
+  readonly transientAuthority?: LocalSessionProfileAuthority | undefined
+  readonly credential?: string | undefined
 }
 
 export type LocalSessionCommandPayload =
@@ -28,9 +28,9 @@ export type LocalSessionCommandPayload =
         readonly requestId: string
         readonly entries: readonly {
           readonly path: string
-          readonly origin?: AttachmentOrigin
-          readonly browserPreview?: PreparedAttachment['browserPreview']
-          readonly browserAnnotationText?: string
+          readonly origin?: AttachmentOrigin | undefined
+          readonly browserPreview?: PreparedAttachment['browserPreview'] | undefined
+          readonly browserAnnotationText?: string | undefined
         }[]
       }
     }
@@ -57,7 +57,7 @@ export type LocalSessionCommandPayload =
               readonly sessionId: string
               readonly model: string
               readonly targetNodeId: string
-              readonly options?: SessionNavigateTreeOptions
+              readonly options?: SessionNavigateTreeOptions | undefined
             }
           | {
               readonly operation: 'rename-branch'
@@ -79,9 +79,9 @@ export type LocalSessionCommandPayload =
               readonly operation: 'update-tree-ui-state'
               readonly sessionId: string
               readonly patch: {
-                readonly expandedNodeIds?: readonly string[]
-                readonly branchesSidebarCollapsed?: boolean
-                readonly lastVisitedAt?: number
+                readonly expandedNodeIds?: readonly string[] | undefined
+                readonly branchesSidebarCollapsed?: boolean | undefined
+                readonly lastVisitedAt?: number | undefined
               }
             }
           | ({ readonly operation: 'delete'; readonly sessionId: string } & SessionDeleteOptions)
@@ -101,12 +101,12 @@ export type LocalSessionCommandPayload =
   | {
       readonly contract: 'session-control-v2'
       readonly request: SessionControlMutationRequest
-      readonly transport?: { readonly attachmentPaths: readonly string[] }
+      readonly transport?: { readonly attachmentPaths: readonly string[] } | undefined
     }
   | {
       readonly contract: 'session-lifecycle-v2'
       readonly request: SessionLifecycleRequest
-      readonly transport?: { readonly attachmentPaths: readonly string[] }
+      readonly transport?: { readonly attachmentPaths: readonly string[] } | undefined
     }
   | {
       readonly contract: 'session-query-v2'
@@ -149,9 +149,11 @@ export type LocalSessionCommandResult =
           | 'follow-up-edit-hold-renewed'
           | 'follow-up-edit-hold-lost'
         readonly sessionId: string
-        readonly navigation?: { readonly editorText?: string; readonly cancelled: boolean }
+        readonly navigation?:
+          | { readonly editorText?: string; readonly cancelled: boolean }
+          | undefined
         /** For a renewed Follow-up edit hold: its new expiry (Host clock). */
-        readonly leaseExpiresAt?: number
+        readonly leaseExpiresAt?: number | undefined
       }
     }
   | {
@@ -188,7 +190,7 @@ export type LocalSessionServerFrame =
     }
   | {
       readonly kind: 'error'
-      readonly requestId?: string
+      readonly requestId?: string | undefined
       readonly code: string
       /** What kind of failure it is, which the CLI exits with (ADR 0063). */
       readonly errorKind: SessionHostErrorKind
@@ -200,7 +202,7 @@ export type LocalSessionServerFrame =
       readonly requestId: string
       readonly subscriptionId: string
       readonly cursor: SessionHostEventCursor
-      readonly activeRuns?: readonly BackgroundRunSnapshot[]
+      readonly activeRuns?: readonly BackgroundRunSnapshot[] | undefined
     }
   | {
       readonly kind: 'unsubscribed'
@@ -219,8 +221,8 @@ export type LocalSessionServerFrame =
     }
   | {
       readonly kind: 'resync-required'
-      readonly requestId?: string
-      readonly subscriptionId?: string
+      readonly requestId?: string | undefined
+      readonly subscriptionId?: string | undefined
       readonly reason: 'host-restarted' | 'cursor-expired' | 'cursor-ahead' | 'slow-consumer'
       readonly cursor: SessionHostEventCursor
     }

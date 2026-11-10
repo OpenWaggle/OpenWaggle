@@ -4,6 +4,6 @@ import type { SessionQueryOutcome } from './session-query'
 export interface SessionQueryResponse {
   readonly contractVersion: 2
   readonly requestId: string
-  readonly eventCursor?: SessionHostEventCursor
+  readonly eventCursor?: SessionHostEventCursor | undefined
   readonly outcome: SessionQueryOutcome
 }

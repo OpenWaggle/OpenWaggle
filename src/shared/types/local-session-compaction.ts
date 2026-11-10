@@ -7,7 +7,7 @@ export type LocalSessionCompactionCommandPayload =
         readonly requestId: string
         readonly sessionId: string
         readonly model: string
-        readonly customInstructions?: string
+        readonly customInstructions?: string | undefined
       }
     }
   | {

@@ -283,14 +283,14 @@ export interface SessionWorkspaceSelection {
 /** How the desktop user deletes a Session. */
 export interface SessionDeleteOptions {
   /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
-  readonly removingProject?: boolean
+  readonly removingProject?: boolean | undefined
   /** Only while still archived (Settings > Archived items); see `SESSION_NOT_ARCHIVED_MESSAGE`. */
-  readonly requireArchived?: boolean
+  readonly requireArchived?: boolean | undefined
 }
 
 export interface SessionNavigateTreeOptions {
-  readonly summarize?: boolean
-  readonly customInstructions?: string
+  readonly summarize?: boolean | undefined
+  readonly customInstructions?: string | undefined
 }
 
 export interface SessionCopyToNewResult {
@@ -301,10 +301,10 @@ export interface SessionCopyToNewResult {
 
 export interface SessionTranscriptEntry {
   readonly node: SessionTranscriptNode
-  readonly branchId?: SessionBranchId | null
+  readonly branchId?: SessionBranchId | null | undefined
   readonly isActive: boolean
   /** Message left out: the caller holds it at this revision (`SessionWorkspaceRequest`). */
-  readonly contentOmitted?: true
+  readonly contentOmitted?: true | undefined
 }
 
 export interface SessionWorkspace {

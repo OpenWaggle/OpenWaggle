@@ -129,7 +129,7 @@ export interface DesktopNotification {
   readonly title: string
   readonly body: string
   /** Only when the person turned previews on. */
-  readonly preview?: string
+  readonly preview?: string | undefined
   readonly createdAt: number
   /**
    * Who shows it: the desktop app while it is connected, or the Session Host when no desktop app

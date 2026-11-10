@@ -3,7 +3,7 @@ import type { OpenWaggleExtensionSurfaceContext } from '@shared/extension-contex
 export interface ExtensionFrameRegisterInput {
   readonly frameId: string
   readonly bootstrapUrl: string
-  readonly networkOrigins?: readonly string[]
+  readonly networkOrigins?: readonly string[] | undefined
 }
 
 export interface ExtensionFrameRegisterResult {

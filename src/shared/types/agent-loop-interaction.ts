@@ -101,7 +101,7 @@ export interface AgentLoopConfirmResponse {
   readonly kind: 'confirm'
   readonly accepted: boolean
   /** How far an acceptance reaches. Absent means this once only. */
-  readonly scope?: AgentAuthorizationDecisionScope
+  readonly scope?: AgentAuthorizationDecisionScope | undefined
 }
 
 export interface AgentLoopSelectResponse {

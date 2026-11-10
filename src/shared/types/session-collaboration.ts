@@ -8,12 +8,12 @@ export type SessionControlReportTarget =
 export interface SessionControlReportCommand {
   readonly operation: 'report'
   readonly sessionId: string
-  readonly sourceRunId?: string
+  readonly sourceRunId?: string | undefined
   readonly target: SessionControlReportTarget
   readonly input: {
     readonly text: string
     readonly requestReply: boolean
-    readonly replyToReportId?: string
+    readonly replyToReportId?: string | undefined
   }
 }
 
@@ -39,8 +39,8 @@ export type DelegationState = (typeof DELEGATION_STATES)[number]
 export interface DelegationEvidenceInput {
   readonly kind: DelegationEvidenceKind
   readonly summary: string
-  readonly reference?: string
-  readonly provenance?: Readonly<Record<string, string>>
+  readonly reference?: string | undefined
+  readonly provenance?: Readonly<Record<string, string>> | undefined
 }
 
 export interface SessionControlDelegationSubmitCommand {
@@ -57,13 +57,15 @@ export interface SessionControlDelegationRequestRevisionCommand {
   readonly delegationId: string
   readonly submissionRevision: number
   readonly feedback: string
-  readonly revisedSpecification?: {
-    readonly objective: string
-    readonly deliverables: readonly string[]
-    readonly acceptanceCriteria: readonly string[]
-    readonly handoffContext?: string
-    readonly resourceReferences: readonly string[]
-  }
+  readonly revisedSpecification?:
+    | {
+        readonly objective: string
+        readonly deliverables: readonly string[]
+        readonly acceptanceCriteria: readonly string[]
+        readonly handoffContext?: string | undefined
+        readonly resourceReferences: readonly string[]
+      }
+    | undefined
 }
 
 export interface SessionControlDelegationAcceptCommand {
@@ -71,7 +73,7 @@ export interface SessionControlDelegationAcceptCommand {
   readonly sessionId: string
   readonly delegationId: string
   readonly submissionRevision: number
-  readonly note?: string
+  readonly note?: string | undefined
 }
 
 export interface SessionControlDelegationReopenCommand {
@@ -153,7 +155,7 @@ export interface SessionControlDelegationAmendCommand {
   readonly expectedSpecificationRevision: number
   readonly specification: DelegationSpecificationInput
   readonly reason: string
-  readonly proposalId?: string
+  readonly proposalId?: string | undefined
 }
 
 export type DelegationVerificationOutcome = 'passed' | 'failed' | 'inconclusive'
@@ -200,7 +202,7 @@ export type SessionControlCollaborationOutcome =
       readonly delegationState: DelegationState
       readonly specificationRevision: number
       readonly submissionRevision: number
-      readonly specificationChanged?: boolean
+      readonly specificationChanged?: boolean | undefined
     }
   | {
       readonly operation: 'delegation-claim'
@@ -243,7 +245,7 @@ export type SessionControlCollaborationOutcome =
       readonly delegationId: string
       readonly delegationState: DelegationState
       readonly specificationRevision: number
-      readonly appliedProposalId?: string
+      readonly appliedProposalId?: string | undefined
       readonly workerSessionId: string
     }
   | {

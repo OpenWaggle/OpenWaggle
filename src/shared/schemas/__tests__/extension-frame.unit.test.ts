@@ -1,5 +1,9 @@
+import { createOpenWaggleExtensionTheme } from '@openwaggle/extension-sdk'
 import { safeDecodeUnknown } from '@shared/schema'
-import { extensionFrameRegisterInputSchema } from '@shared/schemas/extension-frame'
+import {
+  extensionFrameMountContextSchema,
+  extensionFrameRegisterInputSchema,
+} from '@shared/schemas/extension-frame'
 import { describe, expect, it } from 'vitest'
 
 describe('extension frame schemas', () => {
@@ -28,4 +32,21 @@ describe('extension frame schemas', () => {
       }
     },
   )
+
+  it('accepts a surface payload or no payload key, but not an undefined payload', () => {
+    const context = {
+      extension: { id: 'example', name: 'Example', version: '1.0.0' },
+      contribution: { id: 'panel', title: 'Panel', family: 'sidePanels' },
+      packagePath: '/extensions/example',
+      projectPaths: [],
+      theme: createOpenWaggleExtensionTheme(),
+    }
+    const surface = { family: 'sidePanels', execution: 'frame' }
+    const decode = (value: object) =>
+      safeDecodeUnknown(extensionFrameMountContextSchema, { ...context, surface: value }).success
+
+    expect(decode(surface)).toBe(true)
+    expect(decode({ ...surface, payload: { tab: 'files' } })).toBe(true)
+    expect(decode({ ...surface, payload: undefined })).toBe(false)
+  })
 })

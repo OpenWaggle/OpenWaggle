@@ -58,7 +58,7 @@ export function completeWaggleTurn(
       status: 'complete',
       currentTurn: null,
       completedTurns,
-      ...(decision.reason ? { stopReason: decision.reason } : {}),
+      ...(decision.reason === undefined ? {} : { stopReason: decision.reason }),
     }
   }
 
