@@ -1,5 +1,6 @@
 import { APP_ID } from '@shared/build-identity-runtime'
-import { app, autoUpdater as nativeAutoUpdater } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
@@ -19,7 +20,7 @@ export async function startGuiAutoUpdater() {
     started = { dispose: disposeAutoUpdater, releasesHost: shouldReleaseHostOnQuit }
     // Squirrel.Mac and the Windows installer announce the quit they start, even one that comes
     // after the install watchdog gave up waiting.
-    nativeAutoUpdater.on('before-quit-for-update', markUpdateQuit)
+    appLifecycle.onBeforeQuitForUpdate(markUpdateQuit)
     const { getSettings, hydrateSettingsStoreFromHost } = await import('./store/settings')
     initAutoUpdater(
       getSettings().updateChannel,
@@ -30,8 +31,8 @@ export async function startGuiAutoUpdater() {
         return getSettings().updateChannel
       },
       {
-        userDataDirectory: app.getPath('userData'),
-        currentVersion: app.getVersion(),
+        userDataDirectory: appPaths.userData(),
+        currentVersion: appLifecycle.version(),
         bundleIdentifier: APP_ID,
       },
     )

@@ -1,8 +1,8 @@
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { UPDATER_TIMING } from '@shared/constants/time'
 import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
-import { autoUpdater } from 'electron-updater'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { updateEngine } from './desktop-shell/update-engine'
 import { createLogger } from './logger'
 import type { UpdateFeedSelection } from './update-feed'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
@@ -34,11 +34,11 @@ let acceptUpdaterEvents = true
 
 function configureUpdateChannel(channel: UpdateChannel) {
   currentChannel = channel
-  autoUpdater.channel = updaterFeedChannel(channel)
-  autoUpdater.allowPrerelease = channel !== 'stable'
-  // The channel setter enables downgrade support. OpenWaggle channels may widen
-  // eligibility, but they must never replace a newer installed version with an older one.
-  autoUpdater.allowDowngrade = false
+  // Channels widen eligibility but never downgrade (the engine forbids it).
+  updateEngine.configure({
+    feedChannel: updaterFeedChannel(channel),
+    allowPrerelease: channel !== 'stable',
+  })
 }
 
 function logUpdateCheckError(error: unknown) {
@@ -65,30 +65,30 @@ async function waitForDownload(downloadPromise: Promise<unknown> | null | undefi
 
 async function runUpdaterCheck(generation: number, selection?: UpdateFeedSelection) {
   if (selection?.type === 'no-release') return setStatus({ type: 'not-available' })
-  const result = await autoUpdater.checkForUpdates()
-  if (!result?.isUpdateAvailable) return
+  const result = await updateEngine.checkForUpdates()
+  if (!result) return
   if (generation !== checkGeneration) {
-    result.cancellationToken?.cancel()
-    await waitForDownload(result.downloadPromise)
+    result.cancelDownload()
+    await waitForDownload(result.download)
     return
   }
-  if (!isVersionEligibleForChannel(result.updateInfo.version, currentChannel)) {
-    result.cancellationToken?.cancel()
+  if (!isVersionEligibleForChannel(result.version, currentChannel)) {
+    result.cancelDownload()
     activeUpdateCancellation = null
     activeUpdateVersion = null
-    autoUpdater.autoInstallOnAppQuit = false
+    updateEngine.cancelInstallOnQuit()
     setStatus({ type: 'not-available' })
-    await waitForDownload(result.downloadPromise)
+    await waitForDownload(result.download)
     return
   }
-  activeUpdateCancellation = result.cancellationToken ?? null
-  await waitForDownload(result.downloadPromise)
+  activeUpdateCancellation = { cancel: result.cancelDownload }
+  await waitForDownload(result.download)
 }
 
 function startUpdaterCheck(channel: UpdateChannel, generation: number) {
   let operation: Promise<void>
   try {
-    const configured = configureUpdaterFeed(autoUpdater, channel)
+    const configured = configureUpdaterFeed({ setFeedURL: updateEngine.setFeed }, channel)
     operation = configured
       ? configured.then((selection) => {
           if (generation !== checkGeneration) return
@@ -124,7 +124,7 @@ function checkConfiguredChannel(channel: UpdateChannel) {
     activeUpdateCancellation = null
     activeUpdateVersion = null
     acceptUpdaterEvents = false
-    autoUpdater.autoInstallOnAppQuit = false
+    updateEngine.cancelInstallOnQuit()
     const status = getUpdateStatus().type
     if (status === 'available' || status === 'downloading' || status === 'downloaded') {
       setStatus({ type: 'idle' })
@@ -170,7 +170,7 @@ export async function installUpdate(): Promise<void> {
   }
   const requestedVersion = downloaded.version
   const requestGeneration = updateCheckRequestGeneration
-  autoUpdater.autoInstallOnAppQuit = false
+  updateEngine.cancelInstallOnQuit()
   let authoritativeChannel = currentChannel
   if (readAuthoritativeChannel) {
     try {
@@ -207,7 +207,7 @@ export async function installUpdate(): Promise<void> {
   checkGeneration += 1
   acceptUpdaterEvents = false
   await install.beginUpdateInstall(requestedVersion)
-  autoUpdater.quitAndInstall(true, true) // silent install + relaunch, as pingdotgg/t3code does
+  updateEngine.quitAndInstall({ silent: true, relaunch: true }) // as pingdotgg/t3code does
 }
 
 export function initAutoUpdater(
@@ -224,71 +224,70 @@ export function initAutoUpdater(
   configureUpdateChannel(channel)
   readAuthoritativeChannel = readChannel ?? null
   acceptUpdaterEvents = true
-  autoUpdater.autoDownload = true
+  updateEngine.setAutoDownload(true)
   // Installation must always pass through installUpdate so the shared Session Host
   // channel is re-read immediately before quitAndInstall.
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.logger = null // We use our own logger
+  updateEngine.cancelInstallOnQuit()
 
-  autoUpdater.on('checking-for-update', () => {
+  updateEngine.onCheckingForUpdate(() => {
     if (!acceptUpdaterEvents) return
     logger.info('Checking for update')
     setStatus({ type: 'checking' })
   })
 
-  autoUpdater.on('update-available', (info) => {
+  updateEngine.onUpdateAvailable((version) => {
     if (!acceptUpdaterEvents) return
-    if (!isVersionEligibleForChannel(info.version, currentChannel)) {
+    if (!isVersionEligibleForChannel(version, currentChannel)) {
       activeUpdateVersion = null
-      autoUpdater.autoInstallOnAppQuit = false
+      updateEngine.cancelInstallOnQuit()
       logger.warn('Ignoring update available for a superseded channel', {
         channel: currentChannel,
-        version: info.version,
+        version,
       })
       return
     }
-    activeUpdateVersion = info.version
-    logger.info('Update available', { version: info.version })
-    setStatus({ type: 'available', version: info.version })
+    activeUpdateVersion = version
+    logger.info('Update available', { version })
+    setStatus({ type: 'available', version })
   })
 
-  autoUpdater.on('update-not-available', () => {
+  updateEngine.onUpdateNotAvailable(() => {
     if (!acceptUpdaterEvents) return
     activeUpdateVersion = null
     logger.info('No update available')
     setStatus({ type: 'not-available' })
   })
 
-  autoUpdater.on('download-progress', (progress) => {
+  updateEngine.onDownloadProgress((percent) => {
     if (!acceptUpdaterEvents) return
     if (!activeUpdateVersion) return
     setStatus({
       type: 'downloading',
       version: activeUpdateVersion,
-      percent: Math.round(progress.percent),
+      percent: Math.round(percent),
     })
   })
 
-  autoUpdater.on('update-downloaded', (info) => {
+  updateEngine.onUpdateDownloaded((version) => {
     if (!acceptUpdaterEvents) return
-    if (!isVersionEligibleForChannel(info.version, currentChannel)) {
+    if (!isVersionEligibleForChannel(version, currentChannel)) {
       activeUpdateCancellation = null
       activeUpdateVersion = null
-      autoUpdater.autoInstallOnAppQuit = false
+      updateEngine.cancelInstallOnQuit()
       logger.warn('Ignoring update downloaded for a superseded channel', {
         channel: currentChannel,
-        version: info.version,
+        version,
       })
       return
     }
     activeUpdateCancellation = null
     activeUpdateVersion = null
-    autoUpdater.autoInstallOnAppQuit = false
-    logger.info('Update downloaded', { version: info.version })
-    setStatus(install.downloadedUpdateStatus(info.version))
+    updateEngine.cancelInstallOnQuit()
+    logger.info('Update downloaded', { version })
+    setStatus(install.downloadedUpdateStatus(version))
   })
 
-  autoUpdater.on('error', (error) => {
+  updateEngine.onError((error) => {
     // Squirrel.Mac unpacks and verifies the update only after Restart to update.
     if (install.failUpdateInstall(error)) return
     if (!acceptUpdaterEvents) return

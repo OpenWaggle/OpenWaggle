@@ -99,6 +99,8 @@ describe('updater overlapping checks', () => {
     expect(broadcastMock).not.toHaveBeenCalled()
 
     resolveFirstCheck?.({ isUpdateAvailable: false })
+    // The update engine maps electron-updater's result in one more step before the check sees it.
+    await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
