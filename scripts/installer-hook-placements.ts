@@ -225,8 +225,7 @@ function findPlacement(
        * An unguarded insertion in a file that is not pass-specific is compiled in both passes, which
        * is how electron-builder treats `installer.nsi` itself.
        */
-      passes:
-        pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
+      passes: pass === undefined ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
       context:
         withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[templateKey] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,

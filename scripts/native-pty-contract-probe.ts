@@ -52,15 +52,16 @@ function wait(milliseconds: number) {
 function waitForEvent(event: PtyEvent<ExitEvent>, onEvent?: () => void) {
   return new Promise<ExitEvent>((resolve) => {
     const subscriptions = new Set<Disposable>()
-    let completedSynchronously = false
+    // Held in an object because the event callback, not this function's flow, sets it.
+    const delivery = { completedSynchronously: false }
     const subscription = event((value) => {
       onEvent?.()
-      completedSynchronously = subscriptions.size === 0
+      delivery.completedSynchronously = subscriptions.size === 0
       for (const disposable of subscriptions) disposable.dispose()
       resolve(value)
     })
     subscriptions.add(subscription)
-    if (completedSynchronously) subscription.dispose()
+    if (delivery.completedSynchronously) subscription.dispose()
   })
 }
 

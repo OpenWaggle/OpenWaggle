@@ -160,10 +160,6 @@ export const noInlineMagicNumbersRule: Rule = {
       Program() {
         for (const comment of context.sourceCode.getAllComments()) {
           if (comment.value.includes(DISALLOWED_EXTRACTION_COMMENT)) {
-            if (!comment.loc) {
-              continue
-            }
-
             context.report({
               loc: comment.loc,
               messageId: 'extractionComment',

@@ -120,7 +120,7 @@ interface WriteOptions {
 async function optimizePng(image: Buffer, maxWidth?: number) {
   const meta = await sharp(image).metadata()
   const pipeline =
-    maxWidth !== undefined && (meta.width ?? 0) > maxWidth
+    maxWidth !== undefined && meta.width > maxWidth
       ? sharp(image).resize({ width: maxWidth })
       : sharp(image)
   return pipeline
@@ -270,7 +270,7 @@ export async function cropImage(image: Buffer, region: Region, ratio: number) {
   const area = scaled(region, ratio)
   const left = Math.max(0, area.left)
   const top = Math.max(0, area.top)
-  const width = Math.min(area.width, (meta.width ?? 0) - left)
-  const height = Math.min(area.height, (meta.height ?? 0) - top)
+  const width = Math.min(area.width, meta.width - left)
+  const height = Math.min(area.height, meta.height - top)
   return sharp(image).extract({ left, top, width, height }).png().toBuffer()
 }

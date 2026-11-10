@@ -72,7 +72,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
         pluginTimings: false,
       }
 
-      const existingWorkerOptions = config.worker.rolldownOptions ?? {}
+      const existingWorkerOptions = config.worker.rolldownOptions
       const existingWorkerChecks = existingWorkerOptions.checks ?? {}
       config.worker.rolldownOptions = {
         ...existingWorkerOptions,

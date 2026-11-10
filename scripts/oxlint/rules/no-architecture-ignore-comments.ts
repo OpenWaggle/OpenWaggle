@@ -16,10 +16,6 @@ export const noArchitectureIgnoreCommentsRule: Rule = {
     return {
       Program() {
         for (const comment of sourceCode.getAllComments()) {
-          if (!comment.loc) {
-            continue
-          }
-
           if (FORBIDDEN_IGNORE_MARKERS.some((marker) => comment.value.includes(marker))) {
             context.report({
               loc: comment.loc,

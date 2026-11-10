@@ -113,10 +113,10 @@ export async function launchGui(
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let logs = ''
-  child.stdout?.on('data', (chunk) => {
+  child.stdout.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)
   })
-  child.stderr?.on('data', (chunk) => {
+  child.stderr.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)
   })
   await new Promise<void>((resolve, reject) => {

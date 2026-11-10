@@ -80,7 +80,8 @@ function installBootProbe(conditions: BootProbeConditions) {
   })
   function check() {
     scheduled = false
-    const body = document.body
+    // The DOM types `document.body` as always set; it is null until the parser reaches it.
+    const body = document.querySelector('body')
     if (!body) return
     const text = body.innerText
     const shell =

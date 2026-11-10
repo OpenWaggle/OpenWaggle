@@ -158,7 +158,7 @@ async function prepareSeeds(apps: readonly PerfApp[], compileCache: CompileCache
 
 async function main() {
   const apps = resolveApps()
-  const mode = values.mode ?? 'cold'
+  const mode = values.mode
   const runs = numberOption(values.runs, DEFAULT_RUNS)
   const templates = await prepareTemplates(apps, mode)
   const compileCache: CompileCacheMode = values['compile-cache'] === 'warm' ? 'warm' : 'cold'
@@ -194,10 +194,11 @@ async function main() {
     summary,
     results,
   }
-  if (values.out)
+  if (values.out) {
     log(
       `Wrote ${await writeJsonResult(values.out, `startup-${mode}-${compileCache}-cache${loginShell === 'slow' ? '-slow-login-shell' : ''}.json`, report)}`,
     )
+  }
   process.stdout.write(`${JSON.stringify(summary, null, JSON_INDENT)}\n`)
 }
 

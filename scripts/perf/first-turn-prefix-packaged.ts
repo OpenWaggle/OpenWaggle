@@ -113,7 +113,7 @@ async function main() {
     )
     process.exit(USAGE_EXIT_CODE)
   }
-  const setup = values.setup ?? 'empty'
+  const setup = values.setup
   const results = []
   for (const [index, appPath] of apps.entries()) {
     const result = await measurePackagedPrefix(appPath, values.label?.[index], setup)
@@ -128,10 +128,11 @@ async function main() {
     environment: measurementEnvironment(),
     results,
   }
-  if (values.out)
+  if (values.out) {
     log(
       `Wrote ${await writeJsonResult(values.out, `first-turn-prefix-packaged-${setup}.json`, report)}`,
     )
+  }
 }
 
 main().then(
