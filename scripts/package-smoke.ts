@@ -260,10 +260,10 @@ async function main(args: readonly string[]) {
   const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-pack-'))
 
   try {
-    const { tarballDirectory } = parsePackageSmokeArgs(args)
+    const { tarballDirectory, prebuilt } = parsePackageSmokeArgs(args)
     const canonicalPackages =
       tarballDirectory === undefined ? [] : await canonicalPackedPackages(tarballDirectory)
-    if (tarballDirectory === undefined) {
+    if (tarballDirectory === undefined && prebuilt !== true) {
       await runCommand(bunExecutable(), ['run', 'build:packages'], projectRoot)
     }
     const packDir = path.join(smokeRoot, 'tarballs')

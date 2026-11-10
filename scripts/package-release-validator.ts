@@ -1,6 +1,12 @@
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { GATES, STEPS } from './check/steps'
+import {
+  CHECK_RUNNER_SCRIPT,
+  runsRunnerLint,
+  validateCheckGate,
+} from './package-release-validator-check-gate'
 import { validatePackageReleasePipelines } from './package-release-validator-pipeline'
 import { validatePackageReleaseProvenance } from './package-release-validator-provenance'
 import {
@@ -296,10 +302,11 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
     return
   }
   addViolation(
-    !checkScript.includes('bun run package:smoke'),
-    `${ROOT_PACKAGE_PATH} scripts.check must run bun run package:smoke.`,
+    checkScript !== CHECK_RUNNER_SCRIPT,
+    `${ROOT_PACKAGE_PATH} scripts.check must be ${CHECK_RUNNER_SCRIPT}, whose check gate runs the package smoke.`,
     violations,
   )
+  violations.push(...validateCheckGate(STEPS, GATES))
   addViolation(
     scripts?.['build:package-dependencies'] !== PACKAGE_DEPENDENCY_BUILD_SCRIPT,
     `${ROOT_PACKAGE_PATH} scripts.build:package-dependencies must build waggle-core and extension-sdk before type-aware package analysis.`,
@@ -314,8 +321,9 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   )
   for (const scriptName of ['lint', 'lint:fix']) {
     const script = scripts?.[scriptName]
+    const buildsFirst = typeof script === 'string' && script.includes(TYPE_AWARE_LINT_PREREQUISITE)
     addViolation(
-      typeof script !== 'string' || !script.includes(TYPE_AWARE_LINT_PREREQUISITE),
+      !buildsFirst && !(scriptName === 'lint' && runsRunnerLint(script)),
       `${ROOT_PACKAGE_PATH} scripts.${scriptName} must build package dependencies immediately before clean-checkout type-aware analysis.`,
       violations,
     )

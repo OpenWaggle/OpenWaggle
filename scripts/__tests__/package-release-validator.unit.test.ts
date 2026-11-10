@@ -99,7 +99,7 @@ describe('package release validation', () => {
     }
   })
 
-  it('rejects a root check script that skips package smoke validation', async () => {
+  it('rejects a root check script that bypasses the check runner', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
       await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
@@ -115,7 +115,7 @@ describe('package release validation', () => {
       const result = await validatePackageReleaseFiles(projectRoot)
 
       expect(result.violations).toContain(
-        'package.json scripts.check must run bun run package:smoke.',
+        'package.json scripts.check must be bun scripts/check/run.ts check, whose check gate runs the package smoke.',
       )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })

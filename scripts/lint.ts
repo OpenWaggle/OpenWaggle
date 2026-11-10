@@ -9,9 +9,10 @@
  * dependencies, so bun.lock locks them and minimumReleaseAge and check:provenance apply.
  * `--runner=oxlint` runs the same config through oxlint, the fallback runner.
  *
- *   bun scripts/lint.ts [--runner=bun|oxlint] [--fix] [paths...]
+ *   bun scripts/lint.ts [--runner=bun|oxlint] [--fix] [--format-only|--lint-only] [paths...]
  *
- * `--fix` formats the files and applies lint fixes instead of reporting them.
+ * `--fix` formats the files and applies lint fixes instead of reporting them. `--format-only` and
+ * `--lint-only` run one half, so the check runner (scripts/check/run.ts) runs them in parallel.
  */
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -41,10 +42,12 @@ const MILLISECONDS_PER_SECOND = 1000
 const SCRIPT_ARGUMENTS_START = 2
 
 type Runner = 'bun' | 'oxlint'
+type Part = 'both' | 'format' | 'lint'
 
 function parseArguments(argv: readonly string[]) {
   let runner: Runner = 'bun'
   let fix = false
+  let part: Part = 'both'
   const paths: string[] = []
   for (const argument of argv) {
     if (argument === '--runner=oxlint' || argument === '--runner=bun') {
@@ -55,9 +58,13 @@ function parseArguments(argv: readonly string[]) {
       fix = true
       continue
     }
+    if (argument === '--format-only' || argument === '--lint-only') {
+      part = argument === '--format-only' ? 'format' : 'lint'
+      continue
+    }
     paths.push(argument)
   }
-  return { runner, fix, paths }
+  return { runner, fix, part, paths }
 }
 
 function lintCommand(runner: Runner, fix: boolean, paths: readonly string[]) {
@@ -93,7 +100,7 @@ export function bunLintPlatformPackages(
 }
 
 /** The canary binary bun install placed for this platform (glibc first on Linux). */
-function bunLintExecutable() {
+export function bunLintExecutable() {
   const require = createRequire(BUN_LINT_PACKAGE_JSON)
   const binary = process.platform === 'win32' ? 'bun.exe' : 'bun'
   for (const packageName of bunLintPlatformPackages()) {
@@ -127,10 +134,25 @@ function formatFindings(fix: boolean, paths: readonly string[]) {
   return findings.length > 0 ? findings : [`oxfmt: ${result.stderr.trim() || 'failed'}`]
 }
 
+function seconds(started: number) {
+  return ((performance.now() - started) / MILLISECONDS_PER_SECOND).toFixed(1)
+}
+
 function main() {
-  const { runner, fix, paths } = parseArguments(process.argv.slice(SCRIPT_ARGUMENTS_START))
+  const { runner, fix, part, paths } = parseArguments(process.argv.slice(SCRIPT_ARGUMENTS_START))
+  const started = performance.now()
   // Without paths, oxfmt formats the whole repository (.oxfmtrc.json decides the files) and
   // lint covers LINT_PATHS.
+  const formatting = part === 'lint' ? [] : formatFindings(fix, paths)
+  if (part === 'format') {
+    if (formatting.length === 0) {
+      console.log(`format: no problems (oxfmt, ${seconds(started)}s)`)
+      return
+    }
+    for (const line of formatting) console.log(line)
+    process.exitCode = 1
+    return
+  }
   let invocation: ReturnType<typeof lintCommand>
   try {
     invocation = lintCommand(runner, fix, paths.length > 0 ? paths : LINT_PATHS)
@@ -140,8 +162,6 @@ function main() {
     return
   }
   const { command, args, env } = invocation
-  const started = performance.now()
-  const formatting = formatFindings(fix, paths)
   const result = spawnSync(command, args, { encoding: 'utf8', env, shell: false })
   if (result.error) {
     console.error(`lint: could not start ${command}: ${result.error.message}`)
@@ -150,9 +170,9 @@ function main() {
   }
 
   const lines = [...formatting, ...compactLintOutput(`${result.stdout}\n${result.stderr}`)]
-  const seconds = ((performance.now() - started) / MILLISECONDS_PER_SECOND).toFixed(1)
+  const tools = part === 'lint' ? `${runner} lint` : `oxfmt + ${runner} lint`
   if (result.status === 0 && formatting.length === 0) {
-    console.log(`lint: no problems (oxfmt + ${runner} lint, ${seconds}s)`)
+    console.log(`lint: no problems (${tools}, ${seconds(started)}s)`)
     return
   }
 

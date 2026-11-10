@@ -39,5 +39,12 @@
     "oxlint.config.mts",
     "electron.vite.config.ts",
     "electron-builder.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "packages/*/dist",
+    "packages/*/dist-cjs",
+    "packages/*/.pack",
+    ".typecheck"
   ]
 }
