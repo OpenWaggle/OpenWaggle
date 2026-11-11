@@ -24,9 +24,9 @@ export const FAIL_CLOSED_AUTHORIZATION_MODE: AgentAuthorizationMode = 'ask-for-a
  * never means `yolo`. Pure so the precedence rule can be tested without a database or a filesystem.
  */
 export function pickAuthorizationMode(input: {
-  readonly sessionOverride?: AgentAuthorizationMode | null
-  readonly projectDefault?: AgentAuthorizationMode | null
-  readonly globalDefault?: AgentAuthorizationMode | null
+  readonly sessionOverride?: AgentAuthorizationMode | null | undefined
+  readonly projectDefault?: AgentAuthorizationMode | null | undefined
+  readonly globalDefault?: AgentAuthorizationMode | null | undefined
 }): AgentAuthorizationMode {
   return (
     input.sessionOverride ??

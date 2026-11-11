@@ -56,12 +56,13 @@ const MAX_PATCH_ENTRIES = 100
 const patchKeySchema = Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MAX_HOST_LENGTH))
 
 function patchRecord<V extends Schema.Schema.Any>(value: V) {
-  return Schema.optional(
+  return Schema.optionalWith(
     Schema.Record({ key: patchKeySchema, value: Schema.NullOr(value) }).pipe(
       Schema.filter((record) => Object.keys(record).length <= MAX_PATCH_ENTRIES, {
         message: () => 'Too many source-control settings changes.',
       }),
     ),
+    { exact: true },
   )
 }
 
@@ -69,7 +70,9 @@ const destinationSchema = Schema.Literal(...CHANGE_REQUEST_OPEN_DESTINATIONS)
 
 /** Runtime contract for `source-control:patch-settings`, the Host's atomic settings write. */
 export const sourceControlSettingsPatchSchema = Schema.Struct({
-  changeRequestOpenDestination: Schema.optional(Schema.NullOr(destinationSchema)),
+  changeRequestOpenDestination: Schema.optionalWith(Schema.NullOr(destinationSchema), {
+    exact: true,
+  }),
   changeRequestOpenDestinationByProject: patchRecord(destinationSchema),
   sourceControlHostProviders: patchRecord(Schema.Literal('github', 'gitlab', 'unsupported')),
   sourceControlDetectedHostProviders: patchRecord(providerSchema),

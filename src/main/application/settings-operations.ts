@@ -106,9 +106,9 @@ function validateShortcutBindingsUpdate(
 function validateExtensionPanelShortcutUpdate(
   current: Settings,
   patch: {
-    readonly shortcutRules?: ShortcutRules
-    readonly shortcutBindings?: ShortcutBindings
-    readonly extensionPanelShortcutBindings?: ExtensionPanelShortcutBindings
+    readonly shortcutRules?: ShortcutRules | undefined
+    readonly shortcutBindings?: ShortcutBindings | undefined
+    readonly extensionPanelShortcutBindings?: ExtensionPanelShortcutBindings | undefined
   },
 ) {
   const rules =
@@ -194,21 +194,29 @@ export function updateSettingsOperation(raw: unknown) {
       return { ok: false, error: shortcuts.error } satisfies { ok: false; error: string }
     }
     const shortcutBindings = shortcuts.shortcutBindings
+    const {
+      projectPath,
+      selectedModel,
+      sessionTitleModel,
+      favoriteModels,
+      enabledModels,
+      ...unchanged
+    } = result.data
+    const titleModel =
+      sessionTitleModel === undefined ? null : parseSessionTitleModelSetting(sessionTitleModel)
     yield* settings.update({
-      ...result.data,
-      projectPath: result.data.projectPath !== undefined ? projectPathValidation.value : undefined,
-      recentProjects,
-      selectedModel:
-        result.data.selectedModel !== undefined
-          ? SupportedModelId(result.data.selectedModel)
-          : undefined,
-      sessionTitleModel:
-        result.data.sessionTitleModel !== undefined
-          ? (parseSessionTitleModelSetting(result.data.sessionTitleModel) ?? undefined)
-          : undefined,
-      favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
-      enabledModels: result.data.enabledModels?.map(SupportedModelId),
-      shortcutBindings,
+      ...unchanged,
+      ...(projectPath === undefined ? {} : { projectPath: projectPathValidation.value }),
+      ...(recentProjects === undefined ? {} : { recentProjects }),
+      ...(selectedModel === undefined ? {} : { selectedModel: SupportedModelId(selectedModel) }),
+      ...(titleModel === null ? {} : { sessionTitleModel: titleModel }),
+      ...(favoriteModels === undefined
+        ? {}
+        : { favoriteModels: favoriteModels.map(SupportedModelId) }),
+      ...(enabledModels === undefined
+        ? {}
+        : { enabledModels: enabledModels.map(SupportedModelId) }),
+      ...(shortcutBindings === undefined ? {} : { shortcutBindings }),
     })
     if (result.data.projectPath !== undefined) {
       if (projectPathValidation.value !== null) {

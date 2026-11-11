@@ -100,7 +100,7 @@ describe('Host UI Session data reads (B5/D5)', () => {
     const result = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-workspace', [
         SESSION,
-        undefined,
+        {},
         {
           window: { minEntries: 2 },
           cached: { nodeMutationRevision: 6, nodeIds: [SessionNodeId('b')] },

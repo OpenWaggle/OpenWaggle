@@ -39,9 +39,9 @@ export interface World {
   readonly requests: SessionTitleGenerationRequest[]
   readonly cleared: SessionId[]
   /** Runs while the model "thinks", to simulate a rename landing mid-generation. */
-  duringGeneration?: () => void
+  duringGeneration?: (() => void) | undefined
   /** Runs while the transcript is read, to simulate a Run ending mid-refinement. */
-  duringRead?: () => void
+  duringRead?: (() => void) | undefined
 }
 
 let currentWorld: World | null = null

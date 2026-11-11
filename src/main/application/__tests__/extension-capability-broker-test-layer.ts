@@ -74,17 +74,17 @@ function makeLoggerLayer(capturedLogs: CapturedLog[]) {
 export function makeBrokerLayer(input: {
   readonly packages: readonly DiscoveredExtensionPackage[]
   readonly lifecycles: readonly ExtensionLifecycleState[]
-  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
-  readonly sessionDetail?: SessionDetail
-  readonly sessionDetails?: readonly SessionDetail[]
-  readonly sessionTree?: SessionContentTree
+  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[] | undefined
+  readonly sessionDetail?: SessionDetail | undefined
+  readonly sessionDetails?: readonly SessionDetail[] | undefined
+  readonly sessionTree?: SessionContentTree | undefined
   readonly resources: SessionResource[]
   readonly resourceUpserts: UpsertSessionResourceInput[]
   readonly storageItems: ExtensionStorageItem[]
   readonly capturedLogs: CapturedLog[]
   readonly currentProjectPath: string | null
   readonly reconciledProjectPaths: string[]
-  readonly reconcileFailure?: Error
+  readonly reconcileFailure?: Error | undefined
 }) {
   const projectOverrides = input.projectOverrides ?? []
   const sessionDetails = input.sessionDetails ?? (input.sessionDetail ? [input.sessionDetail] : [])

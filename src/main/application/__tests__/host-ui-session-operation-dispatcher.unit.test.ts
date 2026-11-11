@@ -188,7 +188,7 @@ describe('Host-backed Session GUI operation dispatcher', () => {
           paths: [
             `/projects/${String(limit)}-${search ?? ''}-${matchingDisplayNamePaths?.join('|') ?? ''}`,
           ],
-          nextCursor: cursor,
+          ...(cursor === undefined ? {} : { nextCursor: cursor }),
         }),
     })
     const effect = dispatchHostBackedSessionGuiOperation('sessions:list-projects', [

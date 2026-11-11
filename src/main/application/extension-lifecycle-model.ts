@@ -78,7 +78,7 @@ export function projectOverrideKey(input: ExtensionSetProjectDisabledInput) {
 
 export function findPackage(
   packages: readonly DiscoveredExtensionPackage[],
-  input: ExtensionLifecycleMutationTarget,
+  input: Pick<ExtensionLifecycleMutationTarget, 'extensionId' | 'scope'>,
 ) {
   return (
     packages.find(

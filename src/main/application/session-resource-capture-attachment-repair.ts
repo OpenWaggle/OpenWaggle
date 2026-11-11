@@ -37,6 +37,7 @@ export function repairManagedAttachment(
   store: SessionResourceStoreShape,
 ) {
   return Effect.gen(function* () {
+    const sha256 = input.attachment.contentSha256 ?? expectedSha256(resource)
     const stored = yield* store
       .storeFile({
         sessionId: input.sessionId,
@@ -44,7 +45,7 @@ export function repairManagedAttachment(
         fileName: input.attachment.name,
         sourcePath: input.attachment.path,
         expectedSizeBytes: input.attachment.sizeBytes,
-        expectedSha256: input.attachment.contentSha256 ?? expectedSha256(resource),
+        ...(sha256 === undefined ? {} : { expectedSha256: sha256 }),
         maxSizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
       })
       .pipe(Effect.option)

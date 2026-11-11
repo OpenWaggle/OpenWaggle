@@ -8,6 +8,7 @@ import type {
   ExtensionDocsDiscoverPayload,
   ExtensionInvokeInput,
 } from '@shared/types/extension-broker'
+import type { DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
 import { listDocsDiscoveryView, resolveDocsTopic } from './docs-discovery-service'
@@ -24,7 +25,7 @@ interface BrokerDocsRouteInput {
 }
 
 type DocsListPayloadValidation =
-  | { readonly _tag: 'valid'; readonly payload: ExtensionDocsDiscoverPayload }
+  | { readonly _tag: 'valid'; readonly payload: DocsListInput }
   | { readonly _tag: 'invalid'; readonly issues: readonly string[] }
   | {
       readonly _tag: 'out-of-scope'

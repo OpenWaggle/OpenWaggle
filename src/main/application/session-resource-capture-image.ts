@@ -30,8 +30,8 @@ export function captureGeneratedImage(input: {
   readonly validatedImage?: ValidatedSessionResourceImage
   readonly actor?: SessionResourceActor
   readonly label?: string | null
-  readonly displayOrder?: number | null
-  readonly sourcePath?: string
+  readonly displayOrder?: number | null | undefined
+  readonly sourcePath?: string | undefined
 }) {
   return Effect.gen(function* () {
     const validated =
@@ -140,7 +140,7 @@ export function captureUnavailableGeneratedImage(input: {
   readonly branchId?: string | null
   readonly actor?: SessionResourceActor
   readonly label?: string | null
-  readonly displayOrder?: number | null
+  readonly displayOrder?: number | null | undefined
 }) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository

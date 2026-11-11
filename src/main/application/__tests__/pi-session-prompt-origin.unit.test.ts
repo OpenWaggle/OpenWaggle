@@ -41,7 +41,8 @@ describe('withPiSessionPromptOrigin', () => {
   })
 
   it('reads nothing for a Session without a Pi file, or one whose file was deleted', () => {
-    expect(decorate(detail({ piSessionFile: undefined }), 'outside').read).toEqual([])
+    const { piSessionFile: _piSessionFile, ...withoutPiFile } = detail()
+    expect(decorate(withoutPiFile, 'outside').read).toEqual([])
     expect(decorate(detail({ piSessionFileDeleted: 'gone' }), 'outside').read).toEqual([])
     expect(decorate(null, 'outside').result).toBeNull()
   })

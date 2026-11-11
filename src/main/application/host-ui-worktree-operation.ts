@@ -26,7 +26,7 @@ export const worktreeCreatePayloadSchema = Schema.Struct({
   branch: Schema.String,
   baseRef: Schema.String,
   /** Main resolves the authoritative branch for Session-bound worktrees. */
-  sessionId: Schema.optional(Schema.String),
+  sessionId: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 export const worktreeRemovePayloadSchema = Schema.Struct({
@@ -34,9 +34,9 @@ export const worktreeRemovePayloadSchema = Schema.Struct({
     Schema.minLength(1),
     Schema.filter((value) => path.isAbsolute(value)),
   ),
-  force: Schema.optional(Schema.Boolean),
-  lockOnly: Schema.optional(Schema.Boolean),
-  skipCleanup: Schema.optional(Schema.Boolean),
+  force: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  lockOnly: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  skipCleanup: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))

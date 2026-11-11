@@ -115,7 +115,19 @@ export function manageProjectActions(rawRequest: unknown) {
       )
       .with({ type: 'start' }, (operation) =>
         requireWorkspace().pipe(
-          Effect.flatMap((workspace) => runs.start({ ...operation, workspace })),
+          Effect.flatMap((workspace) =>
+            runs.start({
+              workspace,
+              actionId: operation.actionId,
+              requestId: operation.requestId,
+              ...(operation.expectedExecutionKey === undefined
+                ? {}
+                : { expectedExecutionKey: operation.expectedExecutionKey }),
+              ...(operation.restartRunId === undefined
+                ? {}
+                : { restartRunId: operation.restartRunId }),
+            }),
+          ),
           Effect.map((run) => ({ type: 'run', run }) as const),
         ),
       )

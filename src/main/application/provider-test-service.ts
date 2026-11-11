@@ -34,8 +34,8 @@ export function testCredentials(providerId: string, apiKey: string, projectPath?
       .probeCredentials({
         providerId: provider.id,
         modelId: provider.testModel,
-        apiKey: normalizedApiKey,
-        projectPath,
+        ...(normalizedApiKey === undefined ? {} : { apiKey: normalizedApiKey }),
+        ...(projectPath === undefined ? {} : { projectPath }),
       })
       .pipe(
         Effect.map(() => ({ success: true })),

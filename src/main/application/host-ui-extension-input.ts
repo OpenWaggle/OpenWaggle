@@ -8,6 +8,7 @@ import {
   extensionApproveBuildInputSchema,
   extensionListContributionsInputSchema,
   extensionListPackagesInputSchema,
+  type extensionPackageWorkflowActorSchema,
   extensionProposePackageRemoveInputSchema,
   extensionProposePackageWriteInputSchema,
   extensionReloadInputSchema,
@@ -17,6 +18,8 @@ import {
 } from '@shared/schemas/extensions'
 import type {
   ExtensionApplyPackageWriteInput,
+  ExtensionPackageWorkflowActor,
+  ExtensionPackageWorkflowGlobalConfirmation,
   ExtensionProposePackageWriteInput,
 } from '@shared/types/extension-package-workflow'
 import type {
@@ -134,14 +137,46 @@ function validateLifecycleScope(
 function normalizeLifecycleTargetInput<
   TInput extends {
     readonly scope: ExtensionPackageLifecycleScope
-    readonly viewProjectPaths?: readonly string[]
+    readonly viewProjectPaths?: readonly string[] | undefined
   },
 >(input: TInput) {
   return Effect.gen(function* () {
+    const { viewProjectPaths: requestedViewProjectPaths, ...target } = input
     const scope = yield* validateLifecycleScope(input.scope)
-    const viewProjectPaths = yield* validateProjectPaths(input.viewProjectPaths)
-    return { ...input, scope, viewProjectPaths }
+    const viewProjectPaths = yield* validateProjectPaths(requestedViewProjectPaths)
+    return { ...target, scope, viewProjectPaths }
   })
+}
+
+type DecodedWorkflowActor = Schema.Schema.Type<typeof extensionPackageWorkflowActorSchema>
+
+/** The decoded actor with absent optional ids left absent instead of present and undefined. */
+function exactWorkflowActor(actor: DecodedWorkflowActor): ExtensionPackageWorkflowActor {
+  if (actor.kind === 'agent') {
+    const { sessionId, ...agent } = actor
+    return sessionId === undefined ? agent : { ...agent, sessionId }
+  }
+  if (actor.kind === 'user') {
+    const { userId, ...user } = actor
+    return userId === undefined ? user : { ...user, userId }
+  }
+  return actor
+}
+
+function withExactWorkflowActor<TInput extends { readonly actor: DecodedWorkflowActor }>(
+  input: TInput,
+) {
+  return { ...input, actor: exactWorkflowActor(input.actor) }
+}
+
+/** Leaves an absent global confirmation absent instead of present and undefined. */
+function omitAbsentGlobalConfirmation<
+  TInput extends {
+    readonly globalConfirmation?: ExtensionPackageWorkflowGlobalConfirmation | undefined
+  },
+>(input: TInput) {
+  const { globalConfirmation, ...rest } = input
+  return globalConfirmation === undefined ? rest : { ...rest, globalConfirmation }
 }
 
 export function normalizeHostUiExtensionTrustedInput(
@@ -158,7 +193,7 @@ export function normalizeHostUiExtensionProposePackageWriteInput(
 ): Effect.Effect<ExtensionProposePackageWriteInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionProposePackageWriteInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(decoded)
+    return yield* normalizeLifecycleTargetInput(withExactWorkflowActor(decoded))
   })
 }
 
@@ -167,7 +202,9 @@ export function normalizeHostUiExtensionApplyPackageWriteInput(
 ): Effect.Effect<ExtensionApplyPackageWriteInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionApplyPackageWriteInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(decoded)
+    return yield* normalizeLifecycleTargetInput(
+      withExactWorkflowActor(omitAbsentGlobalConfirmation(decoded)),
+    )
   })
 }
 
@@ -176,7 +213,7 @@ export function normalizeHostUiExtensionProposePackageRemoveInput(
 ): Effect.Effect<ExtensionProposePackageRemoveInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionProposePackageRemoveInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(decoded)
+    return yield* normalizeLifecycleTargetInput(withExactWorkflowActor(decoded))
   })
 }
 
@@ -185,7 +222,9 @@ export function normalizeHostUiExtensionApplyPackageRemoveInput(
 ): Effect.Effect<ExtensionApplyPackageRemoveInput, Error> {
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionApplyPackageRemoveInputSchema, raw)
-    return yield* normalizeLifecycleTargetInput(decoded)
+    return yield* normalizeLifecycleTargetInput(
+      withExactWorkflowActor(omitAbsentGlobalConfirmation(decoded)),
+    )
   })
 }
 

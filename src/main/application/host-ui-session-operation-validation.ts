@@ -124,19 +124,15 @@ export function validateTreeUiStatePatch(value: unknown) {
         expandedNodeIds.push(yield* validateSessionNodeId(nodeId))
       }
     }
-    if (
-      value['branchesSidebarCollapsed'] !== undefined &&
-      typeof value['branchesSidebarCollapsed'] !== 'boolean'
-    ) {
+    const branchesSidebarCollapsed = value['branchesSidebarCollapsed']
+    if (branchesSidebarCollapsed !== undefined && typeof branchesSidebarCollapsed !== 'boolean') {
       return yield* invalid('Branches sidebar collapsed must be a boolean.')
     }
     const lastVisitedAt = yield* validateOptionalLastVisitedAt(value['lastVisitedAt'])
     return {
       ...(hasExpandedNodeIds ? { expandedNodeIds } : {}),
-      ...(hasBranchesSidebarCollapsed
-        ? { branchesSidebarCollapsed: value['branchesSidebarCollapsed'] }
-        : {}),
-      ...(hasLastVisitedAt ? { lastVisitedAt } : {}),
+      ...(typeof branchesSidebarCollapsed === 'boolean' ? { branchesSidebarCollapsed } : {}),
+      ...(lastVisitedAt === undefined ? {} : { lastVisitedAt }),
     } satisfies SessionTreeUiStatePatch
   })
 }

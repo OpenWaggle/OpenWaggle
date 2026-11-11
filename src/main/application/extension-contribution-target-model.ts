@@ -1,4 +1,5 @@
 import type { ExtensionContributionTargetView } from '@shared/types/extensions'
+import type { ManifestContributionTarget } from './extension-contribution-family-model'
 
 export interface ContributionTargetResolution {
   readonly target?: ExtensionContributionTargetView
@@ -7,7 +8,7 @@ export interface ContributionTargetResolution {
 }
 
 interface ResolveContributionTargetInput {
-  readonly target: ExtensionContributionTargetView | undefined
+  readonly target: ManifestContributionTarget | undefined
   readonly eligibilityProjectPaths: readonly string[]
   readonly requestedProjectPaths: readonly string[]
   readonly requestedSessionId: string | undefined
@@ -29,7 +30,7 @@ function uniqueTrimmedValues(values: readonly string[]) {
 }
 
 function normalizeTarget(
-  target: ExtensionContributionTargetView | undefined,
+  target: ManifestContributionTarget | undefined,
 ): ExtensionContributionTargetView | undefined {
   if (target === undefined) {
     return undefined
@@ -51,7 +52,7 @@ function normalizeTarget(
 }
 
 function targetSessionId(input: {
-  readonly target: ExtensionContributionTargetView | undefined
+  readonly target: ManifestContributionTarget | undefined
   readonly requestedSessionId: string | undefined
 }) {
   const requestedSessionId = input.requestedSessionId?.trim()
@@ -66,7 +67,7 @@ function targetSessionId(input: {
 }
 
 function targetProjectPaths(input: {
-  readonly target: ExtensionContributionTargetView | undefined
+  readonly target: ManifestContributionTarget | undefined
   readonly eligibilityProjectPaths: readonly string[]
   readonly requestedProjectPaths: readonly string[]
 }): readonly string[] | null {

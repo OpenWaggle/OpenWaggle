@@ -17,7 +17,11 @@ import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@share
 import * as Effect from 'effect/Effect'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
 import { createLogger } from '../logger'
-import { type AgentKernelRunControl, AgentKernelService } from '../ports/agent-kernel-service'
+import {
+  type AgentKernelRunControl,
+  type AgentKernelRunInput,
+  AgentKernelService,
+} from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
@@ -78,14 +82,17 @@ export interface WaggleRunInput extends Partial<WaggleExecutionContext> {
 }
 
 interface PreparedWaggleRun {
-  readonly assignedTitle?: string
+  readonly assignedTitle?: string | undefined
   readonly hydratedPayload: HydratedAgentSendPayload
   readonly inheritedModel: SupportedModelId
   readonly runtimeModel: SupportedModelId
   readonly compactionThresholdPercent: number
   readonly session: SessionDetail
-  readonly skillToggles: Record<string, boolean> | undefined
-  readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
+  /** What the kernel loads for this project: skill toggles and enabled extension packages. */
+  readonly projectResources: Pick<
+    AgentKernelRunInput,
+    'skillToggles' | 'enabledOpenWaggleExtensionPackagePaths'
+  >
 }
 
 function prepareWaggleRun(input: WaggleRunInput) {
@@ -115,6 +122,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
     }
     const enabledOpenWaggleExtensionPackagePaths =
       yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+    const skillToggles = settings.skillTogglesByProject[session.projectPath]
 
     return {
       ok: true as const,
@@ -128,8 +136,10 @@ function prepareWaggleRun(input: WaggleRunInput) {
         }),
         compactionThresholdPercent: settings.compactionThresholdPercent,
         session,
-        skillToggles: settings.skillTogglesByProject[session.projectPath],
-        enabledOpenWaggleExtensionPackagePaths,
+        projectResources: {
+          ...(skillToggles === undefined ? {} : { skillToggles }),
+          enabledOpenWaggleExtensionPackagePaths,
+        },
       },
     }
   })
@@ -182,8 +192,7 @@ function runPreparedWaggle(
       compactionThresholdPercent: prepared.compactionThresholdPercent,
       signal: input.signal,
       ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
-      skillToggles: prepared.skillToggles,
-      enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,
+      ...prepared.projectResources,
       onEvent: () => undefined,
       onWorktreeLaunch: (progress) => {
         input.onWorktreeLaunch?.(progress)
