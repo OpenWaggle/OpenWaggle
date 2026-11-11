@@ -152,30 +152,30 @@ describe('pinViolations', () => {
   })
 
   it('needs a line for the new version of a pin behind latest', async () => {
-    const { latest } = latestOf({ electron: '45.2.3' })
-    const changed = [pin('electron', '43.3.0', { section: 'devDependencies' })]
+    const { latest } = latestOf({ vite: '45.2.3' })
+    const changed = [pin('vite', '43.3.0', { section: 'devDependencies' })]
     const violations = await pinViolations({
       changed,
       all: changed,
-      lines: [line('electron', '43.2.0', 12)],
+      lines: [line('vite', '43.2.0', 12)],
       latest,
     })
     expect(violations).toEqual([
       {
-        package: 'electron',
+        package: 'vite',
         manifest: 'DEPENDENCIES.md',
         line: 12,
         kind: 'stale-line',
         message:
-          'the line pins `electron@43.2.0` but the manifests pin `43.3.0`; update or remove the line',
+          'the line pins `vite@43.2.0` but the manifests pin `43.3.0`; update or remove the line',
       },
       {
-        package: 'electron',
+        package: 'vite',
         manifest: 'package.json',
         line: 1,
         kind: 'missing-line',
         message:
-          '`electron` `43.3.0` in devDependencies is not the latest release (`45.2.3`); add a DEPENDENCIES.md line for `electron@43.3.0`',
+          '`vite` `43.3.0` in devDependencies is not the latest release (`45.2.3`); add a DEPENDENCIES.md line for `vite@43.3.0`',
       },
     ])
   })

@@ -28,8 +28,8 @@ const SHARED_DOMAIN_PREFIX = 'src/shared/domain/'
 const SHARED_ALIAS_PREFIX = '@shared/'
 const SHARED_ALIAS_LENGTH = SHARED_ALIAS_PREFIX.length
 
-const DOMAIN_FORBIDDEN_IMPORTS = new Set(['electron', 'node:child_process'])
-const DOMAIN_FORBIDDEN_IMPORT_PREFIXES = ['node:fs', '@effect/sql']
+const DOMAIN_FORBIDDEN_IMPORTS = new Set(['electrobun', 'node:child_process'])
+const DOMAIN_FORBIDDEN_IMPORT_PREFIXES = ['electrobun/', 'node:fs', '@effect/sql']
 const FILE_START_LOCATION = {
   line: 1,
   column: 0,
@@ -91,6 +91,10 @@ function isDomainInfrastructureImport(importPath: string) {
   )
 }
 
+function isDesktopShellImport(importPath: string) {
+  return importPath === 'electrobun' || importPath.startsWith('electrobun/')
+}
+
 function isPiSdkImport(importPath: string) {
   return PI_SDK_PACKAGE_PATTERN.test(importPath)
 }
@@ -125,8 +129,8 @@ function waggleCoreBoundaryReason(importPath: string, resolvedImport: string | n
     return 'packages/waggle-core must stay Pi-adapter free and must not import packages/pi-waggle.'
   }
 
-  return importPath === 'electron' || isPiSdkImport(importPath)
-    ? 'packages/waggle-core must stay portable and may not import Electron or Pi SDK modules.'
+  return isDesktopShellImport(importPath) || isPiSdkImport(importPath)
+    ? 'packages/waggle-core must stay portable and may not import the desktop shell or Pi SDK modules.'
     : null
 }
 

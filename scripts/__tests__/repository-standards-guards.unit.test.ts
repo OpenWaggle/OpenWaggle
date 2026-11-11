@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  collectScriptedElectronLaunchViolations,
+  collectScriptedAppLaunchViolations,
   collectSessionSummaryColumnViolations,
   collectUnguardedDesktopUiViolations,
   containsSessionBranchPrefix,
@@ -43,9 +43,9 @@ describe('session branch prefix detection', () => {
   })
 })
 
-const DESKTOP_UI_POLICY_OWNER = 'src/main/adapters/electron/electron-window-policy.ts'
+const DESKTOP_UI_POLICY_OWNER = 'src/main/adapters/electrobun/electrobun-window-policy.ts'
 
-describe('non-disruptive Electron automation boundary', () => {
+describe('non-disruptive desktop automation boundary', () => {
   it('keeps native context-menu presentation inside the desktop UI policy', () => {
     expect(
       collectUnguardedDesktopUiViolations('src/main/preview.ts', 'menu.popup({ window })'),
@@ -88,62 +88,26 @@ describe('non-disruptive Electron automation boundary', () => {
     expect(collectUnguardedDesktopUiViolations(primitive, 'mainWindow.show()')).toHaveLength(1)
   })
 
-  it('rejects scripted Electron launches that omit explicit automation mode', () => {
-    const unsafe = "const app = await electron.launch({ args: ['.'], env: {} })"
-    const misleading =
-      "const marker = 'OPENWAGGLE_AUTOMATION'; electron.launch({ args: ['.'], env: {} })"
-    const aliased =
-      "import { _electron as appDriver } from '@playwright/test'; appDriver.launch({ env: {} })"
-    const safe = 'launchOpenWaggleElectron({ userDataDir, hidden: true })'
+  it('starts the app for automation only through the automation launcher', () => {
+    const unsafe = "spawn(launcher, [], { env: { ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: '9223' } })"
+    const renderer = "const env = { OPENWAGGLE_QA_MAIN_WINDOW_RENDERER: 'cef' }"
+    const safe = 'await launchElectrobunApp({ app, profile })'
 
-    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', unsafe)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', misleading)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', aliased)).toHaveLength(1)
-    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', safe)).toEqual([])
+    expect(collectScriptedAppLaunchViolations('scripts/qa.ts', unsafe)).toHaveLength(1)
+    expect(collectScriptedAppLaunchViolations('scripts/qa.ts', renderer)).toHaveLength(1)
+    expect(collectScriptedAppLaunchViolations('scripts/qa.ts', safe)).toEqual([])
+    expect(
+      collectScriptedAppLaunchViolations('scripts/support/electrobun-app-launch.ts', unsafe),
+    ).toEqual([])
   })
 
-  it('rejects aliased Electron desktop UI imports and visible window construction', () => {
-    const source = [
-      "import { shell as osShell, BrowserWindow as BW } from 'electron'",
-      "osShell.openExternal('https://example.com')",
-      'new BW({ show: true })',
-    ].join('\n')
-
-    expect(collectUnguardedDesktopUiViolations('src/main/unsafe.ts', source)).toHaveLength(2)
+  it('rejects visible window construction through any constructor expression', () => {
     expect(
       collectUnguardedDesktopUiViolations('src/main/unsafe.ts', 'new BrowserWindow()'),
     ).toHaveLength(1)
     expect(
-      collectUnguardedDesktopUiViolations('src/main/unsafe.ts', 'new BaseWindow()'),
+      collectUnguardedDesktopUiViolations('src/main/unsafe.ts', 'new (sdk.BrowserWindow)({})'),
     ).toHaveLength(1)
-  })
-
-  it('rejects local aliases and broad imports of native window constructors', () => {
-    const localAlias = [
-      "import { BrowserWindow } from 'electron'",
-      'const WindowCtor = BrowserWindow',
-      'new WindowCtor()',
-    ].join('\n')
-
-    expect(collectUnguardedDesktopUiViolations('src/main/unsafe.ts', localAlias)).toHaveLength(1)
-    expect(
-      collectUnguardedDesktopUiViolations(
-        'src/main/unsafe.ts',
-        "import * as Electron from 'electron'; const WindowCtor = Electron.BaseWindow",
-      ),
-    ).toHaveLength(1)
-    expect(
-      collectUnguardedDesktopUiViolations(
-        'src/main/unsafe.ts',
-        "import Electron, { app } from 'electron'; new Electron.BrowserWindow()",
-      ),
-    ).toHaveLength(1)
-    expect(
-      collectUnguardedDesktopUiViolations(
-        'src/main/safe-types.ts',
-        "import { type BrowserWindow } from 'electron'",
-      ),
-    ).toEqual([])
   })
 
   it('allows the audited policy owner and test stubs', () => {
@@ -245,14 +209,14 @@ describe('syntax rendering architecture', () => {
   it('keeps renderer workers module-split instead of inlining every grammar', () => {
     expect(
       collectSyntaxRenderingViolations(
-        'electron.vite.config.ts',
-        "export default { renderer: { worker: { format: 'es' } } }",
+        'vite.renderer.config.ts',
+        "export default { worker: { format: 'es' } }",
       ),
     ).toEqual([])
     expect(
       collectSyntaxRenderingViolations(
-        'electron.vite.config.ts',
-        "export default { renderer: { worker: { format: 'iife' } } }",
+        'vite.renderer.config.ts',
+        "export default { worker: { format: 'iife' } }",
       ),
     ).toHaveLength(1)
   })

@@ -6,7 +6,7 @@ out/
 !.pi/extensions/
 
 # tsc typecheck byproducts (declarations + build info), namespaced per target. Kept
-# out of out/ so they are never packaged by electron-builder's `out/**/*` glob.
+# out of out/ so they are never staged into the packaged app.
 .typecheck/
 dist/
 dist-cjs/
@@ -51,9 +51,8 @@ build/session-embedding-model/
 # Local herdr orchestration config (machine-specific)
 .agents/skills/herdr-orchestration/.herdr-config.json
 
-# Config bundles Vite and electron-vite write next to their config while loading it; the check
-# runner's parallel steps (format, repository standards) must not see them.
-electron.vite.config.*.mjs
+# Config bundles Vite writes next to its config while loading it; the check runner's parallel
+# steps (format, repository standards) must not see them.
 *.timestamp-*.mjs
 
 # Hutch (Electrobun build) scratch directory

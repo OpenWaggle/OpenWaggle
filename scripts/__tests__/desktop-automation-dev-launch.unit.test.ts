@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { collectScriptedElectronLaunchViolations } from '../standards/electron-automation'
+import { collectScriptedAppLaunchViolations } from '../standards/desktop-automation'
 
-describe('development app launches in the electron-automation standard', () => {
+describe('development app launches in the desktop-automation standard', () => {
   it.each([
-    ['spawn("pnpm", ["exec", "electron-vite", "dev"])', 1],
-    ["import { spawn as run } from 'node:child_process'\nrun('x', ['electron-vite', 'dev'])", 1],
-    ["electronDevInvocation('vite', [])", 1],
-    ["spawn('bun', ['scripts/run-electron-dev.ts', 'vite'])", 1],
-    ["spawn(bunExecutable(), ['x', 'electron-vite', 'dev'])", 1],
+    ["spawn('bun', ['scripts/electrobun/dev.ts', '--debug'])", 1],
+    ["import { devArguments } from '../electrobun/dev'", 1],
     ["spawn('bun', ['run', 'dev'])", 1],
     ["spawn(bunExecutable(), ['run', 'dev:debug:headed'])", 1],
     ["spawn(bunExecutable(), ['dev'])", 1],
@@ -34,19 +31,15 @@ describe('development app launches in the electron-automation standard', () => {
     ["run('bun', ['run', 'build'])\nconst CHANNELS = ['dev', 'beta', 'stable']", 0],
     ["const commands = ['bun install', 'bun run dev']", 0],
   ] as const)('counts %s as %i development app launch', (source, launches) => {
-    expect(collectScriptedElectronLaunchViolations('scripts/x.ts', source)).toHaveLength(launches)
-    expect(collectScriptedElectronLaunchViolations('packages/x/y.ts', source)).toHaveLength(
-      launches,
-    )
-    expect(collectScriptedElectronLaunchViolations('scripts/start-electron-qa.ts', source)).toEqual(
-      [],
-    )
+    expect(collectScriptedAppLaunchViolations('scripts/x.ts', source)).toHaveLength(launches)
+    expect(collectScriptedAppLaunchViolations('packages/x/y.ts', source)).toHaveLength(launches)
+    expect(collectScriptedAppLaunchViolations('scripts/electrobun/dev.ts', source)).toEqual([])
   })
 
   it.each(["spawn('bun', ['run', 'dev'])", "spawn('pnpm', ['dev'])"])(
     "leaves the app's own code, which runs a project's %s for the user, to other rules",
     (source) => {
-      expect(collectScriptedElectronLaunchViolations('src/main/x.ts', source)).toEqual([])
+      expect(collectScriptedAppLaunchViolations('src/main/x.ts', source)).toEqual([])
     },
   )
 })

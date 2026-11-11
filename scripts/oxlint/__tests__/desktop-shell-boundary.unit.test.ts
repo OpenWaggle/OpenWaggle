@@ -9,29 +9,27 @@ function lint(code: string, filename: string) {
 }
 
 describe('desktop shell boundary', () => {
-  it('reports every form of Electron reference outside the shell adapters', () => {
+  it('reports every form of Electrobun SDK reference outside the shell adapters', () => {
     const sources = [
-      "import { app } from 'electron'\nexport const value = app\n",
-      "import type { WebContents } from 'electron'\nexport type Value = WebContents\n",
-      "export { app } from 'electron'\n",
-      "export const load = () => import('electron')\n",
-      "export type App = import('electron').App\n",
-      "export const electron = require('electron')\n",
-      'export type Window = Electron.BrowserWindow\n',
-      "import { autoUpdater } from 'electron-updater'\nexport const value = autoUpdater\n",
-      "import { is } from '@electron-toolkit/utils'\nexport const value = is\n",
       "import { BrowserWindow } from 'electrobun/main'\nexport const value = BrowserWindow\n",
+      "import type { BrowserWindow } from 'electrobun/main'\nexport type Value = BrowserWindow\n",
+      "export { Utils } from 'electrobun/main'\n",
+      "export const load = () => import('electrobun/main')\n",
+      "export type Sdk = import('electrobun/main').BrowserWindow\n",
+      "export const sdk = require('electrobun/main')\n",
       "import { Electroview } from 'electrobun/view'\nexport const value = Electroview\n",
     ]
     for (const source of sources) {
       const messages = lint(source, 'src/main/ipc/example.ts')
       expect(messages, source).toHaveLength(1)
-      expect(messages.at(0)?.message).toContain('Electron outside the desktop shell adapters')
+      expect(messages.at(0)?.message).toContain(
+        'Desktop shell SDK outside the desktop shell adapters',
+      )
     }
   })
 
   it('applies to tests, the preload and the renderer as well as main', () => {
-    const source = "import type { WebContents } from 'electron'\nexport type Value = WebContents\n"
+    const source = "import type { Utils } from 'electrobun/main'\nexport type Value = Utils\n"
     for (const filename of [
       'src/main/ipc/__tests__/example.unit.test.ts',
       'src/preload/api.ts',
@@ -42,32 +40,20 @@ describe('desktop shell boundary', () => {
     }
   })
 
-  it('allows the Electron adapters alone', () => {
-    const source = "import { app } from 'electron'\nexport const value = app\n"
+  it('allows the Electrobun adapters and the preload transport alone', () => {
+    const source = "import { Utils } from 'electrobun/main'\nexport const value = Utils\n"
     for (const filename of [
-      'src/main/adapters/electron/electron-app-paths.ts',
-      'src/main/adapters/electron/browser-preview/browser-preview.ts',
-      'src/main/adapters/electron/__tests__/electron-app-paths.unit.test.ts',
+      'src/main/adapters/electrobun/electrobun-os-shell.ts',
+      'src/main/adapters/electrobun/__tests__/electrobun-os-shell.unit.test.ts',
+      'src/preload/transport.ts',
     ]) {
-      expect(lint(source, filename), filename).toHaveLength(0)
+      expect(lint(source, filename), filename).toEqual([])
     }
-    expect(lint(source, 'src/preload/transport.ts')).toHaveLength(1)
-  })
-
-  it('keeps each shell to its own adapters', () => {
-    const electrobun = "import { Utils } from 'electrobun/main'\nexport const value = Utils\n"
-    expect(lint(electrobun, 'src/main/adapters/electrobun/electrobun-os-shell.ts')).toEqual([])
-    expect(lint(electrobun, 'src/preload/transport.ts')).toEqual([])
-    expect(lint(electrobun, 'src/main/adapters/electron/electron-os-shell.ts')).toHaveLength(1)
-    const electron = "import { shell } from 'electron'\nexport const value = shell\n"
-    expect(lint(electron, 'src/main/adapters/electrobun/electrobun-os-shell.ts')).toHaveLength(1)
   })
 
   it('confines the Sentry SDKs to the crash-reporting adapters', () => {
     const source = "import { init } from '@sentry/browser'\nexport const value = init\n"
     expect(lint(source, 'src/renderer/src/shared/lib/sentry-renderer.ts')).toHaveLength(0)
-    const electron = "import { init } from '@sentry/electron/renderer'\nexport const value = init\n"
-    expect(lint(electron, 'src/renderer/src/shared/lib/sentry-renderer.ts')).toHaveLength(1)
     const messages = lint(source, 'src/renderer/src/features/chat/example.ts')
     expect(messages).toHaveLength(1)
     expect(messages.at(0)?.message).toContain('ErrorReporter port')
@@ -77,16 +63,16 @@ describe('desktop shell boundary', () => {
   })
 
   it('ignores scripts, look-alike packages and mocks that import nothing', () => {
-    expect(lint("import { app } from 'electron'\nexport const a = app\n", 'scripts/x.ts')).toEqual(
-      [],
-    )
-    for (const lookAlike of ['electron-to-chromium', 'electrobun-x']) {
+    expect(
+      lint("import { Utils } from 'electrobun/main'\nexport const a = Utils\n", 'scripts/x.ts'),
+    ).toEqual([])
+    for (const lookAlike of ['electrobun-x', 'electron-to-chromium']) {
       expect(lint(`import x from '${lookAlike}'\nexport const a = x\n`, 'src/main/x.ts')).toEqual(
         [],
       )
     }
-    expect(lint("vi.mock('electron', () => ({}))\n", 'src/main/__tests__/x.unit.test.ts')).toEqual(
-      [],
-    )
+    expect(
+      lint("vi.mock('electrobun/main', () => ({}))\n", 'src/main/__tests__/x.unit.test.ts'),
+    ).toEqual([])
   })
 })

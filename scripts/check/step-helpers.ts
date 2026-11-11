@@ -44,7 +44,9 @@ export function bunScript(script: string, ...args: string[]) {
 export const SOURCE_FILES = '**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'
 export const LINT_FILES = [
   `{src,packages,scripts,website,functions,fixtures}/${SOURCE_FILES}`,
-  'electron.vite.config.ts',
+  'electrobun.config.ts',
+  'hutch.config.ts',
+  'vite.renderer.config.ts',
 ]
 export const LINT_CONFIG = [
   'oxlint.config.mts',

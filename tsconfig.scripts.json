@@ -43,8 +43,7 @@
     "hutch.config.ts",
     "electrobun.config.ts",
     "vendor/electrobun/hooks/*.ts",
-    "electron.vite.config.ts",
-    "electron-builder.ts"
+    "vite.renderer.config.ts"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

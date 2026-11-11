@@ -424,14 +424,6 @@ const config: DoctorConfig = {
         rules: ['react-doctor/no-eval'],
       },
       {
-        // The flagged step runs the NSIS installer that the same job just built from this
-        // checkout with electron-builder (`dist/openwaggle-<version>-x64.exe`), to smoke it.
-        // Nothing is downloaded or fetched from another repository, so no trust boundary is
-        // crossed.
-        files: ['.github/workflows/nightly.yml'],
-        rules: ['react-doctor/plugin-update-trust-risk'],
-      },
-      {
         // The reset is in the `finally` block. It is guarded by the request id so a superseded
         // request cannot clear the loading flag of the newer request that replaced it; the
         // newer request, or cancel(), owns that flag. The analyzer only accepts an

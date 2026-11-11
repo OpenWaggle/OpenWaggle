@@ -11,7 +11,7 @@ describe('exact dependency versions', () => {
         '@earendil-works/pi-ai': 'catalog:pi-runtime',
         '@openwaggle/waggle-core': 'workspace:^',
       },
-      devDependencies: { electron: '39.0.0-beta.3' },
+      devDependencies: { vite: '9.0.0-beta.3' },
     })
 
     expect(collectExactDependencyVersionViolations('package.json', contents)).toEqual([])

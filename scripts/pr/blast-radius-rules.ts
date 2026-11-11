@@ -31,16 +31,17 @@ const RELEASE_FILES = new Set([
   'bun.lock',
   'bun.lockb',
   'bunfig.toml',
-  'electron-builder.ts',
+  'electrobun.config.ts',
+  'hutch.config.ts',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
   'release-please-config.json',
   'scripts/install.sh',
 ])
 const RELEASE_SCRIPT_PATTERN =
-  /^scripts\/(?:app-release|package-release|mac-signing|verify-release)/
+  /^scripts\/(?:app-release|package-release|electrobun\/|electrobun-transition\/|verify-release)/
 const TOOLING_CONFIG_PATTERN =
-  /^(?:tsconfig[^/]*\.json|vitest[^/]*\.ts|oxlint\.config\.mts|\.oxfmtrc\.json|tools\/bun-lint\/.+|\.fallowrc\.jsonc|electron\.vite\.config\.ts|doctor\.config\.ts)$/
+  /^(?:tsconfig[^/]*\.json|vitest[^/]*\.ts|oxlint\.config\.mts|\.oxfmtrc\.json|tools\/bun-lint\/.+|\.fallowrc\.jsonc|vite\.renderer\.config\.ts|doctor\.config\.ts)$/
 const AGENT_FILES = new Set(['AGENTS.md', 'CONTEXT.md', 'MEMORY.md'])
 const PROJECT_DOCS = new Set(['CHANGELOG.md', 'CONTRIBUTING.md', 'README.md'])
 

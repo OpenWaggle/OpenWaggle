@@ -33,7 +33,7 @@ export function collectSyntaxRenderingViolations(file: string, contents: string)
     })
   }
   if (
-    normalized === 'electron.vite.config.ts' &&
+    normalized === 'vite.renderer.config.ts' &&
     !/worker\s*:\s*\{[\s\S]*?format\s*:\s*['"]es['"]/u.test(source)
   ) {
     violations.push({

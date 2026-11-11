@@ -45,15 +45,13 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `babel-plugin-react-compiler@1.0.0`. Held: patched for Babel 8 `AssignmentPattern` bailouts (`patches/babel-plugin-react-compiler@1.0.0.patch`); `react-compiler-coverage.unit.test.ts` catches a regression. Unblocked by: re-porting the patch.
 - `better-sqlite3@13.0.3`. Held: a native module; the `@effect/sql-sqlite-node>better-sqlite3` override keeps one SQLite build in the Host process (docs/system-architecture.md#one-sqlite-library). Unblocked by: the next monthly batch, changing the override with it.
 - `effect@3.22.2`. Held: `latest` is Effect 4, a major migration; this is the Effect 3 line. Unblocked by: the Effect 4 migration, moving every `@effect/*` package with it.
-- `electron@43.2.0`. Held: it sets the ABI of the native modules: an update needs `prepare:native:node`, `prepare:native:electron` and a packaged smoke (docs/dependency-updates.md). Unblocked by: the next monthly batch, with those three runs.
-- `electron-builder@26.17.0`. Held: `dmg-builder` `26.17.0` is patched (`patches/dmg-builder@26.17.0.patch`). Unblocked by: re-creating the patch.
 - `oxc-parser@0.148.0`. Held: the version `react-doctor` `0.9.22` already installs, so the lint rule tests add no package. Unblocked by: moving `react-doctor`.
 - `quickjs-wasi@3.6.2`. Held: the version Pi depends on; Pi reads its wasm from the installed package, and `check:pi-runtime` fails on drift. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
 - `react-doctor@0.9.22`. Held: `0.9.23` came out on 2026-11-13, and the seven-day `minimumReleaseAge` in `bunfig.toml` refuses it until 2026-11-20. Unblocked by: that date, moving `oxc-parser` to the version the new release installs.
 - `sharp@0.35.4`. Held: a native module; the root `overrides` pin the same version. Unblocked by: the next monthly batch, with the `@img/sharp-*` binaries.
 - `shiki@4.4.3`. Held: the root `overrides` pin `@pierre/diffs>shiki` and `@pierre/theming>shiki` to this version. Unblocked by: the next monthly batch, moving all three together.
 - `typebox@1.3.27`. Held: the `typebox` `pi-coding-agent` depends on, the copy Pi gives extensions; `check:pi-runtime` checks it. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
-- `vite@8.3.0`. Held: the root override pins `electron-vite>vite` to this version. Unblocked by: the next monthly batch, changing the override with it.
+- `vite@8.3.0`. Held: nothing; it builds the renderer (`vite.renderer.config.ts`). Unblocked by: the next monthly batch.
 
 ## Waiting for the monthly batch
 
@@ -88,8 +86,6 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `astro@7.3.2`. Held: nothing. Unblocked by: the next monthly batch.
 - `chokidar@5.0.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `editorconfig@3.0.2`. Held: nothing. Unblocked by: the next monthly batch.
-- `electron-updater@6.8.10`. Held: nothing. Unblocked by: the next monthly batch.
-- `electron-vite@5.0.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `fallow@3.33.1`. Held: nothing. Unblocked by: the next monthly batch.
 - `hast-util-to-jsx-runtime@2.3.6`. Held: nothing. Unblocked by: the next monthly batch.
 - `ignore@7.0.9`. Held: nothing. Unblocked by: the next monthly batch.

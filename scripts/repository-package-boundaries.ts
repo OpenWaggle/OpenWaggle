@@ -28,14 +28,7 @@ const builtinSpecifiers = new Set([
   ...builtinModules.map((moduleName) => `node:${moduleName}`),
 ])
 
-const openWaggleAppImportPrefixes = [
-  '@/',
-  '@shared/',
-  'src/',
-  'electron/',
-  'electron-vite',
-  'electron-builder',
-] as const
+const openWaggleAppImportPrefixes = ['@/', '@shared/', 'src/', 'electrobun/'] as const
 
 const packageBoundaryRules: readonly PackageBoundaryRule[] = [
   {
@@ -44,7 +37,7 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
     allowNodeBuiltins: false,
     allowedExternalSpecifiers: [],
     allowedExternalPrefixes: [],
-    forbiddenExternalSpecifiers: ['electron'],
+    forbiddenExternalSpecifiers: ['electrobun'],
     forbiddenExternalPrefixes: [
       '@/',
       '@shared/',
@@ -60,7 +53,7 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
     allowNodeBuiltins: false,
     allowedExternalSpecifiers: ['react', 'react/jsx-runtime', '@openwaggle/extension-sdk'],
     allowedExternalPrefixes: ['@openwaggle/extension-sdk/'],
-    forbiddenExternalSpecifiers: ['electron'],
+    forbiddenExternalSpecifiers: ['electrobun'],
     forbiddenExternalPrefixes: [
       '@/',
       '@shared/',
@@ -76,7 +69,7 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
     allowNodeBuiltins: false,
     allowedExternalSpecifiers: [],
     allowedExternalPrefixes: [],
-    forbiddenExternalSpecifiers: ['electron'],
+    forbiddenExternalSpecifiers: ['electrobun'],
     forbiddenExternalPrefixes: [
       '@/',
       '@shared/',
@@ -97,7 +90,7 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
       '@earendil-works/pi-tui',
     ],
     allowedExternalPrefixes: ['@openwaggle/waggle-core/'],
-    forbiddenExternalSpecifiers: ['electron'],
+    forbiddenExternalSpecifiers: ['electrobun'],
     forbiddenExternalPrefixes: [
       '@/',
       '@shared/',

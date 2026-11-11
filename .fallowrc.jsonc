@@ -13,17 +13,14 @@
     // Run by path from scripts/benchmark-docker/run.sh.
     "scripts/benchmark-docker/count-request-tokens.ts",
     "scripts/benchmark-docker/openwaggle-row.ts",
-    // Maintainer scripts run by path with bun (their doc comments, docs/, or the
-    // electron-automation allowlist in scripts/standards/electron-automation.ts).
+    // Maintainer scripts run by path with bun (their doc comments or docs/).
     "scripts/benchmark-terminal-output.ts",
     "scripts/check-session-hive-api-compatibility.ts",
     "scripts/generate-channel-icons.ts",
     "scripts/generate-macos-icons.ts",
-    "scripts/measure-main-startup.ts",
     // Run through `conformance client --command "bun scripts/node-script-bundle.ts --run ..."` in test:mcp:conformance.
     "scripts/mcp-conformance-client.mts",
-    // scripts/pi-main-bundle-smoke.ts builds this config by path; its lib entry is the smoke entry.
-    "scripts/support/pi-main-bundle-smoke.electron-vite.config.ts",
+    // scripts/pi-main-bundle-smoke.ts builds it by path with the main build.
     "scripts/support/pi-main-bundle-smoke-entry.ts",
     // Vitest globalSetup, referenced by path through TEST_TEMPORARY_ROOT_SETUP.
     "scripts/test-support/vitest-temporary-root.ts",
@@ -81,11 +78,8 @@
     // oxlint.config.mts loads the TanStack lint plugins by package name (jsPlugins).
     "@tanstack/eslint-plugin-query",
     "@tanstack/eslint-plugin-router",
-    // Packaged Electron updater resolves debug's `require("ms")` from the
-    // app-level node_modules inside app.asar.
-    "ms",
     // Pi's bundled main process reads these packages' wasm from the installed
-    // root package (scripts/vite/pi-worker-bundles.ts); check:pi-runtime pins them.
+    // root package (scripts/build-main.ts `PI_WORKERS`); check:pi-runtime pins them.
     "@silvia-odwyer/photon-node",
     "quickjs-wasi",
     // The attachment parser worker resolves these by package name at run time
@@ -117,7 +111,6 @@
     { "package": "@huggingface/transformers>onnxruntime-node", "source": "package.json" },
     { "package": "@pierre/diffs>shiki", "source": "package.json" },
     { "package": "@pierre/theming>shiki", "source": "package.json" },
-    { "package": "electron-vite>vite", "source": "package.json" },
     { "package": "@tanstack/history", "source": "package.json" },
     { "package": "@tanstack/query-core", "source": "package.json" },
     { "package": "@tanstack/router-core", "source": "package.json" },
@@ -128,9 +121,10 @@
   // TanStack Router file routes must each export `Route`; that framework contract
   // makes duplicate-export analysis noisy for this app.
   //
-  // electron-vite bundles main, preload and renderer, and electron-builder ships
-  // only `dependencies`, so bundled packages are devDependencies on purpose
-  // (MEMORY.md; packaged-app:smoke rejects renderer-only packages that ship).
+  // The app builds bundle main, preload and renderer (scripts/build-app-bundles.ts), and the
+  // Electrobun stage ships only `dependencies` (scripts/electrobun/stage-node-modules.ts), so
+  // bundled packages are devDependencies on purpose (packaged-app:smoke rejects renderer-only
+  // packages that ship).
   //
   // The pi-runtime catalog pins Pi's whole matched release, including packages
   // OpenWaggle only gets transitively; check:pi-runtime requires every entry

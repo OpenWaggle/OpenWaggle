@@ -21,9 +21,9 @@ import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
 import {
-  collectScriptedElectronLaunchViolations,
+  collectScriptedAppLaunchViolations,
   collectUnguardedDesktopUiViolations,
-} from './standards/electron-automation'
+} from './standards/desktop-automation'
 import {
   collectRendererDesignTokenExemptionViolations,
   readRendererDesignTokenExemptions,
@@ -88,7 +88,7 @@ const ignoreGlobs: string[] = [
 ]
 
 const toolingConfigPattern =
-  /(^|\/)(astro|babel|electron\.vite|eslint|playwright|postcss|prettier|tailwind|vite|vitest)\.config\.(cjs|js|mjs)$/
+  /(^|\/)(astro|babel|eslint|playwright|postcss|prettier|tailwind|vite|vitest)\.config\.(cjs|js|mjs)$/
 const tsconfigPattern = /(^|\/)tsconfig[^/]*\.json$/
 
 function normalizePath(filePath: string) {
@@ -136,7 +136,7 @@ function collectViolationsForFile(file: string, contents: string) {
     ...collectPackageBoundaryViolations(file, contents),
     ...collectSessionBranchConventionViolations(file, contents),
     ...collectUnguardedDesktopUiViolations(file, contents),
-    ...collectScriptedElectronLaunchViolations(file, contents),
+    ...collectScriptedAppLaunchViolations(file, contents),
     ...collectSessionSummaryColumnViolations(file, contents),
     ...collectSyntaxRenderingViolations(file, contents),
     ...collectExactDependencyVersionViolations(file, contents),
@@ -146,7 +146,7 @@ function collectViolationsForFile(file: string, contents: string) {
   ] satisfies readonly RepositoryViolation[]
 }
 
-export { collectScriptedElectronLaunchViolations, collectUnguardedDesktopUiViolations }
+export { collectScriptedAppLaunchViolations, collectUnguardedDesktopUiViolations }
 export { containsSessionBranchPrefix }
 
 function printViolations(violations: readonly Violation[]) {

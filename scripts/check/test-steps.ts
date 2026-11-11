@@ -25,7 +25,7 @@ export const TEST_STEPS: readonly CheckStep[] = [
   {
     id: 'native-node',
     summary: 'native modules built for Node (cached)',
-    commands: [bunScript('scripts/rebuild-native-deps.ts', 'node')],
+    commands: [bunScript('scripts/rebuild-native-deps.ts')],
     inputs: ['bun.lock'],
     findings: 'generic',
     hint: 'bun run prepare:native:node',

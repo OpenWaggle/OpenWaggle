@@ -3,11 +3,10 @@ import type { Context, ESTree, Rule } from '@oxlint/plugins'
 import { moduleSpecifierOf, normalizedFilename } from '../ast-helpers.ts'
 
 /**
- * The desktop shell boundary (ADR 0064): OpenWaggle moves from Electron to Electrobun behind the
- * desktop shell ports in `src/main/ports/desktop-shell/`. Only each shell's adapters and its
- * preload transport may reach the shell, so the shell switch replaces those modules and nothing
- * else. Every reference counts, type-only imports, `import()` types, `require()` and the ambient
- * `Electron.*` namespace included.
+ * The desktop shell boundary (ADR 0064): main-process code reaches Electrobun only through the
+ * desktop shell ports in `src/main/ports/desktop-shell/`. Only the Electrobun adapters and the
+ * preload transport may import the SDK, so a change of shell replaces those modules and nothing
+ * else. Every reference counts: type-only imports, `import()` types and `require()` included.
  */
 interface ShellPackages {
   readonly packages: readonly string[]
@@ -16,11 +15,6 @@ interface ShellPackages {
 }
 
 const SHELLS: readonly ShellPackages[] = [
-  {
-    packages: ['electron', 'electron-updater', '@electron-toolkit/'],
-    owners: ['src/main/adapters/electron/'],
-    reason: 'src/main/adapters/electron/',
-  },
   {
     // Electrobun 2.x: `electrobun/main` in the Bun main process, `electrobun/view` in webviews.
     packages: ['electrobun'],
@@ -35,11 +29,6 @@ const SHELLS: readonly ShellPackages[] = [
  */
 const SENTRY_PACKAGES: readonly ShellPackages[] = [
   {
-    packages: ['@sentry/electron'],
-    owners: ['src/main/adapters/electron/'],
-    reason: 'the crash-reporting adapters',
-  },
-  {
     packages: ['@sentry/bun', '@sentry/browser'],
     owners: [
       'src/main/adapters/electrobun/',
@@ -51,8 +40,6 @@ const SENTRY_PACKAGES: readonly ShellPackages[] = [
     reason: 'the crash-reporting adapters',
   },
 ]
-
-const ELECTRON_NAMESPACE = 'Electron'
 
 /** The repository-relative path; lint runs from the repository root. */
 function toProjectPath(filename: string) {
@@ -95,14 +82,14 @@ export function desktopShellBoundaryReason(importPath: string, projectPath: stri
 }
 
 function report(context: Context, node: ESTree.Node, reason: string) {
-  context.report({ node, messageId: 'electronOutsideShellAdapter', data: { reason } })
+  context.report({ node, messageId: 'shellOutsideShellAdapter', data: { reason } })
 }
 
 export const desktopShellBoundaryRule: Rule = {
   meta: {
     type: 'problem',
     messages: {
-      electronOutsideShellAdapter: 'Electron outside the desktop shell adapters: {{reason}}',
+      shellOutsideShellAdapter: 'Desktop shell SDK outside the desktop shell adapters: {{reason}}',
     },
   },
   create(context) {
@@ -121,14 +108,6 @@ export const desktopShellBoundaryRule: Rule = {
       ImportDeclaration: checkReference,
       ImportExpression: checkReference,
       TSImportType: checkReference,
-      TSQualifiedName(node) {
-        const { left } = node
-        if (left.type !== 'Identifier' || left.name !== ELECTRON_NAMESPACE) {
-          return
-        }
-        const reason = desktopShellBoundaryReason('electron', projectPath)
-        if (reason) report(context, node, reason)
-      },
     }
   },
 }

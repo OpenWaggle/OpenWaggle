@@ -75,8 +75,9 @@ const TYPE_AWARE_FILES = [
   'website/**',
   'functions/**',
   '.pi/**',
-  'electron.vite.config.ts',
-  'electron-builder.ts',
+  'electrobun.config.ts',
+  'hutch.config.ts',
+  'vite.renderer.config.ts',
 ]
 
 /** Projects that check noUncheckedIndexedAccess, which no-unnecessary-condition needs. */
@@ -84,8 +85,9 @@ const INDEX_CHECKED_FILES = [
   'packages/**',
   'scripts/**',
   '.pi/**',
-  'electron.vite.config.ts',
-  'electron-builder.ts',
+  'electrobun.config.ts',
+  'hutch.config.ts',
+  'vite.renderer.config.ts',
 ]
 
 const REACT_COMPONENT_FILES = ['src/renderer/src/**/*.tsx', 'packages/extension-react/**/*.tsx']
@@ -96,7 +98,9 @@ const ESLINT_FILES = [
   'scripts/**/*.ts',
   'functions/**/*.ts',
   'website/**/*.{ts,tsx}',
-  'electron.vite.config.ts',
+  'electrobun.config.ts',
+  'hutch.config.ts',
+  'vite.renderer.config.ts',
 ]
 
 const BIOME_FILES = ['src/**', 'packages/**', 'fixtures/**', 'functions/**']

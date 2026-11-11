@@ -38,8 +38,10 @@ const LINT_PATHS = [
   'functions',
   'fixtures',
   '.pi',
-  'electron.vite.config.ts',
-  'electron-builder.ts',
+  'vendor',
+  'electrobun.config.ts',
+  'hutch.config.ts',
+  'vite.renderer.config.ts',
 ]
 const MILLISECONDS_PER_SECOND = 1000
 const SCRIPT_ARGUMENTS_START = 2

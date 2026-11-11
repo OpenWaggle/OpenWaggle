@@ -6,7 +6,7 @@ import { inlineScriptHashes, inlineScriptHashFailures } from '../renderer-inline
 
 const SOURCE_PAGE = readFileSync(path.resolve(__dirname, '../../src/renderer/index.html'), 'utf8')
 
-/** What electron-vite writes: the entry becomes a bundled module script with a hashed name. */
+/** What the renderer build writes: the entry becomes a bundled module script with a hashed name. */
 function builtPage(inlineScript: string) {
   return [
     '<!doctype html><html><head>',

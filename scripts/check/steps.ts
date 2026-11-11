@@ -41,9 +41,9 @@ export const STEPS: readonly CheckStep[] = [
   },
   {
     id: 'installer',
-    summary: 'build/installer.nsh compiles (skipped without NSIS unless REQUIRE_NSIS=1)',
+    summary: 'the Windows installer compiles (skipped without NSIS unless REQUIRE_NSIS=1)',
     commands: [bunScript('scripts/check-installer-script.ts')],
-    inputs: ['build/installer.nsh', 'scripts/check-installer-script.ts'],
+    inputs: ['build/electrobun-transition/**', 'scripts/*installer*.ts'],
     findings: 'generic',
     hint: 'bun run check:installer',
   },
@@ -209,7 +209,7 @@ export const STEPS: readonly CheckStep[] = [
   },
   {
     id: 'pi-main-bundle-smoke',
-    summary: 'Pi bundled into the main chunk runs under Node and Electron as Node',
+    summary: 'Pi bundled into the main build runs under Bun',
     commands: [bunScript('scripts/pi-main-bundle-smoke.ts')],
     inputs: ['src/main/**', 'packages/pi-waggle/src/**', 'scripts/support/**'],
     findings: 'generic',
