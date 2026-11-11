@@ -9,9 +9,18 @@ import {
   resolveDevSlug,
   resolveIconBasePath,
   resolveMacIconPath,
-  resolveUrlSchemeProtocols,
 } from '../build-identity'
-import electronBuilderConfig from '../../electron-builder'
+import { electrobunAppConfig } from '../electrobun/app-config'
+import { stagedResources } from '../electrobun/stage'
+
+function appConfig(channel: 'stable' | 'beta' | 'dev') {
+  const environment = channel === 'dev' ? {} : { OPENWAGGLE_RELEASE_CHANNEL: channel }
+  return electrobunAppConfig({
+    identity: resolveBuildIdentity(environment),
+    version: '1.0.0',
+    environment,
+  })
+}
 
 const CWD = process.cwd()
 
@@ -85,7 +94,7 @@ describe('build identity', () => {
     expect(identity.productName).toBe('OpenWaggle Dev (feature-terminal-worktree-sessions)')
     expect(identity.appId).toBe('com.openwaggle.dev.feature-terminal-worktree-sessions')
     expect(identity.isolateUserData).toBe(true)
-    // ASCII-only: a non-ASCII product name propagates into Electron's User-Agent
+    // ASCII-only: a non-ASCII product name propagates into the app's User-Agent
     // (an HTTP ByteString header) and throws on every request. Regression guard.
     expect(identity.productName).toMatch(/^[\x20-\x7e]*$/u)
   })
@@ -101,11 +110,9 @@ describe('icon path', () => {
   })
 
   it('ships the channel icon as the runtime icon resource (dock/taskbar match the channel)', () => {
-    const expected = resolveIconBasePath(resolveBuildChannel(), 'build')
-    const runtimeIcon = electronBuilderConfig.extraResources.find(
-      (entry) => entry.to === 'icon.png',
-    )
-    expect(runtimeIcon?.from).toBe(expected)
+    const channelIcon = resolveIconBasePath('beta', 'build')
+    expect(stagedResources(channelIcon)).toContainEqual({ from: channelIcon, to: 'icon.png' })
+    expect(appConfig('beta').build.linux.icon).toBe(channelIcon)
   })
 
   it('has a committed icon asset for every channel', () => {
@@ -122,36 +129,20 @@ describe('icon path', () => {
   it('gives every channel its own rounded-square macOS icon', () => {
     expect(resolveMacIconPath('stable', 'build')).toBe('build/icon.icns')
     expect(resolveMacIconPath('beta', 'build')).toBe('build/icon-beta.icns')
-    expect(electronBuilderConfig.mac.icon).toBe(resolveMacIconPath(resolveBuildChannel(), 'build'))
-  })
-})
-
-describe('packaged executable naming', () => {
-  it('pins the canonical executable but keeps the Linux binary lowercase', () => {
-    // macOS bundle/binary and Windows exe are "OpenWaggle"; the Linux binary,
-    // install.sh, and packaged-app smoke expect lowercase "openwaggle".
-    expect(electronBuilderConfig.executableName).toBe('OpenWaggle')
-    expect(electronBuilderConfig.linux.executableName).toBe('openwaggle')
   })
 })
 
 describe('Session link scheme', () => {
   it('is declared by release channels and never by dev builds', () => {
-    expect(resolveUrlSchemeProtocols('dev')).toEqual([])
-    for (const channel of ['stable', 'alpha', 'beta', 'rc'] as const) {
-      expect(resolveUrlSchemeProtocols(channel)).toEqual([
-        { name: 'OpenWaggle Session link', schemes: ['openwaggle'] },
-      ])
-    }
-    expect(electronBuilderConfig.protocols).toEqual(
-      resolveUrlSchemeProtocols(resolveBuildChannel()),
-    )
+    expect(appConfig('dev').app).not.toHaveProperty('urlSchemes')
+    expect(appConfig('stable').app).toMatchObject({ urlSchemes: ['openwaggle'] })
+    expect(appConfig('beta').app).toMatchObject({ urlSchemes: ['openwaggle'] })
   })
 })
 
 describe('packaged runtime resources', () => {
   it('includes the prepared semantic model used by packaged Session search', () => {
-    expect(electronBuilderConfig.extraResources).toContainEqual({
+    expect(stagedResources('build/icon.png')).toContainEqual({
       from: 'build/session-embedding-model',
       to: 'session-embedding-model',
     })

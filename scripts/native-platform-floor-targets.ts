@@ -19,7 +19,6 @@ export interface FloorTarget {
 const PLATFORMS: readonly FloorTargetPlatform[] = ['darwin', 'linux', 'win32']
 const PLATFORM_FLAG = '--platform'
 const DEVKIT_FLAG = '--devkit'
-const DIST_DIR = 'dist'
 /** scripts/electrobun/app-config.ts: Hutch's build folder and the macOS app package.ts ships. */
 const ELECTROBUN_BUILD_DIR = path.join('out', 'electrobun', 'build')
 const ELECTROBUN_INNER_APP_DIR = path.join('out', 'electrobun', 'inner')
@@ -71,40 +70,11 @@ async function directoryEntries(directory: string) {
   return fs.readdir(directory, { withFileTypes: true }).catch(() => [])
 }
 
-/** The packaged outputs electron-builder leaves in `dist` for one platform. */
-export async function discoverPackagedApps(
-  platform: FloorTargetPlatform,
-  distDirectory: string = DIST_DIR,
-) {
-  const entries = await directoryEntries(distDirectory)
-  const found: string[] = []
-  for (const entry of entries) {
-    const entryPath = path.join(distDirectory, entry.name)
-    if (platform === 'linux' && entry.isFile() && entry.name.endsWith(APPIMAGE_SUFFIX)) {
-      found.push(entryPath)
-    }
-    if (platform === 'win32' && entry.isDirectory() && entry.name === 'win-unpacked') {
-      found.push(entryPath)
-    }
-    if (platform === 'darwin' && entry.isDirectory()) {
-      for (const child of await directoryEntries(entryPath)) {
-        if (child.isDirectory() && child.name.endsWith('.app')) {
-          found.push(path.join(entryPath, child.name))
-        }
-      }
-    }
-  }
-  if (found.length === 0) {
-    throw new Error(`No packaged ${platform} app found under ${distDirectory}.`)
-  }
-  return found.sort((left, right) => left.localeCompare(right))
-}
-
 /**
  * The packaged outputs of an Electrobun build (scripts/electrobun/package.ts), one per build
  * target directory: on macOS the signed unwrapped app that the DMG, the transition zip and the
  * update archive carry; on Windows and Linux Hutch's wrapper, whose `.tar.zst` payload the guard
- * unpacks. Empty when nothing was packaged with Electrobun.
+ * unpacks.
  */
 export async function discoverElectrobunApps(platform: FloorTargetPlatform, outDirectory = '.') {
   const root = path.join(
@@ -120,11 +90,14 @@ export async function discoverElectrobunApps(platform: FloorTargetPlatform, outD
       if (child.isDirectory()) found.push(path.join(root, target.name, child.name))
     }
   }
+  if (found.length === 0) {
+    throw new Error(`No packaged ${platform} Electrobun app found under ${root}.`)
+  }
   return found.sort((left, right) => left.localeCompare(right))
 }
 
 /**
- * Unpacks an AppImage with its own runtime, so the guard reads the exact bytes users download.
+ * Unpacks an AppImage (the Linux transition AppImage, scripts/electrobun-transition/) with its own runtime, so the guard reads the exact bytes users download.
  * That runtime only runs on Linux x64; elsewhere, extract it first (`unsquashfs -o <offset>`).
  */
 async function extractAppImage(appImagePath: string) {
@@ -145,13 +118,7 @@ async function extractAppImage(appImagePath: string) {
 
 export async function resolveFloorTargets(args: readonly string[]) {
   const { platform, paths, devkit } = parseFloorArguments(args)
-  const electrobunApps = paths.length > 0 ? [] : await discoverElectrobunApps(platform)
-  const appPaths =
-    paths.length > 0
-      ? paths
-      : electrobunApps.length > 0
-        ? electrobunApps
-        : await discoverPackagedApps(platform)
+  const appPaths = paths.length > 0 ? paths : await discoverElectrobunApps(platform)
   const targets: FloorTarget[] = []
   for (const appPath of appPaths) {
     const root = appPath.endsWith(APPIMAGE_SUFFIX)

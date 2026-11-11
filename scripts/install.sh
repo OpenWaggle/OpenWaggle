@@ -344,7 +344,7 @@ install_cli_shim_atomically() {
 
 # BEGIN TESTABLE LINUX DESKTOP ENTRY
 # The desktop entry also claims Session links (openwaggle://sessions/<id>, ADR 0056): the
-# AppImage's own entry, where electron-builder declares the scheme, is never integrated. Making
+# AppImage's own entry, which declares the scheme, is never integrated. Making
 # OpenWaggle the default handler is best effort; a desktop without xdg-utils still gets the entry.
 write_linux_desktop_entry() {
   local desktop_dir="$1"
@@ -405,8 +405,8 @@ running_mac_gui_pids() {
   return 0
 }
 
-# Quit the running desktop app through Electron's normal quit path (SIGTERM emits before-quit), so
-# it saves state before its bundle is replaced. Its Session Host keeps running; the installer stops
+# Quit the running desktop app with SIGTERM, its normal quit path, so it saves state before its
+# bundle is replaced. Its Session Host keeps running; the installer stops
 # it next, after asking about active agent runs.
 quit_running_mac_app() {
   local bundle_path="$1" pids pid waited
@@ -439,7 +439,8 @@ run_installed_cli() {
   fi
 }
 
-# The version of an installed AppImage, from the desktop entry electron-builder puts inside it.
+# The version of an installed AppImage, from the desktop entry inside it
+# (scripts/electrobun-transition/linux-transition-appimage.ts writes X-AppImage-Version).
 # Extracting one file runs nothing from the app.
 appimage_version() {
   local appimage="$1" scratch

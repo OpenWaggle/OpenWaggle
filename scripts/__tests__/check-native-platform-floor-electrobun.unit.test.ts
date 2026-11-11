@@ -22,7 +22,7 @@ function infoPlist(minimumSystemVersion: string) {
   return `<plist version="1.0"><dict><key>LSMinimumSystemVersion</key><string>${minimumSystemVersion}</string></dict></plist>`
 }
 
-/** A raw tree, without the Electron app.asar that `tree` adds. */
+/** A raw tree, without the app directory that `tree` adds. */
 async function bareTree(files: Record<string, Buffer | string>) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'electrobun-floor-'))
   temporaryRoots.push(root)

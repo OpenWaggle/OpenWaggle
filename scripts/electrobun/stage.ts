@@ -9,7 +9,7 @@
  *   the main window injects; a stand-in main opens no window and needs none;
  * - `renderer/`: the Vite renderer build (`out/renderer`), without its build manifest and maps;
  * - `node_modules/`: the production externals for the target (scripts/electrobun/stage-node-modules.ts);
- * - `resources/`: what electron-builder shipped as `extraResources` (the channel icon, installed
+ * - `resources/`: the bundled resources (`stagedResources`: the channel icon, installed
  *   docs, the embedding model, install.sh, third-party notices) and, on Windows, the WebView2
  *   Evergreen bootstrapper from the native layer build;
  * - `package.json` and, on macOS, `icon.iconset` from the channel's `.icns`.
@@ -34,12 +34,19 @@ const STAND_IN_ENTRY = 'scripts/electrobun/stand-in/boot.ts'
 const MAIN_BUILD = 'out/main'
 const RENDERER_BUILD = 'out/renderer'
 const PRELOAD_BUILD = 'out/preload'
+/** The checkout paths the app directory copies besides `node_modules` and `resources/`. */
+export const STAGED_BUILD_PATHS = [
+  MAIN_BUILD,
+  PRELOAD_BUILD,
+  RENDERER_BUILD,
+  'package.json',
+] as const
 const PRELOAD_BUNDLE = 'electrobun.js'
 const SKIPPED_BUILD_FILE = /\.(?:map|d\.ts)$/u
 const SKIPPED_BUILD_DIRECTORY = '.vite'
 
-/** electron-builder's `extraResources`: source in the checkout, name under `resources/`. */
-function extraResources(channelIcon: string) {
+/** The bundled resources: source in the checkout, name under `resources/`. */
+export function stagedResources(channelIcon: string) {
   return [
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
@@ -152,7 +159,7 @@ function stageResources(options: StageOptions, stage: string, channelIcon: strin
   fs.rmSync(destination, { recursive: true, force: true })
   fs.mkdirSync(destination, { recursive: true })
   const missing: string[] = []
-  for (const resource of extraResources(channelIcon)) {
+  for (const resource of stagedResources(channelIcon)) {
     const source = path.join(options.root, resource.from)
     if (!fs.existsSync(source)) {
       missing.push(resource.from)

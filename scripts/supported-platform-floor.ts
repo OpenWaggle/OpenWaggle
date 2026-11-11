@@ -2,9 +2,10 @@
  * The v1 supported-platform minimums (docs/release-and-versioning.md, "v1 compatibility promise").
  *
  * This is the one place the native release guard (scripts/check-native-platform-floor.ts), the
- * macOS `LSMinimumSystemVersion` written by electron-builder.ts, and the docs agree on. Raising a
- * value is a breaking change to the "Supported platforms" Covered surface unless it meets the
- * exception in the release policy.
+ * macOS `LSMinimumSystemVersion` the Electrobun build writes
+ * (scripts/electrobun-macos-launch-version.ts), and the docs agree on. Raising a value is a
+ * breaking change to the "Supported platforms" Covered surface unless it meets the exception in
+ * the release policy.
  */
 export const SUPPORTED_PLATFORM_FLOOR = {
   macos: {
@@ -17,7 +18,7 @@ export const SUPPORTED_PLATFORM_FLOOR = {
     launchVersion: '12.0',
   },
   windows: {
-    /** Electron's floor. The guard rejects a PE whose OS or subsystem version is newer. */
+    /** Windows 10, WebView2's and CEF's floor. The guard rejects a PE whose OS or subsystem version is newer. */
     supportedVersion: '10.0',
   },
   linux: {

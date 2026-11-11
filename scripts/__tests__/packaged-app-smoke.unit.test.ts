@@ -1,69 +1,122 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  findPackagedApps,
-  packagedAppMatchesHostArchitecture,
-  packagedPtyProbeInvocation,
+  nativeProbeInvocation,
+  packagedAppArchitecture,
+  packagedAppIssues,
 } from '../packaged-app-smoke'
 
+const PI = 'node_modules/@earendil-works/pi-coding-agent'
+const MODEL = 'resources/session-embedding-model/Xenova/multilingual-e5-small'
+
+/** The app directory of a correctly packaged app, as relative file paths. */
+const PACKAGED = [
+  'bun/index.js',
+  'out/main/boot.js',
+  'out/main/index.js',
+  'out/preload/electrobun.js',
+  'out/renderer/index.html',
+  'package.json',
+  `${PI}/README.md`,
+  `${PI}/docs/codemode.md`,
+  `${PI}/examples/hello.ts`,
+  'node_modules/onnxruntime-node/package.json',
+  'node_modules/better-sqlite3/lib/index.js',
+  'node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+  'node_modules/tesseract.js-core/tesseract-core.js',
+  'node_modules/tesseract.js-core/tesseract-core.wasm',
+  'node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.js',
+  'node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm',
+  'node_modules/jszip/package.json',
+  'node_modules/mammoth/package.json',
+  'node_modules/unpdf/package.json',
+  'resources/THIRD_PARTY_NOTICES.md',
+  'resources/openwaggle-docs/README.md',
+  'resources/openwaggle-docs/index.json',
+  `${MODEL}/config.json`,
+  `${MODEL}/tokenizer_config.json`,
+  `${MODEL}/tokenizer.json`,
+  `${MODEL}/onnx/model_quantized.onnx`,
+  `${MODEL}/openwaggle-model-manifest.json`,
+  `${MODEL}/THIRD_PARTY_NOTICE.md`,
+]
+
 describe('packaged app smoke', () => {
-  it('discovers every macOS and unpacked platform app', async () => {
-    const distDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-packaged-app-'))
-    try {
-      const macApp = path.join(distDirectory, 'mac-arm64', 'OpenWaggle.app')
-      const linuxApp = path.join(distDirectory, 'linux-unpacked')
-      await fs.mkdir(macApp, { recursive: true })
-      await fs.mkdir(path.join(linuxApp, 'resources'), { recursive: true })
-      await fs.writeFile(path.join(linuxApp, 'resources', 'app.asar'), 'fixture')
-
-      await expect(findPackagedApps(['node', 'probe'], distDirectory)).resolves.toEqual(
-        [linuxApp, macApp].sort((left, right) => left.localeCompare(right)),
-      )
-    } finally {
-      await fs.rm(distDirectory, { recursive: true, force: true })
-    }
+  it('passes the app directory package.ts stages', () => {
+    expect(packagedAppIssues(PACKAGED)).toEqual([])
   })
 
-  it('runs the probe through the packaged Electron executable and packaged asar', () => {
-    expect(
-      packagedPtyProbeInvocation(
-        '/release/OpenWaggle.app',
-        '/release/OpenWaggle.app/Contents/Resources/app.asar',
-        '/workspace',
-        'darwin',
-        '/usr/local/bin/node',
-      ),
-    ).toEqual({
-      command: '/release/OpenWaggle.app/Contents/MacOS/OpenWaggle',
-      args: [
-        '/workspace/node_modules/.cache/openwaggle/native-load-probe.mjs',
-        'electron',
-        '/release/OpenWaggle.app/Contents/Resources/app.asar',
-        '/usr/local/bin/node',
-      ],
-    })
-    expect(
-      packagedPtyProbeInvocation(
-        'C:\\release\\win-unpacked',
-        'C:\\release\\app.asar',
-        'C:\\workspace',
-        'win32',
-      ).command,
-    ).toBe(path.join('C:\\release\\win-unpacked', 'OpenWaggle.exe'))
-  })
-
-  it('executes only the macOS package matching the runner architecture', () => {
-    expect(
-      packagedAppMatchesHostArchitecture('/dist/mac-arm64/OpenWaggle.app', 'darwin', 'arm64'),
-    ).toBe(true)
-    expect(packagedAppMatchesHostArchitecture('/dist/mac/OpenWaggle.app', 'darwin', 'arm64')).toBe(
-      false,
+  it('fails on missing roots and runtime files, unexpected roots and build output', () => {
+    const files = PACKAGED.filter(
+      (file) =>
+        !file.startsWith('resources/') &&
+        file !== 'node_modules/better-sqlite3/lib/index.js' &&
+        file !== 'node_modules/mammoth/package.json',
     )
     expect(
-      packagedAppMatchesHostArchitecture('/dist/mac-x64/OpenWaggle.app', 'darwin', 'x64'),
-    ).toBe(true)
-    expect(packagedAppMatchesHostArchitecture('/dist/linux-unpacked', 'linux', 'x64')).toBe(true)
+      packagedAppIssues([...files, 'src/main/index.ts', 'out/pi-main-bundle-smoke/x.js']),
+    ).toEqual([
+      'missing resources',
+      'unexpected src',
+      'unexpected build output out/pi-main-bundle-smoke/x.js',
+      'misses node_modules/better-sqlite3/lib/index.js',
+      'misses node_modules/mammoth/package.json',
+      'misses resources/THIRD_PARTY_NOTICES.md',
+      'misses resources/openwaggle-docs/README.md',
+      'misses resources/openwaggle-docs/index.json',
+      `misses ${MODEL}/config.json`,
+      `misses ${MODEL}/tokenizer_config.json`,
+      `misses ${MODEL}/tokenizer.json`,
+      `misses ${MODEL}/onnx/model_quantized.onnx`,
+      `misses ${MODEL}/openwaggle-model-manifest.json`,
+      `misses ${MODEL}/THIRD_PARTY_NOTICE.md`,
+    ])
+  })
+
+  it('fails on Pi examples, sources, maps and trimmed packages it must not ship or must', () => {
+    const files = PACKAGED.filter((file) => !file.startsWith(`${PI}/examples/`))
+    expect(
+      packagedAppIssues([
+        ...files,
+        'node_modules/@openwaggle/pi-waggle/src/index.ts',
+        'node_modules/@openwaggle/pi-waggle/tsconfig.json',
+        'node_modules/pi-mcp-adapter/index.js',
+        'node_modules/onnxruntime-web/dist/ort.js',
+        'node_modules/better-sqlite3/deps/sqlite3.c',
+        'node_modules/tesseract.js-core/tesseract-core.wasm.js',
+        'out/main/index.js.map',
+        'node_modules/shiki/dist/index.mjs',
+      ]),
+    ).toEqual([
+      `misses ${PI}/examples/`,
+      'ships workspace package sources (node_modules/@openwaggle/pi-waggle/src/index.ts)',
+      'ships workspace package tsconfigs (node_modules/@openwaggle/pi-waggle/tsconfig.json)',
+      'ships the legacy MCP adapter (node_modules/pi-mcp-adapter/index.js)',
+      'ships onnxruntime-web (node_modules/onnxruntime-web/dist/ort.js)',
+      'ships better-sqlite3 sources (node_modules/better-sqlite3/deps/sqlite3.c)',
+      'ships tesseract.js-core browser builds (node_modules/tesseract.js-core/tesseract-core.wasm.js)',
+      'ships source maps (out/main/index.js.map)',
+      'ships renderer-only packages (node_modules/shiki/dist/index.mjs)',
+    ])
+  })
+
+  it('reads the architecture from the Electrobun target directory', () => {
+    expect(packagedAppArchitecture('/r/out/electrobun/inner/stable-macos-x64/OpenWaggle.app')).toBe(
+      'x64',
+    )
+    expect(packagedAppArchitecture('/r/out/electrobun/build/stable-win-arm64/OpenWaggle')).toBe(
+      'arm64',
+    )
+    expect(packagedAppArchitecture('/tmp/tree/OpenWaggle')).toBeNull()
+  })
+
+  it('probes the native modules with the bundled Bun on the app node_modules', () => {
+    const invocation = nativeProbeInvocation('/apps/OpenWaggle.app', 'darwin')
+    expect(invocation.command).toBe('/apps/OpenWaggle.app/Contents/MacOS/bun')
+    expect(invocation.args[0]).toMatch(/scripts[/\\]native-load-probe\.ts$/u)
+    expect(invocation.args[1]).toBe(path.join('/apps/OpenWaggle.app', 'Contents/Resources/app'))
+    expect(nativeProbeInvocation('/apps/OpenWaggle', 'win32').command).toBe(
+      path.join('/apps/OpenWaggle', 'bin/bun.exe'),
+    )
   })
 })

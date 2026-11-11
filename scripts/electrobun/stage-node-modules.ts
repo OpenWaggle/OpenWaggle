@@ -11,17 +11,19 @@
  * the new tree and checked against what they resolved to in the checkout, so a hoisting conflict
  * fails the build instead of loading the wrong version at run time.
  *
- * The same files are left out as electron-builder left out of `app.asar`
- * (electron-builder.ts `files`, scripts/electron-builder-native-prebuilds.ts and
- * scripts/electron-builder-runtime-trim.ts): declarations, maps, docs and tests, native builds for
+ * It leaves out what the runtime never reads: declarations, maps, docs and tests, native builds for
  * other platforms and architectures, onnxruntime's CUDA providers and the browser-only builds.
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { mainExternalPackages } from '../build-main'
 
-/** Dependencies only the Electron shell used (Electrobun updates itself; terminals use Bun.spawn). */
-export const ELECTRON_ONLY_DEPENDENCIES = ['electron-updater', 'node-pty'] as const
+/**
+ * Bundled packages that main also loads from `node_modules` by path: the attachment parser worker
+ * resolves them when its module loads (src/main/utils/attachment-parser-worker.ts), so a package
+ * without them fails to boot.
+ */
+export const RUNTIME_RESOLVED_PACKAGES = ['jszip', 'mammoth', 'unpdf'] as const
 
 /** Files of bundled packages they read from their package directory at run time: Pi's docs. */
 const BUNDLED_PACKAGE_ASSETS: Readonly<Record<string, readonly string[]>> = {
@@ -145,16 +147,14 @@ function runtimeDependencies(manifest: PackageJson) {
 }
 
 /**
- * The externals the main bundle requires at run time: the build's own list, without the packages
- * it only names as optional (`ws`'s speedups, never installed) and the Electron-only ones.
+ * The packages main requires from `node_modules` at run time: the build's externals, without the
+ * packages it only names as optional (`ws`'s speedups, never installed), and the bundled packages
+ * it also resolves by path.
  */
 export function externalRoots(rootManifest: PackageJson) {
   const dependencies = rootManifest.dependencies ?? {}
-  return [...mainExternalPackages(rootManifest)].filter(
-    (name) =>
-      name in dependencies &&
-      !ELECTRON_ONLY_DEPENDENCIES.some((electronOnly) => electronOnly === name),
-  )
+  const roots = new Set([...mainExternalPackages(rootManifest), ...RUNTIME_RESOLVED_PACKAGES])
+  return [...roots].filter((name) => name in dependencies)
 }
 
 class NodeModulesLayout {

@@ -36,6 +36,7 @@ VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "FileDescription" "${PRODUCT_NAME} Setup"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
+VIAddVersionKey "LegalCopyright" "Copyright OpenWaggle contributors"
 
 !define DOWNLOAD_URL "https://github.com/OpenWaggle/OpenWaggle/releases/latest"
 !define TRANSITION_LOG "$LOCALAPPDATA\openwaggle-updater\electrobun-transition.log"

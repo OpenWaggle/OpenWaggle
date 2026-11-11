@@ -3,11 +3,14 @@
  * but does not ship. Packages such as sharp, @napi-rs/keyring and @mariozechner/clipboard load a
  * per-platform package (`@img/sharp-darwin-x64`) declared in `optionalDependencies`; when the build
  * host only installed the other architecture, the app packs without it and the feature breaks at
- * runtime. Every package.json in `app.asar`, the app's own included, is read.
+ * runtime. Every package.json in the packaged app directory, the app's own included, is read.
  */
-import type { AsarArchive } from './asar-archive'
-import { Schema } from '@shared/schema'
-import { objectFields, unknownField } from './support/object-fields'
+
+/** A packaged app's files by `/`-rooted path, and a way to read one. */
+export interface PackagedAppFiles {
+  readonly files: ReadonlySet<string>
+  readonly readFile: (file: string) => Promise<Buffer>
+}
 
 type PackagedPlatform = 'darwin' | 'linux' | 'win32'
 
@@ -31,11 +34,11 @@ export function isNativePackageFor(name: string, platform: PackagedPlatform, arc
 }
 
 export async function missingNativeDependencies(
-  archive: AsarArchive,
+  archive: PackagedAppFiles,
   platform: PackagedPlatform,
   architecture: string,
 ) {
-  const manifests = [...archive.files.keys()].flatMap((file) => {
+  const manifests = [...archive.files].flatMap((file) => {
     const match = PACKAGE_JSON.exec(file)
     return match === null ? [] : [{ file, name: match[1] ?? 'the app' }]
   })

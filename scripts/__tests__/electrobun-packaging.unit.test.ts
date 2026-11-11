@@ -106,17 +106,13 @@ describe('staged node_modules', () => {
     expect(shipsPackageFile('onnxruntime-node', 'bin/napi-v6/linux/x64/a.so', target)).toBe(false)
   })
 
-  it('leaves out what the main bundle inlines and the Electron-only packages', () => {
+  it('leaves out what the main bundle inlines, except what main resolves by path', () => {
     const roots = externalRoots({
-      dependencies: {
-        'better-sqlite3': '1',
-        zod: '1',
-        'electron-updater': '1',
-        'node-pty': '1',
-      },
+      dependencies: { 'better-sqlite3': '1', zod: '1', mammoth: '1', unpdf: '1' },
     })
-    // The build's own externals (scripts/build-main.ts), without `ws`'s optional speedups.
-    expect(roots).toEqual(['better-sqlite3'])
+    // The build's own externals (scripts/build-main.ts), without `ws`'s optional speedups, and the
+    // attachment parser's packages, which it loads from node_modules.
+    expect(roots).toEqual(['better-sqlite3', 'mammoth', 'unpdf'])
   })
 })
 

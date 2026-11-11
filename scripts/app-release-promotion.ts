@@ -19,8 +19,8 @@ const PROMOTION_IGNORED_PATH_PATTERNS = [
   /^[^/]+\.md$/u,
 ]
 /**
- * Files that match an ignored pattern but ship inside the app (`extraResources` in
- * electron-builder.ts), so a change to them blocks promotion like any other app change.
+ * Files that match an ignored pattern but ship inside the app (`stagedResources` in
+ * scripts/electrobun/stage.ts), so a change to them blocks promotion like any other app change.
  */
 const PROMOTION_APP_CONTENT_PATHS: ReadonlySet<string> = new Set(['THIRD_PARTY_NOTICES.md'])
 const STABLE_VERSION_PATTERN = /^\d+\.\d+\.\d+$/u

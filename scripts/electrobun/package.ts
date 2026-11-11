@@ -76,7 +76,7 @@ function runBun(root: string, script: string, args: readonly string[]) {
   execFileSync(process.execPath, [script, ...args], { cwd: root, stdio: 'inherit' })
 }
 
-function hutchCommand(environment: NodeJS.ProcessEnv) {
+export function hutchCommand(environment: NodeJS.ProcessEnv) {
   const configured = (environment['OPENWAGGLE_HUTCH'] ?? '').trim().split(/\s+/u).filter(Boolean)
   return configured.length > 0 ? configured : [process.execPath, 'x', 'electrobun']
 }

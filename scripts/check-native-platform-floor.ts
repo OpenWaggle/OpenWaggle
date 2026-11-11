@@ -11,14 +11,14 @@
  * A binary for another platform or architecture can never load, so shipping one fails too: either
  * the build for the app's own architecture is missing (the Intel macOS app once shipped only the
  * arm64 sharp, keyring and clipboard builds) or it is dead weight that
- * scripts/electron-builder-native-prebuilds.ts should exclude. Every per-platform package that a
- * package in `app.asar` declares for the target in `optionalDependencies` must ship as well
+ * scripts/electrobun/stage-node-modules.ts should leave out. Every per-platform package that a
+ * package in the app directory declares for the target in `optionalDependencies` must ship as well
  * (scripts/packaged-native-dependencies.ts), which catches a build that is missing entirely.
  * Run it after packaging and before upload: `bun scripts/check-native-platform-floor.ts`.
  *
- * Electrobun apps are read the same way. Their main executable is Electrobun's launcher, and the
- * packaged app is a self-extracting wrapper whose `Resources/*.tar.zst` payload is the real app, so
- * the guard unpacks each payload and checks it as an app of its own. `--devkit` checks an
+ * The main executable is Electrobun's launcher. On Windows and Linux the packaged app is a
+ * self-extracting wrapper whose `Resources/*.tar.zst` payload is the real app, so the guard unpacks
+ * each payload and checks it as an app of its own. `--devkit` checks an
  * Electrobun native-layer devkit (vendor/electrobun/build.ts output) before any app is packaged:
  * every binary, with no bundle or dependency checks.
  */
@@ -33,7 +33,7 @@ import {
   readNativeBinary,
 } from './native-binary-formats'
 import {
-  applicationArchive,
+  applicationFiles,
   detectShell,
   type FloorOptions,
   type FloorPlatform,
@@ -136,7 +136,7 @@ function evaluateMacos(
   return { kind: 'checked', violations } satisfies Evaluation
 }
 
-/** x64 Windows runs x86 images too (electron-builder's `elevate.exe` is one), so they are checked. */
+/** x64 Windows runs x86 images too, so they are checked. */
 function runsOnWindows(binary: NativeBinary, architectures: readonly BinaryArchitecture[]) {
   if (binary.format !== 'pe') return false
   return (
@@ -203,7 +203,7 @@ async function macosLaunchViolations(
               `${executable} (${slice.architecture}) needs macOS ${slice.minimumVersion}, so macOS ${launch} could not launch the app`,
           )
       : []
-  // electron-builder writes an XML plist; a binary or missing value reads as unset and fails.
+  // Electrobun writes an XML plist; a binary or missing value reads as unset and fails.
   const infoPlist = await fs.readFile(path.join(root, INFO_PLIST), 'utf8')
   const minimum = LS_MINIMUM_SYSTEM_VERSION.exec(infoPlist)?.[1]?.trim() ?? 'unset'
   if (minimum !== launch) {
@@ -237,7 +237,7 @@ export async function checkNativePlatformFloor(
     checked += 1
     violations.push(...evaluation.violations)
   }
-  const archive = await applicationArchive(root, platform, shell)
+  const archive = await applicationFiles(root, platform, shell)
   if (archive !== null) {
     for (const architecture of executable.architectures) {
       violations.push(...(await missingNativeDependencies(archive, platform, architecture)))

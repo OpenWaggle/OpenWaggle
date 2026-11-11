@@ -1,13 +1,12 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { BuildChannel } from '../src/shared/types/build-identity'
-import { channelClaimsSessionLinks, SESSION_LINK_SCHEME } from '../src/shared/utils/session-link'
 
 /**
  * Build-time Build identity resolver (see docs/adr/0032). One rule, consumed by
- * electron-vite (bakes runtime constants), electron-builder (packaging name /
- * appId / icon), and the runtime (dev-build userData isolation). Never hand-set
- * per build.
+ * the main build (bakes runtime constants, scripts/build-main.ts), the Electrobun
+ * build (packaging name / identifier / icon, scripts/electrobun/app-config.ts),
+ * and the runtime (dev-build userData isolation). Never hand-set per build.
  *
  * Scope (see ADR 0032): released channels (stable/alpha/beta/rc) share the
  * canonical app identity — same appId, executable, and userData — and differ
@@ -25,8 +24,6 @@ const SLUG_MAX_LENGTH = 40
 
 /** The canonical released app identity. All release channels use it. */
 export const CANONICAL_APP_ID = 'com.openwaggle.app'
-/** Stable across every channel so packaged binary/bundle names never change. */
-export const CANONICAL_EXECUTABLE_NAME = 'OpenWaggle'
 
 const RELEASE_DISPLAY_NAME: Record<Exclude<BuildChannel, 'dev'>, string> = {
   stable: 'OpenWaggle',
@@ -111,7 +108,7 @@ export function resolveBuildIdentity(
  * Icon path for a channel, relative to the repo `build/` directory. Stable keeps
  * the hand-authored platform icons; other channels use a committed variant that
  * wears a labelled ribbon so builds are distinguishable at a glance. POSIX
- * separators: this value is an electron-builder config path.
+ * separators: this value is an Electrobun config path.
  */
 export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: string) {
   const file = channel === 'stable' ? 'icon.png' : `icon-${channel}.png`
@@ -126,17 +123,6 @@ export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: st
 export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: string) {
   const file = channel === 'stable' ? 'icon.icns' : `icon-${channel}.icns`
   return path.posix.join(buildResourcesDir, file)
-}
-
-/**
- * URL schemes the packaged app declares to the operating system: the Info.plist on macOS and the
- * desktop entry's `x-scheme-handler` on Linux (Windows registers at runtime). Only release
- * channels claim Session links; a dev build keeps its own Session data, so it must never take
- * links meant for the installed app (ADR 0056).
- */
-export function resolveUrlSchemeProtocols(channel: BuildChannel) {
-  if (!channelClaimsSessionLinks(channel)) return []
-  return [{ name: 'OpenWaggle Session link', schemes: [SESSION_LINK_SCHEME] }]
 }
 
 export { MAC_DEV_DOCK_ICON_FILE as MAC_DEV_DOCK_ICON } from '../src/shared/build-identity-runtime'

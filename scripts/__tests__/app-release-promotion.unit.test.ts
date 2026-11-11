@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import electronBuilderConfig from '../../electron-builder'
 import {
   isPromotionIgnoredPath,
   latestReleaseCandidateTag,
@@ -8,6 +7,7 @@ import {
   publishedReleaseTags,
   requiresReleaseCandidate,
 } from '../app-release-promotion'
+import { STAGED_BUILD_PATHS, stagedResources } from '../electrobun/stage'
 
 describe('app release promotion guard', () => {
   it('selects the newest release candidate for a Stable target only', () => {
@@ -98,18 +98,12 @@ describe('app release promotion guard', () => {
     ).toEqual(['THIRD_PARTY_NOTICES.md'])
   })
 
-  it('never ignores a file that electron-builder copies into the app', () => {
-    // Every extraResources source, plus every app.asar `files` pattern that adds files. The guard
-    // matches path prefixes, so a positive pattern must start with a literal directory or file.
-    const includedPatterns = electronBuilderConfig.files.filter(
-      (pattern) => !pattern.startsWith('!'),
-    )
+  it('never ignores a file the Electrobun stage copies into the app', () => {
+    // Every bundled resource source and every build path the app directory copies.
     const shippedPaths = [
-      ...electronBuilderConfig.extraResources.map((resource) => resource.from),
-      ...includedPatterns,
+      ...stagedResources('build/icon-beta.png').map((resource) => resource.from),
+      ...STAGED_BUILD_PATHS,
     ]
-
-    expect(includedPatterns.filter((pattern) => /^[*?{[]/u.test(pattern))).toEqual([])
 
     expect(shippedPaths).toContain('THIRD_PARTY_NOTICES.md')
     expect(shippedPaths).toContain('package.json')
