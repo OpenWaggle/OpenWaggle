@@ -11,8 +11,7 @@ const DEFAULT_REGISTRATION_TTL_MS = 60 * 60 * 1_000
 const DEFAULT_MAX_REGISTRATIONS_PER_OWNER = 64
 const MAX_TOKEN_GENERATION_ATTEMPTS = 8
 const REQUEST_PATH_SEGMENT_COUNT = 2
-const ASCII_CONTROL_MAX = 0x1f
-const ASCII_DELETE = 0x7f
+const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u
 const TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const MIME_TYPE_PATTERN =
   /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*(?:\s*;\s*[a-z0-9!#$&^_.+-]+=(?:[a-z0-9!#$&^_.+-]+|"[^"]*"))*$/iu
@@ -208,11 +207,7 @@ export function isSessionResourceDownloadNavigation(
 }
 
 function safeMimeType(mimeType: string) {
-  const hasControlCharacter = [...mimeType].some((character) => {
-    const codePoint = character.codePointAt(0) ?? 0
-    return codePoint <= ASCII_CONTROL_MAX || codePoint === ASCII_DELETE
-  })
-  return !hasControlCharacter && MIME_TYPE_PATTERN.test(mimeType)
+  return !CONTROL_CHARACTER_PATTERN.test(mimeType) && MIME_TYPE_PATTERN.test(mimeType)
     ? mimeType.toLowerCase()
     : DEFAULT_MIME_TYPE
 }

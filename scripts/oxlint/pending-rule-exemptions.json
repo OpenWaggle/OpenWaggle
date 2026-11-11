@@ -351,12 +351,6 @@
   },
   "typescript/no-misused-spread": {
     "src/main/application/inline-visualization-download.ts": 1,
-    "src/main/extension-frame-protocol.ts": 1,
-    "src/main/services/__tests__/session-transcript-term-tokenizer.unit.test.ts": 1,
-    "src/main/services/session-transcript-term-tokenizer.ts": 1,
-    "src/main/session-resource-content-disposition.ts": 1,
-    "src/main/session-resource-protocol.ts": 1,
-    "src/main/terminal-text.ts": 2,
     "src/renderer/src/features/chat/lib/__tests__/transcript-viewport-geometry.unit.test.ts": 1,
     "src/renderer/src/features/sidebar/hooks/useRemoteSidebarSessions.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-native-keybindings.ts": 1,

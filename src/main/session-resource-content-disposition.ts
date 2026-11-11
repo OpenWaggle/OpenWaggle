@@ -1,6 +1,4 @@
 const MAX_CONTENT_DISPOSITION_FILENAME_BYTES = 180
-const ASCII_PRINTABLE_MIN = 0x20
-const ASCII_PRINTABLE_MAX = 0x7e
 const HEX_RADIX = 16
 
 function truncateUtf8(value: string, maxBytes: number) {
@@ -22,17 +20,8 @@ function boundedDownloadFileName(fileName: string) {
 }
 
 function safeDownloadFileName(fileName: string) {
-  const ascii = [...fileName]
-    .map((character) => {
-      const codePoint = character.codePointAt(0) ?? 0
-      return codePoint >= ASCII_PRINTABLE_MIN &&
-        codePoint <= ASCII_PRINTABLE_MAX &&
-        !'"\\/'.includes(character)
-        ? character
-        : '_'
-    })
-    .join('')
-    .trim()
+  // One `_` per code point that is not printable ASCII, and for quotes and path separators.
+  const ascii = fileName.replaceAll(/[^\x20-\x7e]|["\\/]/gu, '_').trim()
   return ascii.length > 0 ? ascii : 'download'
 }
 

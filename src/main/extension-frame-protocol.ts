@@ -46,7 +46,11 @@ function notFoundResponse() {
   return new Response(null, { status: HTTP_NOT_FOUND_STATUS })
 }
 
-function textResponse(content: string, contentType: string, headers?: HeadersInit) {
+function textResponse(
+  content: string,
+  contentType: string,
+  headers?: Readonly<Record<string, string>>,
+) {
   return new Response(content, {
     headers: {
       ...headers,
