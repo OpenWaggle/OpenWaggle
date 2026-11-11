@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { isAutomationMode } from '../../desktop-automation-policy'
 import { getDesktopHelperChildEnv } from '../../env'
 import {
   decodeKey,
@@ -171,7 +172,8 @@ function isMissingFile(error: unknown) {
 
 /**
  * Chromium's `--use-mock-keychain` for this shell: hidden QA and benches pass it so no keychain
- * prompt can reach the screen, and the desktop app hands it to the Session Host it launches. The
+ * prompt can reach the screen, and the desktop app hands it to the Session Host it launches.
+ * Non-disruptive automation (`OPENWAGGLE_AUTOMATION=1`) uses it too. The
  * key lives in a file of the profile instead of the OS keychain, readable by every process of that
  * profile, as Chromium's mock keychain answers every process alike. Never for a user profile.
  */
@@ -190,8 +192,12 @@ export function mockKeychainKeyStore(directory: () => string): KeychainKeyStore 
   }
 }
 
+/**
+ * Under the switch, and under non-disruptive automation, whose contract forbids OS UI: a keychain
+ * access prompt is a window the maintainer would see.
+ */
 function usesMockKeychain() {
-  return electrobunCommandLine.hasSwitch('use-mock-keychain')
+  return electrobunCommandLine.hasSwitch('use-mock-keychain') || isAutomationMode()
 }
 
 const inProcessRead = inProcessKeyReader()
