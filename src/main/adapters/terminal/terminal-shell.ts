@@ -72,7 +72,7 @@ export function shellCandidates(
     ? windowsShellCandidates(options.environment)
     : posixShellCandidates(options.environment, {
         platform,
-        accountShell: options.accountShell,
+        ...(options.accountShell === undefined ? {} : { accountShell: options.accountShell }),
       })
 }
 

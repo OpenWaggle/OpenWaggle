@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId, WorkspaceId } from '@shared/types/brand'
+import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionLifecyclePreparationService } from '../../ports/session-lifecycle-preparation-service'
@@ -99,36 +100,26 @@ describe('Session lifecycle preparation service', () => {
         'delegations:review',
       ] as const,
     }
-    const first = deriveChildCapabilities(
-      {
-        callerId: 'profile:root',
-        callerCapabilities: ['sessions:spawn', 'sessions:message'],
-        identities: { sessionId: SessionId('first'), workspaceId: WorkspaceId('first-workspace') },
-        request,
-      },
-      profile,
-    )
-    const second = deriveChildCapabilities(
-      {
-        callerId: 'session-agent:first:run',
-        callerCapabilities: first,
-        identities: {
-          sessionId: SessionId('second'),
-          workspaceId: WorkspaceId('second-workspace'),
+    const derive = (
+      id: string,
+      callerId: string,
+      callerCapabilities: readonly SessionCapability[],
+    ) => {
+      const derived = deriveChildCapabilities(
+        {
+          callerId,
+          callerCapabilities,
+          identities: { sessionId: SessionId(id), workspaceId: WorkspaceId(`${id}-workspace`) },
+          request,
         },
-        request,
-      },
-      profile,
-    )
-    const third = deriveChildCapabilities(
-      {
-        callerId: 'session-agent:second:run',
-        callerCapabilities: second,
-        identities: { sessionId: SessionId('third'), workspaceId: WorkspaceId('third-workspace') },
-        request,
-      },
-      profile,
-    )
+        profile,
+      )
+      if (derived === undefined) throw new Error('A spawn derives its child capabilities.')
+      return derived
+    }
+    const first = derive('first', 'profile:root', ['sessions:spawn', 'sessions:message'])
+    const second = derive('second', 'session-agent:first:run', first)
+    const third = derive('third', 'session-agent:second:run', second)
 
     expect(first).toEqual(['sessions:spawn', 'sessions:message'])
     expect(second).toEqual(first)

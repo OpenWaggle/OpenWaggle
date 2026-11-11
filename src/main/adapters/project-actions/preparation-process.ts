@@ -86,7 +86,7 @@ export function createPreparationExecutor(
     readonly invocation: ActionInvocation
     readonly environment: PreparedEnvironment
     readonly captureEnvironment: boolean
-    readonly signal?: AbortSignal
+    readonly signal?: AbortSignal | undefined
     readonly onOutput: (chunk: string) => void
   }) => {
     if (shuttingDown) throw new Error('The Session Host is stopping.')

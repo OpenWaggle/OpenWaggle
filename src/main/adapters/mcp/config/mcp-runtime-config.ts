@@ -149,10 +149,11 @@ function loadConnectableMcpConfig(roots: McpConfigFileRoots, reader?: McpConfigF
       .map(mcpFilePendingNotice),
   ]
   if (closed) {
+    // A scope whose migration is pending lists no server, so no override is orphaned either.
+    const { orphanedOverrides: _withheld, ...withoutOrphans } = merged
     return {
-      ...merged,
+      ...withoutOrphans,
       servers: [],
-      orphanedOverrides: undefined,
       errors: [...notices, ...merged.errors],
       incomplete: true as const,
     }

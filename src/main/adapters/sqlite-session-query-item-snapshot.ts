@@ -10,10 +10,10 @@ interface ItemSnapshotRow {
 
 interface ItemSnapshotQuery {
   readonly sessionId: string
-  readonly branchScope?: 'active-branch' | 'tree'
-  readonly branchId?: string
-  readonly snapshotHeadNodeId?: string
-  readonly throughCreatedOrder?: number
+  readonly branchScope?: 'active-branch' | 'tree' | undefined
+  readonly branchId?: string | undefined
+  readonly snapshotHeadNodeId?: string | undefined
+  readonly throughCreatedOrder?: number | undefined
 }
 
 export function resolveItemSnapshotHead(

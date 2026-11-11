@@ -27,7 +27,7 @@ export interface ActionProcess {
 export interface ActionProcessLaunch {
   readonly invocation: ResolvedActionInvocation
   readonly environment: PreparedEnvironment
-  readonly signal?: AbortSignal
+  readonly signal?: AbortSignal | undefined
   readonly onOutput: (chunk: string) => void
 }
 

@@ -44,7 +44,7 @@ const extensionDiagnosticsSchema = Schema.mutable(
       severity: Schema.Literal(...OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITIES),
       code: Schema.Literal(...OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODES),
       message: Schema.String,
-      path: Schema.optional(Schema.String),
+      path: Schema.optionalWith(Schema.String, { exact: true }),
     }),
   ),
 )

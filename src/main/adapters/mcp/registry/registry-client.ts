@@ -24,7 +24,7 @@ export interface RegistryServerRecord {
 }
 
 export interface RegistryClientOptions {
-  readonly registryUrl?: string
+  readonly registryUrl?: string | undefined
   readonly fetchResource?: RegistryResourceFetcher
 }
 
@@ -86,7 +86,7 @@ function resultLimit(limit: number | undefined) {
 
 /** Servers whose name matches `query`, latest versions only when the Registry marks them. */
 export async function searchMcpRegistry(
-  input: { readonly query: string; readonly limit?: number } & RegistryClientOptions,
+  input: { readonly query: string; readonly limit?: number | undefined } & RegistryClientOptions,
 ) {
   const url = new URL('/v0.1/servers', registryBaseUrl(input.registryUrl))
   url.searchParams.set('search', input.query)

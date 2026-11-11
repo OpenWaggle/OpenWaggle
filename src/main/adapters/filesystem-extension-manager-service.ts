@@ -14,7 +14,7 @@ const FilesystemExtensionPackageDiscoveryLive = Layer.succeed(
       Effect.tryPromise({
         try: () =>
           discoverExtensionPackages({
-            projectPath: input.projectPath,
+            projectPath: input.projectPath ?? null,
             globalRootPath: getGlobalExtensionRoot(appPaths.userData()),
             hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
           }),

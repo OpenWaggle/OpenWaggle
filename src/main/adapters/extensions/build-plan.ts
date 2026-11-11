@@ -6,16 +6,17 @@ import type {
 } from '../../extensions/types'
 import { calculateBuildPlanHash } from './package-files'
 
+/** The manifest fields the build plan reads, as a decoded manifest carries them. */
 interface ManifestBuildPlanSource {
   readonly builtArtifacts: readonly string[]
   readonly sourceFiles: readonly string[]
-  readonly install?: {
-    readonly source: ExtensionInstallSource
-  }
-  readonly build?: {
-    readonly command: string
-    readonly outputs?: readonly string[]
-  }
+  readonly install?: { readonly source: ExtensionInstallSource } | undefined
+  readonly build?:
+    | {
+        readonly command: string
+        readonly outputs?: readonly string[] | undefined
+      }
+    | undefined
 }
 
 function normalizeManifestPath(relativePath: string) {

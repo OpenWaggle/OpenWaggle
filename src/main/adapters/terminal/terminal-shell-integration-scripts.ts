@@ -124,7 +124,7 @@ interface ZshStartupWrapperOptions {
   readonly userDirectoryVariable: string
   readonly userDirectorySetVariable: string
   readonly captureInitialState?: boolean
-  readonly initialUserDirectory?: string
+  readonly initialUserDirectory?: string | undefined
   readonly integration?: string
   readonly finalStartupFile?: boolean
 }

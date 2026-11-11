@@ -82,7 +82,10 @@ function editedText(text: string, before: JsonRecord | undefined, after: JsonRec
   const changes = before ? serverChanges(before, after) : [{ path: ['mcpServers'], value: after }]
   return changes.reduce(
     (current, change) =>
-      applyEdits(current, modify(current, change.path, change.value, { formattingOptions })),
+      applyEdits(
+        current,
+        modify(current, change.path, change.value, formattingOptions ? { formattingOptions } : {}),
+      ),
     text,
   )
 }

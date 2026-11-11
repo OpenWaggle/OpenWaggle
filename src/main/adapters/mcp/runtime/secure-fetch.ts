@@ -212,7 +212,7 @@ function redirectRequestInit(status: number, init: RequestInit): RequestInit {
   const headers = new Headers(init.headers)
   headers.delete('content-length')
   headers.delete('content-type')
-  return { ...init, method: 'GET', body: undefined, headers }
+  return { ...init, method: 'GET', body: null, headers }
 }
 
 function redirectCredentials(originChanged: boolean, init: RequestInit): RequestInit {
