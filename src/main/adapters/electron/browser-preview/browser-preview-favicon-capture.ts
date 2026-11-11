@@ -197,7 +197,7 @@ async function captureCandidate(
     ) {
       return { kind: 'none' }
     }
-    return rasterizeBrowserPreviewFavicon(
+    return await rasterizeBrowserPreviewFavicon(
       contents,
       normalizedMime,
       source.buffer,

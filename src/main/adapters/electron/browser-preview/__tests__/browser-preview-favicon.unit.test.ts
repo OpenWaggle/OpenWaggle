@@ -69,6 +69,24 @@ describe('browser preview favicon capture', () => {
     expect(contents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
   })
 
+  it('reports no favicon when rasterizing a candidate throws', async () => {
+    const contents = faviconContents({
+      executeJavaScriptInIsolatedWorld: vi.fn(() => {
+        throw new Error('Render frame was disposed.')
+      }),
+    })
+    const candidate = `data:image/png;base64,${pngHeader().toString('base64')}`
+
+    await expect(
+      captureBrowserPreviewFavicon({
+        webContents: contents,
+        pageUrl: 'https://example.com/page',
+        candidates: [candidate],
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ kind: 'none' })
+  })
+
   it('publishes a favicon only for the live document origin', async () => {
     const ownerFixture = createOwner()
     const ownerWindow = createWindow()
