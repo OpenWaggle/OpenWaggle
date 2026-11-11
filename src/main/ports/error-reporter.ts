@@ -11,6 +11,12 @@ export type { ErrorReportOrigin }
 export interface ErrorReporter {
   /** Reports an error the app caught. Never throws. */
   readonly captureException: (error: unknown, origin?: ErrorReportOrigin) => void
+  /**
+   * Reports the error events of an envelope a renderer's SDK serialized, after this process's
+   * scrubbing and Usage statistics check. Absent where renderers report another way (Electron's
+   * SDK bridge). Never throws.
+   */
+  readonly captureRendererEnvelope?: (envelope: string) => void
   /** Waits up to `timeoutMs` for pending reports, before the process exits. */
   readonly flush: (timeoutMs: number) => Promise<void>
 }

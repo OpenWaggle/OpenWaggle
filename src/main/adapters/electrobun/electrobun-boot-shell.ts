@@ -4,7 +4,8 @@ import path from 'node:path'
 import { BUILD_CHANNEL, PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { BootShellShape } from '../../ports/desktop-shell/boot-shell'
 import type { ShellCommandLineShape } from '../../ports/desktop-shell/app-lifecycle'
-import { loadedElectrobun } from './electrobun-sdk'
+import { isElectrobunDesktopApp, loadedElectrobun } from './electrobun-sdk'
+import { readSystemProxy, systemProxyEnvironment } from './electrobun-system-proxy'
 
 /**
  * Electrobun's boot view of the shell (ADR 0064); `electrobunAppPaths`, `electrobunAppLifecycle`
@@ -137,9 +138,19 @@ export const electrobunCommandLine: ShellCommandLineShape = {
   appendSwitch: (name, value) => void switches().set(name, value ?? ''),
 }
 
+/**
+ * The desktop app carries the system proxy into its environment before anything sends a request
+ * or starts the Session Host, which inherits it (`electrobun-system-proxy.ts`).
+ */
+function applySystemProxy() {
+  if (!isElectrobunDesktopApp()) return
+  Object.assign(process.env, systemProxyEnvironment(process.env, readSystemProxy()))
+}
+
 export const electrobunBootShell: BootShellShape = {
-  // The name is chosen by `userDataName()` from the Build identity; nothing to rename.
-  applyBuildIdentity: () => undefined,
+  // The name is chosen by `userDataName()` from the Build identity; nothing to rename. The first
+  // boot step is also where the desktop app picks up the system proxy.
+  applyBuildIdentity: applySystemProxy,
   appRoot,
   userData: () => relocated.userData ?? path.join(applicationDataRoot(), userDataName()),
   version,

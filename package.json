@@ -192,6 +192,8 @@
     "@pierre/diffs": "1.4.2",
     "@playwright/test": "1.63.0",
     "@rolldown/plugin-babel": "0.2.4",
+    "@sentry/browser": "10.75.0",
+    "@sentry/bun": "10.75.0",
     "@sentry/core": "10.75.0",
     "@sentry/electron": "7.20.0",
     "@tailwindcss/vite": "4.3.3",
