@@ -22,20 +22,23 @@ interface DesktopLease {
   draining: boolean
 }
 
+interface DesktopServiceLeasesInput {
+  readonly getHostInstanceId: () => string
+  readonly fences: DesktopFenceRepositoryShape
+  readonly owners: DesktopOwnerRepositoryShape
+  readonly queue: DesktopServiceCommandQueue
+}
+
 export class DesktopServiceLeases {
   private lease: DesktopLease | undefined
   private closed = false
   private admissionTail = Promise.resolve()
   private boundHostInstanceId: string | undefined
+  private readonly input: DesktopServiceLeasesInput
 
-  constructor(
-    private readonly input: {
-      readonly getHostInstanceId: () => string
-      readonly fences: DesktopFenceRepositoryShape
-      readonly owners: DesktopOwnerRepositoryShape
-      readonly queue: DesktopServiceCommandQueue
-    },
-  ) {}
+  constructor(input: DesktopServiceLeasesInput) {
+    this.input = input
+  }
 
   admit<A>(operation: () => Promise<A>): Promise<A> {
     const current = this.admissionTail.then(operation)

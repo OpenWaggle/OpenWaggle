@@ -87,7 +87,10 @@ function attachHiveTreePendingInteractions(
 ): HiveTreeSessionCatalogPage {
   return {
     ...page,
-    root: page.root === null ? null : attachPendingInteractions([page.root], heldAtBySessionId)[0],
+    root:
+      page.root === null
+        ? null
+        : (attachPendingInteractions([page.root], heldAtBySessionId)[0] ?? null),
     members: attachPendingInteractions(page.members, heldAtBySessionId),
   }
 }

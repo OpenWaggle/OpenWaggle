@@ -78,10 +78,16 @@ export class HostBackgroundGate {
   private quietTimer: { readonly cancel: () => void } | undefined
   private quietWaiters = new Set<QuietWaiter>()
 
+  private readonly clock: HostBackgroundGateClock
+  private readonly onSlimFailed: (error: unknown) => void
+
   constructor(
-    private readonly clock: HostBackgroundGateClock = systemClock,
-    private readonly onSlimFailed: (error: unknown) => void = () => undefined,
-  ) {}
+    clock: HostBackgroundGateClock = systemClock,
+    onSlimFailed: (error: unknown) => void = () => undefined,
+  ) {
+    this.clock = clock
+    this.onSlimFailed = onSlimFailed
+  }
 
   /** The Session Host gates its background work from now on; nothing runs until a client. */
   enable() {

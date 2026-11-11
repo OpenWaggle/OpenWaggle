@@ -73,7 +73,11 @@ export class ReadyToReadAfterWorkers {
   /** When the sweep showed a root's held Ready to read without its wake Run saying so. */
   private readonly sweptAt = new Map<string, number>()
 
-  constructor(private readonly dependencies: ReadyToReadAfterWorkersDependencies) {}
+  private readonly dependencies: ReadyToReadAfterWorkersDependencies
+
+  constructor(dependencies: ReadyToReadAfterWorkersDependencies) {
+    this.dependencies = dependencies
+  }
 
   /** The root Session's request ended another way (stopped, failed, archived or deleted). */
   drop(rootSessionId: string) {

@@ -68,7 +68,10 @@ export class DesktopNotificationObserver {
   private readonly notifiedRuns = new Set<string>()
   private readonly readyToRead: ReadyToReadAfterWorkers
 
-  constructor(private readonly dependencies: DesktopNotificationObserverDependencies) {
+  private readonly dependencies: DesktopNotificationObserverDependencies
+
+  constructor(dependencies: DesktopNotificationObserverDependencies) {
+    this.dependencies = dependencies
     this.readyToRead = new ReadyToReadAfterWorkers(dependencies)
   }
 

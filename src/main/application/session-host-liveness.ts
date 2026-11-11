@@ -80,7 +80,10 @@ export class SessionHostLiveness {
   private acceptedClient = false
   private readonly clientHandoffGracePeriodMs: number
 
-  constructor(private readonly options: SessionHostLivenessOptions) {
+  private readonly options: SessionHostLivenessOptions
+
+  constructor(options: SessionHostLivenessOptions) {
+    this.options = options
     nonNegativeSafeInteger(options.idleGracePeriodMs, 'idle grace period')
     nonNegativeSafeInteger(options.clientHandoffGracePeriodMs ?? 0, 'idle grace period')
     this.idleGracePeriodMs = options.idleGracePeriodMs
