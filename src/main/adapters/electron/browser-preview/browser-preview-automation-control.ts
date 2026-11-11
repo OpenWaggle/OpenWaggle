@@ -3,6 +3,7 @@ import type { BrowserPreviewControllerState } from '@shared/types/browser-previe
 import type {
   BrowserPreviewAutomationActionEvent,
   BrowserPreviewAutomationConsoleEntry,
+  BrowserPreviewAutomationEvaluateInput,
   BrowserPreviewAutomationNetworkEntry,
 } from '@shared/types/browser-preview-automation'
 import type { WebContents } from 'electron'
@@ -53,7 +54,7 @@ export interface BrowserPreviewAutomationActionContext {
   ) => Promise<unknown>
   readonly evaluate: (
     expression: string,
-    options?: { readonly awaitPromise?: boolean; readonly returnByValue?: boolean },
+    options?: Pick<BrowserPreviewAutomationEvaluateInput, 'awaitPromise' | 'returnByValue'>,
   ) => Promise<unknown>
   readonly ensurePlaywright: () => Promise<void>
   readonly documentGeneration: () => number

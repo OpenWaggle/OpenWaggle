@@ -169,7 +169,10 @@ export class BrowserPreviewArtifactStore {
     contents: WebContents,
     clip?: Rectangle,
   ): Promise<BrowserPreviewScreenshotArtifact> {
-    const sourceImage = await captureBrowserPreviewPage(contents, { clip })
+    const sourceImage = await captureBrowserPreviewPage(
+      contents,
+      clip === undefined ? {} : { clip },
+    )
     const image = boundedScreenshotImage(sourceImage)
     const dimensions = image.getSize()
     const data = image.toPNG()

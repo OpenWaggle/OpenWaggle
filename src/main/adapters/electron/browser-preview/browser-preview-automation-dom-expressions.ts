@@ -1,4 +1,5 @@
 import type {
+  BrowserPreviewAutomationClickInput,
   BrowserPreviewAutomationScrollInput,
   BrowserPreviewAutomationTypeInput,
   BrowserPreviewAutomationWaitInput,
@@ -9,10 +10,13 @@ function json(value: string) {
   return JSON.stringify(value)
 }
 
-export function browserPreviewAutomationLocator(input: {
-  readonly selector?: string
-  readonly locator?: string
-}) {
+/** The selector fields every targeted automation input shares. */
+export type BrowserPreviewAutomationLocatorInput = Pick<
+  BrowserPreviewAutomationClickInput,
+  'selector' | 'locator'
+>
+
+export function browserPreviewAutomationLocator(input: BrowserPreviewAutomationLocatorInput) {
   return input.locator ?? (input.selector ? `css=${input.selector}` : null)
 }
 

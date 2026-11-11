@@ -21,6 +21,7 @@ import {
   throwIfBrowserPreviewAutomationAborted,
 } from './browser-preview-automation-delay'
 import {
+  type BrowserPreviewAutomationLocatorInput,
   browserPreviewAutomationLocator,
   browserPreviewClickPointExpression,
   browserPreviewScrollExpression,
@@ -48,7 +49,7 @@ const MAX_KEY_LENGTH = 64
 
 async function ensureLocatorRuntime(
   context: BrowserPreviewAutomationActionContext,
-  input: { readonly selector?: string; readonly locator?: string },
+  input: BrowserPreviewAutomationLocatorInput,
 ) {
   if (browserPreviewAutomationLocator(input) !== null) await context.ensurePlaywright()
 }

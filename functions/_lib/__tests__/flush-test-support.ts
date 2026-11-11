@@ -71,7 +71,11 @@ export async function flush(store: KeyValueStore | undefined, options: FlushOpti
     headers: { Authorization: `Bearer ${SNAPSHOT_TOKEN}`, ...options.headers },
     ...(options.cursor === undefined ? {} : { body: JSON.stringify({ cursor: options.cursor }) }),
   })
-  const env = environment({ STATS_KV: store, STATS_SNAPSHOT_TOKEN: SNAPSHOT_TOKEN, ...options.env })
+  const env = environment({
+    ...(store === undefined ? {} : { STATS_KV: store }),
+    STATS_SNAPSHOT_TOKEN: SNAPSHOT_TOKEN,
+    ...options.env,
+  })
   const dependencies = { ...test.dependencies, randomUuid: uniqueUuid }
   const result = await handleFlushRequest(routeContext(request, env, dependencies))
   return { ...test, result, body: await result.response.json() }

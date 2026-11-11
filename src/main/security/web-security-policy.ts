@@ -215,7 +215,8 @@ export function installCspHeaders(session: SessionWithHeadersHandler): void {
 
   session.webRequest.onHeadersReceived((details, callback) => {
     if (hasProtocolManagedContentSecurityPolicy(details.url)) {
-      callback({ responseHeaders: details.responseHeaders })
+      const { responseHeaders } = details
+      callback(responseHeaders === undefined ? {} : { responseHeaders })
       return
     }
 

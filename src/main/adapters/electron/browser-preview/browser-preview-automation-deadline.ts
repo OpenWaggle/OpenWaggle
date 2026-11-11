@@ -1,8 +1,8 @@
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 
 export interface BrowserPreviewAutomationRunOptions {
-  readonly signal?: AbortSignal
-  readonly timeoutMs?: number
+  readonly signal?: AbortSignal | undefined
+  readonly timeoutMs?: number | undefined
 }
 
 function timeoutFor(options: BrowserPreviewAutomationRunOptions) {
@@ -31,7 +31,7 @@ export class BrowserPreviewAutomationDeadline {
   readonly timeoutMs: number
 
   private readonly controller = new AbortController()
-  private readonly upstream?: AbortSignal
+  private readonly upstream: AbortSignal | undefined
   private readonly onUpstreamAbort = () => {
     this.controller.abort(new Error('Browser preview action was cancelled.'))
   }

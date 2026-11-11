@@ -56,13 +56,9 @@ async function listChromiumProfiles(
   if (declared.length === 0 && definition.directProfileName) {
     const directDatabase = await resolveCookieDatabase(definition, context, '.')
     if (directDatabase) {
-      return [
-        {
-          directory: '.',
-          name: definition.directProfileName,
-          cookieCount: countProfileCookies(definition, directDatabase),
-        },
-      ]
+      const profile = { directory: '.', name: definition.directProfileName }
+      const cookieCount = countProfileCookies(definition, directDatabase)
+      return [cookieCount === undefined ? profile : { ...profile, cookieCount }]
     }
   }
   const candidates = declared.length > 0 ? declared : await scanDirectories(root)

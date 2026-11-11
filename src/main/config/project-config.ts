@@ -16,6 +16,7 @@ import {
   type ProjectPreferences,
   type ProjectPreferencesUpdate,
   parseProjectConfig,
+  scopedAuthorizationGrant,
 } from './project-config-parsing'
 import { enqueueProjectConfigWrite } from './project-config-write-queue'
 
@@ -287,7 +288,9 @@ export async function grantProjectAuthorization(
 ): Promise<void> {
   await updateProjectConfig(projectPath, (current) => {
     const existing = current.authorizationGrants ?? []
-    const withoutKey = existing.filter((grant) => !authorizationScopeKeysMatch(grant, key))
+    const withoutKey = existing.filter(
+      (grant) => !authorizationScopeKeysMatch(scopedAuthorizationGrant(grant), key),
+    )
     return {
       ...current,
       authorizationGrants: [
@@ -316,7 +319,9 @@ export async function revokeProjectAuthorization(
 ): Promise<void> {
   await updateProjectConfig(projectPath, (current) => {
     const existing = current.authorizationGrants ?? []
-    const remaining = existing.filter((grant) => !authorizationScopeKeysMatch(grant, key))
+    const remaining = existing.filter(
+      (grant) => !authorizationScopeKeysMatch(scopedAuthorizationGrant(grant), key),
+    )
     if (remaining.length === existing.length) return current
 
     const next = { ...current }

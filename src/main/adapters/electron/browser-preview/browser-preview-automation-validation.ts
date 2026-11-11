@@ -94,7 +94,9 @@ export function resolveBrowserPreviewAutomationViewport(
     .exhaustive()
 }
 
-function validateTargetSelectors(input: { readonly selector?: string; readonly locator?: string }) {
+function validateTargetSelectors(
+  input: Pick<BrowserPreviewAutomationClickInput, 'selector' | 'locator'>,
+) {
   if (input.selector !== undefined && input.locator !== undefined) {
     throw new Error('Provide at most one of selector or locator.')
   }

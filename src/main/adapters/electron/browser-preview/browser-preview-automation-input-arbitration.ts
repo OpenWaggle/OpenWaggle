@@ -10,20 +10,32 @@ const SHIFT_MODIFIER_MASK = 8
 
 type InputPhase = 'keyDown' | 'keyUp' | 'mouseDown' | 'mouseMove' | 'mouseUp' | 'mouseWheel'
 
-interface ExpectedInputSignal {
+interface ExpectedInputBase {
   readonly id: number
-  readonly phase: InputPhase
   readonly expiresAt: number
-  readonly key?: string
-  readonly code?: string
-  readonly location?: number
-  readonly modifiers?: number
-  readonly button?: string
-  readonly x?: number
-  readonly y?: number
-  readonly deltaX?: number
-  readonly deltaY?: number
+  readonly modifiers: number
 }
+
+interface ExpectedKeyboardSignal extends ExpectedInputBase {
+  readonly kind: 'keyboard'
+  readonly phase: 'keyDown' | 'keyUp'
+  readonly key: string
+  readonly code: string
+  readonly location: number
+}
+
+interface ExpectedMouseSignal extends ExpectedInputBase {
+  readonly kind: 'mouse'
+  readonly phase: InputPhase
+  readonly x: number
+  readonly y: number
+  /** Absent when the dispatched event named no button, deltaX or deltaY; any value matches. */
+  readonly button: string | undefined
+  readonly deltaX: number | undefined
+  readonly deltaY: number | undefined
+}
+
+type ExpectedInputSignal = ExpectedKeyboardSignal | ExpectedMouseSignal
 
 const CDP_MOUSE_PHASES: Readonly<Record<string, InputPhase | undefined>> = {
   mousePressed: 'mouseDown',
@@ -32,7 +44,7 @@ const CDP_MOUSE_PHASES: Readonly<Record<string, InputPhase | undefined>> = {
   mouseWheel: 'mouseWheel',
 }
 
-function keyPhase(type: unknown): InputPhase | null {
+function keyPhase(type: unknown): ExpectedKeyboardSignal['phase'] | null {
   if (type === 'keyDown' || type === 'rawKeyDown') return 'keyDown'
   return type === 'keyUp' ? 'keyUp' : null
 }
@@ -77,6 +89,7 @@ function expectedSignal(
     const code = stringValue(params.code)
     if (!phase || key === undefined || code === undefined) return null
     return {
+      kind: 'keyboard',
       id,
       phase,
       expiresAt: now + EXPECTED_INPUT_TTL_MS,
@@ -92,6 +105,7 @@ function expectedSignal(
   const y = finiteNumber(params.y)
   if (!phase || x === undefined || y === undefined) return null
   return {
+    kind: 'mouse',
     id,
     phase,
     expiresAt: now + EXPECTED_INPUT_TTL_MS,
@@ -107,6 +121,7 @@ function expectedSignal(
 function matchesKeyboard(expected: ExpectedInputSignal, input: Input) {
   const phase = keyPhase(input.type)
   return (
+    expected.kind === 'keyboard' &&
     phase === expected.phase &&
     input.key === expected.key &&
     input.code === expected.code &&
@@ -117,9 +132,8 @@ function matchesKeyboard(expected: ExpectedInputSignal, input: Input) {
 
 function matchesMouse(expected: ExpectedInputSignal, input: MouseInputEvent) {
   if (
+    expected.kind !== 'mouse' ||
     input.type !== expected.phase ||
-    expected.x === undefined ||
-    expected.y === undefined ||
     Math.abs(input.x - expected.x) > POINTER_COORDINATE_TOLERANCE ||
     Math.abs(input.y - expected.y) > POINTER_COORDINATE_TOLERANCE ||
     modifierMask(input) !== expected.modifiers
