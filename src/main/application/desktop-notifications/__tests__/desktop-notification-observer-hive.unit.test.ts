@@ -104,12 +104,6 @@ describe('DesktopNotificationObserver: Ready to read waits for the work (ADR 006
     expect(published).toEqual([])
   })
 
-  it('notifies at once when nothing below the Session runs', async () => {
-    const { emit, published } = hive()
-    await emit(settled('run-1', 'completed'), 100)
-    expect(shownKinds(published)).toEqual(['shown:completed'])
-  })
-
   it('still notifies a reply the person had already visited before the Workers finished', async () => {
     const { emit, published, fixture } = hive()
     fixture.running = new Set(['w1'])

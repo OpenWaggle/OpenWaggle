@@ -1,7 +1,6 @@
 export { captureAttachment } from './session-resource-capture-attachment'
 export { captureGeneratedImage } from './session-resource-capture-image'
 export {
-  advanceGeneratedImageCaptureBudget,
   GENERATED_IMAGE_CAPTURE_LIMITS,
   prepareGeneratedImageForCapture,
 } from './session-resource-capture-image-budget'

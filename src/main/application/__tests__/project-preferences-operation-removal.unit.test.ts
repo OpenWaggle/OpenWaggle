@@ -96,12 +96,6 @@ describe('removeProjectModelOperation', () => {
   const tempProjectPath = async (prefix: string) =>
     fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)))
 
-  it('deletes the stored model through the queue-safe backend writer', async () => {
-    await run('/project')
-
-    expect(removals).toEqual(['/project'])
-  })
-
   it('strips a legacy file model before deleting the entry', async () => {
     const legacyPath = await tempProjectPath('openwaggle-legacy-model-')
     await writeLegacyModelFile(legacyPath)

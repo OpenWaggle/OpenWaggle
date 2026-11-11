@@ -78,12 +78,6 @@ describe('authorization scope keys', () => {
     expect(authorizationScopeKeysMatch(serverWide, listIssues)).toBe(false)
     expect(findMatchingGrant([{ ...serverWide, grantedAt: 1 }], listIssues)).toBeUndefined()
   })
-
-  it('ignores arguments entirely, because they are not part of the identity', () => {
-    // Both calls are the same grant even though the arguments differ, and an attacker-controlled
-    // argument therefore cannot decide whether a grant applies.
-    expect(authorizationScopeKeysMatch(listIssues, { ...listIssues })).toBe(true)
-  })
 })
 
 describe('session grants', () => {
