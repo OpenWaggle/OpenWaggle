@@ -147,52 +147,82 @@ takes over. The keychain read never blocks the window.
 - **Installs that update late.** The release keeps publishing transition artifacts (see below), so
   an Electron install that comes back after months goes straight to the newest Electrobun build.
 
-## How `release.yml` must change
+## How `release.yml` changes
 
-Not wired yet. For each platform job, after the Electrobun build:
+Wired in `.github/workflows/release.yml`; `scripts/electrobun/package.ts` does the per-platform work
+(docs/release-and-versioning.md, "Electrobun packaging"). Every job packages against OpenWaggle's own
+Electrobun native layer (the `native` job calls `electrobun-native.yml` and each build downloads its
+target's devkit), with `OPENWAGGLE_RELEASE_CHANNEL` stamped as before.
 
-1. **Build with Electrobun.** Replace `bunx electron-builder …` with `bunx electrobun build
-   --env=<stable|canary>` (Beta and Alpha map to Electrobun's `canary` build environment; Stable and
-   RC to `stable`), keeping `OPENWAGGLE_RELEASE_CHANNEL` stamping as today.
-2. **macOS (`build-macos`).** Turn Hutch signing off and add a `postBuild` hook that, on the unwrapped
-   `OpenWaggle.app`: runs `macos-transition-bundle.ts`; imports the Developer ID from the existing
-   `MACOS_CERTIFICATE_P12_BASE64` secret into a temporary keychain (as electron-builder does now);
-   signs inside out with hardened runtime and the Electrobun entitlements, `bun` with
-   `--identifier com.openwaggle.app`; and copies the signed app out. Then, for arm64 and x64:
-   `macos-transition-zip.ts <app> dist/openwaggle-<version>-<arch>.zip com.openwaggle.app
-   "<requirement>"` where the requirement is the Developer ID requirement for the release team
-   (`developerIdRequirement('com.openwaggle.app', $APPLE_TEAM_ID)`); notarize and staple the app
-   (`xcrun notarytool submit … --wait` on a zip of it, `xcrun stapler staple`) before the final zip;
-   build `openwaggle-<version>-<arch>.dmg` from the same app for `install.sh`; then
-   `update-metadata.ts dist <version> mac <channel> openwaggle-<version>-arm64.zip
-   openwaggle-<version>-x64.zip` followed by the existing `prepare-update-channel-metadata.ts dist
-   <channel> mac`. `generate-macos-update-metadata.ts` is no longer used.
-3. **Windows (`build-windows`).** `windows-transition-installer.ts
-   artifacts/*-Setup*.zip dist/openwaggle-<version>-x64.exe <version> <eb-channel>` (makensis is on
-   the hosted image; install NSIS with Chocolatey if not), then `update-metadata.ts dist <version>
-   windows <channel> openwaggle-<version>-x64.exe` and `prepare-update-channel-metadata.ts`. Upload
-   the Electrobun Setup zip as an extra asset for new installs.
-4. **Linux (`build-linux`).** Download a pinned `appimagetool` release (checksum-verified), run
-   `linux-transition-appimage.ts artifacts/*-Setup.tar.gz dist/openwaggle-<version>-x86_64.AppImage
-   <version> <eb-channel> <appimagetool>`, then `update-metadata.ts … linux …` and
-   `prepare-update-channel-metadata.ts`. `check-native-platform-floor.ts` must read the Electrobun
-   payload instead of the Electron one.
-5. **Electrobun's own artifacts.** Upload `<env>-<os>-<arch>-update.json`, `-update-v2.json`, the
-   `.tar.zst` archives and patches unchanged, so the Electrobun updater can find them. Its
-   `release.baseUrl` must be a URL that keeps working for every channel; GitHub's
-   `releases/latest/download/` skips prereleases, so the Beta channel needs either a per-channel
-   rolling release (for example `channel-beta`) whose assets each release replaces, or a small
-   static host. That choice belongs to the updater port.
-6. **`Collect release assets`** must add `*.tar.gz`, `*.tar.zst`, `*.patch` and `*update*.json` to
-   its `find`, and drop `*.blockmap` (none are produced). `SHA256SUMS.txt` keeps covering every
-   asset; the CLI updater on Windows and `install.sh` verify against it.
-7. **`verify-installers`** must install and launch the transition artifacts: the bench's
-   install-old-app-then-update flow, run against the draft release's files, is the release gate.
+1. **Build with Electrobun.** `hutch electrobun build --env=stable` for every channel, not `canary`
+   for Beta and Alpha as first planned. Electrobun names the install root and the update files after
+   the build environment (`~/Library/Application Support/com.openwaggle.app/stable`,
+   `%LOCALAPPDATA%\com.openwaggle.app\stable`, `stable-<os>-<arch>-update-v2.json`), so a `canary`
+   Beta would be a second install beside Stable, which Electron's one shared identity never was.
+   OpenWaggle picks the release a channel follows itself (below), so Electrobun's channel has
+   nothing left to decide. Cost: none found; the transition scripts already take `stable`.
+2. **macOS (`build-macos`, one job per architecture on its own CPU).** Hutch signing is off. The
+   `postBuild` hook runs `macos-transition-bundle.ts`, then signs inside out with hardened runtime and
+   `build/entitlements.electrobun.mac.plist`, `bun` with `--identifier com.openwaggle.app`, using
+   the Developer ID imported from `MACOS_CERTIFICATE_P12_BASE64` into a job keychain
+   (`scripts/electrobun/ci/macos-import-identity.sh`; ad hoc without it), and keeps the unwrapped
+   app in `out/electrobun/inner/`. Hutch rewrites `Contents/Resources/version.json` after
+   `postBuild`, which broke the seal of the app in its update archive, so `package.ts` copies the
+   final `version.json` in, re-seals the bundle, notarizes and staples it, repacks the `.tar.zst`
+   and records its SHA-256 and size in `update-v2.json` (`scripts/electrobun/macos-reseal.ts`).
+   From that one app it writes `openwaggle-<version>-<arch>.zip` (checked against
+   `developerIdRequirement('com.openwaggle.app', $APPLE_TEAM_ID)`) and
+   `openwaggle-<version>-<arch>.dmg` (signed, notarized, stapled). `macos-update-metadata` then
+   writes one `*-mac.yml` for both zips (`package.ts metadata dist mac`, which runs
+   `update-metadata.ts` and `prepare-update-channel-metadata.ts`).
+3. **Windows (`build-windows`).** The `postBuild` hook Authenticode-signs every PE file before Hutch
+   archives them and `postWrap` signs Setup, when `WINDOWS_CERTIFICATE_PFX_BASE64` is configured
+   (Windows was unsigned under electron-builder too). `package.ts` runs
+   `windows-transition-installer.ts` into `openwaggle-<version>-x64.exe` and copies Electrobun's Setup
+   zip to `openwaggle-<version>-x64-setup.zip`, then the metadata.
+4. **Linux (`build-linux`).** `appimagetool` 1.9.1, checksum-verified; `package.ts` runs
+   `linux-transition-appimage.ts` into `openwaggle-<version>-x86_64.AppImage` and copies the Setup
+   tarball to `openwaggle-<version>-linux-x64.tar.gz`. `check-native-platform-floor.ts` without
+   arguments now reads the Electrobun output: the unwrapped app on macOS, Hutch's wrapper and its
+   `.tar.zst` payload on Windows and Linux.
+5. **Electrobun's own artifacts** are published unchanged next to the transition artifacts:
+   `stable-<os>-<arch>-update.json`, `-update-v2.json`, the `.tar.zst` and, on Windows and Linux,
+   the delta patch from the previous Electrobun release (`scripts/electrobun/patch-base-url.ts`
+   finds it; `OPENWAGGLE_ELECTROBUN_PATCH_BASE_URL` turns on Hutch's `generatePatch`). macOS drops
+   Hutch's patch, which targets the archive before re-sealing; macOS updates are full downloads
+   until patches are generated against the repacked archive. Feed hosting: see below.
+6. **`Collect release assets`** adds `*.tar.gz`, `*.tar.zst`, `*.patch` and `*update*.json` and
+   drops `*.blockmap`. `verify-release-assets.ts` checks Electrobun's manifests byte for byte, as
+   the `*.yml`.
+7. **`verify-installers`** checks the macOS DMG, the transition zip and Electrobun's files per
+   architecture, and installs the Windows transition installer silently
+   (`scripts/electrobun/ci/smoke.ts install`). The full install-old-then-update flow runs in the
+   bench workflow (`bench-electrobun-pkg-transition.yml` on a throwaway `bench/electrobun-pkg-*`
+   branch) and is not yet a release gate: it rebuilds the previous Electron release from source
+   with its feed pointed at a loopback server, and on macOS that rebuild must be signed with the
+   release Developer ID to satisfy Squirrel.Mac. Making it the gate is open work.
 8. **How long.** Keep publishing transition artifacts and their metadata on every release until a
    decided sunset (at least the 2.0 line or six months, whichever is later). Because
    `update-feed.ts` picks the newest release that has the metadata, stopping earlier only strands
    late installs on an older Electrobun build until its own updater catches up; never publishing
    them again would strand them on Electron.
+
+### Where the Electrobun updater reads from
+
+Decision: **each GitHub release's own download directory**, chosen per check. The Electrobun
+UpdateEngine (`src/main/adapters/electrobun/electrobun-update-engine.ts`) is handed the release that
+`src/main/update-feed.ts` already selects for the channel (newest eligible release with this
+platform's metadata, prereleases included for Beta and Alpha) and points Electrobun's updater at
+`https://github.com/OpenWaggle/OpenWaggle/releases/download/<tag>/`, where it reads
+`stable-<os>-<arch>-update-v2.json`, the archive and the patch. The baked `release.baseUrl`
+(`releases/latest/download`) is only a fallback.
+
+| Option | Cost | Risk |
+| --- | --- | --- |
+| Per-release directory, chosen by update-feed.ts (taken) | None: no new host or job | The updater depends on GitHub's release list API (unauthenticated limit 60/h per IP, as today); GitHub's download redirect to its asset host stays HTTPS within Electrobun's five redirects |
+| Rolling per-channel release (`channel-beta`) | One job re-uploading every asset per release | Mutable assets: an install can read a manifest while its archive is being replaced; GitHub caches release downloads |
+| `releases/latest/download` only | None | Skips prereleases, so Beta and Alpha never update |
+| Static host (R2, Pages) | A second publish target, credentials, retention | A second source of truth beside the release that `SHA256SUMS.txt` covers |
 
 ## Risks
 

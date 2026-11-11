@@ -279,6 +279,35 @@ Windows updaters diff against the previously downloaded update, so the first in-
 manual install, or after a release without blockmaps, is a full download; later ones are
 differential. `builder-debug.yml` is a local build dump and is not published.
 
+### Electrobun packaging
+
+The desktop app moves from Electron to Electrobun (ADR 0064, docs/electrobun-transition.md).
+`bun scripts/electrobun/package.ts` packages it for the host platform: it stages the main and
+renderer builds, a hoisted production `node_modules` and the bundled resources into
+`out/electrobun/stage` (`scripts/electrobun/stage.ts`), runs Hutch with `electrobun.config.ts`, and
+writes the release files to `out/electrobun/release`. Every channel builds with Electrobun's
+`stable` build environment and `com.openwaggle.app`, so one install root serves every channel.
+
+- **Renderers.** The system webview on macOS and Windows with CEF bundled for the browser preview;
+  CEF for the whole app on Linux. Release builds open no CEF DevTools port.
+- **Signing.** Hutch signing is off. macOS: the `postBuild` hook signs inside out, `bun` with
+  `--identifier com.openwaggle.app`; `package.ts` re-seals after Hutch's last `version.json` write,
+  then notarizes, staples and repacks the update archive (`scripts/electrobun/macos-reseal.ts`).
+  Windows: every PE file before Hutch archives it, then Setup. The release uses the existing
+  Developer ID secrets; CI (`.github/workflows/electrobun-package.yml`) generates throwaway
+  self-signed identities in the job.
+- **Artifacts.** macOS `openwaggle-<version>-<arch>.dmg` and the transition `.zip`; Windows the NSIS
+  transition `openwaggle-<version>-x64.exe` and `openwaggle-<version>-x64-setup.zip`; Linux the
+  transition `openwaggle-<version>-x86_64.AppImage` and `openwaggle-<version>-linux-x64.tar.gz`;
+  plus Electrobun's `stable-<os>-<arch>-update(-v2).json`, `.tar.zst` and delta `.patch` files.
+- **Electrobun updates.** The updater reads the release that `src/main/update-feed.ts` selects for
+  the channel, at `https://github.com/OpenWaggle/OpenWaggle/releases/download/<tag>/`, not a
+  rolling release or another host: `releases/latest` skips prereleases, and a release's assets are
+  immutable and covered by `SHA256SUMS.txt`. Cost and risk of the alternatives: docs/electrobun-transition.md,
+  "Where the Electrobun updater reads from". Windows and Linux releases carry a delta patch from the
+  previous Electrobun release; macOS updates are full downloads (the re-sealed archive is not the
+  one Hutch diffed).
+
 ### Update restart and relaunch
 
 Updates download automatically in the background; installing is always a user action: **Restart
