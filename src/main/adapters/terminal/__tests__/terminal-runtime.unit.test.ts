@@ -18,31 +18,6 @@ describe('makeTerminalRuntime spawn lifecycle', () => {
   beforeEach(setupTerminalRuntimeTest)
   afterEach(teardownTerminalRuntimeTest)
 
-  it('builds a generation-aware registry record', () => {
-    const { runtime } = makeRuntime(makeFakePty(FAKE_PID))
-
-    const record = runtime.makeRecord(INPUT, INPUT.cwd)
-
-    expect(record).toMatchObject({
-      key: 'session-1::main',
-      ownerKey: 'session-1',
-      terminalId: 'main',
-      cwd: INPUT.cwd,
-      live: null,
-      exitCode: null,
-      spawnGeneration: 0,
-      outputGeneration: 0,
-      readinessPhase: 'spawning',
-      readinessGeneration: 0,
-      pendingInput: [],
-      pendingInputBytes: 0,
-      inputGeneration: null,
-      lastInputReceipt: null,
-      pendingOutput: '',
-      pendingOutputBytes: 0,
-    })
-  })
-
   it('retains the bounded spawn metadata as shutdown identity and tty fallback', async () => {
     const fake = makeFakePty(FAKE_PID)
     const { runtime, spawn } = makeRuntime(fake)

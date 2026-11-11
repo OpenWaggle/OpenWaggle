@@ -148,9 +148,6 @@ describe('terminal process-tree shutdown membership', () => {
     await expect(shutdownLiveTerminal(record, vi.fn())).resolves.toBe(true)
 
     expect(probes.signalLiveTerminalTtyMembers).toHaveBeenCalledOnce()
-    expect(probes.signalLiveTerminalTtyMembers.mock.invocationCallOrder[0]).toBeLessThan(
-      fake.destroy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    )
     expect(fake.kill).not.toHaveBeenCalled()
     expect(fake.destroy).not.toHaveBeenCalled()
     expect(record.live).toBeNull()

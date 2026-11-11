@@ -170,6 +170,38 @@ describe('createTerminalHistorySanitizer', () => {
     expect(sanitizer.feed(`${ESC}[${'0'.repeat(4_200)}`)).toBe('')
     expect(sanitizer.feed('ok')).toBe('ok')
   })
+
+  it('still preserves complete non-query sequences split across chunks', () => {
+    const sanitizer = createTerminalHistorySanitizer()
+    const first = sanitizer.feed(`x${ESC}[38;5;19`)
+    const second = sanitizer.feed('6mY')
+    expect(first + second).toBe(`x${ESC}[38;5;196mY`)
+  })
+})
+
+describe('oversized incomplete tails', () => {
+  const longPayload = `cmd-${'x'.repeat(500)}`
+
+  it('holds an incomplete shell-integration OSC longer than 64 bytes across chunks', () => {
+    const sanitizer = createTerminalHistorySanitizer()
+    // OSC 133 is shell integration, not a query: held while incomplete, then
+    // preserved intact once the BEL terminator arrives.
+    expect(sanitizer.feed(`${ESC}]133;C;${longPayload}`)).toBe('')
+    expect(sanitizer.feed(`${BEL}tail`)).toBe(`${ESC}]133;C;${longPayload}${BEL}tail`)
+  })
+
+  it('strips an OSC color query longer than 64 bytes split across chunks', () => {
+    const sanitizer = createTerminalHistorySanitizer()
+    expect(sanitizer.feed(`${ESC}]11;?;${'p'.repeat(300)}`)).toBe('')
+    expect(sanitizer.feed(`${ST}tail`)).toBe('tail')
+  })
+
+  it('preserves a complete long non-query OSC split across chunks', () => {
+    const sanitizer = createTerminalHistorySanitizer()
+    const first = sanitizer.feed(`${ESC}]2;${longPayload}`)
+    const second = sanitizer.feed(`${BEL}done`)
+    expect(first + second).toBe(`${ESC}]2;${longPayload}${BEL}done`)
+  })
 })
 
 describe('cold terminal replay sanitation', () => {

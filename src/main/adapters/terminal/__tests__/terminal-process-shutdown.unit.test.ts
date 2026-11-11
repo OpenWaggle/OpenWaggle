@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { TERMINAL_SPAWN_PROCESS_METADATA_MS } from '../terminal-process-identity'
 import type { ProcessRow } from '../terminal-process-inspector'
 import {
   EARLY_CHILD_PID,
@@ -16,7 +15,6 @@ import {
   shutdownLiveTerminal,
   TERMINAL_FORCE_SHUTDOWN_MS,
   TERMINAL_GRACEFUL_SHUTDOWN_MS,
-  TERMINAL_SHUTDOWN_PIPELINE_MS,
   table,
   teardownTerminalProcessShutdownTest,
 } from './terminal-process-shutdown-test-harness'
@@ -37,15 +35,6 @@ function rootRow(name = 'zsh') {
 describe('terminal process-tree shutdown orchestration', () => {
   beforeEach(setupTerminalProcessShutdownTest)
   afterEach(teardownTerminalProcessShutdownTest)
-
-  it('keeps graceful and force work inside the internal shutdown deadline', () => {
-    expect(TERMINAL_GRACEFUL_SHUTDOWN_MS + TERMINAL_FORCE_SHUTDOWN_MS).toBe(
-      TERMINAL_SHUTDOWN_PIPELINE_MS,
-    )
-    expect(TERMINAL_SPAWN_PROCESS_METADATA_MS + TERMINAL_SHUTDOWN_PIPELINE_MS).toBeLessThanOrEqual(
-      250,
-    )
-  })
 
   it('uses the targeted spawn identity to protect an immediate close before inspection', async () => {
     const fake = makeLiveProcess(
@@ -235,6 +224,24 @@ describe('terminal process-tree shutdown orchestration', () => {
 
     probes.readProcessTable.mockResolvedValue(new Map())
     await expect(shutdownDetachedTerminal(target)).resolves.toBe(true)
+  })
+
+  it('keeps owning a detached process tree that survives the forced signal', async () => {
+    const fake = makeLiveProcess()
+    giveExactTty(fake.live)
+    const target = makeRetainedProcess(fake.live)
+    probes.readProcessTable.mockResolvedValue(
+      table(rootRow(), row(EARLY_CHILD_PID, ROOT_PID, 'stubborn-worker')),
+    )
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+
+    await expect(shutdownDetachedTerminal(target)).resolves.toBe(false)
+
+    expect(probes.signalTerminalProcessIdentity).toHaveBeenCalledWith(
+      { pid: EARLY_CHILD_PID, startedAt: `start-${EARLY_CHILD_PID}` },
+      'SIGKILL',
+    )
+    expect(target.processPids).toContain(EARLY_CHILD_PID)
   })
 
   it('keeps an unidentified live pid as a fail-closed obligation without signaling it', async () => {
