@@ -69,12 +69,16 @@ describe('Windows user-only security helper', () => {
     const { child, kill } = childProcess()
     const result = secureWindowsUserOnly([{ kind: 'directory', path: 'C:\\User data\\é' }])
     expect(child.stdin?.writableEnded).toBe(true)
-    expect(mocks.spawn).toHaveBeenCalledWith('powershell.exe', expect.any(Array), {
-      env: { SystemRoot: 'C:\\Windows' },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-    })
-    child.stdout?.emit('data', Buffer.from('S-1-5-21-1234'))
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
+      {
+        env: { SystemRoot: 'C:\\Windows' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      },
+    )
+    child.stdout?.emit('data', Buffer.from('\u001b[?1h\u001b[?1lS-1-5-21-1234\r\n'))
     child.emit('close', 0)
 
     await expect(result).resolves.toEqual({ userSid: 'S-1-5-21-1234' })
@@ -95,6 +99,40 @@ describe('Windows user-only security helper', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('keeps its script and targets off the command line and delivers them as one stdin line', () => {
+    const input: Buffer[] = []
+    const { child } = childProcess()
+    child.stdin?.on('data', (chunk: Buffer) => input.push(chunk))
+    void secureWindowsUserOnly([{ kind: 'directory', path: 'C:\\Users\\Jürgen\\AppData' }]).catch(
+      () => undefined,
+    )
+
+    const [, argumentsList] = mocks.spawn.mock.calls[0] ?? []
+    expect(argumentsList).not.toContain('-EncodedCommand')
+    expect(argumentsList).not.toContain('-ExecutionPolicy')
+    expect(JSON.stringify(argumentsList)).not.toContain('AppData')
+    const text = Buffer.concat(input).toString('utf8')
+    expect(text.endsWith('\n')).toBe(true)
+    expect(text.trimEnd()).not.toContain('\n')
+    expect(text).toContain('J\\u00fcrgen')
+    expect(text).toContain("'param([string]$RequestJson)'")
+    child.emit('close', 1)
+  })
+
+  it('names the last stage, exit code and signal when the helper is stopped', async () => {
+    const { child } = childProcess()
+    const result = secureWindowsUserOnly([{ kind: 'pipe', path: '\\\\.\\pipe\\owned' }])
+    child.stderr?.emit('data', Buffer.from('OW_SECURITY_STAGE:compile\n'))
+    child.emit('close', null, 'SIGTERM')
+
+    await expect(result).rejects.toMatchObject({
+      name: 'WindowsUserOnlySecurityError',
+      stage: 'compile',
+      exitCode: null,
+      signalCode: 'SIGTERM',
+    })
+  })
+
   it('requires a successful exit and a verified SID even after all stages are reported', async () => {
     const { child } = childProcess()
     const result = secureWindowsUserOnly([{ kind: 'pipe', path: '\\\\.\\pipe\\owned' }])
@@ -108,8 +146,7 @@ describe('Windows user-only security helper', () => {
   })
 
   it('uses handle-based pipe security with metadata-only rights and closes the handle', () => {
-    const command = windowsUserOnlySecurityCommandForTests()
-    const script = Buffer.from(command.arguments.at(-1) ?? '', 'base64').toString('utf16le')
+    const { script } = windowsUserOnlySecurityCommandForTests()
     expect(script.indexOf("Write-SecurityStage 'resolve-compiler-command'")).toBeLessThan(
       script.indexOf("Write-SecurityStage 'compile'"),
     )
@@ -125,8 +162,7 @@ describe('Windows user-only security helper', () => {
   })
 
   it('sets and verifies the explicit Windows pipe full-control mask instead of a generic bit', () => {
-    const command = windowsUserOnlySecurityCommandForTests()
-    const script = Buffer.from(command.arguments.at(-1) ?? '', 'base64').toString('utf16le')
+    const { script } = windowsUserOnlySecurityCommandForTests()
     // System.IO.Pipes.PipeAccessRights.FullControl = 2032031, not GENERIC_ALL.
     expect(script).toContain('private const int PIPE_FULL_CONTROL = 0x001F019F;')
     expect(script).toContain('PIPE_FULL_CONTROL.ToString("x")')

@@ -2,6 +2,12 @@ import { spawn } from 'node:child_process'
 import { win32 } from 'node:path'
 import { env } from './env'
 import { WINDOWS_HEADLESS_PROCESS_SCRIPT } from './windows-headless-process-source'
+import {
+  WINDOWS_POWERSHELL_HELPER_ARGUMENTS,
+  windowsPowerShellExecutable,
+  windowsPowerShellHelperInput,
+  windowsPowerShellHelperOutput,
+} from './windows-powershell-helper'
 
 const HELPER_TIMEOUT_MS = 20_000
 const MAX_HELPER_OUTPUT_BYTES = 64 * 1024
@@ -34,13 +40,35 @@ export function windowsHeadlessCommandLine(command: string, args: readonly strin
   return commandLine
 }
 
-function helperFailure(stderr: string) {
+/**
+ * The launcher helper did not confirm the launch. `stage` and `win32Code` come only from its own
+ * controlled diagnostic line, never from unrestricted stderr.
+ */
+export class WindowsHeadlessLaunchError extends Error {
+  constructor(
+    message: string,
+    readonly stage: string,
+    readonly win32Code: number | null,
+    readonly exitCode: number | null = null,
+    readonly signalCode: NodeJS.Signals | null = null,
+    options?: ErrorOptions,
+  ) {
+    super(message, options)
+    this.name = 'WindowsHeadlessLaunchError'
+  }
+}
+
+function helperFailure(stderr: string, exitCode: number | null, signalCode: NodeJS.Signals | null) {
   const match = /OW_HEADLESS_ERROR:(compile|read-input|create-process):(-?\d+)/u.exec(stderr)
   const [, stage, code] = match ?? []
-  return new Error(
+  return new WindowsHeadlessLaunchError(
     match
       ? `Windows headless process launch failed at ${stage} (Win32 code ${code}).`
       : 'Windows headless process helper did not confirm a successful launch.',
+    stage ?? 'unconfirmed',
+    code === undefined ? null : Number(code),
+    exitCode,
+    signalCode,
   )
 }
 
@@ -55,23 +83,14 @@ export async function launchWindowsHeadlessProcess(
   ) {
     throw new Error('Windows headless process environment must not contain NUL.')
   }
-  const powershell = win32.join(
-    env.SystemRoot ?? 'C:\\Windows',
-    'System32',
-    'WindowsPowerShell',
-    'v1.0',
-    'powershell.exe',
-  )
+  const helperInput = windowsPowerShellHelperInput(WINDOWS_HEADLESS_PROCESS_SCRIPT, {
+    command: input.command,
+    commandLine,
+  })
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
-      powershell,
-      [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-EncodedCommand',
-        Buffer.from(WINDOWS_HEADLESS_PROCESS_SCRIPT, 'utf16le').toString('base64'),
-      ],
+      windowsPowerShellExecutable(env.SystemRoot),
+      [...WINDOWS_POWERSHELL_HELPER_ARGUMENTS],
       {
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -90,7 +109,13 @@ export async function launchWindowsHeadlessProcess(
       reject(error)
     }
     const timer = setTimeout(() => {
-      fail(new Error('Timed out starting the Windows headless process.'))
+      fail(
+        new WindowsHeadlessLaunchError(
+          'Timed out starting the Windows headless process.',
+          'timeout',
+          null,
+        ),
+      )
     }, HELPER_TIMEOUT_MS)
     const collect = (target: 'stdout' | 'stderr', chunk: Buffer) => {
       if (settled) return
@@ -113,20 +138,29 @@ export async function launchWindowsHeadlessProcess(
       fail(new Error('Windows launch input could not be delivered.', { cause: error })),
     )
     child.once('error', (error) =>
-      fail(new Error('Windows headless process helper could not start.', { cause: error })),
+      fail(
+        new WindowsHeadlessLaunchError(
+          'Windows headless process helper could not start.',
+          'spawn',
+          null,
+          null,
+          null,
+          { cause: error },
+        ),
+      ),
     )
-    child.once('close', (code) => {
+    child.once('close', (code, signal) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      if (code !== 0 || stdout !== HELPER_SUCCESS) {
-        reject(helperFailure(stderr))
+      if (code !== 0 || windowsPowerShellHelperOutput(stdout) !== HELPER_SUCCESS) {
+        reject(helperFailure(stderr, code, signal))
         return
       }
       resolve()
     })
     try {
-      child.stdin.end(JSON.stringify({ command: input.command, commandLine }))
+      child.stdin.end(helperInput)
     } catch (error) {
       fail(new Error('Windows launch input could not be delivered.', { cause: error }))
     }

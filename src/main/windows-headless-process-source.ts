@@ -72,6 +72,7 @@ public static class OpenWaggleHeadlessProcess
 `
 
 export const WINDOWS_HEADLESS_PROCESS_SCRIPT = `
+param([string]$RequestJson)
 $ErrorActionPreference = 'Stop'
 $stage = 'compile'
 try {
@@ -81,13 +82,7 @@ ${WINDOWS_HEADLESS_PROCESS_SOURCE}
   $compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
   & $compiler -TypeDefinition $source -Language CSharp
   $stage = 'read-input'
-  $encoding = New-Object System.Text.UTF8Encoding($false, $true)
-  $reader = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), $encoding)
-  try {
-    $request = $reader.ReadToEnd() | ConvertFrom-Json
-  } finally {
-    $reader.Dispose()
-  }
+  $request = $RequestJson | ConvertFrom-Json
   if ($request.command -isnot [string] -or $request.commandLine -isnot [string]) {
     throw 'Invalid headless launch input.'
   }
