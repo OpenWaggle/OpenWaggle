@@ -5,8 +5,16 @@ import { routeTopLevelCli } from '../top-level-cli-route'
 
 const DEVELOPMENT_APP = path.resolve('/workspace/OpenWaggle')
 
-function launch(argv: readonly string[], isPackaged: boolean) {
-  return routeTopLevelCli(applicationCliArguments(argv, { isPackaged }), {
+/** Bun's argv: the runtime, the script it runs, then the application's arguments. */
+const PACKAGED = [
+  '/Applications/OpenWaggle.app/Contents/MacOS/bun',
+  '/Applications/OpenWaggle.app/Contents/Resources/main.js',
+]
+const DEVELOPMENT = ['/usr/local/bin/bun', `${DEVELOPMENT_APP}/out/main/boot.js`]
+
+function launch(args: readonly string[], isPackaged: boolean) {
+  const argv = [...(isPackaged ? PACKAGED : DEVELOPMENT), ...args]
+  return routeTopLevelCli(applicationCliArguments(argv), {
     workingDirectory: DEVELOPMENT_APP,
     homeDirectory: path.resolve('/home/ada'),
     pathKind: (absolutePath) => (absolutePath === DEVELOPMENT_APP ? 'directory' : 'missing'),
@@ -16,82 +24,57 @@ function launch(argv: readonly string[], isPackaged: boolean) {
 
 describe('real launch shapes', () => {
   it.each([
-    ['Finder, Dock, and open -a', ['/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle']],
-    ['the Windows command shim without a command', ['C:\\OpenWaggle\\OpenWaggle.exe', '--']],
-    ['the NSIS updater relaunch', ['C:\\OpenWaggle\\OpenWaggle.exe', '--updated']],
-    ['a Linux sandbox prefix', ['/opt/OpenWaggle/openwaggle', '--no-sandbox']],
+    // The Electrobun launcher starts the Hutch entry with no arguments of its own.
+    ['Finder, Dock, open -a and the launcher', []],
+    ['the Windows command shim without a command', ['--']],
     [
       'the automation lock-denied probe',
-      [
-        '/opt/OpenWaggle/openwaggle',
-        '--no-sandbox',
-        '--openwaggle-automation-single-instance-lock-denied-marker=/tmp/marker',
-      ],
+      ['--openwaggle-automation-single-instance-lock-denied-marker=/tmp/marker'],
     ],
-    ['packaged CDP QA', ['/opt/OpenWaggle/openwaggle', '--remote-debugging-port=9222']],
-  ])('opens the packaged desktop app for %s', (_label, argv) => {
-    expect(launch(argv, true)).toEqual({ kind: 'gui' })
+  ])('opens the packaged desktop app for %s', (_label, args) => {
+    expect(launch(args, true)).toEqual({ kind: 'gui' })
   })
 
   it.each([
-    ['electron-vite dev', ['/electron', '.']],
-    [
-      'dev:debug and startup measurement',
-      ['/electron', '.', '--remote-debugging-port=9223', '--openwaggle-startup-timings'],
-    ],
-    ['Playwright', ['/electron', '--inspect=0', '--remote-debugging-port=0', '.']],
-    ['a Linux Playwright launch', ['/electron', '--no-sandbox', '--inspect=0', DEVELOPMENT_APP]],
-  ])('opens the development desktop app for %s', (_label, argv) => {
-    expect(launch(argv, false)).toEqual({ kind: 'gui' })
+    ['bun run dev', []],
+    ['startup measurement', ['--openwaggle-startup-timings']],
+  ])('opens the development desktop app for %s', (_label, args) => {
+    expect(launch(args, false)).toEqual({ kind: 'gui' })
   })
 
   it.each([
-    // A background process hands a macOS link on with `open -n -a <bundle> --args -- <link>`.
-    [
-      'a macOS forwarded launch',
-      ['/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle', '--', 'openwaggle://sessions/s-1'],
-    ],
-    // setAsDefaultProtocolClient registers `"OpenWaggle.exe" "%1"`.
-    ['a Windows protocol launch', ['C:\\OpenWaggle\\OpenWaggle.exe', 'openwaggle://sessions/s-1']],
-    // The desktop entry scripts/install.sh writes runs `Exec=<AppImage> %U`.
-    [
-      'a Linux desktop-entry launch',
-      ['/home/ada/.local/bin/OpenWaggle.AppImage', 'openwaggle://sessions/s-1'],
-    ],
-    // An AppImage integrated through its own entry runs `AppRun --no-sandbox %U`.
-    [
-      'an integrated AppImage launch',
-      ['/opt/OpenWaggle/openwaggle', '--no-sandbox', 'openwaggle://sessions/s-1'],
-    ],
-  ])('opens the Session a link names for %s', (_label, argv) => {
-    expect(launch(argv, true)).toEqual({
+    // A background process hands a link on with `-- <link>`.
+    ['a forwarded launch', ['--', 'openwaggle://sessions/s-1']],
+    // The protocol registration runs the app with the link as its argument.
+    ['a protocol launch', ['openwaggle://sessions/s-1']],
+  ])('opens the Session a link names for %s', (_label, args) => {
+    expect(launch(args, true)).toEqual({
       kind: 'open-session-link',
       link: 'openwaggle://sessions/s-1',
     })
   })
 
-  it('routes CLI commands through the Windows shim separator', () => {
-    expect(launch(['C:\\OpenWaggle\\OpenWaggle.exe', '--', '--help'], true)).toEqual({
-      kind: 'help',
-    })
-    expect(launch(['C:\\OpenWaggle\\OpenWaggle.exe', '--', 'hive', 'list'], true)).toEqual({
+  it('routes CLI commands through the shim separator', () => {
+    expect(launch(['--', '--help'], true)).toEqual({ kind: 'help' })
+    expect(launch(['--', 'hive', 'list'], true)).toEqual({
       kind: 'delegate',
       argv: ['hive', 'list'],
     })
   })
 
   it('routes the detached Session Host launch in both builds', () => {
-    expect(
-      launch(['/opt/OpenWaggle/openwaggle', '--no-sandbox', 'session-host-internal'], true),
-    ).toEqual({ kind: 'delegate', argv: ['session-host-internal'] })
-    expect(launch(['/electron', DEVELOPMENT_APP, 'session-host-internal'], false)).toEqual({
+    expect(launch(['--no-sandbox', 'session-host-internal'], true)).toEqual({
+      kind: 'delegate',
+      argv: ['session-host-internal'],
+    })
+    expect(launch(['session-host-internal'], false)).toEqual({
       kind: 'delegate',
       argv: ['session-host-internal'],
     })
   })
 
   it('reports a packaged typo instead of opening the app', () => {
-    expect(launch(['/opt/OpenWaggle/openwaggle', 'hvie', 'list'], true)).toEqual({
+    expect(launch(['hvie', 'list'], true)).toEqual({
       kind: 'usage-error',
       message: "unknown command 'hvie'. Did you mean 'hive'?",
     })

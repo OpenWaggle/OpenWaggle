@@ -10,7 +10,6 @@ import {
   isLocalSessionHostUnavailable,
   type LocalSessionHostLauncherDependencies,
   sessionHostChildEnvironment,
-  sessionHostLaunchArguments,
   sessionHostLaunchCommand,
 } from '../local-session-host-launcher'
 
@@ -74,51 +73,15 @@ describe('Local Session Host launcher', () => {
     ).toBe(false)
   })
 
-  it('includes the Electron application path for a cold development Host', () => {
-    expect(
-      sessionHostLaunchArguments({ isPackaged: false, appPath: '/workspace/OpenWaggle' }),
-    ).toEqual(['/workspace/OpenWaggle', 'session-host-internal'])
-    expect(
-      sessionHostLaunchArguments({ isPackaged: true, appPath: '/Applications/OpenWaggle.app' }),
-    ).toEqual(['session-host-internal'])
-  })
-
-  it('launches a packaged Linux Host from the stable AppImage mount source', () => {
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'linux',
-        isPackaged: true,
-        executablePath: '/tmp/.mount_openwaggle/openwaggle',
-        appPath: '/tmp/.mount_openwaggle/resources/app.asar',
-        appImagePath: '/opt/OpenWaggle.AppImage',
-      }),
-    ).toEqual({ command: '/opt/OpenWaggle.AppImage', args: ['session-host-internal'] })
-  })
-
-  it('keeps the Electron executable for development and non-AppImage packages', () => {
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'linux',
-        isPackaged: false,
-        executablePath: '/workspace/node_modules/electron/dist/electron',
-        appPath: '/workspace/OpenWaggle',
-        appImagePath: '/opt/OpenWaggle.AppImage',
-      }),
-    ).toEqual({
-      command: '/workspace/node_modules/electron/dist/electron',
-      args: ['/workspace/OpenWaggle', 'session-host-internal'],
-    })
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'darwin',
-        isPackaged: true,
-        executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
-        appPath: '/Applications/OpenWaggle.app/Contents/Resources/app.asar',
-      }),
-    ).toEqual({
-      command: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
-      args: ['session-host-internal'],
-    })
+  it('runs the app directory with Bun in a source checkout and in the packaged app', () => {
+    for (const appPath of [
+      '/workspace/OpenWaggle',
+      '/Applications/OpenWaggle.app/Contents/Resources/app',
+    ]) {
+      expect(
+        sessionHostLaunchCommand({ platform: 'darwin', executablePath: '/opt/bun', appPath }),
+      ).toEqual({ command: '/opt/bun', args: [appPath, 'session-host-internal'] })
+    }
   })
 
   it('adds explicit Host identity settings to the selected runtime environment', () => {

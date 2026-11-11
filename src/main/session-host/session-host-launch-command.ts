@@ -4,8 +4,6 @@
  * GUI's Host from it before the main bundle loads (src/main/boot/session-host-prelaunch.ts), and
  * everything the shim imports is compiled on every launch. The launcher re-exports it.
  */
-import path from 'node:path'
-
 /** The internal argument that turns an OpenWaggle process into the detached Session Host. */
 export const SESSION_HOST_INTERNAL_COMMAND = 'session-host-internal'
 
@@ -23,21 +21,10 @@ export type SessionHostLogLevel = 'debug' | 'info' | 'warn' | 'error'
 export const SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE =
   'OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE'
 
-export function sessionHostLaunchArguments(input: {
-  readonly isPackaged: boolean
-  readonly appPath: string
-}) {
-  return input.isPackaged
-    ? [SESSION_HOST_INTERNAL_COMMAND]
-    : [input.appPath, SESSION_HOST_INTERNAL_COMMAND]
-}
-
 export function sessionHostLaunchCommand(input: {
   readonly platform: NodeJS.Platform
-  readonly isPackaged: boolean
   readonly executablePath: string
   readonly appPath: string
-  readonly appImagePath?: string
   readonly parentNoSandbox?: boolean
   /** Chromium's --use-mock-keychain on the GUI: QA keeps credential prompts off the screen. */
   readonly parentUseMockKeychain?: boolean
@@ -54,20 +41,12 @@ export function sessionHostLaunchCommand(input: {
       ? [`--password-store=${input.parentPasswordStore}`]
       : []),
   ]
-  if (
-    input.platform === 'linux' &&
-    input.isPackaged &&
-    input.appImagePath &&
-    path.isAbsolute(input.appImagePath)
-  ) {
-    return {
-      command: input.appImagePath,
-      args: [...electronArguments, SESSION_HOST_INTERNAL_COMMAND],
-    }
-  }
+  // Bun runs the app directory's `package.json` `main` (`out/main/boot.js`), in a source checkout
+  // and in the packaged app (`Resources/app`) alike. The switches follow the app path, so Bun
+  // hands them to the app, which skips them before the command.
   return {
     command: input.executablePath,
-    args: [...electronArguments, ...sessionHostLaunchArguments(input)],
+    args: [input.appPath, ...electronArguments, SESSION_HOST_INTERNAL_COMMAND],
   }
 }
 
@@ -80,22 +59,18 @@ export interface SessionHostLaunchSwitches {
 /** The command that launches a Host with the switches the launching process was started with. */
 export function sessionHostLaunchCommandFor(input: {
   readonly platform: NodeJS.Platform
-  readonly isPackaged: boolean
   readonly executablePath: string
   readonly appPath: string
-  readonly appImagePath: string | undefined
   readonly commandLine: SessionHostLaunchSwitches
 }) {
   const passwordStore = input.commandLine.getSwitchValue('password-store')
   return sessionHostLaunchCommand({
     platform: input.platform,
-    isPackaged: input.isPackaged,
     executablePath: input.executablePath,
     appPath: input.appPath,
     parentNoSandbox: input.commandLine.hasSwitch('no-sandbox'),
     parentUseMockKeychain: input.commandLine.hasSwitch('use-mock-keychain'),
     ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
-    ...(input.appImagePath ? { appImagePath: input.appImagePath } : {}),
   })
 }
 

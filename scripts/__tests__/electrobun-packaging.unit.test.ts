@@ -52,6 +52,7 @@ describe('electrobunAppConfig', () => {
     const { copy } = configFor('stable').build
     expect(Object.values(copy)).toEqual([
       PACKAGED_APP_LAYOUT.main,
+      PACKAGED_APP_LAYOUT.preload,
       PACKAGED_APP_LAYOUT.renderer,
       PACKAGED_APP_LAYOUT.nodeModules,
       PACKAGED_APP_LAYOUT.resources,

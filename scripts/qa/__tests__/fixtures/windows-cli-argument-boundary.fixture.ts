@@ -20,7 +20,7 @@ fs.writeFileSync(
       node: process.versions.node,
       uv: process.versions.uv,
     },
-    arguments: applicationCliArguments(process.argv, { isPackaged: app.isPackaged }),
+    arguments: applicationCliArguments(process.argv),
     chromiumApplicationSwitch: app.commandLine.hasSwitch('openwaggle-qa-argument-switch'),
   }),
 )

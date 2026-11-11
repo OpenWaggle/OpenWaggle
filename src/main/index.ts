@@ -297,9 +297,7 @@ function startApp(launch: Extract<TopLevelCliLaunch, { readonly kind: 'gui' }>) 
   registerAppLifecycle()
 }
 
-const cliArguments = applicationCliArguments(process.argv, {
-  isPackaged: appLifecycle.isPackaged(),
-})
+const cliArguments = applicationCliArguments(process.argv)
 
 const launch = startTopLevelCli(cliArguments)
 if (launch.kind === 'gui') startApp(launch)

@@ -1,62 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { applicationCliArguments } from '../application-cli-arguments'
 
+const BUN = '/Applications/OpenWaggle.app/Contents/MacOS/bun'
+const SCRIPT = '/Applications/OpenWaggle.app/Contents/Resources/app/out/main/boot.js'
+
 describe('application CLI argument routing', () => {
-  it('selects the packaged command from its canonical top-level position', () => {
+  it('selects the command after the runtime and the script it runs', () => {
     expect(
-      applicationCliArguments(
-        [
-          '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
-          'hive',
-          'message',
-          'id',
-          '--text',
-          'access',
-        ],
-        { isPackaged: true },
-      ),
+      applicationCliArguments([BUN, SCRIPT, 'hive', 'message', 'id', '--text', 'access']),
     ).toEqual(['hive', 'message', 'id', '--text', 'access'])
   })
 
-  it('skips the Electron app path in development', () => {
+  it('normalizes the runtime switches a Host launch keeps before its command', () => {
     expect(
-      applicationCliArguments(
-        ['/path/to/electron', '/workspace/OpenWaggle', 'hive', 'message', 'id', '--text', 'mcp'],
-        { isPackaged: false },
-      ),
-    ).toEqual(['hive', 'message', 'id', '--text', 'mcp'])
-  })
-
-  it.each([false, true])('normalizes retained runtime prefixes when packaged=%s', (isPackaged) => {
-    expect(
-      applicationCliArguments(
-        [
-          '/path/to/electron',
-          '--no-sandbox',
-          '--disable-logging',
-          '--log-level=3',
-          '--use-mock-keychain',
-          '--password-store=basic',
-          ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
-          'hive',
-          'list',
-          '--all',
-        ],
-        { isPackaged },
-      ),
-    ).toEqual(['hive', 'list', '--all'])
-  })
-
-  it('accepts known runtime switches between the development app path and command', () => {
-    expect(
-      applicationCliArguments(
-        ['/path/to/electron', '/workspace/OpenWaggle', '--no-sandbox', 'session-host-internal'],
-        { isPackaged: false },
-      ),
+      applicationCliArguments([
+        BUN,
+        SCRIPT,
+        '--no-sandbox',
+        '--disable-logging',
+        '--log-level=3',
+        '--use-mock-keychain',
+        '--password-store=basic',
+        'session-host-internal',
+      ]),
     ).toEqual(['session-host-internal'])
   })
 
-  it.each([false, true])('preserves every application token when packaged=%s', (isPackaged) => {
+  it('preserves every application token after the command', () => {
     const applicationArguments = [
       'hive',
       'message',
@@ -72,100 +42,45 @@ describe('application CLI argument routing', () => {
       '--use-mock-keychain',
       '--password-store=basic',
     ]
-
-    expect(
-      applicationCliArguments(
-        [
-          '/path/to/electron',
-          ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
-          ...applicationArguments,
-        ],
-        { isPackaged },
-      ),
-    ).toEqual(applicationArguments)
+    expect(applicationCliArguments([BUN, SCRIPT, ...applicationArguments])).toEqual(
+      applicationArguments,
+    )
   })
 
-  it.each([false, true])(
-    'does not skip an unknown leading switch when packaged=%s',
-    (isPackaged) => {
-      const unrecognizedArguments = [
-        '--unknown-runtime-switch',
-        ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
-        'hive',
-        'list',
-      ]
+  it('does not skip an unknown leading switch', () => {
+    const unrecognizedArguments = ['--unknown-runtime-switch', 'hive', 'list']
+    expect(
+      applicationCliArguments([BUN, SCRIPT, '--no-sandbox', ...unrecognizedArguments]),
+    ).toEqual(unrecognizedArguments)
+  })
 
+  it('does not treat malformed or arbitrary switch values as runtime prefixes', () => {
+    expect(applicationCliArguments([BUN, SCRIPT, '--password-store=', 'hive', 'list'])).toEqual([
+      '--password-store=',
+      'hive',
+      'list',
+    ])
+    expect(applicationCliArguments([BUN, SCRIPT, '--log-level=arbitrary', 'hive', 'list'])).toEqual(
+      ['--log-level=arbitrary', 'hive', 'list'],
+    )
+  })
+
+  it('consumes one application boundary and keeps every token beyond it', () => {
+    for (const applicationArguments of [
+      ['access', 'profiles', 'create', 'worker', '--capability', 'sessions:read', '--json'],
+      ['--', 'hive', 'list'],
+      ['--no-sandbox', 'hive', 'list'],
+      ['hive', 'message', 'id', '--text', '--', '--json'],
+    ]) {
       expect(
-        applicationCliArguments(['/path/to/electron', '--no-sandbox', ...unrecognizedArguments], {
-          isPackaged,
-        }),
-      ).toEqual(unrecognizedArguments)
-    },
-  )
-
-  it('does not treat a malformed password store switch as a recognized runtime prefix', () => {
-    expect(
-      applicationCliArguments(['/path/to/electron', '--password-store=', 'hive', 'list'], {
-        isPackaged: true,
-      }),
-    ).toEqual(['--password-store=', 'hive', 'list'])
+        applicationCliArguments([BUN, SCRIPT, '--no-sandbox', '--', ...applicationArguments]),
+      ).toEqual(applicationArguments)
+    }
   })
 
-  it('does not treat arbitrary logging values as recognized runtime prefixes', () => {
+  it('has no application arguments for the desktop app the launcher starts', () => {
     expect(
-      applicationCliArguments(['/path/to/electron', '--log-level=arbitrary', 'hive', 'list'], {
-        isPackaged: true,
-      }),
-    ).toEqual(['--log-level=arbitrary', 'hive', 'list'])
-  })
-
-  it.each([false, true])('consumes one application boundary when packaged=%s', (isPackaged) => {
-    const applicationArguments = [
-      'access',
-      'profiles',
-      'create',
-      'worker',
-      '--capability',
-      'sessions:read',
-      '--manage-capability',
-      'sessions:read',
-      '--json',
-    ]
-    expect(
-      applicationCliArguments(
-        [
-          '/path/to/electron',
-          '--no-sandbox',
-          ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
-          '--',
-          ...applicationArguments,
-        ],
-        { isPackaged },
-      ),
-    ).toEqual(applicationArguments)
-  })
-
-  it.each([false, true])(
-    'preserves all tokens beyond the boundary when packaged=%s',
-    (isPackaged) => {
-      const prefix = ['/path/to/electron', ...(isPackaged ? [] : ['/workspace/OpenWaggle']), '--']
-      for (const applicationArguments of [
-        ['--', 'hive', 'list'],
-        ['--no-sandbox', 'hive', 'list'],
-        ['hive', 'message', 'id', '--text', '--', '--json'],
-        ['hive', 'message', 'id', '--text', 'https://example.test/', '--json'],
-      ]) {
-        expect(
-          applicationCliArguments([...prefix, ...applicationArguments], { isPackaged }),
-        ).toEqual(applicationArguments)
-      }
-    },
-  )
-
-  it('does not consume a boundary in place of the development app path', () => {
-    const arguments_ = ['--', '/workspace/OpenWaggle', 'hive', 'list']
-    expect(
-      applicationCliArguments(['/path/to/electron', ...arguments_], { isPackaged: false }),
-    ).toEqual(arguments_)
+      applicationCliArguments([BUN, '/Applications/OpenWaggle.app/Contents/Resources/main.js']),
+    ).toEqual([])
   })
 })

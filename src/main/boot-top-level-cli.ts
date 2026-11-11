@@ -54,7 +54,7 @@ export function answerTopLevelCliInBoot(input: BootTopLevelCliInput) {
     // The main bundle reports a malformed descriptor the way every command does.
     return 'main-bundle' satisfies BootTopLevelCliOutcome
   }
-  const argv = applicationCliArguments(input.argv, { isPackaged: bootShell.isPackaged() })
+  const argv = applicationCliArguments(input.argv)
   const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(bootShell.isPackaged()))
   const answer = topLevelCliAnswer(route, bootShell.version())
   if (!answer) {

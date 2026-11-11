@@ -1,5 +1,9 @@
-const EXECUTABLE_ARGUMENT_OFFSET = 1
-const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
+/**
+ * Bun's `process.argv`: the runtime, then the script it runs (`out/main/boot.js`, or in the app
+ * the Hutch entry that imports it), then the application's own arguments.
+ */
+const SCRIPT_ARGUMENT_OFFSET = 2
+const RUNTIME_PREFIX_SWITCHES = new Set([
   '--no-sandbox',
   '--disable-logging',
   '--log-level=3',
@@ -10,7 +14,7 @@ const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
 const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
 
 function isRuntimePrefixSwitch(argument: string) {
-  return ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) || PASSWORD_STORE_SWITCH.test(argument)
+  return RUNTIME_PREFIX_SWITCHES.has(argument) || PASSWORD_STORE_SWITCH.test(argument)
 }
 
 function afterRuntimePrefix(argv: readonly string[], start: number) {
@@ -19,21 +23,12 @@ function afterRuntimePrefix(argv: readonly string[], start: number) {
   return offset
 }
 
-export function applicationCliArguments(
-  argv: readonly string[],
-  options: { readonly isPackaged: boolean },
-) {
-  // Electron retains these explicit runtime switches in process.argv. Consume only their
-  // leading prefix, never scan for a command inside message text or rewrite application options.
-  let offset = afterRuntimePrefix(argv, EXECUTABLE_ARGUMENT_OFFSET)
-  if (!options.isPackaged) {
-    // An unknown switch is not an application path and must not be silently skipped.
-    if (argv[offset]?.startsWith('-')) return argv.slice(offset)
-    offset += 1
-    offset = afterRuntimePrefix(argv, offset)
-  }
-  // The launcher separates Electron switches from application arguments. Consume only
-  // this boundary: a second terminator or later message token belongs to the application.
+export function applicationCliArguments(argv: readonly string[]) {
+  // A Host launch keeps the desktop app's explicit runtime switches before its command. Consume
+  // only their leading prefix, never scan for a command inside message text or rewrite options.
+  let offset = afterRuntimePrefix(argv, SCRIPT_ARGUMENT_OFFSET)
+  // A launcher may separate its switches from application arguments. Consume only this boundary:
+  // a second terminator or later message token belongs to the application.
   if (argv[offset] === '--') offset += 1
   return argv.slice(offset)
 }

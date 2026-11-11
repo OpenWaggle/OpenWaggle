@@ -95,7 +95,7 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
   const input: SessionHostPrelaunchInput = {
     app: {
       isPackaged: true,
-      getAppPath: () => '/Applications/OpenWaggle.app/Contents/Resources/app.asar',
+      getAppPath: () => '/Applications/OpenWaggle.app/Contents/Resources/app',
       getPath: () => PROFILE,
       commandLine: {
         hasSwitch: (name) => switches.has(name),
@@ -117,7 +117,7 @@ function prelaunchInput(overrides: Partial<SessionHostPrelaunchInput> = {}) {
       OPENWAGGLE_SHELL_ENVIRONMENT_REFRESHED_SINCE: '1',
     },
     platform: 'darwin',
-    executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+    executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/bun',
     homeDirectory: '/Users/person',
     temporaryDirectory: () => '/agent/scratch',
     now: () => 1_800_000_000_000,
@@ -163,8 +163,12 @@ describe('startSessionHostPrelaunch', () => {
 
     expect(spawn).toHaveBeenCalledOnce()
     const launch = spawn.mock.calls[0]?.[0]
-    expect(launch?.command).toBe('/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle')
-    expect(launch?.args).toEqual(['--use-mock-keychain', 'session-host-internal'])
+    expect(launch?.command).toBe('/Applications/OpenWaggle.app/Contents/MacOS/bun')
+    expect(launch?.args).toEqual([
+      '/Applications/OpenWaggle.app/Contents/Resources/app',
+      '--use-mock-keychain',
+      'session-host-internal',
+    ])
     expect(launch?.environment).toMatchObject({
       OPENWAGGLE_USER_DATA_DIR: PROFILE,
       OPENWAGGLE_LOG_LEVEL: 'debug',

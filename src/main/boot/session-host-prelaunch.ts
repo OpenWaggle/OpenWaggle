@@ -220,10 +220,8 @@ export function startSessionHostPrelaunch(input: SessionHostPrelaunchInput) {
     }
     const command = sessionHostLaunchCommandFor({
       platform: input.platform,
-      isPackaged: input.app.isPackaged,
       executablePath: input.executablePath,
       appPath: input.app.getAppPath(),
-      appImagePath: launchEnvironment(input).APPIMAGE,
       commandLine: input.app.commandLine,
     })
     const child = (input.spawn ?? spawnDetachedProcess)({

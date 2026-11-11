@@ -5,6 +5,8 @@
  * - `main/`: the main build (`out/main`, scripts/build-main.ts), or with `--stand-in` (or when
  *   `out/main/boot.js` does not exist and `--require-main` is not given) the packaging stand-in
  *   (scripts/electrobun/stand-in/boot.ts) bundled with the Electrobun SDK from `.hutch/devkit`;
+ * - `preload/`: the Electrobun preload (`out/preload`, scripts/build-electrobun-preload.ts), which
+ *   the main window injects; a stand-in main opens no window and needs none;
  * - `renderer/`: the Vite renderer build (`out/renderer`), without its build manifest and maps;
  * - `node_modules/`: the production externals for the target (scripts/electrobun/stage-node-modules.ts);
  * - `resources/`: what electron-builder shipped as `extraResources` (the channel icon, installed
@@ -35,6 +37,8 @@ const DEVKIT_SDK_ENTRIES = {
 } as const
 const MAIN_BUILD = 'out/main'
 const RENDERER_BUILD = 'out/renderer'
+const PRELOAD_BUILD = 'out/preload'
+const PRELOAD_BUNDLE = 'electrobun.js'
 const SKIPPED_BUILD_FILE = /\.(?:map|d\.ts)$/u
 const SKIPPED_BUILD_DIRECTORY = '.vite'
 
@@ -109,10 +113,23 @@ function stageMain(options: StageOptions, stage: string) {
   }
   if (options.mainSource === 'stand-in' || !built) {
     buildStandIn(options.root, destination)
+    // Hutch copies every staged directory; the stand-in opens no window, so its preload is empty.
+    const preload = path.join(stage, PACKAGED_APP_LAYOUT.preload)
+    fs.rmSync(preload, { recursive: true, force: true })
+    fs.mkdirSync(preload, { recursive: true })
     return 'stand-in'
   }
   copyBuildOutput(path.join(options.root, MAIN_BUILD), destination)
+  stagePreload(options, stage)
   return 'build'
+}
+
+function stagePreload(options: StageOptions, stage: string) {
+  const source = path.join(options.root, PRELOAD_BUILD)
+  if (!fs.existsSync(path.join(source, PRELOAD_BUNDLE))) {
+    throw new Error(`${PRELOAD_BUILD}/${PRELOAD_BUNDLE} is missing; run the build.`)
+  }
+  copyBuildOutput(source, path.join(stage, PACKAGED_APP_LAYOUT.preload))
 }
 
 function stageRenderer(options: StageOptions, stage: string) {

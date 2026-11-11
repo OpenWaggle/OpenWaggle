@@ -3,14 +3,19 @@ import { applicationCliArguments } from '../../application-cli-arguments'
 
 const mocks = vi.hoisted(() => ({ switches: new Map<string, string>() }))
 
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: false,
-    getAppPath: () => '/workspace/OpenWaggle',
+vi.mock('../../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../../test-support/fake-desktop-shell')).fakeAppLifecycle({
     commandLine: {
+      appendSwitch: () => undefined,
       hasSwitch: (name: string) => mocks.switches.has(name),
       getSwitchValue: (name: string) => mocks.switches.get(name) ?? '',
     },
+  }),
+}))
+vi.mock('../../desktop-shell/app-paths', async () => ({
+  appPaths: {
+    ...(await import('../../test-support/fake-desktop-shell')).fakeAppPaths(),
+    appRoot: () => '/workspace/OpenWaggle',
   },
 }))
 
@@ -19,16 +24,12 @@ import {
   sessionHostLaunchCommand,
 } from '../local-session-host-launcher'
 
-const devLaunch = {
-  isPackaged: false,
-  executablePath: '/opt/electron',
-  appPath: '/workspace/OpenWaggle',
-}
+const devLaunch = { executablePath: '/opt/bun', appPath: '/workspace/OpenWaggle' }
 
 /*
- * QA starts the GUI with Chromium's --use-mock-keychain (and --password-store=basic on Linux) so
- * no credential prompt reaches the maintainer's screen. The detached Host the GUI launches reads
- * and writes credentials too, so it must run with the same switches.
+ * QA starts the GUI with --use-mock-keychain (and --password-store=basic on Linux) so no
+ * credential prompt reaches the maintainer's screen. The detached Host the GUI launches reads and
+ * writes credentials too, so it runs with the same switches, after the app path Bun runs.
  */
 describe('Session Host inherited credential store switches', () => {
   it.each(['darwin', 'linux', 'win32'] as const)(
@@ -36,7 +37,7 @@ describe('Session Host inherited credential store switches', () => {
     (platform) => {
       expect(
         sessionHostLaunchCommand({ ...devLaunch, platform, parentUseMockKeychain: true }).args,
-      ).toEqual(['--use-mock-keychain', '/workspace/OpenWaggle', 'session-host-internal'])
+      ).toEqual(['/workspace/OpenWaggle', '--use-mock-keychain', 'session-host-internal'])
     },
   )
 
@@ -49,55 +50,33 @@ describe('Session Host inherited credential store switches', () => {
         parentPasswordStore: 'basic',
       }).args,
     ).toEqual([
+      '/workspace/OpenWaggle',
       '--use-mock-keychain',
       '--password-store=basic',
-      '/workspace/OpenWaggle',
       'session-host-internal',
     ])
   })
 
-  it('ignores --password-store outside Linux, where Chromium has no such switch', () => {
+  it('ignores --password-store outside Linux', () => {
     expect(
       sessionHostLaunchCommand({ ...devLaunch, platform: 'darwin', parentPasswordStore: 'basic' })
         .args,
     ).toEqual(['/workspace/OpenWaggle', 'session-host-internal'])
   })
 
-  it('keeps the switches through the stable AppImage executable', () => {
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'linux',
-        isPackaged: true,
-        executablePath: '/tmp/.mount_openwaggle/openwaggle',
-        appPath: '/tmp/.mount_openwaggle/resources/app.asar',
-        appImagePath: '/opt/OpenWaggle.AppImage',
-        parentNoSandbox: true,
-        parentUseMockKeychain: true,
-        parentPasswordStore: 'basic',
-      }),
-    ).toEqual({
-      command: '/opt/OpenWaggle.AppImage',
-      args: [
-        '--no-sandbox',
-        '--use-mock-keychain',
-        '--password-store=basic',
-        'session-host-internal',
-      ],
-    })
-  })
-
-  it.each([false, true])('still routes the launch to the Host when packaged=%s', (isPackaged) => {
+  it('still routes the launch to the Host', () => {
     const launch = sessionHostLaunchCommand({
       ...devLaunch,
-      isPackaged,
       platform: 'linux',
+      parentNoSandbox: true,
       parentUseMockKeychain: true,
       parentPasswordStore: 'basic',
     })
-
-    expect(applicationCliArguments([launch.command, ...launch.args], { isPackaged })).toEqual([
-      'session-host-internal',
-    ])
+    // Bun's argv: the runtime, the app's boot.js it resolved from the app path, then the rest.
+    const [, ...rest] = launch.args
+    expect(
+      applicationCliArguments([launch.command, '/workspace/OpenWaggle/out/main/boot.js', ...rest]),
+    ).toEqual(['session-host-internal'])
   })
 
   it("reads the switches from the GUI's own command line", () => {

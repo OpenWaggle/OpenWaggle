@@ -59,6 +59,7 @@ export const POST_WRAP_HOOK = 'scripts/electrobun/hooks/post-wrap.ts'
  */
 export const PACKAGED_APP_LAYOUT = {
   main: 'out/main',
+  preload: 'out/preload',
   renderer: 'out/renderer',
   nodeModules: 'node_modules',
   resources: 'resources',
@@ -110,6 +111,7 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
       bun: { entrypoint: HUTCH_ENTRY },
       copy: {
         [`${stage}/out/main`]: PACKAGED_APP_LAYOUT.main,
+        [`${stage}/out/preload`]: PACKAGED_APP_LAYOUT.preload,
         [`${stage}/out/renderer`]: PACKAGED_APP_LAYOUT.renderer,
         [`${stage}/node_modules`]: PACKAGED_APP_LAYOUT.nodeModules,
         [`${stage}/resources`]: PACKAGED_APP_LAYOUT.resources,

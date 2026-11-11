@@ -29,10 +29,14 @@ vi.mock('../cli-output-flush', () => ({ flushCliOutput: mocks.flush }))
 
 const { answerTopLevelCliInBoot } = await import('../boot-top-level-cli')
 
-const EXECUTABLE = '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle'
+/** Bun's argv in the app: the bundled runtime and the Hutch entry it runs. */
+const LAUNCH = [
+  '/Applications/OpenWaggle.app/Contents/MacOS/bun',
+  '/Applications/OpenWaggle.app/Contents/Resources/main.js',
+]
 
 function answer(args: readonly string[], cliOutputFd?: string) {
-  return answerTopLevelCliInBoot({ argv: [EXECUTABLE, ...args], cliOutputFd, platform: 'darwin' })
+  return answerTopLevelCliInBoot({ argv: [...LAUNCH, ...args], cliOutputFd, platform: 'darwin' })
 }
 
 let stdout: ReturnType<typeof vi.spyOn>
