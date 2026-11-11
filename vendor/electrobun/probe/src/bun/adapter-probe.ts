@@ -5,7 +5,7 @@
  * BrowserPreviewViews port: CEF views in the shell window, CDP on the per-launch DevTools port
  * (vendor/electrobun patch 0007), navigation and history state, emulation, screenshots, muting,
  * cookies set into a profile, profile isolation and clearing, and, across two launches, that a
- * `persist:*` profile keeps its cookies.
+ * `persist:*` profile keeps its cookies. picker-probe.ts annotates a page with the element picker.
  *
  * Results go to `$PROBE_OUT_DIR/probe.jsonl` and `result.json` like the CDP mode, so
  * scripts/electrobun-probe.ts runs both.
@@ -16,6 +16,7 @@ import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from '
 import path from 'node:path'
 import { createElectrobunBrowserPreviewViews } from '../../../../../src/main/adapters/electrobun/electrobun-browser-preview-views'
 import { loadElectrobun } from '../../../../../src/main/adapters/electrobun/electrobun-sdk'
+import { PICK_PAGE, probePicker } from './picker-probe'
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 interface PreviewState {
@@ -65,6 +66,9 @@ const fixture = Bun.serve({
       return new Response(`<!doctype html><title>${title}</title><p>${title}</p>`, {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       })
+    }
+    if (url.pathname === '/pick') {
+      return new Response(PICK_PAGE, { headers: { 'content-type': 'text/html; charset=utf-8' } })
     }
     const page = url.pathname === '/b' ? 'b' : 'a'
     const colour = page === 'a' ? '#2f6fde' : '#1f9d63'
@@ -133,6 +137,18 @@ const views = createElectrobunBrowserPreviewViews({
   appPaths: { userData: () => path.join(outDir ?? Utils.paths.userData, 'user-data') },
   clipboard: { writeImage: async () => 'written' },
   osShell: { showItemInFolder: () => undefined },
+  // The probe has no Session Host; the attachment echoes what the picker prepared.
+  prepareAnnotation: async (entry) => ({
+    id: 'probe-annotation',
+    kind: 'image',
+    origin: entry.origin,
+    name: path.basename(entry.path),
+    path: entry.path,
+    mimeType: 'image/png',
+    sizeBytes: statSync(entry.path).size,
+    extractedText: entry.browserAnnotationText,
+    browserPreview: entry.browserPreview,
+  }),
 })
 
 function open(previewId: string, profileId: string, url: string) {
@@ -230,6 +246,12 @@ async function run() {
   checks.afterClear = await cookieTitle('after-clear', CLEARED_PROFILE)
   checks.defaultAfterClear = await cookieTitle('cookie-after-clear', PROFILE)
 
+  open('pick', PROFILE, `${origin}/pick`)
+  await until('pick page', 'pick', loaded(`${origin}/pick`))
+  const picker = await probePicker(views, page, 'pick', `${origin}/pick`, launchPort ?? '')
+  checks.picker = picker
+  await views.close(page, 'pick')
+
   views.setBounds(page, 'main', BOUNDS)
   await views.close(page, 'main')
   checks.previewsAfterClose = views.ownedPreviewCount(OWNER_KEY)
@@ -248,7 +270,12 @@ async function run() {
     checks.beforeClear === 'to-clear' &&
     checks.afterClear === 'none' &&
     checks.defaultAfterClear === value &&
-    checks.previewsAfterClose === 4
+    checks.previewsAfterClose === 4 &&
+    picker.escapedResult === null &&
+    picker.elements === 1 &&
+    picker.tagName === 'button' &&
+    picker.comment === 'Make the probe button primary.' &&
+    picker.attachment === 'browser-preview'
   )
 }
 

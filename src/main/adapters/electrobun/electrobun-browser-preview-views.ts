@@ -16,6 +16,7 @@ import type { BrowserPreviewAutomationShell } from '../browser-preview/automatio
 import { electrobunNativeWebviewFrames } from './browser-preview/electrobun-webview-frames'
 import { electrobun } from './electrobun-sdk'
 import { openBackgroundWindow } from './electrobun-window-policy'
+import type { PrepareBrowserPreviewAnnotation } from '../browser-preview/annotation/browser-preview-annotation'
 import { BrowserPreviewArtifactStorage } from '../browser-preview/browser-preview-artifact-storage'
 import type { AppPathsShape } from '../../ports/desktop-shell/app-paths'
 import type { BrowserPreviewViewsShape } from '../../ports/desktop-shell/browser-preview-views'
@@ -38,6 +39,8 @@ export interface ElectrobunBrowserPreviewShell {
   readonly appPaths: Pick<AppPathsShape, 'userData'>
   readonly clipboard: Pick<ClipboardShape, 'writeImage'>
   readonly osShell: Pick<OsShellShape, 'showItemInFolder'>
+  /** How an annotation becomes a composer attachment; the Session Host's when absent. */
+  readonly prepareAnnotation?: PrepareBrowserPreviewAnnotation
 }
 
 /** The shell side of the Electrobun Browser preview, from the loaded SDK and the shell ports. */
@@ -90,6 +93,7 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell): Ele
       return artifacts
     },
     revealInFolder: (artifactPath) => shell.osShell.showItemInFolder(artifactPath),
+    ...(shell.prepareAnnotation ? { prepareAnnotation: shell.prepareAnnotation } : {}),
     writeClipboardImage: async (png) => {
       if ((await shell.clipboard.writeImage(png)) === 'undecodable') {
         throw new Error('Browser preview screenshot could not be decoded.')

@@ -12,8 +12,8 @@
 #   browser preview over CDP (navigate, screenshot, click, type) on macOS arm64 and x64, Windows x64,
 #   and Linux x64, the Linux build also on Ubuntu 22.04 itself;
 # - in its adapter mode, the probe runs OpenWaggle's Electrobun Browser preview adapter on the
-#   per-launch DevTools port (patch 0007) and, over two launches, proves a persist:* profile keeps
-#   its cookies.
+#   per-launch DevTools port (patch 0007), annotates a page with its element picker and, over two
+#   launches, proves a persist:* profile keeps its cookies.
 #
 # The release workflow calls it (workflow_call) and packages against the uploaded devkits, so a floor
 # regression fails here first.
@@ -319,6 +319,10 @@ jobs:
         run: |
           bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-native --artifacts vendor/electrobun/probe/artifacts-native \
             --out "$RESULTS/native" --label ubuntu-22.04-native --runs 3
+
+      # The persistence check reads the probe summary with the repository's schema module.
+      - name: Install the repository dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Run the Browser preview adapter on Ubuntu 22.04
         run: |
