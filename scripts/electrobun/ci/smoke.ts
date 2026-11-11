@@ -1,189 +1,135 @@
 /**
- * Proves a packaged Electrobun build on a CI runner (.github/workflows/electrobun-package.yml):
- * installs it the way a user does, launches it, and runs OpenWaggle's update engine against a
- * newer build on a local feed. Throwaway machines only: it writes to `/Applications`, the user's
- * local app data and the default userData directory.
+ * Proves a packaged Electrobun build of OpenWaggle on a CI runner
+ * (.github/workflows/electrobun-package.yml): installs it the way a user does, launches the real app
+ * hidden, drives it over CEF's DevTools endpoint and its CLI, and updates it through its own update
+ * engine from a newer build on a local feed. Throwaway machines only (installed-app.ts).
  *
  *   bun scripts/electrobun/ci/smoke.ts install <release dir>
  *     macOS: the DMG's app into /Applications; Windows: the NSIS installer, silently; Linux: the
  *     AppImage, whose AppRun runs Electrobun's installer. Prints the installed launcher.
- *   bun scripts/electrobun/ci/smoke.ts launch <launcher> --expect <version> --out <json>
- *     [--feed <url>] [--timeout <s>] [--screenshot <png>]
- *     Starts the launcher and waits until the stand-in main's report (scripts/electrobun/stand-in)
- *     shows `<version>` with its window loaded. Records spawn-to-window time and, after the app
- *     idled, the resident memory of its process tree. With --feed the app updates itself to the
- *     build on that feed and relaunches; `--expect` is then the newer version.
+ *   bun scripts/electrobun/ci/smoke.ts launch <launcher> --expect <version> --profile <dir>
+ *     --out <json> [--screenshots <dir>] [--prove] [--open-session <id>] [--timeout <s>]
+ *     Starts the app hidden (OPENWAGGLE_AUTOMATION=1, the main window on CEF, a scratch HOME and
+ *     userData under <dir>), waits for startup status `ready` and checks the version. `--prove`
+ *     then starts the Session Host, runs one turn against a local fake provider through
+ *     `openwaggle run`, opens a terminal and a Browser preview (app-proof.ts). `--open-session`
+ *     launches with that Session's `openwaggle://` link and checks the window opened it.
+ *     Records spawn-to-renderer and spawn-to-ready times and, after the app idled, the resident
+ *     memory of its process tree.
+ *   bun scripts/electrobun/ci/smoke.ts update <launcher> --from <version> --expect <version>
+ *     --feed <url> --profile <dir> --out <json> [--screenshots <dir>] [--timeout <s>]
+ *     Launches the app with its updater pointed at the loopback release directory <url>
+ *     (OPENWAGGLE_AUTOMATION_UPDATE_FEED, src/main/update-feed-automation.ts), checks, waits for
+ *     the download, presses Restart to update, then launches the installed app again and checks it
+ *     is <expect>.
  *   bun scripts/electrobun/ci/smoke.ts serve <directory> <port>
  *     Serves a release directory over loopback HTTP, which Electrobun's updater allows.
  */
-import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
-import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { isRecord } from '../../../src/shared/utils/validation'
-import { appRss, directoryBytes, killTree, screenshot } from '../../electrobun-probe-host'
+import { FAKE_MODEL_REFERENCE, configureFakeProvider } from '../../perf/lib/fake-openai-provider'
+import { appRss, directoryBytes } from '../../electrobun-probe-host'
+import { type ConnectedElectrobunApp, electrobunAppHome } from '../../support/electrobun-app-launch'
+import { appCli, type LaunchContext, startApp, stopApp } from './app-launch'
+import {
+  createProject,
+  proveBrowserPreview,
+  proveFakeProviderRun,
+  proveSessionHost,
+  proveTerminal,
+  screenshot,
+  startCiFakeProvider,
+  waitUntil,
+} from './app-proof'
+import { install, installedApp } from './installed-app'
+import { proveUpdate } from './update-proof'
 
 const FIRST_CLI_ARGUMENT = 2
-const POLL_MS = 500
+const COMMAND_OPTIONS_OFFSET = 2
 const IDLE_MS = 10_000
 const DEFAULT_TIMEOUT_S = 240
 const MS_PER_SECOND = 1000
 const JSON_INDENT = 2
-const ELECTROBUN_INSTALL = ['com.openwaggle.app', 'stable', 'app', 'bin']
-const REPORT_NAME = 'electrobun-stand-in-report.json'
-const EXECUTABLE_MODE = 0o755
 const HTTP_OK = 200
 const HTTP_NOT_FOUND = 404
-const LAUNCH_OPTIONS_OFFSET = 2
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-function single(directory: string, pattern: RegExp) {
-  const [match, ...rest] = fs.readdirSync(directory).filter((name) => pattern.test(name))
-  if (match === undefined || rest.length > 0) {
-    throw new Error(`No single ${String(pattern)} in ${directory}`)
-  }
-  return path.join(directory, match)
+function step(message: string) {
+  console.log(`smoke: ${message}`)
 }
 
-/** Electron's userData directory, which the stand-in reports into (stand-in/boot.ts). */
-function userDataDirectory() {
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'openwaggle')
-  }
-  if (process.platform === 'win32') {
-    return path.join(
-      process.env['APPDATA'] ?? path.join(os.homedir(), 'AppData', 'Roaming'),
-      'openwaggle',
-    )
-  }
-  return path.join(
-    process.env['XDG_CONFIG_HOME'] ?? path.join(os.homedir(), '.config'),
-    'openwaggle',
+async function prove(context: LaunchContext, app: ConnectedElectrobunApp) {
+  const cli = appCli(context, app.cdpPort)
+  const sessionHost = await proveSessionHost(cli)
+  step('the Session Host started')
+  const project = await createProject(path.join(context.profile, 'project'))
+  const run = await proveFakeProviderRun({
+    cli,
+    page: app.page,
+    project,
+    model: FAKE_MODEL_REFERENCE,
+    timeoutMs: context.timeoutMs,
+  })
+  step(`the fake-provider Run finished in Session ${run.sessionId}`)
+  const sessionShot = await screenshot(app.page, context.screenshots, 'session-after-run.png')
+  const terminal = await proveTerminal(app.page, context.timeoutMs)
+  step('the terminal echoed')
+  const terminalShot = await screenshot(app.page, context.screenshots, 'terminal.png')
+  const preview = await proveBrowserPreview({
+    app,
+    sessionId: run.sessionId,
+    screenshots: context.screenshots,
+    timeoutMs: context.timeoutMs,
+  })
+  step('the Browser preview is a DevTools target')
+  return { sessionHost, run, terminal, preview, screenshots: [sessionShot, terminalShot] }
+}
+
+async function openedSession(app: ConnectedElectrobunApp, sessionId: string, timeoutMs: number) {
+  await waitUntil('the window to open the Session link', timeoutMs, () =>
+    app.page.evaluate((id) => window.location.href.includes(id), sessionId),
   )
+  return { sessionId, url: app.page.url() }
 }
 
-function installMacos(release: string) {
-  const dmg = single(release, /\.dmg$/u)
-  const mount = fs.mkdtempSync(path.join(os.tmpdir(), 'openwaggle-dmg-'))
-  execFileSync('hdiutil', ['attach', dmg, '-nobrowse', '-readonly', '-mountpoint', mount])
+async function launch(
+  context: LaunchContext,
+  options: {
+    readonly expect: string
+    readonly prove: boolean
+    readonly openSession: string | null
+  },
+) {
+  const provider = await startCiFakeProvider()
+  await configureFakeProvider(
+    electrobunAppHome({ userDataDir: context.profile }).piAgentDir,
+    provider.baseUrl,
+  )
+  const launchContext: LaunchContext =
+    options.openSession === null
+      ? context
+      : { ...context, appArguments: [`openwaggle://sessions/${options.openSession}`] }
+  const { app, spawnToRendererMs, spawnToReadyMs } = await startApp(launchContext)
+  step(`startup status ready after ${String(spawnToReadyMs)} ms`)
   try {
-    const app = single(mount, /\.app$/u)
-    const installed = path.join('/Applications', path.basename(app))
-    fs.rmSync(installed, { recursive: true, force: true })
-    execFileSync('ditto', [app, installed])
-    execFileSync('codesign', ['--verify', '--deep', '--strict', installed])
-    return path.join(installed, 'Contents', 'MacOS', 'launcher')
+    const version = await app.page.evaluate(async () => window.api.getAppVersion())
+    if (version !== options.expect) throw new Error(`The app is ${version}, not ${options.expect}.`)
+    const startup = await screenshot(app.page, context.screenshots, 'startup-ready.png')
+    const sessionLink =
+      options.openSession === null
+        ? null
+        : await openedSession(app, options.openSession, context.timeoutMs)
+    await new Promise((resolve) => setTimeout(resolve, IDLE_MS))
+    const idleRssBytes = app.child.pid === undefined ? 0 : appRss(app.child.pid)
+    const proof = options.prove ? await prove(context, app) : null
+    return { version, spawnToRendererMs, spawnToReadyMs, idleRssBytes, startup, sessionLink, proof }
   } finally {
-    execFileSync('hdiutil', ['detach', mount, '-force'])
+    await stopApp(context, app)
+    step('stopped the app')
+    await provider.close()
   }
-}
-
-function installWindows(release: string) {
-  const installer = single(release, /^openwaggle-.+-x64\.exe$/u)
-  // The installer starts the app when it finishes; the stand-in quits on its own.
-  execFileSync(installer, ['/S'], {
-    stdio: 'inherit',
-    env: { ...process.env, OPENWAGGLE_STAND_IN_EXIT_AFTER_MS: '5000' },
-  })
-  const local = process.env['LOCALAPPDATA'] ?? path.join(os.homedir(), 'AppData', 'Local')
-  return path.join(local, ...ELECTROBUN_INSTALL, 'launcher.exe')
-}
-
-function installLinux(release: string) {
-  const appImage = single(release, /\.AppImage$/u)
-  fs.chmodSync(appImage, EXECUTABLE_MODE)
-  // The hosted runners have no FUSE; the AppImage runtime then extracts itself and runs AppRun.
-  execFileSync(appImage, [], {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      APPIMAGE_EXTRACT_AND_RUN: '1',
-      OPENWAGGLE_STAND_IN_EXIT_AFTER_MS: '5000',
-    },
-  })
-  const data = process.env['XDG_DATA_HOME'] ?? path.join(os.homedir(), '.local', 'share')
-  return path.join(data, ...ELECTROBUN_INSTALL, 'launcher')
-}
-
-function install(release: string) {
-  const launcher =
-    process.platform === 'darwin'
-      ? installMacos(release)
-      : process.platform === 'win32'
-        ? installWindows(release)
-        : installLinux(release)
-  if (!fs.existsSync(launcher)) throw new Error(`The install created no launcher at ${launcher}`)
-  return launcher
-}
-
-function readReport(file: string) {
-  try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
-    return isRecord(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-function reportedVersion(report: Readonly<Record<string, unknown>>) {
-  const info = report['versionJson']
-  return isRecord(info) && typeof info['version'] === 'string' ? info['version'] : null
-}
-
-interface LaunchOptions {
-  readonly launcher: string
-  readonly expect: string
-  readonly feed: string | null
-  readonly timeoutMs: number
-  readonly screenshotFile: string | null
-}
-
-async function launch(options: LaunchOptions) {
-  const reportFile = path.join(userDataDirectory(), REPORT_NAME)
-  fs.rmSync(reportFile, { force: true })
-  const spawnedAt = Date.now()
-  const child = spawn(options.launcher, [], {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      ...(options.feed === null ? {} : { OPENWAGGLE_STAND_IN_UPDATE_FEED: options.feed }),
-    },
-  })
-  const deadline = spawnedAt + options.timeoutMs
-  while (Date.now() < deadline) {
-    const report = readReport(reportFile)
-    const domReady = report?.['windowDomReadyMs']
-    if (
-      report !== null &&
-      reportedVersion(report) === options.expect &&
-      typeof domReady === 'number'
-    ) {
-      const startedAt = Date.parse(String(report['startedAt']))
-      await delay(IDLE_MS)
-      const pid = typeof report['pid'] === 'number' ? report['pid'] : (child.pid ?? 0)
-      const idleRssBytes = appRss(pid)
-      if (options.screenshotFile !== null) screenshot(options.screenshotFile)
-      killTree(pid)
-      if (child.pid !== undefined) killTree(child.pid)
-      return {
-        version: options.expect,
-        updated: options.feed !== null,
-        spawnToWindowMs: startedAt + domReady - spawnedAt,
-        processToWindowMs: domReady,
-        idleRssBytes,
-        report,
-      }
-    }
-    await delay(POLL_MS)
-  }
-  if (child.pid !== undefined) killTree(child.pid)
-  const update = `${reportFile}.update.jsonl`
-  const log = fs.existsSync(update) ? fs.readFileSync(update, 'utf8') : 'no update log'
-  throw new Error(`No report of ${options.expect} within ${options.timeoutMs} ms:\n${log}`)
 }
 
 function serve(directory: string, port: number) {
@@ -201,46 +147,72 @@ function serve(directory: string, port: number) {
     .listen(port, '127.0.0.1')
 }
 
+function commandOptions(argv: readonly string[]) {
+  const { values } = parseArgs({
+    args: argv.slice(COMMAND_OPTIONS_OFFSET),
+    options: {
+      expect: { type: 'string' },
+      from: { type: 'string' },
+      feed: { type: 'string' },
+      profile: { type: 'string' },
+      out: { type: 'string' },
+      screenshots: { type: 'string' },
+      prove: { type: 'boolean', default: false },
+      'open-session': { type: 'string' },
+      timeout: { type: 'string', default: String(DEFAULT_TIMEOUT_S) },
+    },
+  })
+  if (values.expect === undefined || values.out === undefined || values.profile === undefined) {
+    throw new Error('launch and update need --expect, --profile and --out')
+  }
+  return { ...values, expect: values.expect, out: values.out, profile: values.profile }
+}
+
 async function main(argv: readonly string[]) {
   const [command, first, second] = argv
   if (command === 'install' && first !== undefined) {
-    const launcher = install(path.resolve(first))
-    const installed = path.resolve(launcher, process.platform === 'darwin' ? '../../..' : '../..')
-    console.log(JSON.stringify({ launcher, installedBytes: directoryBytes(installed) }))
+    const { app, stoppedAfterInstall } = await install(path.resolve(first))
+    const installedBytes = directoryBytes(app.installRoot)
+    console.log(JSON.stringify({ launcher: app.launcher, installedBytes, stoppedAfterInstall }))
     return
   }
   if (command === 'serve' && first !== undefined && second !== undefined) {
     serve(path.resolve(first), Number(second))
     return
   }
-  if (command !== 'launch' || first === undefined) throw new Error('Usage: see the file header.')
-  const { values } = parseArgs({
-    args: argv.slice(LAUNCH_OPTIONS_OFFSET),
-    options: {
-      expect: { type: 'string' },
-      out: { type: 'string' },
-      feed: { type: 'string' },
-      timeout: { type: 'string', default: String(DEFAULT_TIMEOUT_S) },
-      screenshot: { type: 'string' },
-    },
-  })
-  if (values.expect === undefined || values.out === undefined) {
-    throw new Error('launch needs --expect and --out')
+  if ((command !== 'launch' && command !== 'update') || first === undefined) {
+    throw new Error('Usage: see the file header.')
   }
-  const result = await launch({
-    launcher: first,
-    expect: values.expect,
-    feed: values.feed ?? null,
-    timeoutMs: Number(values.timeout) * MS_PER_SECOND,
-    screenshotFile: values.screenshot ?? null,
-  })
-  fs.writeFileSync(values.out, `${JSON.stringify(result, null, JSON_INDENT)}\n`)
-  console.log(JSON.stringify({ ...result, report: undefined }))
+  const options = commandOptions(argv)
+  fs.mkdirSync(options.profile, { recursive: true })
+  const context: LaunchContext = {
+    app: installedApp(path.resolve(first)),
+    profile: path.resolve(options.profile),
+    screenshots: options.screenshots === undefined ? null : path.resolve(options.screenshots),
+    timeoutMs: Number(options.timeout) * MS_PER_SECOND,
+  }
+  const result =
+    command === 'launch'
+      ? await launch(context, {
+          expect: options.expect,
+          prove: options.prove,
+          openSession: options['open-session'] ?? null,
+        })
+      : await proveUpdate(context, {
+          from: options.from ?? '',
+          expect: options.expect,
+          feed: options.feed ?? '',
+        })
+  fs.writeFileSync(options.out, `${JSON.stringify(result, null, JSON_INDENT)}\n`)
+  console.log(JSON.stringify(result))
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv.slice(FIRST_CLI_ARGUMENT)).catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error)
-    process.exit(1)
-  })
+  main(process.argv.slice(FIRST_CLI_ARGUMENT)).then(
+    () => process.exit(0),
+    (error: unknown) => {
+      console.error(error instanceof Error ? (error.stack ?? error.message) : error)
+      process.exit(1)
+    },
+  )
 }
