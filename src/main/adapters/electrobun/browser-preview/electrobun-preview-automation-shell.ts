@@ -1,3 +1,4 @@
+import { ABORTED_LOAD_ERROR_TEXT } from '../../browser-preview/browser-preview-page-state'
 import type {
   BrowserPreviewAutomationNavigation,
   BrowserPreviewAutomationShell,
@@ -69,7 +70,7 @@ async function navigateCefPreviewAndWait(
   const wait = readinessEvent === null ? null : cdpEventWithin(record, readinessEvent, navigation)
   try {
     const result = decode(NavigateResultSchema, await record.guest.send('Page.navigate', { url }))
-    if (result?.errorText !== undefined && result.errorText !== 'net::ERR_ABORTED') {
+    if (result?.errorText !== undefined && result.errorText !== ABORTED_LOAD_ERROR_TEXT) {
       throw new Error(`Browser preview navigation failed: ${result.errorText}`)
     }
     if (wait !== null && result?.loaderId !== undefined) await wait.reached

@@ -1,15 +1,16 @@
 import { EventEmitter } from 'node:events'
 import { Schema } from '@shared/schema'
-import type {
-  BrowserPreviewAutomationClip,
-  BrowserPreviewAutomationContents,
-  BrowserPreviewAutomationDebugger,
-  BrowserPreviewAutomationImage,
-  BrowserPreviewCdpDetachListener,
-  BrowserPreviewCdpMessageListener,
-  BrowserPreviewKeyListener,
-  BrowserPreviewMouseListener,
-  BrowserPreviewNavigationListener,
+import {
+  type BrowserPreviewAutomationClip,
+  type BrowserPreviewAutomationContents,
+  type BrowserPreviewAutomationDebugger,
+  type BrowserPreviewAutomationImage,
+  type BrowserPreviewCdpDetachListener,
+  type BrowserPreviewCdpMessageListener,
+  type BrowserPreviewKeyListener,
+  type BrowserPreviewMouseListener,
+  type BrowserPreviewNavigationListener,
+  retireBrowserPreviewContents,
 } from '../../browser-preview/automation/browser-preview-automation-contents'
 
 type DebuggerListener = BrowserPreviewCdpMessageListener | BrowserPreviewCdpDetachListener
@@ -164,7 +165,12 @@ class CefAutomationContents implements BrowserPreviewAutomationContents {
     this.record = record
     this.id = record.webviewId
     this.debugger = new CefAutomationDebugger(record.guest)
-    record.destroyedListeners.push(() => this.events.emit('destroyed'))
+    // A preview is removed when it closes or its owner page retires. The automation page cached
+    // for it then refuses every later action, as Electron's quarantined pages do.
+    record.destroyedListeners.push(() => {
+      retireBrowserPreviewContents(this)
+      this.events.emit('destroyed')
+    })
   }
 
   isDestroyed(): boolean {

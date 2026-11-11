@@ -11,6 +11,7 @@ import {
   setup,
   type Setup,
 } from './electrobun-browser-preview-harness'
+import { browserPreviewAutomationController } from '../../../browser-preview/automation/browser-preview-automation-control'
 import { makeBrowserPreviewAutomationService } from '../../../browser-preview/automation/browser-preview-automation-service'
 import type { SettingsServiceShape } from '../../../../services/settings-service'
 
@@ -110,6 +111,39 @@ describe('Electrobun Browser preview automation', () => {
 
     await failed
     expect(lastState(harness.sent)).toMatchObject({ loading: false, error: expect.anything() })
+  })
+
+  it('treats a navigation another one replaced (net::ERR_ABORTED) as no failure', async () => {
+    const harness = agentHarness()
+    const service = automation(harness)
+    await run(service.open(scope, { url: 'https://example.com/' }))
+    await settle()
+    harness.cef.respond('Page.navigate', () => ({ frameId: 'main', errorText: 'net::ERR_ABORTED' }))
+
+    const navigated = run(service.navigate(scope, { url: 'https://example.com/replaced' }))
+    await settle()
+
+    await expect(navigated).resolves.toMatchObject({ available: true })
+    expect(lastState(harness.sent)).toMatchObject({ error: null })
+  })
+
+  it('refuses a cached automation page once its owner page retires', async () => {
+    const harness = agentHarness()
+    const service = automation(harness)
+    await run(service.open(scope, { url: 'https://example.com/' }))
+    await settle()
+    const tab = harness.automation.findTab(AGENT_OWNER_KEY)
+    if (tab === undefined) throw new Error('No preview tab')
+    const page = harness.automation.page(tab)
+    const warmed = browserPreviewAutomationController.run(page, 'warm', async () => 'ready')
+    await settle()
+    await expect(warmed).resolves.toBe('ready')
+
+    harness.page.close()
+
+    await expect(
+      browserPreviewAutomationController.run(page, 'cached', async () => 'reached'),
+    ).rejects.toThrow('retired')
   })
 
   it('snapshots the page with a screenshot captured by CEF', async () => {

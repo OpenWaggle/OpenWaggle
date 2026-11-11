@@ -1,3 +1,4 @@
+import { ABORTED_LOAD_ERROR_TEXT } from '../../browser-preview/browser-preview-page-state'
 import type { BrowserPreviewAppearance } from '@shared/types/browser-preview-controls'
 import { CdpConnection, type CdpSocketFactory } from './cdp-connection'
 import { type CefDevToolsEndpoint, cefDevToolsSocketUrl } from './cef-devtools-endpoint'
@@ -110,7 +111,7 @@ export class ElectrobunPreviewGuest {
       return
     }
     const result = decode(NavigateResultSchema, await cdp.send('Page.navigate', { url }))
-    if (result?.errorText && result.errorText !== 'net::ERR_ABORTED') {
+    if (result?.errorText && result.errorText !== ABORTED_LOAD_ERROR_TEXT) {
       this.options.onEvent({
         kind: 'failed',
         code: 'LOAD_FAILED',
