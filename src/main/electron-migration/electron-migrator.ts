@@ -159,10 +159,26 @@ async function runPreviewResetStep(options: ElectronMigrationOptions, state: Mig
   return withStep(state, 'browser-preview-reset', { status, detail: { removed } }, now, true)
 }
 
+/**
+ * What only Electron's Chromium leaves in a profile, under `session-data` or (before it) the
+ * profile root. The Electrobun build creates `session-data` too, so the directory proves nothing.
+ */
+const ELECTRON_PROFILE_MARKERS = ['Local State', 'Preferences', 'Local Storage', 'Partitions']
+
+async function hasElectronProfile(userData: string) {
+  const roots = [path.join(userData, ELECTRON_SESSION_DATA_DIRECTORY), userData]
+  const found = await Promise.all(
+    roots.flatMap((root) =>
+      ELECTRON_PROFILE_MARKERS.map((marker) => exists(path.join(root, marker))),
+    ),
+  )
+  return found.includes(true)
+}
+
 async function initialState(options: ElectronMigrationOptions) {
   const existing = await readMigrationState(options.userData)
   if (existing) return existing
-  const fromElectron = await exists(path.join(options.userData, ELECTRON_SESSION_DATA_DIRECTORY))
+  const fromElectron = await hasElectronProfile(options.userData)
   const state = initialMigrationState(options.now?.() ?? new Date(), fromElectron)
   await writeMigrationState(options.userData, state)
   options.log?.('Electron migration state created', { fromElectron })

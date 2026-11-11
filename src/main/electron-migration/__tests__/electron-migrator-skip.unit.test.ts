@@ -1,7 +1,8 @@
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { temporaryTestDirectory } from '../../test-support/temporary-test-directory'
-import { skipMigrationStep } from '../electron-migrator'
+import { runElectronMigration, skipMigrationStep } from '../electron-migrator'
 import {
   initialMigrationState,
   readMigrationState,
@@ -50,5 +51,33 @@ describe('skipMigrationStep', () => {
     await expect(
       skipMigrationStep({ userData, withLock: directLock }, 'secrets'),
     ).resolves.toBeUndefined()
+  })
+})
+
+describe('the Electron install a first launch finds', () => {
+  it("does not take the Electrobun build's own session-data directory for one", async () => {
+    const userData = path.join(await temporaryTestDirectory('ow-migration-fresh-'), 'openwaggle')
+    await mkdir(path.join(userData, 'session-data'), { recursive: true })
+    const report = await runElectronMigration({
+      userData,
+      sharedMcpDirectory: path.join(userData, 'shared-mcp'),
+      codec: { decryptLegacy: async () => '', seal: async () => Buffer.alloc(0) },
+      withLock: directLock,
+    })
+    expect(report.state.fromElectron).toBe(false)
+  })
+
+  it('finds one from what Chromium leaves in the profile', async () => {
+    const userData = path.join(await temporaryTestDirectory('ow-migration-electron-'), 'openwaggle')
+    await mkdir(path.join(userData, 'session-data'), { recursive: true })
+    await writeFile(path.join(userData, 'session-data', 'Local State'), '{}')
+    const report = await runElectronMigration({
+      userData,
+      sharedMcpDirectory: path.join(userData, 'shared-mcp'),
+      codec: { decryptLegacy: async () => '', seal: async () => Buffer.alloc(0) },
+      withLock: directLock,
+      steps: [],
+    })
+    expect(report.state.fromElectron).toBe(true)
   })
 })
