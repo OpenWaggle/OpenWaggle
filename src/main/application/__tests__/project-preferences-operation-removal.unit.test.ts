@@ -22,7 +22,7 @@ async function fakeStripWrite(projectPath: string): Promise<void> {
     const raw = await fs.readFile(configPath, 'utf-8')
     const parsed: { preferences?: Record<string, unknown> } = JSON.parse(raw)
     if (parsed.preferences && 'model' in parsed.preferences) {
-      delete parsed.preferences.model
+      delete parsed.preferences['model']
       if (Object.keys(parsed.preferences).length === 0) delete parsed.preferences
       await fs.writeFile(configPath, JSON.stringify(parsed, null, 2), 'utf-8')
     }

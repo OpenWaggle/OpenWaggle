@@ -38,13 +38,13 @@ function collectGeneratedImageRecord(
   remainingTextCharacters: number,
 ) {
   if (
-    candidate.type !== 'image' ||
-    typeof candidate.data !== 'string' ||
-    typeof candidate.mimeType !== 'string'
+    candidate['type'] !== 'image' ||
+    typeof candidate['data'] !== 'string' ||
+    typeof candidate['mimeType'] !== 'string'
   ) {
     return null
   }
-  const title = typeof candidate.name === 'string' ? candidate.name.trim() : 'Generated image'
+  const title = typeof candidate['name'] === 'string' ? candidate['name'].trim() : 'Generated image'
   const boundedTitle = title.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
   const consumed = Math.min(title.length, remainingTextCharacters)
   if (
@@ -53,7 +53,7 @@ function collectGeneratedImageRecord(
     images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages
   ) {
     order.push({ kind: 'image', index: images.length })
-    images.push({ data: candidate.data, mimeType: candidate.mimeType, title: boundedTitle })
+    images.push({ data: candidate['data'], mimeType: candidate['mimeType'], title: boundedTitle })
   }
   return { consumed, handled: true }
 }
@@ -63,11 +63,11 @@ function collectSiteRecord(
   sites: CapturedSite[],
   remainingTextCharacters: number,
 ) {
-  if (candidate.type !== 'site') return null
-  const rawUrl = typeof candidate.url === 'string' ? candidate.url : candidate.uri
+  if (candidate['type'] !== 'site') return null
+  const rawUrl = typeof candidate['url'] === 'string' ? candidate['url'] : candidate['uri']
   if (typeof rawUrl !== 'string') return { consumed: 0, handled: true }
   const url = supportedHttpUrl(rawUrl)
-  const rawTitle = typeof candidate.title === 'string' ? candidate.title.trim() : rawUrl
+  const rawTitle = typeof candidate['title'] === 'string' ? candidate['title'].trim() : rawUrl
   const title = rawTitle.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
   const consumed = Math.min(rawUrl.length + rawTitle.length, remainingTextCharacters)
   if (
@@ -79,7 +79,7 @@ function collectSiteRecord(
     sites.push({
       url,
       title,
-      activity: candidate.activity === 'updated' ? 'updated' : 'created',
+      activity: candidate['activity'] === 'updated' ? 'updated' : 'created',
     })
   }
   return { consumed, handled: true }
@@ -91,22 +91,24 @@ function collectResourceLinkRecord(
   order: CapturedResourceOrder[],
   remainingTextCharacters: number,
 ) {
-  if (candidate.type !== 'resource_link' || typeof candidate.uri !== 'string') return null
-  const url = supportedHttpUrl(candidate.uri)
-  const rawTitle = typeof candidate.title === 'string' ? candidate.title.trim() : candidate.uri
+  if (candidate['type'] !== 'resource_link' || typeof candidate['uri'] !== 'string') return null
+  const url = supportedHttpUrl(candidate['uri'])
+  const rawTitle =
+    typeof candidate['title'] === 'string' ? candidate['title'].trim() : candidate['uri']
   const title = rawTitle.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
-  const consumed = Math.min(candidate.uri.length + rawTitle.length, remainingTextCharacters)
+  const consumed = Math.min(candidate['uri'].length + rawTitle.length, remainingTextCharacters)
   if (
     url &&
     title.length > 0 &&
-    consumed === candidate.uri.length + rawTitle.length &&
+    consumed === candidate['uri'].length + rawTitle.length &&
     links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
   ) {
     order.push({ kind: 'link', index: links.length })
     links.push({
       url,
       title,
-      image: typeof candidate.mimeType === 'string' && candidate.mimeType.startsWith('image/'),
+      image:
+        typeof candidate['mimeType'] === 'string' && candidate['mimeType'].startsWith('image/'),
     })
   }
   return { consumed, handled: true }

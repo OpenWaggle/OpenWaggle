@@ -31,13 +31,13 @@ function supportedHttpUrl(value: string) {
 }
 
 function enqueueChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
-  const children = candidate.children
+  const children = candidate['children']
   if (!Array.isArray(children)) return
   for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
 }
 
 function children(candidate: Readonly<Record<string, unknown>>): readonly unknown[] {
-  return Array.isArray(candidate.children) ? candidate.children : []
+  return Array.isArray(candidate['children']) ? candidate['children'] : []
 }
 
 function definitions(root: unknown) {
@@ -47,12 +47,12 @@ function definitions(root: unknown) {
     const candidate = pending.pop()
     if (!isRecord(candidate)) continue
     if (
-      candidate.type === 'definition' &&
-      typeof candidate.identifier === 'string' &&
-      typeof candidate.url === 'string' &&
-      candidate.url.length <= SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters
+      candidate['type'] === 'definition' &&
+      typeof candidate['identifier'] === 'string' &&
+      typeof candidate['url'] === 'string' &&
+      candidate['url'].length <= SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters
     ) {
-      result.set(candidate.identifier, candidate.url)
+      result.set(candidate['identifier'], candidate['url'])
     }
     enqueueChildren(candidate, pending)
   }
@@ -60,7 +60,7 @@ function definitions(root: unknown) {
 }
 
 function label(candidate: Readonly<Record<string, unknown>>) {
-  const directAlt = typeof candidate.alt === 'string' ? candidate.alt.trim() : ''
+  const directAlt = typeof candidate['alt'] === 'string' ? candidate['alt'].trim() : ''
   if (directAlt) return directAlt.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
 
   const pending = [...children(candidate)].reverse()
@@ -75,8 +75,11 @@ function label(candidate: Readonly<Record<string, unknown>>) {
     const child = pending.pop()
     visited += 1
     if (!isRecord(child)) continue
-    if ((child.type === 'text' || child.type === 'inlineCode') && typeof child.value === 'string') {
-      const fragment = child.value.slice(
+    if (
+      (child['type'] === 'text' || child['type'] === 'inlineCode') &&
+      typeof child['value'] === 'string'
+    ) {
+      const fragment = child['value'].slice(
         0,
         SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters - length,
       )
@@ -93,12 +96,12 @@ function markdownUrl(
   candidate: Readonly<Record<string, unknown>>,
   knownDefinitions: ReadonlyMap<string, string>,
 ) {
-  const direct = candidate.type === 'link' || candidate.type === 'image'
-  const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
+  const direct = candidate['type'] === 'link' || candidate['type'] === 'image'
+  const reference = candidate['type'] === 'linkReference' || candidate['type'] === 'imageReference'
   const url = direct
-    ? candidate.url
-    : reference && typeof candidate.identifier === 'string'
-      ? knownDefinitions.get(candidate.identifier)
+    ? candidate['url']
+    : reference && typeof candidate['identifier'] === 'string'
+      ? knownDefinitions.get(candidate['identifier'])
       : null
   return typeof url === 'string' ? url : null
 }
@@ -138,7 +141,7 @@ function localImageFilePath(url: string): string | null {
 }
 
 function isImageNode(candidate: Readonly<Record<string, unknown>>) {
-  return candidate.type === 'image' || candidate.type === 'imageReference'
+  return candidate['type'] === 'image' || candidate['type'] === 'imageReference'
 }
 
 function localImage(

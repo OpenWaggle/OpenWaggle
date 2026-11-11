@@ -34,21 +34,21 @@ export async function readHostSessionResourceContent(
   if (response.result === null) return { handled: true, content: null }
   if (
     !isRecord(response.result) ||
-    typeof response.result.resourceId !== 'string' ||
-    typeof response.result.fileName !== 'string' ||
-    typeof response.result.mimeType !== 'string' ||
-    !response.result.mimeType.toLowerCase().startsWith('image/')
+    typeof response.result['resourceId'] !== 'string' ||
+    typeof response.result['fileName'] !== 'string' ||
+    typeof response.result['mimeType'] !== 'string' ||
+    !response.result['mimeType'].toLowerCase().startsWith('image/')
   ) {
     throw new Error('The Session Host returned invalid image content.')
   }
-  const bytes = decodeBase64Image(response.result.dataBase64)
+  const bytes = decodeBase64Image(response.result['dataBase64'])
   if (!bytes) throw new Error('The Session Host returned invalid image content.')
   return {
     handled: true,
     content: {
-      resourceId: response.result.resourceId,
-      fileName: response.result.fileName,
-      mimeType: response.result.mimeType,
+      resourceId: response.result['resourceId'],
+      fileName: response.result['fileName'],
+      mimeType: response.result['mimeType'],
       bytes,
     },
   }
@@ -69,22 +69,22 @@ export async function readHostSessionResourceThumbnail(
   if (response.result === null) return { handled: true, thumbnail: null }
   if (
     !isRecord(response.result) ||
-    typeof response.result.resourceId !== 'string' ||
-    typeof response.result.fileName !== 'string' ||
-    typeof response.result.mimeType !== 'string' ||
-    !response.result.mimeType.toLowerCase().startsWith('image/') ||
-    typeof response.result.dataBase64 !== 'string' ||
-    !decodeBase64Image(response.result.dataBase64)
+    typeof response.result['resourceId'] !== 'string' ||
+    typeof response.result['fileName'] !== 'string' ||
+    typeof response.result['mimeType'] !== 'string' ||
+    !response.result['mimeType'].toLowerCase().startsWith('image/') ||
+    typeof response.result['dataBase64'] !== 'string' ||
+    !decodeBase64Image(response.result['dataBase64'])
   ) {
     throw new Error('The Session Host returned an invalid image thumbnail.')
   }
   return {
     handled: true,
     thumbnail: {
-      resourceId: response.result.resourceId,
-      fileName: response.result.fileName,
-      mimeType: response.result.mimeType,
-      dataBase64: response.result.dataBase64,
+      resourceId: response.result['resourceId'],
+      fileName: response.result['fileName'],
+      mimeType: response.result['mimeType'],
+      dataBase64: response.result['dataBase64'],
     },
   }
 }

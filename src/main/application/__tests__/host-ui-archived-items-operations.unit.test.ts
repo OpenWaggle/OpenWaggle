@@ -84,7 +84,7 @@ function succeedFor(input: DispatchedCommand) {
     contract: 'session-control-v2',
     response: {
       outcome: {
-        effect: command.operation === 'archive' ? 'session-archived' : 'session-unarchived',
+        effect: command['operation'] === 'archive' ? 'session-archived' : 'session-unarchived',
       },
     },
   })
@@ -140,7 +140,7 @@ describe('Archived items Host UI operations', () => {
       skipped: [sessionRef],
       failed: [],
     })
-    expect(dispatched().map(({ command }) => command.operation)).toEqual(['restore-branch'])
+    expect(dispatched().map(({ command }) => command['operation'])).toEqual(['restore-branch'])
   })
 
   it('archives again to undo a restore and puts back each Archive time', async () => {
@@ -157,7 +157,7 @@ describe('Archived items Host UI operations', () => {
       ]),
     )
 
-    expect(dispatched().map(({ command }) => command.operation)).toEqual([
+    expect(dispatched().map(({ command }) => command['operation'])).toEqual([
       'archive',
       'archive-branch',
     ])
@@ -267,7 +267,7 @@ describe('Archived items Host UI operations', () => {
         new SessionProjectionRepositoryError({
           operation: 'delete',
           cause: new Error(
-            input.payload.request.command.sessionId === 'queen-with-workers'
+            input.payload.request.command['sessionId'] === 'queen-with-workers'
               ? 'Session deletion was refused because worker w1 still depends on it.'
               : SESSION_NOT_ARCHIVED_MESSAGE,
           ),
