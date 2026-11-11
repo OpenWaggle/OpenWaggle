@@ -7,6 +7,11 @@ const OUTPUT_PAGE_BYTES = 64 * 1_024
 const UTF8_CONTINUATION_MASK = 0xc0
 const UTF8_CONTINUATION_TAG = 0x80
 
+/** A byte inside a UTF-8 character; a byte past the end is none. */
+function isContinuationByte(byte: number | undefined) {
+  return byte !== undefined && (byte & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_TAG
+}
+
 export function actionOutputPage(
   run: ActionRun,
   output: string,
@@ -21,19 +26,9 @@ export function actionOutputPage(
   const retainedStart = total - retained.length
   const requested = Math.min(total, Math.max(retainedStart, afterOffset))
   let start = requested - retainedStart
-  while (
-    start < retained.length &&
-    (retained[start] & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_TAG
-  ) {
-    start += 1
-  }
+  while (isContinuationByte(retained[start])) start += 1
   let end = Math.min(retained.length, start + OUTPUT_PAGE_BYTES)
-  while (
-    end < retained.length &&
-    (retained[end] & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_TAG
-  ) {
-    end -= 1
-  }
+  while (end < retained.length && isContinuationByte(retained[end])) end -= 1
   return {
     run,
     output: retained.subarray(start, end).toString('utf8'),

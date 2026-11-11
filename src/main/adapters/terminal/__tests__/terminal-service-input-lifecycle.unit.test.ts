@@ -200,14 +200,13 @@ describe('makeNodePtyTerminalService input lifecycle', () => {
     const oneMib = 1024 * 1024
     const utf8BytesPerCharacter = 4
     const charactersPerChunk = TERMINAL.MAX_INPUT_BYTES / utf8BytesPerCharacter
-    const chunkCharacters = ['🙂', '🚀'] as const
     const expectedParts: string[] = []
     await open(workDirA)
     await settle()
 
     for (let acceptedBytes = 0; acceptedBytes < oneMib; acceptedBytes += TERMINAL.MAX_INPUT_BYTES) {
       const chunkIndex = acceptedBytes / TERMINAL.MAX_INPUT_BYTES
-      const character = chunkCharacters[chunkIndex % chunkCharacters.length]
+      const character = chunkIndex % 2 === 0 ? '🙂' : '🚀'
       const part = character.repeat(charactersPerChunk)
       expectedParts.push(part)
       await expect(Effect.runPromise(service.write(OWNER, TERMINAL_ID, part))).resolves.toEqual({

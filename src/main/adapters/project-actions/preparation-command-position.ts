@@ -158,7 +158,7 @@ function visitEvalPrefixUnquoted(
   index: number,
   state: EvalPrefixState,
 ) {
-  const character = command[cursor]
+  const character = command.charAt(cursor)
   if (character === '\\' && cursor + 1 < index) {
     if (command[cursor + 1] === '\n') return cursor + 1
     state.word += character + command[cursor + 1]

@@ -14,7 +14,7 @@ function quotedHeredocCharacter(command: string, cursor: number, quote: HeredocQ
   if (character !== '\\' || cursor + 1 >= command.length) {
     return { value: character, advance: 1, quote }
   }
-  const next = command[cursor + 1]
+  const next = command.charAt(cursor + 1)
   if (next === '\n') return { value: '', advance: HEREDOC_ESCAPE_ADVANCE, quote }
   if (['$', '"', '\\', '`'].includes(next)) {
     return { value: next, advance: HEREDOC_ESCAPE_ADVANCE, quote }
@@ -44,7 +44,7 @@ function heredocDelimiter(command: string, start: number) {
   let delimiter = ''
   let sawWord = false
   while (cursor < command.length) {
-    const character = command[cursor]
+    const character = command.charAt(cursor)
     if (!quote && /[\s;&|<>()]/.test(character)) break
     if (quote) {
       const part = quotedHeredocCharacter(command, cursor, quote)

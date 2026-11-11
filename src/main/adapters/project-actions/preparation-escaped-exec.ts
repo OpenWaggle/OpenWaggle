@@ -59,7 +59,7 @@ function isEscapedExecPrefix(command: string, index: number) {
 }
 
 function isCommentStart(command: string, index: number) {
-  return command[index] === '#' && (index === 0 || /[\s;&|(){}]/.test(command[index - 1]))
+  return command[index] === '#' && (index === 0 || /[\s;&|(){}]/.test(command.charAt(index - 1)))
 }
 
 function visitNewline(command: string, index: number, state: ScanState) {
