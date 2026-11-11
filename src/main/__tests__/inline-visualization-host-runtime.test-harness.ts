@@ -83,8 +83,8 @@ export function runtimeHarness(
     }
   }
   class NativeRuntimeWindow {
-    declare readonly openai?: RuntimeWindow['openai']
-    declare lucide?: RuntimeWindow['lucide']
+    declare readonly openai?: NonNullable<RuntimeWindow['openai']>
+    declare lucide?: NonNullable<RuntimeWindow['lucide']>
 
     matchMedia(query: string) {
       return {

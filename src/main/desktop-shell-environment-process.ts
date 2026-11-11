@@ -22,6 +22,16 @@ function userLoginShell() {
   }
 }
 
+/** The login shell and uid of this process's user, leaving out the ones it does not have. */
+function processUserIdentity(): { readonly userShell?: string; readonly uid?: number } {
+  const userShell = userLoginShell()
+  const uid = process.getuid?.()
+  return {
+    ...(userShell === undefined ? {} : { userShell }),
+    ...(uid === undefined ? {} : { uid }),
+  }
+}
+
 export interface ProcessDesktopShellEnvironmentOptions {
   readonly cacheFile?: string
   /** False for a Session Host: only the desktop app writes the cache (see below). */
@@ -49,8 +59,7 @@ export function installProcessDesktopShellEnvironment(
   desktopShellEnvironment = startDesktopShellEnvironment({
     env: environment,
     platform: process.platform,
-    userShell: userLoginShell(),
-    uid: process.getuid?.(),
+    ...processUserIdentity(),
     exists: existsSync,
     ...(options.cacheFile ? { cache: fileShellEnvironmentCache(options.cacheFile) } : {}),
     writeCache: writesCache,

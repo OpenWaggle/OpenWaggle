@@ -76,6 +76,7 @@ export async function writeAgentsCliDocument(input: {
     readStdin: input.readStdin,
   })
   const document = parseAgentDefinition(source.content)
+  const expectedContentDigest = option(input.arguments_, 'expected-digest')
   return executeAgentDefinitionManagement(
     {
       operation: 'write',
@@ -83,9 +84,7 @@ export async function writeAgentsCliDocument(input: {
       scope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
       document,
       replaceExisting: input.command === 'update',
-      ...(option(input.arguments_, 'expected-digest')
-        ? { expectedContentDigest: option(input.arguments_, 'expected-digest') }
-        : {}),
+      ...(expectedContentDigest ? { expectedContentDigest } : {}),
     },
     managementContext(input),
   )

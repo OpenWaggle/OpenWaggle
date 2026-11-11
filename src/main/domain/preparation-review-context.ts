@@ -39,11 +39,9 @@ export function reviewedProfile(
   const parsed = safeDecodeUnknown(reviewedProfileSchema, review.fingerprint)
   if (!parsed.success) return review
   const profileId = parsed.data.profileId
-  return {
-    ...review,
-    profileId,
-    profileName: profiles.find(({ definition }) => definition.id === profileId)?.definition.name,
-  }
+  const profileName = profiles.find(({ definition }) => definition.id === profileId)?.definition
+    .name
+  return { ...review, profileId, ...(profileName === undefined ? {} : { profileName }) }
 }
 
 export function reviewProfileContext(profileId: string, profiles: readonly PreparationProfile[]) {

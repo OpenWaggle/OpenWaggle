@@ -185,7 +185,7 @@ export async function planAgentDefinitionImport(
   const destinationPath = agentDefinitionPath({
     scope: input.targetScope,
     projectPath: input.projectPath,
-    userHome: input.userHome,
+    ...(input.userHome === undefined ? {} : { userHome: input.userHome }),
     name: document?.name ?? input.sourceName ?? 'unresolved-import',
   })
   const existing = await existingDigest(destinationPath)

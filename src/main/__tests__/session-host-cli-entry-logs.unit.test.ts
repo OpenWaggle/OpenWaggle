@@ -55,7 +55,7 @@ import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
 let userDataPath = ''
 
 afterEach(async () => {
-  mocks.env.OPENWAGGLE_USER_DATA_DIR = undefined
+  delete mocks.env.OPENWAGGLE_USER_DATA_DIR
   mocks.paths.clear()
   await rm(userDataPath, { recursive: true, force: true })
 })

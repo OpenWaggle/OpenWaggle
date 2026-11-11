@@ -253,7 +253,13 @@ export function createLogger(namespace: string): Logger {
       return
     }
 
-    const entry: LogEntry = { at: new Date().toISOString(), namespace, level, message, data }
+    const entry: LogEntry = {
+      at: new Date().toISOString(),
+      namespace,
+      level,
+      message,
+      ...(data === undefined ? {} : { data }),
+    }
     writeToConsole(entry)
     fileWriter.write(entry)
   }

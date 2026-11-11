@@ -57,7 +57,7 @@ async function requestProfileOperation(input: {
   readonly operation: string
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly idempotencyKey: string
-  readonly staged?: StagedProfileCredential
+  readonly staged: StagedProfileCredential | undefined
   readonly client: Awaited<ReturnType<typeof createLocalSessionCliClientInput>>
 }) {
   const result = await executeLocalSessionCommand({
@@ -80,7 +80,7 @@ async function reconcileProfileOperation(input: {
   readonly operation: string
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly idempotencyKey: string
-  readonly staged?: StagedProfileCredential
+  readonly staged: StagedProfileCredential | undefined
 }) {
   const client = await createLocalSessionCliClientInput(input.arguments_)
   try {
@@ -100,7 +100,7 @@ async function reconcileProfileOperation(input: {
 
 async function finalizeProfileResponse(input: {
   readonly response: Awaited<ReturnType<typeof requestProfileOperation>>
-  readonly staged?: StagedProfileCredential
+  readonly staged: StagedProfileCredential | undefined
   readonly stateRoot: string
   readonly json: boolean
   readonly idempotencyKey: string

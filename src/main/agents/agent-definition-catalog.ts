@@ -69,15 +69,11 @@ async function loadRoot(root: DefinitionRoot): Promise<AgentDefinitionCatalogIte
   )
   const counts = new Map<string, number>()
   for (const item of items) counts.set(item.name, (counts.get(item.name) ?? 0) + 1)
-  return items.map((item) =>
-    (counts.get(item.name) ?? 0) > 1
-      ? {
-          ...item,
-          definition: undefined,
-          loadError: `Duplicate Agent definition name ${item.name}.`,
-        }
-      : item,
-  )
+  return items.map((item) => {
+    if ((counts.get(item.name) ?? 0) <= 1) return item
+    const { definition: _definition, ...rest } = item
+    return { ...rest, loadError: `Duplicate Agent definition name ${item.name}.` }
+  })
 }
 
 export async function listAgentDefinitions(input: {
