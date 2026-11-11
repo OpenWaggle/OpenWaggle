@@ -1,0 +1,257 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Tue, 10 Nov 2026 21:41:22 +0100
+Subject: [PATCH] macos: support a macOS 13 deployment target in the native
+ wrapper
+
+At a deployment target below 14.0 the native wrapper has four unguarded uses
+of CADisplayLink (macOS 14) and persistent partitions silently share the
+default WKWebsiteDataStore.
+
+- Drive UI-core frames from NSView's CADisplayLink behind @available(macOS 14),
+  and from a CVDisplayLink that stops after every frame on older releases. The
+  link calls back through a weak holder, and the view stops and releases it
+  when it loses its frame callback or is deallocated.
+- Give each persist: partition its own non-persistent WKWebsiteDataStore for
+  the life of the process on macOS 13, instead of the shared default store.
+  Partitions stay isolated from each other and from the app; they are not saved
+  across launches until macOS 14.
+- Compile nativeWrapper.mm with -Werror=unguarded-availability(-new), so a
+  lower ELECTROBUN_MACOS_DEPLOYMENT_TARGET cannot ship a call that would crash
+  on the older release, and link CoreVideo explicitly.
+---
+ package/build.ts                          |   6 +-
+ package/src/native/macos/nativeWrapper.mm | 155 +++++++++++++++++++---
+ 2 files changed, 140 insertions(+), 21 deletions(-)
+
+diff --git a/package/build.ts b/package/build.ts
+index 5bc4a33e..da73319c 100644
+--- a/package/build.ts
++++ b/package/build.ts
+@@ -2277,6 +2277,10 @@ async function buildNative() {
+ 		}
+ 		const compileFlags = [
+ 			...macosClangTargetFlags,
++			// A lower ELECTROBUN_MACOS_DEPLOYMENT_TARGET must not compile in
++			// an unguarded call to a newer API: it would crash at launch.
++			"-Werror=unguarded-availability",
++			"-Werror=unguarded-availability-new",
+ 			"-fobjc-arc",
+ 			"-fno-objc-msgsend-selector-stubs",
+ 			`-I${cefInclude}`,
+@@ -2288,7 +2292,7 @@ async function buildNative() {
+ 		writeNativeCompileFlags("macos", compileFlags);
+ 		await $`mkdir -p src/native/macos/build`;
+ 		await $`xcrun --sdk macosx clang++ -c src/native/macos/nativeWrapper.mm -o src/native/macos/build/nativeWrapper.o ${compileFlags}`;
+-		await $`mkdir -p src/native/build && xcrun --sdk macosx clang++ ${macosClangTargetFlags} -o src/native/build/libNativeWrapper.dylib src/native/macos/build/nativeWrapper.o ./vendors/zig-asar/libasar.dylib -framework Cocoa -framework WebKit -framework QuartzCore -framework Metal -framework MetalKit -framework UserNotifications -F./vendors/cef/Release -weak_framework 'Chromium Embedded Framework' -L./vendors/cef/build/libcef_dll_wrapper -lcef_dll_wrapper -stdlib=libc++ -shared -install_name @executable_path/libNativeWrapper.dylib -Wl,-rpath,@executable_path`;
++		await $`mkdir -p src/native/build && xcrun --sdk macosx clang++ ${macosClangTargetFlags} -o src/native/build/libNativeWrapper.dylib src/native/macos/build/nativeWrapper.o ./vendors/zig-asar/libasar.dylib -framework Cocoa -framework WebKit -framework QuartzCore -framework CoreVideo -framework Metal -framework MetalKit -framework UserNotifications -F./vendors/cef/Release -weak_framework 'Chromium Embedded Framework' -L./vendors/cef/build/libcef_dll_wrapper -lcef_dll_wrapper -stdlib=libc++ -shared -install_name @executable_path/libNativeWrapper.dylib -Wl,-rpath,@executable_path`;
+ 	} else if (OS === "win") {
+ 		const webview2Include = join(
+ 			process.cwd(),
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index b7223740..26f3ab99 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -752,10 +752,25 @@ bool isCEFAvailable() {
+       if (@available(macOS 14.0, *)) {
+         return [WKWebsiteDataStore dataStoreForIdentifier:uuid];
+       } else {
+-        // Fallback to default data store on older macOS versions
+-        NSLog(@"[Session] Partition-specific data stores require macOS 14.0+, "
+-              @"using default store");
+-        return [WKWebsiteDataStore defaultDataStore];
++        // Older macOS has no persistent per-partition store. Sharing the
++        // default store would merge every partition's cookies and storage
++        // with the app's own, so each partition gets one non-persistent store
++        // for the life of the process instead: isolated, but not saved.
++        static NSMutableDictionary<NSString *, WKWebsiteDataStore *>
++            *legacyPartitionStores = nil;
++        @synchronized([WKWebsiteDataStore class]) {
++          if (!legacyPartitionStores)
++            legacyPartitionStores = [NSMutableDictionary dictionary];
++          WKWebsiteDataStore *store = legacyPartitionStores[identifier];
++          if (!store) {
++            NSLog(@"[Session] Persistent partitions require macOS 14.0+; "
++                  @"partition %@ is kept in memory for this launch",
++                  identifier);
++            store = [WKWebsiteDataStore nonPersistentDataStore];
++            legacyPartitionStores[identifier] = store;
++          }
++          return store;
++        }
+       }
+     } else {
+       NSLog(@"Invalid UUID for identifier: %@", identifier);
+@@ -3873,6 +3888,10 @@ @interface WGPUInputView : NSView <NSTextInputClient>
+ @property(nonatomic, assign) UIViewTextCallback uiText;
+ @property(nonatomic, assign) UIViewFrameCallback uiFrame;
+ @property(nonatomic, strong) id uiDisplayLink;
++// macOS 13 and older: NSView has no displayLinkWithTarget:, so frames come
++// from a CVDisplayLink that is stopped after each frame (see uiRequestFrame).
++@property(nonatomic, assign) CVDisplayLinkRef uiLegacyDisplayLink;
++@property(nonatomic, strong) id uiLegacyDisplayLinkTarget;
+ @property(nonatomic, assign) NSRect uiImeRect;
+ @property(nonatomic, assign) BOOL uiComposing;
+ @property(nonatomic, assign) BOOL uiFrameRequested;
+@@ -3882,6 +3901,8 @@ @interface WGPUInputView : NSView <NSTextInputClient>
+ @property(nonatomic, strong) NSMutableDictionary *uiA11yElements;
+ @property(nonatomic, assign) BOOL uiA11yBuilt;
+ - (void)uiRequestFrame;
++- (void)uiOnDisplayLink:(id)link;
++- (void)uiInvalidateDisplayLinks;
+ @end
+ 
+ @implementation EBAXElement
+@@ -3929,6 +3950,36 @@ - (void)setAccessibilityValue:(id)value {
+ }
+ @end
+ 
++// Holds the view weakly so a CVDisplayLink callback that races the view's
++// teardown sees nil instead of a dangling pointer.
++@interface WGPUInputViewLegacyFrameTarget : NSObject
++@property(nonatomic, weak) WGPUInputView *view;
++@end
++@implementation WGPUInputViewLegacyFrameTarget
++@end
++
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wdeprecated-declarations"
++static CVReturn wgpuInputViewLegacyDisplayLinkFired(
++    CVDisplayLinkRef displayLink, const CVTimeStamp *now,
++    const CVTimeStamp *outputTime, CVOptionFlags flagsIn,
++    CVOptionFlags *flagsOut, void *context) {
++  (void)displayLink;
++  (void)now;
++  (void)outputTime;
++  (void)flagsIn;
++  (void)flagsOut;
++  WGPUInputViewLegacyFrameTarget *target =
++      (__bridge WGPUInputViewLegacyFrameTarget *)context;
++  dispatch_async(dispatch_get_main_queue(), ^{
++    WGPUInputView *view = target.view;
++    if (view && view.uiFrameRequested)
++      [view uiOnDisplayLink:nil];
++  });
++  return kCVReturnSuccess;
++}
++#pragma clang diagnostic pop
++
+ @implementation WGPUInputView
+ - (uint32_t)modifierMaskFromEvent:(NSEvent *)event {
+   uint32_t mods = 0;
+@@ -4128,24 +4179,90 @@ - (void)uiRequestFrame {
+   if (!self.uiFrame || self.uiFrameRequested)
+     return;
+   self.uiFrameRequested = YES;
+-  if (!self.uiDisplayLink && [self respondsToSelector:@selector(displayLinkWithTarget:selector:)]) {
+-    CADisplayLink *link = [self displayLinkWithTarget:self selector:@selector(uiOnDisplayLink:)];
+-    [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+-    self.uiDisplayLink = link;
++  if (@available(macOS 14.0, *)) {
++    if (!self.uiDisplayLink) {
++      CADisplayLink *link =
++          [self displayLinkWithTarget:self selector:@selector(uiOnDisplayLink:)];
++      [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
++      self.uiDisplayLink = link;
++    }
++    ((CADisplayLink *)self.uiDisplayLink).paused = NO;
++    return;
+   }
++  if ([self uiStartLegacyDisplayLink])
++    return;
++  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_MSEC),
++                 dispatch_get_main_queue(), ^{
++                   [self uiOnDisplayLink:nil];
++                 });
++}
++
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wdeprecated-declarations"
++// Starts (creating on first use) the CVDisplayLink that drives frames before
++// macOS 14. Returns NO when no display link can be created, for example with
++// no active display; the caller then falls back to a timer.
++- (BOOL)uiStartLegacyDisplayLink {
++  if (!self.uiLegacyDisplayLink) {
++    CVDisplayLinkRef link = NULL;
++    if (CVDisplayLinkCreateWithActiveCGDisplays(&link) != kCVReturnSuccess ||
++        !link)
++      return NO;
++    WGPUInputViewLegacyFrameTarget *target =
++        [[WGPUInputViewLegacyFrameTarget alloc] init];
++    target.view = self;
++    if (CVDisplayLinkSetOutputCallback(link, wgpuInputViewLegacyDisplayLinkFired,
++                                       (__bridge void *)target) !=
++        kCVReturnSuccess) {
++      CVDisplayLinkRelease(link);
++      return NO;
++    }
++    // The link keeps a raw pointer to the target; the view owns it.
++    self.uiLegacyDisplayLinkTarget = target;
++    self.uiLegacyDisplayLink = link;
++  }
++  NSScreen *screen = self.window.screen;
++  NSNumber *screenNumber = screen.deviceDescription[@"NSScreenNumber"];
++  if (screenNumber)
++    CVDisplayLinkSetCurrentCGDisplay(self.uiLegacyDisplayLink,
++                                     (CGDirectDisplayID)screenNumber.unsignedIntValue);
++  if (!CVDisplayLinkIsRunning(self.uiLegacyDisplayLink))
++    CVDisplayLinkStart(self.uiLegacyDisplayLink);
++  return YES;
++}
++
++- (void)uiStopLegacyDisplayLink {
++  if (self.uiLegacyDisplayLink && CVDisplayLinkIsRunning(self.uiLegacyDisplayLink))
++    CVDisplayLinkStop(self.uiLegacyDisplayLink);
++}
++
++- (void)uiInvalidateDisplayLinks {
+   if (self.uiDisplayLink) {
+-    ((CADisplayLink *)self.uiDisplayLink).paused = NO;
+-  } else {
+-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_MSEC),
+-                   dispatch_get_main_queue(), ^{
+-                     [self uiOnDisplayLink:nil];
+-                   });
++    if (@available(macOS 14.0, *)) {
++      [(CADisplayLink *)self.uiDisplayLink invalidate];
++    }
++    self.uiDisplayLink = nil;
+   }
++  if (self.uiLegacyDisplayLink) {
++    CVDisplayLinkStop(self.uiLegacyDisplayLink);
++    CVDisplayLinkRelease(self.uiLegacyDisplayLink);
++    self.uiLegacyDisplayLink = NULL;
++  }
++  self.uiLegacyDisplayLinkTarget = nil;
++}
++#pragma clang diagnostic pop
++
++- (void)dealloc {
++  [self uiInvalidateDisplayLinks];
+ }
+ 
+ - (void)uiOnDisplayLink:(id)link {
+-  if (self.uiDisplayLink)
+-    ((CADisplayLink *)self.uiDisplayLink).paused = YES;
++  if (self.uiDisplayLink) {
++    if (@available(macOS 14.0, *)) {
++      ((CADisplayLink *)self.uiDisplayLink).paused = YES;
++    }
++  }
++  [self uiStopLegacyDisplayLink];
+   self.uiFrameRequested = NO;
+   if (self.uiFrame)
+     self.uiFrame(self.uiCtx, CACurrentMediaTime());
+@@ -8995,10 +9112,8 @@ - (void)windowDidResignKey:(NSNotification *)notification {
+     view.uiKey = key;
+     view.uiText = text;
+     view.uiFrame = frame;
+-    if (!frame && view.uiDisplayLink) {
+-      [(CADisplayLink *)view.uiDisplayLink invalidate];
+-      view.uiDisplayLink = nil;
+-    }
++    if (!frame)
++      [view uiInvalidateDisplayLinks];
+   });
+ }
+ 

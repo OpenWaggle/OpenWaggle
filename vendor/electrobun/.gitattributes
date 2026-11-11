@@ -1,0 +1,2 @@
+# git am needs the patches byte for byte; never convert their line endings on checkout.
+patches/*.patch -text

@@ -35,6 +35,8 @@
     "scripts/**/*.ts",
     "scripts/mcp-conformance-client.mts",
     ".pi/extensions/**/*.ts",
+    "vendor/electrobun/*.ts",
+    "vendor/electrobun/hooks/*.ts",
     "electron.vite.config.ts",
     "electron-builder.ts"
   ],
