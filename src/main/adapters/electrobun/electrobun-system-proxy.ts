@@ -161,7 +161,7 @@ export function systemProxyEnvironment(
   return {
     ...(proxy.http ? { HTTP_PROXY: proxy.http } : {}),
     ...(proxy.https ? { HTTPS_PROXY: proxy.https } : {}),
-    ...(proxy.noProxy && !environment.NO_PROXY && !environment.no_proxy
+    ...(proxy.noProxy && !environment['NO_PROXY'] && !environment['no_proxy']
       ? { NO_PROXY: proxy.noProxy }
       : {}),
   }

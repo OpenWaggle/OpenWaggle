@@ -30,10 +30,10 @@ const relocated: { userData: string | null } = { userData: null }
 export function applicationDataRoot(platform = process.platform, home = homedir()) {
   if (platform === 'darwin') return path.join(home, 'Library', 'Application Support')
   if (platform === 'win32') {
-    const roaming = process.env.APPDATA?.trim()
+    const roaming = process.env['APPDATA']?.trim()
     return roaming ? roaming : path.join(home, 'AppData', 'Roaming')
   }
-  const configHome = process.env.XDG_CONFIG_HOME?.trim()
+  const configHome = process.env['XDG_CONFIG_HOME']?.trim()
   return configHome && path.isAbsolute(configHome) ? configHome : path.join(home, '.config')
 }
 

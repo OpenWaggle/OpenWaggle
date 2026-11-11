@@ -31,10 +31,12 @@ interface MenuEventData {
 /** The Electrobun event shape: listeners get `{ data }`, and a veto sets `response`. */
 export class FakeElectrobunEvent<Data> {
   response: { allow: boolean } | undefined = undefined
-  constructor(
-    readonly name: string,
-    readonly data: Data,
-  ) {}
+  readonly name: string
+  readonly data: Data
+  constructor(name: string, data: Data) {
+    this.name = name
+    this.data = data
+  }
 }
 
 function findByLabel(items: readonly FakeMenuItem[], label: string): FakeMenuItem | null {

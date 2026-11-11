@@ -27,10 +27,12 @@ export type AppWindowOptions = Partial<Omit<WindowOptionsType<AppRpc>, 'rpc'>>
 
 class ElectrobunDesktopWindow implements DesktopWindow {
   closed = false
-  constructor(
-    readonly window: AppWindow,
-    readonly webContents: ElectrobunRendererSurface,
-  ) {}
+  readonly window: AppWindow
+  readonly webContents: ElectrobunRendererSurface
+  constructor(window: AppWindow, webContents: ElectrobunRendererSurface) {
+    this.window = window
+    this.webContents = webContents
+  }
   get id() {
     return this.window.id
   }

@@ -203,7 +203,7 @@ export function getBrowserCredentialChildEnv() {
 
 /** For the shell's native helpers (save panels, registry writes): display, bus, no secrets. */
 export function getDesktopHelperChildEnv(): Record<string, string | undefined> {
-  return { ...getBrowserCredentialChildEnv(), APPDATA: process.env.APPDATA }
+  return { ...getBrowserCredentialChildEnv(), APPDATA: process.env['APPDATA'] }
 }
 
 /** Windows profile roots used only for installed-browser discovery. */

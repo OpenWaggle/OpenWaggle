@@ -74,12 +74,15 @@ export class ElectrobunRendererSurface
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private awaitingBeat = false
 
-  constructor(
-    private readonly view: BrowserView,
-    private readonly rpc: ShellRpc,
-    private readonly options: AppWebviewOptions,
-  ) {
+  private readonly view: BrowserView
+  private readonly rpc: ShellRpc
+  private readonly options: AppWebviewOptions
+
+  constructor(view: BrowserView, rpc: ShellRpc, options: AppWebviewOptions) {
     super()
+    this.view = view
+    this.rpc = rpc
+    this.options = options
     this.id = view.id
     this.url = view.url ?? ''
   }
