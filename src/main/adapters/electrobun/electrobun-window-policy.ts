@@ -78,6 +78,15 @@ export function openAppWindow(options: AppWindowOptions, webview: AppWebviewOpti
   return trackWindow(window, link.attach(window.webview, webview))
 }
 
+/**
+ * Opens a window that is never shown or tracked as a desktop window: a host for background views
+ * (the Browser preview's profile maintenance pages). Returns its id.
+ */
+export function openBackgroundWindow(options: { readonly title: string; readonly html: string }) {
+  const frame = { x: 0, y: 0, width: 1, height: 1 }
+  return new (electrobun().BrowserWindow)({ ...options, frame, hidden: true, activate: false }).id
+}
+
 export function appWindowOf(window: DesktopWindow): AppWindow | null {
   const tracked = openWindows.get(window.id)
   return tracked && !tracked.closed ? tracked.window : null

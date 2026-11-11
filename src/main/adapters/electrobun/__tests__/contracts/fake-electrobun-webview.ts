@@ -302,8 +302,10 @@ export function fakeElectrobunWebview(events: EventEmitter, hooks: FakeWebviewHo
     }
     close() {
       windows.delete(this.id)
-      this.webview.remove()
-      events.emit(`close-${String(this.id)}`, { name: 'close', data: { id: this.id } })
+      for (const view of [...views.values()]) if (view.windowId === this.id) view.remove()
+      const event = { name: 'close', data: { id: this.id } }
+      events.emit(`close-${String(this.id)}`, event)
+      events.emit('close', event)
     }
   }
 

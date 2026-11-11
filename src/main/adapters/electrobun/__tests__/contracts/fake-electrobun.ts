@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { fakeElectrobunBrowserPreview } from './fake-electrobun-browser-preview'
 import { fakeElectrobunUpdater } from './fake-electrobun-updater'
 import { fakeElectrobunWebview } from './fake-electrobun-webview'
 
@@ -122,11 +123,13 @@ export function fakeElectrobun() {
     },
   }
 
+  const chromiumFlags: Record<string, string | boolean> = {}
   const BuildConfig = {
     getSync: () => ({
       ...buildState,
       isPackaged: buildState.buildEnvironment !== 'dev',
       runtime: {},
+      chromiumFlags,
     }),
     get: async () => BuildConfig.getSync(),
   }
@@ -153,6 +156,7 @@ export function fakeElectrobun() {
     return true
   }
 
+  const browserPreview = fakeElectrobunBrowserPreview(webview)
   const updater = fakeElectrobunUpdater()
   const module = {
     Utils,
@@ -167,6 +171,7 @@ export function fakeElectrobun() {
     updater,
     events,
     webview,
+    browserPreview,
     emit,
     clipboardState,
     shellState,
