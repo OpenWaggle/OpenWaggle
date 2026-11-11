@@ -163,7 +163,6 @@ export class AgentGateSession {
       sessionFindings,
       typeBaseline: () => this.typeBaseline ?? Promise.resolve(undefined),
       sessionFiles: [...this.activity.sessionFiles],
-      tsconfigApproved: (file, weakenings) => this.approvals.tsconfigApproved(file, weakenings),
       dependencies: dependencyCheck({
         approved: (pin) => this.approvals.dependencyApproved(pin),
         ...(this.options.latest === undefined ? {} : { latest: this.options.latest }),

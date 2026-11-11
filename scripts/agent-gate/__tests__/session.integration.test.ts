@@ -37,6 +37,7 @@ beforeEach(() => {
   git('config', 'user.email', 'gate@example.com')
   git('config', 'user.name', 'Gate')
   write('package.json', JSON.stringify({ name: 'x', dependencies: { a: '1.0.0' } }, null, 2))
+  write('.gitignore', 'node_modules/\n')
   write('tsconfig.json', '{ "compilerOptions": { "strict": true }, "include": ["src"] }')
   write(
     'DEPENDENCIES.md',
@@ -105,19 +106,25 @@ describe('agent gate Session', () => {
     )
   })
 
-  it('asks the user about a weaker tsconfig and blocks when they refuse', async () => {
+  it('blocks a weaker tsconfig without asking the user', async () => {
     const asked: string[] = []
     const session = new AgentGateSession({
-      ask: (title) => (asked.push(title), Promise.resolve(false)),
+      ask: (title) => {
+        asked.push(title)
+        return Promise.resolve(true)
+      },
     })
     await session.start(root)
     const note = await bash(session, 'edit tsconfig', () =>
       write('tsconfig.json', '{ "compilerOptions": { "strict": false }, "include": ["src"] }'),
     )
-    expect(asked).toEqual(['Allow a weaker tsconfig.json?'])
-    expect(note).toContain('revert it [TS-01]')
+    expect(asked).toEqual([])
+    expect(note).toBeUndefined()
     const decision = await session.settle(COMPLETED)
-    expect(decision?.content).toContain('tsconfig.json:1:1 gate/tsconfig [TS-01] strict weakened')
+    expect(decision?.kind).toBe('block')
+    expect(decision?.content).toContain(
+      'tsconfig.json:1:1 gate/tsconfig [TS-01] strict checks less on 1 file: src/a.ts',
+    )
   })
 
   it('needs approval and a DEPENDENCIES.md row for a new dependency behind latest', async () => {

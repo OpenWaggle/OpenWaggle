@@ -20,6 +20,7 @@ import {
   TYPESCRIPT_INPUTS,
 } from './step-helpers'
 import type { CheckGate, CheckStep } from './step-model'
+import { TSCONFIG_STRICTNESS_STEP } from './tsconfig-strictness-step'
 
 export const STEPS: readonly CheckStep[] = [
   {
@@ -78,6 +79,7 @@ export const STEPS: readonly CheckStep[] = [
     findings: 'lines',
     hint: 'bump the pin or add its DEPENDENCIES.md row; bun run check:dependency-pins',
   },
+  TSCONFIG_STRICTNESS_STEP,
   {
     id: 'usage-statistics-catalog',
     summary: 'the generated usage statistics catalog is current',
@@ -273,6 +275,7 @@ const STATIC_STEPS = [
   'pi-runtime',
   'provenance',
   'dependency-pins',
+  'tsconfig-strictness',
   'usage-statistics-catalog',
   'format',
   'lint',

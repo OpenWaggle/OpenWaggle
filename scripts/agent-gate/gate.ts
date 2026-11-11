@@ -13,7 +13,7 @@ import type { RunProcess } from '../agent-quality-gates/process'
 import { newSuppressions } from './suppressions'
 import { type LintRunner, formatCheck, lintCheck } from './tool-checks'
 import { affectedProjects, typecheckProjects, typeErrorFindings } from './typecheck'
-import { TSCONFIG_FILE, tsconfigFinding, tsconfigWeakenings } from './tsconfig-strictness'
+import { tsconfigCheck } from './tsconfig-strictness'
 
 export interface PluginResult {
   readonly findings: readonly Finding[]
@@ -47,8 +47,6 @@ export interface GateInput {
   readonly runner: LintRunner
   /** Findings the Session recorded, such as hand-edited generated files. */
   readonly sessionFindings?: readonly Finding[]
-  /** Whether the user allowed this weakening of this tsconfig. */
-  readonly tsconfigApproved?: (file: string, weakenings: readonly string[]) => boolean
   readonly dependencies?: DependencyCheck
   readonly plugins?: readonly GatePlugin[]
   /** Type error keys from the Session-start type check; see typecheck.ts. */
@@ -81,20 +79,14 @@ async function suppressionFindings(input: GateInput, existing: readonly string[]
   return found.flat()
 }
 
-async function tsconfigFindings(input: GateInput, existing: readonly string[]) {
-  const text = currentText(input.root)
-  const configs = existing.filter((file) => TSCONFIG_FILE.test(file))
-  const found = await Promise.all(
-    configs.map(async (file) => {
-      const weakenings = tsconfigWeakenings(
-        await input.baseline.text(file),
-        (await text(file)) ?? '',
-      )
-      const approved = input.tsconfigApproved?.(file, weakenings) === true
-      return weakenings.length === 0 || approved ? [] : [tsconfigFinding(file, weakenings)]
-    }),
-  )
-  return found.flat()
+function tsconfigResult(input: GateInput): Promise<PluginResult> {
+  return tsconfigCheck({
+    root: input.root,
+    files: input.files,
+    run: input.run,
+    before: (file) => input.baseline.text(file),
+    after: currentText(input.root),
+  })
 }
 
 function docFindings(input: GateInput): Finding[] {
@@ -185,7 +177,7 @@ export async function runGate(
   const [tools, suppressions, tsconfigs] = await Promise.all([
     toolResults(input, existing),
     suppressionFindings(input, existing),
-    tsconfigFindings(input, existing),
+    tsconfigResult(input),
   ])
   const toolFindings = tools.flatMap((result) => result.findings)
   // A directive lint already reported (typescript/ban-ts-comment, TS-08) is not reported twice.
@@ -199,10 +191,10 @@ export async function runGate(
       ...(input.sessionFindings ?? []),
       ...toolFindings,
       ...suppressions.filter((finding) => !linted.has(`${finding.file}:${finding.line ?? 0}`)),
-      ...tsconfigs,
+      ...tsconfigs.findings,
       ...docFindings(input),
     ],
-    failures: tools.flatMap((result) => result.failures),
+    failures: [...tools.flatMap((result) => result.failures), ...tsconfigs.failures],
     files: input.files,
     durationMs: now() - started,
   }

@@ -1,6 +1,6 @@
 /**
- * Changes that need the user's word: an added dependency (DEP-02) and a weakened tsconfig (TS-01).
- * Right after the tool call that made one, the gate asks, which pauses the Session until the user
+ * Changes that need the user's word: an added dependency (DEP-02). A weaker tsconfig is never
+ * allowed (TS-01), so the gate blocks it without asking. Right after the tool call that made one, the gate asks, which pauses the Session until the user
  * answers; the answer is kept for the rest of the Session. A package named in one of the user's
  * prompts counts as approved. Without a UI nothing is asked and the gate blocks instead.
  */
@@ -9,7 +9,6 @@ import { addedPins } from './dependencies'
 import type { Baseline } from './baseline'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { TSCONFIG_FILE, tsconfigWeakenings } from './tsconfig-strictness'
 
 /** Asks the user; undefined when there is no UI to ask with. */
 export type ApprovalAsk = (title: string, message: string) => Promise<boolean | undefined>
@@ -18,10 +17,6 @@ const MANIFEST = /(?:^|\/)package\.json$/u
 
 function dependencyKey(pin: ManifestPin) {
   return `dependency ${pin.manifest} ${pin.package}@${pin.spec}`
-}
-
-function tsconfigKey(file: string, weakenings: readonly string[]) {
-  return `tsconfig ${file} ${weakenings.join(', ')}`
 }
 
 export class Approvals {
@@ -45,33 +40,14 @@ export class Approvals {
     )
   }
 
-  tsconfigApproved(file: string, weakenings: readonly string[]) {
-    return this.answers.get(tsconfigKey(file, weakenings)) === true
-  }
-
   /** Asks about each new approval the changed files need; a note when the user refused one. */
   async review(root: string, changed: readonly string[], baseline: Baseline) {
     const refusals: string[] = []
     for (const file of changed) {
+      if (!MANIFEST.test(file)) continue
       const now = await readFile(path.join(root, file), 'utf8').catch(() => undefined)
       if (now === undefined) continue
       const before = await baseline.text(file)
-      if (TSCONFIG_FILE.test(file)) {
-        const weakenings = tsconfigWeakenings(before, now)
-        if (weakenings.length > 0) {
-          const key = tsconfigKey(file, weakenings)
-          const allowed = await this.decide(
-            key,
-            `Allow a weaker ${file}?`,
-            `${weakenings.join(', ')} [TS-01]`,
-          )
-          if (allowed === false) {
-            refusals.push(
-              `The user did not allow weakening ${file} (${weakenings.join(', ')}); revert it [TS-01].`,
-            )
-          }
-        }
-      }
       if (MANIFEST.test(file)) {
         const pins = addedPins(manifestPins(file, before ?? '{}'), manifestPins(file, now))
         for (const pin of changedPins([], pins).filter(

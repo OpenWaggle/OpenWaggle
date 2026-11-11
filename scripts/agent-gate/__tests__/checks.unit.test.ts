@@ -4,7 +4,6 @@ import { staleDocs } from '../doc-watch'
 import { findingSetKey, formatFinding, parseFindingLine, type Finding } from '../findings'
 import { ranGenerator } from '../generated-files'
 import { newSuppressions } from '../suppressions'
-import { parseJsonc, tsconfigWeakenings } from '../tsconfig-strictness'
 import { affectedProjects, parseTscErrors, typeErrorFindings, typeErrorKey } from '../typecheck'
 
 describe('new suppressions', () => {
@@ -26,42 +25,6 @@ describe('new suppressions', () => {
 
   it('ignores the words outside a comment', () => {
     expect(newSuppressions('src/a.ts', '', "const name = 'ts-ignore'\n")).toEqual([])
-  })
-})
-
-describe('tsconfig weakening', () => {
-  const strict =
-    '{\n  // comment\n  "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true, },\n  "include": ["src/**/*"],\n}'
-
-  it('parses JSON with comments and trailing commas but keeps strings intact', () => {
-    expect(parseJsonc('{ "a": "http://x, }", /* c */ "b": [1,], }')).toEqual({
-      a: 'http://x, }',
-      b: [1],
-    })
-  })
-
-  it('reports flags turned off and scope changes', () => {
-    const weaker = strict
-      .replace('"strict": true', '"strict": true, "strictNullChecks": false')
-      .replace('"noUncheckedIndexedAccess": true', '"skipLibCheck": true')
-      .replace('["src/**/*"]', '["src/**/*", "legacy/**/*"]')
-    expect(tsconfigWeakenings(strict, weaker)).toEqual([
-      'noUncheckedIndexedAccess weakened',
-      'strictNullChecks weakened',
-      'skipLibCheck weakened',
-      'include changed',
-    ])
-  })
-
-  it('accepts a stricter config and a new config', () => {
-    const stricter = strict.replace('"strict": true', '"strict": true, "noImplicitOverride": true')
-    expect(tsconfigWeakenings(strict, stricter)).toEqual([])
-    expect(tsconfigWeakenings(undefined, strict)).toEqual([])
-  })
-
-  it('treats a family flag removed under strict as still strict', () => {
-    const before = strict.replace('"strict": true', '"strict": true, "strictNullChecks": true')
-    expect(tsconfigWeakenings(before, strict)).toEqual([])
   })
 })
 

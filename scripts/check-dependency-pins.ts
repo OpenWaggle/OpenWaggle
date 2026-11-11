@@ -14,6 +14,7 @@ import {
   parseDependencyTable,
   pinViolations,
 } from './dependency-pins/pins'
+import { parseBaseArgument, resolveBase } from './support/git-base'
 
 /**
  * `bun scripts/check-dependency-pins.ts [--base <ref>]` [DEP-03]. Compares the manifests with
@@ -48,32 +49,6 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 async function git(root: string, args: readonly string[]) {
   const { stdout } = await execFile('git', [...args], { cwd: root, maxBuffer: GIT_OUTPUT_LIMIT })
   return stdout
-}
-
-async function gitOrUndefined(root: string, args: readonly string[]) {
-  try {
-    return (await git(root, args)).trim()
-  } catch {
-    return undefined
-  }
-}
-
-function parseBaseArgument(argv: readonly string[]) {
-  const index = argv.indexOf('--base')
-  if (index < 0) return undefined
-  const ref = argv[index + 1]
-  if (!ref || ref.startsWith('--')) throw new Error('--base needs a git ref')
-  return ref
-}
-
-async function resolveBase(root: string, requested: string | undefined) {
-  if (requested) return requested
-  const mergeBase = await gitOrUndefined(root, ['merge-base', 'HEAD', 'origin/main'])
-  if (mergeBase) return mergeBase
-  const main = await gitOrUndefined(root, ['rev-parse', '--verify', '--quiet', 'origin/main'])
-  if (main) return main
-  console.warn('dependency-pins: no origin/main; comparing with HEAD, so uncommitted pins only')
-  return 'HEAD'
 }
 
 /** The root, website, `packages/*` and `tools/*` manifests in the working tree. */
@@ -173,7 +148,11 @@ export function cachedLatest(input: {
 
 async function main() {
   const root = process.cwd()
-  const base = await resolveBase(root, parseBaseArgument(process.argv.slice(FIRST_ARGUMENT)))
+  const base = await resolveBase(
+    root,
+    parseBaseArgument(process.argv.slice(FIRST_ARGUMENT)),
+    'dependency-pins',
+  )
   const files = await manifestPaths(root)
   const [all, before] = await Promise.all([currentPins(root, files), basePins(root, base, files)])
   const changed: readonly ManifestPin[] = changedPins(before, all)
