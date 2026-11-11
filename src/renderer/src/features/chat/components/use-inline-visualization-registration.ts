@@ -89,7 +89,7 @@ export function useInlineVisualizationRegistration(input: {
     registration: wanted && enabled ? registration : null,
     registrationError,
     releaseRegistration,
-    retryRegistration() {
+    retryRegistration: () => {
       setRegistrationError(null)
       setEnabled(true)
       setFrameId(globalThis.crypto.randomUUID())

@@ -183,7 +183,7 @@ async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: Ag
 
 export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
   return {
-    async sendWithWaggle(payload: AgentSendPayload) {
+    sendWithWaggle: async (payload: AgentSendPayload) => {
       const composerRetainsDraft = useBranchSummaryStore.getState().prompt?.mode === 'custom'
       if (await handleSendCommand(params, payload.text)) {
         if (!composerRetainsDraft) discardSessionResourceAttachments(payload.attachments)
@@ -222,14 +222,14 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         throw error
       }
     },
-    cancelRun() {
+    cancelRun: () => {
       if (params.activeSessionId && params.waggleStatus !== 'idle') {
         api.cancelWaggle(params.activeSessionId)
         params.stopWaggleCollaboration()
       }
       params.stop()
     },
-    stopCollaboration() {
+    stopCollaboration: () => {
       if (params.activeSessionId) api.cancelWaggle(params.activeSessionId)
       params.stopWaggleCollaboration()
     },

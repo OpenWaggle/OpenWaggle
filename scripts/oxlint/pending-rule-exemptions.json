@@ -65,24 +65,6 @@
     "src/renderer/src/routes/agents.tsx": 1,
     "src/renderer/src/routes/skills.tsx": 1
   },
-  "typescript/unbound-method": {
-    "src/renderer/src/features/chat/components/InlineVisualization.tsx": 1,
-    "src/renderer/src/features/chat/hooks/use-chat-panel-controller.ts": 11,
-    "src/renderer/src/features/chat/hooks/useOptimisticSteeredTurn.ts": 1,
-    "src/renderer/src/features/diff-panel/hooks/useDiffPanelGitActions.ts": 2,
-    "src/renderer/src/features/hive-panel/components/HiveRowParts.tsx": 1,
-    "src/renderer/src/features/hive-panel/components/HiveTreeRow.tsx": 1,
-    "src/renderer/src/features/settings/components/sections/connections/AvailableModelsSection.tsx": 5,
-    "src/renderer/src/features/sidebar/components/SessionListItem.tsx": 2,
-    "src/renderer/src/features/sidebar/components/Sidebar.tsx": 5,
-    "src/renderer/src/features/sidebar/hooks/useSidebarController.ts": 16,
-    "src/renderer/src/features/terminal/hooks/useTerminalPaneSession.ts": 6,
-    "src/renderer/src/features/terminal/lib/terminal-surface-lease.ts": 1,
-    "src/renderer/src/shared/hooks/useRightSidebarResizeRail.ts": 3,
-    "src/renderer/src/shared/hooks/useWorkspaceTreeResize.ts": 3,
-    "src/renderer/src/shared/ui/RightSidebarResizeRail.tsx": 1,
-    "src/renderer/src/shared/ui/WorkspaceTreePanel.tsx": 1
-  },
   "typescript/use-unknown-in-catch-callback-variable": {
     "src/renderer/src/features/composer/lib/send-result.ts": 1,
     "src/renderer/src/features/git/hooks/useSessionContextRow.ts": 2

@@ -256,12 +256,12 @@ async function removeProjectWith(
 
 export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
   return {
-    archiveSessions(path: string, _projectSessions: readonly SessionSummary[]) {
+    archiveSessions: (path: string, _projectSessions: readonly SessionSummary[]) => {
       void archiveProjectSessions(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to archive project sessions: ${errorMessage(error)}`)
       })
     },
-    async openProject() {
+    openProject: async () => {
       const path = await deps.selectFolder()
       if (!path) return
       try {
@@ -270,22 +270,22 @@ export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
         deps.showToast(`Failed to select project: ${errorMessage(error)}`)
       }
     },
-    openInFinder(path: string) {
+    openInFinder: (path: string) => {
       void api.openPath(path).catch((error: unknown) => {
         deps.showToast(`Failed to open project folder: ${errorMessage(error)}`)
       })
     },
-    remove(path: string) {
+    remove: (path: string) => {
       void removeProject(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to remove project: ${errorMessage(error)}`)
       })
     },
-    rename(path: string, name: string) {
+    rename: (path: string, name: string) => {
       void deps.setProjectDisplayName(path, name).catch((error: unknown) => {
         deps.showToast(`Failed to rename project: ${errorMessage(error)}`)
       })
     },
-    async selectProjectPath(path: string) {
+    selectProjectPath: async (path: string) => {
       try {
         await selectProjectPath(deps, path)
       } catch (error) {

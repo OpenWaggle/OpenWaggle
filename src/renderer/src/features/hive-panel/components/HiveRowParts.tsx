@@ -49,13 +49,13 @@ export function useRowMenu() {
     open,
     pos,
     close: () => setOpen(false),
-    openAtPointer(event: React.MouseEvent) {
+    openAtPointer: (event: React.MouseEvent) => {
       event.preventDefault()
       event.stopPropagation()
       setPos({ x: event.clientX, y: event.clientY })
       setOpen(true)
     },
-    openUnderButton(event: React.MouseEvent<HTMLButtonElement>) {
+    openUnderButton: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation()
       const rect = event.currentTarget.getBoundingClientRect()
       setPos({ x: rect.left, y: rect.bottom })

@@ -47,7 +47,7 @@ export function useRightSidebarResizeRail({
     minWidth: bounds.minWidth,
     moveThreshold: RESIZE_MOVE_THRESHOLD_PX,
     onCommit: actions.commitWidth,
-    onFinish({ moved, reason, width }) {
+    onFinish: ({ moved, reason, width }) => {
       const elements = resizeElementsRef.current
       if (!elements) return
 
@@ -68,14 +68,14 @@ export function useRightSidebarResizeRail({
         suppressClickRef.current = moved
       }
     },
-    onPreview(nextWidth) {
+    onPreview: (nextWidth) => {
       const elements = resizeElementsRef.current
       if (!elements) return
 
       elements.rail.style.setProperty('right', `${String(nextWidth - RESIZE_RAIL_HALF_WIDTH_PX)}px`)
       actions.applyWidth(nextWidth)
     },
-    shouldAcceptWidth(nextWidth) {
+    shouldAcceptWidth: (nextWidth) => {
       const elements = resizeElementsRef.current
       if (!elements) return false
       return (
@@ -128,7 +128,7 @@ export function useRightSidebarResizeRail({
   }
 
   return {
-    handleClick(event: React.MouseEvent<HTMLButtonElement>) {
+    handleClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       if (!suppressClickRef.current) return
       suppressClickRef.current = false
       event.preventDefault()

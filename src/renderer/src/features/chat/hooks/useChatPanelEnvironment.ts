@@ -103,7 +103,7 @@ export function useChatPanelEnvironment() {
     loadSessions,
     model,
     navigate,
-    openSettings() {
+    openSettings: () => {
       void navigate({ to: '/settings' })
     },
     projectPath: project.projectPath,

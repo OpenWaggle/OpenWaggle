@@ -87,15 +87,15 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       ownerKey,
       terminalId,
       terminal: term,
-      acknowledge: api.acknowledgeTerminalOutput,
+      acknowledge: (...acknowledgement) => api.acknowledgeTerminalOutput(...acknowledgement),
     })
     termRef.current = term
 
     const clipboard = createTerminalClipboardController({
       terminal: term,
       platform: navigator.userAgent,
-      readText: api.readFromClipboard,
-      writeText: api.copyToClipboard,
+      readText: () => api.readFromClipboard(),
+      writeText: (text) => api.copyToClipboard(text),
       enqueuePaste: inputClient.enqueueAsync,
       onError: (error) => {
         if (!cleanedUp) {
