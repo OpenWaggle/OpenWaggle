@@ -18,21 +18,15 @@ import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-prov
  * only. A later Run never applies them over a setting the user chose since.
  */
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 const fixture = setUpPiDiscoveryFixture(state)
 setUpFakePiProvider(fixture, { reasoningModels: ['file-model'] })

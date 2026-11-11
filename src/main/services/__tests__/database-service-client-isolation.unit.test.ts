@@ -9,9 +9,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const appState = vi.hoisted(() => ({ userDataRoot: '' }))
 
-vi.mock('electron', () => ({
-  app: { getPath: () => appState.userDataRoot },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => appState.userDataRoot } }
+})
 
 import { AppDatabase, AppDatabaseLive, configureAppDatabaseAccess } from '../database-service'
 

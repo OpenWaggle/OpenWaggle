@@ -11,11 +11,11 @@ const state = vi.hoisted(() => ({
   userDataDir: '',
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => state.userDataDir,
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 vi.mock('node:os', () => ({
   default: { homedir: () => state.homeDir, tmpdir: () => '/tmp' },

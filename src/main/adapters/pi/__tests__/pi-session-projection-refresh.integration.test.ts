@@ -19,11 +19,10 @@ import {
  * again before it is shown or continued when its Pi file changed outside OpenWaggle (ADR 0051).
  */
 
-const { state, getPathMock, events } = vi.hoisted(() => {
+const { state, events } = vi.hoisted(() => {
   const events: { kind: string; sessionId?: string; change?: string }[] = []
   return {
     state: { userDataDir: '' },
-    getPathMock: vi.fn(() => ''),
     events,
   }
 })
@@ -40,16 +39,11 @@ vi.mock('../../../session-host/session-host-events', async (importOriginal) => {
   }
 })
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 const fixture = setUpPiDiscoveryFixture(state)
 

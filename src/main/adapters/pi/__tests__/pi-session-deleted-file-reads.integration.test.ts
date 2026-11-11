@@ -16,21 +16,15 @@ import {
  * notice, its Runs stay refused, and `pi --resume` does not list the deleted session again.
  */
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 const fixture = setUpPiDiscoveryFixture(state)
 setUpFakePiProvider(fixture)

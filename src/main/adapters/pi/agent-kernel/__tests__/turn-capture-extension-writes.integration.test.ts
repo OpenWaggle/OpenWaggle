@@ -17,21 +17,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * handlers, as a project extension that formats on `agent_end` does. Its turn diff must name them.
  */
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { root: '', userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 const { execFileAsync } = await import('../../../git/run-git')
 const { createSession } = await import('../../../../store/session-details')

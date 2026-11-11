@@ -19,21 +19,15 @@ import {
  * is the program's history, not a copy OpenWaggle owns (ADR 0051).
  */
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 // Load the app runtime while the file is collected, so the fixture's first hook only resets it.
 await import('../../runtime')

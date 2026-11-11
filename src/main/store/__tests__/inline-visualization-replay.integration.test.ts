@@ -5,21 +5,15 @@ import { SessionId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSession, getSessionDetail, persistSessionSnapshot } from '../session-details'
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 /*
  * The window reads a visualization's owning Session from the Session Host (A-F5). The Host's own

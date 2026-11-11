@@ -20,21 +20,15 @@ const APPENDED_NODE_INDEX = NODE_COUNT
 // A one-node append must not rebuild the complete 10k-node transcript term projection.
 const APPEND_PERSISTENCE_BUDGET_MS = 2_000
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 beforeEach(async () => {
   state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-snapshot-semantic-'))

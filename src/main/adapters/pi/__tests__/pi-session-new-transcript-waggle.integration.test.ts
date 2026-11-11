@@ -16,21 +16,16 @@ import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-prov
  * is saved, so an open view shows the new transcript alone.
  */
 
-const { state, getPathMock, events } = vi.hoisted(() => {
+const { state, events } = vi.hoisted(() => {
   const published: { kind: string; sessionId?: string; change?: string }[] = []
-  return { state: { userDataDir: '' }, getPathMock: vi.fn(() => ''), events: published }
+  return { state: { userDataDir: '' }, events: published }
 })
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 vi.mock('../../../session-host/session-host-events', async (importOriginal) => {
   const original =

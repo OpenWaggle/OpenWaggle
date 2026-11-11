@@ -20,25 +20,19 @@ import {
  * in a new file under the same Pi session id, which would bring the deleted session back.
  */
 
-const { state, getPathMock, events } = vi.hoisted(() => {
+const { state, events } = vi.hoisted(() => {
   const events: { kind: string; sessionId?: string; change?: string }[] = []
   return {
     state: { userDataDir: '' },
-    getPathMock: vi.fn(() => ''),
     events,
   }
 })
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 vi.mock('../../../session-host/session-host-events', async (importOriginal) => {
   const original =

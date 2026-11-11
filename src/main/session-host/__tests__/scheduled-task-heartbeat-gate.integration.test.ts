@@ -20,21 +20,16 @@ import {
   setTaskDue,
 } from './scheduled-tasks.test-support'
 
-const { state, getPathMock, dispatched } = vi.hoisted(() => {
+const { state, dispatched } = vi.hoisted(() => {
   const payloads: unknown[] = []
-  return { state: { userDataDir: '' }, getPathMock: vi.fn(() => ''), dispatched: payloads }
+  return { state: { userDataDir: '' }, dispatched: payloads }
 })
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock, getVersion: () => 'test' },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 /** A started Run without a model: the request is recorded, the Session Control reply faked. */
 vi.mock('../scheduled-task-dispatch', async () => {

@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const userData = vi.hoisted(() => ({ path: '' }))
 
-vi.mock('electron', () => ({
-  app: { getPath: () => userData.path },
-  safeStorage: { isEncryptionAvailable: () => false },
-  shell: {},
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => userData.path } }
+})
 
 const { inspectMcpServer } = await import('../pi-mcp-server-runtime-service')
 const { forgetKnownMcpServerStates } = await import('../mcp-server-status-registry')

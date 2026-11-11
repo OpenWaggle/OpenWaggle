@@ -9,21 +9,15 @@ import {
 import { agentTaskFixture, dispatched } from './scheduled-task-agent-created.test-support'
 import { fire, LOCAL_USER, scheduledTasks, setTaskDue } from './scheduled-tasks.test-support'
 
-const { state, getPathMock } = vi.hoisted(() => ({
+const { state } = vi.hoisted(() => ({
   state: { userDataDir: '' },
-  getPathMock: vi.fn(() => ''),
 }))
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 vi.mock('../scheduled-task-dispatch', async () =>
   (await import('./scheduled-task-agent-created.test-support')).fakeScheduledTaskDispatch(),

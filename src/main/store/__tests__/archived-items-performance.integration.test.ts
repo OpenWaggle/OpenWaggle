@@ -8,14 +8,11 @@ import {
 
 const state = vi.hoisted(() => ({ userDataDir: '' }))
 
-vi.mock('electron', () => ({
-  app: { getPath: () => state.userDataDir },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 const SESSION_COUNT = 20_000
 /** One session in five is archived: 4,000 archived sessions among 20,000. */

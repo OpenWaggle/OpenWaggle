@@ -19,14 +19,11 @@ import { runStoreEffect } from '../store-runtime'
 
 const state = vi.hoisted(() => ({ userDataDir: '' }))
 
-vi.mock('electron', () => ({
-  app: { getPath: () => state.userDataDir },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 async function makeSession(name: string, withPiFile = false) {
   const piSessionFile = withPiFile ? path.join(state.userDataDir, `${name}.jsonl`) : undefined

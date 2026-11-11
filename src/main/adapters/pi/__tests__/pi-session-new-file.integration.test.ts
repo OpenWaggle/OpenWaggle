@@ -14,25 +14,19 @@ import { FAKE_PROVIDER_MODEL, setUpFakePiProvider } from './pi-session-fake-prov
  * OpenWaggle.
  */
 
-const { state, getPathMock, warnings } = vi.hoisted(() => {
+const { state, warnings } = vi.hoisted(() => {
   const warnings: string[] = []
   return {
     state: { userDataDir: '' },
-    getPathMock: vi.fn(() => ''),
     warnings,
   }
 })
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 vi.mock('../../../logger', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../logger')>()

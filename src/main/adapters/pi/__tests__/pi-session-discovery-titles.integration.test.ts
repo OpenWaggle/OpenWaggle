@@ -22,21 +22,16 @@ interface TitleRequest {
   readonly model: string | null
 }
 
-const { state, getPathMock, titleRequests } = vi.hoisted(() => {
+const { state, titleRequests } = vi.hoisted(() => {
   const requests: TitleRequest[] = []
-  return { state: { userDataDir: '' }, getPathMock: vi.fn(() => ''), titleRequests: requests }
+  return { state: { userDataDir: '' }, titleRequests: requests }
 })
 
-getPathMock.mockImplementation(() => state.userDataDir)
-
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 vi.mock('../../../application/session-title-scheduler', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../application/session-title-scheduler')>()),

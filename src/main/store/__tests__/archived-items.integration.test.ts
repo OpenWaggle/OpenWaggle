@@ -21,14 +21,11 @@ import {
 
 const state = vi.hoisted(() => ({ userDataDir: '' }))
 
-vi.mock('electron', () => ({
-  app: { getPath: () => state.userDataDir },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+// Each test keeps its files under its own `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
