@@ -13,7 +13,7 @@ async function loadEnv() {
 }
 
 const BUNDLED_PI =
-  '/Applications/OpenWaggle.app/Contents/Resources/app.asar/node_modules/@earendil-works/pi-coding-agent'
+  '/Applications/OpenWaggle.app/Contents/Resources/app/node_modules/@earendil-works/pi-coding-agent'
 const USER_PI = '/nix/store/pi'
 
 describe('Pi package directory environment', () => {

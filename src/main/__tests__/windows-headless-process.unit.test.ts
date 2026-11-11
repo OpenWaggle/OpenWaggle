@@ -7,7 +7,6 @@ vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof ChildProcessModule>()),
   spawn: mocks.spawn,
 }))
-vi.mock('electron', () => ({}))
 vi.mock('../env', () => ({ env: {}, getSafeChildEnv: () => ({}) }))
 
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
@@ -15,9 +14,10 @@ import { windowsHeadlessCommandLine } from '../windows-headless-process'
 import { WINDOWS_HEADLESS_PROCESS_SCRIPT } from '../windows-headless-process-source'
 import { windowsPowerShellHelperInput } from '../windows-powershell-helper'
 
+// Electrobun's bundled Bun runs the app directory's entry.
 const launch = {
-  command: 'C:\\Program Files\\OpenWaggle\\OpenWaggle.exe',
-  args: ['session-host-internal'],
+  command: 'C:\\Program Files\\OpenWaggle\\bin\\bun.exe',
+  args: ['C:\\Program Files\\OpenWaggle\\Resources\\app', 'session-host-internal'],
   environment: { PATH: 'C:\\Windows', PROVIDER_API_KEY: 'private-provider-fixture' },
 }
 
@@ -79,7 +79,8 @@ describe('Windows headless process launch boundary', () => {
     expect(inputText()).toBe(
       windowsPowerShellHelperInput(WINDOWS_HEADLESS_PROCESS_SCRIPT, {
         command: launch.command,
-        commandLine: '"C:\\Program Files\\OpenWaggle\\OpenWaggle.exe" "session-host-internal"',
+        commandLine:
+          '"C:\\Program Files\\OpenWaggle\\bin\\bun.exe" "C:\\Program Files\\OpenWaggle\\Resources\\app" "session-host-internal"',
       }),
     )
     expect(inputText()).not.toContain(launch.environment.PROVIDER_API_KEY)
@@ -104,7 +105,7 @@ describe('Windows headless process launch boundary', () => {
     expect(settled).toBe(true)
   })
 
-  it.each(['', 'electron.exe', 'C:relative.exe', 'C:\\tools\\launch.cmd'])(
+  it.each(['', 'bun.exe', 'C:relative.exe', 'C:\\tools\\launch.cmd'])(
     'rejects invalid executable %j before spawning',
     async (command) => {
       await expect(launchHeadlessBackgroundProcess({ ...launch, command })).rejects.toThrow(
@@ -132,7 +133,7 @@ describe('Windows headless process launch boundary', () => {
         'a\\"b',
       ]),
     ).toBe(
-      String.raw`"C:\Program Files\OpenWaggle\OpenWaggle.exe" "" "worker hive" "蜂の女王 🐝" "say \"yes\"" "C:\trailing\\" "a\\\"b"`,
+      String.raw`"C:\Program Files\OpenWaggle\bin\bun.exe" "" "worker hive" "蜂の女王 🐝" "say \"yes\"" "C:\trailing\\" "a\\\"b"`,
     )
   })
 

@@ -8,8 +8,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../terminal/bun-pty', () => {
   throw new Error('Offline cleanup must never load the terminal backend')
 })
-vi.mock('electron', () => {
-  throw new Error('Offline cleanup must never load Electron')
+// No window, preview or renderer page may exist under the proof, so the shell never loads.
+vi.mock('../../desktop-shell/desktop-windows', () => {
+  throw new Error('Offline cleanup must never load the desktop shell')
+})
+vi.mock('../../desktop-shell/browser-preview-views', () => {
+  throw new Error('Offline cleanup must never load the desktop shell')
+})
+vi.mock('../../desktop-shell/renderer-surfaces', () => {
+  throw new Error('Offline cleanup must never load the desktop shell')
 })
 
 import { makeOfflineDesktopCleanupExecutor } from '../offline-desktop-cleanup'

@@ -248,7 +248,7 @@ it.each([
 
 it("gives both Pi shell tools the user's PI_PACKAGE_DIR, not OpenWaggle's own", async () => {
   const { applyPiPackageDirectoryTo } = await import('../../../../pi-package-directory-environment')
-  const bundledPi = '/app.asar/node_modules/@earendil-works/pi-coding-agent'
+  const bundledPi = '/Resources/app/node_modules/@earendil-works/pi-coding-agent'
   const hostEnvironment: NodeJS.ProcessEnv = { PI_PACKAGE_DIR: '/nix/store/pi' }
   applyPiPackageDirectoryTo(bundledPi, hostEnvironment)
   await createPiSessionForRun(

@@ -20,12 +20,16 @@ vi.mock('node:fs', async (importOriginal) => ({
   closeSync: mocks.closeSync,
   readdirSync: mocks.readdirSync,
 }))
-vi.mock('electron', () => ({}))
 vi.mock('../env', () => ({ env: {}, getSafeChildEnv: () => ({}) }))
 
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 
-const launch = { command: '/owned/electron', args: ['session-host-internal'], environment: {} }
+// Electrobun's bundled Bun runs the app directory's entry.
+const launch = {
+  command: '/owned/bun',
+  args: ['/owned/app', 'session-host-internal'],
+  environment: {},
+}
 
 describe('detached authority descriptor ownership', () => {
   beforeEach(() => {
