@@ -6,7 +6,6 @@ const output = vi.hoisted(() => {
   return { stdout, env }
 })
 
-vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => 'test') } }))
 vi.mock('../env', () => ({ env: output.env }))
 vi.mock('../cli-stdout', () => ({
   writeCliStdout: vi.fn(async (text: string) => {

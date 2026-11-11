@@ -2,9 +2,6 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({
-  app: { getPath: () => '/tmp', getVersion: () => '1.2.3', on: vi.fn(), off: vi.fn() },
-}))
 vi.mock('../local-session-cli-client', () => ({ prepareLocalSessionCliClientInput: vi.fn() }))
 vi.mock('../session-host/local-session-client', async () => ({
   executeLocalSessionCommand: vi.fn(),

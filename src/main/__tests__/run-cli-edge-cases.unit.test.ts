@@ -2,7 +2,6 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedArguments } from '../mcp-cli-arguments'
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test' } }))
 vi.mock('../cli-stdout', () => ({
   cliStdoutIsTerminal: () => false,
   writeCliStdout: async () => undefined,
@@ -263,7 +262,7 @@ describe('openwaggle run interrupts and output failures', () => {
 })
 
 describe('interrupt signals', () => {
-  it('counts one Ctrl-C once even when Electron also asks to quit', () => {
+  it('counts one Ctrl-C once even when the desktop shell also asks to quit', () => {
     const handlers: ((event: { preventDefault(): void }) => void)[] = []
     const host = {
       onBeforeQuit: (handler: (event: { preventDefault(): void }) => void) => {

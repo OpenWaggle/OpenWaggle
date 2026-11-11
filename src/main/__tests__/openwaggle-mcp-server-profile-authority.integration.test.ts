@@ -1,8 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({
-  app: { getPath: vi.fn(), getVersion: vi.fn(() => 'test') },
-}))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { verifyServeIdentity } from '../openwaggle-mcp-server'
 import {

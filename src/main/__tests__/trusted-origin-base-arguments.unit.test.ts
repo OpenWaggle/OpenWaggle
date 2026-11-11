@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { memoryRememberedPorts } from '../adapters/electrobun/__tests__/loopback-test-support'
 import { trustedOriginBaseRendererArguments } from '../trusted-origin-base-arguments'
 
-vi.mock('electron', () => ({ protocol: {} }))
 vi.mock('../desktop-shell/app-paths', () => ({
   appPaths: { userData: () => '/nonexistent-user-data' },
 }))

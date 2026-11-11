@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async (input: { resolveSecret: (name: string) => Promise<string> }) => {

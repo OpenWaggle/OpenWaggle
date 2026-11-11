@@ -12,7 +12,6 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
   unlink: filesystem.unlink,
   readdir: filesystem.readdir,
 }))
-vi.mock('electron', () => ({ safeStorage: {} }))
 
 import {
   removeStoredProfileCredential,

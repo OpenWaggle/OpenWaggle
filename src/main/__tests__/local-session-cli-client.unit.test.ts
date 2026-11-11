@@ -20,12 +20,6 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => '/user-data'),
-    getVersion: vi.fn(() => 'test-version'),
-  },
-}))
 vi.mock('../env', () => ({ env: mocks.env }))
 vi.mock('../mcp-cli-arguments', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../mcp-cli-arguments')>()

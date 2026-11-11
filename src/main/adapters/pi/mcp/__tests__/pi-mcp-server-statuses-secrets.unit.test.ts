@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async (input: { resolveSecret: (name: string) => Promise<string> }) => {
     mocks.resolvers.push(input.resolveSecret)

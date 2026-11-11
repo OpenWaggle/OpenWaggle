@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => '0.0.0') } }))
 vi.mock('../env', () => ({ env: {} }))
 
 const { parseMcpCliArguments } = await import('../mcp-cli-arguments')

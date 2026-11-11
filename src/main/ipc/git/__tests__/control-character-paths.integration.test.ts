@@ -3,13 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
-}))
+import { afterEach, describe, expect, it } from 'vitest'
 
 const { commitGit } = await import('../commit-handler')
 const { getGitStatus } = await import('../status-service')

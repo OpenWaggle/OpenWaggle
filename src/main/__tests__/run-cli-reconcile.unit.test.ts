@@ -3,7 +3,6 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test' } }))
 vi.mock('../cli-stdout', () => ({
   cliStdoutIsTerminal: () => false,
   writeCliStdout: async () => undefined,

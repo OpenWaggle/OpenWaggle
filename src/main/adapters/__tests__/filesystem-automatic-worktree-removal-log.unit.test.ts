@@ -3,9 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { AutomaticWorktreeRemovalRun } from '@shared/types/worktree-inventory'
 import * as Effect from 'effect/Effect'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({ app: { getPath: () => os.tmpdir() } }))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const { AUTOMATIC_WORKTREE_REMOVAL_LOG_LIMIT, createAutomaticWorktreeRemovalLogStore } =
   await import('../filesystem-automatic-worktree-removal-log')

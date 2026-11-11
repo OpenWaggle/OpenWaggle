@@ -1,4 +1,3 @@
-import { tmpdir } from 'node:os'
 import type { Effect } from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -8,11 +7,6 @@ const { invalidatedVcsPaths, invalidatedStatusPaths } = vi.hoisted(() => {
   return { invalidatedVcsPaths: vcs, invalidatedStatusPaths: status }
 })
 
-vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
-}))
 vi.mock('../vcs-status-cache', () => ({
   invalidateVcsStatus: (path?: string) => invalidatedVcsPaths.push(path),
 }))

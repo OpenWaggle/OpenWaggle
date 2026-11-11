@@ -1,17 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-/*
- * commit-handler reaches Electron transitively through the status cache. Only the
- * committing behaviour is under test here, so the app surfaces it touches are stubbed.
- */
-vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
-}))
+import { afterEach, describe, expect, it } from 'vitest'
 
 const { commitGit } = await import('../commit-handler')
 const { execFileAsync } = await import('../shared')

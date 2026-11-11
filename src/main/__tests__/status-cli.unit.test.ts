@@ -4,7 +4,6 @@ import type { ScheduledTask } from '@shared/types/scheduled-task'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test' } }))
 vi.mock('../local-session-cli-client', () => ({ prepareLocalSessionCliClientInput: vi.fn() }))
 vi.mock('../session-host/local-session-client', async () => ({
   executeLocalSessionCommand: vi.fn(),

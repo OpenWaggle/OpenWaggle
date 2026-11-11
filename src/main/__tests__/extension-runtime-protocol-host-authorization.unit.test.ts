@@ -4,12 +4,6 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  app: { getPath: vi.fn(() => '/tmp/user-data') },
-  net: { fetch: vi.fn() },
-  protocol: { handle: vi.fn() },
-}))
-
 vi.mock('../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: mocks.invoke,
 }))

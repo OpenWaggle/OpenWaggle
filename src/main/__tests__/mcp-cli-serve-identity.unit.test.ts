@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => '0.0.0') } }))
 vi.mock('../env', () => ({ env: mocks.env }))
 vi.mock('../session-host/local-session-paths', () => ({
   prepareLocalSessionHostPaths: vi.fn(async (paths: object) => paths),

@@ -1,10 +1,8 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { ScheduledTaskRecord } from '../../ports/scheduled-task-repository'
-
-vi.mock('electron', () => ({ app: { getPath: () => '' } }))
 
 describe('forTask', () => {
   it('keeps a sweep going when one task fails or dies', async () => {

@@ -15,8 +15,6 @@ import {
   startSessionHostPrelaunch,
 } from '../session-host-prelaunch'
 
-vi.mock('electron', () => ({ app: {} }))
-
 const PROFILE = '/Users/person/Library/Application Support/openwaggle'
 const ENDPOINT = `${PROFILE}/session-host/host.sock`
 const TARGET_DATABASE = `${PROFILE}/session-host/session-host.sqlite`

@@ -2,14 +2,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: () => true,
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const {
   readStoredProfileCredential,

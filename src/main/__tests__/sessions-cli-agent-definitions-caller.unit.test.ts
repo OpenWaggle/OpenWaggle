@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   env: { OPENWAGGLE_AGENT_RUN: '1' as const },
 }))
 
-vi.mock('electron', () => ({ app: { getPath: vi.fn(() => '/user-data'), getVersion: vi.fn() } }))
 vi.mock('../env', () => ({ env: mocks.env }))
 
 const { runAgentDefinitionDiscoveryCommand } = await import('../sessions-cli-agent-definitions')

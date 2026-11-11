@@ -6,7 +6,6 @@ const machineOutput = vi.hoisted(() => {
   return { lines }
 })
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test' } }))
 vi.mock('../cli-stdout', () => ({
   cliStdoutIsTerminal: () => false,
   writeCliStdout: async (text: string) => {

@@ -8,12 +8,6 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcInvocation } from '../../../ports/desktop-shell/ipc-transport'
 
-vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
-}))
-
 const showMessageBox = vi.fn(async () => ({ response: 0, checkboxChecked: false }))
 vi.mock('../../../desktop-ui', () => ({
   browserWindowFromWebContents: () => null,

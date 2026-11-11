@@ -1,9 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const { inspectMcpServer } = await import('../pi-mcp-server-runtime-service')
 const { getMcpServerStatuses } = await import('../pi-mcp-server-status')

@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const HTTP_FOUND_STATUS = 302
 
-vi.mock('electron', () => ({}))
 vi.mock('../desktop-shell/app-paths', () => ({
   appPaths: { userData: () => '/nonexistent-user-data' },
 }))

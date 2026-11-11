@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   commit: vi.fn(),
 }))
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp/openwaggle-access-cleanup-test' } }))
 vi.mock('../local-session-cli-client', () => ({ createLocalSessionCliClientInput: mocks.client }))
 vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: mocks.execute,

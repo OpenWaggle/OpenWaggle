@@ -1,14 +1,6 @@
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
-
-// commit-handler reaches Electron transitively through the status cache; only committing is under test.
-vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
-}))
+import { describe, expect, it } from 'vitest'
 
 const { commitGit } = await import('../commit-handler')
 const { createRepositoryWithWorktree, git } = await import('./commit.test-harness')

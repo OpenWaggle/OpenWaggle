@@ -1,9 +1,7 @@
-import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { McpConnectionPool } from '../../../../src/main/adapters/mcp/pool/mcp-connection-pool-api'
 import { composeFirstTurnRun } from '../run-composition'
-import { scriptEnv } from '../../../support/env'
 
 /**
  * R6 P3-3: the first-turn prefix budget measures the Run the Host builds, not a hand-kept copy of
@@ -13,12 +11,6 @@ import { scriptEnv } from '../../../support/env'
 function inlineSentinel() {}
 function trustedSentinel() {}
 const APPENDIX_SENTINEL = 'appendix added to the real Run path'
-
-vi.mock('electron', () => ({
-  app: { getPath: () => scriptEnv().OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
-  safeStorage: { isEncryptionAvailable: () => false },
-  shell: {},
-}))
 
 vi.mock('../../../../src/main/adapters/pi/mcp/openwaggle-mcp-extensions', () => ({
   createOpenWaggleMcpExtensions: async () => [],

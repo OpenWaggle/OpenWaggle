@@ -1,9 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { OpenWaggleMcpServeOptions } from '../openwaggle-mcp-server-policy'
 import { OPENWAGGLE_MCP_SESSION_OPERATIONS_V2 } from '../openwaggle-mcp-session-operations-v2'
 import { acceptsInput } from './openwaggle-mcp-session-input.test-support'
-
-vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => 'test') } }))
 
 const { MCP_SESSION_OPERATION_BASE_CAPABILITIES_V2 } =
   await import('../openwaggle-mcp-session-operation-grants-v2')

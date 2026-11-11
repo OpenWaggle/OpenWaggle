@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   commit: vi.fn(async () => undefined),
 }))
 
-vi.mock('electron', () => ({ app: { getPath: vi.fn(() => '/tmp/openwaggle-access-test') } }))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: vi.fn(async () => ({})),
 }))

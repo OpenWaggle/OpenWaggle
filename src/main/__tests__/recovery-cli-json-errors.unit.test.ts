@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   stdout: vi.fn(),
 }))
 
-vi.mock('electron', () => ({ app: { getPath: () => '/user-data' } }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: mocks.stdout }))
 vi.mock('../session-host/local-session-paths', () => ({
   resolveLocalSessionHostPaths: () => ({ databasePath: '/user-data/session-host.sqlite' }),

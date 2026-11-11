@@ -1,6 +1,5 @@
 import type * as NodeChildProcess from 'node:child_process'
 import type * as NodeFsPromises from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { match } from '@diegogbrisa/ts-match'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,11 +17,6 @@ vi.mock('node:child_process', async (importOriginal) => ({
 vi.mock('node:fs/promises', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFsPromises>()),
   lstat: mocks.lstat,
-}))
-vi.mock('electron', () => ({
-  app: { getPath: () => tmpdir(), getName: () => 'openwaggle-test' },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
 }))
 
 const { commitGit } = await import('../commit-handler')

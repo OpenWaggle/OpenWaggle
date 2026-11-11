@@ -32,12 +32,6 @@ const MAX_TOKENS = 64
 const TIMEOUT_MS = 300_000
 const JSON_INDENT = 2
 
-vi.mock('electron', () => ({
-  app: { getPath: () => scriptEnv().OPENWAGGLE_USER_DATA_DIR ?? os.tmpdir() },
-  safeStorage: { isEncryptionAvailable: () => false },
-  shell: {},
-}))
-
 /**
  * Every TLS connection the process opens, with its host and handshake time: per-request client
  * construction shows up as one or more new handshakes (Bedrock, SSO) on every call.

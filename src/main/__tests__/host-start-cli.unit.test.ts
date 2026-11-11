@@ -1,8 +1,6 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { getPath: () => '', getVersion: () => '1.2.3' } }))
-
 const { runHostStart } = await import('../host-start-cli')
 
 function dependencies(state: 'running' | 'gone', output: string[]) {

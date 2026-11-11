@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   ensureCliShimInstalled: vi.fn<() => Promise<CliShimMutationResult>>(),
 }))
 
-vi.mock('electron', () => ({ app: { isPackaged: true } }))
 vi.mock('../../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: vi.fn() }),
 }))

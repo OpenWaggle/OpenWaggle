@@ -1,9 +1,5 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({
-  app: { getPath: vi.fn(), getVersion: vi.fn(() => 'test') },
-}))
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   ACTIVE_CREDENTIAL,

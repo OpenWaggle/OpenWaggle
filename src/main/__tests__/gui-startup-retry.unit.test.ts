@@ -32,9 +32,6 @@ const state = vi.hoisted(() => {
 const prepareGuiSessionHostLifecycle = vi.hoisted(() => vi.fn())
 const startAppGuiDesktopServices = vi.hoisted(() => vi.fn())
 
-vi.mock('electron', () => ({
-  app: { getPath: () => '/tmp/openwaggle-test-profile', getVersion: () => '1.0.0' },
-}))
 vi.mock('../desktop-ui', () => ({ getAllBrowserWindows: () => [], isAutomationMode: () => false }))
 vi.mock('../env', () => ({ env: {} }))
 vi.mock('../error-reporting', () => ({ startErrorReporting: vi.fn(async () => undefined) }))

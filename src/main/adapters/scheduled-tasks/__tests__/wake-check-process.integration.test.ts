@@ -4,8 +4,6 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { decideWakeCheck } from '../../../domain/scheduled-tasks/wake-check-decision'
 
-vi.mock('electron', () => ({ app: { getVersion: () => 'test', getPath: () => os.tmpdir() } }))
-
 const POSIX = process.platform !== 'win32'
 let workspace = ''
 

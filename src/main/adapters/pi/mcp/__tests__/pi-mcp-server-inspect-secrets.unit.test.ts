@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => {
   return { loads, opened, resolve: vi.fn(async (name: string) => `value-of-${name}`) }
 })
 
-vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 vi.mock('../../../mcp/config/mcp-runtime-config', async () => {
   const { deferredMcpSecret } = await import('../../../mcp/config/mcp-deferred-secrets')

@@ -7,9 +7,6 @@ const mocks = vi.hoisted(() => {
   return { execute: vi.fn(), stdout }
 })
 
-vi.mock('electron', () => ({
-  app: { getPath: () => '/tmp', getVersion: () => '1.2.3', once: vi.fn(), off: vi.fn() },
-}))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: async () => ({ clientVersion: 'test' }),
   prepareLocalSessionCliClientInput: async () => ({ clientVersion: 'test' }),

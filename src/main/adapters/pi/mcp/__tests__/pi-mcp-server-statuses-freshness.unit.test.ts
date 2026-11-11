@@ -24,7 +24,6 @@ function server(projectPath: string | null) {
   return mocks.servers.get(projectPath) ?? { enabled: true, secretStamp: 'TOKEN@1' }
 }
 
-vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../../mcp/config/mcp-runtime-config', () => ({
   loadMcpRuntimeConfig: async (input: { roots: { projectPath: string | null } }) => {
     const { enabled, secretStamp, unreadable, invalidSibling, rejected } = server(

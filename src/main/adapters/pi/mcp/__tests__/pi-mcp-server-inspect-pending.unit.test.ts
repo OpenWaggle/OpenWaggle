@@ -2,7 +2,6 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }, shell: {} }))
 vi.mock('../../pi-provider-catalog', () => ({ getPiAgentDir: () => '/home/user/.pi/agent' }))
 // The scope is closed while its migration waits: no server is loaded.
 vi.mock('../../../mcp/config/mcp-runtime-config', async (importOriginal) => ({

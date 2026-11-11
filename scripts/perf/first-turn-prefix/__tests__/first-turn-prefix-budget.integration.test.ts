@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { captureFirstTurnPrefix } from '../capture-first-turn'
 import { FIRST_TURN_PREFIX_BUDGETS } from '../first-turn-prefix-budget'
 import { measurePrefixTokens } from '../prefix-tokens'
@@ -27,13 +27,6 @@ const MEASUREMENT_TIMEOUT_MS = 120_000
 const JSON_INDENT = 2
 
 const cleanups: string[] = []
-
-// The Run's MCP extension keeps its sign-in state under Electron's user data, as in the Host.
-vi.mock('electron', () => ({
-  app: { getPath: () => scriptEnv().OPENWAGGLE_USER_DATA_DIR ?? tmpdir() },
-  safeStorage: { isEncryptionAvailable: () => false },
-  shell: {},
-}))
 
 afterAll(async () => {
   await Promise.all(cleanups.map((directory) => rm(directory, { recursive: true, force: true })))
