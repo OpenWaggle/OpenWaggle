@@ -122,7 +122,7 @@ describe("a Run's MCP extension", () => {
     mocks.servers = [{ name: 'off', config: { command: 'x', enabled: false } }]
     const extensions = await createOpenWaggleMcpExtensions(input)
     const mcp = extensions.find((extension) => typeof extension !== 'function')
-    const handlers: Array<(event: unknown, ctx: ExtensionContext) => unknown> = []
+    const handlers: ((event: unknown, ctx: ExtensionContext) => unknown)[] = []
     const notify = vi.fn<ExtensionUIContext['notify']>()
 
     if (typeof mcp === 'function' || !mcp) throw new Error('No MCP extension')

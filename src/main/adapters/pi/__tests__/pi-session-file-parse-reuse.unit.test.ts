@@ -48,7 +48,7 @@ function sessionFile(...lines: string[]) {
   return file
 }
 
-function ids(entries: ReadonlyArray<{ readonly type: string; readonly id?: string }>) {
+function ids(entries: readonly { readonly type: string; readonly id?: string }[]) {
   return entries.filter((entry) => entry.type !== 'session').map((entry) => entry.id)
 }
 

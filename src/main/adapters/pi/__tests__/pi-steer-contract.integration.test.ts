@@ -12,7 +12,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it } from 'vitest'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()

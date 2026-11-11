@@ -28,7 +28,7 @@ const SILENT_SERVER = "require('node:readline').createInterface({ input: process
 /** A stdio MCP server that exits before answering, so it fails to connect. */
 const BROKEN_SERVER = 'process.exit(1)'
 
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 
 afterEach(async () => {
   while (cleanups.length > 0) await cleanups.pop()?.()

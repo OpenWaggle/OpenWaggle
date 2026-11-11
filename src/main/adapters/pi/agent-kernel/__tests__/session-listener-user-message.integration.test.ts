@@ -28,7 +28,7 @@ import { createSessionListener } from '../session-listener'
 import { projectPiSessionSnapshot } from '../session-projection'
 import { buildUserInputProjection } from '../user-input-projection'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()

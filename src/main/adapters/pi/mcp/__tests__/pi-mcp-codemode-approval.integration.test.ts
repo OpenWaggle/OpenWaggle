@@ -54,7 +54,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
 
 const SCRIPT = 'const result = await tools.mcp__fixture__count({}); text(result.content[0].text)'
 
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 
 afterEach(async () => {
   while (cleanups.length > 0) await cleanups.pop()?.()

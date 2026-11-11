@@ -14,7 +14,7 @@ const TTL_MS = 300_000
 
 function manualClock(start = 1_000_000) {
   let now = start
-  const timers: Array<{ at: number; run: () => void; cancelled: boolean }> = []
+  const timers: { at: number; run: () => void; cancelled: boolean }[] = []
   return {
     clock: {
       now: () => now,

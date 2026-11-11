@@ -48,7 +48,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
 `
 
 const SESSION_ID = 'exposure-session'
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 let root: string
 let roots: { homeDir: string; piAgentDir: string; projectPath: null }
 

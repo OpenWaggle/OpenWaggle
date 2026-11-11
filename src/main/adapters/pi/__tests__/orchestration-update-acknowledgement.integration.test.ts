@@ -21,7 +21,7 @@ import {
   deliverOrchestrationUpdates,
 } from '../orchestration-update-extension'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()

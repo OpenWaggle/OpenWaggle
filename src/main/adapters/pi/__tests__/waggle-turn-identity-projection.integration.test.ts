@@ -24,7 +24,7 @@ import { hydrateSessionMessage } from '../../../store/session-details/message-hy
 import { projectPiSessionSnapshot } from '../agent-kernel/session-projection'
 import { createAgentRunContextExtension } from '../agent-run-context-extension'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()
 })

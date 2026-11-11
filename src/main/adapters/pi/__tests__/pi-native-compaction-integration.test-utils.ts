@@ -21,7 +21,7 @@ import { vi } from 'vitest'
 import { makeCompactResponse } from './pi-native-compaction-test-fixtures'
 
 const tempDirectories: string[] = []
-const sessions: Array<{ dispose: () => void }> = []
+const sessions: { dispose: () => void }[] = []
 
 export function createNativeTempDirectory(label: string) {
   const directory = mkdtempSync(path.join(tmpdir(), label))

@@ -30,7 +30,7 @@ import {
 } from '../../session-run-execution-profile'
 import { createAgentRunContextExtension } from '../agent-run-context-extension'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()

@@ -17,7 +17,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest'
 
 const tempDirectories: string[] = []
-const sessions: Array<{ dispose: () => void }> = []
+const sessions: { dispose: () => void }[] = []
 
 function assistantWithContextUsage(totalTokens: number): AssistantMessage {
   const message = fauxAssistantMessage('Reached the configured context threshold')

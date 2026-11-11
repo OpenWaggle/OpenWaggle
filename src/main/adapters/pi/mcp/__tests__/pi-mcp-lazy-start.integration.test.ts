@@ -24,7 +24,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
 })
 `
 
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })

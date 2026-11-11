@@ -20,7 +20,7 @@ import {
 import { createSessionListener } from '../session-listener'
 import { projectPiSessionSnapshot } from '../session-projection'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()

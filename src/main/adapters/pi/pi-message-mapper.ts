@@ -209,7 +209,7 @@ function handleToolResultMessage(
 }
 
 export function piHistoryToProjectedMessages(
-  messages: ReadonlyArray<PiProjectedHistoryMessage>,
+  messages: readonly PiProjectedHistoryMessage[],
 ): Message[] {
   const state: PiProjectionState = {
     result: [],

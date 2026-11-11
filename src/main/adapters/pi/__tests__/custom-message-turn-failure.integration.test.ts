@@ -25,7 +25,7 @@ import {
 import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 function customMessageText(message: { readonly content: string | readonly { type: string }[] }) {
   if (typeof message.content === 'string') return message.content

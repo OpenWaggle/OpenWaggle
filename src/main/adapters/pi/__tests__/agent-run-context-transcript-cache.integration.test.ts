@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createAgentRunContextExtension } from '../agent-run-context-extension'
 
 const directories: string[] = []
-const disposers: Array<() => void> = []
+const disposers: (() => void)[] = []
 
 afterEach(() => {
   while (disposers.length > 0) disposers.pop()?.()

@@ -17,7 +17,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest'
 
 const tempDirectories: string[] = []
-const sessions: Array<{ dispose: () => void }> = []
+const sessions: { dispose: () => void }[] = []
 
 function makeTestApiKeyAuth(name: string, apiKey: string) {
   return {

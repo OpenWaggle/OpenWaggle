@@ -18,7 +18,7 @@ import type { OpenWagglePiAppSettings } from '../openwaggle-pi-settings-app-over
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import { createOpenWaggleAgentSessionFromServices } from '../pi-session-lifecycle'
 
-const cleanups: Array<() => unknown> = []
+const cleanups: (() => unknown)[] = []
 
 /** Runs every cleanup registered by the sessions created since the last call, newest first. */
 export async function cleanupOpenWagglePiSessions() {
