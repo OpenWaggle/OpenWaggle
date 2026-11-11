@@ -89,7 +89,7 @@ function readBoundedArchiveText(
 function hasResourcePath(
   value: unknown,
 ): value is Readonly<Record<string, unknown>> & { readonly path: string } {
-  return isRecord(value) && typeof value.path === 'string'
+  return isRecord(value) && typeof value['path'] === 'string'
 }
 
 async function mapExtensionResources<Input, Output>(
@@ -114,12 +114,12 @@ async function mapExtensionResources<Input, Output>(
 }
 
 function extensionManifest(raw: unknown, fallbackName: string): ExtensionManifest {
-  if (!isRecord(raw) || !isRecord(raw.contributes)) {
+  if (!isRecord(raw) || !isRecord(raw['contributes'])) {
     throw new Error('VS Code extension does not declare contributions.')
   }
-  const publisher = typeof raw.publisher === 'string' ? raw.publisher : 'local'
-  const packageName = typeof raw.name === 'string' ? raw.name : fallbackName
-  return { raw, contributes: raw.contributes, packageId: `${publisher}.${packageName}` }
+  const publisher = typeof raw['publisher'] === 'string' ? raw['publisher'] : 'local'
+  const packageName = typeof raw['name'] === 'string' ? raw['name'] : fallbackName
+  return { raw, contributes: raw['contributes'], packageId: `${publisher}.${packageName}` }
 }
 
 async function importExtensionThemes(
@@ -127,7 +127,9 @@ async function importExtensionThemes(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
-  const declarations = Array.isArray(manifest.contributes.themes) ? manifest.contributes.themes : []
+  const declarations = Array.isArray(manifest.contributes['themes'])
+    ? manifest.contributes['themes']
+    : []
   const concurrency = reader.format === 'vscode-vsix' ? 1 : UNPACKED_EXTENSION_IMPORT_CONCURRENCY
   return mapExtensionResources(
     declarations.filter(hasResourcePath),
@@ -143,17 +145,19 @@ async function importExtensionThemes(
         reader.resolveInclude,
       )
       const label =
-        typeof declaration.label === 'string'
-          ? declaration.label
+        typeof declaration['label'] === 'string'
+          ? declaration['label']
           : path.basename(resourcePath, path.extname(resourcePath))
-      const forcedVariant = appearanceVariantFromUiTheme(declaration.uiTheme)
+      const forcedVariant = appearanceVariantFromUiTheme(declaration['uiTheme'])
       return normalizedTheme({
         raw: resolved.raw,
         originalRaw: resolved.original,
         label,
         packageId: manifest.packageId,
         declaredIdentity:
-          typeof declaration.id === 'string' ? declaration.id : safeArchivePath(declaration.path),
+          typeof declaration['id'] === 'string'
+            ? declaration['id']
+            : safeArchivePath(declaration.path),
         format: reader.format,
         sourcePath: reader.sourcePath(resourcePath),
         scope,
@@ -168,11 +172,11 @@ async function importExtensionGrammars(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
-  const languageDeclarations = Array.isArray(manifest.contributes.languages)
-    ? manifest.contributes.languages.filter(isRecord)
+  const languageDeclarations = Array.isArray(manifest.contributes['languages'])
+    ? manifest.contributes['languages'].filter(isRecord)
     : []
-  const declarations = Array.isArray(manifest.contributes.grammars)
-    ? manifest.contributes.grammars
+  const declarations = Array.isArray(manifest.contributes['grammars'])
+    ? manifest.contributes['grammars']
     : []
   const concurrency = reader.format === 'vscode-vsix' ? 1 : UNPACKED_EXTENSION_IMPORT_CONCURRENCY
   return mapExtensionResources(
@@ -184,13 +188,14 @@ async function importExtensionGrammars(
       const grammar = resourcePath.toLowerCase().endsWith('.json')
         ? parseJsonText(source)
         : parseTextMatePlist(source)
-      const languageId = typeof declaration.language === 'string' ? declaration.language : null
+      const languageId =
+        typeof declaration['language'] === 'string' ? declaration['language'] : null
       const language = languageDeclarations.find(
-        (candidate) => languageId !== null && candidate.id === languageId,
+        (candidate) => languageId !== null && candidate['id'] === languageId,
       )
       const configuration =
-        typeof language?.configuration === 'string'
-          ? parseJsonText(await reader.readText(reader.resolveDeclared(language.configuration)))
+        typeof language?.['configuration'] === 'string'
+          ? parseJsonText(await reader.readText(reader.resolveDeclared(language['configuration'])))
           : undefined
       return normalizedLanguage({
         grammar,
@@ -211,11 +216,11 @@ async function importExtensionResources(
   reader: ExtensionResourceReader,
   scope: SyntaxResourceScope,
 ) {
-  const themeDeclarations = Array.isArray(manifest.contributes.themes)
-    ? manifest.contributes.themes
+  const themeDeclarations = Array.isArray(manifest.contributes['themes'])
+    ? manifest.contributes['themes']
     : []
-  const grammarDeclarations = Array.isArray(manifest.contributes.grammars)
-    ? manifest.contributes.grammars
+  const grammarDeclarations = Array.isArray(manifest.contributes['grammars'])
+    ? manifest.contributes['grammars']
     : []
   if (
     themeDeclarations.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||

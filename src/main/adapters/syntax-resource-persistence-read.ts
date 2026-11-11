@@ -140,14 +140,14 @@ export function isSyntaxThemeResource(value: unknown): value is SyntaxThemeResou
 
 function hasPersistedResourceIdentity(value: Readonly<Record<string, unknown>>) {
   return (
-    typeof value.id === 'string' &&
-    typeof value.packageId === 'string' &&
-    typeof value.revision === 'string' &&
-    typeof value.label === 'string' &&
-    isMatching(syntaxResourceScopePattern, value.scope) &&
-    isMatching(syntaxImportFormatPattern, value.format) &&
-    typeof value.sourcePath === 'string' &&
-    isRecord(value.original)
+    typeof value['id'] === 'string' &&
+    typeof value['packageId'] === 'string' &&
+    typeof value['revision'] === 'string' &&
+    typeof value['label'] === 'string' &&
+    isMatching(syntaxResourceScopePattern, value['scope']) &&
+    isMatching(syntaxImportFormatPattern, value['format']) &&
+    typeof value['sourcePath'] === 'string' &&
+    isRecord(value['original'])
   )
 }
 
@@ -158,17 +158,17 @@ function isStringList(value: unknown) {
 function isPersistedLanguageRegistration(value: unknown) {
   if (!isRecord(value)) return false
   return (
-    typeof value.name === 'string' &&
-    typeof value.displayName === 'string' &&
-    typeof value.scopeName === 'string' &&
-    isStringList(value.aliases) &&
-    isStringList(value.fileExtensions) &&
-    isStringList(value.fileNames) &&
-    isRecord(value.embeddedLanguages) &&
-    Object.values(value.embeddedLanguages).every((entry) => typeof entry === 'string') &&
-    isStringList(value.injectTo) &&
-    isRecord(value.grammar) &&
-    (value.configuration === undefined || isSyntaxLanguageConfiguration(value.configuration))
+    typeof value['name'] === 'string' &&
+    typeof value['displayName'] === 'string' &&
+    typeof value['scopeName'] === 'string' &&
+    isStringList(value['aliases']) &&
+    isStringList(value['fileExtensions']) &&
+    isStringList(value['fileNames']) &&
+    isRecord(value['embeddedLanguages']) &&
+    Object.values(value['embeddedLanguages']).every((entry) => typeof entry === 'string') &&
+    isStringList(value['injectTo']) &&
+    isRecord(value['grammar']) &&
+    (value['configuration'] === undefined || isSyntaxLanguageConfiguration(value['configuration']))
   )
 }
 
@@ -176,9 +176,9 @@ export function isSyntaxLanguageResource(value: unknown): value is SyntaxLanguag
   return (
     isRecord(value) &&
     hasPersistedResourceIdentity(value) &&
-    typeof value.languageId === 'string' &&
-    (value.engine === 'javascript' || value.engine === 'oniguruma') &&
-    isPersistedLanguageRegistration(value.registration)
+    typeof value['languageId'] === 'string' &&
+    (value['engine'] === 'javascript' || value['engine'] === 'oniguruma') &&
+    isPersistedLanguageRegistration(value['registration'])
   )
 }
 
@@ -186,10 +186,10 @@ export function isSyntaxAppearanceResource(value: unknown): value is SyntaxAppea
   return (
     isRecord(value) &&
     hasPersistedResourceIdentity(value) &&
-    value.format === 'openwaggle' &&
-    isMatching(syntaxAppearanceVariantPattern, value.variant) &&
-    isRecord(value.tokens) &&
-    isRecord(value.original)
+    value['format'] === 'openwaggle' &&
+    isMatching(syntaxAppearanceVariantPattern, value['variant']) &&
+    isRecord(value['tokens']) &&
+    isRecord(value['original'])
   )
 }
 

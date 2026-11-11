@@ -41,8 +41,8 @@ function conflictCursor(request: ConflictRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
   if (cursor === 'invalid') return 'invalid' as const
   if (!cursor) return null
-  return typeof cursor.createdAt === 'number' && typeof cursor.conflictId === 'string'
-    ? { createdAt: cursor.createdAt, conflictId: cursor.conflictId }
+  return typeof cursor['createdAt'] === 'number' && typeof cursor['conflictId'] === 'string'
+    ? { createdAt: cursor['createdAt'], conflictId: cursor['conflictId'] }
     : ('invalid' as const)
 }
 

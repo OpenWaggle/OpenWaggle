@@ -56,14 +56,14 @@ async function fetchRegistryJson(url: URL, options: RegistryClientOptions) {
 
 function serverRecord(value: unknown): RegistryServerRecord | null {
   if (!isRecord(value)) return null
-  const wrapped = isRecord(value.server) ? value.server : value
-  const name = stringValue(wrapped.name)
-  const version = stringValue(wrapped.version)
+  const wrapped = isRecord(value['server']) ? value['server'] : value
+  const name = stringValue(wrapped['name'])
+  const version = stringValue(wrapped['version'])
   if (!name || !version) return null
-  const repository = isRecord(wrapped.repository) ? wrapped.repository : undefined
-  const title = stringValue(wrapped.title)
-  const description = stringValue(wrapped.description)
-  const repositoryUrl = stringValue(repository?.url)
+  const repository = isRecord(wrapped['repository']) ? wrapped['repository'] : undefined
+  const title = stringValue(wrapped['title'])
+  const description = stringValue(wrapped['description'])
+  const repositoryUrl = stringValue(repository?.['url'])
   return {
     name,
     version,
@@ -75,9 +75,9 @@ function serverRecord(value: unknown): RegistryServerRecord | null {
 }
 
 function isLatest(value: unknown) {
-  if (!isRecord(value) || !isRecord(value._meta)) return false
-  const official = value._meta['io.modelcontextprotocol.registry/official']
-  return isRecord(official) && official.isLatest === true
+  if (!isRecord(value) || !isRecord(value['_meta'])) return false
+  const official = value['_meta']['io.modelcontextprotocol.registry/official']
+  return isRecord(official) && official['isLatest'] === true
 }
 
 function resultLimit(limit: number | undefined) {
@@ -92,10 +92,10 @@ export async function searchMcpRegistry(
   url.searchParams.set('search', input.query)
   url.searchParams.set('limit', String(resultLimit(input.limit)))
   const payload = await fetchRegistryJson(url, input)
-  if (!isRecord(payload) || !Array.isArray(payload.servers)) {
+  if (!isRecord(payload) || !Array.isArray(payload['servers'])) {
     throw new Error('MCP registry returned an invalid server list.')
   }
-  const all = arrayValue(payload.servers).flatMap((entry: unknown) => {
+  const all = arrayValue(payload['servers']).flatMap((entry: unknown) => {
     const server = serverRecord(entry)
     return server ? [{ server, latest: isLatest(entry) }] : []
   })

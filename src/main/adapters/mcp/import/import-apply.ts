@@ -66,11 +66,12 @@ function earlierImportName(
   servers: Readonly<Record<string, unknown>>,
 ) {
   return Object.entries(servers).find(([, value]) => {
-    const provenance = isRecord(value) && isRecord(value.provenance) ? value.provenance : undefined
+    const provenance =
+      isRecord(value) && isRecord(value['provenance']) ? value['provenance'] : undefined
     return (
-      provenance?.source === candidate.source &&
-      provenance.sourcePath === candidate.sourcePath &&
-      provenance.sourceName === candidate.name
+      provenance?.['source'] === candidate.source &&
+      provenance['sourcePath'] === candidate.sourcePath &&
+      provenance['sourceName'] === candidate.name
     )
   })?.[0]
 }
@@ -91,7 +92,7 @@ function placementFor(
   servers: Readonly<Record<string, unknown>>,
   policy: McpImportConflictPolicy,
 ): Placement {
-  if (candidate.entry.command === undefined && candidate.entry.url === undefined) {
+  if (candidate.entry['command'] === undefined && candidate.entry['url'] === undefined) {
     return { kind: 'skip', reason: candidate.warnings.at(-1) ?? 'No portable command or URL.' }
   }
   const taken = earlierImportName(candidate, servers) ?? existingName(names, candidate.targetName)

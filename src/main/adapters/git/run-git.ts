@@ -80,8 +80,10 @@ function execFileWithInput(
         const errorOutput = decodedError.success ? decodedError.data : {}
         reject(
           Object.assign(error, {
-            stdout: stdout || (typeof errorOutput.stdout === 'string' ? errorOutput.stdout : ''),
-            stderr: stderr || (typeof errorOutput.stderr === 'string' ? errorOutput.stderr : ''),
+            stdout:
+              stdout || (typeof errorOutput['stdout'] === 'string' ? errorOutput['stdout'] : ''),
+            stderr:
+              stderr || (typeof errorOutput['stderr'] === 'string' ? errorOutput['stderr'] : ''),
           }),
         )
         return
@@ -116,14 +118,15 @@ function normalizeGitError(error: unknown): GitExecResult {
 
   const value = result.data
   const code = errorCode(error)
-  const fallbackMessage = typeof value.message === 'string' ? value.message : 'Git command failed'
+  const fallbackMessage =
+    typeof value['message'] === 'string' ? value['message'] : 'Git command failed'
   return {
-    stdout: typeof value.stdout === 'string' ? value.stdout : '',
-    stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
+    stdout: typeof value['stdout'] === 'string' ? value['stdout'] : '',
+    stderr: typeof value['stderr'] === 'string' ? value['stderr'] : fallbackMessage,
     code: typeof code === 'number' ? code : 1,
     ...(code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
-    ...(value.name === 'AbortError' || code === 'ABORT_ERR' ? { aborted: true } : {}),
+    ...(value['name'] === 'AbortError' || code === 'ABORT_ERR' ? { aborted: true } : {}),
     ...(typeof code !== 'number' ? { executionFailed: true } : {}),
   }
 }
@@ -136,7 +139,7 @@ function normalizeGitError(error: unknown): GitExecResult {
  * from "git failed for no stated reason", and neither could the user reading the toast.
  */
 function wasKilledForTimeout(value: Readonly<Record<string, unknown>>) {
-  return value.killed === true && typeof value.signal === 'string'
+  return value['killed'] === true && typeof value['signal'] === 'string'
 }
 
 export async function runGit(

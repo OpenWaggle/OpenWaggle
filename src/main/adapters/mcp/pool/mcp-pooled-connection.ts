@@ -257,7 +257,7 @@ export class McpPooledConnection {
     if (message.method === INITIALIZED) return this.handshake.initialized(message)
     if (message.method === CANCELLED) {
       const params = isRecord(message.params) ? message.params : {}
-      const upstreamId = this.ledger.upstreamId(lease, params.requestId)
+      const upstreamId = this.ledger.upstreamId(lease, params['requestId'])
       if (upstreamId === undefined) return
       this.ledger.forget(upstreamId)
       try {

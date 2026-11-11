@@ -36,7 +36,7 @@ type JsonObject = Record<string, unknown>
 
 /** Pi reads only `mcpServers`. */
 function piServers(config: JsonObject | undefined) {
-  return config && isRecord(config.mcpServers) ? config.mcpServers : {}
+  return config && isRecord(config['mcpServers']) ? config['mcpServers'] : {}
 }
 
 export class McpFileSources {
@@ -96,8 +96,8 @@ function finish(
   changes: readonly McpServerMigrationChange[],
 ): FileComputation {
   const value = document.value
-  const usesAlias = !isRecord(value.mcpServers) && isRecord(value.servers)
-  if (!isRecord(value.mcpServers) && !usesAlias && Object.keys(servers).length === 0) {
+  const usesAlias = !isRecord(value['mcpServers']) && isRecord(value['servers'])
+  if (!isRecord(value['mcpServers']) && !usesAlias && Object.keys(servers).length === 0) {
     return { text: undefined, changes }
   }
   const nextValue = withTopLevelKey(

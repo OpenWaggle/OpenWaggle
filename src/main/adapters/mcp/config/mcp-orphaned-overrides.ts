@@ -24,7 +24,7 @@ function overrideOnlyEntry(context: OrphanContext, filePath: string, name: strin
     (candidate) => candidate.path === filePath,
   )
   if (layer?.content.kind !== 'parsed') return undefined
-  const servers = isJsonRecord(layer.content.value) ? layer.content.value.mcpServers : undefined
+  const servers = isJsonRecord(layer.content.value) ? layer.content.value['mcpServers'] : undefined
   const entry = isJsonRecord(servers) ? servers[name] : undefined
   if (!isJsonRecord(entry)) return undefined
   return Object.keys(entry).every((key) => OVERRIDE_KEYS.has(key)) ? entry : undefined

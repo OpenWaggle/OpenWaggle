@@ -121,8 +121,8 @@ export function decodeSessionExecutionProfile(value: string): ResolvedSessionExe
   return {
     modelId: requiredString(record, 'modelId', label),
     thinkingLevel: validatedThinkingLevel,
-    ...(typeof record.agentDefinitionName === 'string'
-      ? { agentDefinitionName: record.agentDefinitionName }
+    ...(typeof record['agentDefinitionName'] === 'string'
+      ? { agentDefinitionName: record['agentDefinitionName'] }
       : {}),
     ...(tools ? { tools } : {}),
     ...(skills ? { skills } : {}),
@@ -224,17 +224,17 @@ function scheduledTaskOrigin(value: string | null | undefined) {
   return {
     id: task.id,
     name: task.name,
-    ...(record.kind === 'launch' ? { kind: 'launch-schedule' } : {}),
-    ...(record.kind === 'heartbeat' ? { kind: 'heartbeat' } : {}),
-    trigger: typeof record.trigger === 'string' ? record.trigger : 'schedule',
-    currentTime: isoTime(record.firedAt),
-    nominalTime: isoTime(record.nominalAt),
-    ...(typeof record.missedCount === 'number' && record.missedCount > 0
-      ? { missedFirings: record.missedCount }
+    ...(record['kind'] === 'launch' ? { kind: 'launch-schedule' } : {}),
+    ...(record['kind'] === 'heartbeat' ? { kind: 'heartbeat' } : {}),
+    trigger: typeof record['trigger'] === 'string' ? record['trigger'] : 'schedule',
+    currentTime: isoTime(record['firedAt']),
+    nominalTime: isoTime(record['nominalAt']),
+    ...(typeof record['missedCount'] === 'number' && record['missedCount'] > 0
+      ? { missedFirings: record['missedCount'] }
       : {}),
-    previousRunTime: isoTime(record.previousFiredAt),
-    ...(typeof record.previousSessionId === 'string'
-      ? { previousSessionId: record.previousSessionId }
+    previousRunTime: isoTime(record['previousFiredAt']),
+    ...(typeof record['previousSessionId'] === 'string'
+      ? { previousSessionId: record['previousSessionId'] }
       : {}),
     note: 'This Run was started by this Scheduled task, not typed by a person now. Its prompt is the task prompt.',
     ...heartbeatIdentity(record),
@@ -242,7 +242,7 @@ function scheduledTaskOrigin(value: string | null | undefined) {
 }
 
 function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
-  if (record.kind !== 'heartbeat') return {}
+  if (record['kind'] !== 'heartbeat') return {}
   const context = scheduledTaskRunContext(record)
   return context ? heartbeatRunIdentity(context) : {}
 }
@@ -250,7 +250,7 @@ function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
 /** A Heartbeat's own model and thinking level, which apply only to its Runs (#388). */
 function scheduledTaskModelChoice(value: string | null | undefined) {
   const task = scheduledTaskRecord(value)
-  if (task?.record.kind !== 'heartbeat') return {}
+  if (task?.record['kind'] !== 'heartbeat') return {}
   const context = scheduledTaskRunContext(task.record)
   return {
     ...(context?.modelId ? { modelId: context.modelId } : {}),

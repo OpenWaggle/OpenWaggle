@@ -33,18 +33,18 @@ function decodeReport(raw: string | null): AgentSendReport {
   const value = raw === null ? null : parseJsonUnknown(raw)
   if (
     !isRecord(value) ||
-    (value.outcome !== 'delivered' &&
-      value.outcome !== 'refused' &&
-      value.outcome !== 'cancelled') ||
-    (value.message !== undefined && typeof value.message !== 'string') ||
-    (value.code !== undefined && typeof value.code !== 'string')
+    (value['outcome'] !== 'delivered' &&
+      value['outcome'] !== 'refused' &&
+      value['outcome'] !== 'cancelled') ||
+    (value['message'] !== undefined && typeof value['message'] !== 'string') ||
+    (value['code'] !== undefined && typeof value['code'] !== 'string')
   ) {
     throw new Error('Completed explicit Waggle operation has an invalid report.')
   }
   return {
-    outcome: value.outcome,
-    ...(typeof value.message === 'string' ? { message: value.message } : {}),
-    ...(typeof value.code === 'string' ? { code: value.code } : {}),
+    outcome: value['outcome'],
+    ...(typeof value['message'] === 'string' ? { message: value['message'] } : {}),
+    ...(typeof value['code'] === 'string' ? { code: value['code'] } : {}),
   }
 }
 

@@ -39,15 +39,15 @@ function normalizedPairs(value: unknown) {
 function normalizedAutoClosingPair(value: unknown): SyntaxLanguageAutoClosingPair | null {
   const pair = normalizedPair(value)
   if (pair) return { open: pair[0], close: pair[1] }
-  if (!isRecord(value) || typeof value.open !== 'string' || typeof value.close !== 'string') {
+  if (!isRecord(value) || typeof value['open'] !== 'string' || typeof value['close'] !== 'string') {
     return null
   }
-  const notIn = stringArray(value.notIn).filter((entry): entry is 'string' | 'comment' | 'regex' =>
-    AUTO_CLOSE_CONTEXTS.has(entry),
+  const notIn = stringArray(value['notIn']).filter(
+    (entry): entry is 'string' | 'comment' | 'regex' => AUTO_CLOSE_CONTEXTS.has(entry),
   )
   return {
-    open: value.open,
-    close: value.close,
+    open: value['open'],
+    close: value['close'],
     ...(notIn.length > 0 ? { notIn } : {}),
   }
 }
@@ -61,27 +61,29 @@ function normalizedAutoClosingPairs(value: unknown) {
 
 function normalizedLanguageConfiguration(value: unknown): SyntaxLanguageConfiguration | undefined {
   if (!isRecord(value)) return undefined
-  const blockComment = isRecord(value.comments) ? normalizedPair(value.comments.blockComment) : null
-  const comments = isRecord(value.comments)
+  const blockComment = isRecord(value['comments'])
+    ? normalizedPair(value['comments']['blockComment'])
+    : null
+  const comments = isRecord(value['comments'])
     ? {
-        ...(typeof value.comments.lineComment === 'string'
-          ? { lineComment: value.comments.lineComment }
+        ...(typeof value['comments']['lineComment'] === 'string'
+          ? { lineComment: value['comments']['lineComment'] }
           : {}),
         ...(blockComment ? { blockComment } : {}),
       }
     : undefined
-  const brackets = normalizedPairs(value.brackets)
-  const autoClosingPairs = normalizedAutoClosingPairs(value.autoClosingPairs)
-  const surroundingPairs = normalizedAutoClosingPairs(value.surroundingPairs)
-  const colorizedBracketPairs = normalizedPairs(value.colorizedBracketPairs)
+  const brackets = normalizedPairs(value['brackets'])
+  const autoClosingPairs = normalizedAutoClosingPairs(value['autoClosingPairs'])
+  const surroundingPairs = normalizedAutoClosingPairs(value['surroundingPairs'])
+  const colorizedBracketPairs = normalizedPairs(value['colorizedBracketPairs'])
   const configuration: SyntaxLanguageConfiguration = {
     ...(comments && Object.keys(comments).length > 0 ? { comments } : {}),
     ...(brackets.length > 0 ? { brackets } : {}),
     ...(autoClosingPairs.length > 0 ? { autoClosingPairs } : {}),
     ...(surroundingPairs.length > 0 ? { surroundingPairs } : {}),
     ...(colorizedBracketPairs.length > 0 ? { colorizedBracketPairs } : {}),
-    ...(typeof value.autoCloseBefore === 'string'
-      ? { autoCloseBefore: value.autoCloseBefore }
+    ...(typeof value['autoCloseBefore'] === 'string'
+      ? { autoCloseBefore: value['autoCloseBefore'] }
       : {}),
   }
   return Object.keys(configuration).length > 0 ? configuration : undefined
@@ -102,8 +104,8 @@ function grammarScopeName(
   declaration: Readonly<Record<string, unknown>>,
   grammar: Readonly<Record<string, unknown>>,
 ) {
-  if (typeof declaration.scopeName === 'string') return declaration.scopeName
-  if (typeof grammar.scopeName === 'string') return grammar.scopeName
+  if (typeof declaration['scopeName'] === 'string') return declaration['scopeName']
+  if (typeof grammar['scopeName'] === 'string') return grammar['scopeName']
   return null
 }
 
@@ -112,8 +114,8 @@ function grammarLanguageId(
   language: Readonly<Record<string, unknown>> | undefined,
   scopeName: string,
 ) {
-  if (typeof declaration.language === 'string') return declaration.language
-  if (typeof language?.id === 'string') return language.id
+  if (typeof declaration['language'] === 'string') return declaration['language']
+  if (typeof language?.['id'] === 'string') return language['id']
   return scopeName.replace(/^(?:source|text)\./u, '')
 }
 
@@ -124,7 +126,7 @@ function grammarLabel(
 ) {
   const namedAlias = aliases.find((entry) => entry !== languageId.toLowerCase())
   if (namedAlias) return namedAlias
-  return typeof grammar.name === 'string' ? grammar.name : languageId
+  return typeof grammar['name'] === 'string' ? grammar['name'] : languageId
 }
 
 export function normalizedLanguage(input: {
@@ -143,21 +145,21 @@ export function normalizedLanguage(input: {
   if (!scopeName || !/^[A-Za-z0-9_.+-]+$/u.test(scopeName)) {
     throw new Error('TextMate grammar has an invalid or missing scopeName.')
   }
-  if (!Array.isArray(input.grammar.patterns) || !isRecord(input.grammar.repository)) {
+  if (!Array.isArray(input.grammar['patterns']) || !isRecord(input.grammar['repository'])) {
     throw new Error(`Grammar "${scopeName}" must declare patterns and repository.`)
   }
   const languageId = grammarLanguageId(input.declaration, input.language, scopeName)
   if (!/^[A-Za-z0-9_.+-]+$/u.test(languageId)) {
     throw new Error(`Grammar "${scopeName}" has an invalid language identity.`)
   }
-  const aliases = [languageId, ...stringArray(input.language?.aliases)].map((entry) =>
+  const aliases = [languageId, ...stringArray(input.language?.['aliases'])].map((entry) =>
     entry.toLowerCase(),
   )
-  const fileExtensions = stringArray(input.language?.extensions)
+  const fileExtensions = stringArray(input.language?.['extensions'])
     .map(normalizedExtension)
     .filter((entry): entry is string => entry !== null)
-  const fileNames = stringArray(input.language?.filenames)
-  const embeddedLanguages = stringRecord(input.declaration.embeddedLanguages)
+  const fileNames = stringArray(input.language?.['filenames'])
+  const embeddedLanguages = stringRecord(input.declaration['embeddedLanguages'])
   const label = grammarLabel(aliases, languageId, input.grammar)
   const rawConfiguration = input.configuration
   const configuration = normalizedLanguageConfiguration(rawConfiguration)
@@ -186,7 +188,7 @@ export function normalizedLanguage(input: {
       fileExtensions: [...new Set(fileExtensions)],
       fileNames: [...new Set(fileNames)],
       embeddedLanguages,
-      injectTo: stringArray(input.declaration.injectTo),
+      injectTo: stringArray(input.declaration['injectTo']),
       grammar,
       ...(configuration ? { configuration } : {}),
     },

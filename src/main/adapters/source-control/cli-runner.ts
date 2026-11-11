@@ -51,10 +51,10 @@ function normalizeCliError(error: unknown): CliResult {
   // provider CLI is unusable, so treat them the same (surface as unavailable).
   const missing = code === 'ENOENT' || code === 'EACCES'
   return {
-    stdout: typeof record.stdout === 'string' ? record.stdout : '',
+    stdout: typeof record['stdout'] === 'string' ? record['stdout'] : '',
     stderr:
-      typeof record.stderr === 'string'
-        ? record.stderr
+      typeof record['stderr'] === 'string'
+        ? record['stderr']
         : error instanceof Error
           ? error.message
           : 'CLI command failed',

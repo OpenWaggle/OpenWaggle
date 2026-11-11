@@ -64,8 +64,8 @@ export class McpConnectionHandshake {
         (value) => {
           this.result = { value }
           this.channel.onResult?.(value)
-          if (isRecord(value) && typeof value.protocolVersion === 'string') {
-            this.channel.onProtocolVersion(value.protocolVersion)
+          if (isRecord(value) && typeof value['protocolVersion'] === 'string') {
+            this.channel.onProtocolVersion(value['protocolVersion'])
           }
           return value
         },

@@ -34,7 +34,7 @@ type PackageEntry = Readonly<Record<string, unknown>>
  * (`string`), takes a value. A secret always does.
  */
 function takesValue(argument: Readonly<Record<string, unknown>>) {
-  return argument.format !== 'boolean' || argument.isSecret === true
+  return argument['format'] !== 'boolean' || argument['isSecret'] === true
 }
 
 /**
@@ -48,9 +48,9 @@ function takesValue(argument: Readonly<Record<string, unknown>>) {
 function commandLineArguments(value: unknown) {
   return arrayValue(value).flatMap((argument: unknown): string[] => {
     if (!isRecord(argument)) return []
-    const named = argument.type === 'named'
-    const name = stringValue(argument.name)
-    const required = argument.isRequired === true
+    const named = argument['type'] === 'named'
+    const name = stringValue(argument['name'])
+    const required = argument['isRequired'] === true
     const resolved = resolveRegistryInput(argument)
     if (isOptionalRegistrySecret(argument, resolved)) return []
     if (resolved.kind === 'unfilled') {
@@ -107,7 +107,7 @@ function packageIdentifier(value: unknown, type: McpRegistryPackageType) {
 }
 
 function assertRuntimeHint(entry: PackageEntry, expected: string) {
-  const hint = stringValue(entry.runtimeHint)
+  const hint = stringValue(entry['runtimeHint'])
   if (hint && hint !== expected) {
     throw new Error(`Registry package requested unsupported runtime ${JSON.stringify(hint)}.`)
   }
@@ -115,7 +115,7 @@ function assertRuntimeHint(entry: PackageEntry, expected: string) {
 
 /** Runner flags are limited to ones that cannot change what is installed or where it runs. */
 function runtimeArguments(entry: PackageEntry, allowed: ReadonlySet<string>) {
-  const args = commandLineArguments(entry.runtimeArguments)
+  const args = commandLineArguments(entry['runtimeArguments'])
   const unsupported = args.find((argument) => !allowed.has(argument))
   if (unsupported) {
     throw new Error(
@@ -126,7 +126,7 @@ function runtimeArguments(entry: PackageEntry, allowed: ReadonlySet<string>) {
 }
 
 function assertPublicPackageRegistry(entry: PackageEntry, expected: string) {
-  const registryBaseUrl = stringValue(entry.registryBaseUrl)
+  const registryBaseUrl = stringValue(entry['registryBaseUrl'])
   if (!registryBaseUrl) return
   let requested: URL
   try {
@@ -140,7 +140,7 @@ function assertPublicPackageRegistry(entry: PackageEntry, expected: string) {
 }
 
 function environment(entry: PackageEntry) {
-  return declaredRegistryValues(entry.environmentVariables, 'env')
+  return declaredRegistryValues(entry['environmentVariables'], 'env')
 }
 
 function withEnvironment(entry: PackageEntry, launcher: Omit<RegistryPackageLauncher, 'env'>) {
@@ -149,8 +149,8 @@ function withEnvironment(entry: PackageEntry, launcher: Omit<RegistryPackageLaun
 }
 
 function npmLauncher(entry: PackageEntry): RegistryPackageLauncher {
-  const identifier = packageIdentifier(entry.identifier, 'npm')
-  const version = exactPackageVersion(entry.version)
+  const identifier = packageIdentifier(entry['identifier'], 'npm')
+  const version = exactPackageVersion(entry['version'])
   assertRuntimeHint(entry, 'npx')
   assertPublicPackageRegistry(entry, 'https://registry.npmjs.org')
   const runnerArgs = runtimeArguments(entry, new Set(['-y', '--yes', '--quiet']))
@@ -160,14 +160,14 @@ function npmLauncher(entry: PackageEntry): RegistryPackageLauncher {
     args: [
       ...(confirmed ? runnerArgs : ['--yes', ...runnerArgs]),
       `${identifier}@${version}`,
-      ...commandLineArguments(entry.packageArguments),
+      ...commandLineArguments(entry['packageArguments']),
     ],
   })
 }
 
 function pypiLauncher(entry: PackageEntry): RegistryPackageLauncher {
-  const identifier = packageIdentifier(entry.identifier, 'pypi')
-  const version = exactPackageVersion(entry.version)
+  const identifier = packageIdentifier(entry['identifier'], 'pypi')
+  const version = exactPackageVersion(entry['version'])
   assertRuntimeHint(entry, 'uvx')
   assertPublicPackageRegistry(entry, 'https://pypi.org')
   return withEnvironment(entry, {
@@ -175,14 +175,14 @@ function pypiLauncher(entry: PackageEntry): RegistryPackageLauncher {
     args: [
       ...runtimeArguments(entry, new Set(['--quiet', '--no-cache'])),
       `${identifier}==${version}`,
-      ...commandLineArguments(entry.packageArguments),
+      ...commandLineArguments(entry['packageArguments']),
     ],
   })
 }
 
 function nugetLauncher(entry: PackageEntry): RegistryPackageLauncher {
-  const identifier = packageIdentifier(entry.identifier, 'nuget')
-  const version = exactPackageVersion(entry.version)
+  const identifier = packageIdentifier(entry['identifier'], 'nuget')
+  const version = exactPackageVersion(entry['version'])
   assertRuntimeHint(entry, 'dnx')
   assertPublicPackageRegistry(entry, 'https://api.nuget.org/v3/index.json')
   return withEnvironment(entry, {
@@ -191,7 +191,7 @@ function nugetLauncher(entry: PackageEntry): RegistryPackageLauncher {
       ...runtimeArguments(entry, new Set(['-y', '--yes'])),
       `${identifier}@${version}`,
       '--yes',
-      ...commandLineArguments(entry.packageArguments),
+      ...commandLineArguments(entry['packageArguments']),
     ],
   })
 }
@@ -201,8 +201,8 @@ async function ociLauncher(
   entry: PackageEntry,
   resolveOciImage: OciImageResolver,
 ): Promise<RegistryPackageLauncher> {
-  const identifier = packageIdentifier(entry.identifier, 'oci')
-  if (commandLineArguments(entry.runtimeArguments).length > 0) {
+  const identifier = packageIdentifier(entry['identifier'], 'oci')
+  if (commandLineArguments(entry['runtimeArguments']).length > 0) {
     throw new Error('Registry OCI packages may not pass Docker options.')
   }
   const resolved = await resolveOciImage(identifier)
@@ -221,7 +221,7 @@ async function ociLauncher(
       '-i',
       ...Object.keys(env ?? {}).flatMap((name) => ['-e', name]),
       resolved.coordinate,
-      ...commandLineArguments(entry.packageArguments),
+      ...commandLineArguments(entry['packageArguments']),
     ],
     ...(env ? { env } : {}),
   }
@@ -231,15 +231,15 @@ async function mcpbLauncher(
   entry: PackageEntry,
   input: RegistryPackageLauncherInput,
 ): Promise<RegistryPackageLauncher> {
-  const identifier = packageIdentifier(entry.identifier, 'mcpb')
-  if (commandLineArguments(entry.runtimeArguments).length > 0) {
+  const identifier = packageIdentifier(entry['identifier'], 'mcpb')
+  if (commandLineArguments(entry['runtimeArguments']).length > 0) {
     throw new Error(
       'Registry MCPB packages start as their manifest says; runtime arguments are not accepted.',
     )
   }
   const installed = await installVerifiedMcpb({
     identifier,
-    expectedSha256: stringValue(entry.fileSha256) ?? '',
+    expectedSha256: stringValue(entry['fileSha256']) ?? '',
     cacheRoot: input.cacheRoot,
     homeDir: input.homeDir,
     ...(input.fetchResource ? { fetchResource: input.fetchResource } : {}),
@@ -247,7 +247,7 @@ async function mcpbLauncher(
   const env = { ...piLiteralMap(installed.env), ...environment(entry) }
   return {
     command: installed.command,
-    args: [...installed.args, ...commandLineArguments(entry.packageArguments)],
+    args: [...installed.args, ...commandLineArguments(entry['packageArguments'])],
     cwd: installed.cwd,
     ...(Object.keys(env).length > 0 ? { env } : {}),
   }

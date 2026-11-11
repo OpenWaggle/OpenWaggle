@@ -40,7 +40,7 @@ function applyToolExposure(
   },
 ) {
   const inherited = options.inherited ?? {}
-  const ownRules = server.toolExposure
+  const ownRules = server['toolExposure']
   const own = isJsonRecord(ownRules)
   const current = own ? { ...ownRules } : { ...inherited }
   for (const [tool, exposure] of Object.entries(patch)) {
@@ -48,8 +48,8 @@ function applyToolExposure(
     else current[tool] = exposure
   }
   const resets = options.override && (own || Object.keys(inherited).length > 0)
-  if (Object.keys(current).length === 0 && !resets) delete server.toolExposure
-  else server.toolExposure = current
+  if (Object.keys(current).length === 0 && !resets) delete server['toolExposure']
+  else server['toolExposure'] = current
 }
 
 /**
@@ -73,12 +73,12 @@ export function updateMcpServerSettings(
     if (!isJsonRecord(server)) throw new Error(`${filePath} does not define MCP server "${name}"`)
     const keepDefaults = isMcpOverrideEntry(server)
     if (patch.enabled !== undefined) {
-      if (patch.enabled && !keepDefaults) delete server.enabled
-      else server.enabled = patch.enabled
+      if (patch.enabled && !keepDefaults) delete server['enabled']
+      else server['enabled'] = patch.enabled
     }
     if (patch.exposure !== undefined) {
-      if (patch.exposure === 'codemode' && !keepDefaults) delete server.exposure
-      else server.exposure = patch.exposure
+      if (patch.exposure === 'codemode' && !keepDefaults) delete server['exposure']
+      else server['exposure'] = patch.exposure
     }
     if (patch.toolExposure) {
       applyToolExposure(server, patch.toolExposure, {
@@ -98,7 +98,7 @@ export function clearMcpServerOverrideEnabled(filePath: string, name: string) {
   editMcpServers(filePath, (servers) => {
     const server = servers[name]
     if (!isJsonRecord(server) || !isMcpOverrideEntry(server) || !('enabled' in server)) return false
-    delete server.enabled
+    delete server['enabled']
     if (Object.keys(server).length === 0) delete servers[name]
     return true
   })

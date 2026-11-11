@@ -49,16 +49,16 @@ async function readManifest(root: string): Promise<McpbManifest> {
     throw new Error('MCPB manifest.json is not valid JSON.')
   }
   if (!isRecord(value)) throw new Error('MCPB manifest.json must be an object.')
-  const manifestVersion = nonemptyString(value.manifest_version)
-  const version = nonemptyString(value.version)
-  const author = isRecord(value.author) ? value.author : undefined
-  const server = isRecord(value.server) ? value.server : undefined
+  const manifestVersion = nonemptyString(value['manifest_version'])
+  const version = nonemptyString(value['version'])
+  const author = isRecord(value['author']) ? value['author'] : undefined
+  const server = isRecord(value['server']) ? value['server'] : undefined
   const requiredFields = [
     manifestVersion && SUPPORTED_MANIFEST_VERSIONS.has(manifestVersion),
-    nonemptyString(value.name),
+    nonemptyString(value['name']),
     version,
-    nonemptyString(value.description),
-    nonemptyString(author?.name),
+    nonemptyString(value['description']),
+    nonemptyString(author?.['name']),
     server,
   ]
   if (requiredFields.some((field) => !field) || !manifestVersion || !version || !server) {
@@ -71,8 +71,8 @@ async function readManifest(root: string): Promise<McpbManifest> {
 }
 
 function serverLaunchDetails(manifest: McpbManifest, platform: NodeJS.Platform) {
-  const type = nonemptyString(manifest.server.type)
-  const declaredEntryPoint = nonemptyString(manifest.server.entry_point)
+  const type = nonemptyString(manifest.server['type'])
+  const declaredEntryPoint = nonemptyString(manifest.server['entry_point'])
   if (!type || !declaredEntryPoint || !SUPPORTED_SERVER_TYPES.has(type)) {
     throw new Error('MCPB server requires a supported type and entry_point.')
   }
@@ -126,17 +126,17 @@ function defaultLauncherArgs(type: string, root: string, entryPointPath: string)
 }
 
 function assertPlatformCompatibility(manifest: McpbManifest, platform: NodeJS.Platform) {
-  const compatibility = isRecord(manifest.raw.compatibility)
-    ? manifest.raw.compatibility
+  const compatibility = isRecord(manifest.raw['compatibility'])
+    ? manifest.raw['compatibility']
     : undefined
-  if (compatibility?.platforms === undefined) return
+  if (compatibility?.['platforms'] === undefined) return
   if (
-    !Array.isArray(compatibility.platforms) ||
-    compatibility.platforms.some((candidate) => typeof candidate !== 'string')
+    !Array.isArray(compatibility['platforms']) ||
+    compatibility['platforms'].some((candidate) => typeof candidate !== 'string')
   ) {
     throw new Error('MCPB compatibility.platforms must be an array of platform names.')
   }
-  if (!compatibility.platforms.includes(platform)) {
+  if (!compatibility['platforms'].includes(platform)) {
     throw new Error(`MCPB package does not support the ${platform} platform.`)
   }
 }
@@ -219,15 +219,15 @@ function substituteManifestValue(value: string, root: string, homeDir: string) {
 }
 
 function resolvedMcpConfig(manifest: McpbManifest, platform: NodeJS.Platform) {
-  const base = isRecord(manifest.server.mcp_config) ? manifest.server.mcp_config : {}
-  const overrides = isRecord(base.platform_overrides) ? base.platform_overrides : {}
+  const base = isRecord(manifest.server['mcp_config']) ? manifest.server['mcp_config'] : {}
+  const overrides = isRecord(base['platform_overrides']) ? base['platform_overrides'] : {}
   const override = isRecord(overrides[platform]) ? overrides[platform] : {}
   return {
-    command: nonemptyString(override.command) ?? nonemptyString(base.command),
-    args: stringArray(override.args, 'platform args') ?? stringArray(base.args, 'args'),
+    command: nonemptyString(override['command']) ?? nonemptyString(base['command']),
+    args: stringArray(override['args'], 'platform args') ?? stringArray(base['args'], 'args'),
     env: {
-      ...stringMap(base.env, 'environment'),
-      ...stringMap(override.env, 'platform environment'),
+      ...stringMap(base['env'], 'environment'),
+      ...stringMap(override['env'], 'platform environment'),
     },
   }
 }

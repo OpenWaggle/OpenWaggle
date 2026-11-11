@@ -110,7 +110,7 @@ function sourceServers(
 }
 
 function provenanceOf(value: unknown) {
-  return isRecord(value) && isRecord(value.provenance) ? value.provenance : undefined
+  return isRecord(value) && isRecord(value['provenance']) ? value['provenance'] : undefined
 }
 
 export function importStatus(
@@ -124,11 +124,11 @@ export function importStatus(
   for (const value of Object.values(servers)) {
     const provenance = provenanceOf(value)
     if (
-      provenance?.source === candidate.source &&
-      provenance.sourcePath === candidate.sourcePath &&
-      provenance.sourceName === candidate.name
+      provenance?.['source'] === candidate.source &&
+      provenance['sourcePath'] === candidate.sourcePath &&
+      provenance['sourceName'] === candidate.name
     ) {
-      return provenance.fingerprint === candidate.fingerprint ? 'imported' : 'source-changed'
+      return provenance['fingerprint'] === candidate.fingerprint ? 'imported' : 'source-changed'
     }
   }
   const taken = Object.keys(servers).some((name) => sameServerName(name, candidate.targetName))

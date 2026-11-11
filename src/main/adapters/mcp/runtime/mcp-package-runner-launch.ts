@@ -114,8 +114,8 @@ function packageNameOf(spec: string, cwd: string | undefined) {
     }
   }
   const parsed = REGISTRY_SPEC.exec(spec)
-  const name = parsed?.groups?.name
-  return name ? { name, version: parsed?.groups?.version ?? '' } : undefined
+  const name = parsed?.groups?.['name']
+  return name ? { name, version: parsed?.groups?.['version'] ?? '' } : undefined
 }
 
 /**
