@@ -58,8 +58,9 @@ function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
   const properties = new Map<string, JsonSchemaObject[]>()
   for (const member of members) {
     for (const [key, property] of Object.entries(propertiesOf(member))) {
-      if (isJsonSchemaObject(property))
+      if (isJsonSchemaObject(property)) {
         properties.set(key, [...(properties.get(key) ?? []), property])
+      }
     }
   }
   const membersRequired = members.map((member) => new Set(requiredOf(member)))

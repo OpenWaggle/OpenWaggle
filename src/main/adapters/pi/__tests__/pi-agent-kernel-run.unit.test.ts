@@ -152,9 +152,9 @@ describe('runPiAgentKernel', () => {
     // The Run holds its scratch directory until it ends, so an archive mid-Run cannot delete it.
     const tools: Pick<ToolDefinition, 'name' | 'description'>[] = []
     const trusted: unknown = runMocks.runPiSession.mock.calls[0]?.[0]?.trustedExtensionFactories
+    const pi = { registerTool: (tool: ToolDefinition) => tools.push(tool), on: () => undefined }
     for (const factory of Array.isArray(trusted) ? trusted : []) {
-      if (typeof factory === 'function')
-        factory({ registerTool: (tool: ToolDefinition) => tools.push(tool), on: () => undefined })
+      if (typeof factory === 'function') factory(pi)
     }
     expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining(['project_actions', 'source_control', 'openwaggle_docs']),

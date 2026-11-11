@@ -147,8 +147,9 @@ export async function configureSessionSourceControl(
   const filled = await sessionRequest(params, scope, backend)
   if (typeof filled === 'string') return failure(filled)
   const decoded = safeDecodeUnknown(sourceControlConfigureRequestSchema, filled)
-  if (!decoded.success)
+  if (!decoded.success) {
     return failure(`Invalid source control change: ${decoded.issues.join('; ')}`)
+  }
   await authorize(ctx, decoded.data, signal)
   signal?.throwIfAborted()
   const result = await backend.configure(decoded.data, backend.access())

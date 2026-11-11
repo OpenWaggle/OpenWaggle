@@ -162,8 +162,9 @@ export async function dispatchPendingSessionWorktreeSetup(
 
   options.signal?.throwIfAborted()
   const claim = await claimSessionWorktreeSetup(id, pending)
-  if (!claim)
+  if (!claim) {
     throw new Error('Workspace preparation changed while it was being claimed. Retry the turn.')
+  }
 
   try {
     options.signal?.throwIfAborted()

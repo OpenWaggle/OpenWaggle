@@ -61,8 +61,9 @@ const LAUNCH_ONLY_FIELDS = ['projectPath', 'workspace', 'agent', 'archiveFinishe
 const MODEL_FIELDS = ['model', 'thinking'] as const
 
 function requiredTaskId(fields: ScheduleCommandFields, operation: ScheduledTasksOperation) {
-  if (!fields.scheduleTaskId)
+  if (!fields.scheduleTaskId) {
     throw new Error(`Scheduled task ${operation} requires scheduleTaskId.`)
+  }
   return fields.scheduleTaskId
 }
 

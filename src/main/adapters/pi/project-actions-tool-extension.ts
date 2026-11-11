@@ -144,7 +144,7 @@ async function startAction(
         run.action.id === params.actionId && isActiveActionRun(run) && !run.action.allowConcurrent,
     )
     // Returning a running snapshot is read-only, including after its saved definition was removed.
-    if (active)
+    if (active) {
       return Effect.runPromise(
         input.runs.start({
           workspace,
@@ -153,6 +153,7 @@ async function startAction(
           reuseRunId: active.id,
         }),
       )
+    }
   }
   const catalog = await Effect.runPromise(input.catalog.read(workspace))
   const definition = catalog.actions.find(

@@ -45,8 +45,9 @@ export function recordMcpToolVisibility(sessionId: string, serverName: string, r
   if (!isRecord(result) || !Array.isArray(result.tools)) return
   const visibility = new Map(appVisibility.get(key(sessionId, serverName)))
   for (const tool of result.tools) {
-    if (isRecord(tool) && typeof tool.name === 'string')
+    if (isRecord(tool) && typeof tool.name === 'string') {
       visibility.set(tool.name, visibleToApps(tool))
+    }
   }
   appVisibility.set(key(sessionId, serverName), visibility)
 }

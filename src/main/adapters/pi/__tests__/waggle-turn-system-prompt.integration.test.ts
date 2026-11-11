@@ -18,8 +18,9 @@ describe('a Waggle Run started with custom messages', () => {
     await harness.run('run-waggle', 'waggle', 'Debate it', READ_NOTES)
 
     const [beforeTool, afterTool] = harness.requests
-    if (!beforeTool || !afterTool)
+    if (!beforeTool || !afterTool) {
       throw new Error('Expected a request before and after the tool call')
+    }
     expectFullSystemPrompt(beforeTool)
     expectFullSystemPrompt(afterTool)
     expect(systemPrompt(afterTool)).toBe(systemPrompt(beforeTool))

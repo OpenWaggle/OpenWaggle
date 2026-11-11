@@ -20,8 +20,9 @@ interface RepairProposalArguments {
 
 function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDiscovery) {
   const invocation = definition.invocation
-  if (invocation.type === 'command')
+  if (invocation.type === 'command') {
     return { command: invocation.command, directory: invocation.directory, resolved: true }
+  }
   const task = discovery.tasks.find(
     ({ reference }) =>
       reference.provider === invocation.task.provider &&
@@ -31,12 +32,13 @@ function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDisc
   )
   // Never invent a command the action did not run: an unresolved script is named, not guessed.
   const { directory } = invocation.task
-  if (!task?.runner)
+  if (!task?.runner) {
     return {
       command: `the ${invocation.task.task} script in ${invocation.task.source}`,
       directory,
       resolved: false,
     }
+  }
   return {
     command: [task.runner, ...projectTaskArguments(invocation.task)].join(' '),
     directory,

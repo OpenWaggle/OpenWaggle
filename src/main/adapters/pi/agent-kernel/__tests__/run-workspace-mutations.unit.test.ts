@@ -23,8 +23,9 @@ function fakeSession(extensions: readonly Extension[] = []) {
     }),
   }
   const startTool = (toolName: string, args: unknown = {}) => {
-    for (const listener of listeners)
+    for (const listener of listeners) {
       listener({ type: 'tool_execution_start', toolCallId: `${toolName}-call`, toolName, args })
+    }
   }
   return { session, startTool, listenerCount: () => listeners.size }
 }
