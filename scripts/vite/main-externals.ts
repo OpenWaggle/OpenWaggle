@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import type { Plugin } from 'vite'
 import { EAGER_MAIN_EXTERNALS } from './lazy-external-requires'
 
-export const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
+export const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate']
 export const BUNDLED_DEPS = [
   'effect',
   '@effect/platform',

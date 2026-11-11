@@ -5,22 +5,10 @@ import {
 } from '../native-artifact-contract'
 
 describe('native artifact contract', () => {
-  it('requires every Windows node-pty addon and runtime helper from the source build', () => {
-    const requirements = nativeArtifactRequirements('node-pty', {
-      platform: 'win32',
-      arch: 'x64',
-      libc: 'glibc',
-    })
-
-    expect(requirements.flatMap((requirement) => requirement.candidates)).toEqual([
-      { packageName: 'node-pty', relativePath: 'build/Release/pty.node' },
-      { packageName: 'node-pty', relativePath: 'build/Release/conpty.node' },
-      { packageName: 'node-pty', relativePath: 'build/Release/conpty_console_list.node' },
-      { packageName: 'node-pty', relativePath: 'build/Release/winpty-agent.exe' },
-      { packageName: 'node-pty', relativePath: 'build/Release/winpty.dll' },
-      { packageName: 'node-pty', relativePath: 'build/Release/conpty/conpty.dll' },
-      { packageName: 'node-pty', relativePath: 'build/Release/conpty/OpenConsole.exe' },
-    ])
+  it('defines no contract for a package without one, such as the removed node-pty', () => {
+    expect(() =>
+      nativeArtifactRequirements('node-pty', { platform: 'win32', arch: 'x64', libc: 'glibc' }),
+    ).toThrow('No exact native artifact contract is defined for node-pty.')
   })
 
   it('uses the active musl platform package paths for SQLite and Sharp', () => {

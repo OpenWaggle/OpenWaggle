@@ -45,7 +45,7 @@ function processRow(pid: number, ppid: number, name: string) {
   } satisfies ProcessRow
 }
 
-describe('makeNodePtyTerminalService owner and app shutdown drain', () => {
+describe('makePtyTerminalService owner and app shutdown drain', () => {
   beforeEach(async () => {
     processProbe.rows = new Map([
       [4_200, processRow(4_200, 1, 'zsh')],

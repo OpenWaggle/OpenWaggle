@@ -17,9 +17,9 @@ const FORCE_REBUILD_ENV = 'OPENWAGGLE_NATIVE_REBUILD_FORCE'
 const FORCE_REBUILD_ENV_VALUES = new Set(['1', 'true', 'yes'])
 const NATIVE_REBUILD_CACHE_VERSION = 'electron-builder-native-rebuild-v4'
 const NATIVE_STATE_HASH_FILES = ['package.json', 'bun.lock']
-const NATIVE_PATCH_PREFIXES = ['better-sqlite3@', 'node-pty@']
-const NODE_NATIVE_ARTIFACT_PACKAGES = ['node-pty', 'better-sqlite3']
-const ELECTRON_NATIVE_ARTIFACT_PACKAGES = ['sharp', 'node-pty', 'better-sqlite3']
+const NATIVE_PATCH_PREFIXES = ['better-sqlite3@']
+const NODE_NATIVE_ARTIFACT_PACKAGES = ['better-sqlite3']
+const ELECTRON_NATIVE_ARTIFACT_PACKAGES = ['sharp', 'better-sqlite3']
 
 export type RebuildMode = 'node' | 'electron'
 

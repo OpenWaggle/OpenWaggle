@@ -16,7 +16,7 @@ import {
 } from './terminal-service-actions-test-harness'
 import { terminalKeys } from './terminal-service-observations'
 
-describe('makeNodePtyTerminalService input generation lifecycle races', () => {
+describe('makePtyTerminalService input generation lifecycle races', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

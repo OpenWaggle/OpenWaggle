@@ -21,7 +21,7 @@ import {
 } from './terminal-service-actions-test-harness'
 import { projectActionPending, readinessPhase } from './terminal-service-observations'
 
-describe('makeNodePtyTerminalService input lifecycle', () => {
+describe('makePtyTerminalService input lifecycle', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

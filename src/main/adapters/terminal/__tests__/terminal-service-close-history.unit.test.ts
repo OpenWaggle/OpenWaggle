@@ -56,7 +56,7 @@ function processRow(pid: number, ppid: number, name: string) {
   } satisfies ProcessRow
 }
 
-describe('makeNodePtyTerminalService close history lifecycle', () => {
+describe('makePtyTerminalService close history lifecycle', () => {
   beforeEach(async () => {
     processProbe.rows = new Map([
       [4_200, processRow(4_200, 1, 'zsh')],

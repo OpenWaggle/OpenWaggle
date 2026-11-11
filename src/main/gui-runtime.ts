@@ -14,7 +14,7 @@ import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-serv
 import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { GuiUsageStatisticsRecorderLive } from './adapters/gui-usage-statistics-recorder'
-import { NodePtyTerminalServiceLive } from './adapters/node-pty-terminal-service'
+import { PtyTerminalServiceLive } from './adapters/pty-terminal-service'
 import {
   LazyPiProviderAuthLive,
   LazyPiProviderOAuthLive,
@@ -31,7 +31,7 @@ const GuiLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
   SettingsService.Live,
-  NodePtyTerminalServiceLive,
+  PtyTerminalServiceLive,
   ElectronBrowserPreviewAutomationServiceLive.pipe(Layer.provide(SettingsService.Live)),
   FilesystemWorkspaceFileLive,
   WorkspaceProjectAuthorizationLive,

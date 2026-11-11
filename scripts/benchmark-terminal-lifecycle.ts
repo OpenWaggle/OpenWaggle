@@ -4,7 +4,7 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import { terminalKeyOf } from '@shared/types/terminal'
 import type { TerminalEventPayload } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
-import type { TerminalServiceInternals } from '../src/main/adapters/node-pty-terminal-service'
+import type { TerminalServiceInternals } from '../src/main/adapters/pty-terminal-service'
 import type { TerminalServiceShape } from '../src/main/ports/terminal-service'
 
 const OUTPUT_LINES = 200_000

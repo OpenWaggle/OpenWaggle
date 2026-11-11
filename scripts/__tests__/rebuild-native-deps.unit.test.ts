@@ -67,12 +67,8 @@ describe('native dependency rebuild cache', () => {
   })
 
   it('tracks the native packages that can overwrite artifacts for each ABI mode', () => {
-    expect(nativeArtifactPackagesForMode('node')).toEqual(['node-pty', 'better-sqlite3'])
-    expect(nativeArtifactPackagesForMode('electron')).toEqual([
-      'sharp',
-      'node-pty',
-      'better-sqlite3',
-    ])
+    expect(nativeArtifactPackagesForMode('node')).toEqual(['better-sqlite3'])
+    expect(nativeArtifactPackagesForMode('electron')).toEqual(['sharp', 'better-sqlite3'])
   })
 
   it('runs the bundled native probe in Node and Electron without sending source through a shell', () => {

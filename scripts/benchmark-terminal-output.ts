@@ -7,7 +7,7 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import type { TerminalEventPayload } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
-import { makeNodePtyTerminalService } from '../src/main/adapters/node-pty-terminal-service'
+import { makePtyTerminalService } from '../src/main/adapters/pty-terminal-service'
 import type { TerminalEventSinkShape } from '../src/main/ports/terminal-event-sink'
 import {
   assertGate,
@@ -18,7 +18,7 @@ import {
 } from './benchmark-terminal-lifecycle'
 
 /**
- * Terminal throughput benchmark (ADR 0030): drives the real node-pty service
+ * Terminal throughput benchmark (ADR 0030): drives the real terminal service
  * against a live shell and measures attach latency, streamed throughput, and
  * IPC coalescing efficiency.
  *
@@ -123,7 +123,7 @@ function throughputCommand() {
 async function main() {
   const logsDir = path.join(os.tmpdir(), `openwaggle-terminal-bench-${Date.now()}`)
   const { shape, events } = makeSink()
-  const service = makeNodePtyTerminalService(shape, { logsDir, appVersion: '0.0.0-benchmark' })
+  const service = makePtyTerminalService(shape, { logsDir, appVersion: '0.0.0-benchmark' })
   try {
     const openStarted = performance.now()
     const snapshot = await Effect.runPromise(

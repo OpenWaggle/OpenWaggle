@@ -8,8 +8,8 @@ direct dependency moves only when someone edits its manifest line, so the new ve
 in the pull request diff. And `bun update`, or a lockfile that gets re-resolved, cannot carry a
 direct dependency to a newer minor or patch release on its own. Two groups need this most. Packages
 before 1.0 may break things in a minor release, such as the Effect platform and SQL packages,
-Lexical, TanStack Hotkeys and the xterm add-ons. And the app cannot run without Electron, Pi,
-`node-pty` and `better-sqlite3`.
+Lexical, TanStack Hotkeys and the xterm add-ons. And the app cannot run without Electron, Pi
+and `better-sqlite3`.
 
 Transitive dependencies are not pinned. They change through the lockfile alone, and the
 supply-chain settings below are what guard them.
@@ -100,7 +100,7 @@ the lockfile changes.
 Read the package's `DEPENDENCIES.md` line before moving it, and change or delete the line in the
 same commit.
 
-`node-pty`, `better-sqlite3` and `sharp` are native modules, and `electron` sets the ABI they are
+`better-sqlite3` and `sharp` are native modules, and `electron` sets the ABI they are
 rebuilt for. An update to any of them needs
 `bun run prepare:native:node`, `bun run prepare:native:electron`, and a packaged build with
 `bun run build:unpack` and `bun run packaged-app:smoke`, because native ABI problems only show up there.

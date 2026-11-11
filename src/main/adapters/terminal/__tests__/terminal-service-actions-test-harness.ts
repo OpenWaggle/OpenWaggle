@@ -12,10 +12,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { expect, type Mock, vi } from 'vitest'
 import type { TerminalEventSinkShape } from '../../../ports/terminal-event-sink'
-import {
-  makeNodePtyTerminalService,
-  type NodePtyTerminalServiceOptions,
-} from '../../node-pty-terminal-service'
+import { makePtyTerminalService, type PtyTerminalServiceOptions } from '../../pty-terminal-service'
 import type { PtyRunner, PtySpawnOutcome, PtySpawnRequest } from '../terminal-pty-runner'
 import { makeTerminalLifecycleHarness } from './terminal-lifecycle-test-harness'
 
@@ -210,7 +207,7 @@ function makeRecordingSink() {
   }
 }
 
-type Service = ReturnType<typeof makeNodePtyTerminalService>
+type Service = ReturnType<typeof makePtyTerminalService>
 
 let logsDir: string
 export const terminalHistoryLogsDir = () => logsDir
@@ -259,7 +256,7 @@ export function holdFutureSpawns() {
 }
 
 type RetentionOptions = Pick<
-  NodePtyTerminalServiceOptions,
+  PtyTerminalServiceOptions,
   'maxInactiveRecords' | 'maxInactiveScrollbackBytes'
 >
 
@@ -292,7 +289,7 @@ export async function setupTerminalServiceActionsTest(options: RetentionOptions 
   moves = recording.recordedMoves
   failNextMove = recording.failNextMove
   setDeliveryCount = recording.setDeliveryCount
-  service = makeNodePtyTerminalService(recording.sink, {
+  service = makePtyTerminalService(recording.sink, {
     logsDir,
     appVersion: '0.0.0-test',
     onRecordChanged: (snapshot) => activitySnapshots.push(snapshot),

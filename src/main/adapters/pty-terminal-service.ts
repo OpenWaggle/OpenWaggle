@@ -48,7 +48,7 @@ function getAppVersion() {
   }
 }
 
-export interface NodePtyTerminalServiceOptions {
+export interface PtyTerminalServiceOptions {
   readonly logsDir: string
   readonly appVersion: string
   readonly onRecordChanged?: (snapshot: TerminalActivitySnapshot) => void
@@ -76,9 +76,9 @@ function inspectorTargets(record: TerminalRecord) {
   ]
 }
 
-export function makeNodePtyTerminalService(
+export function makePtyTerminalService(
   sink: TerminalEventSink['Type'],
-  options: NodePtyTerminalServiceOptions,
+  options: PtyTerminalServiceOptions,
 ) {
   const history = makeTerminalHistoryStore(options.logsDir)
   const inspector: TerminalProcessInspector = makeTerminalProcessInspector()
@@ -197,11 +197,11 @@ export function makeNodePtyTerminalService(
   return service
 }
 
-export const NodePtyTerminalServiceLive = Layer.scoped(
+export const PtyTerminalServiceLive = Layer.scoped(
   TerminalService,
   Effect.gen(function* () {
     const sink = yield* TerminalEventSink
-    const service = makeNodePtyTerminalService(sink, {
+    const service = makePtyTerminalService(sink, {
       logsDir: terminalHistoryDirectory(),
       // Electron always supplies getVersion in production. The defensive
       // fallback keeps the service layer usable in Node-only test harnesses

@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { spawn as spawnPseudoterminal } from 'node-pty'
+import { setTimeout as delay } from 'node:timers/promises'
+import { spawnWithTerminal } from '../src/main/adapters/bun/bun-runtime'
 import { isCredentialEnvironmentKey } from './package-release-bootstrap-commands'
 import type {
   BootstrapCommandRequest,
@@ -16,6 +17,7 @@ const COMMAND_FAILURE_EXIT_CODE = 1
 const DEFAULT_TERMINAL_COLUMNS = 80
 const DEFAULT_TERMINAL_ROWS = 24
 const PRIVATE_FILE_MODE = 0o600
+const OUTPUT_DRAIN_MS = 200
 export const BOOTSTRAP_SECURITY_RECOVERY_TIMEOUT_MS = 120_000
 const BOOTSTRAP_SIGNALS = ['SIGINT', 'SIGTERM'] as const
 
@@ -142,13 +144,27 @@ function executePseudoterminalCommand(
   interruptions: BootstrapInterruptionCoordinator,
 ) {
   return new Promise<BootstrapCommandResult>((resolve) => {
-    const child = spawnPseudoterminal(request.command, [...request.args], {
-      // Node types the size as always set; it is only set when stdout is a terminal.
-      cols: process.stdout.isTTY ? process.stdout.columns : DEFAULT_TERMINAL_COLUMNS,
-      ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
+    const decoder = new TextDecoder()
+    let output = ''
+    let outputEnded: () => void = () => undefined
+    const ended = new Promise<void>((resolveEnded) => {
+      outputEnded = resolveEnded
+    })
+    const child = spawnWithTerminal([request.command, ...request.args], {
+      cwd: request.cwd ?? process.cwd(),
       env: pseudoterminalEnvironment(process.env),
-      name: 'xterm-color',
-      rows: process.stdout.isTTY ? process.stdout.rows : DEFAULT_TERMINAL_ROWS,
+      terminal: {
+        // Node types the size as always set; it is only set when stdout is a terminal.
+        cols: process.stdout.isTTY ? process.stdout.columns : DEFAULT_TERMINAL_COLUMNS,
+        rows: process.stdout.isTTY ? process.stdout.rows : DEFAULT_TERMINAL_ROWS,
+        name: 'xterm-color',
+        data: (_terminal, bytes) => {
+          const chunk = decoder.decode(bytes, { stream: true })
+          output += chunk
+          process.stdout.write(chunk)
+        },
+        exit: () => outputEnded(),
+      },
     })
     const untrackChild = interruptions.trackChild({
       kill: (signal) => {
@@ -157,20 +173,19 @@ function executePseudoterminalCommand(
       },
     })
     const stdinWasFlowing = process.stdin.readableFlowing === true
-    let output = ''
 
-    const forwardInput = (chunk: Buffer | string) => child.write(String(chunk))
+    const forwardInput = (chunk: Buffer | string) => child.terminal?.write(String(chunk))
     process.stdin.on('data', forwardInput)
     process.stdin.resume()
 
-    child.onData((chunk) => {
-      output += chunk
-      process.stdout.write(chunk)
-    })
-    child.onExit(({ exitCode }) => {
+    // The output ends when every terminal descriptor closes; a background job may hold one, so
+    // the exit waits for it only briefly.
+    void child.exited.then(async (exitCode) => {
+      await Promise.race([ended, delay(OUTPUT_DRAIN_MS)])
       process.stdin.off('data', forwardInput)
       if (!stdinWasFlowing) process.stdin.pause()
       untrackChild()
+      child.terminal?.close()
       resolve({ exitCode, stderr: '', stdout: output })
     })
   })

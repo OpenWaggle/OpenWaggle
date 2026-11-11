@@ -15,7 +15,7 @@ import {
   workDirA,
 } from './terminal-service-actions-test-harness'
 
-describe('makeNodePtyTerminalService cwd validation', () => {
+describe('makePtyTerminalService cwd validation', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

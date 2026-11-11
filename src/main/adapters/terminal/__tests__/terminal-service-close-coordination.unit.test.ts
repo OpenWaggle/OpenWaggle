@@ -21,7 +21,7 @@ import {
 const { TERMINAL_FORCE_SHUTDOWN_MS, TERMINAL_GRACEFUL_SHUTDOWN_MS, TERMINAL_PROCESS_SNAPSHOT_MS } =
   await import('../terminal-process-shutdown')
 
-describe('makeNodePtyTerminalService close coordination', () => {
+describe('makePtyTerminalService close coordination', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

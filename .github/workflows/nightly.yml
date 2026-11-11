@@ -4,13 +4,13 @@
 # E2E was removed from CI (ADR 0033): per-PR gating relies on unit + integration
 # + MCP conformance, mirroring pingdotgg/t3code. This scheduled canary is the
 # compensating control for the one thing unit/integration cannot cover - that the
-# real packaged Electron app builds and its native runtime (node-pty, sqlite)
+# real packaged Electron app builds and its native runtime (sqlite, sharp)
 # loads on each OS. It is non-gating: it never blocks a merge, it surfaces
 # packaging/native regressions between releases as a signal.
 #
 # Scope note: this builds + packages + runs the native platform-floor guard
 # (scripts/check-native-platform-floor.ts) and `packaged-app:smoke` (asar shape,
-# packaged docs, and a native node-pty/sqlite load probe via ELECTRON_RUN_AS_NODE).
+# packaged docs, and a native sqlite load probe via ELECTRON_RUN_AS_NODE).
 # It also starts the packaged app hidden and checks that its Session Host starts and
 # answers the CLI (scripts/qa/packaged-session-host-startup-smoke.ts). It shows no
 # window, so it does not cover renderer boot, CSP, visual pixels, or timing budgets -

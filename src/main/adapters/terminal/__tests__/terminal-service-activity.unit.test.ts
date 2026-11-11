@@ -15,7 +15,7 @@ import {
   workDirA,
 } from './terminal-service-actions-test-harness'
 
-describe('makeNodePtyTerminalService activity metadata', () => {
+describe('makePtyTerminalService activity metadata', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

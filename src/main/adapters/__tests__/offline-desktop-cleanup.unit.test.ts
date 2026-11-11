@@ -5,8 +5,8 @@ import type { DesktopServiceCommand } from '@shared/types/desktop-service'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('node-pty', () => {
-  throw new Error('Offline cleanup must never load node-pty')
+vi.mock('../terminal/bun-pty', () => {
+  throw new Error('Offline cleanup must never load the terminal backend')
 })
 vi.mock('electron', () => {
   throw new Error('Offline cleanup must never load Electron')

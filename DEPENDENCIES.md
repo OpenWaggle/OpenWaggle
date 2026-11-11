@@ -47,7 +47,6 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `effect@3.22.2`. Held: `latest` is Effect 4, a major migration; this is the Effect 3 line. Unblocked by: the Effect 4 migration, moving every `@effect/*` package with it.
 - `electron@43.2.0`. Held: it sets the ABI of the native modules: an update needs `prepare:native:node`, `prepare:native:electron` and a packaged smoke (docs/dependency-updates.md). Unblocked by: the next monthly batch, with those three runs.
 - `electron-builder@26.17.0`. Held: `dmg-builder` `26.17.0` is patched (`patches/dmg-builder@26.17.0.patch`). Unblocked by: re-creating the patch.
-- `node-pty@1.1.0`. Held: a native module, patched (`patches/node-pty@1.1.0.patch`). Unblocked by: re-porting the patch.
 - `oxc-parser@0.148.0`. Held: the version `react-doctor` `0.9.22` already installs, so the lint rule tests add no package. Unblocked by: moving `react-doctor`.
 - `quickjs-wasi@3.6.2`. Held: the version Pi depends on; Pi reads its wasm from the installed package, and `check:pi-runtime` fails on drift. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
 - `react-doctor@0.9.22`. Held: `0.9.23` came out on 2026-11-13, and the seven-day `minimumReleaseAge` in `bunfig.toml` refuses it until 2026-11-20. Unblocked by: that date, moving `oxc-parser` to the version the new release installs.
@@ -76,6 +75,8 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `@playwright/test@1.63.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `@rolldown/plugin-babel@0.2.4`. Held: nothing. Unblocked by: the next monthly batch.
 - `@sentry/core@10.75.0`. Held: nothing. Unblocked by: the next monthly batch.
+- `@sentry/browser@10.75.0`. Held: the same release as `@sentry/core`, which the shared reporter types use. Unblocked by: moving `@sentry/core` in the next monthly batch.
+- `@sentry/bun@10.75.0`. Held: the same release as `@sentry/core`, which the shared reporter types use. Unblocked by: moving `@sentry/core` in the next monthly batch.
 - `@sentry/electron@7.20.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `@tailwindcss/vite@4.3.3`. Held: nothing. Unblocked by: the next monthly batch.
 - `@tanstack/eslint-plugin-query@5.102.8`. Held: nothing. Unblocked by: the next monthly batch.

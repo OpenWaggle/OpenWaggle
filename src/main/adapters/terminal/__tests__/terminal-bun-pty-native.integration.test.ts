@@ -33,6 +33,7 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
+// Runs on macOS and Linux, where the backend is Bun's PTY with the bun:ffi identity primitives.
 describe.runIf(process.platform === 'darwin' || process.platform === 'linux')(
   'POSIX terminal backend shutdown integration',
   () => {
@@ -101,6 +102,7 @@ describe.runIf(process.platform === 'darwin' || process.platform === 'linux')(
   },
 )
 
+// Runs on Windows (windows-terminal-diagnostics.yml), where the backend is ConPTY.
 describe.runIf(process.platform === 'win32')(
   'Windows terminal backend shutdown integration',
   () => {

@@ -1,8 +1,9 @@
 name: Windows Terminal Diagnostics
 
-# Like T3 Code's manual Windows lane, this isolates native investigations from
-# ordinary PR feedback. CI has no Windows app E2E (ADR 0033); nightly.yml smokes the
-# packaged Windows app.
+# A manual Windows lane that keeps ConPTY investigations apart from ordinary PR feedback. CI has
+# no Windows app E2E (ADR 0033); nightly.yml smokes the packaged Windows app. Terminals run on
+# ConPTY through bun:ffi (src/main/adapters/terminal/bun-pty/), so the terminal integration
+# tests on a Windows runner are the backend's proof.
 on:
   workflow_dispatch:
     inputs:
@@ -10,33 +11,21 @@ on:
         description: Exact commit SHA on the selected branch.
         required: true
         type: string
-      runtime:
-        description: Native addon ABI to exercise.
-        type: choice
-        default: electron
-        options: [electron, node]
-      profile:
-        description: Runtime selection or forced system ConPTY, bundled ConPTY, and WinPTY.
-        type: choice
-        default: all-backends
-        options: [runtime, all-backends]
 
 permissions:
   contents: read
 
 concurrency:
-  group: windows-terminal-diagnostics-${{ inputs.head_sha }}-${{ inputs.runtime }}-${{ inputs.profile }}
+  group: windows-terminal-diagnostics-${{ inputs.head_sha }}
   cancel-in-progress: true
 
 jobs:
-  native-pty:
-    name: Native PTY (${{ inputs.runtime }}, ${{ inputs.profile }})
+  terminal-backend:
+    name: Terminal backend (ConPTY)
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      NATIVE_RUNTIME: ${{ inputs.runtime }}
-      PTY_PROFILE: ${{ inputs.profile }}
     steps:
       - name: Verify dispatched commit identity
         shell: pwsh
@@ -46,8 +35,6 @@ jobs:
         run: |
           if ($env:EXPECTED_SHA -cnotmatch '^[0-9a-f]{40}$') { exit 1 }
           if ($env:DISPATCHED_SHA -cne $env:EXPECTED_SHA) { exit 1 }
-          if ($env:NATIVE_RUNTIME -cnotin @('node', 'electron')) { exit 1 }
-          if ($env:PTY_PROFILE -cnotin @('runtime', 'all-backends')) { exit 1 }
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -64,30 +51,17 @@ jobs:
 
       - uses: ./.github/actions/bun-install
 
-      - name: Prepare native runtime
-        shell: pwsh
-        run: bun scripts/rebuild-native-deps.ts $env:NATIVE_RUNTIME
-
-      - name: Probe selected PTY profile
+      - name: Run the terminal backend integration tests
         shell: pwsh
         run: |
-          $nodeExecutable = (Get-Command node).Source
-          # Node and Electron run the probe bundled by Bun; neither can load its TypeScript source.
-          $probeScript = bun scripts/native-load-probe-bundle.ts
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $probeExecutable = $nodeExecutable
-          if ($env:NATIVE_RUNTIME -eq 'electron') {
-            $probeExecutable = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
-            $env:ELECTRON_RUN_AS_NODE = '1'
-          }
-          & $probeExecutable $probeScript $env:NATIVE_RUNTIME "$PWD" $nodeExecutable $env:PTY_PROFILE 2>&1 | Tee-Object -FilePath native-pty-diagnostics.log
+          bun --bun vitest run -c vitest.integration.config.ts src/main/adapters/terminal 2>&1 | Tee-Object -FilePath terminal-diagnostics.log
           exit $LASTEXITCODE
 
-      - name: Upload native diagnostics
+      - name: Upload terminal diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: native-pty-${{ inputs.runtime }}-${{ inputs.profile }}
-          path: native-pty-diagnostics.log
+          name: terminal-backend-windows
+          path: terminal-diagnostics.log
           if-no-files-found: ignore
           retention-days: 7

@@ -21,7 +21,7 @@ import {
   workDirB,
 } from './terminal-service-actions-test-harness'
 
-describe('makeNodePtyTerminalService lifecycle', () => {
+describe('makePtyTerminalService lifecycle', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

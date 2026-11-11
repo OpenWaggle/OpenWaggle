@@ -23,7 +23,7 @@ import {
   workDirB,
 } from './terminal-service-actions-test-harness'
 
-describe('makeNodePtyTerminalService', () => {
+describe('makePtyTerminalService', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

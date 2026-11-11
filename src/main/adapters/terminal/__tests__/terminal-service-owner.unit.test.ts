@@ -24,7 +24,7 @@ import { lastFlowControl, terminalKeys } from './terminal-service-observations'
 const openAs = (ownerKey: string) =>
   Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey }))
 
-describe('makeNodePtyTerminalService ownership and close', () => {
+describe('makePtyTerminalService ownership and close', () => {
   beforeEach(setupTerminalServiceActionsTest)
   afterEach(teardownTerminalServiceActionsTest)
 

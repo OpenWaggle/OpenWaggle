@@ -3,7 +3,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import electronBuilderConfig from '../../electron-builder'
-import { collectNativeArtifactSignatures } from '../native-rebuild-artifacts'
 import {
   electronNativeRebuildInvocation,
   nodeNativeRebuildInvocations,
@@ -11,31 +10,9 @@ import {
 import { createNativeRebuildPlan } from '../rebuild-native-deps'
 
 describe('native source rebuild', () => {
-  it('rejects a fresh prebuild-only node-pty package and forces a source rebuild', async () => {
+  it('rebuilds every Node native package from source with its own build command', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-prebuild-only-'))
     try {
-      const nodePtyRoot = path.join(projectRoot, 'node_modules', 'node-pty')
-      const prebuildRoot = path.join(nodePtyRoot, 'prebuilds', 'darwin-arm64')
-      await fs.mkdir(prebuildRoot, { recursive: true })
-      await fs.writeFile(
-        path.join(nodePtyRoot, 'package.json'),
-        `${JSON.stringify({ name: 'node-pty', version: '1.1.0' })}\n`,
-      )
-      await fs.writeFile(path.join(prebuildRoot, 'pty.node'), 'upstream prebuild')
-      await fs.writeFile(path.join(prebuildRoot, 'spawn-helper'), 'upstream helper')
-
-      await expect(
-        collectNativeArtifactSignatures(
-          { projectRoot, storeDirectory: path.join(projectRoot, 'node_modules', '.bun') },
-          ['node-pty'],
-          { platform: 'darwin', arch: 'arm64', libc: 'glibc' },
-        ),
-      ).rejects.toThrow('Missing node-pty patched PTY addon')
-
-      await fs.writeFile(
-        path.join(nodePtyRoot, 'package.json'),
-        `${JSON.stringify({ name: 'node-pty', version: '1.1.0', scripts: { install: 'node scripts/prebuild.js || node-gyp rebuild' } })}\n`,
-      )
       const sqliteRoot = path.join(
         projectRoot,
         'node_modules',
@@ -58,11 +35,6 @@ describe('native source rebuild', () => {
       expect(
         invocations.map(({ packageName, cwd, commandLine }) => ({ packageName, cwd, commandLine })),
       ).toEqual([
-        {
-          packageName: 'node-pty',
-          cwd: await fs.realpath(nodePtyRoot),
-          commandLine: 'node scripts/prebuild.js || node-gyp rebuild',
-        },
         {
           packageName: 'better-sqlite3',
           cwd: await fs.realpath(sqliteRoot),
@@ -97,7 +69,7 @@ describe('native source rebuild', () => {
     )
   })
 
-  it('invalidates the native cache when the patched node-pty source changes', async () => {
+  it('invalidates the native cache when a patched native source changes', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-native-plan-'))
     try {
       const paths = {
@@ -110,7 +82,7 @@ describe('native source rebuild', () => {
       await fs.mkdir(paths.patchesDirectory, { recursive: true })
       await fs.writeFile(path.join(projectRoot, 'package.json'), '{}\n')
       await fs.writeFile(path.join(projectRoot, 'bun.lock'), '{ "lockfileVersion": 1 }\n')
-      const patchPath = path.join(paths.patchesDirectory, 'node-pty@1.1.0.patch')
+      const patchPath = path.join(paths.patchesDirectory, 'better-sqlite3@13.0.3.patch')
       await fs.writeFile(patchPath, 'first patch\n')
       const firstPlan = await createNativeRebuildPlan(paths, 'node')
 

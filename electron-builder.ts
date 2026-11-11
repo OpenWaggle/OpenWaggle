@@ -47,8 +47,7 @@ const config = {
   // and the Homebrew cask all reference "OpenWaggle"). Channels differ by display
   // name (productName → CFBundleName) and icon, not by executable name. (ADR 0032)
   executableName: CANONICAL_EXECUTABLE_NAME,
-  // Packaging rebuilds native dependencies once per target architecture. Always
-  // compile patched node-pty sources instead of accepting its upstream prebuilds.
+  // Packaging rebuilds native dependencies once per target architecture from source.
   buildDependenciesFromSource: true,
   directories: {
     buildResources: buildResourcesDir,

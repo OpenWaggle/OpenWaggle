@@ -47,7 +47,12 @@ describe('native rebuild artifacts', () => {
         'sharp-darwin-arm64',
       )
       const staleSharpRoot = path.join(storeDirectory, 'sharp@0.32.6', 'node_modules', 'sharp')
-      const nodePtyRoot = path.join(storeDirectory, 'node-pty@1.1.0', 'node_modules', 'node-pty')
+      const sqliteRoot = path.join(
+        storeDirectory,
+        'better-sqlite3@13.0.3',
+        'node_modules',
+        'better-sqlite3',
+      )
 
       await writeJson(path.join(activeSharpRoot, 'package.json'), {
         name: 'sharp',
@@ -65,10 +70,9 @@ describe('native rebuild artifacts', () => {
       )
       await writeJson(path.join(staleSharpRoot, 'package.json'), { name: 'sharp' })
       await writeArtifact(path.join(staleSharpRoot, 'build', 'Release', 'sharp-stale.node'))
-      await writeJson(path.join(nodePtyRoot, 'package.json'), { name: 'node-pty' })
-      await writeArtifact(path.join(nodePtyRoot, 'build', 'Release', 'pty.node'))
-      await writeArtifact(path.join(nodePtyRoot, 'build', 'Release', 'spawn-helper'), true)
-      await writeArtifact(path.join(nodePtyRoot, 'fixtures', 'unrelated.node'))
+      await writeJson(path.join(sqliteRoot, 'package.json'), { name: 'better-sqlite3' })
+      await writeArtifact(path.join(sqliteRoot, 'build', 'Release', 'better_sqlite3.node'))
+      await writeArtifact(path.join(sqliteRoot, 'fixtures', 'unrelated.node'))
 
       await symlinkDirectory(
         path.relative(path.join(storeDirectory, 'node_modules'), activeSharpRoot),
@@ -79,21 +83,20 @@ describe('native rebuild artifacts', () => {
         path.join(storeDirectory, 'node_modules', '@img', 'sharp-darwin-arm64'),
       )
       await symlinkDirectory(
-        path.relative(path.join(projectRoot, 'node_modules'), nodePtyRoot),
-        path.join(projectRoot, 'node_modules', 'node-pty'),
+        path.relative(path.join(projectRoot, 'node_modules'), sqliteRoot),
+        path.join(projectRoot, 'node_modules', 'better-sqlite3'),
       )
 
       const artifacts = await collectNativeArtifactSignatures(
         { projectRoot, storeDirectory },
-        ['sharp', 'node-pty'],
+        ['sharp', 'better-sqlite3'],
         { platform: 'darwin', arch: 'arm64', libc: 'glibc' },
       )
 
-      expect(artifacts).toHaveLength(3)
+      expect(artifacts).toHaveLength(2)
       expect(artifacts.map((artifact) => artifact.path)).toEqual(
         expect.arrayContaining([
-          expect.stringContaining('build/Release/pty.node'),
-          expect.stringContaining('build/Release/spawn-helper'),
+          expect.stringContaining('build/Release/better_sqlite3.node'),
           expect.stringContaining('@img+sharp-darwin-arm64@0.34.5'),
         ]),
       )
@@ -104,26 +107,30 @@ describe('native rebuild artifacts', () => {
     }
   })
 
-  it('rejects a random addon when an exact node-pty runtime helper is missing', async () => {
+  it('rejects a random addon when the SQLite addon is missing', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-native-exact-'))
     try {
       const storeDirectory = path.join(projectRoot, 'node_modules', '.bun')
-      const nodePtyRoot = path.join(storeDirectory, 'node-pty@1.1.0', 'node_modules', 'node-pty')
-      await writeJson(path.join(nodePtyRoot, 'package.json'), { name: 'node-pty' })
-      await writeArtifact(path.join(nodePtyRoot, 'build', 'Release', 'pty.node'))
-      await writeArtifact(path.join(nodePtyRoot, 'fixtures', 'spawn-helper.node'))
+      const sqliteRoot = path.join(
+        storeDirectory,
+        'better-sqlite3@13.0.3',
+        'node_modules',
+        'better-sqlite3',
+      )
+      await writeJson(path.join(sqliteRoot, 'package.json'), { name: 'better-sqlite3' })
+      await writeArtifact(path.join(sqliteRoot, 'fixtures', 'better_sqlite3.node'))
       await symlinkDirectory(
-        path.relative(path.join(projectRoot, 'node_modules'), nodePtyRoot),
-        path.join(projectRoot, 'node_modules', 'node-pty'),
+        path.relative(path.join(projectRoot, 'node_modules'), sqliteRoot),
+        path.join(projectRoot, 'node_modules', 'better-sqlite3'),
       )
 
       await expect(
-        collectNativeArtifactSignatures({ projectRoot, storeDirectory }, ['node-pty'], {
+        collectNativeArtifactSignatures({ projectRoot, storeDirectory }, ['better-sqlite3'], {
           platform: 'darwin',
           arch: 'arm64',
           libc: 'glibc',
         }),
-      ).rejects.toThrow('Missing node-pty macOS spawn helper')
+      ).rejects.toThrow('Missing better-sqlite3')
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }

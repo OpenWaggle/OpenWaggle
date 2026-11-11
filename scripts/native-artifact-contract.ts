@@ -26,7 +26,6 @@ export function currentNativeArtifactRuntime() {
 }
 
 export function nativeArtifactRequirements(packageName: string, runtime: NativeArtifactRuntime) {
-  if (packageName === 'node-pty') return nodePtyRequirements(runtime)
   if (packageName === 'better-sqlite3') return betterSqliteRequirements(runtime)
   if (packageName === 'sharp') return sharpRequirements(runtime)
   throw new Error(`No exact native artifact contract is defined for ${packageName}.`)
@@ -43,37 +42,9 @@ export function materializeNativeArtifactPath(
   return template.replaceAll(VERSION_TOKEN, packageVersion)
 }
 
-function nodePtyRequirements(runtime: NativeArtifactRuntime) {
-  const requirements: NativeArtifactRequirement[] = [
-    exactRequirement('patched PTY addon', 'node-pty', 'build/Release/pty.node'),
-  ]
-  if (runtime.platform === 'darwin') {
-    requirements.push(
-      exactRequirement('macOS spawn helper', 'node-pty', 'build/Release/spawn-helper', true),
-    )
-  }
-  if (runtime.platform === 'win32') {
-    requirements.push(
-      exactRequirement('ConPTY addon', 'node-pty', 'build/Release/conpty.node'),
-      exactRequirement(
-        'ConPTY process-list addon',
-        'node-pty',
-        'build/Release/conpty_console_list.node',
-      ),
-      exactRequirement('WinPTY agent', 'node-pty', 'build/Release/winpty-agent.exe'),
-      exactRequirement('WinPTY DLL', 'node-pty', 'build/Release/winpty.dll'),
-      exactRequirement('bundled ConPTY DLL', 'node-pty', 'build/Release/conpty/conpty.dll'),
-      exactRequirement(
-        'bundled OpenConsole helper',
-        'node-pty',
-        'build/Release/conpty/OpenConsole.exe',
-      ),
-    )
-  }
-  return requirements
-}
-
-function betterSqliteRequirements(runtime: NativeArtifactRuntime) {
+function betterSqliteRequirements(
+  runtime: NativeArtifactRuntime,
+): readonly NativeArtifactRequirement[] {
   const target = nativeTarget(runtime)
   const requirement: readonly NativeArtifactRequirement[] = [
     {
@@ -106,19 +77,6 @@ function sharpRequirements(runtime: NativeArtifactRuntime) {
     },
   ]
   return requirement
-}
-
-function exactRequirement(
-  label: string,
-  packageName: string,
-  relativePath: string,
-  executable = false,
-) {
-  return {
-    label,
-    candidates: [{ packageName, relativePath }],
-    executable,
-  } satisfies NativeArtifactRequirement
 }
 
 function nativeTarget(runtime: NativeArtifactRuntime) {

@@ -1,6 +1,6 @@
 import { Effect, Layer } from 'effect'
 import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron/browser-preview/electron-browser-preview-automation-service'
-import { NodePtyTerminalServiceLive } from './adapters/node-pty-terminal-service'
+import { PtyTerminalServiceLive } from './adapters/pty-terminal-service'
 import { makeOfflineDesktopCleanupExecutor } from './adapters/offline-desktop-cleanup'
 import { RemoteBrowserPreviewAutomationServiceLive } from './adapters/remote-browser-preview-automation-service'
 import { RemoteTerminalServiceLive } from './adapters/remote-terminal-service'
@@ -38,7 +38,7 @@ const DesktopNativeOrProxyLive = Layer.unwrapEffect(
   Effect.sync(() =>
     isAppDatabaseClientIsolated()
       ? Layer.mergeAll(
-          NodePtyTerminalServiceLive,
+          PtyTerminalServiceLive,
           ElectronBrowserPreviewAutomationServiceLive.pipe(Layer.provide(SettingsService.Live)),
         )
       : Layer.mergeAll(RemoteTerminalServiceLive, RemoteBrowserPreviewAutomationServiceLive).pipe(
