@@ -14,7 +14,7 @@ async function mapCanonicalDirectoryRoots(
   roots: readonly string[],
   operation: (root: string) => Promise<string>,
 ) {
-  const canonical = new Array<string>(roots.length)
+  const canonical = Array.from({ length: roots.length }, () => '')
   const entries = roots.entries()
   let failed = false
   let failure: unknown

@@ -18,9 +18,7 @@ function truncate(value: string) {
     : singleLine
 }
 
-function isJsonObject(
-  value: JsonValue | undefined,
-): value is { readonly [key: string]: JsonValue } {
+function isJsonObject(value: JsonValue | undefined): value is Readonly<Record<string, JsonValue>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

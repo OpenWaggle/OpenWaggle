@@ -251,14 +251,9 @@
     "src/main/store/session-details/session-deletion-fence.ts": 1,
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-continuation.component.test.tsx": 3
   },
-  "typescript/consistent-generic-constructors": {
-    "src/main/__tests__/openwaggle-mcp-server-conformance.test-support.ts": 1
-  },
   "typescript/consistent-indexed-object-style": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-test-harness.ts": 2,
     "src/main/application/agent-run/agent-loop-events.ts": 1,
-    "src/main/ipc/typed-ipc.ts": 1,
-    "src/main/run-cli-presenter.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 2,
     "src/renderer/src/features/chat/lib/agent-loop-transcript-event-fields.ts": 1,
     "src/renderer/src/features/chat/lib/tool-call-block.ts": 1,
@@ -270,11 +265,7 @@
     "src/main/application/__tests__/session-wait-service.test-support.ts": 1,
     "src/main/application/agent-run/agent-loop-events.ts": 1,
     "src/main/application/local-session-run-input-reach.ts": 1,
-    "src/main/domain/mcp/config/mcp-server-entry-validation.ts": 1,
-    "src/main/domain/usage-statistics/usage-statistics-observations.ts": 1,
-    "src/main/openwaggle-mcp-session-input-types-v2.ts": 1,
     "src/main/security/web-security-policy.ts": 1,
-    "src/main/store/settings/settings-patch-writes.ts": 1,
     "src/renderer/src/features/chat/components/AssistantMessageBubble.tsx": 1,
     "src/renderer/src/features/chat/components/__tests__/SessionsToolRows.component.test.tsx": 1,
     "src/renderer/src/features/chat/lib/agent-loop-transcript-event-fields.ts": 1,
@@ -518,7 +509,6 @@
   },
   "typescript/prefer-string-starts-ends-with": {
     "src/main/application/session-resource-markdown-extraction.ts": 1,
-    "src/main/update-cli-installers.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
   },
   "typescript/require-array-sort-compare": {
@@ -573,7 +563,6 @@
     "src/renderer/src/features/git/hooks/useSessionContextRow.ts": 2
   },
   "unicorn/no-new-array": {
-    "src/main/utils/canonical-directory-roots.ts": 1,
     "src/renderer/src/features/settings/lib/available-models-filter.ts": 1
   },
   "unicorn/no-useless-fallback-in-spread": {
@@ -582,12 +571,10 @@
     "src/main/application/skill-operations.ts": 1,
     "src/main/auth/index.ts": 1,
     "src/main/security/web-security-policy.ts": 1,
-    "src/main/store/settings.ts": 1,
     "src/renderer/src/features/settings/state/project-preference-writes.ts": 1,
     "src/renderer/src/shared/lib/markdown-safety.tsx": 2
   },
   "unicorn/prefer-string-starts-ends-with": {
-    "src/main/application/session-resource-markdown-extraction.ts": 1,
-    "src/main/update-cli-installers.ts": 1
+    "src/main/application/session-resource-markdown-extraction.ts": 1
   }
 }

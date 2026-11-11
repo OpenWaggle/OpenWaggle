@@ -14,7 +14,7 @@ import type {
 } from './openwaggle-mcp-session-input-schema-shared-v2'
 import type { OPENWAGGLE_MCP_SESSION_OPERATIONS_V2 } from './openwaggle-mcp-session-operations-v2'
 
-export type SessionToolInputV2 = {
+export interface SessionToolInputV2 {
   readonly operation: (typeof OPENWAGGLE_MCP_SESSION_OPERATIONS_V2)[number]
   readonly sessionId?: string
   readonly sessionIds?: readonly string[]

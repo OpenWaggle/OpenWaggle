@@ -135,7 +135,9 @@ export function buildUsageStatisticsDayReport(input: {
     })
   }
   for (const event of observations.events) {
-    events.push({ name: event.name, day, properties: event.properties })
+    // The copy is a plain object type, which a report's string-keyed properties accept; the
+    // event's interface has no index signature.
+    events.push({ name: event.name, day, properties: { ...event.properties } })
   }
   return { events, includesInstallNew, includesOnboarding, includesActive: observations.ranRun }
 }

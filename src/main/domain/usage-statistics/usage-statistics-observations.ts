@@ -29,7 +29,7 @@ export type UsageStatisticsCompactionMechanism =
   (typeof USAGE_STATISTICS_COMPACTION_MECHANISMS)[number]
 
 /** Properties of one `run.finished` event, exactly as the contract publishes them. */
-export type UsageStatisticsRunFinishedProperties = {
+export interface UsageStatisticsRunFinishedProperties {
   readonly entry_point: UsageStatisticsEntryPoint
   readonly provider: string
   readonly model: string

@@ -41,7 +41,7 @@ type EffectIpcHandler<C extends IpcInvokeChannel> = (
   ...args: IpcInvokeArgs<C>
 ) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, GuiServices>
 
-function isObjectWithUnknownValues(value: unknown): value is { readonly [key: string]: unknown } {
+function isObjectWithUnknownValues(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null
 }
 

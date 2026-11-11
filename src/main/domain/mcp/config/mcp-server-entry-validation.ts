@@ -22,7 +22,10 @@ import {
   resolveMcpExposureAlias,
 } from './mcp-server-config'
 
-type Failure = { readonly ok: false; readonly error: string }
+interface Failure {
+  readonly ok: false
+  readonly error: string
+}
 
 function failure(name: string, message: string): Failure {
   return { ok: false, error: `server "${name}": ${message}` }

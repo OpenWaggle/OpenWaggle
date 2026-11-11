@@ -66,7 +66,7 @@ async function download(url: string) {
 /** Downloads and verifies the NSIS installer; returns a launcher, so nothing stops until it is ready. */
 export async function prepareWindowsInstaller(tag: string) {
   const release = await releaseForTag(tag)
-  const installer = release.assets.find((asset) => /-x64\.exe$/u.test(asset.name))
+  const installer = release.assets.find((asset) => asset.name.endsWith('-x64.exe'))
   const checksums = release.assets.find((asset) => asset.name === 'SHA256SUMS.txt')
   if (!installer || !checksums) {
     throw new Error(`Release ${tag} is missing Windows verification assets.`)
