@@ -80,7 +80,7 @@ export function createAbortListener(session: AgentSession, warning: string) {
 }
 
 async function abortPiSession(session: AgentSession, warning: string) {
-  await session.abort().catch((error) => {
+  await session.abort().catch((error: unknown) => {
     logger.warn(warning, {
       error: describePiRunError(error),
     })

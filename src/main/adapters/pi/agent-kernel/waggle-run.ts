@@ -72,7 +72,7 @@ async function restoreInitialWaggleModel(input: {
   readonly session: AgentSession
   readonly model: PiModel
 }) {
-  await input.session.setModel(input.model).catch((error) => {
+  await input.session.setModel(input.model).catch((error: unknown) => {
     logger.warn('Failed to restore initial Pi Waggle model', {
       error: error instanceof Error ? error.message : String(error),
     })

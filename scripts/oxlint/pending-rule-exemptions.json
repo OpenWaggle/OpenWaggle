@@ -832,7 +832,6 @@
     "src/main/adapters/electron/browser-preview/browser-preview-favicon-capture.ts": 1,
     "src/main/adapters/extensions/discovery.ts": 1,
     "src/main/adapters/filesystem-workspace-file-service.ts": 1,
-    "src/main/adapters/pi/agent-kernel/run-lifecycle.ts": 1,
     "src/main/adapters/project-actions/managed-workspace-preparation.ts": 1,
     "src/main/extension-runtime-protocol.ts": 1,
     "src/main/run-cli.ts": 1,
@@ -866,10 +865,6 @@
   },
   "typescript/use-unknown-in-catch-callback-variable": {
     "src/main/adapters/filesystem-session-resource-store.ts": 1,
-    "src/main/adapters/pi/agent-kernel/pi-run-abort.ts": 1,
-    "src/main/adapters/pi/agent-kernel/waggle-run.ts": 1,
-    "src/main/adapters/pi/openwaggle-pi-runtime-failure-recording.ts": 1,
-    "src/main/adapters/pi/pi-provider-probe-adapter.ts": 1,
     "src/main/adapters/session-semantic-index-snapshot-cache.ts": 1,
     "src/main/adapters/settings-waggle-presets-repository.ts": 2,
     "src/main/application/session-host-condition-wait.ts": 1,

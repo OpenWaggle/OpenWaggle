@@ -297,7 +297,7 @@ export async function runSubscribedPiOperation(input: {
       aborted: operationAborted,
     })
   } catch (error) {
-    return buildFailedRunAfterSettlement({
+    return await buildFailedRunAfterSettlement({
       session: input.session,
       runInput: input.runInput,
       messageBoundary,
