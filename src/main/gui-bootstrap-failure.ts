@@ -3,7 +3,7 @@
  * finish installing, releases desktop services and exits, so a broken start never keeps running.
  */
 import { describeError } from './error-description'
-import { reportError, reportErrorBeforeExit } from './error-reporting'
+import { reportErrorBeforeExit, reportStartupFailure } from './error-reporting'
 import { createLogger } from './logger'
 import { waitForCliSetupBeforeExit } from './services/cli-shim-startup'
 
@@ -23,8 +23,8 @@ export interface BootstrapFailureInput {
 /** Quits the GUI after a failed start; never throws. */
 export async function exitAfterBootstrapFailure(input: BootstrapFailureInput) {
   logger.error('Bootstrap failed; quitting for safety', describeError(input.error))
-  // Sent while cleanup runs; bounded, and sends nothing unless Settings loaded first.
-  const reported = reportErrorBeforeExit(input.error, 'gui')
+  // Sent while cleanup runs; bounded. Without loaded Settings it follows the last saved Setting.
+  const reported = reportErrorBeforeExit(input.error, 'gui-bootstrap')
   // Do not terminate the process while CLI recovery is still being installed.
   if (!(await waitForCliSetupBeforeExit(input.cliSetup, CLI_FATAL_SETUP_WAIT_MS))) {
     logger.warn('CLI setup did not finish before fatal startup cleanup')
@@ -50,5 +50,5 @@ export function reportGuiStartupFailure(error: unknown) {
   logger.error('The Session Host did not start; showing the startup error screen', {
     ...describeError(error),
   })
-  reportError(error)
+  reportStartupFailure(error, 'gui-session-host-start').catch(() => undefined)
 }

@@ -26,6 +26,7 @@ import {
   type UsageStatisticsObservation,
 } from '../domain/usage-statistics/usage-statistics-observations'
 import { isUsageStatisticsVersionUpgrade } from '../domain/usage-statistics/usage-statistics-version'
+import { USAGE_STATISTICS_DIRECTORY_NAME } from './usage-statistics-directory'
 import {
   currentUsageStatisticsEnablement,
   isUsageStatisticsEnabled,
@@ -42,7 +43,8 @@ import {
   type UsageStatisticsGuiSpool,
 } from './usage-statistics-state-schema'
 
-export const USAGE_STATISTICS_DIRECTORY_NAME = 'usage-statistics'
+export { USAGE_STATISTICS_DIRECTORY_NAME }
+
 const HOST_STATE_FILE_NAME = 'host-state.json'
 export const USAGE_STATISTICS_GUI_SPOOL_FILE_NAME = 'gui-observations.json'
 

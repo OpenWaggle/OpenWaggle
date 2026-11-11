@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => {
     initializeRuntime: vi.fn(async () => undefined),
     initializeSettings: vi.fn(async () => void order.push('initialize-settings')),
     startErrorReporting: vi.fn(async (_process: string) => void order.push('start-reporting')),
-    reportError: vi.fn((_error: unknown) => void order.push('report-error')),
+    reportStartupFailure: vi.fn(async (_error: unknown, _context: string) => {
+      order.push('report-error')
+    }),
     flushErrorReporting: vi.fn(async () => void order.push('flush-reports')),
     installDesktopUiBlockers: vi.fn(),
     startHost: vi.fn(async () => ({
@@ -45,7 +47,7 @@ vi.mock('../desktop-ui', () => ({
 }))
 vi.mock('../error-reporting', () => ({
   startErrorReporting: mocks.startErrorReporting,
-  reportError: mocks.reportError,
+  reportStartupFailure: mocks.reportStartupFailure,
   flushErrorReporting: mocks.flushErrorReporting,
 }))
 vi.mock('../cli-output-flush', () => ({ flushCliOutput: vi.fn(async () => undefined) }))
@@ -122,7 +124,7 @@ describe('Session Host error reporting', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(0))
 
     expect(mocks.startErrorReporting).toHaveBeenCalledWith('session-host')
-    expect(mocks.reportError).not.toHaveBeenCalled()
+    expect(mocks.reportStartupFailure).not.toHaveBeenCalled()
     expect(mocks.order).toEqual(['initialize-settings', 'start-reporting', 'flush-reports', 'exit'])
   })
 
@@ -134,7 +136,7 @@ describe('Session Host error reporting', () => {
     await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledWith(1))
 
     expect(mocks.startErrorReporting).not.toHaveBeenCalled()
-    expect(mocks.reportError).toHaveBeenCalledWith(failure)
+    expect(mocks.reportStartupFailure).toHaveBeenCalledWith(failure, 'session-host')
     expect(mocks.order).toEqual(['report-error', 'flush-reports', 'exit'])
   })
 })
@@ -159,7 +161,7 @@ describe('Session Host launched while another Host owns the profile', () => {
     expect(mocks.exit).toHaveBeenCalledWith(0)
     expect(mocks.initializeRuntime).not.toHaveBeenCalled()
     expect(mocks.startHost).not.toHaveBeenCalled()
-    expect(mocks.reportError).not.toHaveBeenCalled()
+    expect(mocks.reportStartupFailure).not.toHaveBeenCalled()
     expect(mocks.logger.error).not.toHaveBeenCalled()
     expect(mocks.logger.info).toHaveBeenCalledWith(expect.stringContaining('Another Session Host'))
   })

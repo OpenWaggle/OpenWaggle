@@ -7,14 +7,14 @@ const mocks = vi.hoisted(() => {
     reportErrorBeforeExit: vi.fn(async (_error: unknown, _process: string) => {
       order.push('report-error')
     }),
-    reportError: vi.fn(),
+    reportStartupFailure: vi.fn(async (_error: unknown, _context: string) => undefined),
     logError: vi.fn(),
   }
 })
 
 vi.mock('../error-reporting', () => ({
   reportErrorBeforeExit: mocks.reportErrorBeforeExit,
-  reportError: mocks.reportError,
+  reportStartupFailure: mocks.reportStartupFailure,
 }))
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: mocks.logError }),
@@ -40,7 +40,7 @@ describe('GUI bootstrap failure', () => {
       exit,
     })
 
-    expect(mocks.reportErrorBeforeExit).toHaveBeenCalledWith(error, 'gui')
+    expect(mocks.reportErrorBeforeExit).toHaveBeenCalledWith(error, 'gui-bootstrap')
     expect(cleanupDesktopServices).toHaveBeenCalledOnce()
     expect(exit).toHaveBeenCalledWith(1)
     expect(mocks.order.at(-1)).toBe('exit')
@@ -60,7 +60,7 @@ describe('GUI bootstrap failure', () => {
       exit,
     })
 
-    expect(mocks.reportErrorBeforeExit).toHaveBeenCalledWith(error, 'gui')
+    expect(mocks.reportErrorBeforeExit).toHaveBeenCalledWith(error, 'gui-bootstrap')
     expect(exit).toHaveBeenCalledWith(1)
   })
 
@@ -88,7 +88,7 @@ describe('GUI bootstrap failure', () => {
 
     reportGuiStartupFailure(error)
 
-    expect(mocks.reportError).toHaveBeenCalledWith(error)
+    expect(mocks.reportStartupFailure).toHaveBeenCalledWith(error, 'gui-session-host-start')
     expect(mocks.logError).toHaveBeenCalledOnce()
     expect(mocks.reportErrorBeforeExit).not.toHaveBeenCalled()
   })

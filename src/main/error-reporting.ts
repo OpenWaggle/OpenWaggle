@@ -11,6 +11,10 @@
  * statistics are on, even when the user turns them on after the window opened. The switch is
  * decided from the fixed opt-outs alone, so the window can open before Settings load and before
  * the SDK starts (A-F2, A-F16); an SDK that fails later takes it back from later windows.
+ *
+ * A process whose Settings cannot load, because its Session Host did not start, still reports why:
+ * it follows the Setting the Session Host last saved, or the default on an install that never
+ * stored Settings ({@link startErrorReportingWithoutSettings}, issue #446).
  */
 import { homedir, tmpdir } from 'node:os'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
@@ -25,6 +29,7 @@ import { env } from './env'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
 import type { ErrorReporter, ErrorReportOrigin } from './ports/error-reporter'
+import { type StartupFailureContext, StartupFailureSummary } from './startup-failure-summary'
 
 const logger = createLogger('error-reporting')
 
@@ -34,6 +39,9 @@ const importSentryMainErrorReporter = () =>
 /** Loaded on start, after Settings: it reads the settings store, which startup loads late. */
 const importUsageStatisticsEnablement = () =>
   import('./usage-statistics/usage-statistics-enablement')
+/** Loaded only by a process whose Settings could not load. */
+const importLastKnownSetting = () =>
+  import('./usage-statistics/usage-statistics-last-known-setting')
 
 type UsageStatisticsEnablementModule = Awaited<ReturnType<typeof importUsageStatisticsEnablement>>
 
@@ -116,7 +124,22 @@ function startSdkWhenEnabled(
   })
 }
 
+/**
+ * The Session Host saves the Setting each time it loads or changes, for a later GUI or Host that
+ * fails before it can load Settings ({@link startErrorReportingWithoutSettings}).
+ */
+async function recordLastKnownSetting() {
+  try {
+    const lastKnown = await importLastKnownSetting()
+    lastKnown.recordLastKnownUsageStatisticsSetting(app.getPath('userData'))
+  } catch (error) {
+    logger.warn('The Usage statistics Setting will not be saved', describeError(error))
+  }
+}
+
 async function beginErrorReporting(processKind: ErrorReportingProcess) {
+  // Not awaited: saving the Setting never delays or stops reporting.
+  if (processKind === 'session-host') void recordLastKnownSetting().catch(() => undefined)
   try {
     const enablement = await importUsageStatisticsEnablement()
     const current = enablement.currentUsageStatisticsEnablement()
@@ -134,6 +157,38 @@ async function beginErrorReporting(processKind: ErrorReportingProcess) {
  */
 export function startErrorReporting(processKind: ErrorReportingProcess): Promise<void> {
   startup ??= beginErrorReporting(processKind)
+  return startup
+}
+
+/**
+ * Starts error reporting in a process whose Settings could not load, such as a GUI whose Session
+ * Host did not start (issue #446). It acts on the Setting the Session Host last saved, or the
+ * default on an install that never stored Settings, until Settings load; with neither, or with
+ * that Setting off, it reports nothing, as before. Once reporting started, this is
+ * {@link startErrorReporting}. Never rejects.
+ */
+export function startErrorReportingWithoutSettings(
+  processKind: ErrorReportingProcess,
+): Promise<void> {
+  if (startup) return startup
+  if (fixedOptOutApplies()) return startErrorReporting(processKind)
+  startup = (async () => {
+    try {
+      const [enablement, lastKnown] = await Promise.all([
+        importUsageStatisticsEnablement(),
+        importLastKnownSetting(),
+      ])
+      const current = enablement.currentUsageStatisticsEnablement()
+      if (!current.enabled && current.reason === 'settings-unavailable') {
+        enablement.assumeUsageStatisticsSettingUntilSettingsLoad(
+          lastKnown.usageStatisticsSettingWithoutSettings(app.getPath('userData')),
+        )
+      }
+    } catch (error) {
+      logger.warn('The last known Usage statistics Setting could not be read', describeError(error))
+    }
+    await beginErrorReporting(processKind)
+  })()
   return startup
 }
 
@@ -177,17 +232,32 @@ export async function flushErrorReporting(timeoutMs = ERROR_REPORT_FLUSH_TIMEOUT
 }
 
 /**
- * Reports a fatal error and waits up to `timeoutMs` for it to be sent, before the process exits.
- * Reporting starts here when Settings loaded before the failure but reporting had not started
- * yet; when Settings never loaded, nothing is sent.
+ * Reports why the Session Host did not start or stopped, as a content-free summary that keeps its
+ * message (startup-failure-summary.ts). Reporting starts here when it has not, from the Setting
+ * the Session Host last saved when Settings never loaded ({@link startErrorReportingWithoutSettings}).
+ */
+export function reportStartupFailure(
+  error: unknown,
+  context: StartupFailureContext,
+): Promise<void> {
+  const started = startErrorReportingWithoutSettings(
+    context === 'session-host' ? 'session-host' : 'gui',
+  )
+  reportError(new StartupFailureSummary(context, error), 'application')
+  return started
+}
+
+/**
+ * Reports a fatal startup error and waits up to `timeoutMs` for it to be sent, before the process
+ * exits. Reporting starts here when it has not, from the Setting the Session Host last saved when
+ * Settings never loaded.
  */
 export async function reportErrorBeforeExit(
   error: unknown,
-  processKind: ErrorReportingProcess,
+  context: StartupFailureContext,
   timeoutMs = ERROR_REPORT_FLUSH_TIMEOUT_MS,
 ) {
   const deadline = Date.now() + timeoutMs
-  await settledWithin(startErrorReporting(processKind), timeoutMs)
-  reportError(error)
+  await settledWithin(reportStartupFailure(error, context), timeoutMs)
   await flushErrorReporting(Math.max(0, deadline - Date.now()))
 }

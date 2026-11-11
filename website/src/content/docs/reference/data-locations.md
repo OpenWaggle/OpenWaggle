@@ -41,7 +41,7 @@ Set `OPENWAGGLE_USER_DATA_DIR` to use another folder. The desktop app, the Sessi
 | `worktree-removal/` | A record of the last 20 automatic worktree removals |
 | `models/` | The speech model for voice input, downloaded on first use |
 | `syntax-resources/` | Syntax themes and grammars you imported in **Settings > Appearance** |
-| `usage-statistics/` | Usage statistics recorded today and not yet sent. See [When statistics are sent](/docs/configuration/usage-statistics#when-statistics-are-sent) |
+| `usage-statistics/` | Usage statistics recorded today and not yet sent. See [When statistics are sent](/docs/configuration/usage-statistics#when-statistics-are-sent). Also `last-known-setting.json`, the **Share anonymous usage statistics and error reports** value the Session Host last loaded. See [Error reports](/docs/configuration/usage-statistics#error-reports) |
 | `session-data/` | The window's browser profile: local storage, cookies and cache |
 | `shell-environment.json` | The environment read from your login shell at the last launch, so the next launch starts faster |
 
