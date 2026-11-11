@@ -4,7 +4,7 @@ import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browse
 import {
   type BrowserPreviewAutomationAccessGuard,
   browserPreviewAutomationPromiseEffect,
-} from './electron-browser-preview-automation-effects'
+} from '../../browser-preview/automation/browser-preview-automation-effects'
 import { requireBrowserPreviewAutomationRecord } from './electron-browser-preview-automation-records'
 
 type BrowserPreviewAutomationRecordingOperations = Pick<

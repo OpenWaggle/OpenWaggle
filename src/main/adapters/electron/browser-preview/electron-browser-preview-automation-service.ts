@@ -4,7 +4,7 @@ import {
   type BrowserPreviewAutomationServiceShape,
 } from '../../../ports/browser-preview-automation-service'
 import { SettingsService, type SettingsServiceShape } from '../../../services/settings-service'
-import { createBrowserPreviewAutomationAccessGuard } from './electron-browser-preview-automation-effects'
+import { createBrowserPreviewAutomationAccessGuard } from '../../browser-preview/automation/browser-preview-automation-effects'
 import { makeBrowserPreviewAutomationLifecycleOperations } from './electron-browser-preview-automation-lifecycle'
 import { makeBrowserPreviewAutomationPageOperations } from './electron-browser-preview-automation-page-operations'
 import { makeBrowserPreviewAutomationRecordingOperations } from './electron-browser-preview-automation-recording'

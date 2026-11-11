@@ -1,6 +1,15 @@
 import { uncheckedFields } from '@shared/utils/object-shape'
-import type { Input, MouseInputEvent, MouseWheelInputEvent } from 'electron'
+import type {
+  BrowserPreviewAutomationKeyInput,
+  BrowserPreviewAutomationMouseInput,
+} from './browser-preview-automation-contents'
 import type { CdpCommandParams, CdpInputEventParams } from './browser-preview-cdp-input-params'
+
+/** A wheel event's scroll deltas, which only wheel events carry. */
+interface WheelDeltas {
+  readonly deltaX?: number
+  readonly deltaY?: number
+}
 
 const EXPECTED_INPUT_TTL_MS = 1_000
 const MAX_EXPECTED_INPUTS = 32
@@ -63,7 +72,9 @@ function stringValue(value: unknown) {
   return typeof value === 'string' ? value : undefined
 }
 
-function modifierMask(input: Input | MouseInputEvent) {
+function modifierMask(
+  input: BrowserPreviewAutomationKeyInput | BrowserPreviewAutomationMouseInput,
+) {
   if ('shift' in input) {
     return (
       (input.alt ? ALT_MODIFIER_MASK : 0) |
@@ -122,7 +133,7 @@ function expectedSignal(id: number, method: string, params: CdpCommandParams, no
   return signal
 }
 
-function matchesKeyboard(expected: ExpectedInputSignal, input: Input) {
+function matchesKeyboard(expected: ExpectedInputSignal, input: BrowserPreviewAutomationKeyInput) {
   const phase = keyPhase(input.type)
   return (
     expected.kind === 'keyboard' &&
@@ -134,7 +145,7 @@ function matchesKeyboard(expected: ExpectedInputSignal, input: Input) {
   )
 }
 
-function matchesMouse(expected: ExpectedInputSignal, input: MouseInputEvent) {
+function matchesMouse(expected: ExpectedInputSignal, input: BrowserPreviewAutomationMouseInput) {
   if (
     expected.kind !== 'mouse' ||
     input.type !== expected.phase ||
@@ -147,13 +158,13 @@ function matchesMouse(expected: ExpectedInputSignal, input: MouseInputEvent) {
   if (expected.button !== undefined && input.button !== expected.button) return false
   if (
     expected.deltaX !== undefined &&
-    uncheckedFields<MouseWheelInputEvent>(input).deltaX !== expected.deltaX
+    uncheckedFields<WheelDeltas>(input).deltaX !== expected.deltaX
   ) {
     return false
   }
   if (
     expected.deltaY !== undefined &&
-    uncheckedFields<MouseWheelInputEvent>(input).deltaY !== expected.deltaY
+    uncheckedFields<WheelDeltas>(input).deltaY !== expected.deltaY
   ) {
     return false
   }
@@ -181,11 +192,11 @@ export class BrowserPreviewAutomationInputArbitrator {
     if (index >= 0) this.expected.splice(index, 1)
   }
 
-  consumeKeyboard(input: Input, now = Date.now()) {
+  consumeKeyboard(input: BrowserPreviewAutomationKeyInput, now = Date.now()) {
     return this.consume((signal) => matchesKeyboard(signal, input), now)
   }
 
-  consumeMouse(input: MouseInputEvent, now = Date.now()) {
+  consumeMouse(input: BrowserPreviewAutomationMouseInput, now = Date.now()) {
     return this.consume((signal) => matchesMouse(signal, input), now)
   }
 

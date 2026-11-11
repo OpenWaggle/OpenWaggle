@@ -2,17 +2,16 @@ import { uncheckedFields } from '@shared/utils/object-shape'
 import { EventEmitter } from 'node:events'
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Debugger, WebContents } from 'electron'
+import type {
+  BrowserPreviewAutomationContents,
+  BrowserPreviewAutomationDebugger,
+} from '../browser-preview-automation-contents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CdpCommandParams, CdpInputEventParams } from '../browser-preview-cdp-input-params'
 
-const electronMocks = vi.hoisted(() => ({
-  getFocusedWebContents: vi.fn(),
-}))
-
-vi.mock('electron', () => ({
-  webContents: { getFocusedWebContents: electronMocks.getFocusedWebContents },
-}))
+/** The page that had keyboard focus before an action, as the shell reports it. */
+const focusedContents =
+  vi.fn<() => Pick<BrowserPreviewAutomationContents, 'id' | 'focus' | 'isDestroyed'> | null>()
 
 const { BrowserPreviewAutomationController } = await import('../browser-preview-automation-control')
 const {
@@ -38,7 +37,7 @@ function createPage(commandHandler: CommandHandler) {
   const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams) =>
     commandHandler(method, params),
   )
-  const browserDebugger = fromPartial<Debugger>({
+  const browserDebugger = fromPartial<BrowserPreviewAutomationDebugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
     removeListener: debuggerEvents.removeListener.bind(debuggerEvents),
     attach: vi.fn(() => {
@@ -50,7 +49,7 @@ function createPage(commandHandler: CommandHandler) {
     isAttached: () => attached,
     sendCommand,
   })
-  const contents = fromPartial<WebContents>({
+  const contents = fromPartial<BrowserPreviewAutomationContents>({
     id: 1,
     debugger: browserDebugger,
     focus,
@@ -65,7 +64,7 @@ function createPage(commandHandler: CommandHandler) {
   return {
     contentsEvents,
     focus,
-    page: { tabId: 'tab-1', contents },
+    page: { tabId: 'tab-1', contents, focusedContents },
     sendCommand,
   }
 }
@@ -75,7 +74,7 @@ function evaluated(value: unknown) {
 }
 
 beforeEach(() => {
-  electronMocks.getFocusedWebContents.mockReset()
+  focusedContents.mockReset()
 })
 
 describe('browser preview automation page actions', () => {
@@ -249,8 +248,12 @@ describe('browser preview automation page actions', () => {
 
   it('releases a failed key press, restores focus emulation, and returns prior focus', async () => {
     const previousFocus = vi.fn()
-    electronMocks.getFocusedWebContents.mockReturnValue(
-      fromPartial<WebContents>({ id: 2, focus: previousFocus, isDestroyed: () => false }),
+    focusedContents.mockReturnValue(
+      fromPartial<BrowserPreviewAutomationContents>({
+        id: 2,
+        focus: previousFocus,
+        isDestroyed: () => false,
+      }),
     )
     const { focus, page, sendCommand } = createPage((method, params) => {
       if (

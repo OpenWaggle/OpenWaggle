@@ -1,7 +1,12 @@
 import type { BrowserPreviewControllerState } from '@shared/types/browser-preview'
 import type { BrowserPreviewAutomationActionEvent } from '@shared/types/browser-preview-automation'
 import { uncheckedFields } from '@shared/utils/object-shape'
-import type { Debugger, Event, Input, MouseInputEvent, WebContents } from 'electron'
+import type {
+  BrowserPreviewAutomationContents,
+  BrowserPreviewAutomationDebugger,
+  BrowserPreviewAutomationKeyInput,
+  BrowserPreviewAutomationMouseInput,
+} from './browser-preview-automation-contents'
 import {
   type BrowserPreviewAutomationDiagnosticsState,
   clearBrowserPreviewPendingDiagnostics,
@@ -13,9 +18,9 @@ import type { CdpCommandParams, CdpInputEventParams } from './browser-preview-cd
 
 export interface BrowserPreviewAutomationControlSession {
   readonly tabId: string
-  readonly contents: WebContents
+  readonly contents: BrowserPreviewAutomationContents
   /** Strongly retained for the full attached lifetime; Electron can crash if this wrapper is GC'd. */
-  readonly debugger: Debugger
+  readonly debugger: BrowserPreviewAutomationDebugger
   readonly diagnostics: BrowserPreviewAutomationDiagnosticsState
   readonly timeline: BrowserPreviewAutomationActionEvent[]
   readonly removeListeners: (() => void)[]
@@ -39,13 +44,13 @@ function monitor(
     session.inputArbitrator.clear()
     clearBrowserPreviewPendingDiagnostics(session.diagnostics)
   }
-  const onInput = (_event: Event, input: Input) => {
+  const onInput = (_event: unknown, input: BrowserPreviewAutomationKeyInput) => {
     if (!session.inputArbitrator.consumeKeyboard(input)) interruptForHumanControl(session)
   }
-  const onMouse = (_event: Event, input: MouseInputEvent) => {
+  const onMouse = (_event: unknown, input: BrowserPreviewAutomationMouseInput) => {
     if (!session.inputArbitrator.consumeMouse(input)) interruptForHumanControl(session)
   }
-  const onMessage = (_event: Event, method: string, params: unknown) => {
+  const onMessage = (_event: unknown, method: string, params: unknown) => {
     if (method === 'Runtime.executionContextsCleared') advanceDocumentGeneration()
     recordBrowserPreviewCdpMessage(session.diagnostics, method, params)
   }
@@ -56,7 +61,12 @@ function monitor(
     session.inputArbitrator.clear()
     clearBrowserPreviewPendingDiagnostics(session.diagnostics)
   }
-  const onNavigation = (_event: Event, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
+  const onNavigation = (
+    _event: unknown,
+    _url: string,
+    isInPlace: boolean,
+    isMainFrame: boolean,
+  ) => {
     if (isMainFrame && !isInPlace) advanceDocumentGeneration()
   }
   const destroyed = () => onDestroyed(session.tabId)
@@ -79,7 +89,7 @@ function monitor(
 export function createBrowserPreviewAutomationControlSession(
   page: {
     readonly tabId: string
-    readonly contents: WebContents
+    readonly contents: BrowserPreviewAutomationContents
     readonly onControllerChange?: (state: BrowserPreviewControllerState) => void
   },
   onDestroyed: (tabId: string) => void,

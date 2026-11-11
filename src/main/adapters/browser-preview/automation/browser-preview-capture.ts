@@ -1,5 +1,16 @@
-import type { NativeImage, Rectangle, WebContents } from 'electron'
-import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import {
+  assertBrowserPreviewContentsAvailable,
+  type BrowserPreviewAutomationClip,
+  type BrowserPreviewAutomationContents,
+  type BrowserPreviewAutomationImage,
+} from './browser-preview-automation-contents'
+
+/** A page that captures frames of type `Image` (Electron's `NativeImage`, a CEF screenshot). */
+interface CaptureContents<
+  Image extends BrowserPreviewAutomationImage = BrowserPreviewAutomationImage,
+> extends Pick<BrowserPreviewAutomationContents, 'invalidate' | 'isDestroyed'> {
+  capturePage(clip?: BrowserPreviewAutomationClip): Promise<Image>
+}
 
 const CAPTURE_ATTEMPTS = 3
 const CAPTURE_ATTEMPT_TIMEOUT_MS = 1_000
@@ -14,12 +25,12 @@ interface CaptureLane {
 }
 
 export interface BrowserPreviewCaptureOptions {
-  readonly clip?: Rectangle
+  readonly clip?: BrowserPreviewAutomationClip
   readonly signal?: AbortSignal
   readonly assertCurrent?: () => void
 }
 
-const captureLanes = new WeakMap<WebContents, CaptureLane>()
+const captureLanes = new WeakMap<CaptureContents, CaptureLane>()
 
 export class BrowserPreviewCaptureTimeoutError extends Error {
   constructor() {
@@ -37,7 +48,7 @@ function cancellationError(signal?: AbortSignal) {
 }
 
 function requireCurrent(
-  contents: WebContents,
+  contents: CaptureContents,
   request: CaptureRequest,
   assertCurrent?: () => void,
 ) {
@@ -47,7 +58,7 @@ function requireCurrent(
   assertCurrent?.()
 }
 
-function captureLane(contents: WebContents) {
+function captureLane(contents: CaptureContents) {
   const existing = captureLanes.get(contents)
   if (existing) return existing
   const lane: CaptureLane = { tail: Promise.resolve() }
@@ -55,8 +66,8 @@ function captureLane(contents: WebContents) {
   return lane
 }
 
-function enqueueNativeCapture(
-  contents: WebContents,
+function enqueueNativeCapture<Image extends BrowserPreviewAutomationImage>(
+  contents: CaptureContents<Image>,
   request: CaptureRequest,
   options: BrowserPreviewCaptureOptions,
 ) {
@@ -72,9 +83,9 @@ function enqueueNativeCapture(
   return completion
 }
 
-function boundedAttempt(completion: Promise<NativeImage>, signal?: AbortSignal) {
+function boundedAttempt<Image>(completion: Promise<Image>, signal?: AbortSignal): Promise<Image> {
   if (signal?.aborted) return Promise.reject(cancellationError(signal))
-  return new Promise<NativeImage>((resolve, reject) => {
+  return new Promise<Image>((resolve, reject) => {
     let settled = false
     const timeout = setTimeout(() => {
       finish(() => reject(new BrowserPreviewCaptureTimeoutError()))
@@ -114,7 +125,7 @@ function retryDelay(signal?: AbortSignal) {
   })
 }
 
-function requestRepaint(contents: WebContents) {
+function requestRepaint(contents: CaptureContents) {
   if (contents.isDestroyed()) return
   try {
     contents.invalidate()
@@ -128,12 +139,12 @@ function requestRepaint(contents: WebContents) {
  * A timed-out native promise remains serialized until Electron settles it, while every caller and
  * automation queue still receives a bounded failure.
  */
-export async function captureBrowserPreviewPage(
-  contents: WebContents,
+export async function captureBrowserPreviewPage<Image extends BrowserPreviewAutomationImage>(
+  contents: CaptureContents<Image>,
   options: BrowserPreviewCaptureOptions = {},
-) {
+): Promise<Image> {
   const request: CaptureRequest = { active: true }
-  let completion: Promise<NativeImage> | undefined
+  let completion: Promise<Image> | undefined
   try {
     for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt += 1) {
       requireCurrent(contents, request, options.assertCurrent)

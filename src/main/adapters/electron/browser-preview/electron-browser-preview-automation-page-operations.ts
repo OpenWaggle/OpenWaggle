@@ -1,4 +1,4 @@
-import { browserPreviewAutomationController } from './browser-preview-automation-control'
+import { browserPreviewAutomationController } from '../../browser-preview/automation/browser-preview-automation-control'
 import { browserPreviewAutomationPage } from './browser-preview-automation-page'
 import {
   clickBrowserPreviewPage,
@@ -7,13 +7,13 @@ import {
   scrollBrowserPreviewPage,
   typeIntoBrowserPreviewPage,
   waitForBrowserPreviewPage,
-} from './browser-preview-automation-page-actions'
-import { captureBrowserPreviewAutomationSnapshot } from './browser-preview-automation-snapshot'
+} from '../../browser-preview/automation/browser-preview-automation-page-actions'
+import { captureBrowserPreviewAutomationSnapshot } from '../../browser-preview/automation/browser-preview-automation-snapshot'
 import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browser-preview-automation-service'
 import {
   type BrowserPreviewAutomationAccessGuard,
   browserPreviewAutomationPromiseEffect,
-} from './electron-browser-preview-automation-effects'
+} from '../../browser-preview/automation/browser-preview-automation-effects'
 import { requireBrowserPreviewAutomationRecord } from './electron-browser-preview-automation-records'
 
 type BrowserPreviewAutomationPageOperations = Pick<

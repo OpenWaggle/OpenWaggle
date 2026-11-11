@@ -7,7 +7,7 @@ import {
   resolveBrowserPreviewAutomationViewport,
   validateBrowserPreviewAutomationOpen,
   validateBrowserPreviewAutomationTimeout,
-} from './browser-preview-automation-validation'
+} from '../../browser-preview/automation/browser-preview-automation-validation'
 import { browserPreviewOwnerRegistry } from './browser-preview-owner-registry'
 import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browser-preview-automation-service'
 import type { SettingsServiceShape } from '../../../services/settings-service'
@@ -16,7 +16,7 @@ import {
   browserPreviewAutomationDefaults,
   browserPreviewAutomationPromiseEffect,
   browserPreviewAutomationSyncEffect,
-} from './electron-browser-preview-automation-effects'
+} from '../../browser-preview/automation/browser-preview-automation-effects'
 import {
   browserPreviewAutomationOwnerKey,
   browserPreviewAutomationStatusFor,

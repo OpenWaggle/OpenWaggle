@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   browserPreviewAutomationDefaults,
   createBrowserPreviewAutomationAccessGuard,
-} from '../../adapters/electron/browser-preview/electron-browser-preview-automation-effects'
+} from '../../adapters/browser-preview/automation/browser-preview-automation-effects'
 
 const {
   invokeHostMock,

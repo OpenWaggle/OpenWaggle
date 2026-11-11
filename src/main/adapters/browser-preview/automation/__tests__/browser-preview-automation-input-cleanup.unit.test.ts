@@ -1,6 +1,9 @@
 import { EventEmitter } from 'node:events'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Debugger, WebContents } from 'electron'
+import type {
+  BrowserPreviewAutomationContents,
+  BrowserPreviewAutomationDebugger,
+} from '../browser-preview-automation-contents'
 import { describe, expect, it, vi } from 'vitest'
 import { BrowserPreviewAutomationController } from '../browser-preview-automation-control'
 
@@ -9,7 +12,7 @@ function createPage() {
   const debuggerEvents = new EventEmitter()
   let attached = false
   const sendCommand = vi.fn<() => Promise<unknown>>(async () => ({}))
-  const browserDebugger = fromPartial<Debugger>({
+  const browserDebugger = fromPartial<BrowserPreviewAutomationDebugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
     removeListener: debuggerEvents.removeListener.bind(debuggerEvents),
     attach: vi.fn(() => {
@@ -21,7 +24,7 @@ function createPage() {
     isAttached: () => attached,
     sendCommand,
   })
-  const contents = fromPartial<WebContents>({
+  const contents = fromPartial<BrowserPreviewAutomationContents>({
     id: 1,
     debugger: browserDebugger,
     getBackgroundThrottling: () => true,

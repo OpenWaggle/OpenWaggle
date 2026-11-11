@@ -1,5 +1,5 @@
 import type { BrowserPreviewAutomationControlSession } from './browser-preview-automation-session'
-import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-automation-contents'
 
 const CDP_VERSION = '1.3'
 

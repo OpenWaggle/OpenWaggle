@@ -1,10 +1,13 @@
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Input, MouseInputEvent } from 'electron'
+import type {
+  BrowserPreviewAutomationKeyInput,
+  BrowserPreviewAutomationMouseInput,
+} from '../browser-preview-automation-contents'
 import { describe, expect, it } from 'vitest'
 import { BrowserPreviewAutomationInputArbitrator } from '../browser-preview-automation-input-arbitration'
 
-function keyInput(overrides: Partial<Input> = {}) {
-  return fromPartial<Input>({
+function keyInput(overrides: Partial<BrowserPreviewAutomationKeyInput> = {}) {
+  return fromPartial<BrowserPreviewAutomationKeyInput>({
     type: 'keyDown',
     key: 'Enter',
     code: 'Enter',
@@ -17,8 +20,8 @@ function keyInput(overrides: Partial<Input> = {}) {
   })
 }
 
-function mouseInput(overrides: Partial<MouseInputEvent> = {}) {
-  return fromPartial<MouseInputEvent>({
+function mouseInput(overrides: Partial<BrowserPreviewAutomationMouseInput> = {}) {
+  return fromPartial<BrowserPreviewAutomationMouseInput>({
     type: 'mouseDown',
     button: 'left',
     x: 12,

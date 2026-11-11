@@ -1,11 +1,11 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { NativeImage, WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import { BrowserPreviewAutomationController } from '../browser-preview-automation-control'
-import { captureBrowserPreviewPage } from '../browser-preview-capture'
+import { BrowserPreviewAutomationController } from '../../../browser-preview/automation/browser-preview-automation-control'
+import { captureBrowserPreviewPage } from '../../../browser-preview/automation/browser-preview-capture'
 import { BrowserPreviewElementPicker } from '../browser-preview-element-picker'
 import { quarantineBrowserPreviewContents } from '../browser-preview-quarantine'
-import { createBrowserPreviewAutomationPageFixture as createPage } from './browser-preview-automation-control-test-harness'
+import { createBrowserPreviewAutomationPageFixture as createPage } from '../../../browser-preview/automation/__tests__/browser-preview-automation-control-test-harness'
 
 describe('quarantined cached native capabilities', () => {
   it('rejects queued automation and stale result publication after owner retirement', async () => {

@@ -1,6 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Debugger, NativeImage, WebContents } from 'electron'
+import type {
+  BrowserPreviewAutomationContents,
+  BrowserPreviewAutomationDebugger,
+  BrowserPreviewAutomationImage,
+} from '../browser-preview-automation-contents'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserPreviewAutomationController } from '../browser-preview-automation-control'
 import { captureBrowserPreviewAutomationSnapshot } from '../browser-preview-automation-snapshot'
@@ -9,12 +13,12 @@ interface ImageFixtureOptions {
   readonly width: number
   readonly height: number
   readonly data: Buffer
-  readonly resized?: NativeImage
+  readonly resized?: BrowserPreviewAutomationImage
   readonly empty?: boolean
 }
 
 function imageFixture(options: ImageFixtureOptions) {
-  return fromPartial<NativeImage>({
+  return fromPartial<BrowserPreviewAutomationImage>({
     getSize: () => ({ width: options.width, height: options.height }),
     isEmpty: () => options.empty === true,
     resize: vi.fn(() => options.resized ?? imageFixture(options)),
@@ -43,7 +47,7 @@ function pageData() {
   }
 }
 
-function createPage(sourceImage: NativeImage, accessibility: unknown) {
+function createPage(sourceImage: BrowserPreviewAutomationImage, accessibility: unknown) {
   const contentsEvents = new EventEmitter()
   const debuggerEvents = new EventEmitter()
   let attached = false
@@ -52,7 +56,7 @@ function createPage(sourceImage: NativeImage, accessibility: unknown) {
     if (method === 'Accessibility.getFullAXTree') return accessibility
     return {}
   })
-  const browserDebugger = fromPartial<Debugger>({
+  const browserDebugger = fromPartial<BrowserPreviewAutomationDebugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
     removeListener: debuggerEvents.removeListener.bind(debuggerEvents),
     attach: vi.fn(() => {
@@ -64,7 +68,7 @@ function createPage(sourceImage: NativeImage, accessibility: unknown) {
     isAttached: () => attached,
     sendCommand,
   })
-  const contents = fromPartial<WebContents>({
+  const contents = fromPartial<BrowserPreviewAutomationContents>({
     id: 1,
     capturePage: vi.fn(async () => sourceImage),
     debugger: browserDebugger,
@@ -217,7 +221,7 @@ describe('browser preview automation snapshot', () => {
     const controller = new BrowserPreviewAutomationController()
     const cancellation = new AbortController()
     vi.mocked(page.contents.capturePage).mockImplementation(
-      () => new Promise<NativeImage>(() => undefined),
+      () => new Promise<BrowserPreviewAutomationImage>(() => undefined),
     )
     const pending = captureBrowserPreviewAutomationSnapshot(controller, page, cancellation.signal)
     await vi.waitFor(() => expect(page.contents.capturePage).toHaveBeenCalledOnce())
@@ -292,7 +296,7 @@ describe('browser preview automation snapshot', () => {
     const { page } = createPage(source, { nodes: [] })
     const controller = new BrowserPreviewAutomationController()
     vi.mocked(page.contents.capturePage).mockImplementation(
-      () => new Promise<NativeImage>(() => undefined),
+      () => new Promise<BrowserPreviewAutomationImage>(() => undefined),
     )
     const pending = captureBrowserPreviewAutomationSnapshot(controller, page)
     const result = expect(pending).resolves.toMatchObject({

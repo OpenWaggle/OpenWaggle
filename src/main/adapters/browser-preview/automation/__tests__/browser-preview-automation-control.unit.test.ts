@@ -1,11 +1,6 @@
 import type { BrowserPreviewControllerState } from '@shared/types/browser-preview'
-import { fromPartial } from '@total-typescript/shoehorn'
-import type { WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserPreviewAutomationController } from '../browser-preview-automation-control'
-import { browserPreviewAutomationPage } from '../browser-preview-automation-page'
-import { BrowserPreviewControlOperations } from '../browser-preview-control-operations'
-import type { BrowserPreviewRecord } from '../browser-preview-records'
 import { createBrowserPreviewAutomationPageFixture as createPage } from './browser-preview-automation-control-test-harness'
 
 describe('browser preview automation controller', () => {
@@ -35,31 +30,6 @@ describe('browser preview automation controller', () => {
     releaseFirst?.()
     await Promise.all([first, second])
     expect(order).toEqual(['first-start', 'first-end', 'second'])
-  })
-
-  it('shares one serialized CDP session with user appearance controls and releases it once', async () => {
-    const { page, sendCommand } = createPage()
-    const record = fromPartial<BrowserPreviewRecord>({
-      previewId: 'preview-1',
-      owner: { sender: fromPartial<WebContents>({ id: 42 }) },
-      view: { webContents: page.contents },
-    })
-    const canonicalPage = browserPreviewAutomationPage(record)
-    const controls = new BrowserPreviewControlOperations(controller)
-
-    await Promise.all([
-      controls.setAppearance(canonicalPage.tabId, canonicalPage.contents, 'dark'),
-      controller.run(canonicalPage, 'page-action', (context) => context.send('Page.getFrameTree')),
-    ])
-
-    expect(canonicalPage.tabId).toBe('42:preview-1')
-    expect(page.contents.debugger.attach).toHaveBeenCalledOnce()
-    expect(sendCommand.mock.calls.map(([method]) => method)).toEqual(
-      expect.arrayContaining(['Emulation.setEmulatedMedia', 'Page.getFrameTree']),
-    )
-
-    controls.dispose(canonicalPage.tabId)
-    expect(page.contents.debugger.detach).toHaveBeenCalledOnce()
   })
 
   it('evaluates through a lazily initialized CDP session', async () => {

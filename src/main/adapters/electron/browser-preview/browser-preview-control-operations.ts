@@ -1,10 +1,8 @@
 import type { BrowserPreviewAppearance } from '@shared/types/browser-preview-controls'
 import type { WebContents } from 'electron'
-import {
-  type BrowserPreviewAutomationPage,
-  browserPreviewAutomationController,
-} from './browser-preview-automation-control'
-import type { CdpCommandParams } from './browser-preview-cdp-input-params'
+import type { BrowserPreviewAutomationPage } from '../../browser-preview/automation/browser-preview-automation-contents'
+import { browserPreviewAutomationController } from '../../browser-preview/automation/browser-preview-automation-control'
+import type { CdpCommandParams } from '../../browser-preview/automation/browser-preview-cdp-input-params'
 
 type ControlledWebContents = WebContents
 

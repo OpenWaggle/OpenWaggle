@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { BrowserPreviewControllerState } from '@shared/types/browser-preview'
 import type {
   BrowserPreviewAutomationActionEvent,
   BrowserPreviewAutomationConsoleEntry,
   BrowserPreviewAutomationEvaluateInput,
   BrowserPreviewAutomationNetworkEntry,
 } from '@shared/types/browser-preview-automation'
-import type { WebContents } from 'electron'
 import {
   appendBrowserPreviewAutomationAction,
   browserPreviewAutomationActionError,
@@ -31,14 +29,11 @@ import {
   updateBrowserPreviewAutomationPointer,
 } from './browser-preview-automation-session'
 import { playwrightInjectedRuntimeInstallExpression } from './browser-preview-playwright-runtime'
-import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import {
+  assertBrowserPreviewContentsAvailable,
+  type BrowserPreviewAutomationPage,
+} from './browser-preview-automation-contents'
 import type { CdpCommandParams } from './browser-preview-cdp-input-params'
-
-export interface BrowserPreviewAutomationPage {
-  readonly tabId: string
-  readonly contents: WebContents
-  readonly onControllerChange?: (state: BrowserPreviewControllerState) => void
-}
 
 export interface BrowserPreviewAutomationActionContext {
   readonly signal: AbortSignal

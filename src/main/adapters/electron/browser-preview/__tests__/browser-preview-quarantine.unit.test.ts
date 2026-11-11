@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { BrowserPreviewAutomationController } from '../browser-preview-automation-control'
+import { BrowserPreviewAutomationController } from '../../../browser-preview/automation/browser-preview-automation-control'
 import { browserPreviewAutomationPage } from '../browser-preview-automation-page'
 import {
   BrowserPreviewManager,

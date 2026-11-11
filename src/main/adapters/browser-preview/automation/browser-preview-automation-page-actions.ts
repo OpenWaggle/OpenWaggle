@@ -9,13 +9,12 @@ import type {
   BrowserPreviewAutomationWaitInput,
 } from '@shared/types/browser-preview-automation'
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
-import { webContents } from 'electron'
 import {
   type BrowserPreviewAutomationActionContext,
   type BrowserPreviewAutomationController,
   BrowserPreviewAutomationDocumentChangedError,
-  type BrowserPreviewAutomationPage,
 } from './browser-preview-automation-control'
+import type { BrowserPreviewAutomationPage } from './browser-preview-automation-contents'
 import {
   browserPreviewAutomationDelay,
   throwIfBrowserPreviewAutomationAborted,
@@ -232,7 +231,7 @@ export function pressBrowserPreviewKey(
       const sequence = makeBrowserPreviewAutomationKeySequence(input, {
         isMac: process.platform === 'darwin',
       })
-      const previous = webContents.getFocusedWebContents()
+      const previous = page.focusedContents?.() ?? null
       let keyDownAttempted = false
       try {
         page.contents.focus()

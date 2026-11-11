@@ -1,7 +1,10 @@
 import { uncheckedFields } from '@shared/utils/object-shape'
 import { EventEmitter } from 'node:events'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Debugger, WebContents } from 'electron'
+import type {
+  BrowserPreviewAutomationContents,
+  BrowserPreviewAutomationDebugger,
+} from '../browser-preview-automation-contents'
 import { vi } from 'vitest'
 import type { CdpCommandParams } from '../browser-preview-cdp-input-params'
 
@@ -22,7 +25,7 @@ export function createBrowserPreviewAutomationPageFixture(
     }
     return { result: { value: null } }
   })
-  const browserDebugger = fromPartial<Debugger>({
+  const browserDebugger = fromPartial<BrowserPreviewAutomationDebugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
     removeListener: debuggerEvents.removeListener.bind(debuggerEvents),
     attach: vi.fn(() => {
@@ -34,7 +37,7 @@ export function createBrowserPreviewAutomationPageFixture(
     isAttached: () => attached,
     sendCommand,
   })
-  const contents = fromPartial<WebContents>({
+  const contents = fromPartial<BrowserPreviewAutomationContents>({
     id: 1,
     debugger: browserDebugger,
     isDevToolsOpened: () => devToolsOpen,

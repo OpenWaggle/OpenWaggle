@@ -1,5 +1,8 @@
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { NativeImage, WebContents } from 'electron'
+import type {
+  BrowserPreviewAutomationContents,
+  BrowserPreviewAutomationImage,
+} from '../browser-preview-automation-contents'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BrowserPreviewCaptureTimeoutError,
@@ -7,11 +10,11 @@ import {
 } from '../browser-preview-capture'
 
 function capturedImage() {
-  return fromPartial<NativeImage>({ isEmpty: () => false })
+  return fromPartial<BrowserPreviewAutomationImage>({ isEmpty: () => false })
 }
 
-function captureTarget(capturePage: WebContents['capturePage']) {
-  return fromPartial<WebContents>({
+function captureTarget(capturePage: BrowserPreviewAutomationContents['capturePage']) {
+  return fromPartial<BrowserPreviewAutomationContents>({
     capturePage,
     invalidate: vi.fn(),
     isDestroyed: () => false,
@@ -27,7 +30,7 @@ describe('captureBrowserPreviewPage', () => {
     vi.useFakeTimers()
     const image = capturedImage()
     const capturePage = vi
-      .fn<WebContents['capturePage']>()
+      .fn<BrowserPreviewAutomationContents['capturePage']>()
       .mockRejectedValueOnce(new Error('UnknownVizError'))
       .mockRejectedValueOnce(new Error('UnknownVizError'))
       .mockResolvedValue(image)
@@ -44,10 +47,10 @@ describe('captureBrowserPreviewPage', () => {
     vi.useFakeTimers()
     let activeCaptures = 0
     let maximumActiveCaptures = 0
-    const capturePage = vi.fn<WebContents['capturePage']>(() => {
+    const capturePage = vi.fn<BrowserPreviewAutomationContents['capturePage']>(() => {
       activeCaptures += 1
       maximumActiveCaptures = Math.max(maximumActiveCaptures, activeCaptures)
-      return new Promise<NativeImage>(() => undefined)
+      return new Promise<BrowserPreviewAutomationImage>(() => undefined)
     })
     const contents = captureTarget(capturePage)
 
@@ -67,10 +70,10 @@ describe('captureBrowserPreviewPage', () => {
   it('accepts a stalled native capture that settles during a later bounded attempt', async () => {
     vi.useFakeTimers()
     const image = capturedImage()
-    let settleCapture: ((image: NativeImage) => void) | undefined
-    const capturePage = vi.fn<WebContents['capturePage']>(
+    let settleCapture: ((image: BrowserPreviewAutomationImage) => void) | undefined
+    const capturePage = vi.fn<BrowserPreviewAutomationContents['capturePage']>(
       () =>
-        new Promise<NativeImage>((resolve) => {
+        new Promise<BrowserPreviewAutomationImage>((resolve) => {
           settleCapture = resolve
         }),
     )
@@ -87,9 +90,9 @@ describe('captureBrowserPreviewPage', () => {
 
   it('does not invoke a queued native capture after its current-page guard is revoked', async () => {
     vi.useFakeTimers()
-    const firstCapture = new Promise<NativeImage>(() => undefined)
+    const firstCapture = new Promise<BrowserPreviewAutomationImage>(() => undefined)
     const capturePage = vi
-      .fn<WebContents['capturePage']>()
+      .fn<BrowserPreviewAutomationContents['capturePage']>()
       .mockImplementationOnce(() => firstCapture)
       .mockResolvedValue(capturedImage())
     const contents = captureTarget(capturePage)
@@ -113,7 +116,9 @@ describe('captureBrowserPreviewPage', () => {
   })
 
   it('aborts its bounded wait without leaving a queued native call behind', async () => {
-    const capturePage = vi.fn<WebContents['capturePage']>(() => new Promise(() => undefined))
+    const capturePage = vi.fn<BrowserPreviewAutomationContents['capturePage']>(
+      () => new Promise(() => undefined),
+    )
     const contents = captureTarget(capturePage)
     const abortController = new AbortController()
     const pending = captureBrowserPreviewPage(contents, { signal: abortController.signal })

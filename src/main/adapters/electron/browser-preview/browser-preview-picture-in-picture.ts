@@ -5,7 +5,7 @@ import type {
   WebContents,
 } from 'electron'
 import { createBrowserWindow, revealBrowserWindowInactive } from '../electron-window-policy'
-import { captureBrowserPreviewPage } from './browser-preview-capture'
+import { captureBrowserPreviewPage } from '../../browser-preview/automation/browser-preview-capture'
 import {
   boundedPictureInPictureOperation,
   buildBrowserPreviewPictureInPictureUrl,

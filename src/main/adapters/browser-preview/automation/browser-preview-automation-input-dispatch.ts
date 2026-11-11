@@ -4,7 +4,7 @@ import {
 } from './browser-preview-automation-deadline'
 import { ensureBrowserPreviewAutomationDebugger } from './browser-preview-automation-debugger'
 import type { BrowserPreviewAutomationControlSession } from './browser-preview-automation-session'
-import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-automation-contents'
 import type { CdpCommandParams } from './browser-preview-cdp-input-params'
 
 const INPUT_CLEANUP_TIMEOUT_MS = 2_000

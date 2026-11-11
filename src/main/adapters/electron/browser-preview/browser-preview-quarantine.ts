@@ -1,9 +1,12 @@
 import type { Event, WebContents } from 'electron'
+import {
+  assertBrowserPreviewContentsAvailable as assertAvailable,
+  type BrowserPreviewAutomationContents,
+  retireBrowserPreviewContents,
+} from '../../browser-preview/automation/browser-preview-automation-contents'
 import { monitorBrowserPreviewSecurityPrompts } from './browser-preview-security-prompts'
 
-const quarantinedContents = new WeakSet<WebContents>()
-
-export function installBrowserPreviewQuarantinePolicy(contents: WebContents) {
+export function installBrowserPreviewQuarantinePolicy(contents: WebContents): void {
   const removeSecurityPrompts = monitorBrowserPreviewSecurityPrompts(contents)
   const deny = (event: Event) => event.preventDefault()
   contents.on('will-navigate', deny)
@@ -29,13 +32,13 @@ export function installBrowserPreviewQuarantinePolicy(contents: WebContents) {
   })
 }
 
-export function quarantineBrowserPreviewContents(contents: WebContents) {
-  quarantinedContents.add(contents)
+export function quarantineBrowserPreviewContents(contents: BrowserPreviewAutomationContents): void {
+  retireBrowserPreviewContents(contents)
 }
 
 /** Cached automation pages must not regain access after their renderer owner retires. */
-export function assertBrowserPreviewContentsAvailable(contents: WebContents) {
-  if (quarantinedContents.has(contents)) {
-    throw new Error('Browser preview owner is retired; only native close cleanup is available.')
-  }
+export function assertBrowserPreviewContentsAvailable(
+  contents: BrowserPreviewAutomationContents,
+): void {
+  assertAvailable(contents)
 }

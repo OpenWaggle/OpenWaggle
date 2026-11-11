@@ -1,8 +1,10 @@
-import type { NativeImage } from 'electron'
+import { Buffer } from 'node:buffer'
+import type { BrowserPreviewAutomationSnapshot } from '@shared/types/browser-preview-automation'
 import type {
-  BrowserPreviewAutomationController,
+  BrowserPreviewAutomationImage,
   BrowserPreviewAutomationPage,
-} from './browser-preview-automation-control'
+} from './browser-preview-automation-contents'
+import type { BrowserPreviewAutomationController } from './browser-preview-automation-control'
 import { browserPreviewSnapshotExpression } from './browser-preview-automation-dom-expressions'
 import {
   boundedBrowserPreviewAccessibilityTree,
@@ -34,7 +36,7 @@ class BrowserPreviewEmptyCaptureError extends Error {
   }
 }
 
-function constrainImageDimensions(source: NativeImage) {
+function constrainImageDimensions(source: BrowserPreviewAutomationImage) {
   const size = source.getSize()
   if (
     !Number.isFinite(size.width) ||
@@ -56,7 +58,7 @@ function constrainImageDimensions(source: NativeImage) {
     : source
 }
 
-function encodeBoundedPng(source: NativeImage) {
+function encodeBoundedPng(source: BrowserPreviewAutomationImage) {
   const image = constrainImageDimensions(source)
   const data = image.toPNG()
   const base64Bytes = Math.ceil(data.byteLength / BASE64_INPUT_BYTES) * BASE64_OUTPUT_BYTES
@@ -78,14 +80,14 @@ function unpaintedPage(error: unknown) {
   throw error
 }
 
-function boundedScreenshot(source: NativeImage) {
+function boundedScreenshot(source: BrowserPreviewAutomationImage) {
   if (source.isEmpty()) return null
   try {
     const { image, data } = encodeBoundedPng(source)
     const imageSize = image.getSize()
     return {
       mimeType: 'image/png' as const,
-      data: data.toString('base64'),
+      data: Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64'),
       width: imageSize.width,
       height: imageSize.height,
     }
