@@ -114,11 +114,31 @@ Mechanical enforcement:
 ## Testing
 
 - Unit, integration, and component tests live in nearby `__tests__/` folders. [TEST-01]
-- Tests should verify behavior through public interfaces. Use typed builders, `satisfies`, and Shoehorn test helpers instead of casts. [TEST-02]
 - Mock setup must avoid hoisting races; dynamically import subject modules after `vi.mock(...)` setup when needed. [TEST-03]
 - A test that spawns many real child processes is an integration test, and a large module graph loads once in `beforeAll` (`.agents/verification.md`). [TEST-04]
 - After changing source, run the relevant tests in the same turn and leave them passing.
 - Never skip, focus or delete a test to get a change through. The `no-cheating` step fails a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, and a deleted test file that did not move and whose code still exists or cannot be told. [GATE-03]
+
+A meaningful test fails when the behaviour it names breaks, and only one test fails for that reason. The rules below decide whether a test is kept, merged or cut; the evidence behind them is the test-suite audit of 2026-11 (2,429 unit, 337 integration and 528 component files).
+
+- Test behaviour at a public seam: an exported function or class, an IPC handler, a hook, a rendered component, a persisted file or row. Assert what a caller can observe: return values, refusals, persisted or emitted data, rendered output. Do not assert the call order or count of mocks standing in for the subject's own collaborators, private helpers, internal fields, or log text that nothing reads. Mock only process boundaries (network, clock, Electron, child processes, OS calls a temporary directory cannot sandbox, other Sessions); use real in-process collaborators, in-memory ports and temporary directories for the rest. Use typed builders, `satisfies`, and Shoehorn test helpers instead of casts. [TEST-02]
+- Each test must cover a branch or kill a mutant that no other test covers or kills. Before adding a case, find the subject's existing tests (`rg` the export name in `__tests__/`); extend an `it.each` table rather than copying a case with new data; test a behaviour once, at the lowest tier that observes it, and let a higher tier add only the wiring it alone exercises. Do not test constants, getters, re-exports, default values, mocked return values passed through, or facts the type checker proves, and do not snapshot or dump large literal structures. A channel-list test is kept only for channels no other case invokes. A test for a fixed bug names the issue or fix commit it pins. [TEST-06]
+
+How to apply TEST-02 and TEST-06 in review:
+
+| Kind of test | Verdict |
+|---|---|
+| Behaviour at a public seam with real or faithful collaborators | keep |
+| Regression test for a real bug, naming the issue or fix | keep |
+| Contract test: IPC, schema, wire or persisted format, port conformance, a boundary refusal | keep, even when coverage shows no unique line (schemas are declarative, so coverage cannot see what a refusal test adds) |
+| Same behaviour as a sibling case with other data | merge into an `it.each` table |
+| Exact or near copy of a case in another file (often left by a file split) | delete the copy |
+| Asserts mock calls, private helpers, internal state or log text | rewrite against the outcome, or delete when another case already asserts the outcome |
+| Mocks the subject's own collaborators until the assertion is about the mock | rewrite with real collaborators, or delete |
+| Trivial: constants, getters, re-exports, types, mocked values passed through | delete |
+| Snapshot or literal dump where most fields are incidental | assert the fields that matter |
+
+Zero unique coverage alone is not a reason to delete: in the audit most such files asserted outcomes (file modes, race orderings, refusals) that no other test asserted. Delete when coverage shows no unique line or branch, the mutation sample shows no unique kill, and a reviewer can name the test that already asserts the same outcome.
 
 Mechanical enforcement:
 
