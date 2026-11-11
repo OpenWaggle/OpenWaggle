@@ -194,21 +194,23 @@ async function buildMarkdownBody(payload: FeedbackPayload) {
 export function registerFeedbackHandlers(): void {
   typedHandle('feedback:check-gh', () =>
     Effect.gen(function* () {
-      const ghAvailable = yield* Effect.tryPromise({
-        try: () => execFilePromise('which', ['gh']).then(() => true),
-        catch: () => false,
-      })
+      // A failed command answers false; it is not an IPC failure.
+      const ghAvailable = yield* Effect.promise(() =>
+        execFilePromise('which', ['gh']).then(
+          () => true,
+          () => false,
+        ),
+      )
       if (!ghAvailable) {
         return { available: false, authenticated: false }
       }
 
-      const authenticated = yield* Effect.tryPromise({
-        try: () =>
-          execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
-            () => true,
-          ),
-        catch: () => false,
-      })
+      const authenticated = yield* Effect.promise(() =>
+        execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
+          () => true,
+          () => false,
+        ),
+      )
       return { available: true, authenticated }
     }),
   )
