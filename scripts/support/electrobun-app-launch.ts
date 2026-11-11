@@ -20,15 +20,15 @@
  * macOS), not under HOME. A launch while the same build already runs hands its window to that
  * process and exits, so `waitForRendererTarget` reports it instead of waiting.
  */
-import { type ChildProcessByStdio, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
-import type { Readable } from 'node:stream'
 import { type Browser, chromium, type Page } from '@playwright/test'
 import { electrobunLauncher } from '../electrobun-payload'
 import { discoverElectrobunApps } from '../native-platform-floor-targets'
 import { buildSafeAppEnvironment } from '../safe-app-environment'
+import { forwardLines, type PipedChildProcess } from './child-output-lines'
 
 type LaunchPlatform = 'darwin' | 'linux' | 'win32'
 
@@ -134,26 +134,13 @@ export function freePort() {
   })
 }
 
-type AppProcess = ChildProcessByStdio<null, Readable, Readable>
+type AppProcess = PipedChildProcess
 
 export interface LaunchedElectrobunApp {
   readonly child: AppProcess
   readonly spawnedAt: number
   readonly cdpPort: number
   readonly logLines: string[]
-}
-
-function forwardLines(stream: Readable, onLine: (line: string) => void) {
-  let buffered = ''
-  stream.on('data', (chunk: Buffer) => {
-    buffered += chunk.toString('utf8')
-    let newline = buffered.indexOf('\n')
-    while (newline >= 0) {
-      onLine(buffered.slice(0, newline))
-      buffered = buffered.slice(newline + 1)
-      newline = buffered.indexOf('\n')
-    }
-  })
 }
 
 export interface ElectrobunLaunchInput extends ScratchProfileInput {

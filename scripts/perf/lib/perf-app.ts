@@ -1,9 +1,9 @@
-import { type ChildProcessByStdio, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
-import type { Readable } from 'node:stream'
 import { interruptCleanup } from './interrupt-cleanup'
+import { forwardLines, type PipedChildProcess } from '../../support/child-output-lines'
 
 /**
  * An OpenWaggle build to launch: a packaged `.app`, or a checkout where `bun run package:app` left
@@ -71,7 +71,7 @@ export function resolvePerfApp(
   )
 }
 
-export type AppProcess = ChildProcessByStdio<null, Readable, Readable>
+export type AppProcess = PipedChildProcess
 
 export interface StartupMark {
   readonly label: string
@@ -85,19 +85,6 @@ export interface LaunchedApp {
   readonly spawnedAt: number
   readonly marks: StartupMark[]
   readonly logLines: string[]
-}
-
-function forwardLines(stream: Readable, onLine: (line: string) => void) {
-  let buffered = ''
-  stream.on('data', (chunk: Buffer) => {
-    buffered += chunk.toString('utf8')
-    let newline = buffered.indexOf('\n')
-    while (newline >= 0) {
-      onLine(buffered.slice(0, newline))
-      buffered = buffered.slice(newline + 1)
-      newline = buffered.indexOf('\n')
-    }
-  })
 }
 
 /**
