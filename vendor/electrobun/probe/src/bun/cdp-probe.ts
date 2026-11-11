@@ -1,5 +1,5 @@
 /**
- * Probe main process. It opens a system-webview shell window and a CEF browser-preview view in the
+ * The CDP mode of the probe. It opens a system-webview shell window and a CEF browser-preview view in the
  * same window, then drives the preview over the Chrome DevTools Protocol the way OpenWaggle's
  * preview automation does: discover the target, navigate, screenshot, click and type. Results go to
  * `$PROBE_OUT_DIR/probe.jsonl` and `$PROBE_OUT_DIR/result.json`, and the app quits with a non-zero
@@ -12,7 +12,8 @@
  * - PROBE_PREVIEW_SANDBOX: `0` to create the preview without the sandbox flag.
  * - PROBE_PREVIEW_DELAY_MS: wait this long after the shell renders before opening the preview, so
  *   the harness can sample the idle shell's memory first (default 500).
- * - ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT / PROBE_CDP_PORT: DevTools port, default 9339.
+ * - ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT: DevTools port, set by the launcher on every launch.
+ * - PROBE_CDP_PORT: DevTools port when the build fixes one, default 9339.
  */
 import { BrowserView, BrowserWindow, BuildConfig, Utils } from 'electrobun/main'
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'

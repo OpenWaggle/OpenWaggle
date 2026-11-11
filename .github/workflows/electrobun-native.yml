@@ -10,7 +10,10 @@
 #   for the macOS 13.4 VM run;
 # - the probe (vendor/electrobun/probe) launches, renders its system-webview shell and drives a CEF
 #   browser preview over CDP (navigate, screenshot, click, type) on macOS arm64 and x64, Windows x64,
-#   and Linux x64, the Linux build also on Ubuntu 22.04 itself.
+#   and Linux x64, the Linux build also on Ubuntu 22.04 itself;
+# - in its adapter mode, the probe runs OpenWaggle's Electrobun Browser preview adapter on the
+#   per-launch DevTools port (patch 0007) and, over two launches, proves a persist:* profile keeps
+#   its cookies.
 #
 # The release workflow calls it (workflow_call) and packages against the uploaded devkits, so a floor
 # regression fails here first.
@@ -187,6 +190,10 @@ jobs:
         if: matrix.platform == 'linux'
         run: bash vendor/electrobun/ci/linux-display.sh
 
+      # The probe's adapter mode bundles OpenWaggle's Browser preview adapter from src/main.
+      - name: Install the repository's dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
       - name: Package the probe (CEF${{ matrix.platform == 'linux' && ' for the whole app' || ' preview, system webview shell' }})
         working-directory: vendor/electrobun/probe
         env:
@@ -230,6 +237,14 @@ jobs:
         run: |
           bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-native --artifacts vendor/electrobun/probe/artifacts-native \
             --out "$RESULTS/native" --label "${{ matrix.label }}-native" --runs 3
+
+      # Two launches: the second proves the persist:* profile kept the first one's cookie.
+      - name: Run the Browser preview adapter in the probe
+        run: |
+          set -euo pipefail
+          bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-cef --out "$RESULTS/adapter" \
+            --label "${{ matrix.label }}-adapter" --runs 2 --env PROBE_MODE=adapter
+          bun scripts/electrobun-probe-persistence.ts "$RESULTS/adapter/summary.json"
 
       - name: Check the installed probe against the macOS 13.3 SDK
         if: matrix.platform == 'darwin'
@@ -304,6 +319,13 @@ jobs:
         run: |
           bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-native --artifacts vendor/electrobun/probe/artifacts-native \
             --out "$RESULTS/native" --label ubuntu-22.04-native --runs 3
+
+      - name: Run the Browser preview adapter on Ubuntu 22.04
+        run: |
+          set -euo pipefail
+          bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-cef --out "$RESULTS/adapter" \
+            --label ubuntu-22.04-adapter --runs 2 --env PROBE_MODE=adapter
+          bun scripts/electrobun-probe-persistence.ts "$RESULTS/adapter/summary.json"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ always() }}
