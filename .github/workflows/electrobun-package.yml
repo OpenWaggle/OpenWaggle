@@ -1,0 +1,222 @@
+# Packages OpenWaggle with Electrobun on every supported target and proves the package the way a user
+# meets it (ADR 0064, docs/release-and-versioning.md "Electrobun packaging"):
+#
+# - scripts/electrobun/package.ts builds against OpenWaggle's native devkit (electrobun-native.yml),
+#   signed with a throwaway self-signed identity generated in the job (never a release secret);
+# - the packaged app passes the supported-platform floor;
+# - the fresh-install artifact installs (macOS DMG, Windows NSIS installer, Linux AppImage) and
+#   launches, twice for a cold and a warm start, with its idle memory recorded;
+# - a second build one version later, served from a loopback feed, is found, downloaded and
+#   installed by OpenWaggle's Electrobun update engine in the installed app, which relaunches as
+#   the new version.
+#
+# Until the main build (scripts/build-main.ts) lands, the app runs the stand-in main
+# (scripts/electrobun/stand-in/boot.ts).
+name: Electrobun Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      devkit-run-id:
+        description: Run of electrobun-native.yml whose devkits to package against (empty builds them).
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      devkit-run-id:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: electrobun-package-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ELECTROBUN_TELEMETRY: "0"
+  HUTCH_VERSION: "0.29.0"
+  OPENWAGGLE_RELEASE_CHANNEL: beta
+  NEXT_VERSION: 1.0.0-beta.900
+  FEED_PORT: "8765"
+
+jobs:
+  native:
+    if: inputs.devkit-run-id == ''
+    uses: ./.github/workflows/electrobun-native.yml
+    with:
+      probes: false
+
+  package:
+    name: Package ${{ matrix.target }}
+    needs: native
+    if: ${{ !cancelled() && (needs.native.result == 'success' || needs.native.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15, platform: darwin, arch: arm64 }
+          - { target: darwin-x64, runner: macos-15-intel, platform: darwin, arch: x64 }
+          - { target: linux-x64, runner: ubuntu-24.04, platform: linux, arch: x64 }
+          - { target: win32-x64, runner: windows-2025, platform: win32, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVKIT: ${{ github.workspace }}/out/electrobun-native/${{ matrix.target }}/devkit
+      HUTCH_ELECTROBUN_DEVKIT_ROOT: ${{ github.workspace }}/out/electrobun-native/${{ matrix.target }}/devkit
+      OPENWAGGLE_HUTCH: hutch electrobun
+      RESULTS: ${{ github.workspace }}/out/electrobun-package-results/${{ matrix.target }}
+      DISPLAY: ":99"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-${{ matrix.target }}
+          path: out
+          run-id: ${{ inputs.devkit-run-id || github.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Unpack the native layer
+        run: |
+          mkdir -p out/electrobun-native "$RESULTS"
+          tar -xzf "out/electrobun-native-${{ matrix.target }}.tgz" -C out/electrobun-native
+
+      - uses: ./.github/actions/bun-install
+
+      - name: Prepare the Electrobun SDK
+        run: hutch electrobun prepare
+
+      - name: Linux display and webview runtime
+        if: matrix.platform == 'linux'
+        run: bash vendor/electrobun/ci/linux-display.sh
+
+      - name: Throwaway macOS signing identity
+        if: matrix.platform == 'darwin'
+        run: bash scripts/electrobun/ci/macos-throwaway-identity.sh
+
+      - name: Throwaway Windows signing certificate
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: ./scripts/electrobun/ci/windows-throwaway-identity.ps1
+
+      - name: Packaging tools
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/tools"; mkdir -p "$tools"
+          args=(--stand-in --allow-missing-resources --arch "${{ matrix.arch }}")
+          case "${{ matrix.platform }}" in
+            win32)
+              curl -fsSL --retry 3 -o "$tools/MicrosoftEdgeWebview2Setup.exe" "$(bun -e "import('./vendor/electrobun/sources.ts').then((m) => console.log(m.WEBVIEW2_BOOTSTRAPPER.url))")"
+              makensis="/c/Program Files (x86)/NSIS/makensis.exe"
+              [ -x "$makensis" ] || choco install nsis -y --no-progress
+              args+=(--webview2 "$tools/MicrosoftEdgeWebview2Setup.exe" --makensis "$makensis")
+              ;;
+            linux)
+              curl -fsSL --retry 3 -o "$tools/appimagetool" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+              chmod +x "$tools/appimagetool"
+              args+=(--appimagetool "$tools/appimagetool")
+              ;;
+          esac
+          printf '%s\n' "${args[@]}" > "$RUNNER_TEMP/package-args"
+
+      - name: Package the current version
+        run: |
+          set -euo pipefail
+          mapfile -t args < "$RUNNER_TEMP/package-args"
+          start=$(date +%s)
+          APPIMAGE_EXTRACT_AND_RUN=1 bun scripts/electrobun/package.ts "${args[@]}" | tee "$RESULTS/package-current.txt"
+          echo "{\"packageSeconds\": $(( $(date +%s) - start ))}" > "$RESULTS/package-current.json"
+          mkdir -p "$RUNNER_TEMP/feed"
+          cp -R out/electrobun/release "$RUNNER_TEMP/feed/current"
+          ls -la "$RUNNER_TEMP/feed/current" | tee "$RESULTS/release-current.txt"
+
+      - name: Check the package against the platform floor
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.platform }}" = darwin ]; then
+            app=$(find out/electrobun/inner -mindepth 2 -maxdepth 2 -name '*.app' | head -1)
+          else
+            app=$(find out/electrobun/build -mindepth 2 -maxdepth 2 -type d | head -1)
+          fi
+          bun scripts/check-native-platform-floor.ts --platform ${{ matrix.platform }} "$app" | tee "$RESULTS/floor.txt"
+
+      - name: Install and launch (cold, then warm)
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          bun scripts/electrobun/ci/smoke.ts install "$RUNNER_TEMP/feed/current" | tee "$RESULTS/install.json"
+          launcher=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).launcher" "$RESULTS/install.json")
+          echo "LAUNCHER=$launcher" >> "$GITHUB_ENV"
+          bun scripts/electrobun/ci/smoke.ts launch "$launcher" --expect "$version" --out "$RESULTS/launch-cold.json" --screenshot "$RESULTS/launch-cold.png"
+          bun scripts/electrobun/ci/smoke.ts launch "$launcher" --expect "$version" --out "$RESULTS/launch-warm.json"
+
+      - name: Package the next version against the current one
+        run: |
+          set -euo pipefail
+          nohup bun scripts/electrobun/ci/smoke.ts serve "$RUNNER_TEMP/feed" "$FEED_PORT" > "$RUNNER_TEMP/feed.log" 2>&1 &
+          sleep 2
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.NEXT_VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          mapfile -t args < "$RUNNER_TEMP/package-args"
+          if ! OPENWAGGLE_ELECTROBUN_PATCH_BASE_URL="http://127.0.0.1:$FEED_PORT/current" APPIMAGE_EXTRACT_AND_RUN=1 \
+            bun scripts/electrobun/package.ts "${args[@]}" 2>&1 | tee "$RESULTS/package-next.txt"; then
+            echo "::warning::Packaging with a delta patch against the current version failed; packaging without one."
+            APPIMAGE_EXTRACT_AND_RUN=1 bun scripts/electrobun/package.ts "${args[@]}" 2>&1 | tee -a "$RESULTS/package-next.txt"
+          fi
+          cp -R out/electrobun/release "$RUNNER_TEMP/feed/next"
+          ls -la "$RUNNER_TEMP/feed/next" | tee "$RESULTS/release-next.txt"
+          git checkout -- package.json
+
+      - name: Update the installed app through the update engine
+        run: |
+          bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$NEXT_VERSION" --feed "http://127.0.0.1:$FEED_PORT/next/" \
+            --out "$RESULTS/update.json" --timeout 420 --screenshot "$RESULTS/updated.png"
+
+      - name: Sizes
+        if: ${{ !cancelled() }}
+        run: |
+          set -uo pipefail
+          bun -e '
+            const fs = require("fs"); const path = require("path")
+            const dir = process.argv[1]; const out = {}
+            for (const name of fs.readdirSync(dir)) out[name] = fs.statSync(path.join(dir, name)).size
+            fs.writeFileSync(process.argv[2], JSON.stringify(out, null, 2))
+            console.log(out)' "$RUNNER_TEMP/feed/current" "$RESULTS/release-sizes.json" || true
+
+      - name: Collect logs
+        if: ${{ !cancelled() }}
+        run: |
+          for file in "$HOME/Library/Application Support/openwaggle"/electrobun-stand-in-report.json* \
+            "${APPDATA:-}/openwaggle"/electrobun-stand-in-report.json* \
+            "$HOME/.config/openwaggle"/electrobun-stand-in-report.json* \
+            "${LOCALAPPDATA:-}/openwaggle-updater/electrobun-transition.log" \
+            "$HOME/.local/share/openwaggle-transition.log" "$RUNNER_TEMP/feed.log"; do
+            [ -f "$file" ] && cp "$file" "$RESULTS/" || true
+          done
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: electrobun-package-${{ matrix.target }}
+          path: out/electrobun-package-results/${{ matrix.target }}
+          retention-days: 14
