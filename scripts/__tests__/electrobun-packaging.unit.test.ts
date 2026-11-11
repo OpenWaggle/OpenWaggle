@@ -108,11 +108,15 @@ describe('staged node_modules', () => {
 
   it('leaves out what the main bundle inlines and the Electron-only packages', () => {
     const roots = externalRoots({
-      dependencies: { 'better-sqlite3': '1', 'electron-updater': '1', 'node-pty': '1' },
+      dependencies: {
+        'better-sqlite3': '1',
+        zod: '1',
+        'electron-updater': '1',
+        'node-pty': '1',
+      },
     })
-    expect(roots).toContain('better-sqlite3')
-    expect(roots).not.toContain('electron-updater')
-    expect(roots).not.toContain('node-pty')
+    // The build's own externals (scripts/build-main.ts), without `ws`'s optional speedups.
+    expect(roots).toEqual(['better-sqlite3'])
   })
 })
 

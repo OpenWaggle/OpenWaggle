@@ -10,8 +10,9 @@
 #   installed by OpenWaggle's Electrobun update engine in the installed app, which relaunches as
 #   the new version.
 #
-# Until the main build (scripts/build-main.ts) lands, the app runs the stand-in main
-# (scripts/electrobun/stand-in/boot.ts).
+# The main bundle (scripts/build-main.ts) binds the Electron adapters until the desktop-shell switch,
+# so until then the app runs the stand-in main (scripts/electrobun/stand-in/boot.ts); drop
+# `--stand-in` below at the switch.
 name: Electrobun Package
 
 on:

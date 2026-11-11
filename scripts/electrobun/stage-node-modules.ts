@@ -1,7 +1,7 @@
 /**
  * The production `node_modules` the Electrobun app ships (scripts/electrobun/stage.ts). The main
- * build bundles every dependency it can (scripts/vite/main-externals.ts `BUNDLED_DEPS`), so the
- * app needs only the externals: native modules (better-sqlite3, sharp, onnxruntime-node through
+ * build bundles every dependency it can (scripts/build-main.ts `BUNDLED_DEPENDENCIES`), so the
+ * app needs only the externals that build leaves to `node_modules` (`mainExternalPackages`): native modules (better-sqlite3, sharp, onnxruntime-node through
  * transformers.js, the keyring), WASM readers and packages that locate files beside themselves, and
  * everything they depend on at run time.
  *
@@ -18,7 +18,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { BUNDLED_DEPS } from '../vite/main-externals'
+import { mainExternalPackages } from '../build-main'
 
 /** Dependencies only the Electron shell used (Electrobun updates itself; terminals use Bun.spawn). */
 export const ELECTRON_ONLY_DEPENDENCIES = ['electron-updater', 'node-pty'] as const
@@ -144,12 +144,16 @@ function runtimeDependencies(manifest: PackageJson) {
   ]
 }
 
-/** The externals the main bundle requires at run time, from the root package.json. */
+/**
+ * The externals the main bundle requires at run time: the build's own list, without the packages
+ * it only names as optional (`ws`'s speedups, never installed) and the Electron-only ones.
+ */
 export function externalRoots(rootManifest: PackageJson) {
-  return Object.keys(rootManifest.dependencies ?? {}).filter(
+  const dependencies = rootManifest.dependencies ?? {}
+  return [...mainExternalPackages(rootManifest)].filter(
     (name) =>
-      !ELECTRON_ONLY_DEPENDENCIES.some((electronOnly) => electronOnly === name) &&
-      !BUNDLED_DEPS.some((bundled) => name === bundled || name.startsWith(`${bundled}/`)),
+      name in dependencies &&
+      !ELECTRON_ONLY_DEPENDENCIES.some((electronOnly) => electronOnly === name),
   )
 }
 

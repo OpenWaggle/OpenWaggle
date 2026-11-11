@@ -1,6 +1,7 @@
 /**
- * Stand-in main process for packaging the Electrobun app before the real main build (`out/main`,
- * scripts/build-main.ts) exists (scripts/electrobun/stage.ts uses it only then). It opens one
+ * Stand-in main process for packaging the Electrobun app until the main bundle (`out/main`,
+ * scripts/build-main.ts) boots under Electrobun, which it does once the desktop shell binds the
+ * Electrobun adapters (`bun scripts/electrobun/package.ts --stand-in`). It opens one
  * window and writes a launch report, so CI can prove that a packaged, signed and installed app
  * starts, and measure when its window shows, on every OS:
  *
@@ -13,7 +14,7 @@
  * - OPENWAGGLE_STAND_IN_UPDATE_FEED=<release download URL> runs OpenWaggle's Electrobun
  *   UpdateEngine against that release: check, download, then install and relaunch.
  *
- * Never shipped by a release: release.yml fails when `out/main` is missing.
+ * Never shipped by a release: release.yml packages without `--stand-in`, which builds `out/main`.
  */
 import { appendFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import os from 'node:os'

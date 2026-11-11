@@ -2,8 +2,11 @@
  * Packages OpenWaggle with Electrobun for the platform it runs on (ADR 0064), replacing
  * `electron-builder` (docs/electrobun-transition.md, "How release.yml must change"):
  *
- * 1. stages the app (scripts/electrobun/stage.ts): main, renderer, the pruned production
- *    `node_modules`, the bundled resources;
+ * 1. prepares the Electrobun SDK devkit (`electrobun prepare`), builds the main process with
+ *    `bun build` (scripts/build-main.ts, into `out/main`; the renderer comes from `bun run build`),
+ *    then stages the app (scripts/electrobun/stage.ts): main, renderer, the pruned production
+ *    `node_modules` of the build's externals, the bundled resources. `--stand-in` stages the
+ *    packaging stand-in main instead of building it;
  * 2. runs Hutch (`electrobun build --env=stable`, electrobun.config.ts). Its hooks prepare and
  *    sign the unwrapped app (scripts/electrobun/hooks-steps.ts); on macOS the app is then re-sealed
  *    with Hutch's final `version.json`, notarized and repacked (macos-reseal.ts);
@@ -34,6 +37,7 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { resolveBuildIdentity } from '../build-identity'
+import { buildMain } from '../build-main'
 import {
   ELECTROBUN_ARTIFACT_DIR,
   ELECTROBUN_BUILD_DIR,
@@ -182,8 +186,20 @@ export function writeTransitionMetadata(root: string, release: string, platform:
   return files
 }
 
+/** The devkit the main build and the stand-in bundle the SDK from, then `out/main`. */
+async function buildMainProcess(options: PackageOptions) {
+  const [command = process.execPath, ...prefix] = hutchCommand(options.environment)
+  execFileSync(command, [...prefix, 'prepare'], {
+    cwd: options.root,
+    stdio: 'inherit',
+    env: options.environment,
+  })
+  if (!options.standIn) await buildMain()
+}
+
 export async function packageElectrobunApp(options: PackageOptions) {
   const version = packageVersion(options.root)
+  await buildMainProcess(options)
   await stageElectrobunApp({
     root: options.root,
     target: { platform: process.platform, arch: options.arch },

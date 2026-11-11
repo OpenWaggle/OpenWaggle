@@ -23,6 +23,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { isRecord } from '../../src/shared/utils/validation'
+import { ELECTROBUN_SDK_ENTRIES } from '../build-main'
 import { resolveBuildIdentity, resolveIconBasePath, resolveMacIconPath } from '../build-identity'
 import { ELECTROBUN_STAGE_DIR, PACKAGED_APP_LAYOUT } from './app-config'
 import { stageNodeModules, type StageTarget } from './stage-node-modules'
@@ -30,11 +31,6 @@ import { stageNodeModules, type StageTarget } from './stage-node-modules'
 const FIRST_CLI_ARGUMENT = 2
 const JSON_INDENT = 2
 const STAND_IN_ENTRY = 'scripts/electrobun/stand-in/boot.ts'
-/** The SDK entries the stand-in reaches, in the devkit `bunx electrobun prepare` writes. */
-const DEVKIT_SDK_ENTRIES = {
-  'electrobun/main': '.hutch/devkit/api/sdks/main/index.ts',
-  'electrobun/main/events': '.hutch/devkit/api/sdks/main/entries/events.ts',
-} as const
 const MAIN_BUILD = 'out/main'
 const RENDERER_BUILD = 'out/renderer'
 const PRELOAD_BUILD = 'out/preload'
@@ -77,7 +73,7 @@ function buildStandIn(root: string, destination: string) {
   fs.rmSync(destination, { recursive: true, force: true })
   fs.mkdirSync(destination, { recursive: true })
   const paths = Object.fromEntries(
-    Object.entries(DEVKIT_SDK_ENTRIES).map(([specifier, file]) => {
+    Object.entries(ELECTROBUN_SDK_ENTRIES).map(([specifier, file]) => {
       const absolute = path.join(root, file)
       if (!fs.existsSync(absolute)) {
         throw new Error(`${absolute} is missing; run bunx electrobun prepare.`)

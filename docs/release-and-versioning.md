@@ -282,8 +282,9 @@ differential. `builder-debug.yml` is a local build dump and is not published.
 ### Electrobun packaging
 
 The desktop app moves from Electron to Electrobun (ADR 0064, docs/electrobun-transition.md).
-`bun scripts/electrobun/package.ts` packages it for the host platform: it stages the main and
-renderer builds, a hoisted production `node_modules` and the bundled resources into
+`bun scripts/electrobun/package.ts` packages it for the host platform: it prepares the Electrobun
+SDK devkit, builds the main process with `bun build` (`scripts/build-main.ts`; the renderer still
+comes from `bun run build`), stages the main and renderer builds, a hoisted production `node_modules` and the bundled resources into
 `out/electrobun/stage` (`scripts/electrobun/stage.ts`), runs Hutch with `electrobun.config.ts`, and
 writes the release files to `out/electrobun/release`. Every channel builds with Electrobun's
 `stable` build environment and `com.openwaggle.app`, so one install root serves every channel.
