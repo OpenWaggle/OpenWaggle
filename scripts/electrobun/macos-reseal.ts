@@ -15,10 +15,10 @@
  * its own archive, which no install receives any more, so they are dropped on macOS: every macOS
  * update is a full download until patches are generated against the repacked archive.
  */
-import { execFile, spawn } from 'node:child_process'
+import { execFile, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
-import { pipeline } from 'node:stream/promises'
+import { finished, pipeline } from 'node:stream/promises'
 import path from 'node:path'
 import { Transform } from 'node:stream'
 import { promisify } from 'node:util'
@@ -33,6 +33,7 @@ const ARCHIVE = /^stable-macos-(arm64|x64)-.+\.tar\.zst$/u
 const PATCH = /^stable-macos-(arm64|x64)-.+\.patch$/u
 const MANIFEST_V2 = /^stable-macos-(arm64|x64)-update-v2\.json$/u
 const JSON_INDENT = 0
+const ZSTD_LEVEL = 19
 
 export interface ResealOptions {
   readonly app: string
@@ -62,6 +63,33 @@ async function readArchiveEntry(archive: string, entry: string) {
   return Buffer.concat(chunks)
 }
 
+/**
+ * zstd level 19, Hutch's level (its archive and this one differ by bytes, not megabytes): the
+ * `zstd` CLI on every core when the runner has it (about 25 s for the app), else in process on
+ * one core (about 150 s; Bun's zstd stream breaks with worker threads).
+ */
+function compressor(destination: string) {
+  const cli = spawnSync('zstd', ['--version'], { stdio: 'ignore' })
+  if (cli.status !== 0) {
+    const level = { [zlib.constants.ZSTD_c_compressionLevel]: ZSTD_LEVEL }
+    const stream = zlib.createZstdCompress({ params: level })
+    const file = fs.createWriteStream(destination)
+    stream.pipe(file)
+    return { input: stream, done: finished(file) }
+  }
+  const zstd = spawn('zstd', ['-q', '-T0', `-${ZSTD_LEVEL}`, '-f', '-o', destination], {
+    stdio: ['pipe', 'inherit', 'inherit'],
+  })
+  const done = new Promise<void>((resolve, reject) => {
+    zstd.on('error', reject)
+    zstd.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`zstd exited with ${String(code)}.`))
+    })
+  })
+  return { input: zstd.stdin, done }
+}
+
 /** Packs `app` as Hutch does and returns the uncompressed tar's SHA-256 and size. */
 async function packArchive(app: string, archive: string) {
   const tar = spawn(
@@ -89,7 +117,9 @@ async function packArchive(app: string, archive: string) {
     },
   })
   const partial = `${archive}.partial`
-  await pipeline(tar.stdout, measure, zlib.createZstdCompress(), fs.createWriteStream(partial))
+  const output = compressor(partial)
+  await pipeline(tar.stdout, measure, output.input)
+  await output.done
   if ((await exited) !== 0) throw new Error(`tar could not pack ${app}.`)
   fs.renameSync(partial, archive)
   return { tarSha256: hash.digest('hex'), tarSize: size }
