@@ -132,22 +132,23 @@ export function useVoiceCapture({
     : isRecording
       ? 'recording'
       : 'idle'
-  const elapsedSeconds = isRecording
-    ? Math.floor(visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND)
-    : lastElapsedSeconds
+  const recordingSeconds = Math.floor(
+    visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND,
+  )
+  // A stopped recording keeps showing how long it ran.
+  if (isRecording && lastElapsedSeconds !== recordingSeconds) {
+    setLastElapsedSeconds(recordingSeconds)
+  }
+  const elapsedSeconds = isRecording ? recordingSeconds : lastElapsedSeconds
 
-  useEffect(() => {
-    if (!isRecording) return
-    setLastElapsedSeconds(
-      Math.floor(visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND),
-    )
-  }, [isRecording, visualizerControls.recordingTime])
-
-  useEffect(() => {
-    if (!visualizerControls.error) return
-    setIsTranscribing(false)
-    setError(formatVoiceError(visualizerControls.error))
-  }, [visualizerControls.error])
+  const [shownRecorderError, setShownRecorderError] = useState<Error | null>(null)
+  if (shownRecorderError !== visualizerControls.error) {
+    setShownRecorderError(visualizerControls.error)
+    if (visualizerControls.error) {
+      setIsTranscribing(false)
+      setError(formatVoiceError(visualizerControls.error))
+    }
+  }
 
   function insertTranscriptAtCursor(rawTranscript: string) {
     const transcript = rawTranscript.trim()

@@ -33,28 +33,42 @@ export interface TurnDiffFiles {
   readonly retry: () => void
 }
 
+/** A finished read of one turn's diff, for the request it answered. */
+interface TurnDiffRead {
+  readonly requestKey: string
+  readonly files: readonly GitFileDiff[]
+  /**
+   * A failed or missing turn diff, so it is not presented as a clean turn.
+   *
+   * An empty list rendered as "No changes to review", which told the user a past turn changed
+   * nothing when the checkpoint could not be read - or had been pruned by retention - at all.
+   */
+  readonly error: string | null
+}
+
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
 export function useSessionTurns(
   sessionId: SessionId | null,
   refreshToken = 0,
 ): readonly TurnCheckpointSummary[] {
-  const [turns, setTurns] = useState<readonly TurnCheckpointSummary[]>(EMPTY_TURNS)
+  // Kept with its session: a refresh keeps the list on screen, another session never shows it.
+  const [loaded, setLoaded] = useState<{
+    readonly sessionId: SessionId
+    readonly turns: readonly TurnCheckpointSummary[]
+  } | null>(null)
 
   useEffect(() => {
-    if (!sessionId) {
-      setTurns(EMPTY_TURNS)
-      return
-    }
+    if (!sessionId) return
     let cancelled = false
     void (async () => {
       try {
         // Every view asking together shares one read (B5).
         const result = await readTurnCheckpoints(sessionId)
-        if (!cancelled) setTurns(result)
+        if (!cancelled) setLoaded({ sessionId, turns: result })
       } catch (error) {
         // refreshToken forces a refetch when a run completes (review renderer-M2).
         logger.warn('Failed to list turn checkpoints', { error: String(error), refreshToken })
-        if (!cancelled) setTurns(EMPTY_TURNS)
+        if (!cancelled) setLoaded({ sessionId, turns: EMPTY_TURNS })
       }
     })()
     return () => {
@@ -62,7 +76,7 @@ export function useSessionTurns(
     }
   }, [sessionId, refreshToken])
 
-  return turns
+  return loaded !== null && loaded.sessionId === sessionId ? loaded.turns : EMPTY_TURNS
 }
 
 /** Fetch and shape the Turn diff for the selected turn into renderable files. */
@@ -70,56 +84,44 @@ export function useTurnDiffFiles(
   sessionId: SessionId | null,
   selection: DiffScopeSelection,
 ): TurnDiffFiles {
-  const [files, setFiles] = useState<readonly GitFileDiff[]>(EMPTY_FILES)
-  /**
-   * A failed or missing turn diff, so it is not presented as a clean turn.
-   *
-   * An empty list rendered as "No changes to review", which told the user a past turn changed
-   * nothing when the checkpoint could not be read - or had been pruned by retention - at all.
-   */
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [read, setRead] = useState<TurnDiffRead | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const turnId = selection.kind === 'turn' ? selection.turnId : null
+  const requestKey = sessionId && turnId ? `${sessionId}\u0000${turnId}\u0000${retryToken}` : null
 
   useEffect(() => {
-    if (!sessionId || !turnId) {
-      setFiles(EMPTY_FILES)
-      setError(null)
-      setIsLoading(false)
-      return
-    }
-    // Clear first: the previous turn's files must not stand in for the one now selected.
+    if (!sessionId || !turnId || requestKey === null) return
     logger.debug('Reading turn checkpoint', { turnId, retryToken })
-    setFiles(EMPTY_FILES)
-    setError(null)
-    setIsLoading(true)
     let cancelled = false
     void (async () => {
       try {
         const turnDiff = await api.getTurnDiff(sessionId, turnId)
         if (cancelled) return
         if (!turnDiff) {
-          setFiles(EMPTY_FILES)
-          setError(TURN_DIFF_MISSING_MESSAGE)
-          setIsLoading(false)
+          setRead({ requestKey, files: EMPTY_FILES, error: TURN_DIFF_MISSING_MESSAGE })
           return
         }
-        setFiles(splitUnifiedDiffIntoFileDiffs(turnDiff.diff).map((diff) => ({ ...diff })))
-        setError(null)
-        setIsLoading(false)
+        setRead({
+          requestKey,
+          files: splitUnifiedDiffIntoFileDiffs(turnDiff.diff).map((diff) => ({ ...diff })),
+          error: null,
+        })
       } catch (loadError) {
         logger.warn('Failed to load turn diff', { error: String(loadError) })
         if (cancelled) return
-        setFiles(EMPTY_FILES)
-        setError(TURN_DIFF_FAILED_MESSAGE)
-        setIsLoading(false)
+        setRead({ requestKey, files: EMPTY_FILES, error: TURN_DIFF_FAILED_MESSAGE })
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [sessionId, turnId, retryToken])
+  }, [sessionId, turnId, retryToken, requestKey])
 
-  return { files, error, isLoading, retry: () => setRetryToken((token) => token + 1) }
+  const retry = () => setRetryToken((token) => token + 1)
+  if (requestKey === null) return { files: EMPTY_FILES, error: null, isLoading: false, retry }
+  // Only this read's files show: the previous turn's must not stand in for the one now selected.
+  if (read === null || read.requestKey !== requestKey) {
+    return { files: EMPTY_FILES, error: null, isLoading: true, retry }
+  }
+  return { files: read.files, error: read.error, isLoading: false, retry }
 }

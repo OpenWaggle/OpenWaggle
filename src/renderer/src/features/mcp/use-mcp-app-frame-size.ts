@@ -27,12 +27,18 @@ export type McpAppState = 'starting' | 'running' | 'stalled'
 export function useMcpAppFrameSize(load: number | null) {
   const [state, setState] = useState<McpAppState>('starting')
   const [reportedHeight, setReportedHeight] = useState<number | null>(null)
+  const [sizedLoad, setSizedLoad] = useState(load)
+  if (sizedLoad !== load) {
+    setSizedLoad(load)
+    // A new frame starts over: it has not run or reported a size yet.
+    if (load !== null) {
+      setState('starting')
+      setReportedHeight(null)
+    }
+  }
 
   useEffect(() => {
     if (load === null) return
-    // A new frame starts over: it has not run or reported a size yet.
-    setState('starting')
-    setReportedHeight(null)
     const timer = setTimeout(
       () => setState((current) => (current === 'starting' ? 'stalled' : current)),
       APP_START_TIMEOUT_MS,

@@ -72,8 +72,10 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
 
   const branches = useProjectBranchState(projectPath)
   const [changeRequests, setChangeRequests] = useState<readonly VcsChangeRequest[]>([])
-  // undefined = not yet checked, so a send is never blocked on an unknown.
-  const [worktreeExists, setWorktreeExists] = useState<boolean | undefined>(undefined)
+  const [worktreeCheck, setWorktreeCheck] = useState<{
+    readonly path: string
+    readonly exists: boolean
+  } | null>(null)
 
   /*
    * A recorded worktree can vanish out-of-band, and the send must stop rather than the
@@ -81,17 +83,19 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
    * changes and whenever this session's working tree is reported as changed.
    */
   const recordedWorktreePath = session?.worktreePath?.trim() ?? null
+  // undefined = not yet checked for this path, so a send is never blocked on an unknown.
+  const worktreeExists =
+    worktreeCheck !== null && worktreeCheck.path === recordedWorktreePath
+      ? worktreeCheck.exists
+      : undefined
   useEffect(() => {
-    if (recordedWorktreePath === null) {
-      setWorktreeExists(undefined)
-      return
-    }
+    if (recordedWorktreePath === null) return
     let cancelled = false
     const check = () => {
       void api
         .checkSessionWorktree(recordedWorktreePath)
         .then((result) => {
-          if (!cancelled) setWorktreeExists(result.exists)
+          if (!cancelled) setWorktreeCheck({ path: recordedWorktreePath, exists: result.exists })
         })
         .catch((error: unknown) =>
           logger.warn('Failed to check Session worktree', { error: String(error) }),
@@ -238,7 +242,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
         baseRef: forkPoint,
         sessionId: String(sessionId),
       })
-      if (result.ok) setWorktreeExists(true)
+      if (result.ok) setWorktreeCheck({ path: recordedWorktreePath, exists: true })
       return result.ok
     } catch (error) {
       logger.warn('Failed to recreate Session worktree', { error: String(error) })

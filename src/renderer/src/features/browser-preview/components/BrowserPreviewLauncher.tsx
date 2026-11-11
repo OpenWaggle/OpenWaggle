@@ -23,18 +23,19 @@ export function BrowserPreviewLauncher({
   const configuredProfiles = usePreferencesStore((state) => state.settings.browserProfiles)
   const profiles = useMemo(() => resolveBrowserProfiles(configuredProfiles), [configuredProfiles])
   const [address, setAddress] = useState('')
-  const [profileId, setProfileId] = useState(tab.profileId)
+  // Only the person's choice is state; until they choose, the tab's profile applies.
+  const [chosenProfileId, setProfileId] = useState<string | null>(null)
+  const wantedProfileId = chosenProfileId ?? tab.profileId
+  // A profile removed from settings falls back to the first one still configured.
+  const profileId = profiles.some((profile) => profile.id === wantedProfileId)
+    ? wantedProfileId
+    : (profiles[0]?.id ?? wantedProfileId)
   const addressRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => addressRef.current?.focus())
     return () => cancelAnimationFrame(frame)
   }, [])
-  useEffect(() => {
-    if (profiles.some((profile) => profile.id === profileId)) return
-    const fallback = profiles[0]
-    if (fallback !== undefined) setProfileId(fallback.id)
-  }, [profileId, profiles])
 
   const open = (rawUrl: string) => {
     const url = normalizeBrowserPreviewUrl(rawUrl)

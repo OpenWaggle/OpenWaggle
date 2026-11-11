@@ -20,14 +20,13 @@ function SearchSyntaxSnippet({
   readonly projectIdentity: string
 }) {
   const containerRef = useRef<HTMLSpanElement | null>(null)
-  const [nearViewport, setNearViewport] = useState(false)
+  // Without an observer to defer it, the line highlights at once.
+  const [nearViewport, setNearViewport] = useState(
+    () => typeof IntersectionObserver === 'undefined',
+  )
   useEffect(() => {
     const container = containerRef.current
-    if (!container) return
-    if (typeof IntersectionObserver === 'undefined') {
-      setNearViewport(true)
-      return
-    }
+    if (!container || typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {

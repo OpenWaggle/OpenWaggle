@@ -21,29 +21,29 @@ const logger = createRendererLogger('settings')
 /** Sentinel for the select option that clears a project override. */
 const INHERIT_VALUE = 'inherit'
 
+/** A finished read of a project's access mode, for the request it answered. */
+interface ProjectAuthorizationRead {
+  readonly request: string
+  readonly mode: AgentAuthorizationMode | null
+  readonly error: boolean
+}
+
 function useProjectAuthorizationDefault(projectPath: string | null) {
-  const [mode, setMode] = useState<AgentAuthorizationMode | null>(null)
-  const [loading, setLoading] = useState(Boolean(projectPath))
-  const [error, setError] = useState(false)
+  const [read, setRead] = useState<ProjectAuthorizationRead | null>(null)
   const [retryRevision, setRetryRevision] = useState(0)
+  const readable =
+    projectPath !== null && projectPath !== '' && typeof api.getProjectPreferences === 'function'
+  const request = readable ? `${projectPath}\u0000${String(retryRevision)}` : null
 
   useEffect(() => {
-    if (!projectPath || typeof api.getProjectPreferences !== 'function') {
-      setMode(null)
-      setLoading(false)
-      setError(false)
-      return
-    }
+    if (request === null || !projectPath) return
 
     let cancelled = false
-    setLoading(true)
-    setError(false)
     api
       .getProjectPreferences(projectPath)
       .then((preferences) => {
         if (cancelled) return
-        setMode(preferences?.authorizationMode ?? null)
-        setError(false)
+        setRead({ request, mode: preferences?.authorizationMode ?? null, error: false })
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -51,23 +51,22 @@ function useProjectAuthorizationDefault(projectPath: string | null) {
           error: String(err),
           attempt: retryRevision + 1,
         })
-        setMode(null)
-        setError(true)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
+        setRead({ request, mode: null, error: true })
       })
 
     return () => {
       cancelled = true
     }
-  }, [projectPath, retryRevision])
+  }, [projectPath, request, retryRevision])
 
+  // Only the read for the project and attempt on screen counts; until it arrives it is loading.
+  const current = request !== null && read?.request === request ? read : null
   return {
-    loading,
-    mode,
-    setMode,
-    error,
+    loading: request !== null && current === null,
+    mode: current?.mode ?? null,
+    setMode: (mode: AgentAuthorizationMode | null) =>
+      setRead((previous) => (previous === null ? previous : { ...previous, mode })),
+    error: current?.error ?? false,
     retry: () => setRetryRevision((revision) => revision + 1),
   }
 }

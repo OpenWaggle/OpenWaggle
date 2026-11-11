@@ -15,12 +15,16 @@ export function useMentionSuggestions({ projectPath, query }: UseMentionSuggesti
   const [highlightIndex, setHighlightIndex] = useState(0)
   const deferredQuery = useDeferredValue(query)
   const queryVersionRef = useRef(0)
+  const closed = deferredQuery === null || !projectPath || typeof api.suggestFiles !== 'function'
+  // Closing the typeahead drops its suggestions, so reopening it does not show stale ones.
+  const [wasClosed, setWasClosed] = useState(closed)
+  if (wasClosed !== closed) {
+    setWasClosed(closed)
+    if (closed) setSuggestions([])
+  }
 
   useEffect(() => {
-    if (deferredQuery === null || !projectPath || typeof api.suggestFiles !== 'function') {
-      setSuggestions([])
-      return
-    }
+    if (deferredQuery === null || !projectPath || typeof api.suggestFiles !== 'function') return
 
     queryVersionRef.current += 1
     const version = queryVersionRef.current

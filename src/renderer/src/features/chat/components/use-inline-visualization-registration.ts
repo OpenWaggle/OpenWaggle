@@ -46,8 +46,6 @@ export function useInlineVisualizationRegistration(input: {
     if (!wanted || !enabled) return
     let active = true
     let activeRegistration: InlineVisualizationFrameRegisterResult | null = null
-    setRegistration(null)
-    setRegistrationError(null)
     void api
       .registerInlineVisualizationFrame({
         frameId,
@@ -74,6 +72,9 @@ export function useInlineVisualizationRegistration(input: {
       })
     return () => {
       active = false
+      // The next registration starts clean: this one's frame and error no longer apply.
+      setRegistration(null)
+      setRegistrationError(null)
       if (activeRegistration) {
         void api
           .unregisterInlineVisualizationFrame({
