@@ -167,8 +167,9 @@ function readLayer(file: McpConfigFileLocation, reader: McpConfigFileReader): Mc
       content: { kind: 'unreadable', error: errorMessage(error) },
     }
   }
-  if (text === undefined)
+  if (text === undefined) {
     return { fileId: file.fileId, path: file.path, content: { kind: 'missing' } }
+  }
   // An empty file is an empty configuration, as an editor may leave it.
   if (!text.trim()) {
     return { fileId: file.fileId, path: file.path, content: { kind: 'parsed', value: {} } }

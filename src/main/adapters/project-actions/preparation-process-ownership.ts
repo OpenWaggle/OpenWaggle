@@ -18,10 +18,11 @@ export function createPreparationProcessOwnership() {
           active.delete(child)
           return
         } catch {
-          if (!reported)
+          if (!reported) {
             active.get(child)?.(
               '\nWaiting for the preparation process tree to stop. OpenWaggle is retrying; this workspace remains reserved.\n',
             )
+          }
           reported = true
           await setTimeout(STOP_RETRY_MS)
         }

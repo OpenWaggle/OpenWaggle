@@ -24,14 +24,16 @@ export function actionOutputPage(
   while (
     start < retained.length &&
     (retained[start] & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_TAG
-  )
+  ) {
     start += 1
+  }
   let end = Math.min(retained.length, start + OUTPUT_PAGE_BYTES)
   while (
     end < retained.length &&
     (retained[end] & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_TAG
-  )
+  ) {
     end -= 1
+  }
   return {
     run,
     output: retained.subarray(start, end).toString('utf8'),
@@ -55,8 +57,9 @@ export function previewFromActionOutput(text: string): string | null {
       url.hostname === 'localhost' ||
       url.hostname === '[::1]' ||
       (isIPv4(url.hostname) && url.hostname.startsWith('127.'))
-    )
+    ) {
       detected = url.href
+    }
   }
   return detected
 }

@@ -188,11 +188,12 @@ export function createEncryptedMcpSecretVault(
     async set(name: string, value: string) {
       await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
-      if (value.length === 0)
+      if (value.length === 0) {
         throw new McpVaultError({
           reason: 'validation',
           message: 'MCP secret values cannot be empty.',
         })
+      }
       // Sealed before the vault's lock is taken, so a slow keychain never holds the lock.
       const encryptedValue = (await encrypt(encryption, value)).toString('base64')
       return mutate((vault) => {
@@ -273,11 +274,7 @@ const PRESENT_SECRET = 'vault-secret'
  */
 export async function checkMcpVaultSecret(name: string) {
   if (await mcpVaultHasSecret(name)) return PRESENT_SECRET
-  throw new McpVaultError({
-    reason: 'secret-not-found',
-    secretName: name,
-    message: `MCP secret ${JSON.stringify(name)} was not found.`,
-  })
+  throw secretNotFound(name)
 }
 
 /**

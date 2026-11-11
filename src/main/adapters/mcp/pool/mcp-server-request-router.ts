@@ -37,8 +37,9 @@ export class McpServerRequestRouter {
         return
       }
       const result = await handled
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         await this.host.send({ jsonrpc: '2.0', id: request.id, result })
+      }
     } catch (error) {
       if (!controller.signal.aborted) {
         await this.host

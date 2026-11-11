@@ -49,10 +49,11 @@ export function createSqliteActionStatePersistence(
             const state = decodeUnknownExactOrThrow(localActionStateSchema, input)
             const rows =
               yield* sql<CatalogRow>`SELECT revision, state_json FROM project_action_catalogs WHERE project_path = ${projectPath}`
-            if ((rows[0]?.revision ?? 0) !== expectedRevision)
+            if ((rows[0]?.revision ?? 0) !== expectedRevision) {
               return yield* Effect.fail(
                 new Error('Project Actions changed in local storage. Reload before saving.'),
               )
+            }
             const revision = expectedRevision + 1
             yield* sql`INSERT INTO project_action_catalogs (project_path, revision, state_json, updated_at)
         VALUES (${projectPath}, ${revision}, ${JSON.stringify(state)}, ${Date.now()})

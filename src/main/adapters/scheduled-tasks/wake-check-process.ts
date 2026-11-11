@@ -65,8 +65,9 @@ function killDirect(child: ChildProcess) {
   try {
     child.kill('SIGKILL')
   } catch (error) {
-    if (errorCode(error) !== 'ESRCH')
+    if (errorCode(error) !== 'ESRCH') {
       logger.warn('Wake check kill failed', { error: String(error) })
+    }
   }
 }
 

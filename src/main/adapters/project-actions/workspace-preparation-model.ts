@@ -20,8 +20,9 @@ export function capturePreparationSnapshot(
   catalog: ActionCatalog,
   profileId?: string,
 ): WorkspacePreparationSnapshot {
-  if (!profileId && catalog.profiles.length > 1)
+  if (!profileId && catalog.profiles.length > 1) {
     throw new Error('Choose a Preparation profile for this Workspace before continuing.')
+  }
   const profile = catalog.profiles.find(
     ({ definition }) => definition.id === (profileId ?? 'default'),
   )?.definition
@@ -63,6 +64,7 @@ export function requirePreparationRevision(
   state: StoredWorkspacePreparation | null,
   expected: number,
 ) {
-  if ((state?.revision ?? 0) !== expected)
+  if ((state?.revision ?? 0) !== expected) {
     throw new Error('Workspace preparation changed. Reload before continuing.')
+  }
 }

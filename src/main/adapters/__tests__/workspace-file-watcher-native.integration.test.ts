@@ -58,8 +58,9 @@ describe.skipIf(process.platform === 'linux')('native recursive workspace watche
     writeFileSync(path.join(root, 'src', 'index.ts'), 'x')
     await vi.waitFor(
       () => {
-        if (!events.some((event) => event.paths.includes('src/index.ts')))
+        if (!events.some((event) => event.paths.includes('src/index.ts'))) {
           throw new Error('waiting')
+        }
       },
       { timeout: 5_000, interval: 50 },
     )

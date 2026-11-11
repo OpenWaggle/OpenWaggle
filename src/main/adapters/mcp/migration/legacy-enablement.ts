@@ -48,8 +48,9 @@ export function legacyServerConnection(
   name: string,
 ): LegacyConnection {
   const layer = scope.legacyLayers.findLast((candidate) => isRecord(candidate.servers[name]))
-  if (!layer)
+  if (!layer) {
     return { connected: false, reason: 'OpenWaggle did not read the file that defines it' }
+  }
   const serverState = scope.state.servers[legacyServerIdentityKey(layer.path, name)]
   if (serverState?.enabled !== true) {
     return { connected: false, reason: 'it was not turned on in OpenWaggle' }

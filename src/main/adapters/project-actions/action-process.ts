@@ -135,8 +135,9 @@ export async function processCommand(
       environment,
       invocation.cwd,
     )
-    if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(command))
+    if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(command)) {
       return { command, args: invocation.args }
+    }
     // PowerShell literals preserve arguments, including %, &, and spaces, for Windows script shims.
     const shell = await resolveActionExecutablePath('powershell.exe', environment, invocation.cwd)
     return {
@@ -153,11 +154,12 @@ export async function processCommand(
   const command = await resolveActionShell(environment, invocation.cwd)
   const name = basename(command).toLowerCase()
   if (name === 'cmd.exe') return { command, args: ['/d', '/s', '/c', invocation.command] }
-  if (name.includes('powershell') || name === 'pwsh' || name === 'pwsh.exe')
+  if (name.includes('powershell') || name === 'pwsh' || name === 'pwsh.exe') {
     return {
       command,
       args: ['-NoLogo', '-NonInteractive', '-Command', powerShellActionCommand(invocation.command)],
     }
+  }
   return { command, args: ['-c', invocation.command] }
 }
 
@@ -166,8 +168,9 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
   return {
     validate: async (invocation, overrides) => {
       await desktopShellEnvironmentReady()
-      if (!(await stat(invocation.cwd)).isDirectory())
+      if (!(await stat(invocation.cwd)).isDirectory()) {
         throw new Error('The action working directory no longer exists.')
+      }
       await processCommand(invocation, getInteractiveTerminalEnv(appVersion, overrides))
     },
     start: async ({ invocation, environment, signal, onOutput }) => {
@@ -207,8 +210,9 @@ export function createActionProcessRunner(appVersion: string): ActionProcessRunn
       }
       const closed = outcome.exit.whenExited.then(async () => {
         try {
-          if (!(await outcome.resourceDrain.whenDrained))
+          if (!(await outcome.resourceDrain.whenDrained)) {
             throw new Error('The action PTY did not release its native resources.')
+          }
           return { exitCode: outcome.exit.exitCode }
         } finally {
           listener.dispose()

@@ -209,8 +209,9 @@ export async function migrateOpenWaggleMcpFiles(
     kept = await decideLegacyProjects(input, start, fs, knownProjectPaths)
   } catch (error) {
     const withoutState = await startWithoutOldState(fs, input.homeDir, error)
-    if (!withoutState)
+    if (!withoutState) {
       return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
+    }
     logger.warn('MCP migration goes on without the old MCP state, which cannot be read', {
       error: withoutState.unreadableState.message,
     })

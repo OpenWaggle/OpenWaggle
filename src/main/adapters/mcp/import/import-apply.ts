@@ -97,8 +97,9 @@ function placementFor(
   const taken = earlierImportName(candidate, servers) ?? existingName(names, candidate.targetName)
   if (!taken) return { kind: 'write', name: candidate.targetName, replace: false }
   if (policy === 'replace') return { kind: 'write', name: taken, replace: true }
-  if (policy === 'rename')
+  if (policy === 'rename') {
     return { kind: 'write', name: renamed(candidate.targetName, names), replace: false }
+  }
   return {
     kind: 'skip',
     reason: `A server named ${candidate.targetName} already exists in the target configuration.`,

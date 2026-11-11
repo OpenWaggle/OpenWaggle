@@ -35,8 +35,12 @@ export function retainPendingHistoryBatch(batch: {
   bytes: number
   lines: number
 }) {
-  if (batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES && batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES)
+  if (
+    batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
+    batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
+  ) {
     return
+  }
   const retained = retainTerminalHistorySuffix(
     batch.parts.join(''),
     HISTORY_COMPACT_TARGET_LINES,

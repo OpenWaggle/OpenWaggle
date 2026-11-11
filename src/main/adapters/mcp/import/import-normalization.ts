@@ -115,8 +115,9 @@ function codexHeaders(value: Raw, context: ImportValueContext) {
   if (isRecord(value.env_http_headers)) {
     for (const [header, variable] of Object.entries(value.env_http_headers)) {
       if (typeof variable === 'string') headers[header] = `\${${variable}}`
-      else
+      else {
         context.warnings.push(`env_http_headers.${header} was ignored because it is not a string.`)
+      }
     }
   }
   return headers
@@ -206,8 +207,9 @@ function warnUnknownFields(
 ) {
   const known = new Set([...GENERIC_FIELDS, ...SOURCE_FIELDS[source]])
   for (const field of Object.keys(value)) {
-    if (!known.has(field))
+    if (!known.has(field)) {
       context.warnings.push(`${source} field ${field} has no Pi equivalent and was not imported.`)
+    }
   }
 }
 

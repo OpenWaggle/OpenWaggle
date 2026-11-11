@@ -32,8 +32,9 @@ export function memoryDeps(
       read: async (id: string) => storage.get(id) ?? null,
       list: async () => [...storage.values()],
       write: async (state: StoredWorkspacePreparation, expectedRevision: number) => {
-        if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision)
+        if ((storage.get(state.workspaceId)?.revision ?? 0) !== expectedRevision) {
           throw new Error('Workspace preparation changed. Reload before continuing.')
+        }
         const valid = decodeUnknownExactOrThrow(storedWorkspacePreparationSchema, state)
         storage.set(state.workspaceId, structuredClone(valid))
       },

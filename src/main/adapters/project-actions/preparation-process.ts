@@ -45,20 +45,24 @@ async function readCapturedEnvironment(
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
   try {
     const identity = await handle.stat()
-    if (!identity.isFile() || identity.size > ENVIRONMENT_BYTES)
+    if (!identity.isFile() || identity.size > ENVIRONMENT_BYTES) {
       throw new Error('The setup environment export is invalid or too large.')
+    }
     const source = await handle.readFile('utf8')
-    if (!source)
+    if (!source) {
       throw new Error(
         'Setup completed without an environment export. Review its exit behavior and retry.',
       )
-    if (Buffer.byteLength(source) > ENVIRONMENT_BYTES)
+    }
+    if (Buffer.byteLength(source) > ENVIRONMENT_BYTES) {
       throw new Error('The setup environment export is too large.')
-    if (format === 'json')
+    }
+    if (format === 'json') {
       return decodeUnknownOrThrow(
         Schema.Record({ key: Schema.String, value: Schema.String }),
         parseJsonUnknown(source),
       )
+    }
     const environment: Record<string, string> = {}
     for (const entry of source.split('\0')) {
       const separator = entry.indexOf('=')

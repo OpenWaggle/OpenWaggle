@@ -20,8 +20,9 @@ export function rememberPreparationReview(
       !entry ||
       entry.definition.profileId !== definition.profileId ||
       preparationExecutionKey(entry.definition) !== preparationExecutionKey(definition)
-    )
+    ) {
       return
+    }
     if (entry.review === (enabled ? 'enabled' : 'disabled')) return
     const granted = preparationReview(
       definition,

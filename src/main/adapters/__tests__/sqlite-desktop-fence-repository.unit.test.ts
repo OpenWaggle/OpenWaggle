@@ -128,8 +128,9 @@ describe('durable desktop mutation fences', () => {
     await runtime().runPromise(
       Effect.gen(function* () {
         const repository = yield* DesktopFenceRepository
-        for (let index = 0; index < DESKTOP_SERVICE_LIMITS.fenceRecords; index += 1)
+        for (let index = 0; index < DESKTOP_SERVICE_LIMITS.fenceRecords; index += 1) {
           yield* repository.insert(record(`fence-${index}`))
+        }
         yield* repository.markReleased('fence-0', 'host-1')
         expect((yield* Effect.either(repository.insert(record('overflow'))))._tag).toBe('Left')
         expect(yield* repository.getAll()).toHaveLength(DESKTOP_SERVICE_LIMITS.fenceRecords)

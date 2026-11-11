@@ -70,8 +70,9 @@ function insertSession(
     yield* sql`INSERT INTO workspace_resources VALUES (${`workspace-${input.id}`}, ${input.kind ?? 'local'})`
     yield* sql`INSERT INTO session_workspace_bindings VALUES (${input.id}, ${`workspace-${input.id}`})`
     yield* sql`INSERT INTO session_execution_profiles VALUES (${input.id}, ${input.ceiling ?? 'yolo'})`
-    if (input.parent)
+    if (input.parent) {
       yield* sql`INSERT INTO session_spawn_lineage VALUES (${input.id}, ${input.parent})`
+    }
   })
 }
 

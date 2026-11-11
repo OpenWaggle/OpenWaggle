@@ -108,8 +108,9 @@ export class SessionSemanticInferenceGate {
           pending.reject(cause)
         })
         .finally(() => {
-          if (pending.abortListener)
+          if (pending.abortListener) {
             pending.signal?.removeEventListener('abort', pending.abortListener)
+          }
           this.#active -= 1
           this.#pump()
         })

@@ -210,8 +210,9 @@ export function makeTerminalHistoryFiles(logsDir: string): TerminalHistoryFiles 
             fs.readFile(metadataFile, 'utf8'),
           ])
           const files = describe(key)
-          if (files.baseName !== baseName)
+          if (files.baseName !== baseName) {
             throw new Error('Terminal history metadata digest mismatch')
+          }
           return { key, cwd, files }
         }),
       )

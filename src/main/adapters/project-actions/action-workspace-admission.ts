@@ -29,10 +29,11 @@ export function createActionWorkspaceAdmission(sql: SqlClient.SqlClient) {
         AND (${workspace.sessionId ?? null} IS NULL OR sessions.id = ${workspace.sessionId ?? null})
         AND resources.project_path = ${workspace.projectPath} AND resources.working_path = ${workspace.workspacePath}
       LIMIT 1`
-      if (!rows[0])
+      if (!rows[0]) {
         return yield* Effect.fail(
           new Error('This Workspace is no longer active or is being removed.'),
         )
+      }
     }).pipe(
       Effect.mapError(
         (error) =>

@@ -65,10 +65,11 @@ function scriptConfigurationFor(
 
 function scriptsFor(environments: Environments, name: string): Scripts {
   // Hatch inherits scripts from templates, but never their matrices.
-  if (environments[name]?.matrix !== undefined)
+  if (environments[name]?.matrix !== undefined) {
     throw new Error(
       `Hatch matrix environment ${name} needs a custom command with an explicit selector.`,
     )
+  }
   const { scripts, extraScripts } = scriptConfigurationFor(environments, name)
   return { ...extraScripts, ...scripts }
 }
@@ -82,8 +83,9 @@ function appendHatchEnvironmentTasks(
   requested?: ProjectTaskReference,
 ) {
   try {
-    if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(environment))
+    if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(environment)) {
       throw new Error(`Unsupported Hatch environment selector: ${environment}`)
+    }
     for (const [task, body] of Object.entries(scriptsFor(environments, environment))) {
       const reference = {
         provider: 'hatch-script' as const,
@@ -93,8 +95,9 @@ function appendHatchEnvironmentTasks(
         environment,
       }
       if (requested && !sameTaskReference(reference, requested)) continue
-      if (!isInvocableTaskName(task) || task.includes(':'))
+      if (!isInvocableTaskName(task) || task.includes(':')) {
         throw new Error(`Unsupported Hatch task name: ${task}`)
+      }
       tasks.push({
         reference,
         group: `Hatch · ${environment}`,

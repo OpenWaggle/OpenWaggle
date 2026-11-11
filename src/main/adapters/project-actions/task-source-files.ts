@@ -26,8 +26,9 @@ export async function resolveActionDirectory(
   directory: string,
 ): Promise<string> {
   const target = await resolveActionPath(workspace, directory)
-  if (!(await stat(target)).isDirectory())
+  if (!(await stat(target)).isDirectory()) {
     throw new Error(`Action working directory is not a directory: ${directory}`)
+  }
   return target
 }
 
@@ -44,8 +45,9 @@ export async function readTaskSource(workspace: string, source: string): Promise
   try {
     const metadata = await handle.stat()
     if (!metadata.isFile()) throw new Error(`${source} is not a regular file.`)
-    if (metadata.size > ACTION_DEFINITION_LIMITS.FILE_BYTES)
+    if (metadata.size > ACTION_DEFINITION_LIMITS.FILE_BYTES) {
       throw new Error(`${source} exceeds the task discovery size limit.`)
+    }
     const buffer = Buffer.alloc(ACTION_DEFINITION_LIMITS.FILE_BYTES + 1)
     let bytesRead = 0
     while (bytesRead < buffer.length) {
@@ -53,8 +55,9 @@ export async function readTaskSource(workspace: string, source: string): Promise
       if (chunk.bytesRead === 0) break
       bytesRead += chunk.bytesRead
     }
-    if (bytesRead > ACTION_DEFINITION_LIMITS.FILE_BYTES)
+    if (bytesRead > ACTION_DEFINITION_LIMITS.FILE_BYTES) {
       throw new Error(`${source} exceeds the task discovery size limit.`)
+    }
     return buffer.subarray(0, bytesRead).toString('utf8')
   } finally {
     await handle.close()

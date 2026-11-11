@@ -66,7 +66,7 @@ function workerEndingAtParentLimit(
       acceptedAt: 1,
       idempotencyKey: 'key-next',
     }
-    if (queued)
+    if (queued) {
       yield* sql`
       INSERT INTO session_follow_ups (
         id, session_id, position, delivery_state, intent_json, created_at, updated_at
@@ -74,6 +74,7 @@ function workerEndingAtParentLimit(
         ${'next'}, ${'session-target'}, ${0}, ${'pending'}, ${JSON.stringify(intent)}, ${1}, ${1}
       )
     `
+    }
     const lifecycle = yield* SessionControlRunLifecycleRepository
 
     const settled = yield* lifecycle.settle({

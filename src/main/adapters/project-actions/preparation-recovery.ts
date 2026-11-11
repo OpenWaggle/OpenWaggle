@@ -27,8 +27,9 @@ function clearLocalBirthFlag(
   state: StoredWorkspacePreparation,
   localWorkspaceIds: ReadonlySet<string>,
 ): StoredWorkspacePreparation {
-  if (state.awaitingWorktreeBirth === undefined || !localWorkspaceIds.has(state.workspaceId))
+  if (state.awaitingWorktreeBirth === undefined || !localWorkspaceIds.has(state.workspaceId)) {
     return state
+  }
   const { awaitingWorktreeBirth: _pending, awaitingWorktreeBirthSince: _since, ...cleared } = state
   return cleared
 }

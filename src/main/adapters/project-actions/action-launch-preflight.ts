@@ -15,10 +15,11 @@ export async function resolveManagedActionLaunch(
   if (
     input.expectedExecutionKey !== undefined &&
     input.expectedExecutionKey !== actionExecutionKey(definition)
-  )
+  ) {
     throw new Error(
       'The action changed during authorization. Review its current execution before starting.',
     )
+  }
   const [invocation, environment] = await allInOrder([
     resolveActionInvocation(input.workspace.workspacePath, definition.invocation),
     deps.environment(input.workspace),

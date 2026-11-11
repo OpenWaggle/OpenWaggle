@@ -176,8 +176,9 @@ export class ManagedActionRuns {
   }
   private async requireRun(input: StartManagedActionInput, id: string) {
     const run = this.active.get(id)?.run ?? (await this.deps.persistence.get(id))
-    if (!run || run.workspaceId !== input.workspace.workspaceId || run.action.id !== input.actionId)
+    if (run?.workspaceId !== input.workspace.workspaceId || run.action.id !== input.actionId) {
       throw new Error('The selected run does not belong to this workspace action.')
+    }
     return run
   }
   private async stopRestartTarget(input: StartManagedActionInput) {
@@ -224,16 +225,18 @@ export class ManagedActionRuns {
           return this.reuse(input, { run })
         }
         const existing = this.existing(input.workspace.workspaceId, input.actionId)
-        if (existing && !input.restartRunId && !existing.run.action.allowConcurrent)
+        if (existing && !input.restartRunId && !existing.run.action.allowConcurrent) {
           return this.reuse(input, existing)
+        }
         const { definition, invocation, environment } = await resolveManagedActionLaunch(
           input,
           this.deps,
         )
         await this.stopRestartTarget(input)
         const current = this.existing(input.workspace.workspaceId, input.actionId)
-        if (current && (!definition.allowConcurrent || definition.kind === 'service'))
+        if (current && (!definition.allowConcurrent || definition.kind === 'service')) {
           return this.reuse(input, current)
+        }
         return this.launch(input, definition, invocation, environment)
       },
     )
@@ -244,15 +247,15 @@ export class ManagedActionRuns {
     )
   }
   async output(workspaceId: string, runId: string, afterOffset = 0) {
-    if (!Number.isSafeInteger(afterOffset) || afterOffset < 0)
+    if (!Number.isSafeInteger(afterOffset) || afterOffset < 0) {
       throw new Error('Invalid action output cursor.')
+    }
     const current = this.active.get(runId)
     const run =
       current?.run ??
       this.starting.get(runId)?.terminalRun ??
       (await this.deps.persistence.get(runId))
-    if (!run || run.workspaceId !== workspaceId)
-      throw new Error('Action run not found in this workspace.')
+    if (run?.workspaceId !== workspaceId) throw new Error('Action run not found in this workspace.')
     if (current) return actionOutputPage(run, current.output.toString(), afterOffset)
     const retained = await this.deps.history.readWithCursor(historyKey(run))
     return actionOutputPage(run, retained.text, afterOffset, retained.endOffset)
@@ -261,22 +264,25 @@ export class ManagedActionRuns {
     const entry = this.active.get(runId)
     const starting = this.starting.get(runId)
     const run = entry?.run ?? starting?.run ?? (await this.deps.persistence.get(runId))
-    if (!run || run.workspaceId !== workspaceId)
-      throw new Error('Action run not found in this workspace.')
+    if (run?.workspaceId !== workspaceId) throw new Error('Action run not found in this workspace.')
     if (entry) await this.stopEntry(entry)
     if (!entry && starting) await this.stopStarting(starting)
     return starting?.terminalRun ?? (await this.deps.persistence.get(runId)) ?? run
   }
   async stopWorkspaceRuns(workspaceId: string) {
-    for (const entry of [...this.starting.values()])
+    for (const entry of [...this.starting.values()]) {
       if (entry.run.workspaceId === workspaceId) await this.stopStarting(entry)
-    for (const entry of [...this.active.values()])
+    }
+    for (const entry of [...this.active.values()]) {
       if (entry.run.workspaceId === workspaceId) await this.stopEntry(entry)
+    }
   }
   async stopWorkspaceServices(workspaceId: string) {
-    for (const entry of [...this.starting.values()])
-      if (entry.run.workspaceId === workspaceId && entry.run.action.kind === 'service')
+    for (const entry of [...this.starting.values()]) {
+      if (entry.run.workspaceId === workspaceId && entry.run.action.kind === 'service') {
         await this.stopStarting(entry)
+      }
+    }
     const services = [...this.active.values()].filter(
       (entry) =>
         entry.run.workspaceId === workspaceId &&

@@ -56,8 +56,9 @@ export function parseListeningEndpoint(rawEndpoint: string) {
   if (separator < 0) return null
   const host = normalizeTerminalListenerHost(endpoint.slice(0, separator))
   const port = Number(endpoint.slice(separator + 1))
-  if (host === null || !Number.isInteger(port) || port <= 0 || port >= MAX_TCP_PORT_EXCLUSIVE)
+  if (host === null || !Number.isInteger(port) || port <= 0 || port >= MAX_TCP_PORT_EXCLUSIVE) {
     return null
+  }
   return { host, port }
 }
 

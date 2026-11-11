@@ -40,8 +40,9 @@ export class PreparationCancellation {
   async stopSetup(workspaceId: string, attemptId: string) {
     const entry = this.active.get(workspaceId)
     if (!entry) return false
-    if (entry.phase !== 'setup' || entry.attemptId !== attemptId)
+    if (entry.phase !== 'setup' || entry.attemptId !== attemptId) {
       throw new Error('The setup attempt changed. Refresh before stopping it.')
+    }
     entry.controller.abort(new Error('Workspace setup stopped. Retry setup or Continue anyway.'))
     await entry.finished.promise
     return true

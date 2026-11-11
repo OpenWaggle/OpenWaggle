@@ -175,7 +175,7 @@ export function decodeNodeCursor(
 }
 
 export function activityFilter(sql: SqlClient.SqlClient, view: SessionResourceCatalogView) {
-  if (view === 'sources')
+  if (view === 'sources') {
     return sql.literal(
       // Occurrences a person can find under Sources, plus images the agent embedded in its own
       // message: those are captured with activity 'created', but Sources must still show the
@@ -183,6 +183,7 @@ export function activityFilter(sql: SqlClient.SqlClient, view: SessionResourceCa
       //
       "(activity IN ('provided', 'read') OR (actor = 'agent' AND EXISTS (SELECT 1 FROM session_resources WHERE session_resources.id = session_resource_occurrences.resource_id AND session_resources.kind = 'image')))",
     )
+  }
   if (view === 'outputs') return sql.literal("activity IN ('created', 'updated')")
   return sql.literal('1 = 1')
 }

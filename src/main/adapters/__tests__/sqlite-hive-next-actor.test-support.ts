@@ -102,8 +102,9 @@ export function message(callerId: string, idempotencyKey: string) {
 export function runWorker(callerId: string, key: string, terminalStatus: 'completed' | 'failed') {
   return Effect.gen(function* () {
     const started = yield* message(callerId, key)
-    if (started.outcome.effect !== 'started-run')
+    if (started.outcome.effect !== 'started-run') {
       throw new Error(`no Run: ${started.outcome.effect}`)
+    }
     const runId = RunId(started.outcome.runId)
     const lifecycle = yield* SessionControlRunLifecycleRepository
     const activation = yield* lifecycle.activate({ sessionId: WORKER, runId })
@@ -122,8 +123,9 @@ export function runWorker(callerId: string, key: string, terminalStatus: 'comple
 export function startWorker(callerId: string, key: string) {
   return Effect.gen(function* () {
     const started = yield* message(callerId, key)
-    if (started.outcome.effect !== 'started-run')
+    if (started.outcome.effect !== 'started-run') {
       throw new Error(`no Run: ${started.outcome.effect}`)
+    }
     const lifecycle = yield* SessionControlRunLifecycleRepository
     return yield* lifecycle.activate({ sessionId: WORKER, runId: RunId(started.outcome.runId) })
   })

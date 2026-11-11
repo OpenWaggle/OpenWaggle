@@ -63,8 +63,9 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
       this.files.exists(from.workingDirectoryFile),
       this.files.exists(from.cursorFile),
     ])
-    if (sourceMetadata === null && !logExists && !workingDirectoryExists && !cursorExists)
+    if (sourceMetadata === null && !logExists && !workingDirectoryExists && !cursorExists) {
       return null
+    }
     if (sourceMetadata !== fromKey) {
       throw new Error('Terminal history source metadata is missing')
     }
@@ -182,8 +183,9 @@ class TerminalHistoryMoverImpl implements TerminalHistoryMover {
       try {
         await this.files.rename(move.from.cursorFile, move.to.cursorFile)
       } catch (error) {
-        if (move.workingDirectoryExists)
+        if (move.workingDirectoryExists) {
           await this.files.rename(move.to.workingDirectoryFile, move.from.workingDirectoryFile)
+        }
         if (move.logExists) await this.files.rename(move.to.logFile, move.from.logFile)
         throw error
       }

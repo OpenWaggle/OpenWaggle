@@ -96,11 +96,12 @@ async function runnerFor(workspace: string, directory: string, declared: string 
       }
       if (!isEnoent(check.reason)) throw check.reason
     }
-    if (runners.size > 1)
+    if (runners.size > 1) {
       return {
         runner: null,
         unavailableReason: 'Conflicting lockfiles. Declare packageManager in package.json.',
       }
+    }
     const runner = runners.values().next().value
     if (runner) return { runner }
     if (searchDirectory === '.') return { runner: 'npm' }
@@ -156,8 +157,9 @@ async function packageSources(
     unique: true,
     ignore: EXCLUDED_DIRECTORIES.map((directory) => `**/${directory}/**`),
   })
-  if (matches.length > ACTION_DEFINITION_LIMITS.WORKSPACE_PACKAGES)
+  if (matches.length > ACTION_DEFINITION_LIMITS.WORKSPACE_PACKAGES) {
     throw new Error('Too many workspace packages to discover safely.')
+  }
   return [
     ...new Set([
       'package.json',
@@ -181,8 +183,9 @@ async function requestedPackageSource(
       (segment) =>
         !segment || segment === '.' || segment === '..' || EXCLUDED_DIRECTORIES.includes(segment),
     )
-  )
+  ) {
     return []
+  }
   const patterns = await workspacePatterns(workspace, manifest)
   const ancestors = segments.map((_, index) => segments.slice(0, index + 1).join('/'))
   if (
@@ -194,8 +197,9 @@ async function requestedPackageSource(
         pattern.startsWith('!') &&
         ancestors.some((ancestor) => matchesWorkspaceDirectory(ancestor, pattern.slice(1))),
     )
-  )
+  ) {
     return []
+  }
   for (let depth = 1; depth <= segments.length; depth += 1) {
     const path = resolve(workspace, ...segments.slice(0, depth))
     try {

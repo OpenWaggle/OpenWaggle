@@ -66,8 +66,9 @@ async function readSourceFile(
     const text = await readText(importPath.path)
     if (text === undefined) return { kind: 'missing' }
     const parsed = parseSourceFile(importPath, text)
-    if (!isRecord(parsed))
+    if (!isRecord(parsed)) {
       return { kind: 'error', message: 'the configuration root must be an object' }
+    }
     return { kind: 'parsed', value: parsed }
   } catch (error) {
     return { kind: 'error', message: error instanceof Error ? error.message : String(error) }

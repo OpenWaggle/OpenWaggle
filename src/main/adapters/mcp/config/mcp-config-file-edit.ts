@@ -68,8 +68,9 @@ function serverChanges(before: JsonRecord, after: JsonRecord) {
       continue
     }
     for (const key of new Set([...Object.keys(old), ...Object.keys(next)])) {
-      if (!same(old[key], next[key]))
+      if (!same(old[key], next[key])) {
         changes.push({ path: ['mcpServers', name, key], value: next[key] })
+      }
     }
   }
   return changes

@@ -44,8 +44,9 @@ async function queryWithinDeadline(query: NativeQuery | null, options: ProcessPr
     query === null ||
     options.signal?.aborted ||
     (options.timeoutMs !== undefined && options.timeoutMs <= 0)
-  )
+  ) {
     return null
+  }
   return new Promise<unknown>((resolve) => {
     const finish = (value: unknown) => {
       clearTimeout(timer)
@@ -85,8 +86,9 @@ export async function readWindowsTerminalProcesses(options: ProcessProbeOptions 
         { pid: positiveId, ppid: parentId, startedAt: P.regex(/^[1-9]\d{0,19}$/), name: P.string },
         candidate,
       )
-    )
+    ) {
       return null
+    }
     if (rows.has(candidate.pid) || candidate.name.length === 0) return null
     rows.set(candidate.pid, {
       pid: candidate.pid,
@@ -105,8 +107,9 @@ export async function readWindowsTerminalProcesses(options: ProcessProbeOptions 
   // A reused parent PID cannot make an older process a child of a newer shell.
   for (const [pid, row] of rows) {
     const parent = rows.get(row.ppid)
-    if (parent && BigInt(parent.startedAt) > BigInt(row.startedAt))
+    if (parent && BigInt(parent.startedAt) > BigInt(row.startedAt)) {
       rows.set(pid, { ...row, ppid: 0 })
+    }
   }
   return rows
 }

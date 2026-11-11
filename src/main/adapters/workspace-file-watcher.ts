@@ -71,8 +71,9 @@ function queueChange(projectRoot: string, entry: WorkspaceWatcher, changedPath: 
   if (
     relative !== GIT_EXCLUDE_PATH &&
     (ignored(relative) || entry.gitIgnore?.isKnownIgnored(relative))
-  )
+  ) {
     return
+  }
   if (entry.changedPaths.size < WATCH_BATCH_PATH_LIMIT) entry.changedPaths.add(relative)
   else entry.overflow = true
   scheduleFlush(projectRoot, entry)

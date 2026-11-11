@@ -73,8 +73,9 @@ describe('concurrent action publication', () => {
     await shared(EMPTY_ACTION_MANIFEST)
     const target = join(projectPath, '.openwaggle/actions.json')
     hooks.beforeLink = async (_source, destination) => {
-      if (basename(destination) === 'next.json')
+      if (basename(destination) === 'next.json') {
         throw Object.assign(new Error('Hard links unavailable'), { code: 'EPERM' })
+      }
     }
     await expect(publish()).rejects.toThrow('Hard links unavailable')
     expect(await readFile(target, 'utf8')).toBe(serializeActionManifest(EMPTY_ACTION_MANIFEST))
@@ -185,10 +186,11 @@ describe('concurrent action publication', () => {
         throw new Error('Simulated publication crash')
       }
       if (stage === 'capture') hooks.afterRename = fail
-      else
+      else {
         hooks.afterLink = async (_source, destination) => {
           if (basename(destination) === 'actions.json') await fail()
         }
+      }
       await expect(publish()).rejects.toThrow('Simulated publication crash')
       expect(await readFile(join(recoveryPath(), 'previous.json'), 'utf8')).toBe(
         serializeActionManifest(EMPTY_ACTION_MANIFEST),

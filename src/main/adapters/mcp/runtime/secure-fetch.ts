@@ -138,8 +138,9 @@ export async function validateMcpNetworkTarget(input: {
     all: true,
     verbatim: true,
   })
-  if (addresses.length === 0)
+  if (addresses.length === 0) {
     throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
+  }
   assertResolvedLoopbackAllowed(input.url.hostname, addresses, input.allowLoopback)
   const permitsPrivate = privateNetworkPermitted(input)
   if (!permitsPrivate && addresses.some(({ address }) => isPrivateAddress(address))) {

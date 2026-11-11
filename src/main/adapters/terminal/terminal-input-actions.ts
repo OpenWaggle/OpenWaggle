@@ -252,8 +252,9 @@ export function forceReleaseTerminalInputAction(
     if (
       record === undefined ||
       (incarnation !== undefined && record.inputIncarnation !== incarnation)
-    )
+    ) {
       return { status: 'terminal-not-open', releasedBytes: 0 }
+    }
     if (
       terminalOperationBlockDisposition(context.operationQueue, {
         key,

@@ -26,9 +26,11 @@ export async function createManagedActionFixture() {
       records.set(run.id, structuredClone(run))
     },
     interruptAfterHostLoss: async () => {
-      for (const run of records.values())
-        if (isActiveActionRun(run))
+      for (const run of records.values()) {
+        if (isActiveActionRun(run)) {
           records.set(run.id, { ...run, status: 'interrupted', finishedAt: Date.now() })
+        }
+      }
     },
   }
   const definition: ActionDefinition = {
@@ -70,7 +72,7 @@ export async function createManagedActionFixture() {
       start: async ({ onOutput, signal }) => {
         launchEntered?.resolve()
         if (launchGate) {
-          if (rejectLaunchOnAbort && signal)
+          if (rejectLaunchOnAbort && signal) {
             await Promise.race([
               launchGate.promise,
               new Promise<never>((_, reject) => {
@@ -83,7 +85,7 @@ export async function createManagedActionFixture() {
                 )
               }),
             ])
-          else await launchGate.promise
+          } else await launchGate.promise
         }
         const closed = Promise.withResolvers<{ exitCode: number | null }>()
         let stopped = false
