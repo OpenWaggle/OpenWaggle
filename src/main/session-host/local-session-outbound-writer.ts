@@ -23,7 +23,7 @@ export class LocalSessionOutboundWriter {
   private readonly signal: AbortSignal
   private readonly writeFrame: LocalSessionSocketFrameWriter
   /** Names the connection's caller in logs. */
-  private readonly peer?: () => string | undefined
+  private readonly peer: (() => string | undefined) | undefined
 
   constructor(
     socket: Socket,

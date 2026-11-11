@@ -12,6 +12,7 @@ import {
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
   type LocalSessionClientConnectionInput,
+  type LocalSessionClientKind,
   openLocalSessionConnection,
   writeLocalSessionFrame,
 } from './local-session-client-connection'
@@ -100,7 +101,7 @@ export function resolveLocalSessionCommandTimeoutMs(
 export async function executeLocalSessionCommand(input: {
   readonly paths: LocalSessionClientConnectionInput['paths']
   readonly payload: LocalSessionCommandPayload
-  readonly clientKind?: LocalSessionClientConnectionInput['clientKind']
+  readonly clientKind?: LocalSessionClientKind
   readonly clientVersion: string
   readonly workingDirectory?: string
   readonly profile?: string

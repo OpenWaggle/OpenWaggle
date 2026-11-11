@@ -99,7 +99,7 @@ export const UNKNOWN_LAUNCH_PROJECT_MESSAGE =
  */
 export function launchNeedsKnownProject(
   creator: Pick<ScheduledTaskRecord['creator'], 'kind'>,
-  scope: { readonly all?: boolean } | undefined,
+  scope: { readonly all?: boolean | undefined } | undefined,
 ) {
   return creator.kind === 'session-agent' && (scope === undefined || scope.all === true)
 }

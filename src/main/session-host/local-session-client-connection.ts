@@ -116,9 +116,11 @@ export class LocalSessionFrameReader {
   }
 }
 
+export type LocalSessionClientKind = 'gui' | 'cli' | 'mcp' | 'internal'
+
 export interface LocalSessionClientConnectionInput {
   readonly paths: LocalSessionHostPaths
-  readonly clientKind?: 'gui' | 'cli' | 'mcp' | 'internal'
+  readonly clientKind?: LocalSessionClientKind
   readonly clientVersion: string
   readonly workingDirectory?: string
   readonly profile?: string

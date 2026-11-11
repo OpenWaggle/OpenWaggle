@@ -180,7 +180,7 @@ async function waitForCompatibleHost(
   const ready = await waitForCondition({
     timeoutMs,
     dependencies,
-    signal: input.signal,
+    ...(input.signal ? { signal: input.signal } : {}),
     condition: async () => {
       const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
       if (

@@ -52,7 +52,7 @@ export const messagePartSchema = Schema.Union(
   Schema.Struct({
     type: Schema.Literal('text', 'reasoning'),
     text: Schema.String,
-    contentIndex: Schema.optional(Schema.Number),
+    contentIndex: Schema.optionalWith(Schema.Number, { exact: true }),
   }),
   Schema.Struct({
     type: Schema.Literal('attachment'),
@@ -77,11 +77,11 @@ export const messagePartSchema = Schema.Union(
       id: Schema.String,
       name: Schema.String,
       args: jsonObjectSchema,
-      state: Schema.optional(Schema.Literal('input-complete')),
+      state: Schema.optionalWith(Schema.Literal('input-complete'), { exact: true }),
       // The live record of a codemode call's nested calls. A snapshot that carried one used to
       // fail to decode, which failed the whole subscription and left every Session's transcript
       // without live events while its Runs went on in the Host.
-      nestedCalls: Schema.optional(nestedToolCallsSchema),
+      nestedCalls: Schema.optionalWith(nestedToolCallsSchema, { exact: true }),
     }),
   }),
   Schema.Struct({
@@ -93,8 +93,8 @@ export const messagePartSchema = Schema.Union(
       result: jsonValueSchema,
       isError: Schema.Boolean,
       duration: Schema.Number,
-      details: Schema.optional(jsonValueSchema),
-      nestedCalls: Schema.optional(nestedToolCallsSchema),
+      details: Schema.optionalWith(jsonValueSchema, { exact: true }),
+      nestedCalls: Schema.optionalWith(nestedToolCallsSchema, { exact: true }),
     }),
   }),
 )

@@ -39,7 +39,7 @@ export async function waitForPrelaunchedLocalSessionHost(
   const settled = await waitForCondition({
     timeoutMs: input.timeoutMs ?? PRELAUNCHED_HOST_ANSWER_TIMEOUT_MS,
     dependencies,
-    signal: input.signal,
+    ...(input.signal ? { signal: input.signal } : {}),
     condition: async () => {
       if (input.prelaunch.hasEnded()) return true
       const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
