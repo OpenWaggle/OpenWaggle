@@ -62,7 +62,7 @@ function handleToolExecutionStart(
     toolCallId: event.toolCallId,
     toolName: event.toolName,
     args: toolInput,
-    parentMessageId: state.currentMessageId ?? undefined,
+    ...(state.currentMessageId ? { parentMessageId: state.currentMessageId } : {}),
     ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
@@ -88,11 +88,12 @@ function handleToolExecutionUpdate(
 }
 
 function handleToolExecutionEnd(state: SessionListenerState, event: ToolExecutionEndSessionEvent) {
+  const args = state.toolCallInputs.get(event.toolCallId)
   emitEvent(state.input.onEvent, {
     type: 'tool_execution_end',
     toolCallId: event.toolCallId,
     toolName: event.toolName,
-    args: state.toolCallInputs.get(event.toolCallId),
+    ...(args === undefined ? {} : { args }),
     result: toJsonValue(event.result),
     isError: event.isError,
     ...parentToolCall(event),
@@ -245,12 +246,13 @@ function emitAgentEnd(state: SessionListenerState, event: AgentEndSessionEvent) 
       : reason === 'aborted'
         ? getAgentEndError(event.messages)
         : undefined
+  const usage = getAgentEndUsage(event.messages)
   emitEvent(state.input.onEvent, {
     type: 'agent_end',
     runId: state.runId,
     reason,
     ...(event.willRetry ? { willRetry: true } : {}),
-    usage: getAgentEndUsage(event.messages),
+    ...(usage ? { usage } : {}),
     ...(error ? { error } : {}),
     timestamp: Date.now(),
     model: state.input.model,

@@ -8,6 +8,7 @@ import {
   runPiOperation,
 } from './run-lifecycle-failure'
 import { projectPiSessionSnapshot } from './session-projection'
+import { piSessionFileField } from './pi-session-file-field'
 
 /**
  * How long a stopped Run waits for Pi's post-loop work before the Host settles it anyway.
@@ -96,7 +97,7 @@ export async function abortPreCancelledRun(
   return {
     newMessages: [],
     piSessionId: session.sessionId,
-    piSessionFile: session.sessionFile,
+    ...piSessionFileField(session.sessionFile),
     sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
     aborted: true,
   } satisfies AgentKernelRunResult

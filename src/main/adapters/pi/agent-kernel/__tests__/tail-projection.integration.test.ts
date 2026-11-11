@@ -13,6 +13,7 @@ import { runStoreEffect } from '../../../../store/store-runtime'
 import { PI_ENTRY_PROJECTION_VERSION } from '../entry-projection-version'
 import { readRunProjectionBase } from '../run-projection-base'
 import { projectPiSessionSnapshot } from '../session-projection'
+import { piSessionFileField } from '../pi-session-file-field'
 
 /**
  * A Run's snapshot keeps the entries the Session's current projection already holds, when the Pi
@@ -92,7 +93,7 @@ function persist(
   return persistSessionSnapshot({
     sessionId,
     piSessionId: manager.getSessionId(),
-    piSessionFile: manager.getSessionFile(),
+    ...piSessionFileField(manager.getSessionFile()),
     activeNodeId: snapshot.activeNodeId,
     nodes: snapshot.nodes,
     piProjection: snapshot.piProjection,

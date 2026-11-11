@@ -13,6 +13,7 @@ import { createSession, persistSessionSnapshot } from '../../../store/session-de
 import { getPiSessionProjectionState } from '../../../store/session-details/pi-session-discovery-store'
 import { projectPiSessionSnapshot } from '../agent-kernel/session-projection'
 import { createPiSessionFiles } from '../pi-session-files'
+import { piSessionFileField } from '../agent-kernel/pi-session-file-field'
 
 /**
  * A refresh of a Session whose Pi file changed reads only the bytes appended after the
@@ -98,7 +99,7 @@ async function projectedSession() {
   await persistSessionSnapshot({
     sessionId,
     piSessionId: manager.getSessionId(),
-    piSessionFile: manager.getSessionFile(),
+    ...piSessionFileField(manager.getSessionFile()),
     activeNodeId: snapshot.activeNodeId,
     nodes: snapshot.nodes,
   })

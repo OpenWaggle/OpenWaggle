@@ -295,7 +295,7 @@ describe('Pi compaction model switching', () => {
       sessionManager,
       settingsManager,
       noTools: 'all',
-      scopedModels: scoped ? [{ model: sourceModel }, { model: targetModel }] : undefined,
+      ...(scoped ? { scopedModels: [{ model: sourceModel }, { model: targetModel }] } : {}),
     })
     sessions.push(session)
 

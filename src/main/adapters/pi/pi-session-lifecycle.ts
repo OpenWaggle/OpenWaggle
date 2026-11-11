@@ -16,7 +16,7 @@ const logger = createLogger('pi-session-lifecycle')
 type PiAgentSessionFromServicesOptions = Parameters<typeof createAgentSessionFromServices>[0]
 
 export type OpenWaggleAgentSessionOptions = PiAgentSessionFromServicesOptions & {
-  readonly openWaggleUi?: PiInteractionUiContextInput
+  readonly openWaggleUi?: PiInteractionUiContextInput | undefined
 }
 
 async function bindSessionExtensions(

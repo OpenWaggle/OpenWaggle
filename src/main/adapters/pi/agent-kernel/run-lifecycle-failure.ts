@@ -7,6 +7,7 @@ import { getPiAssistantStopReason } from '../pi-run-result'
 import { piEntryNodeIds } from './pi-entry-node-ids'
 import { waitForPostRunSettlement } from './post-run-settlement'
 import { projectPiSessionSnapshot } from './session-projection'
+import { piSessionFileField } from './pi-session-file-field'
 
 export type PiOperationOutcome =
   | {
@@ -67,7 +68,7 @@ function buildFailedRunResult(input: {
   return {
     newMessages: input.newMessages,
     piSessionId: input.session.sessionId,
-    piSessionFile: input.session.sessionFile,
+    ...piSessionFileField(input.session.sessionFile),
     sessionSnapshot: projectPiSessionSnapshot(
       input.session,
       piEntryNodeIds(input.runInput.session),

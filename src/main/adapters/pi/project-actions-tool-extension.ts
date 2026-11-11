@@ -126,7 +126,7 @@ async function authorize(
         },
         ...(signal ? { signal } : {}),
       })
-    : await ctx.ui.confirm(title, message, { signal })
+    : await ctx.ui.confirm(title, message, signal ? { signal } : {})
   if (!approved) throw new Error('The action was not authorized.')
 }
 

@@ -68,7 +68,7 @@ function sendSessionsToolCommand(
     sourceSessionId: input.sessionId,
     sourceRunId: input.runId,
     workingDirectory: input.workingDirectory,
-    projectPath: input.projectPath,
+    ...(input.projectPath === undefined ? {} : { projectPath: input.projectPath }),
     payload,
     ...(signal ? { signal } : {}),
   })

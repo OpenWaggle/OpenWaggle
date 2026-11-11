@@ -8,12 +8,12 @@ function makeProjectedMessage(
   role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: string,
-) {
+): Message {
   return {
     id: MessageId(randomUUID()),
     role,
     parts,
-    model: model ? SupportedModelId(model) : undefined,
+    ...(model ? { model: SupportedModelId(model) } : {}),
     createdAt: Date.now(),
   }
 }

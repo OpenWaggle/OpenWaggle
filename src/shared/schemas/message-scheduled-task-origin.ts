@@ -5,5 +5,5 @@ import { SCHEDULED_TASK_KINDS } from '@shared/types/scheduled-task'
 export const messageScheduledTaskOriginSchema = Schema.Struct({
   taskId: Schema.String.pipe(Schema.minLength(1)),
   name: Schema.String.pipe(Schema.minLength(1)),
-  kind: Schema.optional(Schema.Literal(...SCHEDULED_TASK_KINDS)),
+  kind: Schema.optionalWith(Schema.Literal(...SCHEDULED_TASK_KINDS), { exact: true }),
 })

@@ -216,15 +216,21 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
     ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
-    skillToggles: input.skillToggles,
-    skillAllowlist: input.skillAllowlist,
-    enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
-    enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
+    ...(input.enabledOpenWaggleExtensionPackages
+      ? { enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages }
+      : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
-    recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    ...(input.recordOpenWaggleExtensionRuntimeFailure
+      ? { recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure }
+      : {}),
     steeringInputHook: true,
     extensionFactories: extensions.factories,
     trustedExtensionFactories: extensions.trustedFactories,

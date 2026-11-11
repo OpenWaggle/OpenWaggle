@@ -27,7 +27,7 @@ interface RegistrationInput {
 async function approved<T>(input: {
   readonly operation: string
   readonly params: unknown
-  readonly signal?: AbortSignal
+  readonly signal?: AbortSignal | undefined
   readonly ctx: ExtensionContext
   readonly execute: () => Promise<T>
 }) {

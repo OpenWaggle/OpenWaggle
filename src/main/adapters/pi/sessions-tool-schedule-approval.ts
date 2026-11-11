@@ -49,7 +49,7 @@ export async function approvePendingWakeCheck(input: {
   const approved = await input.ctx.ui.confirm(
     'Approve this Heartbeat’s Wake check?',
     approvalMessage(pending.task, pending.command),
-    { signal: input.signal },
+    input.signal ? { signal: input.signal } : {},
   )
   if (!approved) return input.result
   const approval = await input.send(

@@ -101,13 +101,12 @@ function runtimeExtensionResourceRoots(
   )
 }
 
-async function recordRuntimeExtensionFailure(
-  input: Pick<PiRuntimeExtensionIsolationInput, 'recordOpenWaggleExtensionRuntimeFailure'> & {
-    readonly selection: RuntimeExtensionSelection
-    readonly error: unknown
-    readonly operation: string
-  },
-) {
+async function recordRuntimeExtensionFailure(input: {
+  readonly recordOpenWaggleExtensionRuntimeFailure: PiRuntimeExtensionIsolationInput['recordOpenWaggleExtensionRuntimeFailure']
+  readonly selection: RuntimeExtensionSelection
+  readonly error: unknown
+  readonly operation: string
+}) {
   return matchBy(input.selection, 'type')
     .with('runtime-enabled-package', (runtimeSelection) =>
       input.recordOpenWaggleExtensionRuntimeFailure?.(

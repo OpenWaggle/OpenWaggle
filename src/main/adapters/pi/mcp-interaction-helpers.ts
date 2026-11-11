@@ -55,7 +55,7 @@ export async function declaredConfirm(input: {
   readonly purpose: OpenWaggleDeclaredConfirmPurpose
   readonly title: string
   readonly message: string
-  readonly signal?: AbortSignal
+  readonly signal?: AbortSignal | undefined
 }): Promise<boolean> {
   const declared = getOpenWaggleDeclaredConfirm(input.ctx.ui)
   if (declared) {
@@ -66,5 +66,9 @@ export async function declaredConfirm(input: {
       ...(input.signal ? { signal: input.signal } : {}),
     })
   }
-  return input.ctx.ui.confirm(input.title, input.message, { signal: input.signal })
+  return input.ctx.ui.confirm(
+    input.title,
+    input.message,
+    input.signal ? { signal: input.signal } : {},
+  )
 }

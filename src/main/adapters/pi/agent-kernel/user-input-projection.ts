@@ -122,7 +122,7 @@ export function enqueueUserInputProjection(
   const pending: PendingProjection = {
     payload,
     ...(scheduledTask ? { scheduledTask } : {}),
-    signal,
+    ...(signal ? { signal } : {}),
     cancel: () => {
       const index = queue.pending.indexOf(pending)
       if (index < 0) return

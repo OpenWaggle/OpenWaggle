@@ -40,7 +40,7 @@ function mcpTool(server: string, tool: string, exposure: ToolDefinition['exposur
     label: `${server}/${tool}`,
     description: tool,
     parameters: Type.Object({}),
-    exposure,
+    ...(exposure ? { exposure } : {}),
     namespace: { name: `mcp__${server}`, aliases: [server] },
   })
 }

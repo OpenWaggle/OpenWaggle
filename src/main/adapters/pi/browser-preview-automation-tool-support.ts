@@ -31,7 +31,7 @@ export async function authorizeBrowserPreviewTool(input: {
   readonly operation: string
   readonly params: unknown
   readonly ctx: ExtensionContext
-  readonly signal?: AbortSignal
+  readonly signal?: AbortSignal | undefined
 }) {
   if (!input.ctx.hasUI) {
     throw new Error('Browser preview automation requires an interactive OpenWaggle session.')
@@ -56,9 +56,11 @@ export async function authorizeBrowserPreviewTool(input: {
       ...(input.signal ? { signal: input.signal } : {}),
     })
   }
-  return input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-    signal: input.signal,
-  })
+  return input.ctx.ui.confirm(
+    title,
+    `${message}\n\nThis approval applies only to this call.`,
+    input.signal ? { signal: input.signal } : {},
+  )
 }
 
 export function deniedBrowserPreviewResult(
