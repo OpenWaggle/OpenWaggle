@@ -2,8 +2,10 @@
  * The grammar of a startup failure summary (src/main/startup-failure-summary.ts, issue #446): an
  * `application` report whose whole message is built from fixed facts, such as
  * `session-host: Error <- WindowsUserOnlySecurityError stage=compile exit=1`. Part of the shared
- * error-report rules (./error-report-rules.ts re-exports it), so the app and the statistics
- * endpoint both recognise it. Like the other rules this module imports nothing.
+ * error-report rules (./error-report-rules.ts re-exports it). Only the app's scrubber uses it, to
+ * keep the summary's origin; the statistics endpoint keeps the text of any handled `application`
+ * report, as it always has, and does not check this grammar. Like the other rules this module
+ * imports nothing.
  *
  * A summary can carry `code=ECONNREFUSED` or `exit=503`, which OpenWaggle's error classification
  * would otherwise read as a failed provider request and reduce to a code. A message that matches

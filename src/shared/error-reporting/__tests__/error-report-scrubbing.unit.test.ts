@@ -224,6 +224,31 @@ describe('scrubErrorReportEvent', () => {
     expect(event.tags).toEqual(APPLICATION_TAGS)
   })
 
+  it('reduces a report to codes when only one of its messages is a summary', () => {
+    const event = scrubbed(
+      {
+        exception: {
+          values: [
+            { type: 'Error', value: '429 Rate limit reached: "my prompt"' },
+            {
+              type: 'SessionHostStartupFailure',
+              value: 'gui-bootstrap: Error code=ECONNREFUSED',
+              mechanism: HANDLED,
+            },
+          ],
+        },
+        tags: APPLICATION_TAGS,
+      },
+      {},
+    )
+
+    expect(event.exception?.values?.map((exception) => exception.value)).toEqual([
+      'rate-limited',
+      'provider-unavailable',
+    ])
+    expect(event.tags).toEqual({ [ERROR_REPORT_ORIGIN_TAG]: 'provider-response' })
+  })
+
   it.each([
     ['text after the summary', 'gui-bootstrap: Error code=ECONNREFUSED my private prompt'],
     ['an unknown context', 'my-context: Error code=ECONNREFUSED'],

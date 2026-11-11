@@ -67,9 +67,9 @@ vi.mock('../usage-statistics/usage-statistics-enablement', () => ({
   isUsageStatisticsEnabled: () => state.enablement.enabled,
   currentUsageStatisticsEnablement: () => state.enablement,
   assumeUsageStatisticsSettingUntilSettingsLoad: (setting: boolean | undefined) => {
-    if (setting !== undefined) {
-      state.enablement = setting ? { enabled: true } : { enabled: false, reason: 'setting' }
-    }
+    if (setting === undefined) return
+    state.enablement = setting ? { enabled: true } : { enabled: false, reason: 'setting' }
+    for (const listener of [...state.listeners]) listener(setting)
   },
   onUsageStatisticsEnablementChange: (listener: (enabled: boolean) => void) => {
     state.listeners.add(listener)
@@ -279,6 +279,23 @@ describe('main-process error reporting', () => {
 
     expect(adapter.startSentryMainErrorReporter).toHaveBeenCalledOnce()
     expect(lastKnown.record).not.toHaveBeenCalled()
+  })
+
+  it('reports the fatal error of a Host whose Settings read failed, from the saved Setting', async () => {
+    state.enablement = { enabled: false, reason: 'settings-unavailable' }
+    state.lastKnownSetting = true
+    const host = await loadErrorReporting()
+    await host.startErrorReporting('session-host')
+    expect(adapter.startSentryMainErrorReporter).not.toHaveBeenCalled()
+
+    void host.reportStartupFailure(new Error('settings not ready'), 'session-host')
+    await host.flushErrorReporting()
+
+    expect(adapter.startSentryMainErrorReporter).toHaveBeenCalledOnce()
+    expect(adapter.reporter.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'SessionHostFatalError' }),
+      'application',
+    )
   })
 
   it('never acts on a saved Setting under a fixed opt-out', async () => {

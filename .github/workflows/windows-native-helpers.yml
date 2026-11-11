@@ -19,9 +19,12 @@ on:
       - src/main/env.ts
       - src/main/desktop-ui.ts
       - scripts/qa/__tests__/session-host-shutdown.integration.test.ts
-      - scripts/qa/__tests__/windows-detached-process*
-      - scripts/qa/__tests__/fixtures/windows-detached-process*
-      - scripts/qa/windows-process-tree.ts
+      - scripts/qa/__tests__/windows-*
+      - scripts/qa/__tests__/fixtures/windows-*
+      - scripts/qa/windows-*
+      - scripts/qa/session-host-shutdown.ts
+      - scripts/safe-electron-environment.ts
+      - src/main/session-host/session-host-ownership.ts
       - .github/workflows/windows-native-helpers.yml
   workflow_dispatch:
 

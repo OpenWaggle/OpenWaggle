@@ -64,6 +64,8 @@ const OPERATING_SYSTEM_NAMES: Readonly<Partial<Record<NodeJS.Platform, string>>>
 
 /** This process's one start attempt; it settles once reporting started, waits or stays off. */
 let startup: Promise<void> | null = null
+/** Set when the SDK starts after its start attempt settled, once Usage statistics turned on. */
+let lateSdkStart: Promise<void> | null = null
 /** Set once the SDK started. */
 let reporter: ErrorReporter | null = null
 /** Set once the SDK failed to start; this process then reports nothing. */
@@ -120,7 +122,7 @@ function startSdkWhenEnabled(
   const stopWaiting = enablement.onUsageStatisticsEnablementChange((enabled) => {
     if (!enabled) return
     stopWaiting()
-    startSdk(processKind, enablement).catch(stopAfterFailure)
+    lateSdkStart = startSdk(processKind, enablement).catch(stopAfterFailure)
   })
 }
 
@@ -166,35 +168,44 @@ export function startErrorReporting(processKind: ErrorReportingProcess): Promise
  * Starts error reporting in a process whose Settings could not load, such as a GUI whose Session
  * Host did not start (issue #446). It acts on the Setting the Session Host last saved, or the
  * default on an install that never stored Settings, until Settings load; with neither, or with
- * that Setting off, it reports nothing, as before. Once reporting started, this is
- * {@link startErrorReporting}. Never rejects.
+ * that Setting off, it reports nothing, as before. When reporting already started and waits on
+ * Settings that never loaded, as in a Host whose Settings read failed, the saved Setting applies
+ * to that attempt. Never rejects.
  */
 export function startErrorReportingWithoutSettings(
   processKind: ErrorReportingProcess,
 ): Promise<void> {
-  if (startup) return startup
   if (fixedOptOutApplies()) {
-    startup = beginErrorReporting(processKind)
+    startup ??= beginErrorReporting(processKind)
     return startup
   }
+  // A Host whose Settings read failed already started reporting, which waits on the Setting:
+  // assuming the saved Setting then starts the SDK through that wait.
+  const earlier = startup
   startup = (async () => {
-    try {
-      const [enablement, lastKnown] = await Promise.all([
-        importUsageStatisticsEnablement(),
-        importLastKnownSetting(),
-      ])
-      const current = enablement.currentUsageStatisticsEnablement()
-      if (!current.enabled && current.reason === 'settings-unavailable') {
-        enablement.assumeUsageStatisticsSettingUntilSettingsLoad(
-          lastKnown.usageStatisticsSettingWithoutSettings(app.getPath('userData')),
-        )
-      }
-    } catch (error) {
-      logger.warn('The last known Usage statistics Setting could not be read', describeError(error))
-    }
-    await beginErrorReporting(processKind)
+    await earlier
+    await assumeLastKnownSetting()
+    // Settles once the SDK started, so a report queued on this attempt reaches it.
+    if (earlier) await lateSdkStart
+    else await beginErrorReporting(processKind)
   })()
   return startup
+}
+
+async function assumeLastKnownSetting() {
+  try {
+    const [enablement, lastKnown] = await Promise.all([
+      importUsageStatisticsEnablement(),
+      importLastKnownSetting(),
+    ])
+    const current = enablement.currentUsageStatisticsEnablement()
+    if (current.enabled || current.reason !== 'settings-unavailable') return
+    enablement.assumeUsageStatisticsSettingUntilSettingsLoad(
+      lastKnown.usageStatisticsSettingWithoutSettings(app.getPath('userData')),
+    )
+  } catch (error) {
+    logger.warn('The last known Usage statistics Setting could not be read', describeError(error))
+  }
 }
 
 /**
