@@ -54,35 +54,22 @@ In CI a missing `origin/main` fails the step instead of comparing with `HEAD`; t
 
 ## CI Gate Tiers
 
-CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
+CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no desktop E2E and no merge queue:
 
 - **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them.
 - **Session Performance workflow (manual/dispatch):** `bun run benchmark:session-release` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `bun run benchmark:session-performance` remains the faster local 1,000,000-message development check.
-- **Nightly canary (non-gating):** `.github/workflows/nightly.yml` builds and runs `packaged-app:smoke` on macOS/Linux/Windows, and runs the syntax performance benchmark on macOS. It never blocks a merge.
+- **Nightly canary (non-gating):** `.github/workflows/nightly.yml` packages the Electrobun app and runs `packaged-app:smoke` on macOS/Linux/Windows, installs, launches and updates a package on each, and runs the syntax performance benchmark on macOS. It never blocks a merge.
 
 Pushes to `main` run the same checks as a PR (the path-scoped `changes` job is skipped on push, which the gate tolerates).
 
 ### Windows native diagnostics
 
-Normal native preparation probes the same automatic backend selection as the app,
-plus bundled ConPTY. It retains the full identity, I/O, containment, resource-drain,
-and exact 256 KiB final-output checks. It does not force legacy WinPTY on modern
-Windows. If an older host selects WinPTY and loses output, preparation still fails.
-
-The manual `windows-terminal-diagnostics.yml` workflow accepts an exact `head_sha`,
-`runtime` (`electron` or `node`), and `profile` (`runtime` or `all-backends`). It runs
-only native preparation/probes, caches the Windows Bun package cache, and retains diagnostic
-logs. `all-backends` forces system ConPTY, bundled ConPTY, and WinPTY through the same
-assertions. WinPTY currently fails the burst check because its 3,000-row console
-screen buffer loses the beginning before scraping. Do not treat a green runtime
-profile as proof of lossless WinPTY support.
-
-This follows T3 Code's separation of ordinary CI from manual Windows investigation,
-and its test strategy: OpenWaggle no longer runs Electron E2E in CI at all
-(ADR 0033), relying on unit + integration + MCP conformance, with the manual
-Windows diagnostics workflow for native investigation. The reference is T3 Code commit
-`b1e223e2b0d87124883b1410ab52dd6a1338e40d`, specifically
-`apps/server/src/terminal/NodePtyAdapter.ts` and `.github/workflows/windows-tests.yml`.
+Terminals run on ConPTY through `bun:ffi` (`src/main/adapters/terminal/bun-pty/`). The manual
+`windows-terminal-diagnostics.yml` workflow accepts an exact `head_sha` and runs the terminal
+backend integration tests on a Windows runner, retaining their log. It keeps ConPTY
+investigations apart from ordinary PR feedback, as T3 Code separates its Windows tests
+(commit `b1e223e2b0d87124883b1410ab52dd6a1338e40d`, `.github/workflows/windows-tests.yml`):
+OpenWaggle runs no desktop E2E in CI (ADR 0033), relying on unit + integration + MCP conformance.
 
 ## Baseline Static Checks
 
@@ -132,7 +119,7 @@ bun run check:react-doctor
 
 React Doctor fails on warnings as well as errors; see Fallow And React Doctor above.
 
-## Electron / IPC / Preload Work
+## Desktop / IPC / Preload Work
 
 For renderer interaction, preload, IPC, or main-process behavior that affects the UI:
 
@@ -140,7 +127,7 @@ For renderer interaction, preload, IPC, or main-process behavior that affects th
 bun run dev:debug
 ```
 
-Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Electron app on CDP port 9223:
+It starts an Electrobun dev build of the checkout hidden, with the main window rendered by CEF and its DevTools endpoint on `http://127.0.0.1:9223` (`scripts/electrobun/dev.ts`). Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real app on CDP port 9223:
 
 - app page is reachable
 - `window.api` exists
@@ -160,29 +147,28 @@ bun run check
 
 Also load `.agents/skills/pi-integration/SKILL.md` and run targeted tests around the touched adapter/projection/service.
 
-## Native / Packaged Electron Work
+## Native / Packaged App Work
 
 For native modules or packaged-only regressions:
 
 ```bash
 bun run prepare:native:node
-bun run prepare:native:electron
-bun run build
-bun run build:mac
+bun run package:app                # build, then scripts/electrobun/package.ts for this platform
 ```
 
 Packaged regressions require packaged-app QA, not only dev-mode validation.
 
 ## Packaged app validation
 
-There is no Electron E2E suite (ADR 0033). Per-PR gating relies on unit + integration + component + MCP conformance. For the real packaged app:
+There is no desktop E2E suite (ADR 0033). Per-PR gating relies on unit + integration + component + MCP conformance. For the real packaged app:
 
 ```bash
-bun run build                      # production bundle
-bun run packaged-app:smoke         # asar shape + native (node-pty/sqlite) load probe
+bun run package:app                # production bundle, packaged with Electrobun
+bun scripts/check-native-platform-floor.ts   # the supported-platform floor of the packaged app
+bun run packaged-app:smoke         # app directory shape + native (sqlite, sharp) load probe
 ```
 
-The nightly canary (`.github/workflows/nightly.yml`) runs this build + smoke on macOS/Linux/Windows as a non-gating signal. For UI-visible behavior use `bun run dev:debug` with `.agents/skills/electron-qa/SKILL.md`. Renderer boot, CSP, visual pixels, and timing budgets are no longer checked in CI — validate them locally/manually when the change touches them.
+The nightly canary (`.github/workflows/nightly.yml`) packages and smokes the app on macOS/Linux/Windows, then installs, launches and updates a package on each (`electrobun-package.yml`), as a non-gating signal. For UI-visible behavior use `bun run dev:debug` with `.agents/skills/electron-qa/SKILL.md`. Renderer boot, CSP, visual pixels, and timing budgets are no longer checked in CI — validate them locally/manually when the change touches them.
 ## Release Work
 
 For publishable package work, `bun run check` should include package import-boundary checks and package API snapshot checks. Snapshot drift must be fixed by either correcting the public API change or intentionally updating the committed package API snapshot in the same PR.

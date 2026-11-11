@@ -22,10 +22,10 @@ The patches are larger than ADR 0025's compaction behaviour. Re-port every part 
 
 Pi resolves several files from `import.meta.url`, which in the bundle is OpenWaggle's `out/main`. Check each of these still works after an upgrade; `bun run pi-main-bundle:smoke` (part of `bun run check`) and `bun run packaged-app:smoke` cover them.
 
-- `scripts/vite/pi-worker-bundles.ts` emits Pi's codemode sandbox worker (`codemode-worker.js`, an ES module run from a `data:` URL) and image-resize worker (`image-resize-worker.js`) beside the main bundle. A new Pi worker entry needs an entry there.
+- `scripts/build-main.ts` (`PI_WORKERS`) emits Pi's codemode sandbox worker (`codemode-worker.js`, an ES module run from a `data:` URL) and image-resize worker (`image-resize-worker.js`) beside the main bundle. A new Pi worker entry needs an entry there.
 - QuickJS (`quickjs-wasi`) and Photon (`@silvia-odwyer/photon-node`) are root dependencies pinned to the exact versions Pi depends on, because their wasm is read from the installed package. On each upgrade, set both root pins to the versions in the new `pi-codemode` and `pi-coding-agent` package.json files; `check:pi-runtime` fails when a pin drifts or the lockfile resolves more than one version.
 - `src/main/apply-pi-package-directory.ts` sets Pi's `PI_PACKAGE_DIR` to Pi's installed package before any Pi module loads, so Pi's README, docs, themes, export templates, and `VERSION` come from Pi and not from OpenWaggle's package.json. Shells OpenWaggle starts get the user's own value back.
-- electron-builder keeps Pi's README, docs, and examples (`scripts/electron-builder-pi-assets.ts`), and `asarUnpack` keeps both workers and both wasm packages unpacked.
+- The packaged app keeps Pi's README, docs, and examples (`BUNDLED_PACKAGE_ASSETS` in `scripts/electrobun/stage-node-modules.ts`), and `bun run packaged-app:smoke` checks they shipped.
 - Bundler-opaque lazy loaders (OAuth flows, the Bedrock implementation) need static registration (`pi-bundled-oauth.ts`, `pi-bundled-bedrock.ts`).
 
 ## Update procedure

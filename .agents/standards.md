@@ -38,7 +38,7 @@ Prefer `@diegogbrisa/ts-match` when pattern matching, exhaustive union handling,
 
 Main-process code follows hexagonal architecture (ADR 0001, `openwaggle/main-architecture-boundaries`):
 
-- Domain: pure business logic. No Electron, Node fs/process, SQL, Pi SDK or store imports.
+- Domain: pure business logic. No desktop shell SDK, Node fs/process, SQL, Pi SDK or store imports.
 - Ports: Effect service interfaces. No vendor SDKs or stores.
 - Adapters: infrastructure and vendor code. App Pi SDK imports stay under `src/main/adapters/pi/`; `packages/pi-*` may import Pi SDKs.
 - Application services: orchestration through ports. No direct store, IPC or Pi SDK imports.
@@ -59,26 +59,26 @@ OpenWaggle is a UI and product shell over Pi, not a parallel runtime (ADR 0002, 
 - Translate Pi details into OpenWaggle-owned DTOs only at adapter boundaries.
 - Add tool or runtime layers only as Pi-native extensions behind ports.
 - Project resources resolve `.openwaggle > .pi > .agents` for skills, extensions, prompts and themes. Project config is `.openwaggle/settings.json`, with Pi settings under the nested `pi` key.
-- Portable Waggle policy goes in `packages/waggle-core` with no Pi, OpenWaggle or Electron imports; Pi-specific Waggle behaviour goes in `packages/pi-waggle` (ADR 0004).
+- Portable Waggle policy goes in `packages/waggle-core` with no Pi, OpenWaggle or desktop shell imports; Pi-specific Waggle behaviour goes in `packages/pi-waggle` (ADR 0004).
 
 ## Publishable package boundaries
 
 `check:repository-standards` enforces these imports (`4bd0325e2`, `scripts/repository-package-boundaries.ts`):
 
-- `packages/extension-sdk` stays browser-safe: no Electron, Node built-ins, Pi SDK, renderer stores, main-process services or app internals.
-- `packages/waggle-core` stays runtime-neutral: no Pi SDK, Electron, Node built-ins, renderer stores or app services.
-- `packages/extension-react` may use `@openwaggle/extension-sdk` and React peers, but no renderer components, app CSS, Tailwind internals, Electron or app services.
-- `packages/pi-waggle` may import Pi SDKs, but not Electron, renderer stores or app services.
+- `packages/extension-sdk` stays browser-safe: no desktop shell SDK, Node built-ins, Pi SDK, renderer stores, main-process services or app internals.
+- `packages/waggle-core` stays runtime-neutral: no Pi SDK, desktop shell SDK, Node built-ins, renderer stores or app services.
+- `packages/extension-react` may use `@openwaggle/extension-sdk` and React peers, but no renderer components, app CSS, Tailwind internals, desktop shell SDK or app services.
+- `packages/pi-waggle` may import Pi SDKs, but not the desktop shell SDK, renderer stores or app services.
 
-## Electron runtime
+## Desktop runtime
 
 Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native ABI, packaging, CDP or startup issues.
 
 - Main-process environment access goes through `src/main/env.ts` (`4bd0325e2`, `node/no-process-env`), and child processes get their environment from the env helpers, never a spread of `process.env` (`4bd0325e2`).
-- Native modules keep separate Node and Electron rebuild paths, and a bug that only appears after packaging is verified in a packaged build (`4bd0325e2`).
+- Native modules are built for the Node ABI that Bun loads (`bun run prepare:native:node`), the packaged app ships the prebuilds for its own platform, and a bug that only appears after packaging is verified in a packaged build (`4bd0325e2`).
 - Main-process code logs through the structured loggers (`4bd0325e2`, `no-console`).
-- Automated runs route window show and focus, native dialogs and external applications through the automation policy (`4bd0325e2`, `check:repository-standards`: `scripts/standards/electron-automation.ts`).
-- Electron sits behind the desktop shell ports in `src/main/ports/desktop-shell/`. Only `src/main/adapters/electron/` and `src/preload/electron-transport.ts` import Electron; main code uses the bindings in `src/main/desktop-shell/` (ADR 0064, `openwaggle/desktop-shell-boundary`).
+- Automated runs route window show and focus, native dialogs and external applications through the automation policy, and scripts start the app for automation only through `scripts/support/electrobun-app-launch.ts` (`4bd0325e2`, `check:repository-standards`: `scripts/standards/desktop-automation.ts`).
+- Electrobun sits behind the desktop shell ports in `src/main/ports/desktop-shell/`. Only `src/main/adapters/electrobun/` and `src/preload/transport.ts` import `electrobun/*`, and only the crash-reporting adapters and bridges import `@sentry/bun` or `@sentry/browser`; main code uses the bindings in `src/main/desktop-shell/` (ADR 0064, ADR 0066, `openwaggle/desktop-shell-boundary`).
 
 ## Renderer
 
@@ -97,7 +97,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native AB
 - Unit, integration and component tests live in nearby `__tests__/` folders; route-adjacent TanStack Router test files use the configured ignored filename pattern (`4bd0325e2`, `openwaggle/test-colocation`).
 - Tests verify behaviour through public interfaces, with typed builders, `satisfies` and Shoehorn helpers instead of casts: `fromPartial` for a partial fixture that still matches the shape, `fromAny` only for intentionally invalid input, `fromExact` when the test must supply the full type (`4bd0325e2`). A response field gets a decode test through the real schema: an Effect Schema `Struct` drops keys it does not declare, which once lost the approval scope while every test that answered the broker directly stayed green (memory: tooling).
 - A mocked `@/shared/lib/ipc` answers like the real bridge (memory: testing).
-- Mock only what leaves the process: the network, child processes, Electron, the clock, and files outside a temporary directory. Code inside the process runs for real. The test-suite audit before v1 found tests that only checked their own mocks and rewrote them against real collaborators (renderer `vi.mock` calls 203 → 85 in those files).
+- Mock only what leaves the process: the network, child processes, the desktop shell, the clock, and files outside a temporary directory. Code inside the process runs for real. The test-suite audit before v1 found tests that only checked their own mocks and rewrote them against real collaborators (renderer `vi.mock` calls 203 → 85 in those files).
 - A test earns its place by catching a change no other test catches. Before adding a case, find the subject's existing tests and add a row to their `it.each` table instead of a near-copy (test-suite audit).
 - Test a behaviour once, at the lowest tier that can show it (test-suite audit).
 - Constants, getters, re-exports, types and a mock's value passed straight through get no test (test-suite audit).

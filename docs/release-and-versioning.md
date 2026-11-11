@@ -38,26 +38,20 @@ Platform trust for v1:
   certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
   `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
   unsigned. The release workflow refuses an RC or Stable version without them in the version job,
-  before it opens a release PR or pushes a tag, and `build-macos` checks again before it builds. The
-  electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
-  because every electron-builder command, including `postinstall`, loads it. When configured,
-  the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
+  before it opens a release PR or pushes a tag, and `build-macos` checks again before it builds.
+  `scripts/electrobun/ci/macos-import-identity.sh` imports the identity into a job-only keychain;
+  without it the app is signed ad hoc. OpenWaggle signs the app itself
+  (`scripts/electrobun/sign-macos.ts`), notarizes and staples it before Hutch packs it
+  (`scripts/electrobun/notarize-macos.ts`), then builds, signs, notarizes and staples the DMG from
+  that same bundle (`scripts/electrobun/macos-dmg.ts`). When configured, the release workflow
+  verifies the app and the DMG with `codesign`, `stapler`, and `spctl` before upload.
 - The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
   Apple's verdict, stapler needs it to fetch the ticket afterwards, and `hdiutil` needs a working
-  disk-image device to build the DMG.
-  `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first. When a `dmgbuild` call
-  fails with `Device not configured`, `Resource busy`, or `Resource temporarily unavailable`, it
-  retries that call alone, up to five attempts with 30 s to 4 min of backoff, and does not
-  notarize again. Re-create the patch when `dmg-builder` changes version.
-- When `scripts/macos-build-failure.ts` identifies a failed macOS build as notarytool losing its
-  connection to Apple (a transport error or an Apple 5xx), as stapler losing its connection to
-  Apple's ticket service after notarization succeeded (a transport error), or as one of those
-  `hdiutil` errors failing `dmgbuild`, the whole build rebuilds and resubmits, up to three attempts in total. The
-  job turns off Spotlight indexing once and stops XProtect before each attempt, because `hdiutil`
-  fails under concurrent disk activity on hosted runners. A rejected submission, a credential
-  error, or any other failure fails the first attempt. A notary rejection or credential error
-  fails it even if the log also has a transient error from the other architecture. A third
-  runner failure fails the job. Rerunning the failed jobs reuses the version job's result, but a
+  disk-image device to build the DMG. `notarize-macos.ts` retries a notarytool or stapler
+  transport failure, up to three attempts, and fails at once on a rejection, printing Apple's log;
+  `macos-dmg.ts` retries `hdiutil create` up to three attempts. The job turns off Spotlight
+  indexing and stops XProtect before packaging, because `hdiutil` fails under concurrent disk
+  activity on hosted runners. Rerunning the failed jobs reuses the version job's result, but a
   rerun uses the workflow as it was at the release commit. A workflow fix only reaches the next
   release.
 - Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
@@ -252,7 +246,7 @@ platform and architecture in `optionalDependencies` (such as `@img/sharp-darwin-
 `1.0.0` betas' Intel macOS app shipped only the arm64 builds of sharp, `@napi-rs/keyring` and
 `@mariozechner/clipboard`, because the arm64 release runner installed one architecture.
 The release build jobs now run `bun install --cpu=arm64 --cpu=x64` to install both CPU architectures, and
-`scripts/electron-builder-native-prebuilds.ts` keeps only the packed one. The
+`scripts/electrobun/stage-node-modules.ts` ships only the packed one. The
 Linux release build runs on `ubuntu-22.04`, because native modules link against the build host's
 glibc and libstdc++; `1.0.0-beta.25`, built on Ubuntu 24.04, shipped a `node-pty` that needed glibc
 2.38.

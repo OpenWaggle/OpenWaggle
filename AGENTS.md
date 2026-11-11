@@ -7,19 +7,19 @@ This is the root entrypoint for agentic coding work in OpenWaggle. Keep this fil
 1. Inspect the current working tree before editing: `git status --short --branch`.
 2. Treat uncommitted work as source of truth. Another agent may be refactoring this repository; do not overwrite, revert, unstage, or "clean up" work you did not create.
 3. For non-trivial work, read the `MEMORY.md` index before planning, then load only the `.agents/memory/<topic>.md` files whose trigger matches the area you touch (Pi, Session Host, renderer, release, tooling, and so on). Do not load every topic.
-4. Load `.agents/standards.md` before architectural, TypeScript, renderer, Pi, Electron, testing, or tooling changes.
+4. Load `.agents/standards.md` before architectural, TypeScript, renderer, Pi, desktop shell, testing, or tooling changes.
 5. Load `.agents/verification.md` before deciding which checks to run.
 6. Load skills from `.agents/skills/<skill-id>/SKILL.md` only when the task or user explicitly calls for that expertise.
 7. For pattern matching, exhaustive union handling, runtime guards, or boundary assertions, prefer `@diegogbrisa/ts-match` when it improves clarity or type safety. Load `.agents/skills/ts-match/SKILL.md` before implementing those patterns.
 
 ## Commands
 
-Use `bun` only: `bun install`, `bun run <script>`, `bun run --filter <package> <script>`, and `bunx <bin>`. Repository scripts run with `bun scripts/<name>.ts`, and every Vitest tier runs on the Bun runtime (`bun --bun vitest`). Node.js still runs Electron tooling, native module builds and the MCP conformance client, so keep Node 24 installed.
+Use `bun` only: `bun install`, `bun run <script>`, `bun run --filter <package> <script>`, and `bunx <bin>`. Repository scripts run with `bun scripts/<name>.ts`, and every Vitest tier runs on the Bun runtime (`bun --bun vitest`). Node.js still runs native module builds and the MCP conformance client, so keep Node 24 installed.
 
 ```bash
 bun install              # Install from bun.lock (Bun version: packageManager / .bun-version)
-bun run dev              # Electron dev app
-bun run dev:debug        # Hidden Electron dev app with CDP on port 9223
+bun run dev              # Electrobun dev app (build, stage, `electrobun dev`)
+bun run dev:debug        # Hidden Electrobun dev app, CEF renderer with CDP on port 9223
 bun run build            # Production build
 bun run typecheck        # One bun check -b over node, web and renderer tests
 bun run lint             # oxfmt check + type-aware `bun lint` (oxlint.config.mts) + repository standards
@@ -45,9 +45,9 @@ CI runs on pull requests and, after ADR 0033, without a merge queue: once the re
 
 ## Repository Model
 
-OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
+OpenWaggle is an Electrobun desktop coding-agent UI on top of Pi (ADR 0064).
 
-- Main process: `src/main/`, Node/Electron, Effect services, ports, adapters, IPC, persistence.
+- Main process: `src/main/`, Bun/Electrobun, Effect services, ports, adapters, IPC, persistence.
 - Preload: `src/preload/`, typed bridge from renderer to IPC.
 - Renderer: `src/renderer/src/`, React 19, React Compiler, TanStack Router/Query, Zustand, Tailwind v4.
 - Shared: `src/shared/`, platform-neutral types, schemas, constants, and pure utilities.
@@ -118,6 +118,6 @@ Agent-facing release and update-track guidance lives in `docs/agents/release.md`
 1. Scope is met without unapproved side effects.
 2. Types, lint, architecture, and relevant tests are green or reported with exact blockers.
 3. Fallow (`bun run check:fallow`) and React Doctor (`bun run check:react-doctor`) report zero findings; both are required steps of `check` and CI. Fix findings in code; a false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry with its reason, never a suppression comment.
-4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `bun run dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
+4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-app QA via `bun run dev:debug` and `electron-qa` when practical. Every completed agent-run desktop QA captures representative screenshots outside the repository and renders them in the final report. Never run headed desktop QA without the maintainer's explicit approval for that exact run.
 5. Significant OpenWaggle technical findings are added to the matching `.agents/memory/<topic>.md` file (a new topic gets one line in the `MEMORY.md` index) or a focused skill, not to deleted legacy memory files.
 6. The final report states what changed, what was validated, and any remaining risk.

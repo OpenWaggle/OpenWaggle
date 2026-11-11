@@ -8,7 +8,7 @@ direct dependency moves only when someone edits its manifest line, so the new ve
 in the pull request diff. And `bun update`, or a lockfile that gets re-resolved, cannot carry a
 direct dependency to a newer minor or patch release on its own. Two groups need this most. Packages
 before 1.0 may break things in a minor release, such as the Effect platform and SQL packages,
-Lexical, TanStack Hotkeys and the xterm add-ons. And the app cannot run without Electron, Pi
+Lexical, TanStack Hotkeys and the xterm add-ons. And the app cannot run without Electrobun, Pi
 and `better-sqlite3`.
 
 Transitive dependencies are not pinned. They change through the lockfile alone, and the
@@ -67,7 +67,7 @@ all of its versions together, to a canary at least seven days old.
 
 Dependency install scripts run only for the packages in `trustedDependencies` in the root
 `package.json`. Add a package there only when it has to build or download something at install
-time, as the native modules and Electron do.
+time, as the native modules do.
 
 ## When to update
 
@@ -100,9 +100,9 @@ the lockfile changes.
 Read the package's `DEPENDENCIES.md` line before moving it, and change or delete the line in the
 same commit.
 
-`better-sqlite3` and `sharp` are native modules, and `electron` sets the ABI they are
-rebuilt for. An update to any of them needs
-`bun run prepare:native:node`, `bun run prepare:native:electron`, and a packaged build with
-`bun run build:unpack` and `bun run packaged-app:smoke`, because native ABI problems only show up there.
+`better-sqlite3` and `sharp` are native modules that the app's bundled Bun loads, and `electrobun`
+sets that Bun. An update to any of them needs `bun run prepare:native:node` and a packaged build
+with `bun run package:app` and `bun run packaged-app:smoke`, because native ABI problems only show
+up there.
 
 Run `bun install --frozen-lockfile`, `bun run check` and `bun run test` before opening the pull request.

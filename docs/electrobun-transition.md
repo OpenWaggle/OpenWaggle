@@ -225,6 +225,24 @@ Alpha) and, through `UpdateEngine.setFeed({ releaseUrl })`, points Electrobun's 
 | `releases/latest/download` only | None | Skips prereleases, so Beta and Alpha never update |
 | Static host (R2, Pages) | A second publish target, credentials, retention | A second source of truth beside the release that `SHA256SUMS.txt` covers |
 
+## Running a checkout
+
+`bun run dev` builds main, preload and renderer (`bun run build`), stages them as a package does
+(`scripts/electrobun/stage.ts`), and runs `electrobun dev` through Hutch
+(`scripts/electrobun/dev.ts`): Hutch builds a `dev` app into `out/electrobun/build/dev-<os>-<arch>`
+and starts it. The other way in, running the checkout's `out/main` from a dev build with
+`OPENWAGGLE_ELECTROBUN_MAIN` (`scripts/electrobun/hutch-entry.ts`), was not taken: the staged build
+already carries `out/main`, so a dev app runs the same bundle and layout a package ships, and the
+variable stays a fallback for a build without one. There is no renderer hot reload; rerun the
+command after an edit, or pass `--skip-build` to reuse the last build.
+
+`bun run dev:debug` builds the same `dev` app and starts it the way automation does
+(`scripts/support/electrobun-app-launch.ts`): hidden (`OPENWAGGLE_AUTOMATION=1`), on a scratch
+profile, with the main window rendered by CEF (`OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef`) and CEF's
+DevTools endpoint on port 9223 (`ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT`). A system webview has no
+CDP endpoint, so hidden QA, website screenshots, the perf harnesses and live Session QA all see
+the CEF renderer.
+
 ## Risks
 
 - **Signing identity drift** is the one unrecoverable failure on macOS: a transition zip signed by a

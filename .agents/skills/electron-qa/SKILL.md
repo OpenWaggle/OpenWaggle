@@ -1,11 +1,11 @@
 ---
 name: electron-qa
-description: QA testing skill for OpenWaggle's Electron app using the configured Chrome DevTools MCP server. Use after renderer, preload, IPC, or interactive main-process changes to verify behavior in the real Electron app via CDP on port 9223.
+description: QA testing skill for OpenWaggle's desktop app (Electrobun) using the configured Chrome DevTools MCP server. Use after renderer, preload, IPC, or interactive main-process changes to verify behavior in the real app via CDP on port 9223.
 ---
 
-# Electron QA
+# Desktop App QA
 
-Verify OpenWaggle in the real Electron app through Chrome DevTools Protocol.
+Verify OpenWaggle in the real desktop app through the Chrome DevTools Protocol. The app runs on Electrobun (ADR 0064); the skill keeps its old `electron-qa` name.
 
 ## When To Use
 
@@ -23,13 +23,15 @@ Start the app with CDP enabled:
 bun run dev:debug
 ```
 
-This command is non-disruptive and keeps the Electron window hidden. Never run `bun run dev:debug:headed` unless the maintainer explicitly approves that exact run.
+It builds the checkout (`bun run build`), stages it, builds an Electrobun `dev` app with Hutch (`scripts/electrobun/dev.ts`) and starts it hidden: `OPENWAGGLE_AUTOMATION=1` keeps the window hidden and no OS UI appears, `OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef` renders the main window with the bundled CEF instead of the system webview, and `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT=9223` opens CEF's DevTools endpoint there. A system webview has no CDP endpoint, so QA always sees the CEF renderer; a WebKit-only (macOS, Linux) rendering bug needs headed QA. `--skip-build` reuses the last build. Never run a visible `bun run dev` for QA unless the maintainer explicitly approves that exact run.
 
-Every QA run, and every other start of the built app, Session Host, or `openwaggle` CLI, sets `HOME`, `PI_CODING_AGENT_DIR`, and `OPENWAGGLE_USER_DATA_DIR` to scratch directories and launches Electron with `--use-mock-keychain`; overriding userData alone still migrates the real `~/.openwaggle` and `~/.pi/agent` files and reaches the real keychain. `bun run dev:debug` does all of this itself: `HOME` and the Pi agent directory live in its ephemeral profile (`<profile>/qa-home`), and it adds `--password-store=basic` on Linux. The QA app therefore has none of your Pi sign-ins, `~/.gitconfig`, `gh` sign-ins, or SSH keys; use a fixture provider (below) instead of a real one. Any other launcher starts from `buildSafeElectronEnvironment`, whose overrides win over the inherited `HOME`, and which forwards a caller's scratch `PI_CODING_AGENT_DIR`. The Playwright launcher (`launchOpenWaggleElectron`, used by website screenshot capture and the packaged smoke) always sets a scratch `HOME` and Pi agent directory (default `<userData>/home`) and `--use-mock-keychain` itself.
+Scripts start the app the same way through `scripts/support/electrobun-app-launch.ts` (`launchElectrobunApp`: website screenshots, the perf harnesses, live Session QA); the repository standards reject a script that sets those variables itself. CEF runs one process per app identifier (its cache lives under `~/Library/Application Support/<identifier>/<env>/CEF` on macOS, not under `HOME`), so a launch while the same build already runs hands its window to that process and exits; quit the other copy first.
+
+Every QA run, and every other start of the built app, Session Host, or `openwaggle` CLI, sets `HOME`, `PI_CODING_AGENT_DIR`, and `OPENWAGGLE_USER_DATA_DIR` to scratch directories and passes `--use-mock-keychain`; overriding userData alone still migrates the real `~/.openwaggle` and `~/.pi/agent` files and reaches the real keychain. `bun run dev:debug` does all of this itself: its ephemeral profile is a `openwaggle-dev-debug-*` directory under `TMPDIR` with `home/` and `user-data/`, and it adds `--password-store=basic` on Linux. The QA app therefore has none of your Pi sign-ins, `~/.gitconfig`, `gh` sign-ins, or SSH keys; use a fixture provider (below) instead of a real one. Any other launcher starts from `buildSafeAppEnvironment`, whose overrides win over the inherited `HOME`, and which forwards a caller's scratch `PI_CODING_AGENT_DIR`; `dev:debug` also forwards the caller's `OPENWAGGLE_AUTOMATION_*` options.
 
 Automation starts no MCP server that a project MCP file (`.mcp.json`, `.pi/mcp.json`, `.openwaggle/mcp.json`) defines: this repository's `.mcp.json` would run `npx -y chrome-devtools-mcp@latest` against the QA app's own CDP port. Settings still lists those servers, and a Run or connection check reports that automation left them out. To QA project MCP servers, start the app with `OPENWAGGLE_AUTOMATION_PROJECT_MCP=1 bun run dev:debug`.
 
-Stopping `bun run dev:debug` (Ctrl-C, `SIGTERM`, or the app exiting) also stops the app's detached Session Host: the launcher drains it through its version-handoff path and removes the profile only after the Host released it. A `session-host-internal` process that outlives the launcher is a bug.
+Stopping `bun run dev:debug` (Ctrl-C, `SIGTERM`, or the app exiting) also stops the app's detached Session Host: the script drains it through its version-handoff path and removes the profile only after the Host released it. A `session-host-internal` process that outlives the script is a bug.
 
 The managed hidden profile selects the current worktree but contains no fabricated sessions. Seed only the deterministic fixture required by the feature under test.
 
@@ -49,8 +51,8 @@ The configured MCP server is `electron-devtools` in `.mcp.json`.
 
 ## Minimum QA Checklist
 
-1. `list_pages`: verify the Electron page is visible.
-2. `evaluate_script`: confirm `window.api` exists and the user agent includes Electron.
+1. `list_pages`: verify the app's `…/index.html` page is listed.
+2. `evaluate_script`: confirm `window.api` exists.
 3. `take_snapshot`: inspect the accessible structure and obtain UIDs.
 4. `take_screenshot`: capture the current visual state.
 5. Interact with the changed feature using `click`, `type_text`, `fill`, and `press_key`.
@@ -65,7 +67,6 @@ The configured MCP server is `electron-devtools` in `.mcp.json`.
 ```js
 () => ({
   hasApi: !!window.api,
-  isElectron: navigator.userAgent.includes('Electron'),
   href: window.location.href,
 })
 ```
@@ -98,7 +99,7 @@ IPC/preload:
 ```markdown
 | Check | Result | Notes |
 |---|---|---|
-| Electron page reachable | Pass/Fail | |
+| App page reachable | Pass/Fail | |
 | window.api available | Pass/Fail | |
 | Feature interaction | Pass/Fail | |
 | Screenshot/snapshot reviewed | Pass/Fail | |
@@ -112,6 +113,7 @@ If hidden screenshot capture fails, report QA as incomplete and ask the maintain
 ## Troubleshooting
 
 - Empty pages list: app is not running or CDP port differs.
-- `window.api` missing: connected to a non-Electron browser page or preload failed.
+- `window.api` missing: connected to another page (a Browser preview guest is a CEF target on the same endpoint) or the preload failed.
+- `dev:debug` exits right after `Opening in existing browser session`: the same build already runs; quit it.
 - Stale UIDs: take a fresh snapshot after navigation or re-render.
 - Dev mode does not prove packaged behavior. Use packaged QA for packaged-only bugs.
