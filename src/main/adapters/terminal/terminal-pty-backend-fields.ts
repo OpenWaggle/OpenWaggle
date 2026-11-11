@@ -1,5 +1,4 @@
-import type * as NodePtyModule from 'node-pty'
-import type { IPty } from 'node-pty'
+import type { Pty, PtyModule } from './terminal-pty-backend'
 import type { UncheckedFields } from '@shared/types/unchecked-fields'
 
 type BackendMethod = (...args: never[]) => unknown
@@ -9,7 +8,7 @@ type BackendMethod = (...args: never[]) => unknown
  * types. An older or foreign build may lack any of it, so each member is checked before use.
  */
 interface TerminalBackendProcess {
-  readonly pid: IPty['pid']
+  readonly pid: Pty['pid']
   readonly spawnProcessIdentity: string
   readonly ttyIdentity: string
   readonly fd: number
@@ -23,7 +22,7 @@ interface TerminalBackendProcess {
 
 /** What the terminal backend module adds to node-pty's published exports. */
 interface TerminalBackendModule {
-  readonly spawn: typeof NodePtyModule.spawn
+  readonly spawn: PtyModule['spawn']
   readonly processTable: BackendMethod
   readonly listeningPorts: BackendMethod
   readonly native: object
@@ -37,13 +36,13 @@ export interface TerminalBackendNative {
 }
 
 /** A spawned process's backend members, each unchecked. */
-export function terminalBackendProcess(spawned: IPty) {
+export function terminalBackendProcess(spawned: Pty) {
   const fields: UncheckedFields<TerminalBackendProcess> = spawned
   return fields
 }
 
 /** The backend module's added exports, each unchecked. */
-export function terminalBackendModule(pty: typeof NodePtyModule) {
+export function terminalBackendModule(pty: PtyModule) {
   const fields: UncheckedFields<TerminalBackendModule> = pty
   return fields
 }

@@ -1,6 +1,5 @@
+import type { Pty, PtyModule } from './terminal-pty-backend'
 import { constants as osConstants } from 'node:os'
-import type * as NodePtyModule from 'node-pty'
-import type { IPty } from 'node-pty'
 import {
   terminalBackendModule,
   type TerminalBackendNative,
@@ -9,8 +8,8 @@ import {
 import { uncheckedFields } from '@shared/utils/object-shape'
 
 export function createNativeTtyMemberSignal(
-  pty: typeof NodePtyModule,
-  spawned: IPty,
+  pty: PtyModule,
+  spawned: Pty,
   ttyIdentity: string,
   spawnProcessIdentity: string,
 ) {

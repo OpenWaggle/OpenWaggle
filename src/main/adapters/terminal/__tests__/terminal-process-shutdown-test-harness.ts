@@ -1,5 +1,5 @@
+import type { Pty } from '../terminal-pty-backend'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { IPty } from 'node-pty'
 import { type Mock, vi } from 'vitest'
 import type {
   TerminalKernelProcessInfo,
@@ -136,7 +136,7 @@ export function makeLiveProcess(
   const publicDestroy = vi.fn<() => void>(() => kill('SIGHUP'))
   const pauseOutput = vi.fn<() => void>()
   const resumeOutput = vi.fn<() => void>()
-  const pty = fromPartial<IPty>({
+  const pty = fromPartial<Pty>({
     pid,
     kill,
     onExit: (listener: (event: { exitCode: number }) => void) => {

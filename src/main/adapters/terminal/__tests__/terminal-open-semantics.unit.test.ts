@@ -1,7 +1,7 @@
+import type { Pty } from '../terminal-pty-backend'
 import type { TerminalOpenInput } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { IPty } from 'node-pty'
 import { describe, expect, it } from 'vitest'
 import { createTerminalHistorySanitizer } from '../terminal-history-sanitizer'
 import { decideTerminalOpen } from '../terminal-open-semantics'
@@ -59,7 +59,7 @@ function makeRecord(options: {
     closed: false,
     live: options.live
       ? {
-          pty: fromPartial<IPty>({}),
+          pty: fromPartial<Pty>({}),
           pid: 4242,
           pauseOutput: () => undefined,
           resumeOutput: () => undefined,

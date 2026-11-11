@@ -1,13 +1,11 @@
+import type { Pty, PtyModule, PtySpawnOptions } from '../terminal-pty-backend'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type * as NodePtyModule from 'node-pty'
 import { vi } from 'vitest'
 import { makePtyRunner, type PtySpawnRequest } from '../terminal-pty-runner'
 import type { TerminalShellCandidate } from '../terminal-shell'
 
-type PtySpawnOptions = NonNullable<Parameters<typeof NodePtyModule.spawn>[2]>
-
 const spawnMock = vi.hoisted(() =>
-  vi.fn<(file: string, args: string[], options: PtySpawnOptions) => NodePtyModule.IPty>(),
+  vi.fn<(file: string, args: readonly string[], options: PtySpawnOptions) => Pty>(),
 )
 const getInteractiveTerminalEnvMock = vi.hoisted(() =>
   vi.fn<
@@ -120,7 +118,7 @@ export function fakePty(
   socket?: { readonly pause: () => void; readonly resume: () => void },
   privatePtyValue: unknown = '/dev/ttys123',
 ) {
-  const pty = fromPartial<NodePtyModule.IPty>({
+  const pty = fromPartial<Pty>({
     pid: 4321,
     onData: () => {},
     onExit: (listener: (event: { readonly exitCode: number }) => void) => {
@@ -148,7 +146,7 @@ export function makeRunner(
     signalByTty: () => 0,
   },
 ) {
-  const ptyModule = fromPartial<typeof NodePtyModule>({ spawn: spawnMock })
+  const ptyModule = fromPartial<PtyModule>({ spawn: spawnMock })
   Object.assign(ptyModule, { processTable: async () => [] })
   Object.assign(ptyModule, { listeningPorts: async () => [] })
   if (native !== undefined) Object.assign(ptyModule, { native: native })

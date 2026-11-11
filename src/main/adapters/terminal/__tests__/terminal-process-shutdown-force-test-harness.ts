@@ -1,5 +1,5 @@
+import type { Pty } from '../terminal-pty-backend'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { IPty } from 'node-pty'
 import { vi } from 'vitest'
 import { observeTerminalProcessExit } from '../terminal-process-exit-observation'
 import type { ProcessRow } from '../terminal-process-inspector'
@@ -42,7 +42,7 @@ export function makeSubject(processName: string) {
     processTreeExit.notifyExit(0)
   })
   const publicDestroy = vi.fn<() => void>(() => kill('SIGHUP'))
-  const pty = fromPartial<IPty>({
+  const pty = fromPartial<Pty>({
     pid: ROOT_PID,
     kill,
     onExit: (listener: (event: { readonly exitCode: number }) => void) => {

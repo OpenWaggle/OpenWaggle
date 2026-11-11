@@ -1,5 +1,5 @@
+import type { Pty } from './terminal-pty-backend'
 import { randomBytes } from 'node:crypto'
-import type { IPty } from 'node-pty'
 import { createLogger } from '../../logger'
 import { normalizeTerminalExitCode } from './terminal-exit-code'
 import { createTerminalHistorySanitizer } from './terminal-history-sanitizer'
@@ -92,7 +92,7 @@ function wireShellStreams(
 function attachLiveShell(
   deps: TerminalSpawnerDeps,
   record: TerminalRecord,
-  pty: IPty,
+  pty: Pty,
   pid: number,
   tty: string | null,
   processIdentity: SuccessfulPtySpawn['processIdentity'],

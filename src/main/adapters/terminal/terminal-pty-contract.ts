@@ -1,5 +1,4 @@
-import type * as NodePtyModule from 'node-pty'
-import type { IPty } from 'node-pty'
+import type { Pty, PtyModule } from './terminal-pty-backend'
 import {
   terminalBackendModule,
   type TerminalBackendNative,
@@ -7,17 +6,17 @@ import {
 } from './terminal-pty-backend-fields'
 import { uncheckedFields } from '@shared/utils/object-shape'
 
-function spawnProcessIdentity(spawned: IPty, pid: number) {
+function spawnProcessIdentity(spawned: Pty, pid: number) {
   const value: unknown = terminalBackendProcess(spawned).spawnProcessIdentity
   return typeof value === 'string' && value.length > 0 ? { pid, startedAt: value } : null
 }
 
-function controllingTtyIdentity(spawned: IPty) {
+function controllingTtyIdentity(spawned: Pty) {
   const value: unknown = terminalBackendProcess(spawned).ttyIdentity
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-export function assertTerminalModuleContract(pty: typeof NodePtyModule) {
+export function assertTerminalModuleContract(pty: PtyModule) {
   if (process.platform === 'win32') {
     if (
       typeof terminalBackendModule(pty).processTable !== 'function' ||
@@ -45,7 +44,7 @@ export function assertTerminalModuleContract(pty: typeof NodePtyModule) {
   )
 }
 
-export function captureDescriptorClose(spawned: IPty) {
+export function captureDescriptorClose(spawned: Pty) {
   try {
     const closeDescriptor: unknown = terminalBackendProcess(spawned).closeDescriptor
     return typeof closeDescriptor === 'function'
@@ -58,7 +57,7 @@ export function captureDescriptorClose(spawned: IPty) {
   }
 }
 
-export function closeRejectedSpawn(spawned: IPty, closeDescriptor: (() => void) | null) {
+export function closeRejectedSpawn(spawned: Pty, closeDescriptor: (() => void) | null) {
   try {
     if (closeDescriptor !== null) {
       closeDescriptor()
@@ -73,7 +72,7 @@ export function closeRejectedSpawn(spawned: IPty, closeDescriptor: (() => void) 
   }
 }
 
-export function assertSpawnLifecycleContract(spawned: IPty, closeDescriptor: (() => void) | null) {
+export function assertSpawnLifecycleContract(spawned: Pty, closeDescriptor: (() => void) | null) {
   const pid: unknown = terminalBackendProcess(spawned).pid
   if (!Number.isSafeInteger(pid) || Number(pid) <= 0) {
     throw new Error('Terminal backend returned an invalid root process id.')

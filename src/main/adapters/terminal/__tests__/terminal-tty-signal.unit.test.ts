@@ -1,5 +1,5 @@
+import type { Pty } from '../terminal-pty-backend'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { IPty } from 'node-pty'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LiveTerminalProcess } from '../terminal-records'
 import {
@@ -10,7 +10,7 @@ import {
 
 function subject(result: number | null = 1) {
   const socket = { destroyed: false, closed: false }
-  const pty = fromPartial<IPty>({ pid: 12_345 })
+  const pty = fromPartial<Pty>({ pid: 12_345 })
   Object.assign(pty, { _socket: socket })
   const signalTtyMembers = vi.fn((_force: boolean) => result)
   const live = fromPartial<LiveTerminalProcess>({

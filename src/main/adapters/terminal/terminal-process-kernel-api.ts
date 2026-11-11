@@ -1,5 +1,5 @@
+import type { PtyModule } from './terminal-pty-backend'
 import { constants as osConstants } from 'node:os'
-import type * as NodePtyModule from 'node-pty'
 import type {
   TerminalKernelProcessInfo,
   TerminalProcessIdentity,
@@ -77,7 +77,7 @@ function parseKernelProcessInfo(pid: number, value: unknown) {
 }
 
 /** Install the already-loaded node-pty kernel API without defeating lazy native loading. */
-export function installTerminalProcessKernelApi(pty: typeof NodePtyModule) {
+export function installTerminalProcessKernelApi(pty: PtyModule) {
   installTerminalWindowsTelemetry(pty)
   const native: unknown = terminalBackendModule(pty).native
   const nativeFields = uncheckedFields<TerminalBackendNative>(native)

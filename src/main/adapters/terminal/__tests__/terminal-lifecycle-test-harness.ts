@@ -1,4 +1,4 @@
-import type { IPty } from 'node-pty'
+import type { Pty } from '../terminal-pty-backend'
 import { observeTerminalProcessLifecycle } from '../terminal-process-exit-observation'
 
 interface ExitEvent {
@@ -34,7 +34,7 @@ export function makeTerminalLifecycleHarness() {
     emitPublicExit(exitCode)
   }
 
-  const install = (pty: IPty) => {
+  const install = (pty: Pty) => {
     Object.assign(pty, {
       onProcessTreeExit: (listener: (event: ExitEvent) => void) => {
         treeExitListeners.push(listener)

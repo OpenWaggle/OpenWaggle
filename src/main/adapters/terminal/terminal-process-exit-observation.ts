@@ -1,4 +1,4 @@
-import type { IPty } from 'node-pty'
+import type { Pty } from './terminal-pty-backend'
 import { normalizeTerminalExitCode } from './terminal-exit-code'
 import type {
   TerminalProcessExitObservation,
@@ -7,7 +7,7 @@ import type {
 import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 /** Install once, immediately after spawn, so even a pre-attach exit is retained. */
-export function observeTerminalProcessExit(pty: IPty) {
+export function observeTerminalProcessExit(pty: Pty) {
   let resolveExit: () => void = () => undefined
   let disposed = false
   const notifyExit = (exitCode: unknown) => {
@@ -37,7 +37,7 @@ export function observeTerminalProcessExit(pty: IPty) {
   return observation
 }
 
-function observeNativeProcessTreeExit(pty: IPty) {
+function observeNativeProcessTreeExit(pty: Pty) {
   const event: unknown = terminalBackendProcess(pty).onProcessTreeExit
   if (typeof event !== 'function') return null
 
@@ -81,7 +81,7 @@ function observeNativeProcessTreeExit(pty: IPty) {
 }
 
 function observeResourceDrain(
-  pty: IPty,
+  pty: Pty,
   exit: TerminalProcessExitObservation,
   requireNative: boolean,
 ) {
@@ -128,7 +128,7 @@ function observeResourceDrain(
 
 /** Install every lifecycle latch immediately after spawn, before renderer attachment. */
 export function observeTerminalProcessLifecycle(
-  pty: IPty,
+  pty: Pty,
   requirements: {
     readonly requireProcessTreeExit?: boolean
     readonly requireResourceDrain?: boolean

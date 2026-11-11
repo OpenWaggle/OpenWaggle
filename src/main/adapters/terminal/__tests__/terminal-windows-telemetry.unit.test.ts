@@ -1,5 +1,5 @@
+import type { PtyModule } from '../terminal-pty-backend'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type * as NodePtyModule from 'node-pty'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   installTerminalWindowsTelemetry,
@@ -13,7 +13,7 @@ function install(processValue: unknown = [shell], listenerValue: unknown = []) {
   const processTable = vi.fn(() => processValue)
   const listeningPorts = vi.fn(() => listenerValue)
   installTerminalWindowsTelemetry(
-    Object.assign(fromPartial<typeof NodePtyModule>({}), { processTable, listeningPorts }),
+    Object.assign(fromPartial<PtyModule>({}), { processTable, listeningPorts }),
   )
   return { processTable, listeningPorts }
 }

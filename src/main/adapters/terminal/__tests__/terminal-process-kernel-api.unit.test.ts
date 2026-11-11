@@ -1,6 +1,6 @@
+import type { PtyModule } from '../terminal-pty-backend'
 import os from 'node:os'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type * as NodePtyModule from 'node-pty'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { collectDescendants } from '../terminal-process-activity'
 import type { TerminalKernelProcessInfo } from '../terminal-process-identity'
@@ -33,7 +33,7 @@ function kernelInfo(pid: number) {
 }
 
 function install(readMany: (pids: readonly number[]) => unknown) {
-  const pty = fromPartial<typeof NodePtyModule>({})
+  const pty = fromPartial<PtyModule>({})
   Object.assign(pty, { native: { processInfos: readMany } })
   installTerminalProcessKernelApi(pty)
 }

@@ -1,8 +1,8 @@
+import type { Pty } from '../terminal-pty-backend'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProjectActionTerminalEnvironment } from '@shared/utils/terminal-environment'
-import type { IPty } from 'node-pty'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makePtyRunner, type PtySpawnOutcome } from '../terminal-pty-runner'
 import { cleanupPtyFixture } from './terminal-pty-fixture-cleanup'
@@ -240,7 +240,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
   })
 })
 
-function captureEnvironmentLine(pty: IPty) {
+function captureEnvironmentLine(pty: Pty) {
   return new Promise<string>((resolve, reject) => {
     let output = ''
     const timeout = setTimeout(() => {
@@ -265,13 +265,13 @@ function captureEnvironmentLine(pty: IPty) {
   })
 }
 
-function captureCommandOutput(pty: IPty, command: string, marker: string) {
+function captureCommandOutput(pty: Pty, command: string, marker: string) {
   const output = captureUntil(pty, marker)
   pty.write(command)
   return output
 }
 
-function captureUntil(pty: IPty, marker: string) {
+function captureUntil(pty: Pty, marker: string) {
   return new Promise<string>((resolve, reject) => {
     let output = ''
     const timeout = setTimeout(() => {

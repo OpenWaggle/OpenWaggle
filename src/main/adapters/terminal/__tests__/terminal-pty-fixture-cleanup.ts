@@ -1,6 +1,6 @@
+import type { Pty } from '../terminal-pty-backend'
 import { readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import type { IPty } from 'node-pty'
 
 /** `OpenWaggle terminal <shell>-XXXXXX`, the prompt integration files of one launch. */
 const SHELL_INTEGRATION_DIRECTORY = /^OpenWaggle terminal [a-z]+-[A-Za-z0-9]{6}$/
@@ -22,7 +22,7 @@ async function waitForShellIntegrationCleanup() {
 }
 
 interface PtyFixture {
-  readonly pty: Pick<IPty, 'kill'> & { readonly closeDescriptor?: () => void }
+  readonly pty: Pick<Pty, 'kill'> & { readonly closeDescriptor?: () => void }
   readonly exit: { readonly whenExited: Promise<void> }
   readonly resourceDrain: { readonly whenDrained: Promise<boolean> }
 }

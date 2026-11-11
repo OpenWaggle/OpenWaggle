@@ -1,3 +1,4 @@
+import type { Pty } from './terminal-pty-backend'
 import type {
   TerminalId,
   TerminalInputIdentity,
@@ -8,7 +9,6 @@ import type {
   TerminalReadinessPhase,
   TerminalRuntimeEvent,
 } from '@shared/types/terminal'
-import type { IPty } from 'node-pty'
 import type { TerminalHistorySanitizer } from './terminal-history-sanitizer'
 import type { TerminalProcessIdentity, TerminalProcessMetadata } from './terminal-process-identity'
 import type { TerminalPromptReadinessDetector } from './terminal-prompt-readiness'
@@ -29,7 +29,7 @@ export interface TerminalResourceDrainObservation {
 }
 
 export interface LiveTerminalProcess {
-  readonly pty: IPty
+  readonly pty: Pty
   readonly pid: number
   readonly pauseOutput: () => void
   readonly resumeOutput: () => void
@@ -96,7 +96,7 @@ export interface TerminalActivityState {
 }
 
 export interface TerminalTerminationState {
-  readonly pty: IPty
+  readonly pty: Pty
   readonly result: Promise<boolean>
   readonly whenExited: Promise<void>
   readonly exitCode: number | null

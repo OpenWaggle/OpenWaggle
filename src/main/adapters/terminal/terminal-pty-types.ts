@@ -1,5 +1,4 @@
-import type * as NodePtyModule from 'node-pty'
-import type { IPty } from 'node-pty'
+import type { Pty, PtyModule } from './terminal-pty-backend'
 import type { PreparedEnvironment } from '../../domain/prepared-environment'
 import type { observeTerminalProcessLifecycle } from './terminal-process-exit-observation'
 import type { TerminalProcessMetadata } from './terminal-process-identity'
@@ -20,7 +19,7 @@ export interface PtySpawnRequest {
 export type PtySpawnOutcome =
   | {
       readonly ok: true
-      readonly pty: IPty
+      readonly pty: Pty
       readonly pid: number
       readonly shell: string
       readonly tty: string | null
@@ -47,10 +46,10 @@ export interface PtyRunner {
   /** Spawn a shell in cwd, retrying down the shell fallback chain (ADR 0030). */
   readonly spawn: (request: PtySpawnRequest) => Promise<PtySpawnOutcome>
   /** Resolve the node-pty module lazily (native module, loaded on first use). */
-  readonly load: () => Promise<typeof NodePtyModule>
+  readonly load: () => Promise<PtyModule>
 }
 
 export interface PtyRunnerOptions {
   readonly appVersion: string
-  readonly loadPty?: () => Promise<typeof NodePtyModule>
+  readonly loadPty?: () => Promise<PtyModule>
 }

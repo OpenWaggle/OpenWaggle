@@ -8,15 +8,31 @@ declare module 'bun:ffi' {
   /** A native address. Bun hands it out as a number; it is never null (Bun returns `null`). */
   export type Pointer = number & { readonly __bunPointer: unique symbol }
 
-  export type FFITypeName = 'ptr' | 'void' | 'bool' | 'u32' | 'i32' | 'cstring'
+  export type FFITypeName =
+    | 'ptr'
+    | 'void'
+    | 'bool'
+    | 'u8'
+    | 'u16'
+    | 'u32'
+    | 'i32'
+    | 'i64'
+    | 'u64'
+    | 'cstring'
 
   interface FFIValues {
     readonly ptr: Pointer | null
     readonly void: undefined
     readonly bool: boolean
+    readonly u8: number
+    readonly u16: number
     readonly u32: number
     readonly i32: number
-    readonly cstring: Pointer | null
+    /** 64-bit integers cross as `bigint` both ways. */
+    readonly i64: bigint
+    readonly u64: bigint
+    /** As a return type, Bun hands out the C string already read. */
+    readonly cstring: CString
   }
 
   export interface FFIFunction {

@@ -1,5 +1,5 @@
+import type { PtyModule } from './terminal-pty-backend'
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import type * as NodePtyModule from 'node-pty'
 import type { ProcessProbeOptions, ProcessRow } from './terminal-process-probes'
 import { terminalBackendModule } from './terminal-pty-backend-fields'
 
@@ -29,7 +29,7 @@ function singleFlight(query: NativeQuery) {
 let processes: NativeQuery | null = null
 let listeners: NativeQuery | null = null
 
-export function installTerminalWindowsTelemetry(pty: typeof NodePtyModule) {
+export function installTerminalWindowsTelemetry(pty: PtyModule) {
   const processQuery: unknown = terminalBackendModule(pty).processTable
   const listenerQuery: unknown = terminalBackendModule(pty).listeningPorts
   processes = isQuery(processQuery)

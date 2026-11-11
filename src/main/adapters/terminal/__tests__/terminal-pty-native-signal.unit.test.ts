@@ -1,13 +1,13 @@
+import type { Pty, PtyModule } from '../terminal-pty-backend'
 import { constants as osConstants } from 'node:os'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type * as NodePtyModule from 'node-pty'
 import { describe, expect, it, vi } from 'vitest'
 import { createNativeTtyMemberSignal } from '../terminal-pty-native-signal'
 
 function subject(signalByTty: (...args: readonly unknown[]) => unknown, fd: unknown = 42) {
-  const pty = fromPartial<typeof NodePtyModule>({})
+  const pty = fromPartial<PtyModule>({})
   Object.assign(pty, { native: { signalByTty } })
-  const spawned = fromPartial<NodePtyModule.IPty>({ pid: 4321 })
+  const spawned = fromPartial<Pty>({ pid: 4321 })
   Object.assign(spawned, { fd: fd })
   return createNativeTtyMemberSignal(pty, spawned, 'darwin:16:42', 'darwin:123:456')
 }

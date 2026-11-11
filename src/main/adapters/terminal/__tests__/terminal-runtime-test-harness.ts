@@ -1,9 +1,9 @@
+import type { Pty } from '../terminal-pty-backend'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { TerminalEventPayload, TerminalOpenInput } from '@shared/types/terminal'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { IPty } from 'node-pty'
 import { type Mock, vi } from 'vitest'
 import { makeTerminalHistoryStore } from '../terminal-history-store'
 import type { PtyRunner, PtySpawnOutcome, PtySpawnRequest } from '../terminal-pty-runner'
@@ -24,7 +24,7 @@ export const INPUT: TerminalOpenInput = {
 }
 
 export interface FakePty {
-  readonly pty: IPty
+  readonly pty: Pty
   readonly dataListeners: ((data: string) => void)[]
   readonly exitListeners: ((event: { readonly exitCode: number }) => void)[]
   readonly emitExit: (exitCode?: number) => void
@@ -58,7 +58,7 @@ export function makeFakePty(pid: number) {
   const resize = vi.fn()
   const pauseOutput = vi.fn<() => void>()
   const resumeOutput = vi.fn<() => void>()
-  const pty = fromPartial<IPty>({
+  const pty = fromPartial<Pty>({
     pid,
     onData: (listener: (data: string) => void) => {
       dataListeners.push(listener)

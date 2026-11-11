@@ -1,7 +1,7 @@
+import type { Pty, PtyModule } from './terminal-pty-backend'
 import { errorCode } from '@shared/utils/node-error'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import type * as NodePtyModule from 'node-pty'
-import type { IPty } from 'node-pty'
+import { loadBunPtyModule } from './bun-pty'
 import { assertDesktopNativeAdmission } from '../../desktop-native-admission'
 import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
 import { getInteractiveTerminalEnv } from '../../env'
@@ -41,7 +41,7 @@ const MIN_SPAWN_ROWS = TERMINAL.MIN_ROWS
  * rendered as a dead, empty terminal. Resuming here is a no-op on runtimes
  * that already started the stream.
  */
-function createOutputFlowControl(spawned: IPty) {
+function createOutputFlowControl(spawned: Pty) {
   const socket: unknown = terminalBackendProcess(spawned)._socket
   let state: 'paused' | 'resumed' | 'unknown' = 'unknown'
 
@@ -73,7 +73,7 @@ function createOutputFlowControl(spawned: IPty) {
   }
 }
 
-function controllingTtyName(spawned: IPty) {
+function controllingTtyName(spawned: Pty) {
   const value: unknown = terminalBackendProcess(spawned)._pty
   if (typeof value !== 'string' || !value.startsWith('/dev/')) return null
   const tty = value.slice('/dev/'.length)
@@ -111,10 +111,10 @@ function makeLaunchCleanup(launch: Awaited<ReturnType<typeof prepareTerminalShel
 }
 
 function makePtyModuleLoader(options: PtyRunnerOptions) {
-  let ptyModule: typeof NodePtyModule | null = null
+  let ptyModule: PtyModule | null = null
   return async () => {
     if (ptyModule === null) {
-      const loaded = options.loadPty ? await options.loadPty() : await import('node-pty')
+      const loaded = options.loadPty ? await options.loadPty() : await loadBunPtyModule()
       assertTerminalModuleContract(loaded)
       installTerminalProcessKernelApi(loaded)
       ptyModule = loaded
@@ -151,7 +151,7 @@ function assertLaunchNotCanceled(request: PtySpawnRequest) {
 export function makePtyRunner(options: PtyRunnerOptions) {
   const loadPtyModule = makePtyModuleLoader(options)
   const spawn = async (request: PtySpawnRequest) => {
-    let pty: typeof NodePtyModule
+    let pty: PtyModule
     try {
       pty = await loadPtyModule()
     } catch (error) {
@@ -182,7 +182,7 @@ export function makePtyRunner(options: PtyRunnerOptions) {
       }
 
       const cleanupLaunch = makeLaunchCleanup(launch)
-      let spawned: IPty | null = null
+      let spawned: Pty | null = null
       let closeDescriptor: (() => void) | null = null
       try {
         assertLaunchNotCanceled(request)

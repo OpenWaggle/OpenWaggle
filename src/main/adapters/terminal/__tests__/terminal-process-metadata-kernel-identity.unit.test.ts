@@ -1,5 +1,5 @@
+import type { PtyModule } from '../terminal-pty-backend'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type * as NodePtyModule from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TerminalKernelProcessInfo } from '../terminal-process-identity'
 
@@ -35,7 +35,7 @@ function installObservations(...observations: readonly TerminalKernelProcessInfo
     index += 1
     return observation === undefined ? [] : [observation]
   })
-  const pty = fromPartial<typeof NodePtyModule>({})
+  const pty = fromPartial<PtyModule>({})
   Object.assign(pty, { native: { processInfos } })
   installTerminalProcessKernelApi(pty)
   return processInfos
