@@ -19,14 +19,21 @@ export function bump() {
 }
 export const label = 'real'
 `,
+  'automocked.ts': `export function flush() {
+  return 'real'
+}
+`,
   'a-dirty.test.ts': `import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { appendFileSync } from 'node:fs'
 import { bump, label } from './module-state'
 // Vitest runs larger files first when it has no timings: this one must run before the other.
 // ................................................................................................
+import * as automocked from './automocked'
 vi.mock('./module-state', async (importOriginal) => ({ ...(await importOriginal<object>()), label: 'mocked' }))
+vi.mock('./automocked', () => ({ other: 1 }))
 it('dirties the worker', () => {
+  expect(Reflect.get(automocked, 'other')).toBe(1)
   appendFileSync(process.env.PID_LOG!, process.pid + '\\n')
   expect(bump()).toBe(1)
   expect(label).toBe('mocked')
@@ -43,6 +50,8 @@ it('dirties the worker', () => {
 import { EventEmitter } from 'node:events'
 import { appendFileSync } from 'node:fs'
 import { bump, label } from './module-state'
+import { flush } from './automocked'
+vi.mock('./automocked')
 it('starts from what a fresh worker gives', () => {
   appendFileSync(process.env.PID_LOG!, process.pid + '\\n')
   expect({
@@ -55,7 +64,8 @@ it('starts from what a fresh worker gives', () => {
     listeners: process.listeners('beforeExit').length,
     fakeTimers: vi.isFakeTimers(),
     exitCode: process.exitCode ?? 0,
-  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0 })
+    automocked: vi.isMockFunction(flush),
+  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0, automocked: true })
   process.exitCode = 0
 })
 `,

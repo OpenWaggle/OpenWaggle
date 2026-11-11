@@ -65,6 +65,11 @@ function vitestInternals() {
   }
 }
 
+/**
+ * Leaves every module to be fetched and evaluated again. A module the previous file mocked keeps
+ * that mock in its fetched metadata, so without a new fetch the previous file's factory would
+ * answer this file's import of a module it mocks differently or automocks.
+ */
 function resetModules(modules: Map<unknown, unknown>) {
   const self = new URL(import.meta.url).pathname
   for (const [id, node] of modules) {
@@ -73,6 +78,9 @@ function resetModules(modules: Map<unknown, unknown>) {
     Reflect.set(node, 'promise', undefined)
     Reflect.set(node, 'exports', undefined)
     Reflect.set(node, 'evaluated', false)
+    Reflect.set(node, 'mockedExports', undefined)
+    // Fetched again: a mocked module's metadata names the previous file's mock, and no code.
+    Reflect.set(node, 'meta', undefined)
     const importers = field(node, 'importers')
     if (importers instanceof Set) importers.clear()
   }
