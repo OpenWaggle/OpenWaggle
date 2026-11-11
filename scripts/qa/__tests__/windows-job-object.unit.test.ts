@@ -18,6 +18,10 @@ const PACKAGED_SMOKE = fs.readFileSync(
   'utf8',
 )
 const MAIN_INDEX = fs.readFileSync(path.join(PROJECT_ROOT, 'src/main/index.ts'), 'utf8')
+const SECOND_INSTANCE_PROBE = fs.readFileSync(
+  path.join(PROJECT_ROOT, 'src/main/automation-second-instance.ts'),
+  'utf8',
+)
 
 describe('Windows Job Object QA ownership', () => {
   it('parses append-only assignment, empty, and failure states', () => {
@@ -159,8 +163,10 @@ describe('Windows Job Object QA ownership', () => {
     )
     expect(PACKAGED_SMOKE).toContain('await secondGui.terminateAndWait()')
     expect(PACKAGED_SMOKE).not.toContain('trackWindowsProcessTreeThroughExit')
-    expect(MAIN_INDEX).toContain("'openwaggle-automation-single-instance-lock-denied-marker'")
-    expect(MAIN_INDEX).toContain("'single-instance-lock-denied\\n'")
+    expect(SECOND_INSTANCE_PROBE).toContain(
+      "'openwaggle-automation-single-instance-lock-denied-marker'",
+    )
+    expect(SECOND_INSTANCE_PROBE).toContain("'single-instance-lock-denied\\n'")
     expect(MAIN_INDEX).toContain('quitAutomationSecondInstance()')
   })
 })
