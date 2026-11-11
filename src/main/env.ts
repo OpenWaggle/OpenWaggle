@@ -44,6 +44,8 @@ const envSchema = Schema.Struct({
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: optionalFlag,
   OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: optionalFlag,
+  /** Hidden QA on Electrobun: render the main window with CEF, which QA reaches over CDP. */
+  OPENWAGGLE_QA_MAIN_WINDOW_RENDERER: Schema.optionalWith(Schema.Literal('cef'), { exact: true }),
   OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: optionalString, // Hidden QA Pi fixtures
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: optionalString,
   OPENWAGGLE_AUTOMATION_PROJECT_PATH: optionalString,

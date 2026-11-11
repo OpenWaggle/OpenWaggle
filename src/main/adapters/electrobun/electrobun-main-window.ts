@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { homeDirectoryRendererArguments } from '@shared/home-directory-argument'
 import { isAutomationMode } from '../../desktop-automation-policy'
+import { env } from '../../env'
 import { appPaths } from '../../desktop-shell/app-paths'
 import { electronMigrationRendererArguments } from '../../electron-migration/first-launch'
 import { errorReportingRendererArguments } from '../../error-reporting'
@@ -74,6 +75,18 @@ function logicalUrl(url: string) {
   return electrobunTrustedOrigins.locate(url)?.logicalUrl ?? url
 }
 
+/**
+ * Hidden QA screenshots the window over CDP, which only CEF serves: the system webviews of macOS and
+ * Windows have no endpoint, and their hidden windows cannot be captured. Under automation alone,
+ * `OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef` renders the main window with the bundled CEF, as Linux
+ * always does. Users never get it: a release build serves CEF's endpoint to no one.
+ */
+function qaRenderer(): { readonly renderer?: 'cef' } {
+  return isAutomationMode() && env.OPENWAGGLE_QA_MAIN_WINDOW_RENDERER === 'cef'
+    ? { renderer: 'cef' }
+    : {}
+}
+
 export function createMainWindow(request: MainWindowRequest) {
   electrobunTrustedOrigins.setDocumentHeaders('renderer', () => rendererDocumentHeaders())
   const url = rendererUrl()
@@ -91,6 +104,7 @@ export function createMainWindow(request: MainWindowRequest) {
       // Electrobun's sandbox turns the page's RPC off; the page is the app's own.
       sandbox: false,
       hidden: true,
+      ...qaRenderer(),
     },
     {
       openLink: request.openLink,
