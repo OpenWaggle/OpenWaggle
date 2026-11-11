@@ -7,14 +7,13 @@ import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { appPaths } from './desktop-shell/app-paths'
 import { systemIntegration } from './desktop-shell/system-integration'
 import { isAutomationMode } from './desktop-ui'
-import { env } from './env'
 
 /**
  * Background start (ADR 0057): an opt-in login item that starts only the Session Host, with no
  * window, so enabled Scheduled tasks keep firing after a reboot or logout. The operating system's
  * registration is the setting; there is no second copy to drift. macOS uses a LaunchAgent (its
  * login items cannot pass arguments), Linux an XDG autostart entry, and Windows the Run key
- * the desktop shell manages. Every form runs `<app> -- host start`, which starts the Host and exits.
+ * the desktop shell manages. Every form runs `bun <app> -- host start`, which starts the Host and exits.
  */
 const HOST_START_ARGUMENTS = ['--', 'host', 'start'] as const
 /** Login items are read by the system, written only by their user. */
@@ -24,8 +23,9 @@ function unsupported(reason: string) {
   return { supported: false, enabled: false, reason } satisfies BackgroundStartStatus
 }
 
-function launchExecutable() {
-  return process.platform === 'linux' && env.APPIMAGE ? env.APPIMAGE : process.execPath
+/** Bun and the app directory whose `package.json` `main` it runs. */
+function launchCommand(): readonly [string, ...string[]] {
+  return [process.execPath, appPaths.appRoot()]
 }
 
 function macLaunchAgentPath() {
@@ -45,8 +45,8 @@ function xmlEscape(value: string) {
     .replaceAll('"', '&quot;')
 }
 
-export function macLaunchAgentPlist(executable: string) {
-  const program = [executable, ...HOST_START_ARGUMENTS]
+export function macLaunchAgentPlist(command: readonly string[]) {
+  const program = [...command, ...HOST_START_ARGUMENTS]
     .map((argument) => `    <string>${xmlEscape(argument)}</string>`)
     .join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -72,12 +72,12 @@ function desktopEntryQuote(value: string) {
   return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('$', '\\$')}"`
 }
 
-export function linuxAutostartEntry(executable: string) {
+export function linuxAutostartEntry(command: readonly string[]) {
   return `[Desktop Entry]
 Type=Application
 Name=${PRODUCT_NAME} Session Host
 Comment=Starts the ${PRODUCT_NAME} Session Host so Scheduled tasks keep running
-Exec=${[desktopEntryQuote(executable), ...HOST_START_ARGUMENTS].join(' ')}
+Exec=${[...command.map(desktopEntryQuote), ...HOST_START_ARGUMENTS].join(' ')}
 NoDisplay=true
 X-GNOME-Autostart-enabled=true
 `
@@ -97,7 +97,8 @@ async function writeOwnedFile(filePath: string, contents: string) {
 }
 
 function windowsLoginItem() {
-  return { path: launchExecutable(), args: [...HOST_START_ARGUMENTS] }
+  const [executable, ...args] = launchCommand()
+  return { path: executable, args: [...args, ...HOST_START_ARGUMENTS] }
 }
 
 function unavailableReason() {
@@ -112,17 +113,17 @@ function unavailableReason() {
 export async function readBackgroundStart() {
   const reason = unavailableReason()
   if (reason) return unsupported(reason)
-  const executable = launchExecutable()
+  const command = launchCommand()
   if (process.platform === 'darwin') {
     return {
       supported: true,
-      enabled: await fileHas(macLaunchAgentPath(), macLaunchAgentPlist(executable)),
+      enabled: await fileHas(macLaunchAgentPath(), macLaunchAgentPlist(command)),
     } satisfies BackgroundStartStatus
   }
   if (process.platform === 'linux') {
     return {
       supported: true,
-      enabled: await fileHas(linuxAutostartPath(), linuxAutostartEntry(executable)),
+      enabled: await fileHas(linuxAutostartPath(), linuxAutostartEntry(command)),
     } satisfies BackgroundStartStatus
   }
   return {
@@ -137,13 +138,13 @@ async function registerFile(filePath: string, contents: string, enabled: boolean
 }
 
 async function register(enabled: boolean) {
-  const executable = launchExecutable()
+  const command = launchCommand()
   if (process.platform === 'darwin') {
-    await registerFile(macLaunchAgentPath(), macLaunchAgentPlist(executable), enabled)
+    await registerFile(macLaunchAgentPath(), macLaunchAgentPlist(command), enabled)
     return
   }
   if (process.platform === 'linux') {
-    await registerFile(linuxAutostartPath(), linuxAutostartEntry(executable), enabled)
+    await registerFile(linuxAutostartPath(), linuxAutostartEntry(command), enabled)
     return
   }
   systemIntegration.setLoginItemOpensAtLogin(windowsLoginItem(), enabled)

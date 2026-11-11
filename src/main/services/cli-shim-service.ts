@@ -3,9 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { CliShimStatus } from '@shared/types/cli-shim'
-import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { appPaths } from '../desktop-shell/app-paths'
-import { env, getCurrentProcessPath } from '../env'
+import { getCurrentProcessPath } from '../env'
 import { runManagedShimMutation } from './cli-shim-bound-mutation'
 import {
   LEGACY_MANAGED_CLI_SHIM_MARKER,
@@ -36,23 +35,6 @@ export interface CliShimServiceInput {
 
 const LEGACY_LINUX_LAYOUT_ERROR =
   'Re-run the OpenWaggle installer and restart the app to migrate the legacy Linux AppImage layout safely.'
-
-export function resolveCliShimExecutablePath(input: {
-  readonly platform: NodeJS.Platform
-  readonly executablePath: string
-  readonly isPackaged: boolean
-  readonly appImagePath?: string
-}) {
-  if (
-    input.platform === 'linux' &&
-    input.isPackaged &&
-    input.appImagePath &&
-    path.isAbsolute(input.appImagePath)
-  ) {
-    return input.appImagePath
-  }
-  return input.executablePath
-}
 
 function isMissing(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
@@ -281,23 +263,12 @@ export function createCliShimService(input: CliShimServiceInput) {
 
 export function createAppCliShimService() {
   const homeDirectory = os.homedir()
-  const command = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
-  const appImagePath = resolveCliShimExecutablePath({
-    platform: process.platform,
-    executablePath: process.execPath,
-    isPackaged: appLifecycle.isPackaged(),
-    ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
-  })
-  const legacyLinuxAppImage =
-    process.platform === 'linux' &&
-    appLifecycle.isPackaged() &&
-    path.resolve(appImagePath) === command
   return createCliShimService({
     platform: process.platform,
     homeDirectory,
-    executablePath: appImagePath,
-    ...(legacyLinuxAppImage ? { legacyLinuxAppImagePath: command } : {}),
-    ...(appLifecycle.isPackaged() ? {} : { appPath: appPaths.appRoot() }),
+    // Bun runs the app directory's `package.json` `main` (boot.js), packaged or not.
+    executablePath: process.execPath,
+    appPath: appPaths.appRoot(),
     environmentPath: getCurrentProcessPath,
   })
 }

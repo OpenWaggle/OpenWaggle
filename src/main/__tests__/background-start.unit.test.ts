@@ -1,22 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: false,
-    getPath: () => '/tmp/config',
-    getLoginItemSettings: () => ({ openAtLogin: false }),
-    setLoginItemSettings: vi.fn(),
-  },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle(),
+}))
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths(),
+}))
+vi.mock('../desktop-shell/system-integration', async () => ({
+  systemIntegration: (await import('../test-support/fake-desktop-shell')).fakeSystemIntegration(),
 }))
 
 const { linuxAutostartEntry, macLaunchAgentPlist, readBackgroundStart, writeBackgroundStart } =
   await import('../background-start')
 
+const MAC_APP = '/Applications/Open & Waggle.app/Contents'
+
 describe('Background start', () => {
   it('starts only the Session Host at login on macOS', () => {
-    const plist = macLaunchAgentPlist('/Applications/Open & Waggle.app/Contents/MacOS/OpenWaggle')
+    const plist = macLaunchAgentPlist([`${MAC_APP}/MacOS/bun`, `${MAC_APP}/Resources/app`])
     expect(plist).toContain(
-      '<string>/Applications/Open &amp; Waggle.app/Contents/MacOS/OpenWaggle</string>',
+      '<string>/Applications/Open &amp; Waggle.app/Contents/MacOS/bun</string>\n' +
+        '    <string>/Applications/Open &amp; Waggle.app/Contents/Resources/app</string>',
     )
     expect(plist).toContain(
       '<string>--</string>\n    <string>host</string>\n    <string>start</string>',
@@ -24,9 +28,11 @@ describe('Background start', () => {
     expect(plist).toContain('<key>RunAtLoad</key>\n  <true/>')
   })
 
-  it('quotes the AppImage path in the Linux autostart entry', () => {
-    const entry = linuxAutostartEntry('/home/me/Apps/Open "Waggle".AppImage')
-    expect(entry).toContain('Exec="/home/me/Apps/Open \\"Waggle\\".AppImage" -- host start')
+  it('quotes each part of the command in the Linux autostart entry', () => {
+    const entry = linuxAutostartEntry(['/opt/Open "Waggle"/bin/bun', '/opt/Open "Waggle"/app'])
+    expect(entry).toContain(
+      'Exec="/opt/Open \\"Waggle\\"/bin/bun" "/opt/Open \\"Waggle\\"/app" -- host start',
+    )
     expect(entry).toContain('NoDisplay=true')
   })
 
