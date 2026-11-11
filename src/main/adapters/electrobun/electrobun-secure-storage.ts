@@ -127,11 +127,14 @@ export function createKeychainSecureStorage(
     decryptString: (encrypted) => openWithKey(key(), encrypted),
     // Reads an existing key in-process, so the first secret needs no child; never creates one.
     warm: async () => {
-      if (state.key || !options.read) return
-      const stored = await options
-        .read({ service: SERVICE, name: options.name() })
-        .catch(() => null)
-      if (stored !== null && !state.key) state.key = decodeKey(stored)
+      const read = options.read
+      if (state.key || !read) return
+      try {
+        const stored = await read({ service: SERVICE, name: options.name() })
+        if (stored !== null && !state.key) state.key = decodeKey(stored)
+      } catch {
+        // The port never rejects: the synchronous path reads the key again on first use.
+      }
     },
   }
 }

@@ -5,7 +5,15 @@ const mocks = vi.hoisted(() => ({
   quit: vi.fn(),
   showErrorBox: vi.fn(),
 }))
-vi.mock('electron', () => ({ app: { on: mocks.on, quit: mocks.quit } }))
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    quit: mocks.quit,
+    onBeforeQuit: (listener) => {
+      mocks.on('before-quit', listener)
+      return () => undefined
+    },
+  }),
+}))
 vi.mock('../desktop-ui', () => ({ showErrorBox: mocks.showErrorBox }))
 
 const { registerAppQuitCleanup } = await import('../app-quit-cleanup')

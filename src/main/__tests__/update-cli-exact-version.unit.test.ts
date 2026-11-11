@@ -7,16 +7,15 @@ const { installedVersion, spawnMock, writeCliStdoutMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: false,
-    getAppPath: () => '/workspace/OpenWaggle',
-    getVersion: () => installedVersion.value,
-    requestSingleInstanceLock: () => true,
-    releaseSingleInstanceLock: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => installedVersion.value,
+  }),
+}))
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths(
+    '/tmp/openwaggle-profile',
+  ),
 }))
 vi.mock('../cli-stdout', () => ({ writeCliStdout: writeCliStdoutMock }))
 vi.mock('../host-cli', () => ({ stopHostForUpdate: vi.fn() }))

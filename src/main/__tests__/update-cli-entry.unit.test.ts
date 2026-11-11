@@ -8,8 +8,11 @@ const mocks = vi.hoisted(() => ({
   whenReady: vi.fn(async () => undefined),
 }))
 
-vi.mock('electron', () => ({
-  app: { exit: mocks.exit, whenReady: mocks.whenReady },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    exit: mocks.exit,
+    whenReady: mocks.whenReady,
+  }),
 }))
 vi.mock('../cli-output-flush', () => ({ flushCliOutput: mocks.flush }))
 vi.mock('../env', () => ({ env: { OPENWAGGLE_USER_DATA_DIR: '/tmp/openwaggle-update-test' } }))

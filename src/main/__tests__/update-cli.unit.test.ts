@@ -53,16 +53,25 @@ const {
 const FEED_TARGET = expect.objectContaining({ setFeedURL: expect.any(Function) })
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: false,
-    getAppPath: () => '/workspace/OpenWaggle',
-    getVersion: () => '1.0.0-beta.25',
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => '1.0.0-beta.25',
+    onBeforeQuit: (listener) => {
+      appOnMock('before-quit', listener)
+      return () => undefined
+    },
+  }),
+}))
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths(
+    '/tmp/openwaggle-profile',
+  ),
+}))
+vi.mock('../desktop-shell/system-integration', async () => ({
+  systemIntegration: (await import('../test-support/fake-desktop-shell')).fakeSystemIntegration({
     requestSingleInstanceLock: requestSingleInstanceLockMock,
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
-    on: appOnMock,
-    off: vi.fn(),
-  },
+  }),
 }))
 vi.mock('electron-updater', () => ({
   autoUpdater: Object.assign(updater, {

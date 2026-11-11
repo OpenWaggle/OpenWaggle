@@ -8,12 +8,14 @@ const { electronApp } = vi.hoisted(() => {
   } = { emitter: null, exit: vi.fn() }
   return { electronApp }
 })
-vi.mock('electron', () => ({
-  app: {
-    on: (event: string, listener: () => void) => electronApp.emitter?.on(event, listener),
-    off: (event: string, listener: () => void) => electronApp.emitter?.off(event, listener),
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
     exit: electronApp.exit,
-  },
+    onBeforeQuit: (listener) => {
+      electronApp.emitter?.on('before-quit', listener)
+      return () => void electronApp.emitter?.off('before-quit', listener)
+    },
+  }),
 }))
 
 const { cancelUpdateOnInterrupt, stopSessionHostForUpdate } = await import('../host-update-stop')

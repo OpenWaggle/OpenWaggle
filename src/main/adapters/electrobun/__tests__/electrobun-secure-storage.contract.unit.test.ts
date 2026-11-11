@@ -72,6 +72,28 @@ describe('Electrobun SecureStorage', () => {
     expect(keychain.calls).toEqual([])
   })
 
+  it('warms without rejecting when the read or the key name fails', async () => {
+    const keychain = memoryKeychain()
+    const failing = [
+      { read: async () => Promise.reject(new Error('denied')), name: () => 'openwaggle' },
+      {
+        read: async () => null,
+        name: () => {
+          throw new Error('no app root')
+        },
+      },
+    ]
+    for (const { read, name } of failing) {
+      const subject = createKeychainSecureStorage({
+        store: keychain.store,
+        read,
+        name,
+        withCreationLock: (operation) => operation(),
+      })
+      await expect(subject.warm()).resolves.toBeUndefined()
+    }
+  })
+
   it('asks the keychain again only after an unavailable answer has aged', () => {
     const keychain = memoryKeychain()
     keychain.keychain.available = false

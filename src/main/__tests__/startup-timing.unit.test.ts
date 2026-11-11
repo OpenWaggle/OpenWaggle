@@ -5,12 +5,14 @@ const mocks = vi.hoisted(() => {
   return { switchSet: false, env, info: vi.fn() }
 })
 
-vi.mock('electron', () => ({
-  app: {
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
     commandLine: {
+      appendSwitch: () => undefined,
+      getSwitchValue: () => '',
       hasSwitch: (name: string) => mocks.switchSet && name === 'openwaggle-startup-timings',
     },
-  },
+  }),
 }))
 vi.mock('../env', () => ({
   readEnvironmentVariables: (names: readonly string[]) =>

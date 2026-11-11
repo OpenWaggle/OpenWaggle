@@ -10,13 +10,20 @@ const mocks = vi.hoisted(() => ({
   flush: vi.fn(async () => undefined),
 }))
 
-vi.mock('electron', () => ({
-  app: {
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
     exit: mocks.exit,
-    getVersion: () => '1.2.3',
-    isPackaged: true,
+    version: () => '1.2.3',
+    isPackaged: () => true,
+  }),
+}))
+vi.mock('../desktop-shell/boot-shell', async () => ({
+  bootShell: (await import('../test-support/fake-desktop-shell')).fakeBootShell({
+    exit: mocks.exit,
+    version: () => '1.2.3',
+    isPackaged: () => true,
     setActivationPolicy: mocks.setActivationPolicy,
-  },
+  }),
 }))
 vi.mock('../cli-output-flush', () => ({ flushCliOutput: mocks.flush }))
 

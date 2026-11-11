@@ -1,11 +1,14 @@
-import { execFile } from 'node:child_process'
+import { type ExecFileOptions, execFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { getDesktopHelperChildEnv } from '../../env'
 import type { FileFilter, SaveDialogRequest } from '../../ports/desktop-shell/dialogs'
 
-const run = promisify(execFile)
+/** Promisified on use, so loading this module runs nothing of `node:child_process`. */
+function run(command: string, args: readonly string[], options: ExecFileOptions) {
+  return promisify(execFile)(command, [...args], { ...options, encoding: 'utf8' })
+}
 
 /**
  * Electrobun has no save dialog (ADR 0064 gap), so the platform's own save panel is opened

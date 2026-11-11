@@ -23,17 +23,15 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
     exit: mocks.exit,
-    getPath: vi.fn(() => '/tmp/openwaggle-profile'),
-    getVersion: vi.fn(() => '1.0.0'),
-    whenReady: vi.fn(async () => undefined),
-    setActivationPolicy: vi.fn(),
-    disableHardwareAcceleration: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  },
+  }),
+}))
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths(
+    '/tmp/openwaggle-profile',
+  ),
 }))
 vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true) }))
 vi.mock('../env', () => ({

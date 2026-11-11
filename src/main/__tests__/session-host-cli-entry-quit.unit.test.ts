@@ -36,21 +36,19 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
     exit: mocks.exit,
-    getPath: vi.fn(() => '/tmp/openwaggle-profile'),
-    getVersion: vi.fn(() => '1.0.0'),
-    whenReady: vi.fn(async () => undefined),
-    setActivationPolicy: vi.fn(),
-    disableHardwareAcceleration: vi.fn(),
-    on: (event: string, handler: (event: { preventDefault(): void }) => void) => {
-      if (event === 'before-quit') mocks.quitHandlers.add(handler)
+    onBeforeQuit: (listener) => {
+      mocks.quitHandlers.add(listener)
+      return () => void mocks.quitHandlers.delete(listener)
     },
-    off: (event: string, handler: (event: { preventDefault(): void }) => void) => {
-      if (event === 'before-quit') mocks.quitHandlers.delete(handler)
-    },
-  },
+  }),
+}))
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths(
+    '/tmp/openwaggle-profile',
+  ),
 }))
 
 vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))

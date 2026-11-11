@@ -7,7 +7,12 @@ const mocks = vi.hoisted(() => ({
   configureStorage: vi.fn(),
 }))
 
-vi.mock('electron', () => ({ app: { whenReady: mocks.whenReady, exit: mocks.exit } }))
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    exit: mocks.exit,
+    whenReady: mocks.whenReady,
+  }),
+}))
 vi.mock('../cli-output-flush', () => ({ flushCliOutput: mocks.flush }))
 vi.mock('../env', () => ({ env: { OPENWAGGLE_USER_DATA_DIR: '/user-data' } }))
 vi.mock('../session-data', () => ({ configureAppStoragePaths: mocks.configureStorage }))
