@@ -14,7 +14,10 @@ function usageTotals(usage: unknown): UsageTotals | null {
     const value = usage[key]
     return typeof value === 'number' && Number.isFinite(value) ? value : 0
   }
-  const cost = isRecord(usage.cost) && typeof usage.cost.total === 'number' ? usage.cost.total : 0
+  const cost =
+    isRecord(usage['cost']) && typeof usage['cost']['total'] === 'number'
+      ? usage['cost']['total']
+      : 0
   return {
     tokens: count('input') + count('output') + count('cacheRead') + count('cacheWrite'),
     cost,

@@ -125,7 +125,7 @@ describe('Pi visualization context orchestration', () => {
     const hiddenTurn = sendCustomMessage.mock.calls[1]?.[0]
     expect(isRecord(hiddenTurn)).toBe(true)
     if (!isRecord(hiddenTurn)) return
-    expect(JSON.stringify(hiddenTurn.content)).not.toContain('selectedService')
-    expect(JSON.stringify(hiddenTurn.details)).toContain('selectedService')
+    expect(JSON.stringify(hiddenTurn['content'])).not.toContain('selectedService')
+    expect(JSON.stringify(hiddenTurn['details'])).toContain('selectedService')
   })
 })

@@ -85,43 +85,43 @@ export function withoutImplicitOpenWaggleResourcePrecedence(
   options: OpenWaggleResourcePrecedenceOptions = {},
 ) {
   const next: JsonObject = { ...settings }
-  const packagesResult = removeImplicitPackageSources(projectPath, settings.packages, options)
-  const skills = removeImplicitResourceRoots(projectPath, settings.skills, 'skills', options)
+  const packagesResult = removeImplicitPackageSources(projectPath, settings['packages'], options)
+  const skills = removeImplicitResourceRoots(projectPath, settings['skills'], 'skills', options)
   const extensions = removeImplicitResourceRoots(
     projectPath,
-    settings.extensions,
+    settings['extensions'],
     'extensions',
     options,
   )
-  const prompts = removeImplicitResourceRoots(projectPath, settings.prompts, 'prompts', options)
-  const themes = removeImplicitResourceRoots(projectPath, settings.themes, 'themes', options)
+  const prompts = removeImplicitResourceRoots(projectPath, settings['prompts'], 'prompts', options)
+  const themes = removeImplicitResourceRoots(projectPath, settings['themes'], 'themes', options)
 
   if (packagesResult.shouldUpdate) {
     if (packagesResult.packages) {
-      next.packages = packagesResult.packages
+      next['packages'] = packagesResult.packages
     } else {
-      delete next.packages
+      delete next['packages']
     }
   }
   if (skills) {
-    next.skills = skills
+    next['skills'] = skills
   } else {
-    delete next.skills
+    delete next['skills']
   }
   if (extensions) {
-    next.extensions = extensions
+    next['extensions'] = extensions
   } else {
-    delete next.extensions
+    delete next['extensions']
   }
   if (prompts) {
-    next.prompts = prompts
+    next['prompts'] = prompts
   } else {
-    delete next.prompts
+    delete next['prompts']
   }
   if (themes) {
-    next.themes = themes
+    next['themes'] = themes
   } else {
-    delete next.themes
+    delete next['themes']
   }
 
   return next

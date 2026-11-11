@@ -127,7 +127,7 @@ function withOpenWaggleCompactionThreshold(
   thresholdPercent: number | undefined,
 ): JsonObject {
   if (thresholdPercent === undefined) return settings
-  const compaction = isJsonObject(settings.compaction) ? settings.compaction : {}
+  const compaction = isJsonObject(settings['compaction']) ? settings['compaction'] : {}
   return {
     ...settings,
     compaction: {
@@ -139,13 +139,13 @@ function withOpenWaggleCompactionThreshold(
 }
 
 function withoutOpenWaggleCompactionThreshold(settings: JsonObject): JsonObject {
-  if (!isJsonObject(settings.compaction)) return settings
+  if (!isJsonObject(settings['compaction'])) return settings
   const { compaction: _currentCompaction, ...otherSettings } = settings
   const {
     thresholdPercent: _thresholdPercent,
     maxThresholdTokens: _maxThresholdTokens,
     ...compaction
-  } = settings.compaction
+  } = settings['compaction']
   return {
     ...otherSettings,
     ...(Object.keys(compaction).length > 0 ? { compaction } : {}),

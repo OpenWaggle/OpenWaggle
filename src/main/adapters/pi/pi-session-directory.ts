@@ -11,7 +11,7 @@ function expandHome(directory: string) {
 
 /** Pi's session directory override, read when it is needed, as Pi reads it. */
 function piSessionDirectoryFromEnvironment() {
-  return getEnvWithOverrides({}).PI_CODING_AGENT_SESSION_DIR?.trim() || undefined
+  return getEnvWithOverrides({})['PI_CODING_AGENT_SESSION_DIR']?.trim() || undefined
 }
 
 /**

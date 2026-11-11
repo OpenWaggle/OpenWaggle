@@ -21,9 +21,9 @@ export function visibleWaggleUserMessageDisplay(entry: VisibleWaggleUserEntry) {
   const detailsRecord =
     typeof details === 'object' && details !== null && !Array.isArray(details) ? details : null
   const decodedInvocation = detailsRecord
-    ? safeDecodeUnknown(waggleInvocationMetadataSchema, detailsRecord.waggleInvocation)
+    ? safeDecodeUnknown(waggleInvocationMetadataSchema, detailsRecord['waggleInvocation'])
     : null
-  const displayParts = detailsRecord ? decodeUserInputProjection(detailsRecord.userInput) : null
+  const displayParts = detailsRecord ? decodeUserInputProjection(detailsRecord['userInput']) : null
   return {
     details,
     parts: displayParts ?? piTextAndImageContentToParts(entry.content),

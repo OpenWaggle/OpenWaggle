@@ -16,8 +16,8 @@ export function toolViews(
   tools: Awaited<ReturnType<McpClient['listTools']>>,
 ): McpServerToolView[] {
   return tools.map((tool) => {
-    const ui = tool._meta?.ui
-    const resourceUri = isRecord(ui) ? ui.resourceUri : undefined
+    const ui = tool._meta?.['ui']
+    const resourceUri = isRecord(ui) ? ui['resourceUri'] : undefined
     return {
       name: tool.name,
       ...(tool.title ? { title: tool.title } : {}),

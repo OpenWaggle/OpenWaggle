@@ -21,7 +21,7 @@ interface AgentEndAssistantMessage {
 }
 
 function isAgentEndAssistantMessage(message: unknown): message is AgentEndAssistantMessage {
-  return isRecord(message) && message.role === 'assistant'
+  return isRecord(message) && message['role'] === 'assistant'
 }
 
 function getAgentEndAssistantMessage(
@@ -53,9 +53,9 @@ export function getAgentEndUsage(
     return undefined
   }
 
-  const input = typeof usage.input === 'number' ? usage.input : null
-  const output = typeof usage.output === 'number' ? usage.output : null
-  const totalTokens = typeof usage.totalTokens === 'number' ? usage.totalTokens : null
+  const input = typeof usage['input'] === 'number' ? usage['input'] : null
+  const output = typeof usage['output'] === 'number' ? usage['output'] : null
+  const totalTokens = typeof usage['totalTokens'] === 'number' ? usage['totalTokens'] : null
   if (input === null || output === null || totalTokens === null) {
     return undefined
   }

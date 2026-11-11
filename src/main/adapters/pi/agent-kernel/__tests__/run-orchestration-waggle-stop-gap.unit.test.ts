@@ -51,7 +51,7 @@ async function waggleRunStoppedBetweenTurns() {
   const stop = new AbortController()
   let turns = 0
   vi.mocked(fakePi.pi.sendMessage).mockImplementation((message, options) => {
-    if (!isRecord(options) || options.triggerTurn !== true) return
+    if (!isRecord(options) || options['triggerTurn'] !== true) return
     turns += 1
     const answer = assistantMessage(`turn ${String(turns + 1)}`)
     sessionMessages.push(message, answer)

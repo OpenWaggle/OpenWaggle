@@ -72,8 +72,8 @@ function piUserCodemode(defaultTools: JsonValue | undefined): boolean | undefine
 /** The user's own Pi values for OpenWaggle's settings, from their global Pi settings content. */
 export function piUserAppSettings(content: string | undefined): Partial<OpenWagglePiAppSettings> {
   const settings = safeParseSettings(content)
-  const codemodeEnabled = piUserCodemode(settings.defaultTools)
-  const cacheWarming = settings.cacheWarming
+  const codemodeEnabled = piUserCodemode(settings['defaultTools'])
+  const cacheWarming = settings['cacheWarming']
   return {
     ...(codemodeEnabled === undefined ? {} : { codemodeEnabled }),
     ...(typeof cacheWarming === 'string' && includes(PI_CACHE_WARMING_MODES, cacheWarming)
@@ -90,7 +90,7 @@ export function withOpenWagglePiAppSettings(
   const settings = parseSettings(content)
   return serializeSettings({
     ...settings,
-    defaultTools: defaultToolsWithCodemode(settings.defaultTools, app.codemodeEnabled),
+    defaultTools: defaultToolsWithCodemode(settings['defaultTools'], app.codemodeEnabled),
     cacheWarming: app.cacheWarming,
   })
 }

@@ -62,7 +62,9 @@ const answer = (text: string, timestamp: number) => ({
 })
 const identityContents = (messages: readonly unknown[]) =>
   messages.flatMap((message) =>
-    isRecord(message) && message.customType === RUN_IDENTITY_CUSTOM_TYPE ? [message.content] : [],
+    isRecord(message) && message['customType'] === RUN_IDENTITY_CUSTOM_TYPE
+      ? [message['content']]
+      : [],
   )
 
 describe('the Run identity of a Waggle Run', () => {
