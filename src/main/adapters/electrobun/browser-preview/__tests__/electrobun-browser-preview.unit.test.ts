@@ -1,83 +1,18 @@
-import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FAKE_PNG, fakeCefBrowser } from './fake-cef-browser'
-import { fakeElectrobun } from '../../__tests__/contracts/fake-electrobun'
-import { makeElectrobunBrowserPreviewViews } from '../electrobun-browser-preview-shape'
-import { electrobunOwnerWindow } from '../electrobun-owner-windows'
-import type { ElectrobunPreviewHost } from '../electrobun-preview-record-factory'
+import { FAKE_PNG } from './fake-cef-browser'
+import {
+  BOUNDS,
+  lastState,
+  onlyView,
+  openPreview,
+  OWNER_KEY,
+  settle,
+  setup,
+} from './electrobun-browser-preview-harness'
 
 vi.mock('../../../../desktop-native-admission', () => ({
   assertDesktopNativeAdmission: () => undefined,
 }))
-
-const OWNER_KEY = 'session:s-1'
-const BOUNDS = { x: 10, y: 20, width: 400, height: 300 }
-
-function setup(options: { readonly cdp?: boolean } = {}) {
-  const electrobun = fakeElectrobun()
-  const cef = fakeCefBrowser()
-  const frames = { setFrame: vi.fn(), setHidden: vi.fn() }
-  const artifacts = {
-    write: vi.fn(async (_kind: string, _extension: string, _data: Uint8Array) => ({
-      id: 'shot',
-      path: '/artifacts/shot.png',
-    })),
-    resolveOwnedArtifact: vi.fn(async (artifactPath: string) => artifactPath),
-  }
-  const revealInFolder = vi.fn()
-  const writeClipboardImage = vi.fn(async (_png: Uint8Array) => undefined)
-  const host: ElectrobunPreviewHost = {
-    createView: cef.createView,
-    frames,
-    endpoint: () => (options.cdp === false ? null : cef.endpoint),
-    openSocket: cef.openSocket,
-    ownerWindowOf: (owner) =>
-      electrobunOwnerWindow(
-        {
-          BrowserView: electrobun.module.BrowserView,
-          BrowserWindow: electrobun.module.BrowserWindow,
-          events: electrobun.events,
-        },
-        owner.id,
-      ),
-    maintenanceWindowId: () => new electrobun.module.BrowserWindow({ hidden: true }).id,
-    artifacts: () => fromPartial(artifacts),
-    revealInFolder,
-    writeClipboardImage,
-    isMac: true,
-  }
-  const views = makeElectrobunBrowserPreviewViews(host)
-  const page = electrobun.browserPreview.openOwnerPage()
-  const sent: [string, unknown][] = []
-  page.surface.send = (channel: string, payload: unknown) => void sent.push([channel, payload])
-  views.registerOwner(OWNER_KEY, page.surface)
-  return { views, cef, frames, page, sent, artifacts, revealInFolder, writeClipboardImage }
-}
-
-type Setup = ReturnType<typeof setup>
-
-function openPreview({ views, page }: Setup, previewId = 'p-1', url = 'https://example.com/') {
-  return views.open(page.surface, {
-    previewId,
-    ownerKey: OWNER_KEY,
-    profileId: 'default',
-    url,
-    bounds: BOUNDS,
-    visible: true,
-  })
-}
-
-function lastState(sent: Setup['sent']): unknown {
-  return sent.filter(([channel]) => channel === 'browser-preview:state').at(-1)?.[1]
-}
-
-function onlyView(harness: Setup) {
-  const [view] = harness.cef.views()
-  if (view === undefined) throw new Error('No preview view')
-  return view
-}
-
-const settle = () => vi.advanceTimersByTimeAsync(50)
 
 describe('Electrobun Browser preview', () => {
   beforeEach(() => {

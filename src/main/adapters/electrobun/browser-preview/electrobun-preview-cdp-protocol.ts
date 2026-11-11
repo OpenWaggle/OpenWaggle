@@ -47,7 +47,10 @@ export const FrameNavigatedSchema = Schema.Struct({ frame: FrameSchema })
 export const FrameIdSchema = Schema.Struct({ frameId: Schema.String })
 export const SameDocumentSchema = Schema.Struct({ frameId: Schema.String, url: Schema.String })
 export const FrameTreeSchema = Schema.Struct({ frameTree: Schema.Struct({ frame: FrameSchema }) })
-export const NavigateResultSchema = Schema.Struct({ errorText: Schema.optional(Schema.String) })
+export const NavigateResultSchema = Schema.Struct({
+  loaderId: Schema.optional(Schema.String),
+  errorText: Schema.optional(Schema.String),
+})
 export const HistorySchema = Schema.Struct({
   currentIndex: Schema.Number,
   entries: Schema.Array(

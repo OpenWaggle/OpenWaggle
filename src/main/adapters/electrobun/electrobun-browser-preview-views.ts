@@ -10,7 +10,9 @@ import {
   resolveCefRemoteDebuggingPort,
 } from './browser-preview/cef-devtools-endpoint'
 import { electrobunOwnerWindow } from './browser-preview/electrobun-owner-windows'
-import { makeElectrobunBrowserPreviewViews } from './browser-preview/electrobun-browser-preview-shape'
+import { makeElectrobunBrowserPreview } from './browser-preview/electrobun-browser-preview-shape'
+import type { ElectrobunPreviewRecord } from './browser-preview/electrobun-preview-records'
+import type { BrowserPreviewAutomationShell } from '../browser-preview/automation/browser-preview-automation-service'
 import { electrobunNativeWebviewFrames } from './browser-preview/electrobun-webview-frames'
 import { electrobun } from './electrobun-sdk'
 import { openBackgroundWindow } from './electrobun-window-policy'
@@ -99,11 +101,18 @@ export function electrobunPreviewHost(shell: ElectrobunBrowserPreviewShell): Ele
 
 /**
  * The Browser preview on Electrobun (ADR 0064): CEF `BrowserView`s in the owner page's window,
- * driven over CEF's DevTools endpoint. The desktop shell binding creates it once, after
- * `loadElectrobun()`, with the Electrobun adapters of the other ports.
+ * driven over CEF's DevTools endpoint, and the same previews as the agent's automation sees them.
+ * Creating it reaches no native code; the views load the SDK on first use.
  */
+export function createElectrobunBrowserPreview(shell: ElectrobunBrowserPreviewShell): {
+  readonly views: BrowserPreviewViewsShape
+  readonly automation: BrowserPreviewAutomationShell<ElectrobunPreviewRecord>
+} {
+  return makeElectrobunBrowserPreview(electrobunPreviewHost(shell))
+}
+
 export function createElectrobunBrowserPreviewViews(
   shell: ElectrobunBrowserPreviewShell,
 ): BrowserPreviewViewsShape {
-  return makeElectrobunBrowserPreviewViews(electrobunPreviewHost(shell))
+  return createElectrobunBrowserPreview(shell).views
 }

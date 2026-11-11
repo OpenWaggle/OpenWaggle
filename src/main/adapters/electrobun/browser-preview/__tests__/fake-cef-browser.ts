@@ -23,7 +23,7 @@ function stringParam(params: CommandParams, name: string) {
   return value
 }
 
-interface FakePage {
+export interface FakePage {
   readonly targetId: string
   readonly view: FakeCefView
   history: { id: number; url: string }[]
@@ -133,6 +133,8 @@ export function fakeCefBrowser(port = 9555) {
     page.history = [...page.history.slice(0, page.index + 1), { id: nextEntryId++, url }]
     page.index = page.history.length - 1
     commit(page, url)
+    event(page, 'Page.domContentEventFired', { timestamp: 1 })
+    event(page, 'Page.loadEventFired', { timestamp: 1 })
   }
 
   const answers = new Map<string, (page: FakePage, params: CommandParams) => object>([
@@ -148,7 +150,7 @@ export function fakeCefBrowser(port = 9555) {
       (page, params) => {
         const url = stringParam(params, 'url')
         queueMicrotask(() => navigate(page, url))
-        return { frameId: 'main' }
+        return { frameId: 'main', loaderId: `loader-${String(nextEntryId)}` }
       },
     ],
     ['Page.getNavigationHistory', (page) => ({ currentIndex: page.index, entries: page.history })],
@@ -166,6 +168,10 @@ export function fakeCefBrowser(port = 9555) {
     ['Page.captureScreenshot', () => ({ data: Buffer.from(FAKE_PNG).toString('base64') })],
     ['Network.setCookie', () => ({ success: true })],
     ['Network.getAllCookies', () => ({ cookies: [{ domain: '.example.com' }] })],
+    [
+      'Page.getLayoutMetrics',
+      () => ({ cssVisualViewport: { pageX: 0, pageY: 0, clientWidth: 2, clientHeight: 3 } }),
+    ],
   ])
 
   function connect(targetId: string) {
@@ -234,6 +240,9 @@ export function fakeCefBrowser(port = 9555) {
     createView,
     commands,
     failing,
+    /** Answers `method` with `answer` from now on. */
+    respond: (method: string, answer: (params: CommandParams) => object) =>
+      void answers.set(method, (_page, params) => answer(params)),
     views: () => [...pages.values()].map((page) => page.view),
     pageOf,
     /** Sends a CDP event to the page of `view`. */

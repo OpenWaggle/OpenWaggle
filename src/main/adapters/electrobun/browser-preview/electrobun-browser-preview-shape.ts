@@ -1,24 +1,40 @@
 import fs from 'node:fs/promises'
 import { ElectrobunBrowserPreviewManager } from './electrobun-preview-manager'
 import { ElectrobunPreviewProfiles } from './electrobun-preview-profiles'
+import { electrobunAutomationShell } from './electrobun-preview-automation-shell'
 import type { ElectrobunPreviewHost } from './electrobun-preview-record-factory'
+import {
+  ELECTROBUN_PREVIEW_UNSUPPORTED,
+  type ElectrobunPreviewRecord,
+} from './electrobun-preview-records'
+import type { BrowserPreviewAutomationShell } from '../../browser-preview/automation/browser-preview-automation-service'
 import type { BrowserPreviewViewsShape } from '../../../ports/desktop-shell/browser-preview-views'
 
-const UNSUPPORTED = {
-  recording: 'Recording a browser preview is not available on this desktop shell yet.',
-  picker: 'Picking page elements is not available on this desktop shell yet.',
-  pictureInPicture: 'Picture in picture is not available on this desktop shell yet.',
-} as const
-
-/** The Browser preview as Electrobun CEF `BrowserView`s driven over CEF's DevTools endpoint. */
-export function makeElectrobunBrowserPreviewViews(
-  host: ElectrobunPreviewHost,
-): BrowserPreviewViewsShape {
+/**
+ * The Browser preview as Electrobun CEF `BrowserView`s driven over CEF's DevTools endpoint, and
+ * the same previews as the agent's automation sees them.
+ */
+export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost): {
+  readonly views: BrowserPreviewViewsShape
+  readonly automation: BrowserPreviewAutomationShell<ElectrobunPreviewRecord>
+} {
   const manager = new ElectrobunBrowserPreviewManager(host)
   const profiles = new ElectrobunPreviewProfiles(host)
   const { controls } = manager
   const preview = manager.requirePreview.bind(manager)
-  return {
+  const automation = electrobunAutomationShell({
+    findTab: (ownerKey, tabId) => manager.findOwnedPreview(ownerKey, tabId),
+    selectTab: (record, ownerKey) =>
+      manager.setCurrentPreview(record.owner.sender, ownerKey, record.previewId),
+    requestOpen: (request, options) => manager.ownerRegistry.requestOpen(request, options),
+    beginNavigation: (record, url) => manager.beginNavigation(record, url),
+    fail: (record, error) => controls.fail(record, error),
+    setViewport: (record, viewport) => controls.setViewport(record, viewport),
+    setAppearance: async (record, appearance) => {
+      await controls.setAppearance(record, appearance)
+    },
+  })
+  const views: BrowserPreviewViewsShape = {
     registerOwner: (ownerKey, owner) => manager.ownerRegistry.register(ownerKey, owner),
     unregisterOwner: (ownerKey, owner) => manager.ownerRegistry.unregister(ownerKey, owner),
     acknowledgeOpenRequest: (owner, acknowledgment) =>
@@ -66,25 +82,25 @@ export function makeElectrobunBrowserPreviewViews(
     },
     startRecording: async (owner, previewId) => {
       preview(owner, previewId)
-      throw new Error(UNSUPPORTED.recording)
+      throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.recording)
     },
     saveRecording: async (owner, input) => {
       preview(owner, input.previewId)
-      throw new Error(UNSUPPORTED.recording)
+      throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.recording)
     },
     stopRecording: (owner, previewId) => void preview(owner, previewId),
     respondToRecordingRequest: (owner) => {
       manager.requireOwner(owner)
-      throw new Error(UNSUPPORTED.recording)
+      throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.recording)
     },
     pickElement: async (owner, previewId) => {
       preview(owner, previewId)
-      throw new Error(UNSUPPORTED.picker)
+      throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.picker)
     },
     cancelPickElement: async (owner, previewId) => void preview(owner, previewId),
     openPictureInPicture: async (owner, previewId) => {
       preview(owner, previewId)
-      throw new Error(UNSUPPORTED.pictureInPicture)
+      throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.pictureInPicture)
     },
     closePictureInPicture: (owner, previewId) => preview(owner, previewId).state,
     closeForOwner: (ownerKey) => manager.closeForOwner(ownerKey),
@@ -96,4 +112,5 @@ export function makeElectrobunBrowserPreviewViews(
     clearProfileData: (profileId) => profiles.clearProfileData(profileId),
     profileCookieJar: (profileId) => profiles.cookieJar(profileId),
   }
+  return { views, automation }
 }

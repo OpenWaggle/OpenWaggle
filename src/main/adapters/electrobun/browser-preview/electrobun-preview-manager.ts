@@ -75,6 +75,18 @@ export class ElectrobunBrowserPreviewManager {
     this.controls = new ElectrobunPreviewControls(host)
   }
 
+  findOwnedPreview(ownerKey: string, previewId?: string): ElectrobunPreviewRecord | undefined {
+    return this.records.findOwned(ownerKey, previewId)
+  }
+
+  /** Navigates for the agent: the state shows the new URL loading, as a user's navigation does. */
+  beginNavigation(record: ElectrobunPreviewRecord, url: string): string {
+    const canonicalUrl = normalizeBrowserPreviewUrl(url)
+    this.assertAdmission(record.ownerKey)
+    this.controls.update(record, { url: canonicalUrl, title: '', loading: true, error: null })
+    return canonicalUrl
+  }
+
   listOwnedPreviews(ownerKey: string): readonly ElectrobunPreviewRecord[] {
     return this.records.listOwned(ownerKey)
   }

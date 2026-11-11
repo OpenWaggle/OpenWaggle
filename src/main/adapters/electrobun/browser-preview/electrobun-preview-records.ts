@@ -31,3 +31,10 @@ export interface ElectrobunPreviewRecord {
   /** Called once when the native view is removed, for any reason. */
   readonly destroyedListeners: (() => void)[]
 }
+
+/** What CEF previews cannot do yet, as the errors the owner page and the agent see. */
+export const ELECTROBUN_PREVIEW_UNSUPPORTED = {
+  recording: 'Recording a browser preview is not available on this desktop shell yet.',
+  picker: 'Picking page elements is not available on this desktop shell yet.',
+  pictureInPicture: 'Picture in picture is not available on this desktop shell yet.',
+} as const

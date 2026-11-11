@@ -62,6 +62,8 @@ export class ElectrobunPreviewGuest {
   /** The page script's isolated worlds, one per frame, by execution context id. */
   private readonly pageWorlds = new Set<number>()
   private readonly abort = new AbortController()
+  private readonly cdpListeners = new Set<(method: string, params: unknown) => void>()
+  private readonly closeListeners = new Set<() => void>()
   private closed = false
 
   private readonly handlers: ReadonlyMap<string, (params: unknown) => void>
@@ -172,6 +174,18 @@ export class ElectrobunPreviewGuest {
     return (await this.cdp()).send(method, params)
   }
 
+  /** Every CDP event of this page, as the agent's automation records them; returns the unsubscribe. */
+  onCdpEvent(listener: (method: string, params: unknown) => void): () => void {
+    this.cdpListeners.add(listener)
+    return () => this.cdpListeners.delete(listener)
+  }
+
+  /** Called when the page's CDP connection ends; returns the unsubscribe. */
+  onCdpClose(listener: () => void): () => void {
+    this.closeListeners.add(listener)
+    return () => this.closeListeners.delete(listener)
+  }
+
   /** Attaches CDP without loading a page, for profile maintenance. */
   attachOnly(config: BrowserPreviewPageConfig): Promise<void> {
     this.attached ??= this.attach(config)
@@ -207,8 +221,12 @@ export class ElectrobunPreviewGuest {
       throw new Error('The browser preview closed before CDP attached.')
     }
     this.connection = cdp
-    cdp.onEvent((method, params) => this.handlers.get(method)?.(params))
+    cdp.onEvent((method, params) => {
+      this.handlers.get(method)?.(params)
+      for (const listener of this.cdpListeners) listener(method, params)
+    })
     cdp.onClose(() => {
+      for (const listener of this.closeListeners) listener()
       if (!this.closed) this.options.onEvent({ kind: 'detached', reason: 'CDP connection lost' })
     })
     await Promise.all([cdp.send('Page.enable'), cdp.send('Runtime.enable')])

@@ -36,7 +36,7 @@ class BrowserPreviewEmptyCaptureError extends Error {
   }
 }
 
-function constrainImageDimensions(source: BrowserPreviewAutomationImage) {
+async function constrainImageDimensions(source: BrowserPreviewAutomationImage) {
   const size = source.getSize()
   if (
     !Number.isFinite(size.width) ||
@@ -58,8 +58,8 @@ function constrainImageDimensions(source: BrowserPreviewAutomationImage) {
     : source
 }
 
-function encodeBoundedPng(source: BrowserPreviewAutomationImage) {
-  const image = constrainImageDimensions(source)
+async function encodeBoundedPng(source: BrowserPreviewAutomationImage) {
+  const image = await constrainImageDimensions(source)
   const data = image.toPNG()
   const base64Bytes = Math.ceil(data.byteLength / BASE64_INPUT_BYTES) * BASE64_OUTPUT_BYTES
   if (base64Bytes >= PI_INLINE_IMAGE_MAX_BASE64_BYTES) {
@@ -80,10 +80,10 @@ function unpaintedPage(error: unknown) {
   throw error
 }
 
-function boundedScreenshot(source: BrowserPreviewAutomationImage) {
+async function boundedScreenshot(source: BrowserPreviewAutomationImage) {
   if (source.isEmpty()) return null
   try {
-    const { image, data } = encodeBoundedPng(source)
+    const { image, data } = await encodeBoundedPng(source)
     const imageSize = image.getSize()
     return {
       mimeType: 'image/png' as const,
@@ -121,7 +121,7 @@ export function captureBrowserPreviewAutomationSnapshot(
       ])
       context.assertCurrentDocument()
       const pageData = decodeBrowserPreviewPageSnapshot(pageDataValue)
-      const screenshot = sourceImage ? boundedScreenshot(sourceImage) : null
+      const screenshot = sourceImage ? await boundedScreenshot(sourceImage) : null
       return {
         ...pageData,
         accessibilityTree: boundedBrowserPreviewAccessibilityTree(accessibility),

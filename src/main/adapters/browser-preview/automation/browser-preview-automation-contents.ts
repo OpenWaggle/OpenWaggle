@@ -1,7 +1,7 @@
 import type { BrowserPreviewControllerState } from '@shared/types/browser-preview'
 
 /**
- * The page the Browser preview automation drives, as any desktop shell provides it (ADR 0064):
+ * The page the Browser preview automation drives, in the shape every desktop shell gives it (ADR 0064):
  * the Chrome DevTools Protocol through `debugger`, the page's lifecycle events, and the human
  * input the shell sees before the page does. Electron's `WebContents` has this shape; the
  * Electrobun shell builds it over CEF's DevTools endpoint.
@@ -28,11 +28,14 @@ export interface BrowserPreviewAutomationMouseInput {
   readonly modifiers?: readonly string[]
 }
 
-/** A captured frame of the page. */
+/** A captured frame of the page; a shell that cannot scale an image captures it again, smaller. */
 export interface BrowserPreviewAutomationImage {
   isEmpty(): boolean
   getSize(): { readonly width: number; readonly height: number }
-  resize(size: { readonly width: number; readonly height: number }): BrowserPreviewAutomationImage
+  resize(size: {
+    readonly width: number
+    readonly height: number
+  }): BrowserPreviewAutomationImage | Promise<BrowserPreviewAutomationImage>
   toPNG(): Uint8Array
 }
 
@@ -43,24 +46,34 @@ export interface BrowserPreviewAutomationClip {
   readonly height: number
 }
 
+export type BrowserPreviewCdpMessageListener = (
+  event: unknown,
+  method: string,
+  params: unknown,
+) => void
+export type BrowserPreviewCdpDetachListener = (event: unknown, reason: string) => void
+
 /** The page's DevTools Protocol connection. */
 export interface BrowserPreviewAutomationDebugger {
   attach(protocolVersion?: string): void
   detach(): void
   isAttached(): boolean
   sendCommand(method: string, params?: Readonly<Record<string, unknown>>): Promise<unknown>
-  on(event: 'message', listener: (event: unknown, method: string, params: unknown) => void): unknown
-  on(event: 'detach', listener: (event: unknown, reason: string) => void): unknown
-  removeListener(
-    event: 'message',
-    listener: (event: unknown, method: string, params: unknown) => void,
-  ): unknown
-  removeListener(event: 'detach', listener: (event: unknown, reason: string) => void): unknown
+  on(event: 'message', listener: BrowserPreviewCdpMessageListener): unknown
+  on(event: 'detach', listener: BrowserPreviewCdpDetachListener): unknown
+  removeListener(event: 'message', listener: BrowserPreviewCdpMessageListener): unknown
+  removeListener(event: 'detach', listener: BrowserPreviewCdpDetachListener): unknown
 }
 
-type KeyListener = (event: unknown, input: BrowserPreviewAutomationKeyInput) => void
-type MouseListener = (event: unknown, input: BrowserPreviewAutomationMouseInput) => void
-type NavigationListener = (
+export type BrowserPreviewKeyListener = (
+  event: unknown,
+  input: BrowserPreviewAutomationKeyInput,
+) => void
+export type BrowserPreviewMouseListener = (
+  event: unknown,
+  input: BrowserPreviewAutomationMouseInput,
+) => void
+export type BrowserPreviewNavigationListener = (
   event: unknown,
   url: string,
   isInPlace: boolean,
@@ -78,14 +91,14 @@ export interface BrowserPreviewAutomationContents {
   /** Asks the compositor for a new frame, after a capture that never finished. */
   invalidate(): void
   capturePage(clip?: BrowserPreviewAutomationClip): Promise<BrowserPreviewAutomationImage>
-  on(event: 'before-input-event', listener: KeyListener): unknown
-  on(event: 'before-mouse-event', listener: MouseListener): unknown
-  on(event: 'did-start-navigation', listener: NavigationListener): unknown
+  on(event: 'before-input-event', listener: BrowserPreviewKeyListener): unknown
+  on(event: 'before-mouse-event', listener: BrowserPreviewMouseListener): unknown
+  on(event: 'did-start-navigation', listener: BrowserPreviewNavigationListener): unknown
   on(event: 'destroyed', listener: () => void): unknown
   once(event: 'destroyed', listener: () => void): unknown
-  removeListener(event: 'before-input-event', listener: KeyListener): unknown
-  removeListener(event: 'before-mouse-event', listener: MouseListener): unknown
-  removeListener(event: 'did-start-navigation', listener: NavigationListener): unknown
+  removeListener(event: 'before-input-event', listener: BrowserPreviewKeyListener): unknown
+  removeListener(event: 'before-mouse-event', listener: BrowserPreviewMouseListener): unknown
+  removeListener(event: 'did-start-navigation', listener: BrowserPreviewNavigationListener): unknown
   removeListener(event: 'destroyed', listener: () => void): unknown
 }
 

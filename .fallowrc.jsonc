@@ -143,7 +143,7 @@
       // Worker), so every member it reports here is in use.
       "files": [
         "src/main/adapters/electron/browser-preview/browser-preview-artifacts.ts",
-        "src/main/adapters/electron/browser-preview/browser-preview-automation-control.ts",
+        "src/main/adapters/browser-preview/automation/browser-preview-automation-control.ts",
         // CdpConnection.connect builds the instance behind a private constructor, and the
         // Electrobun preview reaches its guest through ElectrobunPreviewRecord.guest.
         "src/main/adapters/electrobun/browser-preview/cdp-connection.ts",
