@@ -4,15 +4,15 @@
 # - scripts/electrobun/package.ts builds against OpenWaggle's native devkit (electrobun-native.yml),
 #   signed with a throwaway self-signed identity generated in the job (never a release secret);
 # - the packaged app passes the supported-platform floor;
-# - the fresh-install artifact installs (macOS DMG, Windows NSIS installer, Linux AppImage) and
-#   launches, twice for a cold and a warm start, with its idle memory recorded;
+# - the fresh-install artifact installs (macOS DMG, Windows NSIS installer, Linux AppImage);
+# - the installed app launches hidden with its main window on CEF (scripts/electrobun/ci/smoke.ts)
+#   and reaches startup status ready. The cold launch also starts the Session Host, runs one turn
+#   against a local fake provider through `openwaggle run`, echoes through a terminal and opens a
+#   Browser preview; the warm launch opens that Session from an `openwaggle://` link. Both record
+#   their start times and idle memory, with screenshots over CDP;
 # - a second build one version later, served from a loopback feed, is found, downloaded and
-#   installed by OpenWaggle's Electrobun update engine in the installed app, which relaunches as
+#   installed by the installed app's own updater (Restart to update), and the app then launches as
 #   the new version.
-#
-# The main bundle (scripts/build-main.ts) binds the Electron adapters until the desktop-shell switch,
-# so until then the app runs the stand-in main (scripts/electrobun/stand-in/boot.ts); drop
-# `--stand-in` below at the switch.
 name: Electrobun Package
 
 on:
@@ -125,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           tools="$RUNNER_TEMP/tools"; mkdir -p "$tools"
-          args=(--stand-in --allow-missing-resources --arch "${{ matrix.arch }}")
+          args=(--arch "${{ matrix.arch }}")
           case "${{ matrix.platform }}" in
             win32)
               # vendor/electrobun/build.ts downloaded it and checked Microsoft's Authenticode signature.
@@ -142,6 +142,9 @@ jobs:
               ;;
           esac
           printf '%s\n' "${args[@]}" > "$RUNNER_TEMP/package-args"
+
+      - name: Build the app
+        run: bun run build
 
       - name: Package the current version
         run: |
@@ -164,15 +167,25 @@ jobs:
           fi
           bun scripts/check-native-platform-floor.ts --platform ${{ matrix.platform }} "$app" | tee "$RESULTS/floor.txt"
 
-      - name: Install and launch (cold, then warm)
+      - name: Install
         run: |
           set -euo pipefail
-          version=$(node -p "require('./package.json').version")
+          echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+          echo "PROFILE=$RUNNER_TEMP/profile" >> "$GITHUB_ENV"
           bun scripts/electrobun/ci/smoke.ts install "$RUNNER_TEMP/feed/current" | tee "$RESULTS/install.json"
           launcher=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).launcher" "$RESULTS/install.json")
           echo "LAUNCHER=$launcher" >> "$GITHUB_ENV"
-          bun scripts/electrobun/ci/smoke.ts launch "$launcher" --expect "$version" --out "$RESULTS/launch-cold.json" --screenshot "$RESULTS/launch-cold.png"
-          bun scripts/electrobun/ci/smoke.ts launch "$launcher" --expect "$version" --out "$RESULTS/launch-warm.json"
+
+      - name: Cold launch (Session Host, fake-provider Run, terminal, Browser preview)
+        run: |
+          bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$VERSION" --profile "$PROFILE" --prove \
+            --out "$RESULTS/launch-cold.json" --screenshots "$RESULTS/screenshots/cold"
+
+      - name: Warm launch (open the Session from its openwaggle link)
+        run: |
+          session=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).proof.run.sessionId" "$RESULTS/launch-cold.json")
+          bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$VERSION" --profile "$PROFILE" --open-session "$session" \
+            --out "$RESULTS/launch-warm.json" --screenshots "$RESULTS/screenshots/warm"
 
       - name: Package the next version against the current one
         run: |
@@ -190,10 +203,11 @@ jobs:
           ls -la "$RUNNER_TEMP/feed/next" | tee "$RESULTS/release-next.txt"
           git checkout -- package.json
 
-      - name: Update the installed app through the update engine
+      - name: Update the installed app through its updater
         run: |
-          bun scripts/electrobun/ci/smoke.ts launch "$LAUNCHER" --expect "$NEXT_VERSION" --feed "http://127.0.0.1:$FEED_PORT/next/" \
-            --out "$RESULTS/update.json" --timeout 420 --screenshot "$RESULTS/updated.png"
+          bun scripts/electrobun/ci/smoke.ts update "$LAUNCHER" --from "$VERSION" --expect "$NEXT_VERSION" \
+            --feed "http://127.0.0.1:$FEED_PORT/next/" --profile "$PROFILE" \
+            --out "$RESULTS/update.json" --timeout 420 --screenshots "$RESULTS/screenshots/updated"
 
       - name: Sizes
         if: ${{ !cancelled() }}
@@ -209,13 +223,11 @@ jobs:
       - name: Collect logs
         if: ${{ !cancelled() }}
         run: |
-          for file in "$HOME/Library/Application Support/openwaggle"/electrobun-stand-in-report.json* \
-            "${APPDATA:-}/openwaggle"/electrobun-stand-in-report.json* \
-            "$HOME/.config/openwaggle"/electrobun-stand-in-report.json* \
-            "${LOCALAPPDATA:-}/openwaggle-updater/electrobun-transition.log" \
+          for file in "${LOCALAPPDATA:-}/openwaggle-updater/electrobun-transition.log" \
             "$HOME/.local/share/openwaggle-transition.log" "$RUNNER_TEMP/feed.log"; do
             [ -f "$file" ] && cp "$file" "$RESULTS/" || true
           done
+          [ -d "$PROFILE/logs" ] && cp -R "$PROFILE/logs" "$RESULTS/app-logs" || true
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ !cancelled() }}
