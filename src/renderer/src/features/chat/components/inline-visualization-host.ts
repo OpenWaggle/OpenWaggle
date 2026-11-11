@@ -26,14 +26,10 @@ export async function deliverVisualizationFollowUp(input: {
   readonly isIdle: boolean
   readonly payload: AgentSendPayload
   readonly send: (payload: AgentSendPayload) => Promise<void>
-  readonly enqueue: (payload: AgentSendPayload) => void
+  readonly enqueue: (payload: AgentSendPayload) => Promise<void>
 }) {
-  if (!input.isIdle) {
-    input.enqueue(input.payload)
-    return true
-  }
   try {
-    await input.send(input.payload)
+    await (input.isIdle ? input.send(input.payload) : input.enqueue(input.payload))
     return true
   } catch {
     return false

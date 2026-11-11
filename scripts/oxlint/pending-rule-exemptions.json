@@ -95,7 +95,6 @@
     "src/renderer/src/features/browser-preview/components/BrowserPreviewMoreMenu.tsx": 3,
     "src/renderer/src/features/browser-preview/components/BrowserPreviewPanel.tsx": 2,
     "src/renderer/src/features/chat/hooks/use-chat-panel-controller.ts": 2,
-    "src/renderer/src/features/chat/hooks/useVisualizationFollowUpDispatcher.ts": 1,
     "src/renderer/src/features/chat/state/session-thinking-level-writes.ts": 1,
     "src/renderer/src/features/diff-panel/components/DiffPanel.tsx": 4,
     "src/renderer/src/features/diff-panel/components/DiffReviewBody.tsx": 1,
