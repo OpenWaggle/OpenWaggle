@@ -18,7 +18,9 @@ describe("an MCP App frame's size", () => {
     hook.rerender({ load: 1 })
 
     expect(hook.result.current).toMatchObject({ state: 'starting', frameHeight: 1 })
-    act(() => vi.advanceTimersByTime(15_000))
+    act(() => {
+      vi.advanceTimersByTime(15_000)
+    })
     expect(hook.result.current.state).toBe('stalled')
   })
 
@@ -30,7 +32,9 @@ describe("an MCP App frame's size", () => {
     hook.rerender({ load: 2 })
 
     expect(hook.result.current).toMatchObject({ state: 'starting', frameHeight: 1 })
-    act(() => vi.advanceTimersByTime(15_000))
+    act(() => {
+      vi.advanceTimersByTime(15_000)
+    })
     expect(hook.result.current.state).toBe('stalled')
   })
 

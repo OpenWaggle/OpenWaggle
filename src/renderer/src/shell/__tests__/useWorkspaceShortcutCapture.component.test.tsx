@@ -38,12 +38,16 @@ describe('useWorkspaceShortcutCapture terminal close guard', () => {
     renderShortcutCapture()
     const { pane, textarea } = terminalTarget()
     const initialPress = closeKeyDown()
-    act(() => textarea.dispatchEvent(initialPress))
+    act(() => {
+      textarea.dispatchEvent(initialPress)
+    })
     expect(initialPress.defaultPrevented).toBe(false)
 
     pane.remove()
     const repeatAfterUnmount = closeKeyDown(true)
-    act(() => window.dispatchEvent(repeatAfterUnmount))
+    act(() => {
+      window.dispatchEvent(repeatAfterUnmount)
+    })
     expect(repeatAfterUnmount.defaultPrevented).toBe(true)
 
     const releaseAfterUnmount = new KeyboardEvent('keyup', {
@@ -52,11 +56,15 @@ describe('useWorkspaceShortcutCapture terminal close guard', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => window.dispatchEvent(releaseAfterUnmount))
+    act(() => {
+      window.dispatchEvent(releaseAfterUnmount)
+    })
     expect(releaseAfterUnmount.defaultPrevented).toBe(true)
 
     const laterRepeat = closeKeyDown(true)
-    act(() => window.dispatchEvent(laterRepeat))
+    act(() => {
+      window.dispatchEvent(laterRepeat)
+    })
     expect(laterRepeat.defaultPrevented).toBe(false)
   })
 
@@ -70,7 +78,9 @@ describe('useWorkspaceShortcutCapture terminal close guard', () => {
     pane.remove()
 
     const repeatAfterBlur = closeKeyDown(true)
-    act(() => window.dispatchEvent(repeatAfterBlur))
+    act(() => {
+      window.dispatchEvent(repeatAfterBlur)
+    })
     expect(repeatAfterBlur.defaultPrevented).toBe(false)
   })
 })

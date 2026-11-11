@@ -129,7 +129,9 @@ describe('useUnifiedShortcutCapture', () => {
       }),
     )
 
-    act(() => window.dispatchEvent(keyEvent('keydown')))
+    act(() => {
+      window.dispatchEvent(keyEvent('keydown'))
+    })
     expect(onRunProjectAction).toHaveBeenCalledWith(action)
     expect(commandHandlers['diff.toggle']).not.toHaveBeenCalled()
   })
@@ -149,7 +151,9 @@ describe('useUnifiedShortcutCapture', () => {
     capture.dataset['shortcutCapture'] = ''
     document.body.append(capture)
     const event = keyEvent('keydown')
-    act(() => capture.dispatchEvent(event))
+    act(() => {
+      capture.dispatchEvent(event)
+    })
 
     expect(event.defaultPrevented).toBe(false)
     expect(commandHandlers['diff.toggle']).not.toHaveBeenCalled()
@@ -230,7 +234,9 @@ describe('useUnifiedShortcutCapture', () => {
       cancelable: true,
     })
 
-    act(() => window.dispatchEvent(unavailable))
+    act(() => {
+      window.dispatchEvent(unavailable)
+    })
 
     expect(unavailable.defaultPrevented).toBe(false)
     expect(commandHandlers['rightPanel.close']).not.toHaveBeenCalled()
@@ -243,7 +249,9 @@ describe('useUnifiedShortcutCapture', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => window.dispatchEvent(available))
+    act(() => {
+      window.dispatchEvent(available)
+    })
 
     expect(available.defaultPrevented).toBe(true)
     expect(commandHandlers['rightPanel.close']).toHaveBeenCalledOnce()

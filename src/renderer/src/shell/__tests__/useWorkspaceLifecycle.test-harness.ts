@@ -4,6 +4,7 @@ import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { ShortcutBinding } from '@shared/types/shortcuts'
+import { act } from '@testing-library/react'
 import { type Mock, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
@@ -235,6 +236,13 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 export function getWorkspaceTerminalState() {
   return useTerminalStore.getState()
+}
+
+/** Dispatches `event` on `target` inside act, so the shortcut handlers' updates flush. */
+export function dispatchInAct(target: EventTarget, event: Event) {
+  act(() => {
+    target.dispatchEvent(event)
+  })
 }
 
 export function runWorkspaceHotkey(hotkey: string, target?: Element) {

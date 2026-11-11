@@ -171,7 +171,9 @@ describe('ChangeRequestPanel source-control attention', () => {
       expect.objectContaining({ ownerKey: 'session-a', cwd: '/repo/session-a' }),
     )
     const finished = apiMocks.watchSessionTerminalCommand.mock.calls[0]?.[2]
-    act(() => finished?.())
+    act(() => {
+      finished?.()
+    })
 
     await waitFor(() => expect(apiMocks.getPanel).toHaveBeenCalledTimes(2))
     expect(apiMocks.refreshSourceControlStatus).toHaveBeenCalledWith('/repo/session-a')

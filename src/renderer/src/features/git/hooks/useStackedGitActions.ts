@@ -108,5 +108,10 @@ export function useStackedGitActions({
     return api.cancelStackedGitAction(operationId)
   }
 
-  return { isRunning, progress, run, cancel }
+  /** Runs `action` for a caller with no promise to handle: `run` reports a failure in a toast. */
+  function start(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
+    void run(action, options)
+  }
+
+  return { isRunning, progress, run, start, cancel }
 }

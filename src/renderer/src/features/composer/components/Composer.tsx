@@ -138,7 +138,7 @@ export function Composer({
   // While a queued message is being edited here (including while it opens), nothing is sent.
   function submit() {
     if (!editHere) {
-      submission.handleSubmit()
+      void submission.handleSubmit()
       return
     }
     if (!disabled) queuedEdit.save()

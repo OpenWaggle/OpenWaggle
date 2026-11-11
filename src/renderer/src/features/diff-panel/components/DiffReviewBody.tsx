@@ -93,7 +93,9 @@ export function DiffReviewBody({
             comments: review.comments,
             activeCommentLocation: review.activeCommentLocation,
             onSetActiveComment: review.onSetActiveComment,
-            onAddSingleComment: review.onAddSingleComment,
+            // A failed send keeps the comment and reports itself; nothing awaits it.
+            onAddSingleComment: (location, content) =>
+              void review.onAddSingleComment(location, content),
             onAddToReview: review.onAddToReview,
             onRemoveComment: review.onRemoveComment,
           }}

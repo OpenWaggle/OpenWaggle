@@ -71,9 +71,13 @@ export function writeThinkingLevel(input: ThinkingLevelWriteInput): Promise<void
   const store = usePendingThinkingLevelStore.getState()
   store.setPending(input.target, input.level)
   const previous = chains.get(input.target) ?? Promise.resolve()
-  const result = previous.then(input.write).finally(async () => {
+  const settle = async () => {
     await input.refresh().catch(() => undefined)
     usePendingThinkingLevelStore.getState().clearPending(input.target, input.level)
+  }
+  const result = previous.then(input.write).then(settle, async (error: unknown) => {
+    await settle()
+    throw error
   })
   const chain = result.then(
     () => undefined,

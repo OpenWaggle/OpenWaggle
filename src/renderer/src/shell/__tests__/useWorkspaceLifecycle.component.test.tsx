@@ -6,6 +6,7 @@ import { queryKeys } from '@/queries/query-keys'
 import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { useUIStore } from '../ui-store'
 import {
+  dispatchInAct,
   getWorkspaceLifecycleMocks,
   getWorkspaceTerminalState,
   loadUseWorkspaceLifecycle,
@@ -307,7 +308,7 @@ describe('useWorkspaceLifecycle', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => textarea.dispatchEvent(press))
+    dispatchInAct(textarea, press)
 
     expect(useUIStore.getState().sidebarOpen).toBe(false)
     expect(press.defaultPrevented).toBe(true)
@@ -320,7 +321,7 @@ describe('useWorkspaceLifecycle', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => textarea.dispatchEvent(release))
+    dispatchInAct(textarea, release)
     expect(release.defaultPrevented).toBe(true)
     expect(terminalKeyUp).not.toHaveBeenCalled()
 
@@ -330,7 +331,7 @@ describe('useWorkspaceLifecycle', () => {
       bubbles: true,
       cancelable: true,
     })
-    act(() => textarea.dispatchEvent(laterRelease))
+    dispatchInAct(textarea, laterRelease)
     expect(laterRelease.defaultPrevented).toBe(false)
     expect(terminalKeyUp).toHaveBeenCalledOnce()
     pane.remove()

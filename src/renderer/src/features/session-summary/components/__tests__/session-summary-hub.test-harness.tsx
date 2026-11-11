@@ -271,6 +271,7 @@ export function setupSessionSummaryHubHarness() {
     isRunning: false,
     progress: null,
     run: vi.fn(),
+    start: vi.fn(),
     cancel: vi.fn(),
   })
   useCombinedVcsStatus.mockReset().mockReturnValue({
