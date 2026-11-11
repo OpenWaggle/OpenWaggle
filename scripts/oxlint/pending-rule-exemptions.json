@@ -58,15 +58,5 @@
   },
   "react/use-memo": {
     "src/renderer/src/features/diff-panel/hooks/useProgressiveCodeViewItems.ts": 1
-  },
-  "typescript/only-throw-error": {
-    "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 1,
-    "src/renderer/src/features/project-actions/hooks/__tests__/useProjectActionShortcutCapture.component.test.tsx": 1,
-    "src/renderer/src/routes/agents.tsx": 1,
-    "src/renderer/src/routes/skills.tsx": 1
-  },
-  "typescript/use-unknown-in-catch-callback-variable": {
-    "src/renderer/src/features/composer/lib/send-result.ts": 1,
-    "src/renderer/src/features/git/hooks/useSessionContextRow.ts": 2
   }
 }

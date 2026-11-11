@@ -1,7 +1,7 @@
 import type { ProjectAction } from '@shared/types/project-actions'
 import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { act, renderHook } from '@testing-library/react'
-import { Suspense } from 'react'
+import { Suspense, use } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { useProjectActionShortcutCapture } from '../useProjectActionShortcutCapture'
@@ -35,7 +35,7 @@ describe('useProjectActionShortcutCapture', () => {
           builtInBindings: DEFAULT_SHORTCUT_BINDINGS,
           onRun,
         })
-        if (suspend) throw gate
+        if (suspend) use(gate)
       },
       {
         initialProps: { onRun: committed, suspend: false },

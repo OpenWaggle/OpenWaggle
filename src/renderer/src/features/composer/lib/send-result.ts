@@ -25,7 +25,7 @@ export function consumeSendResult(result: unknown): void {
     return
   }
 
-  result.catch((error) => {
+  result.catch((error: unknown) => {
     logger.error('Composer send failed', {
       message: error instanceof Error ? error.message : String(error),
     })

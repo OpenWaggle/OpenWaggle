@@ -93,7 +93,9 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
         .then((result) => {
           if (!cancelled) setWorktreeExists(result.exists)
         })
-        .catch((error) => logger.warn('Failed to check Session worktree', { error: String(error) }))
+        .catch((error: unknown) =>
+          logger.warn('Failed to check Session worktree', { error: String(error) }),
+        )
     }
     check()
     const unsubscribe = api.onGitWorkingTreeChanged(({ workingPath }) => {
@@ -142,7 +144,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
           throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
         }
       })
-      .catch((error) =>
+      .catch((error: unknown) =>
         logger.warn('Failed to hand off Session Workspace', { error: String(error) }),
       )
   }
