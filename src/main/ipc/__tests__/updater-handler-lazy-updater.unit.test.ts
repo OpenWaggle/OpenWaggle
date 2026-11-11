@@ -5,9 +5,13 @@ const handlers = new Map<string, (...args: unknown[]) => unknown>()
 const updaterModuleLoaded = vi.fn()
 const mockCheckForUpdates = vi.fn()
 
-vi.mock('electron', () => ({
-  app: { getVersion: () => '1.0.0' },
-  ipcMain: {
+vi.mock('../../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => '1.0.0',
+  }),
+}))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
     },

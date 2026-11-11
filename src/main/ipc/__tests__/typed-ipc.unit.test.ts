@@ -22,8 +22,8 @@ vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: invokeConfiguredHostUiRawMock,
 }))
 
-vi.mock('electron', () => ({
-  ipcMain: {
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: ipcMainHandleMock,
     on: ipcMainOnMock,
   },

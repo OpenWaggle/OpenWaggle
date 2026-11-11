@@ -24,8 +24,8 @@ const ownerRegistry = vi.hoisted(() => ({
   unregister: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  ipcMain: {
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
     },

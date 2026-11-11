@@ -51,9 +51,13 @@ vi.mock('../../runtime', () => ({
 vi.mock('../../gui-runtime', () => ({
   runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
-vi.mock('electron', () => ({
-  app: { getVersion: () => '0.1.0-test' },
-  ipcMain: {
+vi.mock('../../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => '0.1.0-test',
+  }),
+}))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       hoistedHarness.handlers.set(channel, handler)
     },

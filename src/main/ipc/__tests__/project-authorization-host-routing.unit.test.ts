@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, listener: (...args: unknown[]) => unknown) => void>(),
 }))
 
-vi.mock('electron', () => ({ ipcMain: { handle: mocks.handle } }))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: { handle: mocks.handle, on: vi.fn() },
+}))
 vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: mocks.invokeHost,
 }))

@@ -22,7 +22,9 @@ const {
   typedHandleMock: vi.fn(),
 }))
 
-vi.mock('electron', () => ({ app: { getPath: () => '/user-data' } }))
+vi.mock('../../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../../test-support/fake-desktop-shell')).fakeAppPaths('/user-data'),
+}))
 vi.mock('../typed-ipc', () => ({ typedHandle: typedHandleMock }))
 vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUi: invokeHostMock,

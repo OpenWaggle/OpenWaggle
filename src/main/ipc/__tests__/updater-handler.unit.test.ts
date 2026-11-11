@@ -12,9 +12,13 @@ const mockShowMessageBox = vi.fn(() => Promise.resolve({ response: 2 }))
 const mockInterruptSessionRun = vi.fn((_sessionId: string) => Effect.void)
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
-vi.mock('electron', () => ({
-  app: { getVersion: () => mockAppGetVersion() },
-  ipcMain: {
+vi.mock('../../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => mockAppGetVersion(),
+  }),
+}))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
     },

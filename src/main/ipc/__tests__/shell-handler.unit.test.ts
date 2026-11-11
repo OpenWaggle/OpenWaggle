@@ -12,7 +12,7 @@ const missingFile = path.join(fixtureRoot, 'hive-sessions.png')
 
 const mockShellOpenPath = vi.fn()
 const mockShellShowItemInFolder = vi.fn()
-const mockAppGetPath = vi.fn((_name: string) => '/tmp/logs')
+const mockLogsPath = vi.fn(() => '/tmp/logs')
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 const mockShellOpenExternal = vi.fn(async (_url: string) => {})
@@ -39,18 +39,29 @@ vi.mock('../../desktop-native-admission', () => ({
   recoverDesktopNativeAdmission: () => mockRecoverNativeAdmission(),
 }))
 
-vi.mock('electron', () => ({
-  shell: {
+vi.mock('../../desktop-shell/os-shell', () => ({
+  osShell: {
     openPath: (p: string) => mockShellOpenPath(p),
     openExternal: (url: string) => mockShellOpenExternal(url),
     showItemInFolder: (p: string) => mockShellShowItemInFolder(p),
+    trashItem: vi.fn(),
+    beep: vi.fn(),
   },
-  app: { getPath: (name: string) => mockAppGetPath(name) },
+}))
+vi.mock('../../desktop-shell/app-paths', async () => ({
+  appPaths: {
+    ...(await import('../../test-support/fake-desktop-shell')).fakeAppPaths(),
+    logs: () => mockLogsPath(),
+  },
+}))
+vi.mock('../../desktop-shell/clipboard', async () => ({
   clipboard: {
+    ...(await import('../../test-support/fake-desktop-shell')).fakeClipboard(),
     readText: () => mockClipboardReadText(),
-    writeText: vi.fn(),
   },
-  ipcMain: {
+}))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
     },
@@ -86,11 +97,11 @@ describe('shell-handler', () => {
     mockShellOpenPath.mockReset()
     mockShellShowItemInFolder.mockReset()
     mockShellOpenExternal.mockReset()
-    mockAppGetPath.mockReset()
+    mockLogsPath.mockReset()
     mockClipboardReadText.mockReset()
     mockNativeAdmissionIssue.mockReturnValue(null)
     mockShellOpenPath.mockResolvedValue('')
-    mockAppGetPath.mockReturnValue('/tmp/logs')
+    mockLogsPath.mockReturnValue('/tmp/logs')
     mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
@@ -145,7 +156,7 @@ describe('shell-handler', () => {
       expect(handler).toBeDefined()
       await handler?.({})
       expect(mockShellOpenPath).toHaveBeenCalledWith('/tmp/logs')
-      expect(mockAppGetPath).toHaveBeenCalledWith('logs')
+      expect(mockLogsPath).toHaveBeenCalledOnce()
     })
 
     it('propagates a blocked automation path instead of dropping the rejection', async () => {
@@ -164,7 +175,7 @@ describe('shell-handler', () => {
       const handler = handlers.get('app:get-logs-path')
       expect(handler).toBeDefined()
       const result = await handler?.()
-      expect(mockAppGetPath).toHaveBeenCalledWith('logs')
+      expect(mockLogsPath).toHaveBeenCalledOnce()
       expect(result).toBe('/tmp/logs')
     })
   })

@@ -13,6 +13,11 @@ import {
   resetSessionResourceHandlerHarness,
 } from './session-resource-handler.test-harness'
 
+// Content references address the `session-resource` domain the way pages request it.
+vi.mock('../../desktop-shell/trusted-origins', async () => ({
+  trustedOrigins: (await import('../../test-support/fake-desktop-shell')).fakeTrustedOrigins(),
+}))
+
 const handlerMocks = getSessionResourceHandlerMocks()
 const SESSION_ONE = SessionId('session-one')
 

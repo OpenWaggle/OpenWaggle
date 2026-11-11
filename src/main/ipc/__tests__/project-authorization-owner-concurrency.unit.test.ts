@@ -19,7 +19,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   mocks.rename.mockImplementation(actual.rename)
   return { ...actual, rename: mocks.rename, default: { ...actual, rename: mocks.rename } }
 })
-vi.mock('electron', () => ({ ipcMain: { handle: mocks.handle } }))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: { handle: mocks.handle, on: vi.fn() },
+}))
 vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: mocks.invokeHost,
 }))

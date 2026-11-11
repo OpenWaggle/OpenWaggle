@@ -10,16 +10,16 @@ import {
 } from './session-resource-handler.test-harness'
 
 const actionMocks = vi.hoisted(() => ({
-  createFromBuffer: vi.fn(),
   discardRegisteredImageAttachment: vi.fn(),
-  isEmpty: vi.fn(),
   prepareRegisteredImageAttachmentFromBytes: vi.fn(),
   writeImage: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  clipboard: { writeImage: actionMocks.writeImage },
-  nativeImage: { createFromBuffer: actionMocks.createFromBuffer },
+vi.mock('../../desktop-shell/clipboard', async () => ({
+  clipboard: {
+    ...(await import('../../test-support/fake-desktop-shell')).fakeClipboard(),
+    writeImage: actionMocks.writeImage,
+  },
 }))
 
 vi.mock('../attachments-handler', () => ({
@@ -59,9 +59,7 @@ const PREPARED: PreparedAttachment = {
 describe('session resource image actions', () => {
   beforeEach(() => {
     resetSessionResourceHandlerHarness()
-    actionMocks.isEmpty.mockReset().mockReturnValue(false)
-    actionMocks.createFromBuffer.mockReset().mockReturnValue({ isEmpty: actionMocks.isEmpty })
-    actionMocks.writeImage.mockReset()
+    actionMocks.writeImage.mockReset().mockResolvedValue('written')
     actionMocks.discardRegisteredImageAttachment.mockReset().mockResolvedValue(undefined)
     actionMocks.prepareRegisteredImageAttachmentFromBytes.mockReset().mockResolvedValue(PREPARED)
     handlerMocks.findById.mockImplementation((sessionId: SessionId, resourceId: string) =>
@@ -83,8 +81,9 @@ describe('session resource image actions', () => {
     ).resolves.toBeUndefined()
 
     expect(handlerMocks.findById).toHaveBeenCalledWith(SessionId('session-one'), IMAGE.id, 'images')
-    expect(actionMocks.createFromBuffer).toHaveBeenCalledOnce()
     expect(actionMocks.writeImage).toHaveBeenCalledOnce()
+    // The encoded bytes go to the clipboard as read; the shell decodes them.
+    expect(Buffer.from(actionMocks.writeImage.mock.calls[0]?.[0]).toString()).toBe('image-bytes')
   })
 
   it.each(['sessions:resources:copy-image', 'sessions:resources:prepare-attachment'])(

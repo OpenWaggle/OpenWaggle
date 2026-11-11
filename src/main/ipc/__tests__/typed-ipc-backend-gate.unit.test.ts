@@ -15,7 +15,9 @@ const { ipcMainHandleMock, ipcMainOnMock } = vi.hoisted(() => ({
 vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: vi.fn(async () => ({ handled: false })),
 }))
-vi.mock('electron', () => ({ ipcMain: { handle: ipcMainHandleMock, on: ipcMainOnMock } }))
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: { handle: ipcMainHandleMock, on: ipcMainOnMock },
+}))
 vi.mock('../../gui-runtime', () => ({
   runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
   runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
