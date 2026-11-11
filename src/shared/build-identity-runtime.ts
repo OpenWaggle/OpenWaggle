@@ -2,8 +2,9 @@ import type { BuildChannel } from './types/build-identity'
 
 /**
  * Runtime view of this build's {@link BuildChannel} identity, baked in at build
- * time by electron-vite `define` (see electron.vite.config.ts) from the same
- * resolver electron-builder uses. `typeof` guards keep this safe under vitest,
+ * time by the main and renderer builds' `define` (scripts/build-main.ts,
+ * vite.renderer.config.ts) from the same resolver packaging uses
+ * (scripts/build-identity.ts). `typeof` guards keep this safe under vitest,
  * where the defines are absent and the identifiers are genuinely undeclared.
  */
 declare const __OW_BUILD_CHANNEL__: BuildChannel

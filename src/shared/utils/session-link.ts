@@ -6,8 +6,8 @@ import type { BuildChannel } from '../types/build-identity'
  * (ADR 0056). The `openwaggle` scheme is shared with the renderer origin, whose host is `app`;
  * only the `sessions` host is a Session link, so nothing here can address the renderer.
  *
- * Imports stay relative: electron-builder loads this module through `scripts/build-identity.ts`
- * with jiti, which does not resolve the `@shared` alias.
+ * Imports stay relative: Hutch loads this module through `electrobun.config.ts` and
+ * `scripts/build-identity.ts`, outside the app's `@shared` alias.
  */
 export const SESSION_LINK_SCHEME = 'openwaggle'
 
