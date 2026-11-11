@@ -16,7 +16,12 @@ import path from 'node:path'
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../..')
 const OUTPUT_DIRECTORY = path.join(REPOSITORY_ROOT, 'vendor/electrobun/types')
-const ENTRY_FILES = ['sdks/main/index.ts', 'browser/index.ts', 'config/ElectrobunConfig.ts']
+const ENTRY_FILES = [
+  'sdks/main/index.ts',
+  'sdks/main/entries/events.ts',
+  'browser/index.ts',
+  'config/ElectrobunConfig.ts',
+]
 /**
  * The SDK's default export is an object literal holding a class with private members, which
  * declaration emit cannot name (TS4094). OpenWaggle imports the named exports only.

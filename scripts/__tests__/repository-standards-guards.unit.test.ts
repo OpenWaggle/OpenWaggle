@@ -67,6 +67,20 @@ describe('non-disruptive Electron automation boundary', () => {
     expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', source)).toHaveLength(3)
   })
 
+  it('rejects Electrobun desktop UI outside its automation-checked adapters', () => {
+    const source = [
+      'electrobun().Utils.showMessageBox({ message: "Continue?" })',
+      'sdk.ContextMenu.showContextMenu(items)',
+    ].join('\n')
+    expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', source)).toHaveLength(2)
+    expect(
+      collectUnguardedDesktopUiViolations(
+        'src/main/adapters/electrobun/electrobun-menus.ts',
+        source,
+      ),
+    ).toEqual([])
+  })
+
   it('keeps detached external-application processes inside the desktop UI policy owner', () => {
     const unsafe = [
       "import { spawn } from 'node:child_process'",

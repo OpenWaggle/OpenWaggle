@@ -87,6 +87,10 @@ export const TEST_REPORTERS = [
  * - Bun resolves a bare `undici` to a partial builtin without `MockAgent` or
  *   `Dispatcher1Wrapper`. The alias loads the npm package the app depends on.
  * - Bun's `os.homedir()` ignores a HOME set after start; `node-os.ts` reads it at call time.
+ *
+ * The Electrobun SDK is not an npm package (it comes from the Hutch devkit), so each of its
+ * specifiers resolves to its own stub that a test mocks. The longer specifier comes first: an
+ * alias also matches the specifiers below it.
  */
 // Through `package.json`: Bun's `require.resolve('undici')` answers with the builtin's name.
 const UNDICI_PACKAGE_ENTRY = path.join(
@@ -95,8 +99,11 @@ const UNDICI_PACKAGE_ENTRY = path.join(
 )
 
 const NODE_OS_MODULE = path.join(import.meta.dirname, 'node-os.ts')
+const ELECTROBUN_SDK_STUB = path.join(import.meta.dirname, 'electrobun-sdk-stub.ts')
 
 export const BUN_RUNTIME_ALIASES = {
+  'electrobun/main/events': `${ELECTROBUN_SDK_STUB}?events`,
+  'electrobun/main': ELECTROBUN_SDK_STUB,
   undici: UNDICI_PACKAGE_ENTRY,
   'node:os': NODE_OS_MODULE,
   os: NODE_OS_MODULE,

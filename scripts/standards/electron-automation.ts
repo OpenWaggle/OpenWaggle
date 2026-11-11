@@ -13,6 +13,13 @@ const DESKTOP_UI_POLICY_OWNERS = [
   'src/main/adapters/electron/electron-menus.ts',
   'src/main/adapters/electron/electron-os-shell.ts',
   'src/main/adapters/electron/electron-system-notifications.ts',
+  // Electrobun's adapters check the automation policy at the top of each OS-visible member
+  // (src/main/adapters/electrobun/electrobun-automation.ts).
+  'src/main/adapters/electrobun/electrobun-dialogs.ts',
+  'src/main/adapters/electrobun/electrobun-menus.ts',
+  'src/main/adapters/electrobun/electrobun-os-shell.ts',
+  'src/main/adapters/electrobun/electrobun-save-dialog.ts',
+  'src/main/adapters/electrobun/electrobun-system-notifications.ts',
 ]
 /**
  * The detached-spawn primitive behind `desktop-ui.ts`: the boot shim launches the headless Session
@@ -54,6 +61,12 @@ const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
   { api: 'application focus', pattern: /\bapp\s*\.\s*focus\s*\(/gu },
   { api: 'native context menu', pattern: /\.\s*popup\s*\(/gu },
   { api: 'native notification', pattern: /\bnew\s+Notification\s*\(/gu },
+  {
+    api: 'Electrobun desktop UI',
+    pattern:
+      /\bUtils\s*\.\s*(?:openExternal|openPath|showItemInFolder|moveToTrash|showMessageBox|openFileDialog|showNotification)\s*\(/gu,
+  },
+  { api: 'Electrobun context menu', pattern: /\bshowContextMenu\s*\(/gu },
 ]
 
 function normalizePath(filePath: string) {

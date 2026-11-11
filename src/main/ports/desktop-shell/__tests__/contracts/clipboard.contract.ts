@@ -21,9 +21,9 @@ export const clipboardContract = definePortContract<ClipboardContractHarness>('C
     encodedImage,
     holdsImage,
   }) => {
-    expect(subject.writeImage(Uint8Array.from([1, 2, 3]))).toBe('undecodable')
+    await expect(subject.writeImage(Uint8Array.from([1, 2, 3]))).resolves.toBe('undecodable')
     expect(holdsImage()).toBe(false)
-    expect(subject.writeImage(encodedImage)).toBe('written')
+    await expect(subject.writeImage(encodedImage)).resolves.toBe('written')
     expect(holdsImage()).toBe(true)
   },
 })

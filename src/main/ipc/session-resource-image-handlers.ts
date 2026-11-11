@@ -117,11 +117,14 @@ export function registerSessionResourceImageHandlers() {
           return yield* Effect.fail(new Error('The requested Session image could not be read.'))
         }
         if (!request.isCurrent()) return yield* Effect.fail(inactiveSessionResourceError())
-        yield* Effect.sync(() => {
-          if (clipboard.writeImage(content.bytes) === 'undecodable') {
-            throw new Error('The requested Session image could not be decoded.')
-          }
+        const written = yield* Effect.tryPromise({
+          try: () => clipboard.writeImage(content.bytes),
+          catch: (cause) =>
+            new Error('The requested Session image could not be copied.', { cause }),
         })
+        if (written === 'undecodable') {
+          return yield* Effect.fail(new Error('The requested Session image could not be decoded.'))
+        }
       }),
   )
 

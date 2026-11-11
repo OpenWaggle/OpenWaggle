@@ -208,7 +208,6 @@
     "@testing-library/user-event": "14.6.8",
     "@total-typescript/shoehorn": "0.1.2",
     "@types/better-sqlite3": "9.6.0",
-    "@types/bun": "1.4.4",
     "@types/hast": "3.0.5",
     "@types/micromatch": "4.0.10",
     "@types/node": "24.13.3",

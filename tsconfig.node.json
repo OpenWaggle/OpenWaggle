@@ -24,6 +24,7 @@
       "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"],
       "electrobun": ["./vendor/electrobun/types/config/ElectrobunConfig.d.ts"],
       "electrobun/main": ["./vendor/electrobun/types/sdks/main/index.d.ts"],
+      "electrobun/main/events": ["./vendor/electrobun/types/sdks/main/entries/events.d.ts"],
       "electrobun/view": ["./vendor/electrobun/types/browser/index.d.ts"]
     }
   },

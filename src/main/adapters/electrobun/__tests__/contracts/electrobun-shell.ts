@@ -16,10 +16,18 @@ export async function prepareElectrobunShell() {
   const electrobun = fakeElectrobun()
   const automation = { on: false }
   vi.doMock('electrobun/main', () => ({ ...electrobun.module, default: electrobun.module }))
+  vi.doMock('electrobun/main/events', () => ({
+    default: electrobun.events,
+    electrobunEventEmitter: electrobun.events,
+  }))
+  // The process is the desktop app, which alone loads the SDK (electrobun-sdk.ts).
+  Reflect.set(globalThis, '__openwaggleElectrobunDesktopApp', true)
   vi.doMock('../../../../desktop-automation-policy', async (importOriginal) => ({
     ...(await importOriginal<typeof AutomationPolicy>()),
     isAutomationMode: () => automation.on,
   }))
+  const sdk = await import('../../electrobun-sdk')
+  await sdk.loadElectrobun()
   return {
     electrobun,
     /** Switches automation on, as startup does under it. */

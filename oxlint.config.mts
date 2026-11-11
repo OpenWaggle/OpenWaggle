@@ -676,10 +676,15 @@ export default defineConfig({
       rules: { 'no-unreachable': 'off' },
     },
     {
-      // The two modules that read process.env: env.ts for the main process (.agents/standards.md,
-      // Electron runtime), and the boot shim, where importing env.ts would compile Effect Schema
-      // on every launch.
-      files: ['src/main/env.ts', 'src/main/boot.ts'],
+      // The modules that read process.env: env.ts for the main process (.agents/standards.md,
+      // Electron runtime), and the boot shim and the Electrobun boot shell it imports (the
+      // userData roots honor APPDATA and XDG_CONFIG_HOME), where importing env.ts would compile
+      // Effect Schema on every launch.
+      files: [
+        'src/main/env.ts',
+        'src/main/boot.ts',
+        'src/main/adapters/electrobun/electrobun-boot-shell.ts',
+      ],
       rules: { 'node/no-process-env': 'off' },
     },
     {
