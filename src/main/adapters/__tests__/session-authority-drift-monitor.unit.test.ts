@@ -92,7 +92,7 @@ describe('authority drift monitor', () => {
 
   it('checks a Run again when the revision moves while its check is in flight', async () => {
     const host = harness({})
-    const pending: Array<(outcome: AuthorityDriftOutcome) => void> = []
+    const pending: ((outcome: AuthorityDriftOutcome) => void)[] = []
     const check = vi.fn(
       () =>
         new Promise<AuthorityDriftOutcome>((resolve) => {

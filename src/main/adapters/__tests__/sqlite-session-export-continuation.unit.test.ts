@@ -12,7 +12,7 @@ import {
 
 describe('SQLite Session export continuation', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-export-continuation-'))

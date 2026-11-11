@@ -12,7 +12,7 @@ import {
 
 describe('SQLite Session transcript search', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-transcript-search-'))

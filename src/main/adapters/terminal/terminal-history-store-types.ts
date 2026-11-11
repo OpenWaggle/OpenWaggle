@@ -1,15 +1,15 @@
 import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
 
 export interface TerminalHistoryCacheSnapshot {
-  readonly states: ReadonlyArray<{
+  readonly states: readonly {
     readonly key: TerminalKey
     readonly bytes: number
     readonly lines: number
-  }>
-  readonly workingDirectories: ReadonlyArray<{
+  }[]
+  readonly workingDirectories: readonly {
     readonly key: TerminalKey
     readonly cwd: string
-  }>
+  }[]
 }
 
 export interface TerminalHistoryStore {

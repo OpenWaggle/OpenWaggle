@@ -46,7 +46,7 @@ const prepareTerminalShellLaunchMock = vi.hoisted(() =>
     }>
   >(),
 )
-export const ptyExitListeners: Array<(event: { readonly exitCode: number }) => void> = []
+export const ptyExitListeners: ((event: { readonly exitCode: number }) => void)[] = []
 
 vi.mock('../../../env', () => ({
   getInteractiveTerminalEnv: getInteractiveTerminalEnvMock,

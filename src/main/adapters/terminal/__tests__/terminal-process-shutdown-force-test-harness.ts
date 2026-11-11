@@ -33,7 +33,7 @@ export function missingProcessError() {
 }
 
 export function makeSubject(processName: string) {
-  const exitListeners: Array<(event: { readonly exitCode: number }) => void> = []
+  const exitListeners: ((event: { readonly exitCode: number }) => void)[] = []
   let resolveTreeExit: () => void = () => undefined
   const kill = vi.fn<(signal?: string) => void>()
   const destroy = vi.fn<() => void>()

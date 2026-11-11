@@ -45,7 +45,7 @@ function addSearchableNode(
 
 describe('SQLite transcript semantic scope consistency', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-transcript-scope-refresh-'))

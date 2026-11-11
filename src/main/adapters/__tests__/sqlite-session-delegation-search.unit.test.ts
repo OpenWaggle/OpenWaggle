@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { executeSessionQuery, makeSessionQueryRuntime } from './sqlite-session-query-test-layer'
 
 describe('SQLite Session delegation search', () => {
-  const runtimes: Array<ReturnType<typeof makeSessionQueryRuntime>> = []
+  const runtimes: ReturnType<typeof makeSessionQueryRuntime>[] = []
   const temporaryRoots: string[] = []
 
   afterEach(async () => {

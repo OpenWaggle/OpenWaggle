@@ -30,7 +30,7 @@ const policy: TranscriptSemanticStoragePolicy = {
 
 describe('SQLite transcript semantic expired-scope reclamation', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-expired-scope-'))

@@ -127,10 +127,10 @@ export function mcpUpdateRefusal(
 }
 
 /** Kept projects whose migration fails, each with its failure. */
-export type PendingKeptProjects = () => ReadonlyArray<{
+export type PendingKeptProjects = () => readonly {
   readonly projectPath: string
   readonly pending: PendingMcpFileMigration
-}>
+}[]
 
 /**
  * Before a write that waits for other projects (`global`, `everywhere`), migrates again each kept

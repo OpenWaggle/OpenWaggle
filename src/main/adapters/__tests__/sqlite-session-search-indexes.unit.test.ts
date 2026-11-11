@@ -9,7 +9,7 @@ import { makeSessionQueryRuntime as makeRuntime } from './sqlite-session-query-t
 
 describe('SQLite Session search indexes', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-search-indexes-'))

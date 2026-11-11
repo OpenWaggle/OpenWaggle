@@ -40,7 +40,7 @@ const specificationPrivacyModel: SessionEmbeddingModel = {
 
 describe('SQLite Session semantic projection', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-semantic-projection-'))

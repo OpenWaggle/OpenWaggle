@@ -17,7 +17,7 @@ const embeddingModel: SessionEmbeddingModel = {
 
 describe('SQLite Session transcript semantic freshness', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-transcript-freshness-'))

@@ -19,7 +19,7 @@ function deferred<T>() {
 
 describe('SQLite transcript semantic projection lease', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-transcript-projection-lease-'))

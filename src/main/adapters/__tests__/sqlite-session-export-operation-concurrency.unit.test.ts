@@ -28,8 +28,8 @@ import {
 
 describe('SQLite Session export concurrency', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeSessionExportOperationRuntime>> = []
-  const runtimeReleases: Array<() => void> = []
+  const runtimes: ReturnType<typeof makeSessionExportOperationRuntime>[] = []
+  const runtimeReleases: (() => void)[] = []
   const livenessInstances: SessionHostLiveness[] = []
 
   beforeEach(async () => {

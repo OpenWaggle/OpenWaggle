@@ -24,7 +24,7 @@ import {
 
 describe('SQLite Session export recovery', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeSessionExportOperationRuntime>> = []
+  const runtimes: ReturnType<typeof makeSessionExportOperationRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-export-recovery-'))
