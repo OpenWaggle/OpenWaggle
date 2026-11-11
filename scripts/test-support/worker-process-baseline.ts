@@ -4,6 +4,7 @@
  * and the builtins and global classes code patches in place.
  */
 import type { EventEmitter } from 'node:events'
+import { trackDomListeners } from './dom-listener-tracking'
 
 interface ObjectSnapshot {
   readonly target: object
@@ -22,6 +23,8 @@ export interface WorkerProcessBaseline {
   readonly shared: readonly ObjectSnapshot[]
   /** Timers a file left pending, which a fresh worker would never have run. */
   readonly timers: Map<unknown, (handle: unknown) => void>
+  /** Removes the listeners a file left on the window or document; a fresh jsdom has none. */
+  readonly clearDomListeners: () => void
 }
 
 const BASELINE_BRAND = Symbol.for('openwaggle.test.worker-process-baseline')
@@ -54,6 +57,8 @@ const TIMER_FUNCTIONS = [
   ['setTimeout', 'clearTimeout', true],
   ['setInterval', 'clearInterval', false],
   ['setImmediate', 'clearImmediate', true],
+  // jsdom's frame callbacks run on its own timers, which the wrappers above never see.
+  ['requestAnimationFrame', 'cancelAnimationFrame', true],
 ] as const
 
 const scope: Record<PropertyKey, unknown> = globalThis
@@ -171,6 +176,7 @@ function trackTimers() {
 export function captureWorkerProcessBaseline(): WorkerProcessBaseline {
   // Before the global snapshot, so restoring the globals keeps the tracking functions.
   const timers = trackTimers()
+  const clearDomListeners = trackDomListeners()
   return {
     brand: BASELINE_BRAND,
     env: { ...process.env },
@@ -182,6 +188,7 @@ export function captureWorkerProcessBaseline(): WorkerProcessBaseline {
     owned: ownedObjects().map(snapshot),
     shared: sharedObjects().map(snapshot),
     timers,
+    clearDomListeners,
   }
 }
 
@@ -192,6 +199,10 @@ export function restoreWorkerProcess(
 ) {
   for (const [handle, cancel] of baseline.timers) cancel(handle)
   baseline.timers.clear()
+  baseline.clearDomListeners()
+  // A file that set it would make the next file's process exit as failed. Bun keeps the old
+  // code when given undefined, and 0 exits the same way.
+  if (process.exitCode !== undefined) process.exitCode = 0
   for (const key of Object.keys(process.env)) {
     if (!Object.hasOwn(baseline.env, key)) delete process.env[key]
   }

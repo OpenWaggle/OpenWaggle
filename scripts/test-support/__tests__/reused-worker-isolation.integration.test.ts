@@ -35,6 +35,7 @@ it('dirties the worker', () => {
   Reflect.set(childProcess, 'spawn', () => 'patched')
   Reflect.set(EventEmitter.prototype, 'on', () => 'patched')
   process.on('beforeExit', () => undefined)
+  process.exitCode = 3
   vi.useFakeTimers()
 })
 `,
@@ -53,7 +54,9 @@ it('starts from what a fresh worker gives', () => {
     on: String(EventEmitter.prototype.on).includes('patched'),
     listeners: process.listeners('beforeExit').length,
     fakeTimers: vi.isFakeTimers(),
-  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false })
+    exitCode: process.exitCode ?? 0,
+  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0 })
+  process.exitCode = 0
 })
 `,
 }
