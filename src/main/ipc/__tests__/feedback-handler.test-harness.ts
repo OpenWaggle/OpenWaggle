@@ -18,7 +18,7 @@ interface FeedbackHarness {
   logPath: string
   /** What each spawned command answers, keyed by `command args…`; unknown commands fail. */
   replies: Map<string, ProcessReply>
-  spawned: { command: string; args: readonly string[]; env?: NodeJS.ProcessEnv }[]
+  spawned: { command: string; args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[]
 }
 
 const hoistedHarness = vi.hoisted((): FeedbackHarness => ({
