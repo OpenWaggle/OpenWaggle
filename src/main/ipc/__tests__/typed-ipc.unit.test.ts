@@ -38,9 +38,8 @@ vi.mock('../../logger', () => ({
 }))
 
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 import { EventEmitter } from 'node:events'

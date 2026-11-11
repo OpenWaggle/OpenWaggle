@@ -23,14 +23,12 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 vi.mock('../../updater', () => ({

@@ -40,7 +40,7 @@ export const runDesktopNotificationsBackground = Effect.gen(function* () {
   const facts = yield* DesktopNotificationFacts
   const hostPresenter = yield* DesktopNotificationHostPresenter
   const settings = yield* SettingsService
-  const runtime = yield* Effect.runtime<never>()
+  const runtime = yield* Effect.runtime()
   const runFork = Runtime.runFork(runtime)
   const ledger = new DesktopNotificationLedger({
     facts,

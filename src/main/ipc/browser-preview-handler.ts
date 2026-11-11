@@ -58,7 +58,7 @@ function browserImportServicesFor(settings: SettingsServiceShape) {
   return created
 }
 
-function decode<T, I>(schema: EffectSchema<T, I, never>, value: unknown) {
+function decode<T, I>(schema: EffectSchema<T, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success
     ? Effect.succeed(decoded.data)

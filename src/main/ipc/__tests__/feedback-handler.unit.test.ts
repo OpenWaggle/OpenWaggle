@@ -5,12 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 vi.mock('../../runtime', () => ({
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 vi.mock('electron', () => ({

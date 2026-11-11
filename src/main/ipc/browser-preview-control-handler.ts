@@ -14,7 +14,7 @@ import type { Schema as EffectSchema } from 'effect/Schema'
 import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
 import { typedHandle } from './typed-ipc'
 
-function decode<T, I>(schema: EffectSchema<T, I, never>, value: unknown) {
+function decode<T, I>(schema: EffectSchema<T, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success
     ? Effect.succeed(decoded.data)

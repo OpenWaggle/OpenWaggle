@@ -165,7 +165,7 @@ function invoke(mutation: 'delete' | 'archive', id = 'session-target') {
           },
         }).pipe(Effect.asVoid)
   const provided = effect.pipe(Effect.provide(testLayer()))
-  return Effect.runPromise(fromAny<Effect.Effect<void, unknown, never>, typeof provided>(provided))
+  return Effect.runPromise(fromAny<Effect.Effect<void, unknown>, typeof provided>(provided))
 }
 
 describe('Host-owned Session terminal cleanup', () => {

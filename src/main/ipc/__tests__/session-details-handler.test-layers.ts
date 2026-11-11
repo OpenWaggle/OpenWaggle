@@ -231,7 +231,7 @@ const TestRuntimeLayer = Layer.mergeAll(
  */
 export function getInvokeHandler(
   name: string,
-  overrideLayers: readonly Layer.Layer<TerminalService, never, never>[] = [],
+  overrideLayers: readonly Layer.Layer<TerminalService>[] = [],
 ) {
   const runtimeLayer =
     overrideLayers.length === 0
