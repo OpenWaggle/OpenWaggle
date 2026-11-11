@@ -65,6 +65,15 @@ jobs:
       - name: Prepare native modules for Node
         run: pnpm prepare:native:node
 
+      # Windows client editions default to Restricted, and the helpers no longer pass
+      # -ExecutionPolicy Bypass, so test under that policy rather than the runner's.
+      - name: Use the Windows client default execution policy
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Restricted -Force
+          Get-ExecutionPolicy -List
+          if ((Get-ExecutionPolicy) -ne 'Restricted') { throw 'The effective policy is not Restricted.' }
+
       - name: User-only security and headless launch on Windows PowerShell 5.1
         run: >-
           pnpm exec vitest run --config vitest.integration.config.ts

@@ -19,7 +19,6 @@
  *   hex runs in every string and key, except the event id and release Sentry needs verbatim.
  */
 import { classifyErrorMessage, isAgentErrorCode } from '../domain/error-classifier'
-import { isRecord } from '../utils/validation'
 import {
   ERROR_REPORT_ORIGIN_TAG,
   type ErrorReportOrigin,
@@ -37,6 +36,7 @@ import {
   type ErrorReportKnownDirectories,
   HTTP_ERROR_CODE_PATTERN,
   hasUnhandledErrorReportException,
+  isStartupFailureSummaryReport,
   keepsErrorReportMessageText,
   leadingNodeErrorCode,
   NODE_ERROR_CODE_PATTERN,
@@ -44,6 +44,9 @@ import {
   scrubErrorReportExceptionType,
   scrubErrorReportFrameLocation,
 } from './error-report-rules'
+import { scrubStringsInPlace } from './error-report-string-scrubbing'
+
+export { scrubStringsInPlace }
 
 export interface ErrorReportStackFrame {
   filename?: string
@@ -113,56 +116,6 @@ const NOT_TEXT_RULED: ReadonlySet<string> = new Set([
   ...ERROR_REPORT_PATHS_ONLY_EVENT_KEYS,
 ])
 
-function isUnknownArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
-}
-
-function scrubArrayStrings(
-  values: unknown[],
-  scrub: (text: string) => string,
-  seen: WeakSet<object>,
-) {
-  for (let index = 0; index < values.length; index += 1) {
-    const item = values[index]
-    if (typeof item === 'string') values[index] = scrub(item)
-    else scrubStringsInPlace(item, scrub, seen)
-  }
-}
-
-function scrubRecordStrings(
-  record: Record<string, unknown>,
-  scrub: (text: string) => string,
-  seen: WeakSet<object>,
-  verbatimKeys: ReadonlySet<string>,
-) {
-  for (const key of Object.keys(record)) {
-    if (verbatimKeys.has(key)) continue
-    const item = record[key]
-    if (typeof item === 'string') record[key] = scrub(item)
-    else scrubStringsInPlace(item, scrub, seen)
-    const scrubbedKey = scrub(key)
-    if (scrubbedKey === key) continue
-    record[scrubbedKey] = record[key]
-    delete record[key]
-  }
-}
-
-/** Applies `scrub` to every string, object keys included, in a JSON-like value. */
-export function scrubStringsInPlace(
-  value: unknown,
-  scrub: (text: string) => string,
-  seen = new WeakSet<object>(),
-  verbatimKeys: ReadonlySet<string> = new Set(),
-): void {
-  if (typeof value !== 'object' || value === null || seen.has(value)) return
-  seen.add(value)
-  if (isUnknownArray(value)) {
-    scrubArrayStrings(value, scrub, seen)
-    return
-  }
-  if (isRecord(value)) scrubRecordStrings(value, scrub, seen, verbatimKeys)
-}
-
 function isErrorReportCode(text: string) {
   return (
     isAgentErrorCode(text) ||
@@ -226,7 +179,8 @@ function taggedOrigin(event: ErrorReportEvent): ErrorReportOrigin | undefined {
 
 /**
  * Where a reported error came from: `unhandled` when nothing handled it, else the tool or
- * provider origin its reporter tagged, else `provider-response` when OpenWaggle's error
+ * provider origin its reporter tagged, else `application` for a startup failure summary, else
+ * `provider-response` when OpenWaggle's error
  * classification or the error class marks a failed provider request, else the `application`
  * origin its reporter tagged. An error reported without an origin has none.
  */
@@ -234,6 +188,8 @@ export function errorReportOrigin(event: ErrorReportEvent): ErrorReportTaggedOri
   if (hasUnhandledErrorReportException(event)) return 'unhandled'
   const tagged = taggedOrigin(event)
   if (tagged === 'tool-execution' || tagged === 'provider-response') return tagged
+  // A summary's `code=ECONNREFUSED` or `exit=503` names no provider request.
+  if (tagged === 'application' && isStartupFailureSummaryReport(event)) return tagged
   if (looksLikeProviderFailure(event)) return 'provider-response'
   return tagged
 }

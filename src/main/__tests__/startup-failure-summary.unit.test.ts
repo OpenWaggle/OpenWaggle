@@ -1,3 +1,6 @@
+import { ERROR_REPORT_ORIGIN_TAG } from '@shared/error-reporting/error-report-constants'
+import { isStartupFailureSummaryMessage } from '@shared/error-reporting/error-report-rules'
+import { scrubErrorReportEvent } from '@shared/error-reporting/error-report-scrubbing'
 import { describe, expect, it } from 'vitest'
 import { StartupFailureSummary } from '../startup-failure-summary'
 
@@ -82,6 +85,43 @@ describe('Session Host startup failure summary', () => {
     expect(new StartupFailureSummary('session-host', spoofedType).message).toBe(
       'session-host: TypeError',
     )
+  })
+
+  it('survives the report scrubbers whole, network codes and HTTP-like exit codes included', () => {
+    const summaries = [
+      new StartupFailureSummary(
+        'gui-session-host-start',
+        Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }),
+      ),
+      new StartupFailureSummary(
+        'session-host',
+        Object.assign(new Error('launch'), {
+          name: 'WindowsHeadlessLaunchError',
+          stage: 'create-process',
+          exitCode: 503,
+          win32Code: 4_294_967_295,
+        }),
+      ),
+      new StartupFailureSummary('gui-bootstrap', 'text'),
+    ]
+    for (const summary of summaries) {
+      expect(isStartupFailureSummaryMessage(summary.message)).toBe(true)
+      const event = {
+        exception: {
+          values: [
+            {
+              type: summary.name,
+              value: summary.message,
+              mechanism: { type: 'generic', handled: true },
+            },
+          ],
+        },
+        tags: { [ERROR_REPORT_ORIGIN_TAG]: 'application' },
+      }
+      scrubErrorReportEvent(event)
+      expect(event.exception.values[0]?.value).toBe(summary.message)
+      expect(event.tags[ERROR_REPORT_ORIGIN_TAG]).toBe('application')
+    }
   })
 
   it('follows a restart wrapper’s failure and bounds the chain', () => {

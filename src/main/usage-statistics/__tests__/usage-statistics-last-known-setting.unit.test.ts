@@ -22,16 +22,6 @@ vi.mock('node:fs', async (importOriginal) => {
     },
   }
 })
-vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
-  return {
-    ...actual,
-    rename: async (...args: Parameters<typeof actual.rename>) => {
-      if (fsFaults.failRename) throw Object.assign(new Error('busy'), { code: 'EBUSY' })
-      return actual.rename(...args)
-    },
-  }
-})
 
 vi.mock('../../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -51,6 +41,11 @@ import {
 } from '../usage-statistics-last-known-setting'
 
 let userData = ''
+let stopRecording: (() => void) | undefined
+
+function record() {
+  stopRecording = recordLastKnownUsageStatisticsSetting(userData)
+}
 
 function publish(usageStatisticsEnabled: boolean | undefined) {
   store.listener?.(
@@ -69,19 +64,22 @@ describe('last known Usage statistics Setting', () => {
     userData = await mkdtemp(path.join(tmpdir(), 'openwaggle-last-known-'))
   })
   afterEach(async () => {
+    stopRecording?.()
+    stopRecording = undefined
+    vi.useRealTimers()
     fsFaults.failRename = false
     await rm(userData, { recursive: true, force: true })
   })
 
   it('saves the Setting before returning, so a Host that fails next still has it', () => {
-    recordLastKnownUsageStatisticsSetting(userData)
+    record()
     publish(false)
 
     expect(usageStatisticsSettingWithoutSettings(userData, () => false)).toBe(false)
   })
 
   it('never leaves an earlier on behind when turning statistics off cannot be saved', () => {
-    recordLastKnownUsageStatisticsSetting(userData)
+    record()
     publish(true)
     expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(true)
 
@@ -91,8 +89,36 @@ describe('last known Usage statistics Setting', () => {
     expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(undefined)
   })
 
+  it('retries a Setting it could not save until it is saved', () => {
+    vi.useFakeTimers()
+    fsFaults.failRename = true
+    record()
+    publish(false)
+    expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(undefined)
+
+    fsFaults.failRename = false
+    vi.advanceTimersByTime(60_000)
+
+    expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(false)
+  })
+
+  it('tries once more when the process exits', () => {
+    const once = vi.spyOn(process, 'once')
+    fsFaults.failRename = true
+    record()
+    publish(true)
+    fsFaults.failRename = false
+
+    const onExit = once.mock.calls.find(([event]) => event === 'exit')?.[1]
+    once.mockRestore()
+    expect(onExit).toBeTypeOf('function')
+    if (typeof onExit === 'function') onExit(0)
+
+    expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(true)
+  })
+
   it('saves the Setting each time the Session Host loads or changes it', async () => {
-    recordLastKnownUsageStatisticsSetting(userData)
+    record()
     publish(undefined)
     publish(false)
     await vi.waitFor(async () =>

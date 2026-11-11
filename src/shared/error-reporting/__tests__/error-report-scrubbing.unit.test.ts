@@ -205,6 +205,42 @@ describe('scrubErrorReportEvent', () => {
     expect(event.tags).toEqual({ [ERROR_REPORT_ORIGIN_TAG]: 'provider-response' })
   })
 
+  it.each([
+    'gui-session-host-start: Error code=ECONNREFUSED',
+    'session-host: Error <- WindowsHeadlessLaunchError stage=create-process exit=503 win32=5',
+    'gui-bootstrap: Error code=ETIMEDOUT',
+  ])('keeps a startup failure summary as an application error: %s', (message) => {
+    const event = scrubbed(
+      {
+        exception: {
+          values: [{ type: 'SessionHostStartupFailure', value: message, mechanism: HANDLED }],
+        },
+        tags: APPLICATION_TAGS,
+      },
+      {},
+    )
+
+    expect(event.exception?.values?.[0]?.value).toBe(message)
+    expect(event.tags).toEqual(APPLICATION_TAGS)
+  })
+
+  it.each([
+    ['text after the summary', 'gui-bootstrap: Error code=ECONNREFUSED my private prompt'],
+    ['an unknown context', 'my-context: Error code=ECONNREFUSED'],
+    ['a lowercase fact', 'session-host: Error code=econnrefused 429'],
+  ])('reduces a summary-like message with %s to a code', (_case, message) => {
+    const event = scrubbed(
+      {
+        exception: { values: [{ type: 'Error', value: message, mechanism: HANDLED }] },
+        tags: APPLICATION_TAGS,
+      },
+      {},
+    )
+
+    expect(event.exception?.values?.[0]?.value).not.toBe(message)
+    expect(event.tags).toEqual({ [ERROR_REPORT_ORIGIN_TAG]: 'provider-response' })
+  })
+
   it('treats provider SDK error classes as provider failures', () => {
     const event = scrubbed(
       {

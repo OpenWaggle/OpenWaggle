@@ -16,15 +16,15 @@
 import {
   ERROR_REPORT_BUILT_IN_ERROR_TYPES,
   NODE_ERROR_CODE_PATTERN,
+  STARTUP_FAILURE_SUMMARY_NON_ERROR,
+  type StartupFailureSummaryContext,
 } from '@shared/error-reporting/error-report-rules'
 
-export type StartupFailureContext =
-  /** The GUI's window is open and shows the startup error screen. */
-  | 'gui-session-host-start'
-  /** The GUI failed before its window could show anything and exits. */
-  | 'gui-bootstrap'
-  /** The detached Session Host stopped on an unrecoverable error. */
-  | 'session-host'
+/**
+ * Where the summary comes from. Its message follows the shared grammar in
+ * src/shared/error-reporting/error-report-startup-summary.ts, so the scrubbers keep it.
+ */
+export type StartupFailureContext = StartupFailureSummaryContext
 
 const SUMMARY_NAMES: Readonly<Record<StartupFailureContext, string>> = {
   'gui-session-host-start': 'SessionHostStartupFailure',
@@ -63,16 +63,14 @@ const MAX_CAUSE_DEPTH = 4
 const GENERIC_ERROR_TYPE = 'Error'
 const STAGE = /^[a-z][a-z0-9-]{0,39}$/u
 const SIGNAL = /^SIG[A-Z0-9]{1,10}$/u
-const MAX_SAFE_INTEGER_DIGITS = 11
+const INTEGER = /^-?\d{1,10}$/u
 
 function property(error: Error, key: string): unknown {
   return Reflect.get(error, key)
 }
 
 function safeInteger(value: unknown) {
-  return typeof value === 'number' &&
-    Number.isSafeInteger(value) &&
-    String(value).length <= MAX_SAFE_INTEGER_DIGITS
+  return typeof value === 'number' && Number.isSafeInteger(value) && INTEGER.test(String(value))
     ? String(value)
     : undefined
 }
@@ -124,7 +122,8 @@ function errorChain(error: unknown) {
 export class StartupFailureSummary extends Error {
   constructor(context: StartupFailureContext, error: unknown) {
     const chain = errorChain(error)
-    const facts = chain.length > 0 ? chain.map(errorFacts).join(' <- ') : 'non-error value'
+    const facts =
+      chain.length > 0 ? chain.map(errorFacts).join(' <- ') : STARTUP_FAILURE_SUMMARY_NON_ERROR
     // No `cause`: an `application` report keeps the message of every linked error, and the
     // original's message can quote helper stderr or paths.
     super(`${context}: ${facts}`)

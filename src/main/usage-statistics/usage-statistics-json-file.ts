@@ -166,6 +166,30 @@ function writeDurablySync(filePath: string, temporaryPath: string, serialized: s
   renameSync(temporaryPath, filePath)
 }
 
+/** Removes temporary files an earlier run of `filePath`'s owner left behind. Owner only. */
+export function removeStaleUsageStatisticsTemporaryFiles(filePath: string, label: string): void {
+  removeStaleTemporaryFiles(filePath, label)
+}
+
+/**
+ * Writes `value` to `filePath` now, through a temporary file and a rename, for a small file whose
+ * writes must finish before the caller returns. Throws when it cannot be written, and removes its
+ * temporary file.
+ */
+export function writeUsageStatisticsJsonFileSync(filePath: string, value: unknown): void {
+  const temporaryPath = `${filePath}.${process.pid}.sync.tmp`
+  try {
+    writeDurablySync(filePath, temporaryPath, JSON.stringify(value))
+  } catch (error) {
+    try {
+      rmSync(temporaryPath, { force: true })
+    } catch {
+      // A temporary file left behind is removed when the file's owner next opens it.
+    }
+    throw error
+  }
+}
+
 export function openUsageStatisticsJsonFile<T>(input: {
   readonly filePath: string
   /** Names the file in logs without its path. */
