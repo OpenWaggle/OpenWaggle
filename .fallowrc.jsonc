@@ -35,6 +35,10 @@
     "scripts/check/typecheck.ts",
     // The Electrobun native layer build, run by path from .github/workflows/electrobun-native.yml.
     "vendor/electrobun/build.ts",
+    // Regenerates vendor/electrobun/types from the devkit, run by path (vendor/electrobun/README.md).
+    "vendor/electrobun/api-types.ts",
+    // Hutch reads the project pin by name from the project root.
+    "hutch.config.ts",
     // Electrobun build hook, imported by path from the probe's electrobun.config.ts.
     "vendor/electrobun/hooks/macos-launch-version.ts",
     // Package smoke fixtures compiled or run by path inside the packed-package sandbox
@@ -50,6 +54,8 @@
     // A separate Electrobun app that Hutch packages against the native layer devkit; it imports
     // the `electrobun` package Hutch provides, not a dependency of this repository.
     "vendor/electrobun/probe/**",
+    // Declarations generated from the pinned Electrobun SDK (vendor/electrobun/api-types.ts).
+    "vendor/electrobun/types/**",
     // Discovery skips hidden directories; the project Pi extensions are source.
     "!.pi/extensions/**"
   ],

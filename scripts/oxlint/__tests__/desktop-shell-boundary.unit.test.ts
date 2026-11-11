@@ -20,6 +20,8 @@ describe('desktop shell boundary', () => {
       'export type Window = Electron.BrowserWindow\n',
       "import { autoUpdater } from 'electron-updater'\nexport const value = autoUpdater\n",
       "import { is } from '@electron-toolkit/utils'\nexport const value = is\n",
+      "import { BrowserWindow } from 'electrobun/main'\nexport const value = BrowserWindow\n",
+      "import { Electroview } from 'electrobun/view'\nexport const value = Electroview\n",
     ]
     for (const source of sources) {
       const messages = lint(source, 'src/main/ipc/example.ts')
@@ -53,6 +55,15 @@ describe('desktop shell boundary', () => {
     }
   })
 
+  it('keeps each shell to its own adapters', () => {
+    const electrobun = "import { Utils } from 'electrobun/main'\nexport const value = Utils\n"
+    expect(lint(electrobun, 'src/main/adapters/electrobun/electrobun-os-shell.ts')).toEqual([])
+    expect(lint(electrobun, 'src/preload/electrobun-transport.ts')).toEqual([])
+    expect(lint(electrobun, 'src/main/adapters/electron/electron-os-shell.ts')).toHaveLength(1)
+    const electron = "import { shell } from 'electron'\nexport const value = shell\n"
+    expect(lint(electron, 'src/main/adapters/electrobun/electrobun-os-shell.ts')).toHaveLength(1)
+  })
+
   it('confines the Sentry Electron SDK to the crash-reporting bridges', () => {
     const source = "import { init } from '@sentry/electron/renderer'\nexport const value = init\n"
     expect(lint(source, 'src/renderer/src/shared/lib/sentry-renderer.ts')).toHaveLength(0)
@@ -60,15 +71,20 @@ describe('desktop shell boundary', () => {
     const messages = lint(source, 'src/renderer/src/features/chat/example.ts')
     expect(messages).toHaveLength(1)
     expect(messages.at(0)?.message).toContain('ErrorReporter port')
+    const bun = "import { init } from '@sentry/bun'\nexport const value = init\n"
+    expect(lint(bun, 'src/main/adapters/electrobun/sentry-bun-error-reporter.ts')).toEqual([])
+    expect(lint(bun, 'src/main/error-reporting.ts')).toHaveLength(1)
   })
 
   it('ignores scripts, look-alike packages and mocks that import nothing', () => {
     expect(lint("import { app } from 'electron'\nexport const a = app\n", 'scripts/x.ts')).toEqual(
       [],
     )
-    expect(
-      lint("import x from 'electron-to-chromium'\nexport const a = x\n", 'src/main/x.ts'),
-    ).toEqual([])
+    for (const lookAlike of ['electron-to-chromium', 'electrobun-x']) {
+      expect(lint(`import x from '${lookAlike}'\nexport const a = x\n`, 'src/main/x.ts')).toEqual(
+        [],
+      )
+    }
     expect(lint("vi.mock('electron', () => ({}))\n", 'src/main/__tests__/x.unit.test.ts')).toEqual(
       [],
     )

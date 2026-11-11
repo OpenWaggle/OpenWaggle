@@ -3,33 +3,68 @@ import type { Context, ESTree, Rule } from '@oxlint/plugins'
 import { moduleSpecifierOf, normalizedFilename } from '../ast-helpers.ts'
 
 /**
- * The desktop shell boundary (ADR 0064): main code reaches Electron through the desktop shell
- * ports in `src/main/ports/desktop-shell/`. Only the Electron adapters and the preload transport
- * may reach Electron, so a shell switch would replace those modules and nothing else. Every
- * reference counts, type-only imports, `import()` types, `require()` and the ambient
+ * The desktop shell boundary (ADR 0064): OpenWaggle moves from Electron to Electrobun behind the
+ * desktop shell ports in `src/main/ports/desktop-shell/`. Only each shell's adapters and its
+ * preload transport may reach the shell, so the shell switch replaces those modules and nothing
+ * else. Every reference counts, type-only imports, `import()` types, `require()` and the ambient
  * `Electron.*` namespace included.
  */
-const ELECTRON_SHELL_PACKAGES = ['electron', 'electron-updater', '@electron-toolkit/']
+interface ShellPackages {
+  readonly packages: readonly string[]
+  readonly owners: readonly string[]
+  readonly reason: string
+}
 
-/** Modules that may import the Electron shell packages above, and their own tests. */
-const ELECTRON_SHELL_OWNERS = [
-  'src/main/adapters/electron/',
-  'src/preload/electron-transport.ts',
-  // The preload tests drive `window.api` through the transport against a stubbed `ipcRenderer`.
-  'src/preload/__tests__/',
+const SHELLS: readonly ShellPackages[] = [
+  {
+    packages: ['electron', 'electron-updater', '@electron-toolkit/'],
+    owners: [
+      'src/main/adapters/electron/',
+      'src/preload/electron-transport.ts',
+      // The preload tests drive `window.api` through the transport against a stubbed `ipcRenderer`.
+      'src/preload/__tests__/',
+    ],
+    reason: 'src/main/adapters/electron/ or src/preload/electron-transport.ts',
+  },
+  {
+    // Electrobun 2.x: `electrobun/main` in the Bun main process, `electrobun/view` in webviews.
+    packages: ['electrobun'],
+    owners: [
+      'src/main/adapters/electrobun/',
+      'src/preload/electrobun-transport.ts',
+      'src/preload/__tests__/',
+    ],
+    reason: 'src/main/adapters/electrobun/ or src/preload/electrobun-transport.ts',
+  },
 ]
 
 /**
- * Sentry's Electron SDK is the crash-reporting vendor (ADR 0045): the main reporter is an
- * Electron adapter, and the preload and renderer bridges hand reports to it over Electron IPC.
+ * The crash-reporting vendor SDKs (ADR 0045): the main reporters are shell adapters, and the
+ * preload and renderer bridges hand reports to them.
  */
-const SENTRY_ELECTRON_PACKAGE = '@sentry/electron'
-const SENTRY_ELECTRON_OWNERS = [
-  'src/main/adapters/electron/',
-  'src/preload/error-reporting-bridge.ts',
-  'src/preload/__tests__/',
-  'src/renderer/src/shared/lib/sentry-renderer.ts',
-  'src/renderer/src/shared/lib/__tests__/sentry-renderer.unit.test.ts',
+const SENTRY_PACKAGES: readonly ShellPackages[] = [
+  {
+    packages: ['@sentry/electron'],
+    owners: [
+      'src/main/adapters/electron/',
+      'src/preload/error-reporting-bridge.ts',
+      'src/preload/__tests__/',
+      'src/renderer/src/shared/lib/sentry-renderer.ts',
+      'src/renderer/src/shared/lib/__tests__/sentry-renderer.unit.test.ts',
+    ],
+    reason: 'the crash-reporting adapters',
+  },
+  {
+    packages: ['@sentry/bun', '@sentry/browser'],
+    owners: [
+      'src/main/adapters/electrobun/',
+      'src/preload/error-reporting-bridge.ts',
+      'src/preload/__tests__/',
+      'src/renderer/src/shared/lib/sentry-renderer.ts',
+      'src/renderer/src/shared/lib/__tests__/sentry-renderer.unit.test.ts',
+    ],
+    reason: 'the crash-reporting adapters',
+  },
 ]
 
 const ELECTRON_NAMESPACE = 'Electron'
@@ -54,20 +89,24 @@ function isOwnedBy(projectPath: string, owners: readonly string[]) {
   )
 }
 
+function owningGroup(importPath: string, groups: readonly ShellPackages[]) {
+  return groups.find((group) =>
+    group.packages.some((packageName) => namesPackage(importPath, packageName)),
+  )
+}
+
 /** Why `importPath` may not be imported from `projectPath`, or null when it may. */
 export function desktopShellBoundaryReason(importPath: string, projectPath: string) {
   if (!projectPath.startsWith('src/')) return null
-  if (namesPackage(importPath, SENTRY_ELECTRON_PACKAGE)) {
-    return isOwnedBy(projectPath, SENTRY_ELECTRON_OWNERS)
+  const sentry = owningGroup(importPath, SENTRY_PACKAGES)
+  if (sentry) {
+    return isOwnedBy(projectPath, sentry.owners)
       ? null
-      : `${importPath} belongs to the crash-reporting adapters; report errors through the ErrorReporter port.`
+      : `${importPath} belongs to ${sentry.reason}; report errors through the ErrorReporter port.`
   }
-  if (!ELECTRON_SHELL_PACKAGES.some((packageName) => namesPackage(importPath, packageName))) {
-    return null
-  }
-  return isOwnedBy(projectPath, ELECTRON_SHELL_OWNERS)
-    ? null
-    : `${importPath} may only be imported in src/main/adapters/electron/ or src/preload/electron-transport.ts; use a desktop shell port (src/main/ports/desktop-shell/) or its binding in src/main/desktop-shell/.`
+  const shell = owningGroup(importPath, SHELLS)
+  if (!shell || isOwnedBy(projectPath, shell.owners)) return null
+  return `${importPath} may only be imported in ${shell.reason}; use a desktop shell port (src/main/ports/desktop-shell/) or its binding in src/main/desktop-shell/.`
 }
 
 function report(context: Context, node: ESTree.Node, reason: string) {

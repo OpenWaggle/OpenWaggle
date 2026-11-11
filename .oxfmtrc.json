@@ -22,6 +22,7 @@
     "**/*.yaml",
     "**/*.html",
     "src/renderer/src/routeTree.gen.ts",
+    "vendor/electrobun/types/**",
     "packages/**/dist/**",
     "packages/**/dist-cjs/**",
     "packages/**/.pack/**"

@@ -520,6 +520,8 @@ export default defineConfig({
     'src/renderer/src/routeTree.gen.ts',
     // Built by Hutch against the Electrobun devkit's own types, not the repository's tsconfig.
     'vendor/electrobun/probe/**',
+    // Declarations generated from the pinned Electrobun SDK (vendor/electrobun/api-types.ts).
+    'vendor/electrobun/types/**',
   ],
   options: {
     typeAware: true,

@@ -42,6 +42,9 @@ build/session-embedding-model/
 .playwright-mcp/
 
 .fallow
+
+# The Electrobun devkit Hutch projects into the checkout (`bunx electrobun prepare`, ADR 0064).
+.hutch/
 # TypeScript incremental build artifacts
 *.tsbuildinfo
 

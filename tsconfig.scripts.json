@@ -28,7 +28,10 @@
       "@openwaggle/pi-waggle": ["./packages/pi-waggle/src/index.ts"],
       "@openwaggle/pi-waggle/*": ["./packages/pi-waggle/src/*"],
       "@openwaggle/waggle-core": ["./packages/waggle-core/src/index.ts"],
-      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"]
+      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"],
+      "electrobun": ["./vendor/electrobun/types/config/ElectrobunConfig.d.ts"],
+      "electrobun/main": ["./vendor/electrobun/types/sdks/main/index.d.ts"],
+      "electrobun/view": ["./vendor/electrobun/types/browser/index.d.ts"]
     }
   },
   "include": [
@@ -36,6 +39,7 @@
     "scripts/mcp-conformance-client.mts",
     ".pi/extensions/**/*.ts",
     "vendor/electrobun/*.ts",
+    "hutch.config.ts",
     "vendor/electrobun/hooks/*.ts",
     "electron.vite.config.ts",
     "electron-builder.ts"
