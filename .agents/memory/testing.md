@@ -90,6 +90,17 @@ mismatch — it casts and hides real errors.
 - A test that spawns many real child processes is an integration test (`*.integration.test.ts`), not a unit test. The protected profile-credential store runs every owned-file read/write/list/unlink in a fresh `node -e` helper, so one staging test spawns 20–300 processes. Under the full parallel unit suite on a busy Mac each spawn slowed from ~90 ms to 1–5 s, and those tests became the only recurring pre-push timeouts. Raising `testTimeout` again would not have fixed this. The eight spawn-heavy files now live in the integration tier, which CI still runs on every PR; the unit tier keeps the files that spawn only a handful of processes.
 - Node 24 Vitest workers abort in better-sqlite3@12.11.1 teardown (`Statement::~Statement()` → `RemoveEnvironmentCleanupHook`). `@effect/sql-sqlite-node` pulls v12 while the app uses v13; keep the workspace override that makes Effect reuse v13.0.1. This removes the duplicate native addon and lets the full parallel unit suite finish.
 
+## A mocked `@/shared/lib/ipc` answers like the real bridge
+
+The renderer's `api` proxy answers every name: a member the preload lacks is a no-op subscription
+(`on*`) or a rejected call, so `typeof api.x === 'function'` is always true and renderer code
+calls contract members unguarded (ARCH-08, `openwaggle/no-api-typeof-guard`). A test that mocks
+the bridge with a plain partial object answers `undefined` instead and throws where the app never
+does. Wrap the members: `vi.mock('@/shared/lib/ipc', async () => ({ api: (await
+import('@/test-utils/preload-api')).preloadApi(apiMocks) }))`. Session resource tests that keep one
+`listSessionResources` list spread `sessionResourceCatalogOver(list)` from
+`features/session-summary/hooks/__tests__/session-resource-catalog.fake.ts` for the paged reads.
+
 ## Reused workers in the unit and component tiers
 
 - The unit and component tiers run with `isolate: false` (`REUSED_WORKERS` in `scripts/test-support/vitest-tier-options.ts`). Under `isolate: true` each file paid again for Effect, Pi's SDK (about 4.9 s per standalone import) and jsdom: 60% of unit worker time was imports. `scripts/test-support/reused-worker-isolation.ts` must stay the first setup file: it resets Vitest's module graph and mock registry through `__vitest_worker__`/`__vitest_mocker__` (it throws if a Vitest upgrade moves them), restores env, cwd, timers, process listeners, globals, the builtins that the trusted-main egress guard patches, and jsdom's document and storage. It cannot reset state kept inside an external package, such as Pi's Bedrock client cache: a test that reads such state clears it first.

@@ -139,8 +139,8 @@ const {
   }
 })
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: apiMock,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
 }))
 
 vi.mock('@/features/chat/state/background-run-store', () => ({

@@ -4,9 +4,7 @@ import { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-re
 import { queryOptions, type UseQueryResult, useQueries } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
-import { loadLegacyCatalogPage } from './useSessionResourceCatalog'
 
-const SESSION_RESOURCE_NODE_LOOKUP_LIMIT = 512
 const SESSION_RESOURCE_NODE_CHUNK_SIZE = 64
 const SESSION_RESOURCE_NODE_PAGE_SIZE = 128
 const SESSION_RESOURCE_NODE_QUERY_CONCURRENCY = 4
@@ -84,25 +82,6 @@ async function loadNodeResourceChunk(
   signal: AbortSignal,
 ) {
   if (signal.aborted) return []
-  if (typeof api.listSessionResourceNodePage !== 'function') {
-    if (typeof api.listSessionResourcesByNodeIds === 'function') {
-      const resources = await api.listSessionResourcesByNodeIds(
-        SessionId(sessionId),
-        nodeIds,
-        'image',
-        SESSION_RESOURCE_NODE_LOOKUP_LIMIT,
-      )
-      return signal.aborted ? [] : resources
-    }
-    const page = await loadLegacyCatalogPage(sessionId, 'images')
-    if (signal.aborted) return []
-    const ids = new Set(nodeIds)
-    return page.resources.filter((resource) =>
-      resource.occurrences.some(
-        (occurrence) => occurrence.nodeId !== null && ids.has(occurrence.nodeId),
-      ),
-    )
-  }
   for (let attempt = 0; attempt < SESSION_RESOURCE_NODE_STALE_ATTEMPTS; attempt += 1) {
     const resources: SessionResource[] = []
     let cursor: string | null = null

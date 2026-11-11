@@ -11,8 +11,15 @@ const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
 const readSessionResourceThumbnail = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { listSessionResources, readSessionResource, readSessionResourceThumbnail },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(listSessionResources),
+    readSessionResource,
+    readSessionResourceThumbnail,
+  }),
 }))
 
 function image(id: string, nodeId: string): SessionResource {

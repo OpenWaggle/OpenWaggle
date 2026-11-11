@@ -62,8 +62,8 @@ vi.mock('@/features/terminal', async (importOriginal) => ({
   useTerminalCommands: () => ({ toggleTerminal: mocks.toggleTerminal }),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     manageProjectActions: vi.fn<OpenWaggleApi['manageProjectActions']>(async ({ operation }) => {
       if (operation.type === 'runs') return { type: 'runs', runs: mocks.actionRuns }
       if (operation.type === 'preparation') return { type: 'preparation', preparation: null }
@@ -73,6 +73,9 @@ vi.mock('@/shared/lib/ipc', () => ({
       }
     }),
     listSessionResources: mocks.listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(mocks.listSessionResources),
     listArchivedSessions: mocks.listArchivedSessions,
     getSessionHiveRelations: vi
       .fn()
@@ -80,7 +83,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     openExternal: mocks.openExternal,
     getChangeRequestOpenDestination: mocks.getChangeRequestOpenDestination,
     refreshSourceControlStatus: mocks.refreshSourceControlStatus,
-  },
+  }),
 }))
 
 vi.mock('@/features/git/hooks', () => ({

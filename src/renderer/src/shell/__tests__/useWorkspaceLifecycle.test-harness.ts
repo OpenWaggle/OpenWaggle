@@ -224,14 +224,14 @@ vi.mock('@/features/sessions/commands', () => ({
   copySessionLink: lifecycleMocks.copySessionLink,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
     onSessionHostEvent: lifecycleMocks.onSessionHostEvent,
     onSessionHostResyncRequired: lifecycleMocks.onSessionHostResyncRequired,
     setBrowserPreviewShortcutBindings: vi.fn().mockResolvedValue(undefined),
     onBrowserPreviewKeyEvent: vi.fn(() => vi.fn()),
-  },
+  }),
 }))
 
 export function getWorkspaceTerminalState() {

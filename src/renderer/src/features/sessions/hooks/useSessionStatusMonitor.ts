@@ -50,8 +50,6 @@ async function hydrateLiveSessionStatuses(input: {
   ).catch((error: unknown) => {
     logger.warn('Failed to load the parents of running Workers', { error: String(error) })
   })
-  if (typeof api.querySessionControl !== 'function') return
-
   for (let offset = 0; offset < runs.length; offset += RUNTIME_HYDRATION_CONCURRENCY) {
     const pages = await Promise.allSettled(
       runs
@@ -95,7 +93,7 @@ async function loadRunningWorkerParents(
   runningSessionIds: readonly SessionId[],
   cancelled: () => boolean,
 ) {
-  if (runningSessionIds.length === 0 || typeof api.listSessionsByIds !== 'function') return
+  if (runningSessionIds.length === 0) return
   const ids = [...new Set(runningSessionIds)]
   // Every batch is requested at once; a failure is the first batch's in order.
   const running = (
@@ -162,7 +160,6 @@ export function useSessionStatusMonitor(): void {
     }
 
     async function reconcileResolvedInteraction(sessionId: SessionId, resolvedAt: number) {
-      if (typeof api.querySessionControl !== 'function') return
       const pending = await listPendingNonNotifyInteractions(sessionId)
       if (cancelled || !pending) return
       if (TERMINAL_STATUSES.has(useSessionStatusStore.getState().getStatus(sessionId))) return

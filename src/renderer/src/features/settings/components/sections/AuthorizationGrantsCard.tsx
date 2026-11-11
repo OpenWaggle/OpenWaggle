@@ -22,8 +22,7 @@ const NO_GRANTS: readonly ScopedAuthorizationGrant[] = []
 function useProjectAuthorizationGrants(projectPath: string | null) {
   const [read, setRead] = useState<AuthorizationGrantsRead | null>(null)
   const [retryRevision, setRetryRevision] = useState(0)
-  const readable =
-    projectPath !== null && projectPath !== '' && typeof api.listAuthorizationGrants === 'function'
+  const readable = projectPath !== null && projectPath !== ''
   const request = readable ? `${projectPath}\u0000${String(retryRevision)}` : null
 
   useEffect(() => {
@@ -80,7 +79,7 @@ function AuthorizationGrantRow({
   const [error, setError] = useState<string | null>(null)
 
   function handleRevoke() {
-    if (revoking || typeof api.revokeAuthorization !== 'function') return
+    if (revoking) return
 
     setError(null)
     setRevoking(true)

@@ -48,7 +48,9 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
-vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
+}))
 
 const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')

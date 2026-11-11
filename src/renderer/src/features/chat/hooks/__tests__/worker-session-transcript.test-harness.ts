@@ -61,7 +61,9 @@ const apiMock = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
+}))
 
 const chatStoreMock = vi.hoisted(() => ({
   refreshSession: vi.fn(async (_sessionId: string) => {}),

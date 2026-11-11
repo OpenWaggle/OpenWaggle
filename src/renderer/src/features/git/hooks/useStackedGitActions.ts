@@ -59,7 +59,6 @@ export function useStackedGitActions({
   const showToast = useUIStore((state) => state.showToast)
 
   useEffect(() => {
-    if (typeof api.onGitStackedActionProgress !== 'function') return
     return api.onGitStackedActionProgress((payload) => {
       if (
         payload.operationId === activeOperationId.current &&
@@ -74,7 +73,7 @@ export function useStackedGitActions({
     action: GitStackedAction,
     options?: Partial<GitRunStackedActionOptions>,
   ): Promise<GitRunStackedActionResult | undefined> {
-    if (!workingPath || runningRef.current || typeof api.runStackedGitAction !== 'function') return
+    if (!workingPath || runningRef.current) return
     const operationId = crypto.randomUUID()
     runningRef.current = true
     activeOperationId.current = operationId
@@ -104,7 +103,7 @@ export function useStackedGitActions({
 
   async function cancel() {
     const operationId = activeOperationId.current
-    if (!operationId || typeof api.cancelStackedGitAction !== 'function') return false
+    if (!operationId) return false
     return api.cancelStackedGitAction(operationId)
   }
 

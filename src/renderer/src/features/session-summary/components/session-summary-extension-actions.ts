@@ -172,7 +172,6 @@ async function activateExtensionResourceRow(input: {
       })
       return true
     }
-    if (typeof api.getSessionResource !== 'function') return false
     const resource = await api.getSessionResource(
       SessionId(input.sessionId),
       input.resourceId,

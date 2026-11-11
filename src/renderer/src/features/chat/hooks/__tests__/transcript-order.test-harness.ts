@@ -29,7 +29,9 @@ import { createRunKinds } from './transcript-order.run-kinds'
 import { renderedMessageKeys } from './transcript-order.violations'
 
 vi.mock('@/shared/lib/ipc', async () => ({
-  api: (await import('./transcript-order.ipc-mock')).transcriptOrderApiMock,
+  api: (await import('@/test-utils/preload-api')).preloadApi(
+    (await import('./transcript-order.ipc-mock')).transcriptOrderApiMock,
+  ),
 }))
 vi.mock('@/features/chat/state/chat-store', async () => ({
   useChatStore: (await import('./transcript-order.ipc-mock')).useTranscriptOrderChatStore,

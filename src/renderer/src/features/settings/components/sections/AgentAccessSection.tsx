@@ -31,8 +31,7 @@ interface ProjectAuthorizationRead {
 function useProjectAuthorizationDefault(projectPath: string | null) {
   const [read, setRead] = useState<ProjectAuthorizationRead | null>(null)
   const [retryRevision, setRetryRevision] = useState(0)
-  const readable =
-    projectPath !== null && projectPath !== '' && typeof api.getProjectPreferences === 'function'
+  const readable = projectPath !== null && projectPath !== ''
   const request = readable ? `${projectPath}\u0000${String(retryRevision)}` : null
 
   useEffect(() => {

@@ -9,8 +9,10 @@ const mocks = vi.hoisted(() => ({
     vi.fn<(text: string, operationId: string, name?: string) => Promise<PreparedAttachment>>(),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { prepareAttachmentFromText: mocks.prepareAttachmentFromText },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    prepareAttachmentFromText: mocks.prepareAttachmentFromText,
+  }),
 }))
 
 const pastedText = 'x'.repeat(12_001)

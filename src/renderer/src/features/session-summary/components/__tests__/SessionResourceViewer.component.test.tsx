@@ -101,7 +101,7 @@ describe('SessionResourceViewer', () => {
     useUIStore
       .getState()
       .openResourceViewer('session-1', 'agent-first', ['agent-first', 'agent-second'])
-    renderViewer('session-1', new Set(['agent-message']), null, ['agent-message'])
+    renderViewer('session-1', null, ['agent-message'])
 
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: agent-first.png' }),
@@ -122,20 +122,6 @@ describe('SessionResourceViewer', () => {
     )
     expect(screen.getByText('2 of 2')).toBeVisible()
     expect(screen.queryByRole('dialog', { name: 'Image viewer: user-image.png' })).toBeNull()
-  })
-
-  it('navigates chronologically within the same transcript-path group', async () => {
-    listSessionResources.mockResolvedValue([
-      { ...image('image-new', 'new.png'), createdAt: 2000, updatedAt: 2000 },
-      { ...image('image-old', 'old.png'), createdAt: 1000, updatedAt: 1000 },
-    ])
-    useUIStore.getState().openResourceViewer('session-1', 'image-old')
-    renderViewer('session-1')
-
-    expect(await screen.findByRole('dialog', { name: 'Image viewer: old.png' })).toBeInTheDocument()
-    expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: 'Next image' }))
-    expect(await screen.findByRole('dialog', { name: 'Image viewer: new.png' })).toBeInTheDocument()
   })
 
   it('keeps gallery chronology stable when image content is materialised later', async () => {
@@ -185,7 +171,7 @@ describe('SessionResourceViewer', () => {
     listSessionResources.mockResolvedValue([activePathImage])
     useUIStore.getState().openResourceViewer('session-1', activePathImage.id)
 
-    renderViewer('session-1', new Set(['visible-user-message']), 'session-1:branch:active', [
+    renderViewer('session-1', 'session-1:branch:active', [
       'visible-user-message',
       'active-tool-node',
     ])

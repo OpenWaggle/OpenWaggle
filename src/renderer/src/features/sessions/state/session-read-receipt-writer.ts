@@ -24,7 +24,6 @@ export function createSessionReadReceiptWriter(access: ReceiptStateAccess) {
   return (id: SessionId, lastVisitedAt: number) => {
     const previousValue = access.getValue(id)
     access.setValue(id, lastVisitedAt)
-    if (typeof api.updateSessionTreeUiState !== 'function') return
 
     let queue = receiptWrites.get(id)
     if (!queue) {

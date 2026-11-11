@@ -10,9 +10,12 @@ import { hookInput, listResponse, summary } from './useRemoteSidebarSessions.tes
 const apiMocks = vi.hoisted(() => ({
   listSessionsByIds: vi.fn(),
   querySessionControl: vi.fn(),
+  updateSessionTreeUiState: vi.fn(async () => {}),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMocks),
+}))
 
 describe('remote terminal Session filtering', () => {
   beforeEach(() => {

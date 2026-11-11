@@ -250,7 +250,6 @@ export function useSessionResources(sessionId: string | null) {
 export function useSessionResourceInvalidation() {
   const queryClient = useQueryClient()
   useEffect(() => {
-    if (typeof api.onSessionResourcesInvalidated !== 'function') return
     return api.onSessionResourcesInvalidated((payload) => {
       void invalidateSessionResourceQueries(queryClient, String(payload.sessionId))
     })

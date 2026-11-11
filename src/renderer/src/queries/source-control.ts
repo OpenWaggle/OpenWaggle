@@ -69,10 +69,10 @@ function subscribeFreshness(queryClient: QueryClient) {
   }
   // The agent's source_control tool can change hosts and destinations during a Run, and signing
   // in happens in a terminal or browser outside the window.
-  const stopRuns = typeof api.onRunCompleted === 'function' ? api.onRunCompleted(invalidate) : null
+  const stopRuns = api.onRunCompleted(invalidate)
   window.addEventListener('focus', invalidate)
   return () => {
-    stopRuns?.()
+    stopRuns()
     window.removeEventListener('focus', invalidate)
   }
 }

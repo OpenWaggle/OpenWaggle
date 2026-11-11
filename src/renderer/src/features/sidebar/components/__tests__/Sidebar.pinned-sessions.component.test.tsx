@@ -38,8 +38,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     archiveSession: vi.fn(),
     cancelAgent: vi.fn(),
     deleteSession: vi.fn(),
@@ -61,7 +61,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     showConfirm: vi.fn(),
     unpinSession: unpinSessionMock,
     updateSettings: vi.fn(),
-  },
+  }),
 }))
 
 const PROJECT_PATH = '/repo/openwaggle'
