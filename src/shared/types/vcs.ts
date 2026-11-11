@@ -193,8 +193,8 @@ export type SessionGitWorkingPathVerification =
 /** Git artifacts a Session-scoped action produced, recorded as Outputs by the Session Host. */
 export interface SessionGitOutputsPayload {
   readonly occurrence: SessionGitOutputOccurrence
-  readonly commit?: { readonly commitHash: string; readonly summary: string } | undefined
-  readonly changeRequest?: { readonly title: string; readonly url: string } | undefined
+  readonly commit?: { readonly commitHash: string; readonly summary: string }
+  readonly changeRequest?: { readonly title: string; readonly url: string }
 }
 
 export interface SessionGitOutputsRecording {
