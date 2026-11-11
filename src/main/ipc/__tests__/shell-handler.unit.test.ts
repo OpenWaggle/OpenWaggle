@@ -177,23 +177,13 @@ describe('shell-handler', () => {
       },
     )
 
-    it('refuses a link that is not a web link, in words the user can act on', async () => {
+    it.each([
+      ['file:///etc/passwd', /^OpenWaggle opens only http and https links in your browser\.$/u],
+      ['/screenshots/hive-sessions.png', /^This link is not a valid web address\.$/u],
+    ])('refuses %s in words the user can act on', async (url, message) => {
       registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
 
-      await expect(handler?.({}, 'file:///etc/passwd')).rejects.toThrow(
-        'OpenWaggle opens only http and https links in your browser.',
-      )
-      expect(mockShellOpenExternal).not.toHaveBeenCalled()
-    })
-
-    it('refuses a malformed link without the parser error', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
-
-      await expect(handler?.({}, '/screenshots/hive-sessions.png')).rejects.toThrow(
-        /^This link is not a valid web address\.$/u,
-      )
+      await expect(handlers.get('shell:open-external')?.({}, url)).rejects.toThrow(message)
       expect(mockShellOpenExternal).not.toHaveBeenCalled()
     })
 
@@ -218,34 +208,6 @@ describe('shell-handler', () => {
       expect(mockShellOpenPath).toHaveBeenCalledWith(fixtureRoot)
     })
 
-    it('rejects empty paths', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-path')
-
-      await expect(handler?.({}, '  ')).rejects.toThrow('There is no file to open.')
-      expect(mockShellOpenPath).not.toHaveBeenCalled()
-    })
-
-    it('says a missing file is gone instead of opening nothing', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-path')
-
-      await expect(handler?.({}, missingFile)).rejects.toThrow(
-        /^hive-sessions\.png isn't there anymore\. It may have been moved or deleted\.$/u,
-      )
-      expect(mockShellOpenPath).not.toHaveBeenCalled()
-    })
-
-    it('says a path under a file is gone too', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-path')
-
-      await expect(handler?.({}, path.join(existingFile, 'inner.png'))).rejects.toThrow(
-        /^inner\.png isn't there anymore\./u,
-      )
-      expect(mockShellOpenPath).not.toHaveBeenCalled()
-    })
-
     it("maps shell.openPath's own failure to a message for the user", async () => {
       mockShellOpenPath.mockResolvedValueOnce('Failed to open path')
       registerShellHandlers()
@@ -267,22 +229,27 @@ describe('shell-handler', () => {
 
       expect(mockShellShowItemInFolder).toHaveBeenCalledWith(existingFile)
     })
+  })
 
-    it('rejects empty paths', async () => {
+  describe('shell:open-path and shell:reveal-path', () => {
+    const missingMessage =
+      /^hive-sessions\.png isn't there anymore\. It may have been moved or deleted\.$/u
+
+    it.each([
+      ['shell:open-path', '  ', 'There is no file to open.'],
+      ['shell:open-path', missingFile, missingMessage],
+      [
+        'shell:open-path',
+        path.join(existingFile, 'inner.png'),
+        /^inner\.png isn't there anymore\./u,
+      ],
+      ['shell:reveal-path', '  ', 'There is no file to reveal.'],
+      ['shell:reveal-path', missingFile, missingMessage],
+    ])('%s refuses %j without calling the shell', async (channel, targetPath, message) => {
       registerShellHandlers()
-      const handler = handlers.get('shell:reveal-path')
 
-      await expect(handler?.({}, '  ')).rejects.toThrow('There is no file to reveal.')
-      expect(mockShellShowItemInFolder).not.toHaveBeenCalled()
-    })
-
-    it('says a missing file is gone instead of revealing nothing', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:reveal-path')
-
-      await expect(handler?.({}, missingFile)).rejects.toThrow(
-        /^hive-sessions\.png isn't there anymore\. It may have been moved or deleted\.$/u,
-      )
+      await expect(handlers.get(channel)?.({}, targetPath)).rejects.toThrow(message)
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
       expect(mockShellShowItemInFolder).not.toHaveBeenCalled()
     })
   })

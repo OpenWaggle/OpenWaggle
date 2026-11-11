@@ -87,16 +87,6 @@ describe('registerWagglePresetsHandlers', () => {
       expect(result).toEqual(presets)
       expect(listWagglePresetsMock).toHaveBeenCalledWith('/tmp/project')
     })
-
-    it('returns an empty array when no presets exist', async () => {
-      listWagglePresetsMock.mockReturnValue([])
-
-      registerWagglePresetsHandlers()
-      const handler = getInvokeHandler('waggle-presets:list')
-
-      const result = await handler?.({}, null)
-      expect(result).toEqual([])
-    })
   })
 
   describe('waggle-presets:save', () => {

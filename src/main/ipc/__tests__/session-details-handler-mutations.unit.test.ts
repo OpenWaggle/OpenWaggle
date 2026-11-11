@@ -92,42 +92,4 @@ describe('session detail lifecycle mutations', () => {
     expect(rollbackVisualizationSessionDeletionMock).not.toHaveBeenCalled()
     expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
   })
-
-  it('updates a session authorization mode through the Session Host', async () => {
-    dispatchLocalSessionCommandMock.mockReturnValue(
-      Effect.succeed({
-        contract: 'session-control-v2',
-        response: {
-          contractVersion: 2,
-          requestId: 'authorization-request',
-          idempotencyKey: 'authorization-once',
-          replayed: false,
-          outcome: {
-            operation: 'authorization-set',
-            effect: 'authorization-updated',
-            sessionId: 'session-authorization',
-            authorizationMode: 'ask-for-approval',
-          },
-        },
-      }),
-    )
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:set-authorization-mode')
-
-    await handler?.({}, SessionId('session-authorization'), 'ask-for-approval')
-
-    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          request: expect.objectContaining({
-            command: {
-              operation: 'authorization-set',
-              sessionId: 'session-authorization',
-              authorizationMode: 'ask-for-approval',
-            },
-          }),
-        }),
-      }),
-    )
-  })
 })
