@@ -7,7 +7,7 @@ const mutations = new Map<SessionId, Set<Promise<void>>>()
 export async function acquireSessionDeletionFence(id: SessionId): Promise<() => void> {
   if (deleting.has(id)) throw new Error('Session deletion is already in progress.')
   deleting.add(id)
-  await Promise.all(mutations.get(id) ?? [])
+  await Promise.all(mutations.get(id) ?? new Set<Promise<void>>())
   let released = false
   return () => {
     if (released) return

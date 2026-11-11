@@ -261,7 +261,9 @@ async function launchAndStream(invocation: RunInvocation, dependencies: RunCliDe
     const clientInput = launch
       ? await Promise.race([dependencies.createClientInput(launch.arguments), earlyInterrupt])
       : null
-    if (!launch || !clientInput) return interruptedBeforeLaunch(invocation.jsonl, dependencies)
+    if (!launch || !clientInput) {
+      return await interruptedBeforeLaunch(invocation.jsonl, dependencies)
+    }
     const activeSession = new RunCliSession(clientInput, invocation.jsonl, {
       ...dependencies,
       interactive: canAskQuestions(invocation, dependencies),

@@ -63,8 +63,8 @@ async function waitForDownload(downloadPromise: Promise<unknown> | null | undefi
   }
 }
 
-async function runUpdaterCheck(generation: number, selection?: UpdateFeedSelection) {
-  if (selection?.type === 'no-release') return setStatus({ type: 'not-available' })
+async function runUpdaterCheck(generation: number, selection: UpdateFeedSelection) {
+  if (selection.type === 'no-release') return setStatus({ type: 'not-available' })
   const result = await updateEngine.checkForUpdates()
   if (!result) return
   if (generation !== checkGeneration) {
@@ -88,17 +88,13 @@ async function runUpdaterCheck(generation: number, selection?: UpdateFeedSelecti
 function startUpdaterCheck(channel: UpdateChannel, generation: number) {
   let operation: Promise<void>
   try {
-    const configured = configureUpdaterFeed({ setFeedURL: updateEngine.setFeed }, channel)
-    operation = configured
-      ? configured.then((selection) => {
-          if (generation !== checkGeneration) return
-          acceptUpdaterEvents = true
-          return runUpdaterCheck(generation, selection)
-        })
-      : (() => {
-          acceptUpdaterEvents = true
-          return runUpdaterCheck(generation)
-        })()
+    operation = configureUpdaterFeed({ setFeedURL: updateEngine.setFeed }, channel).then(
+      (selection) => {
+        if (generation !== checkGeneration) return
+        acceptUpdaterEvents = true
+        return runUpdaterCheck(generation, selection)
+      },
+    )
   } catch (error) {
     reportUpdateCheckError(error, generation)
     return

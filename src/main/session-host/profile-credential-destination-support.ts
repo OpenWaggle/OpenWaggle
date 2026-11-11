@@ -137,7 +137,7 @@ export async function assertReplaceable(targetPath: string, replace: boolean) {
         'Credential destination already exists. Use --replace to update it.',
       )
     }
-    return credentialDestinationIdentity(targetPath)
+    return await credentialDestinationIdentity(targetPath)
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error

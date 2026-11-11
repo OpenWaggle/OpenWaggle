@@ -208,7 +208,7 @@ describe('Session evidence directory', () => {
       const preparing = prepareSessionEvidenceDirectory(scratch)
       removalMayFinish.resolve()
       await Promise.all([sweeping, preparing])
-      release()
+      await release()
 
       expect((await fs.stat(evidence)).isDirectory()).toBe(true)
       expect(preparedSessionEvidenceDirectory(scratch)).toBe(evidence)

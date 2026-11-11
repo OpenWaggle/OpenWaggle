@@ -248,7 +248,6 @@
     "src/shared/types/__tests__/session-status.unit.test.ts": 1
   },
   "typescript/await-thenable": {
-    "src/main/store/session-details/session-deletion-fence.ts": 1,
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-continuation.component.test.tsx": 3
   },
   "typescript/consistent-indexed-object-style": {
@@ -297,7 +296,6 @@
     "src/main/application/extension-lifecycle-model.ts": 2
   },
   "typescript/no-floating-promises": {
-    "src/main/__tests__/updater.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-close.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-controls-security.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-reliability-lifecycle.unit.test.ts": 2,
@@ -306,7 +304,6 @@
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 3,
     "src/main/application/__tests__/agent-loop-interaction-broker.unit.test.ts": 1,
-    "src/main/utils/__tests__/session-evidence-directory.unit.test.ts": 1,
     "src/renderer/src/features/browser-preview/hooks/useBrowserPreviewAdvancedControls.ts": 2,
     "src/renderer/src/features/chat/components/__tests__/InlineVisualization.health.component.test.tsx": 1,
     "src/renderer/src/features/chat/components/__tests__/InlineVisualization.parking.component.test.tsx": 1,
@@ -347,11 +344,6 @@
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-picture-in-picture.unit.test.ts": 2,
     "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 2,
     "src/main/adapters/electron/browser-preview/browser-preview-element-picker.ts": 1,
-    "src/main/ipc/__tests__/attachments-handler.test-harness.ts": 8,
-    "src/main/ipc/__tests__/git-handler-stacked-destination-gates.unit.test.ts": 1,
-    "src/main/ipc/follow-up-edit-hold-window-leases.ts": 1,
-    "src/main/openwaggle-mcp-server.ts": 2,
-    "src/main/updater.ts": 1,
     "src/renderer/src/features/browser-preview/components/BrowserPreviewMoreMenu.tsx": 3,
     "src/renderer/src/features/browser-preview/components/BrowserPreviewPanel.tsx": 2,
     "src/renderer/src/features/chat/hooks/use-chat-panel-controller.ts": 2,
@@ -510,10 +502,7 @@
     "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-registration.component.test.tsx": 1
   },
   "typescript/return-await": {
-    "src/main/adapters/electron/browser-preview/browser-preview-favicon-capture.ts": 1,
-    "src/main/extension-runtime-protocol.ts": 1,
-    "src/main/run-cli.ts": 1,
-    "src/main/session-host/profile-credential-destination-support.ts": 1
+    "src/main/adapters/electron/browser-preview/browser-preview-favicon-capture.ts": 1
   },
   "typescript/unbound-method": {
     "src/main/application/host-ui-worktree-operation.ts": 1,

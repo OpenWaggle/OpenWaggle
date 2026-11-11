@@ -47,7 +47,7 @@ export class FollowUpEditHoldWindowLeases {
     this.holdsByWindow.set(windowId, holds)
     if (!this.watchedWindows.has(windowId)) {
       this.watchedWindows.add(windowId)
-      this.dependencies.watchWindow(windowId, () => this.releaseWindow(windowId))
+      this.dependencies.watchWindow(windowId, () => void this.releaseWindow(windowId))
     }
     this.ensureTimer()
   }

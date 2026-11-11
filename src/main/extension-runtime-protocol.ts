@@ -332,7 +332,7 @@ export function registerExtensionRuntimeProtocolOnce(
         return notFoundResponse()
       }
 
-      return fileResponse(modulePath)
+      return await fileResponse(modulePath)
     } catch {
       return notFoundResponse()
     }
