@@ -32,10 +32,16 @@ runtime module URLs, or renderer error reporting (`sentry-renderer.ts`).
 
 ## Web security
 
-- Renderer CSP is a response header of the renderer's loopback server
-  (`setDocumentHeaders('renderer', rendererDocumentHeaders)`), built by
+- Renderer CSP: `setDocumentPolicy('renderer', { contentSecurityPolicy })`, built by
   `buildContentSecurityPolicy(electrobunRendererPolicySources())` plus `ws://127.0.0.1:*` for the
-  RPC socket. Electron's policy string is byte-identical to before. Vite dev pages get none.
+  RPC socket. Vite dev pages get none.
+- CEF writes the webview preload as an inline `<script>` right after `<head>` (its response filter,
+  `cef_response_filter.h`), with a per-webview key in it: no hash or nonce can allow it. A header
+  CSP with script directives therefore kills `window.api` on CEF (Linux, QA) while the system
+  webviews (user scripts, outside CSP) work. `electrobun-document-policy.ts` puts the full policy in
+  a `<meta>` as the head's first child (governs only what follows the preload) and the header keeps
+  every directive but `default-src`/`script-src`/`script-src-elem`. No `<head>`: whole policy in
+  the header.
 - Electrobun `navigationRules` apply to the main frame only (macOS
   `shouldApplyMainFrameNavigationRules`; subframes are allowed with no event), so frames are
   confined by the renderer's `frame-src` plus per-host capabilities. Open: `frame-src
@@ -105,17 +111,14 @@ runtime module URLs, or renderer error reporting (`sentry-renderer.ts`).
 
 ## Renderer error reports
 
-- One lazy chunk, `sentry-renderer.ts`, holds both SDKs, picked at runtime by the preload's
-  global: `__SENTRY_IPC__` starts `@sentry/electron/renderer`; the Electrobun bridge's
-  `__OPENWAGGLE_ERROR_REPORT_ENVELOPES__` (only with the reporting switch) starts
-  `@sentry/browser`. Not a build-time alias: both shells load one renderer build, and the Electron
-  renderer SDK is the browser SDK plus a few KB, so the chunk barely grows. Revisit if an
-  Electrobun-only renderer build appears.
+- One lazy chunk, `sentry-renderer.ts`, starts `@sentry/browser` when the preload defined
+  `__OPENWAGGLE_ERROR_REPORT_ENVELOPES__` (only with the reporting switch). The global lives in
+  `error-report-envelope-bridge.ts`: importing it from `error-report-constants.ts` dragged that
+  module's tables into the initial graph, over the budget.
 - Browser SDK: the shared options policy, the placeholder DSN (no transport starts without one),
   `sendClientReports: false`, and a `createTransport` that hands each envelope string to
   `window.api.sendErrorReportEnvelope` (`error-reporting:renderer-envelope`, exempt from the
-  backend gate) → `reportRendererEnvelope` → `ErrorReporter.captureRendererEnvelope`. Electron's
-  reporter has none, so the channel drops envelopes there.
+  backend gate) → `reportRendererEnvelope` → `ErrorReporter.captureRendererEnvelope`.
 - Frames under the page base (`new URL('./', location.href)`) are rewritten to
   `openwaggle://app/` (`RENDERER_CODE_LOCATION_PREFIX`): the code rules keep them as app code and
   no report carries the port or capability. Other loopback frames (extension modules) become
@@ -123,13 +126,27 @@ runtime module URLs, or renderer error reporting (`sentry-renderer.ts`).
 - The browser SDK always sets `environment` (`production` by default): `rendererEnvelopeEvents`
   drops the renderer's release and environment so the main SDK applies its own.
 
+## Packaged main bundle and launch
+
+- `bun build` bakes CommonJS `__dirname`/`__filename` in as the build machine's absolute path. The
+  packaged app served the checkout's source `index.html` (splash forever). Main uses
+  `import.meta.dirname`/`filename`; `no-restricted-globals` forbids the CJS names in `src/main`.
+  Bundled CJS packages keep theirs (undici: stack-trace only).
+- The Zig launcher started `bun main.js` with no arguments; vendor patch 0006 forwards them (not on
+  Windows until its launcher is built here). Without it, pass QA inputs through env:
+  `OPENWAGGLE_AUTOMATION=1` alone already uses the profile's mock keychain.
+- Hidden QA screenshots: `OPENWAGGLE_AUTOMATION=1 OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef
+  ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT=<port>` renders the hidden main window with the bundled CEF;
+  `/json/list` has the `index.html` page and `Page.captureScreenshot` works. `screencapture -l`
+  cannot capture a hidden WKWebView window.
+- Launching the packaged app from an agent shell inherits `OPENWAGGLE_HOST_TMPDIR`,
+  `OPENWAGGLE_WORKTREE_PATH`, `OPENWAGGLE_AGENT_RUN`, `PI_*`: the Host stalls after
+  `host-recovered`. Launch QA with those unset.
+
 ## Still open
 
-- `src/main/error-reporting.ts` still loads the Electron main reporter; until the shell switch
-  binds the Bun reporter, Electrobun renderer envelopes reach no `captureRendererEnvelope`.
-- Dropped/picked files have no paths in the system webviews: `prepareSelectedAttachments`
-  rejects with a reason.
+- Dropped/picked files have no paths in the system webviews: `attachments:prepare-files` sends
+  their bytes instead.
 - Session resource requests are tied to their owner page by Electron's `webRequest` frame
   identity (`shouldBlockSessionResourceRequest`); on Electrobun only the per-resource token and
-  the host capability guard them. The bindings in `src/main/desktop-shell/` still point at
-  Electron.
+  the host capability guard them.
