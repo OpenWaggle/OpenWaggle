@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { fakeElectrobunWebview } from './fake-electrobun-webview'
 
 /**
  * A small, faithful stand-in for the `electrobun/main` APIs the desktop shell adapters call, for
@@ -127,13 +128,11 @@ export function fakeElectrobun() {
     get: async () => BuildConfig.getSync(),
   }
 
-  const BrowserWindow = {
-    getById: (id: number) => ({
-      id,
-      focus: () => void dialogState.raisedWindows.push(id),
-      webview: { executeJavascript: () => undefined, toggleDevTools: () => undefined },
-    }),
-  }
+  // Windows and their webviews (fake-electrobun-webview.ts); a dialog opens over the window
+  // raised just before it.
+  const webview = fakeElectrobunWebview(events, {
+    onRaise: (id) => void dialogState.raisedWindows.push(id),
+  })
 
   const ApplicationMenu = {
     setApplicationMenu: (menu: readonly FakeMenuItem[]) =>
@@ -151,10 +150,11 @@ export function fakeElectrobun() {
     return true
   }
 
-  const module = { Utils, BuildConfig, BrowserWindow, ApplicationMenu, ContextMenu }
+  const module = { Utils, BuildConfig, ...webview.module, ApplicationMenu, ContextMenu }
   return {
     module,
     events,
+    webview,
     emit,
     clipboardState,
     shellState,

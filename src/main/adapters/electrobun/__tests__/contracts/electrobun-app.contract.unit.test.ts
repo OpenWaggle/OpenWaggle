@@ -27,8 +27,12 @@ afterEach(async () => {
 })
 
 /** Electrobun windows are numbered; the windows adapter hands out their ids as `DesktopWindow.id`. */
-function fakeWindow(id: number): DesktopWindow {
-  return fromPartial({ id, isDestroyed: () => false })
+type ShellFake = Awaited<ReturnType<typeof prepareElectrobunShell>>['electrobun']
+
+/** A hidden app window in the fake shell, as the dialogs and menus see it. */
+function fakeWindow(electrobun: ShellFake): DesktopWindow {
+  const window = new electrobun.module.BrowserWindow({ hidden: true })
+  return fromPartial({ id: window.id, isDestroyed: () => false })
 }
 
 /** Electron's userData for a Dev build under test, which the Electrobun adapter must match. */
@@ -107,7 +111,7 @@ runContract(desktopDialogsContract, async () => {
   const { electrobunDialogs } = await import('../../electrobun-dialogs')
   return {
     subject: electrobunDialogs,
-    openWindow: () => fakeWindow(1),
+    openWindow: () => fakeWindow(electrobun),
     answerNext: (answer) => void (electrobun.dialogState.answer = answer),
     dialogOwnerIds: () => electrobun.dialogState.owners,
     enterAutomation,
@@ -119,7 +123,7 @@ runContract(desktopMenusContract, async () => {
   const { electrobunMenus } = await import('../../electrobun-menus')
   return {
     subject: electrobunMenus,
-    openWindow: () => fakeWindow(1),
+    openWindow: () => fakeWindow(electrobun),
     applicationMenuLabels: () =>
       electrobun.menuState.application?.map((item) => item.label ?? '') ?? null,
     chooseInLastContextMenu: electrobun.chooseInContextMenu,

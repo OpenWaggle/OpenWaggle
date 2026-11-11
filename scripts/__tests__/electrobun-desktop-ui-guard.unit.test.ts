@@ -15,4 +15,22 @@ describe('Electrobun desktop UI guard', () => {
       ),
     ).toEqual([])
   })
+
+  it('rejects Electrobun windows constructed or revealed outside the window policy', () => {
+    const source = [
+      'const window = new (electrobun().BrowserWindow)({ url })',
+      'appWindow.activate()',
+      'mainWindow.unminimize()',
+    ].join('\n')
+    expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', source)).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('window construction') }),
+      expect.objectContaining({ message: expect.stringContaining('BrowserWindow reveal') }),
+    ])
+    expect(
+      collectUnguardedDesktopUiViolations(
+        'src/main/adapters/electrobun/electrobun-window-policy.ts',
+        source,
+      ),
+    ).toEqual([])
+  })
 })

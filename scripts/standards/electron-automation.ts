@@ -20,6 +20,9 @@ const DESKTOP_UI_POLICY_OWNERS = [
   'src/main/adapters/electrobun/electrobun-os-shell.ts',
   'src/main/adapters/electrobun/electrobun-save-dialog.ts',
   'src/main/adapters/electrobun/electrobun-system-notifications.ts',
+  // The only Electrobun module that constructs, shows or focuses a window; it creates every
+  // window hidden under automation and checks the policy before revealing one.
+  'src/main/adapters/electrobun/electrobun-window-policy.ts',
 ]
 /**
  * The detached-spawn primitive behind `desktop-ui.ts`: the boot shim launches the headless Session
@@ -46,13 +49,15 @@ const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
     pattern: /\bshell\s*\.\s*(?:beep|openExternal|openPath|showItemInFolder|trashItem)\s*\(/gu,
   },
   {
+    // `new BrowserWindow(...)`, and Electrobun's lazily loaded `new (sdk.BrowserWindow)(...)`.
     api: 'Electron window construction',
-    pattern: /\bnew\s+(?:BaseWindow|BrowserWindow)\s*\(/gu,
+    pattern: /\bnew\s+(?:\(\s*[\w$.()]*?\.\s*)?(?:BaseWindow|BrowserWindow)\s*\)?\s*\(/gu,
   },
   {
+    // Electron's reveal calls, and Electrobun's `activate` and `unminimize`.
     api: 'BrowserWindow reveal',
     pattern:
-      /\b(?:[A-Za-z_$][\w$]*Window|window)\s*\.\s*(?:focus|restore|show|showInactive)\s*\(\s*\)/gu,
+      /\b(?:[A-Za-z_$][\w$]*Window|window)\s*\.\s*(?:activate|focus|restore|show|showInactive|unminimize)\s*\(\s*\)/gu,
   },
   {
     api: 'detached external application',
