@@ -23,7 +23,7 @@ function profileRevoked(sql: SqlClient.SqlClient, id: string) {
     const rows = yield* sql<{ readonly revoked_at: number | null }>`
       SELECT revoked_at FROM session_client_profiles WHERE id = ${id} LIMIT 1
     `
-    return !rows[0] || rows[0].revoked_at !== null
+    return rows[0]?.revoked_at !== null
   })
 }
 

@@ -250,7 +250,7 @@ function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
 /** A Heartbeat's own model and thinking level, which apply only to its Runs (#388). */
 function scheduledTaskModelChoice(value: string | null | undefined) {
   const task = scheduledTaskRecord(value)
-  if (!task || task.record.kind !== 'heartbeat') return {}
+  if (task?.record.kind !== 'heartbeat') return {}
   const context = scheduledTaskRunContext(task.record)
   return {
     ...(context?.modelId ? { modelId: context.modelId } : {}),

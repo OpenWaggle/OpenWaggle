@@ -112,7 +112,9 @@ function queueUpdated(
   }
 }
 
-type WithdrawnFollowUps = { readonly withdrawnFollowUpIds?: readonly string[] }
+interface WithdrawnFollowUps {
+  readonly withdrawnFollowUpIds?: readonly string[]
+}
 
 /** A delivery decision rebuilds the outcome; the ids a withdraw removed must survive it. */
 function withdrawnFollowUps(outcome: SessionControlMutationOutcome): WithdrawnFollowUps {

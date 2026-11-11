@@ -89,7 +89,7 @@ export function observeTerminalProjectActionActivity(
 ) {
   const action = record.projectAction
   const activity = record.activity
-  if (action === null || action.deliveredAfterPromptEpoch === null) return false
+  if (typeof action?.deliveredAfterPromptEpoch !== 'number') return false
   if (activity?.processReliable !== true) {
     action.reliableIdleObservations = 0
     return false

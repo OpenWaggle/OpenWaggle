@@ -82,7 +82,7 @@ function resolveOriginAuthority(
         baseScopeAuthorized: baseRelationshipAuthorized,
       }
     }
-    if (!originProfile || originProfile.revoked_at !== null) {
+    if (originProfile?.revoked_at !== null) {
       return { blockReason: 'profile_revoked' as const, effectiveCapabilities: capabilities }
     }
     const originAuthority = profileAuthority(originProfile)

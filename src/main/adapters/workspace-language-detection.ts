@@ -186,7 +186,7 @@ export async function vscodeLanguageAssociation(projectRoot: string, relativePat
 }
 
 export function shebangLanguage(source: string) {
-  const firstLine = source.slice(0, source.indexOf('\n') < 0 ? source.length : source.indexOf('\n'))
+  const [firstLine = ''] = source.split('\n', 1)
   if (!firstLine.startsWith('#!')) return null
   const command = firstLine.toLowerCase()
   if (/\b(?:python|python2|python3)\b/u.test(command)) return 'python'

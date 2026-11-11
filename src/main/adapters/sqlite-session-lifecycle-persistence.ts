@@ -88,7 +88,7 @@ function persistSessionMetadata(
     workspace.kind === 'managed-worktree' && workspace.lifecycle_state === 'ready'
       ? workspace.working_path
       : null
-  const branchId = mainBranchId(String(input.session.sessionId))
+  const branchId = mainBranchId(input.session.sessionId)
   return Effect.gen(function* () {
     const { title, source: titleSource } =
       explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))

@@ -229,7 +229,7 @@ export async function findAvailableWorkspaceExternalEditorCommand(
   commandAvailable: (command: string) => Promise<boolean>,
 ) {
   const available = await Promise.all(commands.map((command) => commandAvailable(command)))
-  return commands.find((_command, index) => available[index] === true)
+  return commands.find((_command, index) => available[index])
 }
 
 export async function findAvailableWorkspaceExternalEditorMacApplication(

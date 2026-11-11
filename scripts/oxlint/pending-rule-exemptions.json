@@ -343,8 +343,7 @@
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-continuation.component.test.tsx": 3
   },
   "typescript/consistent-generic-constructors": {
-    "src/main/__tests__/openwaggle-mcp-server-conformance.test-support.ts": 1,
-    "src/main/adapters/mcp/migration/migration-record.ts": 1
+    "src/main/__tests__/openwaggle-mcp-server-conformance.test-support.ts": 1
   },
   "typescript/consistent-indexed-object-style": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-test-harness.ts": 2,
@@ -357,7 +356,6 @@
     "src/shared/error-reporting/error-report-scrubbing.ts": 4
   },
   "typescript/consistent-type-definitions": {
-    "src/main/adapters/sqlite-session-control-queue-delivery.ts": 1,
     "src/main/application/__tests__/local-session-command-search-authorization.test-support.ts": 1,
     "src/main/application/__tests__/local-session-command-wait-authorization.unit.test.ts": 1,
     "src/main/application/__tests__/session-wait-service.test-support.ts": 1,
@@ -490,7 +488,6 @@
   },
   "typescript/no-redundant-type-constituents": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 1,
-    "src/main/adapters/terminal/__tests__/terminal-pty-runner-test-harness.ts": 1,
     "src/main/application/local-session-profile-narrowing.ts": 1,
     "src/main/gui-runtime.ts": 1,
     "src/main/ipc/typed-ipc.ts": 1,
@@ -500,10 +497,6 @@
     "src/renderer/src/routes/-right-sidebar-panel.ts": 2
   },
   "typescript/no-unnecessary-boolean-literal-compare": {
-    "src/main/adapters/mcp/migration/legacy-enablement.ts": 1,
-    "src/main/adapters/session-lifecycle-execution-profile.ts": 1,
-    "src/main/adapters/terminal/__tests__/terminal-process-shutdown-tty-reuse.unit.test.ts": 1,
-    "src/main/adapters/workspace-external-editor.ts": 1,
     "src/main/agents/agent-definition-discovery.ts": 1,
     "src/main/application/agent-definition-display-operations.ts": 1,
     "src/main/ipc/background-start-handler.ts": 1,
@@ -526,15 +519,12 @@
     "src/renderer/src/shell/workspace-panel-actions.ts": 4
   },
   "typescript/no-unnecessary-template-expression": {
-    "src/main/adapters/terminal/terminal-shell-integration-scripts.ts": 2,
     "src/main/application/__tests__/session-resource-backfill.unit.test.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.component.test.tsx": 1,
     "src/renderer/src/features/settings/components/sections/TerminalPaletteRoleRow.tsx": 1,
     "src/renderer/src/features/terminal/lib/__tests__/terminal-output-delivery.unit.test.ts": 1
   },
   "typescript/no-unnecessary-type-arguments": {
-    "src/main/adapters/__tests__/sqlite-session-export-operation-test-layer.ts": 1,
-    "src/main/adapters/sqlite-extension-lifecycle-repository.ts": 1,
     "src/main/application/__tests__/automatic-worktree-removal.unit.test.ts": 1,
     "src/main/application/__tests__/explicit-waggle-command-lifecycle.unit.test.ts": 1,
     "src/main/application/__tests__/explicit-waggle-command-races.unit.test.ts": 1,
@@ -594,8 +584,6 @@
     "src/shared/schema.ts": 3
   },
   "typescript/no-unnecessary-type-conversion": {
-    "src/main/adapters/sqlite-session-lifecycle-persistence.ts": 1,
-    "src/main/adapters/workspace-external-editor-launcher.ts": 1,
     "src/main/cli-stdout.ts": 1,
     "src/main/inline-visualization-protocol.ts": 1,
     "src/main/run-cli.ts": 1,
@@ -630,24 +618,10 @@
     "src/renderer/src/features/command-palette/lib/command-palette-navigation.ts": 1,
     "src/renderer/src/features/settings/lib/archived-items-view.ts": 1
   },
-  "typescript/prefer-includes": {
-    "src/main/adapters/workspace-language-detection.ts": 1
-  },
   "typescript/prefer-optional-chain": {
     "src/main/adapters/electron/browser-preview/browser-preview-annotation-attachment.ts": 1,
     "src/main/adapters/electron/browser-preview/browser-preview-automation-validation.ts": 2,
     "src/main/adapters/electron/browser-preview/browser-preview-replacement.ts": 1,
-    "src/main/adapters/mcp/config/mcp-config-file-edit.ts": 1,
-    "src/main/adapters/session-agent-run-project-reach.ts": 1,
-    "src/main/adapters/session-follow-up-authorization.ts": 1,
-    "src/main/adapters/session-follow-up-session-agent-authorization.ts": 1,
-    "src/main/adapters/session-run-execution-profile.ts": 1,
-    "src/main/adapters/sqlite-scheduled-task-session-store.ts": 1,
-    "src/main/adapters/sqlite-session-existing-workspace-handoff-finalization.ts": 1,
-    "src/main/adapters/sqlite-session-live-authority.ts": 1,
-    "src/main/adapters/terminal/terminal-launch-input-state.ts": 1,
-    "src/main/adapters/terminal/terminal-project-action.ts": 1,
-    "src/main/adapters/terminal/terminal-service-actions.ts": 1,
     "src/main/application/desktop-notifications/desktop-notification-observer.ts": 1,
     "src/main/application/scheduled-task-heartbeat-commands.ts": 1,
     "src/main/domain/session-control/follow-up-adopt.ts": 1,
@@ -682,7 +656,6 @@
     "src/renderer/src/shell/workspace-panel-persistence.ts": 1
   },
   "typescript/prefer-string-starts-ends-with": {
-    "src/main/adapters/__tests__/sqlite-session-common-search-plan.unit.test.ts": 1,
     "src/main/application/session-resource-markdown-extraction.ts": 1,
     "src/main/update-cli-installers.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
@@ -759,7 +732,6 @@
     "src/renderer/src/shared/lib/markdown-safety.tsx": 2
   },
   "unicorn/prefer-string-starts-ends-with": {
-    "src/main/adapters/__tests__/sqlite-session-common-search-plan.unit.test.ts": 1,
     "src/main/application/session-resource-markdown-extraction.ts": 1,
     "src/main/update-cli-installers.ts": 1
   }

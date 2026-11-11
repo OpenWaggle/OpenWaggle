@@ -161,7 +161,7 @@ function zshPromptIntegration(
   return `typeset -g ${markerVariable}=$'\\e]633;B;${readinessNonce}\\a'
 function ${hookFunction} {
   if [[ "$PROMPT" != *"$${markerVariable}"* ]]; then
-    PROMPT="${'$'}{PROMPT}%{${'$'}{${markerVariable}}%}"
+    PROMPT="\${PROMPT}%{\${${markerVariable}}%}"
   fi
 }
 builtin autoload -Uz add-zsh-hook

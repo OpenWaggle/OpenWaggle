@@ -52,7 +52,7 @@ export function legacyServerConnection(
     return { connected: false, reason: 'OpenWaggle did not read the file that defines it' }
   }
   const serverState = scope.state.servers[legacyServerIdentityKey(layer.path, name)]
-  if (serverState?.enabled !== true) {
+  if (!serverState?.enabled) {
     return { connected: false, reason: 'it was not turned on in OpenWaggle' }
   }
   if (!mcpWasOn(scope)) return { connected: false, reason: mcpOffReason(scope) }

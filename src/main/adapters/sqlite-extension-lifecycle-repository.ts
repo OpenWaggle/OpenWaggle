@@ -52,11 +52,7 @@ const stringArraySchema = Schema.mutable(Schema.Array(Schema.String))
 const buildStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)
 const reloadStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.RELOAD_STATUSES)
 
-function decodeJsonField<A, I>(
-  schema: Schema.Schema<A, I, never>,
-  raw: string,
-  fieldName: string,
-): A {
+function decodeJsonField<A, I>(schema: Schema.Schema<A, I>, raw: string, fieldName: string): A {
   const parsed = parseJsonUnknown(raw)
   const decoded = safeDecodeUnknown(schema, parsed)
   if (!decoded.success) {

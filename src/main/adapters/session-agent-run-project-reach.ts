@@ -34,7 +34,7 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
       LIMIT 1
     `
     const profile = rows[0]
-    if (!profile || profile.revoked_at !== null) return undefined
+    if (profile?.revoked_at !== null) return undefined
     // An unreadable scope fails closed: no reach, rather than a defect that ends the Run.
     return yield* Effect.try(() =>
       decodeLocalSessionProfileScope(parseJsonUnknown(profile.scope_json)),

@@ -97,7 +97,7 @@ export class McpMigrationRecord {
     private legacy: readonly string[] | null | undefined,
     private readonly serverNames: Record<string, string> = {},
     private readonly serverIdentities: Record<string, McpLegacyServerIdentity> = {},
-    private readonly homeNotices: Set<string> = new Set(),
+    private readonly homeNotices = new Set<string>(),
     private switchesDone = false,
     /** Whether the record is on disk: a marker alone never creates it. */
     private onDisk = false,

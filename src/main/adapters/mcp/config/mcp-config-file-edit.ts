@@ -31,7 +31,7 @@ const NEW_FILE_MODE = 0o600
 const PERMISSION_MODULUS = 0o1000
 
 function parseFile(filePath: string, text: string | undefined): JsonRecord {
-  const parsed: unknown = text === undefined || !text.trim() ? {} : JSON.parse(text)
+  const parsed: unknown = !text?.trim() ? {} : JSON.parse(text)
   if (
     !isJsonRecord(parsed) ||
     (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))

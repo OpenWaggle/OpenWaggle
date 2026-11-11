@@ -71,7 +71,7 @@ function callerAuthorityBoundary(sql: SqlClient.SqlClient, callerId: string) {
   `.pipe(
     Effect.map((rows): ScheduledTaskAuthorityBoundary => {
       const profile = rows[0]
-      if (!profile || profile.revoked_at !== null) return NO_REACH
+      if (profile?.revoked_at !== null) return NO_REACH
       return {
         reachesEveryProject: profileReachesEveryProject(profile.scope_json),
         authorizationCeiling: profile.authorization_ceiling,

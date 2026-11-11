@@ -118,7 +118,7 @@ export function resetPtyRunnerHarness() {
 
 export function fakePty(
   socket?: { readonly pause: () => void; readonly resume: () => void },
-  privatePtyValue: unknown | null = '/dev/ttys123',
+  privatePtyValue: unknown = '/dev/ttys123',
 ) {
   const pty = fromPartial<NodePtyModule.IPty>({
     pid: 4321,
