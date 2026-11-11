@@ -18,7 +18,7 @@ const MAX_DETACHED_DESCRIPTOR = 65_535
 const LAST_CONTROL_DESCRIPTOR = 4
 const STANDARD_IO_DESCRIPTOR_COUNT = 3
 
-function isolatedLinuxStdio(ownedDescriptors: Set<number>): Array<'ignore' | number> {
+function isolatedLinuxStdio(ownedDescriptors: Set<number>): ('ignore' | number)[] {
   let nullDescriptor = openSync(devNull, 'r+')
   ownedDescriptors.add(nullDescriptor)
   let lastDescriptor = LAST_CONTROL_DESCRIPTOR

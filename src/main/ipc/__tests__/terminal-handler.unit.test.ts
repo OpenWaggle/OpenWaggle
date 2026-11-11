@@ -211,7 +211,7 @@ describe('registerTerminalHandlers', () => {
   it('terminal:resize rejects invalid dimensions', async () => {
     registerTerminalHandlers()
     const handler = getInvokeHandler('terminal:resize')
-    const invalidDimensions: Array<[number, number]> = [
+    const invalidDimensions: [number, number][] = [
       [TERMINAL.MIN_COLS - 1, 40],
       [TERMINAL.MAX_COLS + 1, 40],
       [120, TERMINAL.MIN_ROWS - 1],

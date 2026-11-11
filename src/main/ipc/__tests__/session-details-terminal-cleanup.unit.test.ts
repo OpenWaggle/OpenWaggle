@@ -28,7 +28,7 @@ import {
 import { executeLocalUiSessionCommand } from '../../application/local-ui-session-service'
 import { organizeSession } from '../../application/session-organization-service'
 
-const closed: Array<readonly [string, boolean]> = []
+const closed: (readonly [string, boolean])[] = []
 const order: string[] = []
 const scopes: unknown[] = []
 let terminalError: Error | null = null

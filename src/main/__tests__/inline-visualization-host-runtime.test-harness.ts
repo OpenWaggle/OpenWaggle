@@ -47,8 +47,8 @@ export function runtimeHarness(
       setProperty: (name: string, value: string) => rootStyleValues.set(name, value),
     },
   }
-  const listeners = new Map<string, Array<(event: RuntimeEvent) => void>>()
-  const documentListeners = new Map<string, Array<(event: { isTrusted?: boolean }) => void>>()
+  const listeners = new Map<string, ((event: RuntimeEvent) => void)[]>()
+  const documentListeners = new Map<string, ((event: { isTrusted?: boolean }) => void)[]>()
   const parent = { postMessage: (message: unknown) => postedMessages.push(message) }
   const nativeEventTrust = new WeakMap<object, boolean>()
   let currentDocumentEvent: NativeDocumentEvent | null = null
@@ -109,17 +109,17 @@ export function runtimeHarness(
   }
   const runtimeWindow: RuntimeWindow = new NativeRuntimeWindow()
   let performanceNow = 0
-  const performanceObserverCallbacks: Array<
-    (list: { getEntries: () => Array<{ duration: number }> }) => void
-  > = []
-  const animationFrameCallbacks: Array<() => void> = []
-  const mutationObserverCallbacks: Array<() => void> = []
+  const performanceObserverCallbacks: ((list: {
+    getEntries: () => { duration: number }[]
+  }) => void)[] = []
+  const animationFrameCallbacks: (() => void)[] = []
+  const mutationObserverCallbacks: (() => void)[] = []
   const mutationObserverOptions: unknown[] = []
-  const resizeObserverCallbacks: Array<() => void> = []
+  const resizeObserverCallbacks: (() => void)[] = []
   class RuntimePerformanceObserver {
     static supportedEntryTypes = ['longtask']
 
-    constructor(callback: (list: { getEntries: () => Array<{ duration: number }> }) => void) {
+    constructor(callback: (list: { getEntries: () => { duration: number }[] }) => void) {
       performanceObserverCallbacks.push(callback)
     }
 
@@ -155,7 +155,7 @@ export function runtimeHarness(
       return this.entries
     }
   }
-  const scriptLoadListeners: Array<() => void> = []
+  const scriptLoadListeners: (() => void)[] = []
   const restoredStateMetadata = { content: restoredStateContent, remove: vi.fn<() => void>() }
   const context = vm.createContext({
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },

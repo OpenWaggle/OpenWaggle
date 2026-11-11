@@ -143,9 +143,9 @@ function patternsOf(
   root: Record<string, unknown>,
   value: unknown,
   path = '#',
-): Array<[string, unknown]> {
+): [string, unknown][] {
   const node = resolveLocalReference(root, record(value))
-  const own: Array<[string, unknown]> = node.pattern === undefined ? [] : [[path, node.pattern]]
+  const own: [string, unknown][] = node.pattern === undefined ? [] : [[path, node.pattern]]
   const subschemas = [...SUBSCHEMA_KEYWORDS].flatMap((keyword) => {
     const subschema = node[keyword]
     if (subschema === undefined) return []

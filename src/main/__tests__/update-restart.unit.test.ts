@@ -159,7 +159,7 @@ describe('update restart policy', () => {
       choice: 'when-idle',
       state: () => state,
     })
-    const pendingWaits: Array<() => void> = []
+    const pendingWaits: (() => void)[] = []
     dependencies.wait.mockImplementation(
       () =>
         new Promise<void>((resolve) => {

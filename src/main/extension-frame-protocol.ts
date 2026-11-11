@@ -97,7 +97,7 @@ function frameContentSecurityPolicy(frame: RegisteredExtensionFrame) {
     bootstrapSource,
     EXTENSION_RUNTIME_SCRIPT_SOURCE,
   ] as const
-  const directives: Array<readonly [string, readonly string[]]> = [
+  const directives: (readonly [string, readonly string[]])[] = [
     ['default-src', ["'none'"]],
     ['script-src', scriptSources],
     ['script-src-elem', scriptSources],

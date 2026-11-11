@@ -17,7 +17,7 @@ import { broadcastAgentEvent, broadcastToWindows, setWindowShownSessions } from 
 const SESSION = SessionId('session-1')
 
 function fakeWindow() {
-  const sent: Array<readonly unknown[]> = []
+  const sent: (readonly unknown[])[] = []
   const webContents = fromPartial<RendererSurface>({
     id: 7,
     send: (...args: unknown[]) => sent.push(args),

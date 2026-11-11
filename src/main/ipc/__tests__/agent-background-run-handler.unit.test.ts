@@ -44,7 +44,7 @@ function backgroundRunHandler() {
 }
 
 function fakeWindow() {
-  const sent: Array<readonly unknown[]> = []
+  const sent: (readonly unknown[])[] = []
   const webContents = fromPartial<RendererSurface>({
     id: 11,
     send: (...args: unknown[]) => sent.push(args),
