@@ -1,11 +1,10 @@
 import type { WebContents } from 'electron'
+import type { BrowserPreviewNavigationReadiness } from '../../browser-preview/automation/browser-preview-automation-service'
 
 export type BrowserPreviewNavigationWebContents = Pick<
   WebContents,
   'getURL' | 'isDestroyed' | 'on' | 'removeListener' | 'stop'
 >
-
-export type BrowserPreviewNavigationReadiness = 'load' | 'domContentLoaded' | 'none'
 
 export interface BrowserPreviewAutomationNavigationOperation {
   readonly generation: number
