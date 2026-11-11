@@ -1,8 +1,10 @@
-import { homedir } from 'node:os'
+import { writeFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fromPartial } from '@total-typescript/shoehorn'
 import sharp from 'sharp'
-import { describe, it, vi } from 'vitest'
+import { afterEach, describe, it, vi } from 'vitest'
 import type { DesktopWindow } from '../../../../ports/desktop-shell/desktop-windows'
 import type { PortContract } from '../../../../ports/desktop-shell/__tests__/contracts/port-contract'
 import { PRODUCT_NAME } from '@shared/build-identity-runtime'
@@ -14,8 +16,15 @@ import { clipboardContract } from '../../../../ports/desktop-shell/__tests__/con
 import { desktopDialogsContract } from '../../../../ports/desktop-shell/__tests__/contracts/desktop-dialogs.contract'
 import { desktopMenusContract } from '../../../../ports/desktop-shell/__tests__/contracts/desktop-menus.contract'
 import { osShellContract } from '../../../../ports/desktop-shell/__tests__/contracts/os-shell.contract'
+import { systemIntegrationContract } from '../../../../ports/desktop-shell/__tests__/contracts/system-integration.contract'
 import { systemNotificationsContract } from '../../../../ports/desktop-shell/__tests__/contracts/system-notifications.contract'
 import { prepareElectrobunShell } from './electrobun-shell'
+
+const profiles: string[] = []
+
+afterEach(async () => {
+  for (const profile of profiles.splice(0)) await rm(profile, { recursive: true, force: true })
+})
 
 /** One test per contract case, each against a freshly prepared Electrobun shell. */
 function runContract<Harness>(contract: PortContract<Harness>, setup: () => Promise<Harness>) {
@@ -127,5 +136,34 @@ runContract(systemNotificationsContract, async () => {
     // Clicking a notification brings the app back: its window gains focus.
     clickLast: () => void electrobun.emit('focus', { id: 1 }),
     enterAutomation,
+  }
+})
+
+runContract(systemIntegrationContract, async () => {
+  const { electrobun } = await prepareElectrobunShell()
+  const profile = await mkdtemp(path.join(tmpdir(), 'openwaggle-instance-'))
+  profiles.push(profile)
+  const { electrobunAppPaths } = await import('../../electrobun-app-paths')
+  electrobunAppPaths.setUserData(profile)
+  // The registry is the Windows login-item store; a test never writes the machine's Run key.
+  const registry = new Map<string, string>()
+  vi.doMock('../../electrobun-windows-registry', () => ({
+    readRegistryString: (key: string, name: string | null) =>
+      registry.get(`${key}\\${String(name)}`) ?? null,
+    writeRegistryString: (key: string, name: string | null, value: string) =>
+      void registry.set(`${key}\\${String(name)}`, value),
+    deleteRegistryValue: (key: string, name: string) => void registry.delete(`${key}\\${name}`),
+  }))
+  const { electrobunSystemIntegration } = await import('../../electrobun-system-integration')
+  const { receiveSecondInstance } = await import('../../electrobun-single-instance')
+  const { emitShellEvent } = await import('../../electrobun-shell-events')
+  return {
+    subject: electrobunSystemIntegration,
+    // The parent of this test process is alive for as long as the test runs.
+    anotherInstanceRuns: () =>
+      writeFileSync(path.join(profile, 'openwaggle-instance.lock'), String(process.ppid)),
+    launchAgain: receiveSecondInstance,
+    wakeFromSleep: () => emitShellEvent('resume'),
+    openUrl: (url) => void electrobun.emit('open-url', { url }),
   }
 })

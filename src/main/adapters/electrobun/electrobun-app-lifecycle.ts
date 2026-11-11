@@ -6,6 +6,7 @@ import type { AppLifecycleShape } from '../../ports/desktop-shell/app-lifecycle'
 import type { CancellableShellEvent, Unsubscribe } from '../../ports/desktop-shell/shell-events'
 import { electrobunBootShell } from './electrobun-boot-shell'
 import { isElectrobunDesktopApp, loadElectrobun } from './electrobun-sdk'
+import { pendingForwardedLaunch } from './electrobun-single-instance'
 import { emitShellEvent, onShellEvent } from './electrobun-shell-events'
 
 type QuitListener = (event: CancellableShellEvent) => void
@@ -73,7 +74,11 @@ function quit() {
     },
   }
   for (const listener of [...beforeQuitListeners]) listener(event)
-  if (!held) completeQuit()
+  if (held) return
+  // A launch that lost the single-instance lock quits once the owner has its argv.
+  const forwarding = pendingForwardedLaunch()
+  if (forwarding) void forwarding.then(completeQuit)
+  else completeQuit()
 }
 
 /**

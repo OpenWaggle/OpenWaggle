@@ -29,6 +29,8 @@
     "scripts/test-support/reused-worker-isolation.ts",
     // The tiers' `node:os`, referenced by path through BUN_RUNTIME_ALIASES.
     "scripts/test-support/node-os.ts",
+    // The tiers' `electrobun/main` stub, referenced by path through BUN_RUNTIME_ALIASES.
+    "scripts/test-support/electrobun-sdk-stub.ts",
     // Vitest reporter, referenced by path through TEST_REPORTERS.
     "scripts/test-support/vitest-compact-reporter.ts",
     // Run by path as the check runner's typecheck step (scripts/check/steps.ts).

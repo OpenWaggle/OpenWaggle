@@ -18,6 +18,7 @@ export type ElectrobunSdk = typeof ElectrobunMain & {
 const DESKTOP_APP_MARKER = '__openwaggleElectrobunDesktopApp'
 
 let loaded: ElectrobunSdk | null = null
+const onLoad: ((sdk: ElectrobunSdk) => void)[] = []
 
 /** Whether this process is the Electrobun desktop app, which alone may load the SDK. */
 export function isElectrobunDesktopApp() {
@@ -36,9 +37,20 @@ export async function loadElectrobun() {
       import('electrobun/main'),
       import('electrobun/main/events'),
     ])
-    loaded = { ...main, events: events.electrobunEventEmitter }
+    const sdk: ElectrobunSdk = { ...main, events: events.electrobunEventEmitter }
+    loaded = sdk
+    for (const callback of onLoad.splice(0)) callback(sdk)
   }
   return loaded
+}
+
+/**
+ * Runs `callback` with the SDK once it is loaded (now, if it is). Adapters subscribe to the SDK's
+ * events through it, so a listener registered during startup sees the events from the first one.
+ */
+export function whenElectrobunLoaded(callback: (sdk: ElectrobunSdk) => void) {
+  if (loaded) callback(loaded)
+  else onLoad.push(callback)
 }
 
 /** The loaded SDK, for synchronous port members; it fails loudly before `loadElectrobun()`. */
