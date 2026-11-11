@@ -818,7 +818,6 @@
     "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
   },
   "typescript/require-array-sort-compare": {
-    "src/main/adapters/pi/__tests__/pi-session-discovery.unit.test.ts": 1,
     "src/main/agents/__tests__/agent-definition-published-schema.unit.test.ts": 1,
     "src/main/application/__tests__/agent-authorization-grants.unit.test.ts": 1
   },
