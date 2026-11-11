@@ -1,0 +1,6 @@
+{
+  "name": "openwaggle-electrobun-probe",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Packaged fixture that proves the rebuilt Electrobun native layer launches, renders and exposes CDP on each supported OS. Never shipped."
+}

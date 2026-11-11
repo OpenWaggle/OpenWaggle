@@ -1,0 +1,315 @@
+# Builds OpenWaggle's Electrobun native layer (vendor/electrobun: the pinned upstream release plus
+# patches) for every supported target, and proves the supported-platform floor
+# (scripts/supported-platform-floor.ts) on what it produces:
+#
+# - every binary of the devkit and of a packaged probe app passes
+#   scripts/check-native-platform-floor.ts (Mach-O minos, ELF symbol versions, PE versions), including
+#   the self-extracting payload;
+# - on macOS, every non-weak import binds to a symbol the macOS 13.3 SDK exports
+#   (scripts/check-macos-sdk-symbols.ts). GitHub has no macOS 13 runner; see vendor/electrobun/README.md
+#   for the macOS 13.4 VM run;
+# - the probe (vendor/electrobun/probe) launches, renders its system-webview shell and drives a CEF
+#   browser preview over CDP (navigate, screenshot, click, type) on macOS arm64 and x64, Windows x64,
+#   and Linux x64, the Linux build also on Ubuntu 22.04 itself.
+#
+# The release workflow calls it (workflow_call) and packages against the uploaded devkits, so a floor
+# regression fails here first.
+name: Electrobun Native Layer
+
+on:
+  pull_request:
+    paths:
+      - vendor/electrobun/**
+      - scripts/check-native-platform-floor.ts
+      - scripts/check-macos-sdk-symbols.ts
+      - scripts/macho-imports.ts
+      - scripts/native-binary-formats.ts
+      - scripts/native-platform-floor-targets.ts
+      - scripts/supported-platform-floor.ts
+      - scripts/electrobun-*.ts
+      - .github/actions/install-hutch/**
+      - .github/workflows/electrobun-native.yml
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      probes:
+        description: Package and run the probe app on every target after building.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electrobun-native-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ELECTROBUN_TELEMETRY: "0"
+  HUTCH_VERSION: "0.29.0"
+  MACOS_13_SDK_URL: https://github.com/joseluisq/macosx-sdks/releases/download/13.3/MacOSX13.3.sdk.tar.xz
+  MACOS_13_SDK_SHA256: 518e35eae6039b3f64e8025f4525c1c43786cc5cf39459d609852faf091e34be
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-15, platform: darwin, arch: arm64 }
+          - { target: darwin-x64, runner: macos-15-intel, platform: darwin, arch: x64 }
+          - { target: linux-x64, runner: ubuntu-24.04, platform: linux, arch: x64 }
+          - { target: win32-x64, runner: windows-2025, platform: win32, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    env:
+      OUT: out/electrobun-native/${{ matrix.target }}
+      WORK: out/electrobun-native/work/${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+
+      - name: MSVC developer environment
+        if: matrix.platform == 'win32'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+
+      - name: Install Hutch
+        if: matrix.platform != 'linux'
+        uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      # CEF is the largest download, its wrapper library and Dawn the slowest compiles. build.ts
+      # stamps both with the target they were built for, so a restored cache never mixes floors.
+      - name: Restore the CEF and Dawn vendor directories
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ${{ env.WORK }}/electrobun/package/vendors/cef
+            ${{ env.WORK }}/electrobun/package/vendors/wgpu
+          key: electrobun-vendors-${{ matrix.target }}-${{ hashFiles('vendor/electrobun/sources.ts', 'scripts/supported-platform-floor.ts') }}
+
+      - name: Ninja for the Dawn build
+        if: matrix.platform == 'darwin'
+        run: command -v ninja || brew install ninja
+
+      - name: Build the native layer
+        run: |
+          set -euo pipefail
+          args=(vendor/electrobun/build.ts --out "$OUT" --work "$WORK" --arch "${{ matrix.arch }}")
+          if [ "${{ matrix.platform }}" = linux ]; then args+=(--linux-container); fi
+          bun "${args[@]}"
+
+      - name: Check the devkit against the platform floor
+        run: bun scripts/check-native-platform-floor.ts --platform ${{ matrix.platform }} --devkit "$OUT/devkit"
+
+      - name: Check macOS imports against the macOS 13.3 SDK
+        if: matrix.platform == 'darwin'
+        run: |
+          set -euo pipefail
+          sdk_archive="$RUNNER_TEMP/MacOSX13.3.sdk.tar.xz"
+          curl -fsSL --retry 3 -o "$sdk_archive" "$MACOS_13_SDK_URL"
+          echo "$MACOS_13_SDK_SHA256  $sdk_archive" | shasum -a 256 -c -
+          tar -xJf "$sdk_archive" -C "$RUNNER_TEMP"
+          bun scripts/check-macos-sdk-symbols.ts --sdk "$RUNNER_TEMP/MacOSX13.3.sdk" --arch ${{ matrix.arch }} "$OUT/devkit"
+
+      # upload-artifact drops file modes, so the devkit travels as a tarball.
+      - name: Pack the native layer
+        run: tar -czf "out/electrobun-native-${{ matrix.target }}.tgz" -C out/electrobun-native "${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: electrobun-native-${{ matrix.target }}
+          path: out/electrobun-native-${{ matrix.target }}.tgz
+          retention-days: 14
+
+  probe:
+    name: Probe ${{ matrix.label }}
+    needs: build
+    # inputs.probes is null outside workflow_call, and null == false in expressions.
+    if: ${{ toJSON(inputs.probes) != 'false' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: darwin-arm64, target: darwin-arm64, runner: macos-15, platform: darwin, os: macos, arch: arm64 }
+          - { label: darwin-x64, target: darwin-x64, runner: macos-15-intel, platform: darwin, os: macos, arch: x64 }
+          - { label: linux-x64, target: linux-x64, runner: ubuntu-24.04, platform: linux, os: linux, arch: x64 }
+          - { label: win32-x64, target: win32-x64, runner: windows-2025, platform: win32, os: win, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVKIT: ${{ github.workspace }}/out/electrobun-native/${{ matrix.target }}/devkit
+      RESULTS: ${{ github.workspace }}/out/probe-results/${{ matrix.label }}
+      DISPLAY: ":99"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-${{ matrix.target }}
+          path: out
+
+      - name: Unpack the native layer
+        run: |
+          mkdir -p out/electrobun-native "$RESULTS"
+          tar -xzf "out/electrobun-native-${{ matrix.target }}.tgz" -C out/electrobun-native
+
+      - name: Linux display and webview runtime
+        if: matrix.platform == 'linux'
+        run: bash vendor/electrobun/ci/linux-display.sh
+
+      - name: Package the probe (CEF${{ matrix.platform == 'linux' && ' for the whole app' || ' preview, system webview shell' }})
+        working-directory: vendor/electrobun/probe
+        env:
+          HUTCH_ELECTROBUN_DEVKIT_ROOT: ${{ env.DEVKIT }}
+          PROBE_LINUX_RENDERER: cef
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          hutch electrobun build --env=stable
+          echo "{\"packageSeconds\": $(( $(date +%s) - start ))}" > "$RESULTS/package-cef.json"
+          mv build build-cef && mv artifacts artifacts-cef
+
+      - name: Package the probe (WebKitGTK only)
+        if: matrix.platform == 'linux'
+        working-directory: vendor/electrobun/probe
+        env:
+          HUTCH_ELECTROBUN_DEVKIT_ROOT: ${{ env.DEVKIT }}
+          PROBE_LINUX_RENDERER: native
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          hutch electrobun build --env=stable
+          echo "{\"packageSeconds\": $(( $(date +%s) - start ))}" > "$RESULTS/package-native.json"
+          mv build build-native && mv artifacts artifacts-native
+
+      - name: Check the packaged probe against the platform floor
+        run: |
+          set -euo pipefail
+          for build in vendor/electrobun/probe/build-*; do
+            app=$(find "$build/stable-${{ matrix.os }}-${{ matrix.arch }}" -mindepth 1 -maxdepth 1 -type d | head -1)
+            bun scripts/check-native-platform-floor.ts --platform ${{ matrix.platform }} "$app" | tee "$RESULTS/floor-$(basename "$build").txt"
+          done
+
+      - name: Run the probe (CDP preview)
+        run: |
+          bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-cef --artifacts vendor/electrobun/probe/artifacts-cef \
+            --out "$RESULTS/cef" --label "${{ matrix.label }}-cef" --runs 3
+
+      - name: Run the probe (WebKitGTK only)
+        if: matrix.platform == 'linux'
+        run: |
+          bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-native --artifacts vendor/electrobun/probe/artifacts-native \
+            --out "$RESULTS/native" --label "${{ matrix.label }}-native" --runs 3
+
+      - name: Check the installed probe against the macOS 13.3 SDK
+        if: matrix.platform == 'darwin'
+        run: |
+          set -euo pipefail
+          sdk_archive="$RUNNER_TEMP/MacOSX13.3.sdk.tar.xz"
+          curl -fsSL --retry 3 -o "$sdk_archive" "$MACOS_13_SDK_URL"
+          echo "$MACOS_13_SDK_SHA256  $sdk_archive" | shasum -a 256 -c -
+          tar -xJf "$sdk_archive" -C "$RUNNER_TEMP"
+          bun scripts/check-macos-sdk-symbols.ts --sdk "$RUNNER_TEMP/MacOSX13.3.sdk" --arch ${{ matrix.arch }} "$RESULTS/cef/installed" | tee "$RESULTS/sdk-symbols.txt"
+
+      - name: Keep the Linux probe builds for the Ubuntu 22.04 run
+        if: matrix.platform == 'linux'
+        run: tar -czf out/probe-linux-builds.tgz -C vendor/electrobun/probe build-cef artifacts-cef build-native artifacts-native
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: matrix.platform == 'linux'
+        with:
+          name: probe-linux-builds
+          path: out/probe-linux-builds.tgz
+          retention-days: 7
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: probe-${{ matrix.label }}
+          path: |
+            out/probe-results/${{ matrix.label }}
+            !out/probe-results/${{ matrix.label }}/*/installed
+          retention-days: 14
+
+  linux-floor:
+    name: Probe on Ubuntu 22.04
+    needs: probe
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      RESULTS: ${{ github.workspace }}/out/probe-results/ubuntu-22.04
+      DISPLAY: ":99"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: probe-linux-builds
+          path: out
+
+      - name: Linux display and webview runtime
+        run: bash vendor/electrobun/ci/linux-display.sh
+
+      - name: Unpack the Ubuntu 24.04-packaged probes
+        run: |
+          mkdir -p "$RESULTS"
+          tar -xzf out/probe-linux-builds.tgz -C vendor/electrobun/probe
+          { ldd --version | head -1; dpkg -s libwebkit2gtk-4.1-0 | grep '^Version'; } | tee "$RESULTS/runtime.txt"
+
+      - name: Run the probe with CEF on Ubuntu 22.04
+        run: |
+          bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-cef --artifacts vendor/electrobun/probe/artifacts-cef \
+            --out "$RESULTS/cef" --label ubuntu-22.04-cef --runs 3
+
+      - name: Run the probe with WebKitGTK on Ubuntu 22.04
+        run: |
+          bun scripts/electrobun-probe.ts --build vendor/electrobun/probe/build-native --artifacts vendor/electrobun/probe/artifacts-native \
+            --out "$RESULTS/native" --label ubuntu-22.04-native --runs 3
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: probe-ubuntu-22.04
+          path: |
+            out/probe-results/ubuntu-22.04
+            !out/probe-results/ubuntu-22.04/*/installed
+          retention-days: 14
