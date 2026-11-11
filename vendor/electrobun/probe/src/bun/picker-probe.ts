@@ -27,7 +27,9 @@ interface Cdp {
 async function connect(port: string, url: string): Promise<Cdp> {
   const deadline = Date.now() + STEP_MS
   while (Date.now() < deadline) {
-    const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as {
+    const response = await fetch(`http://127.0.0.1:${port}/json/list`)
+    if (!response.ok) throw new Error(`DevTools target list failed: HTTP ${response.status}`)
+    const targets = (await response.json()) as {
       type: string
       url: string
       webSocketDebuggerUrl?: string

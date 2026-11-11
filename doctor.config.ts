@@ -183,6 +183,19 @@ const config: DoctorConfig = {
         rules: ['react-doctor/no-json-parse-stringify-clone'],
       },
       {
+        // These round-trips stand for a JSON transport, not a deep clone. Electrobun's RPC
+        // socket and evaluate bridges carry packets as JSON text, so the structured-wire test
+        // and the fake webview must drop `undefined` and reject what JSON cannot carry, as the
+        // real wire does; structuredClone would keep both. The coverage index is read back
+        // from a JSON file, so its guard is proven against what JSON.parse returns.
+        files: [
+          'src/shared/__tests__/structured-wire.unit.test.ts',
+          'src/main/adapters/electrobun/__tests__/contracts/fake-electrobun-webview.ts',
+          'scripts/coverage-uniqueness/__tests__/coverage-uniqueness.unit.test.ts',
+        ],
+        rules: ['react-doctor/no-json-parse-stringify-clone'],
+      },
+      {
         // Every read here draws on one shared byte budget (`remainingBytes`), checked and
         // then decremented per file, so read order decides which file crosses the limit.
         // Reading the kinds concurrently would make the outcome depend on I/O timing.
