@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
     order,
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     acquireOwnership: vi.fn(async (_path: string) => ({ release: vi.fn(async () => undefined) })),
-    exit: vi.fn((_code: number) => void order.push('exit')),
+    exit: vi.fn((_code?: number) => void order.push('exit')),
     initializeRuntime: vi.fn(async () => undefined),
     initializeSettings: vi.fn(async () => void order.push('initialize-settings')),
     startErrorReporting: vi.fn(async (_process: string) => void order.push('start-reporting')),

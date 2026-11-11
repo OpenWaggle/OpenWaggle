@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import type { AppLifecycleShape } from '../ports/desktop-shell/app-lifecycle'
 import type { AppPathsShape } from '../ports/desktop-shell/app-paths'
 import type { BootShellShape } from '../ports/desktop-shell/boot-shell'
-import type { IpcInvocation, IpcMainTransportShape } from '../ports/desktop-shell/ipc-transport'
+import type { IpcMainTransportShape } from '../ports/desktop-shell/ipc-transport'
 import type { SystemIntegrationShape } from '../ports/desktop-shell/system-integration'
 
 /**
@@ -31,7 +31,16 @@ function listenerSet<L extends Listener>() {
   }
 }
 
-export function fakeAppLifecycle(overrides: Partial<AppLifecycleShape> = {}) {
+export interface FakeAppLifecycle extends AppLifecycleShape {
+  /** Runs the `onBeforeQuit` listeners; true when one of them held the quit. */
+  readonly emitBeforeQuit: () => boolean
+  readonly emitWillQuit: () => void
+  readonly emitWindowAllClosed: () => void
+  readonly emitActivate: () => void
+  readonly emitBeforeQuitForUpdate: () => void
+}
+
+export function fakeAppLifecycle(overrides: Partial<AppLifecycleShape> = {}): FakeAppLifecycle {
   const beforeQuit = listenerSet<Parameters<AppLifecycleShape['onBeforeQuit']>[0]>()
   const willQuit = listenerSet<() => void>()
   const windowAllClosed = listenerSet<() => void>()
@@ -59,7 +68,6 @@ export function fakeAppLifecycle(overrides: Partial<AppLifecycleShape> = {}) {
     ...overrides,
   } satisfies AppLifecycleShape
   return Object.assign(lifecycle, {
-    /** Runs the `onBeforeQuit` listeners; true when one of them held the quit. */
     emitBeforeQuit: () => {
       let held = false
       for (const listener of [...beforeQuit.listeners]) {
@@ -75,7 +83,7 @@ export function fakeAppLifecycle(overrides: Partial<AppLifecycleShape> = {}) {
   })
 }
 
-export function fakeAppPaths(userData = '/tmp/openwaggle-test-profile') {
+export function fakeAppPaths(userData = '/tmp/openwaggle-test-profile'): AppPathsShape {
   const paths = { userData, logs: `${userData}/logs` }
   return {
     applyBuildIdentity: vi.fn(),
@@ -92,7 +100,9 @@ export function fakeAppPaths(userData = '/tmp/openwaggle-test-profile') {
 
 const NO_UNSUBSCRIBE = () => undefined
 
-export function fakeSystemIntegration(overrides: Partial<SystemIntegrationShape> = {}) {
+export function fakeSystemIntegration(
+  overrides: Partial<SystemIntegrationShape> = {},
+): SystemIntegrationShape {
   return {
     requestSingleInstanceLock: () => true,
     hasSingleInstanceLock: () => true,
@@ -113,7 +123,7 @@ export function fakeSystemIntegration(overrides: Partial<SystemIntegrationShape>
 }
 
 /** The boot shim's view of the shell, from the same fakes. */
-export function fakeBootShell(overrides: Partial<BootShellShape> = {}) {
+export function fakeBootShell(overrides: Partial<BootShellShape> = {}): BootShellShape {
   const lifecycle = fakeAppLifecycle()
   const paths = fakeAppPaths()
   return {
@@ -129,15 +139,16 @@ export function fakeBootShell(overrides: Partial<BootShellShape> = {}) {
   } satisfies BootShellShape
 }
 
-type AnyHandler = (invocation: IpcInvocation, ...args: never[]) => unknown
+/** Any channel's handler or listener; a test calls it with that channel's arguments. */
+type AnyHandler = (...args: never) => unknown
 
 /** An IpcMainTransport that keeps each channel's handler, so a test can call it. */
 export function fakeIpcMainTransport() {
   const handlers = new Map<string, AnyHandler>()
   const listeners = new Map<string, AnyHandler[]>()
   const transport: IpcMainTransportShape = {
-    handle: (channel: string, handler: AnyHandler) => void handlers.set(channel, handler),
-    on: (channel: string, listener: AnyHandler) => {
+    handle: (channel, handler) => void handlers.set(channel, handler),
+    on: (channel, listener) => {
       listeners.set(channel, [...(listeners.get(channel) ?? []), listener])
     },
   }
