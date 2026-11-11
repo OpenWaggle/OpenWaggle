@@ -55,6 +55,7 @@ export function createUsageStatisticsEnablementState(input: {
 }): UsageStatisticsEnablementState {
   let settingEnabled: boolean | undefined
   let settingWithoutSettings: boolean | undefined
+  let settingsLoaded = false
   const listeners = new Set<UsageStatisticsEnablementListener>()
 
   // The build and environment never change while the process runs.
@@ -88,9 +89,16 @@ export function createUsageStatisticsEnablementState(input: {
     publishSetting: (next) => {
       change(() => {
         settingEnabled = next
+        // Once Settings loaded, the assumed value is gone for good: a snapshot that later
+        // becomes unknown again counts as off, not as the value assumed before.
+        if (next !== undefined) {
+          settingsLoaded = true
+          settingWithoutSettings = undefined
+        }
       })
     },
     publishSettingWithoutSettings: (next) => {
+      if (settingsLoaded) return
       change(() => {
         settingWithoutSettings = next
       })

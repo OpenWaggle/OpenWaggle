@@ -10,9 +10,10 @@
  * A file that is missing, unreadable or corrupt on an install that does have a store is unknown,
  * and unknown stays off.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { createLogger } from '../logger'
 import {
   legacySessionDatabasePath,
   sessionHostDatabasePath,
@@ -25,6 +26,8 @@ import {
 } from './usage-statistics-json-file'
 
 export const LAST_KNOWN_SETTING_FILE_NAME = 'last-known-setting.json'
+
+const logger = createLogger('usage-statistics')
 
 interface LastKnownSetting {
   readonly usageStatisticsEnabled: boolean | null
@@ -47,9 +50,19 @@ export function lastKnownSettingPath(userDataDirectory: string) {
  * Session Host only: saves the Setting each time the Host's authoritative Settings load or change.
  * Returns the unsubscribe function.
  */
+function readSaved(filePath: string) {
+  return readUsageStatisticsJsonFile({
+    filePath,
+    label: LAST_KNOWN_SETTING_FILE_NAME,
+    decode: decodeLastKnownSetting,
+    fallback: UNKNOWN,
+  }).usageStatisticsEnabled
+}
+
 export function recordLastKnownUsageStatisticsSetting(userDataDirectory: string): () => void {
+  const filePath = lastKnownSettingPath(userDataDirectory)
   const file = openUsageStatisticsJsonFile({
-    filePath: lastKnownSettingPath(userDataDirectory),
+    filePath,
     label: LAST_KNOWN_SETTING_FILE_NAME,
     decode: decodeLastKnownSetting,
     initial: UNKNOWN,
@@ -59,9 +72,26 @@ export function recordLastKnownUsageStatisticsSetting(userDataDirectory: string)
     const enabled = settings.usageStatisticsEnabled
     if (file.read().usageStatisticsEnabled === enabled) return
     file.update(() => ({ usageStatisticsEnabled: enabled }))
-    // Saved now rather than after the write delay: a Host that fails next must not lose it.
+    // Written now, not after the write delay: a Host that fails next must not lose it.
+    file.flushSync()
+    if (readSaved(filePath) === enabled) return
+    // Not saved, for example while antivirus holds the file. A stale "on" must never outlive
+    // the person turning statistics off, so remove it: no file on an install with a store is
+    // unknown, which is off. The write is retried in the background either way.
+    if (!enabled) removeStaleOn(filePath)
     file.flush().catch(() => undefined)
   })
+}
+
+function removeStaleOn(filePath: string) {
+  try {
+    rmSync(filePath, { force: true })
+  } catch (error) {
+    logger.warn('A stale Usage statistics Setting could not be removed', {
+      file: LAST_KNOWN_SETTING_FILE_NAME,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 /**
@@ -72,13 +102,8 @@ export function usageStatisticsSettingWithoutSettings(
   userDataDirectory: string,
   pathExists: (target: string) => boolean = existsSync,
 ): boolean | undefined {
-  const saved = readUsageStatisticsJsonFile({
-    filePath: lastKnownSettingPath(userDataDirectory),
-    label: LAST_KNOWN_SETTING_FILE_NAME,
-    decode: decodeLastKnownSetting,
-    fallback: UNKNOWN,
-  })
-  if (saved.usageStatisticsEnabled !== null) return saved.usageStatisticsEnabled
+  const saved = readSaved(lastKnownSettingPath(userDataDirectory))
+  if (saved !== null) return saved
   const neverKeptAStore =
     !pathExists(sessionHostDatabasePath(userDataDirectory)) &&
     !pathExists(legacySessionDatabasePath(userDataDirectory))

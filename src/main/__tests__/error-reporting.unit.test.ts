@@ -269,6 +269,18 @@ describe('main-process error reporting', () => {
     expect(lastKnown.record).not.toHaveBeenCalled()
   })
 
+  it('never saves the Setting from a Session Host that failed before Settings loaded', async () => {
+    state.enablement = { enabled: false, reason: 'settings-unavailable' }
+    state.lastKnownSetting = true
+    const host = await loadErrorReporting()
+
+    await host.reportStartupFailure(new Error('no ownership'), 'session-host')
+    await host.startErrorReporting('session-host')
+
+    expect(adapter.startSentryMainErrorReporter).toHaveBeenCalledOnce()
+    expect(lastKnown.record).not.toHaveBeenCalled()
+  })
+
   it('never acts on a saved Setting under a fixed opt-out', async () => {
     state.env = { DO_NOT_TRACK: '1' }
     state.enablement = { enabled: false, reason: 'do-not-track' }

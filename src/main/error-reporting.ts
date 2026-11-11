@@ -138,8 +138,6 @@ async function recordLastKnownSetting() {
 }
 
 async function beginErrorReporting(processKind: ErrorReportingProcess) {
-  // Not awaited: saving the Setting never delays or stops reporting.
-  if (processKind === 'session-host') void recordLastKnownSetting().catch(() => undefined)
   try {
     const enablement = await importUsageStatisticsEnablement()
     const current = enablement.currentUsageStatisticsEnablement()
@@ -156,7 +154,11 @@ async function beginErrorReporting(processKind: ErrorReportingProcess) {
  * same attempt. Never rejects.
  */
 export function startErrorReporting(processKind: ErrorReportingProcess): Promise<void> {
-  startup ??= beginErrorReporting(processKind)
+  if (startup) return startup
+  // Only a Host whose Settings loaded saves the Setting, so a Host that fails before then (and
+  // may not own the profile) never writes the file. Not awaited: it never delays reporting.
+  if (processKind === 'session-host') void recordLastKnownSetting().catch(() => undefined)
+  startup = beginErrorReporting(processKind)
   return startup
 }
 
@@ -171,7 +173,10 @@ export function startErrorReportingWithoutSettings(
   processKind: ErrorReportingProcess,
 ): Promise<void> {
   if (startup) return startup
-  if (fixedOptOutApplies()) return startErrorReporting(processKind)
+  if (fixedOptOutApplies()) {
+    startup = beginErrorReporting(processKind)
+    return startup
+  }
   startup = (async () => {
     try {
       const [enablement, lastKnown] = await Promise.all([

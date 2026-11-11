@@ -8,7 +8,15 @@
  * codes, and the `stage`, `exitCode`, `signalCode` and `win32Code` the Windows helpers set from
  * their own fixed diagnostics. Anything that does not match those shapes is left out, and the
  * original error is not attached: the summary is the whole report.
+ *
+ * A type name is kept only when it is built in or one of the app's own startup errors below. Like
+ * every other report (ADR 0045), an error class defined by code outside the app, such as a Pi
+ * extension the Session Host loads, becomes `Error`, because its name can name a private project.
  */
+import {
+  ERROR_REPORT_BUILT_IN_ERROR_TYPES,
+  NODE_ERROR_CODE_PATTERN,
+} from '@shared/error-reporting/error-report-rules'
 
 export type StartupFailureContext =
   /** The GUI's window is open and shows the startup error screen. */
@@ -24,9 +32,35 @@ const SUMMARY_NAMES: Readonly<Record<StartupFailureContext, string>> = {
   'session-host': 'SessionHostFatalError',
 }
 
+/** The Windows helpers' errors, the only ones whose stage and exit facts the summary reads. */
+const WINDOWS_HELPER_ERROR_TYPES: ReadonlySet<string> = new Set([
+  'WindowsUserOnlySecurityError',
+  'WindowsUserOnlySecurityTimeoutError',
+  'WindowsHeadlessLaunchError',
+])
+
+/** The app's own errors a Session Host or GUI startup can fail with, kept by name. */
+const STARTUP_ERROR_TYPES: ReadonlySet<string> = new Set([
+  ...WINDOWS_HELPER_ERROR_TYPES,
+  'LocalSessionClientTimeoutError',
+  'LocalSessionClientProtocolError',
+  'LocalSessionHostConnectionClosedError',
+  'LocalSessionHostUnavailableError',
+  'LocalSessionHostUpgradePendingError',
+  'GuiStartupRestartRequiredError',
+  'GuiSessionHostRetiredForUpgradeError',
+  'DesktopNativeQuarantinedError',
+  'DesktopNativeRecoveryError',
+  'DesktopNativeRecoveryUnavailableError',
+  'DesktopServiceAttachmentError',
+  'ProcessFileLockTimeoutError',
+  'McpMigrationSourceError',
+  'FilesystemWriteScopeError',
+  'ProfileCredentialPreparationError',
+])
+
 const MAX_CAUSE_DEPTH = 4
-const ERROR_TYPE_NAME = /^[A-Z][A-Za-z0-9]{0,63}$/u
-const NODE_ERROR_CODE = /^E[A-Z0-9_]{1,40}$/u
+const GENERIC_ERROR_TYPE = 'Error'
 const STAGE = /^[a-z][a-z0-9-]{0,39}$/u
 const SIGNAL = /^SIG[A-Z0-9]{1,10}$/u
 const MAX_SAFE_INTEGER_DIGITS = 11
@@ -47,14 +81,28 @@ function matching(value: unknown, pattern: RegExp) {
   return typeof value === 'string' && pattern.test(value) ? value : undefined
 }
 
-function errorFacts(error: Error) {
-  const facts = [matching(error.name, ERROR_TYPE_NAME) ?? 'Error']
-  const named: ReadonlyArray<readonly [string, string | undefined]> = [
-    ['code', matching(property(error, 'code'), NODE_ERROR_CODE)],
+function typeName(error: Error) {
+  const { name } = error
+  return ERROR_REPORT_BUILT_IN_ERROR_TYPES.has(name) || STARTUP_ERROR_TYPES.has(name)
+    ? name
+    : GENERIC_ERROR_TYPE
+}
+
+function helperFacts(error: Error): ReadonlyArray<readonly [string, string | undefined]> {
+  if (!WINDOWS_HELPER_ERROR_TYPES.has(error.name)) return []
+  return [
     ['stage', matching(property(error, 'stage'), STAGE)],
     ['exit', safeInteger(property(error, 'exitCode'))],
     ['signal', matching(property(error, 'signalCode'), SIGNAL)],
     ['win32', safeInteger(property(error, 'win32Code'))],
+  ]
+}
+
+function errorFacts(error: Error) {
+  const facts = [typeName(error)]
+  const named: ReadonlyArray<readonly [string, string | undefined]> = [
+    ['code', matching(property(error, 'code'), NODE_ERROR_CODE_PATTERN)],
+    ...helperFacts(error),
   ]
   for (const [key, value] of named) {
     if (value !== undefined) facts.push(`${key}=${value}`)

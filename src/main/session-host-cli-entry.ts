@@ -288,7 +288,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       logger.error('Session Host stopped on an unrecoverable error', {
         error: describeError(error),
       })
-      await reportStartupFailure(error, 'session-host')
+      void reportStartupFailure(error, 'session-host') // the bounded flush below waits for it
       process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
       await drainFileLogger().catch(() => undefined)
       await flushCliOutput().catch(() => undefined)

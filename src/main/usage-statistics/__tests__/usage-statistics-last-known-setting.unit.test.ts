@@ -10,6 +10,29 @@ const store = vi.hoisted(() => {
   return state
 })
 
+const fsFaults = vi.hoisted(() => ({ failRename: false }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    renameSync: (...args: Parameters<typeof actual.renameSync>) => {
+      if (fsFaults.failRename) throw Object.assign(new Error('busy'), { code: 'EBUSY' })
+      return actual.renameSync(...args)
+    },
+  }
+})
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    rename: async (...args: Parameters<typeof actual.rename>) => {
+      if (fsFaults.failRename) throw Object.assign(new Error('busy'), { code: 'EBUSY' })
+      return actual.rename(...args)
+    },
+  }
+})
+
 vi.mock('../../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }))
@@ -46,7 +69,26 @@ describe('last known Usage statistics Setting', () => {
     userData = await mkdtemp(path.join(tmpdir(), 'openwaggle-last-known-'))
   })
   afterEach(async () => {
+    fsFaults.failRename = false
     await rm(userData, { recursive: true, force: true })
+  })
+
+  it('saves the Setting before returning, so a Host that fails next still has it', () => {
+    recordLastKnownUsageStatisticsSetting(userData)
+    publish(false)
+
+    expect(usageStatisticsSettingWithoutSettings(userData, () => false)).toBe(false)
+  })
+
+  it('never leaves an earlier on behind when turning statistics off cannot be saved', () => {
+    recordLastKnownUsageStatisticsSetting(userData)
+    publish(true)
+    expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(true)
+
+    fsFaults.failRename = true
+    publish(false)
+
+    expect(usageStatisticsSettingWithoutSettings(userData, () => true)).toBe(undefined)
   })
 
   it('saves the Setting each time the Session Host loads or changes it', async () => {

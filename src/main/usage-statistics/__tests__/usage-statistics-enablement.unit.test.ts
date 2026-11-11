@@ -42,6 +42,11 @@ describe('Usage statistics enablement', () => {
     state.publishSetting(false)
     expect(state.current()).toEqual({ enabled: false, reason: 'setting' })
     expect(changes).toEqual([true, false])
+
+    // The assumed value never comes back once Settings loaded.
+    state.publishSetting(undefined)
+    state.publishSettingWithoutSettings(true)
+    expect(state.current()).toEqual({ enabled: false, reason: 'settings-unavailable' })
   })
 
   it('stays off when there is no saved Setting or it is off', () => {

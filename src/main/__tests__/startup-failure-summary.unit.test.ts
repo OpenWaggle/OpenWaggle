@@ -67,6 +67,23 @@ describe('Session Host startup failure summary', () => {
     expect(new StartupFailureSummary('gui-bootstrap', odd).message).toBe('gui-bootstrap: Error')
   })
 
+  it('reports an error class from code outside the app as Error, without its helper-like facts', () => {
+    const extension = Object.assign(new Error('billing failed'), {
+      name: 'AcmeInternalBillingError',
+      stage: 'charge',
+      exitCode: 7,
+      code: 'EACCES',
+    })
+    const spoofedType = Object.assign(new Error('x'), { name: 'TypeError', stage: 'read-input' })
+
+    expect(
+      new StartupFailureSummary('session-host', new Error('stopped', { cause: extension })).message,
+    ).toBe('session-host: Error <- Error code=EACCES')
+    expect(new StartupFailureSummary('session-host', spoofedType).message).toBe(
+      'session-host: TypeError',
+    )
+  })
+
   it('follows a restart wrapper’s failure and bounds the chain', () => {
     const restart = Object.assign(new Error('restart required'), {
       name: 'GuiStartupRestartRequiredError',
