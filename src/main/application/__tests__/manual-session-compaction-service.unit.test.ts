@@ -4,14 +4,12 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  cancelCompactionSessionRunMock,
   compactAgentSessionMock,
   hasAnyActiveRunMock,
   publishSessionHostEventMock,
   releaseWriterMock,
   reserveCompactionSessionWriterMock,
 } = vi.hoisted(() => ({
-  cancelCompactionSessionRunMock: vi.fn(),
   compactAgentSessionMock: vi.fn(),
   hasAnyActiveRunMock: vi.fn(() => false),
   publishSessionHostEventMock: vi.fn(),
@@ -20,7 +18,6 @@ const {
 }))
 
 vi.mock('../active-session-runs', () => ({
-  cancelCompactionSessionRun: cancelCompactionSessionRunMock,
   hasAnyActiveRun: hasAnyActiveRunMock,
   reserveCompactionSessionWriter: reserveCompactionSessionWriterMock,
 }))
@@ -31,10 +28,7 @@ vi.mock('../../session-host/session-host-events', () => ({
   publishSessionHostEvent: publishSessionHostEventMock,
 }))
 
-import {
-  executeManualSessionCompaction,
-  executeManualSessionCompactionCancellation,
-} from '../manual-session-compaction-service'
+import { executeManualSessionCompaction } from '../manual-session-compaction-service'
 
 const SESSION_ID = SessionId('session-compact')
 const MODEL = SupportedModelId('openai/gpt-5.5')
@@ -62,7 +56,6 @@ function runCompactionCommand(callerId?: string) {
 
 describe('manual Session compaction service', () => {
   beforeEach(() => {
-    cancelCompactionSessionRunMock.mockReset().mockReturnValue(false)
     compactAgentSessionMock.mockReset()
     hasAnyActiveRunMock.mockReset().mockReturnValue(false)
     publishSessionHostEventMock.mockReset()
@@ -104,25 +97,5 @@ describe('manual Session compaction service', () => {
     )
     expect(reserveCompactionSessionWriterMock).not.toHaveBeenCalled()
     expect(compactAgentSessionMock).not.toHaveBeenCalled()
-  })
-
-  it('cancels only the owner-side compaction registry for an authenticated GUI caller', async () => {
-    cancelCompactionSessionRunMock.mockReturnValue(true)
-
-    await expect(
-      Effect.runPromise(
-        executeManualSessionCompactionCancellation({
-          caller: { callerId: 'gui:local-user' },
-          payload: {
-            contract: 'local-compaction-cancel-v1',
-            request: { requestId: 'cancel-request', sessionId: SESSION_ID },
-          },
-        }),
-      ),
-    ).resolves.toEqual({
-      contract: 'local-compaction-cancel-v1',
-      response: { requestId: 'cancel-request', sessionId: SESSION_ID, cancelled: true },
-    })
-    expect(cancelCompactionSessionRunMock).toHaveBeenCalledWith(SESSION_ID)
   })
 })
