@@ -47,15 +47,29 @@ function field(value: unknown, key: PropertyKey): unknown {
 function vitestInternals() {
   const state = scope['__vitest_worker__']
   const mocker = scope['__vitest_mocker__']
-  const modules = field(field(state, 'evaluatedModules'), 'idToModuleMap')
+  const evaluated = field(state, 'evaluatedModules')
+  const graph = {
+    byId: field(evaluated, 'idToModuleMap'),
+    byUrl: field(evaluated, 'urlToIdModuleMap'),
+    byFile: field(evaluated, 'fileToModulesMap'),
+  }
   const reset = field(mocker, 'reset')
   const pending = field(field(mocker, 'constructor'), 'pendingIds')
-  if (!(modules instanceof Map) || typeof reset !== 'function' || !Array.isArray(pending)) {
+  const fetches = field(field(mocker, 'moduleRunner'), 'concurrentModuleNodePromises')
+  const { byId, byUrl, byFile } = graph
+  if (
+    !(byId instanceof Map) ||
+    !(byUrl instanceof Map) ||
+    !(byFile instanceof Map) ||
+    !(fetches instanceof Map) ||
+    typeof reset !== 'function' ||
+    !Array.isArray(pending)
+  ) {
     throw new Error(UNREACHABLE)
   }
   const filepath = field(state, 'filepath')
   return {
-    modules,
+    graph: { byId, byUrl, byFile, fetches },
     filepath: typeof filepath === 'string' ? filepath : undefined,
     resetMocks: () => {
       Reflect.apply(reset, mocker, [])
@@ -65,24 +79,76 @@ function vitestInternals() {
   }
 }
 
+interface ModuleGraph {
+  readonly byId: Map<unknown, unknown>
+  readonly byUrl: Map<unknown, unknown>
+  readonly byFile: Map<unknown, unknown>
+  /** The module runner's fetches in progress, by URL. */
+  readonly fetches: Map<unknown, unknown>
+}
+
+/** How long a file waits for the imports the previous file left running, at most. */
+const SETTLE_IMPORTS_MS = 2_000
+
+function isResettable(id: unknown, self: string): id is string {
+  return (
+    typeof id === 'string' && id !== self && !VITEST_MODULES.some((pattern) => pattern.test(id))
+  )
+}
+
+function importsInProgress({ byId, fetches }: ModuleGraph, self: string) {
+  const running: unknown[] = [...fetches.values()]
+  for (const [id, node] of byId) {
+    if (isResettable(id, self) && field(node, 'evaluated') === false) {
+      running.push(field(node, 'promise'))
+    }
+  }
+  return running.filter((value) => value instanceof Promise)
+}
+
 /**
- * Leaves every module to be fetched and evaluated again. A module the previous file mocked keeps
- * that mock in its fetched metadata, so without a new fetch the previous file's factory would
- * answer this file's import of a module it mocks differently or automocks.
+ * Waits, for a bounded time, for the imports the previous file started and did not await (a lazy
+ * component, a fire-and-forget `import()`). One that ends after the reset would evaluate against
+ * this file's mock registry and put its module back in the graph, where this file's import of it
+ * would find it already evaluated.
  */
-function resetModules(modules: Map<unknown, unknown>) {
-  const self = new URL(import.meta.url).pathname
-  for (const [id, node] of modules) {
-    if (typeof id !== 'string' || typeof node !== 'object' || node === null) continue
-    if (id === self || VITEST_MODULES.some((pattern) => pattern.test(id))) continue
-    Reflect.set(node, 'promise', undefined)
-    Reflect.set(node, 'exports', undefined)
-    Reflect.set(node, 'evaluated', false)
-    Reflect.set(node, 'mockedExports', undefined)
-    // Fetched again: a mocked module's metadata names the previous file's mock, and no code.
-    Reflect.set(node, 'meta', undefined)
-    const importers = field(node, 'importers')
-    if (importers instanceof Set) importers.clear()
+async function settleImports(graph: ModuleGraph, self: string) {
+  const deadline = Date.now() + SETTLE_IMPORTS_MS
+  let running = importsInProgress(graph, self)
+  while (running.length > 0 && Date.now() < deadline) {
+    const remaining = deadline - Date.now()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      Promise.allSettled(running),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, remaining)
+      }),
+    ])
+    clearTimeout(timer)
+    // An import that ended may have started others.
+    running = importsInProgress(graph, self)
+  }
+}
+
+/**
+ * Drops every module from the graph, so this file fetches and evaluates each one again into a new
+ * node. Vitest resets the nodes in place between the files of an isolated worker, which is not
+ * enough here: an import the previous file left running (a lazy component, a mock factory) ends
+ * later and writes its exports, bound to that file's mocks, into the node it started with. A mocked
+ * module's fetched metadata also names the previous file's mock.
+ */
+function resetModules({ byId, byUrl, byFile }: ModuleGraph, self: string) {
+  const dropped = new Set<unknown>()
+  for (const [id, node] of byId) {
+    if (!isResettable(id, self)) continue
+    byId.delete(id)
+    dropped.add(node)
+  }
+  for (const [url, node] of byUrl) if (dropped.has(node)) byUrl.delete(url)
+  for (const [file, nodes] of byFile) {
+    if (!(nodes instanceof Set)) continue
+    for (const node of dropped) nodes.delete(node)
+    if (nodes.size === 0) byFile.delete(file)
   }
 }
 
@@ -102,10 +168,13 @@ function keepGlobal(key: PropertyKey) {
   return key === BASELINE || (typeof key === 'string' && key.startsWith('__vitest'))
 }
 
-const { modules, filepath, resetMocks } = vitestInternals()
+const self = new URL(import.meta.url).pathname
+const { graph, filepath, resetMocks } = vitestInternals()
 const baseline = scope[BASELINE]
 if (isWorkerProcessBaseline(baseline)) {
   vi.useRealTimers()
+  // Before the timers the previous file left are cleared, as its imports may wait on them.
+  await settleImports(graph, self)
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   restoreWorkerProcess(baseline, keepGlobal)
@@ -114,6 +183,6 @@ if (isWorkerProcessBaseline(baseline)) {
   scope[BASELINE] = captureWorkerProcessBaseline()
 }
 resetMocks()
-resetModules(modules)
+resetModules(graph, self)
 // Vitest sets the global expect's test path once per worker.
 if (filepath !== undefined) expect.setState({ testPath: filepath })

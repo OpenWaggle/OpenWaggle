@@ -23,6 +23,11 @@ export const label = 'real'
   return 'real'
 }
 `,
+  'flavour.ts': `export const flavour = 'real'
+`,
+  'consumer.ts': `import { flavour } from './flavour'
+export const seen = flavour
+`,
   'a-dirty.test.ts': `import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { appendFileSync } from 'node:fs'
@@ -32,6 +37,7 @@ import { bump, label } from './module-state'
 import * as automocked from './automocked'
 vi.mock('./module-state', async (importOriginal) => ({ ...(await importOriginal<object>()), label: 'mocked' }))
 vi.mock('./automocked', () => ({ other: 1 }))
+vi.mock('./flavour', () => ({ flavour: 'dirty' }))
 it('dirties the worker', () => {
   expect(Reflect.get(automocked, 'other')).toBe(1)
   appendFileSync(process.env.PID_LOG!, process.pid + '\\n')
@@ -43,6 +49,8 @@ it('dirties the worker', () => {
   Reflect.set(EventEmitter.prototype, 'on', () => 'patched')
   process.on('beforeExit', () => undefined)
   process.exitCode = 3
+  // An import left running, which ends after this file does.
+  void import('./consumer')
   vi.useFakeTimers()
 })
 `,
@@ -52,7 +60,10 @@ import { appendFileSync } from 'node:fs'
 import { bump, label } from './module-state'
 import { flush } from './automocked'
 vi.mock('./automocked')
-it('starts from what a fresh worker gives', () => {
+vi.mock('./flavour', () => ({ flavour: 'clean' }))
+it('starts from what a fresh worker gives', async () => {
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  const { seen } = await import('./consumer')
   appendFileSync(process.env.PID_LOG!, process.pid + '\\n')
   expect({
     count: bump(),
@@ -65,7 +76,8 @@ it('starts from what a fresh worker gives', () => {
     fakeTimers: vi.isFakeTimers(),
     exitCode: process.exitCode ?? 0,
     automocked: vi.isMockFunction(flush),
-  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0, automocked: true })
+    seen,
+  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0, automocked: true, seen: 'clean' })
   process.exitCode = 0
 })
 `,
