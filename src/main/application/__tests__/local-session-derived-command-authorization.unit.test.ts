@@ -39,41 +39,40 @@ function derivedCaller(input: {
 }
 
 describe('Local Session derived command authorization', () => {
-  it('accepts an exact child grant outside the profile base capability and scope', async () => {
-    await expect(
-      Effect.runPromise(
-        authorizeLocalSessionCommand({
-          caller: derivedCaller({
-            baseCapabilities: ['sessions:discover'],
-            derivedCapabilities: ['sessions:read'],
-            expandedProfileScope: true,
-          }),
-          payload: queryPayload({ operation: 'read', sessionId: 'session-worker' }),
-        }).pipe(Effect.provide(authorizationLayer)),
-      ),
-    ).resolves.toBeUndefined()
-  })
-
   it.each([
-    queryPayload({ operation: 'items', sessionId: 'session-worker', limit: 10 }),
-    queryPayload({
-      operation: 'wait',
-      targets: [{ sessionId: 'session-worker', condition: 'idle' }],
-      timeoutMs: 100,
-    }),
-  ])('jointly authorizes an exact derived read target for %#', async (payload) => {
-    await expect(
-      Effect.runPromise(
-        authorizeLocalSessionCommand({
-          caller: derivedCaller({
-            baseCapabilities: ['sessions:discover'],
-            derivedCapabilities: ['sessions:read'],
-          }),
-          payload,
-        }).pipe(Effect.provide(authorizationLayer)),
-      ),
-    ).resolves.toBeUndefined()
-  })
+    {
+      payload: queryPayload({ operation: 'read', sessionId: 'session-worker' }),
+      expandedProfileScope: true,
+    },
+    {
+      payload: queryPayload({ operation: 'items', sessionId: 'session-worker', limit: 10 }),
+      expandedProfileScope: false,
+    },
+    {
+      payload: queryPayload({
+        operation: 'wait',
+        targets: [{ sessionId: 'session-worker', condition: 'idle' }],
+        timeoutMs: 100,
+      }),
+      expandedProfileScope: false,
+    },
+  ])(
+    'jointly authorizes an exact derived read target outside the base capability for %#',
+    async ({ payload, expandedProfileScope }) => {
+      await expect(
+        Effect.runPromise(
+          authorizeLocalSessionCommand({
+            caller: derivedCaller({
+              baseCapabilities: ['sessions:discover'],
+              derivedCapabilities: ['sessions:read'],
+              expandedProfileScope,
+            }),
+            payload,
+          }).pipe(Effect.provide(authorizationLayer)),
+        ),
+      ).resolves.toBeUndefined()
+    },
+  )
 
   it('jointly authorizes an exact derived control target', async () => {
     await expect(

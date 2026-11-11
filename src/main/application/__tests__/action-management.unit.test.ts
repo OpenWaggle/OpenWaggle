@@ -79,23 +79,29 @@ describe('native action management authority', () => {
     return { run, start, read, getBound, preparationRead, inspectWorkspaceGeneration }
   }
 
-  it('restores cleanup failures without a Session while isolating other projects', async () => {
-    const test = fixture()
-    await expect(
-      test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
-    ).resolves.toMatchObject({
-      type: 'retained-preparation',
-      workspaces: [
-        { path: root, preparation: { workspaceId: 'retained', cleanup: { status: 'failed' } } },
-      ],
-    })
-    expect(test.preparationRead).toHaveBeenCalledOnce()
-    expect(test.preparationRead).toHaveBeenCalledWith({
-      workspaceId: 'retained',
-      projectPath: root,
-      workspacePath: root,
-    })
-  })
+  it.each(['failed', 'succeeded'] as const)(
+    'restores a checkout retained after %s cleanup without a Session while isolating other projects',
+    async (status) => {
+      const test = fixture()
+      test.preparationRead.mockReturnValue(
+        Effect.succeed(
+          fromPartial<WorkspacePreparation>({ workspaceId: 'retained', cleanup: { status } }),
+        ),
+      )
+      await expect(
+        test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
+      ).resolves.toMatchObject({
+        type: 'retained-preparation',
+        workspaces: [{ path: root, preparation: { workspaceId: 'retained', cleanup: { status } } }],
+      })
+      expect(test.preparationRead).toHaveBeenCalledOnce()
+      expect(test.preparationRead).toHaveBeenCalledWith({
+        workspaceId: 'retained',
+        projectPath: root,
+        workspacePath: root,
+      })
+    },
+  )
 
   const pinnedCleanup = fromPartial<WorkspacePreparation['snapshot']['definitions'][number]>({
     definition: { id: 'cleanup', profileId: 'default', phase: 'cleanup' },
@@ -180,24 +186,6 @@ describe('native action management authority', () => {
     expect(row).toMatchObject({ path: root, preparation: { cleanup: { status: 'skipped' } } })
     expect(row).not.toHaveProperty('generationMismatch')
     expect(row).not.toHaveProperty('generationMismatchMessage')
-  })
-
-  it('retains a checkout after successful cleanup when Git removal did not finish', async () => {
-    const test = fixture()
-    test.preparationRead.mockReturnValue(
-      Effect.succeed(
-        fromPartial<WorkspacePreparation>({
-          workspaceId: 'retained',
-          cleanup: { status: 'succeeded' },
-        }),
-      ),
-    )
-
-    await expect(
-      test.run({ scope: { projectPath: root }, operation: { type: 'retained-preparation' } }),
-    ).resolves.toMatchObject({
-      workspaces: [{ path: root, preparation: { cleanup: { status: 'succeeded' } } }],
-    })
   })
 
   it('reads project settings without requiring a Session, but cannot run outside a binding', async () => {

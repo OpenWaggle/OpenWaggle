@@ -185,33 +185,21 @@ describe('explicit Waggle command lifecycle', () => {
     expect(releaseLease).toHaveBeenCalledOnce()
   })
 
-  it('runs with the Session model durable at Run start, like a classic Run', async () => {
+  it('waits for an interrupted classic writer, then runs with the Session model durable at Run start', async () => {
     const switchedModel = SupportedModelId('anthropic/claude-sonnet-4-5')
     const classic = reserveActiveSessionRun(SESSION_ID, 'classic-run')
     sessionDetailMock.mockReturnValue(Effect.succeed({ executionModel: switchedModel }))
     const running = runWaggleCommand()
     await vi.waitFor(() => expect(classic.controller.signal.aborted).toBe(true))
     expect(sessionDetailMock).not.toHaveBeenCalled()
-
-    classic.release()
-    await expect(running).resolves.toMatchObject({ contract: 'session-waggle-v1' })
-    expect(sessionDetailMock).toHaveBeenCalledWith(SESSION_ID)
-    expect(executeWaggleRunMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: switchedModel }),
-    )
-  })
-
-  it('waits for an interrupted classic writer before running explicit Waggle', async () => {
-    const classic = reserveActiveSessionRun(SESSION_ID, 'classic-run')
-    const running = runWaggleCommand()
-    await vi.waitFor(() => expect(classic.controller.signal.aborted).toBe(true))
     expect(executeWaggleRunMock).not.toHaveBeenCalled()
 
     classic.release()
     await expect(running).resolves.toMatchObject({ contract: 'session-waggle-v1' })
+    expect(sessionDetailMock).toHaveBeenCalledWith(SESSION_ID)
     expect(executeWaggleRunMock).toHaveBeenCalledOnce()
     expect(executeWaggleRunMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: SupportedModelId('openai/gpt-5.4') }),
+      expect.objectContaining({ model: switchedModel }),
     )
   })
 
