@@ -1,5 +1,5 @@
 {
-  "$comment": "Stable rule IDs cited by .agents/standards.md, lint output, the agent gate and reviews. Never renumber or reuse an ID; retire one by setting \"retired\": true. \"by\" lists what enforces a rule: a lint rule name, gate:<check> (scripts/agent-gate), standards:<check> (check:repository-standards), check:<script>, react-doctor, fallow, or review (people and the standards-reviewer Agent).",
+  "$comment": "Stable rule IDs, cited wherever a rule is enforced. Never renumber or reuse an ID; retire one by setting \"retired\": true. \"by\" lists what enforces a rule: a lint rule name, gate:<check> (scripts/agent-gate), standards:<check> (check:repository-standards), check:<script>, react-doctor, fallow, or review (people and the standards-reviewer Agent).",
   "rules": {
     "TS-01": {"rule": "Keep TypeScript strict with the strongest practical flags; never turn a strict flag off or widen an include to dodge errors.", "by": ["gate:tsconfig", "review"]},
     "TS-02": {"rule": "No raw type assertions except `as const`.", "by": ["typescript/consistent-type-assertions", "typescript/no-unsafe-type-assertion", "typescript/no-unnecessary-type-assertion"]},
@@ -9,7 +9,7 @@
     "TS-06": {"rule": "Validate runtime inputs at boundaries with the Effect Schema helpers in src/shared/schema.ts and src/shared/schemas/.", "by": ["review"]},
     "TS-07": {"rule": "No silent parse fallbacks; log structured context or surface a visible error.", "by": ["review"]},
     "TS-08": {"rule": "No inline suppressions: eslint-disable, oxlint-disable, biome-ignore, fallow-ignore, @ts-ignore, @ts-expect-error, @ts-nocheck. Fix the code or the shared config.", "by": ["openwaggle/no-lint-directive-comments", "openwaggle/no-architecture-ignore-comments", "typescript/ban-ts-comment", "gate:suppressions"]},
-    "TS-09": {"rule": "Prefer @diegogbrisa/ts-match for multi-branch discriminant logic, shape guards and boundary assertions; keep plain TypeScript for simple guards.", "by": ["ts-match/prefer-match-over-switch", "ts-match/prefer-match-over-else-if", "review"]},
+    "TS-09": {"rule": "Prefer @diegogbrisa/ts-match for multi-branch discriminants, shape guards and boundary assertions; plain TypeScript for simple guards.", "by": ["ts-match/prefer-match-over-switch", "ts-match/prefer-match-over-else-if", "review"]},
     "TS-10": {"rule": "Avoid inline `import()` types; import types at the top of the file.", "by": ["openwaggle/no-inline-import-types"]},
     "ARCH-01": {"rule": "Main-process domain code is pure: no Electron, Node fs/process, SQL, Pi SDK or store imports.", "by": ["openwaggle/main-architecture-boundaries"]},
     "ARCH-02": {"rule": "Ports are Effect service interfaces with no vendor SDKs or stores.", "by": ["openwaggle/main-architecture-boundaries", "review"]},
@@ -34,7 +34,7 @@
     "SHELL-03": {"rule": "Native modules keep separate Node and desktop-runtime rebuild paths; packaging-only bugs are verified in a packaged build.", "by": ["review"]},
     "SHELL-04": {"rule": "Main-process code logs through structured loggers, not raw console.* outside logger modules.", "by": ["review"]},
     "SHELL-05": {"rule": "Automated runs route window show/focus, native dialogs and external applications through the automation policy.", "by": ["standards:electron-automation"]},
-    "SHELL-06": {"rule": "Only src/main/adapters/electron/ and the preload transport import Electron packages; main code reaches the shell through the desktop shell ports.", "by": ["openwaggle/desktop-shell-boundary"]},
+    "SHELL-06": {"rule": "Only src/main/adapters/electron/ and the preload transport import Electron; other code uses the desktop shell ports.", "by": ["openwaggle/desktop-shell-boundary"]},
     "REACT-01": {"rule": "No React.memo, React.FC or forwardRef; the React Compiler handles memoization.", "by": ["openwaggle/no-react-legacy-patterns"]},
     "REACT-02": {"rule": "useMemo and useCallback only for identity an external API needs, not render optimization.", "by": ["react-doctor", "review"]},
     "REACT-03": {"rule": "Prefer focused Zustand selectors and feature-owned hooks over prop-drilled controller objects.", "by": ["openwaggle/jsx-max-props", "review"]},
@@ -54,7 +54,7 @@
     "TOOL-05": {"rule": "Code is formatted by oxfmt (.oxfmtrc.json).", "by": ["gate:format", "check:lint"]},
     "TOOL-06": {"rule": "Use Bun only: bun install, bun run, bunx. No npm, pnpm, yarn or tsx.", "by": ["review"]},
     "TOOL-07": {"rule": "Change generated files only through their generator command.", "by": ["gate:generated"]},
-    "TOOL-08": {"rule": "Keep functions, files and branching small: the complexity, max-lines and naming limits in oxlint.config.mts.", "by": ["complexity", "max-lines", "max-lines-per-function", "openwaggle/function-name-convention", "openwaggle/prefer-inferred-internal-return-types", "openwaggle/no-for-each"]},
+    "TOOL-08": {"rule": "Keep functions, files and branching within the limits in oxlint.config.mts.", "by": ["complexity", "max-lines", "max-lines-per-function", "openwaggle/function-name-convention", "openwaggle/prefer-inferred-internal-return-types", "openwaggle/no-for-each"]},
     "TOOL-09": {"rule": "A vendored skill is pinned in skills-lock.json; record each edit with its reason through scripts/skills-lock.ts.", "by": ["standards:skills-lock"]},
     "TOOL-10": {"rule": "Promise, `this`, stringify, spread and throw bugs fail lint (STRICT_RULES in oxlint.config.mts).", "by": ["typescript/no-floating-promises", "typescript/no-misused-promises", "typescript/unbound-method", "typescript/no-base-to-string", "typescript/only-throw-error"]},
     "TOOL-11": {"rule": "One spelling for type definitions, array types, optional chains and multi-line bodies.", "by": ["typescript/consistent-type-definitions", "typescript/array-type", "typescript/prefer-optional-chain", "curly"]},

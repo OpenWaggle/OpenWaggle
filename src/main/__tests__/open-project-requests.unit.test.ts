@@ -33,8 +33,9 @@ function fakeHost(lockGranted: boolean) {
     },
   }
   const launchAgain = (data: unknown) => {
-    for (const listener of listeners)
+    for (const listener of listeners) {
       listener({ argv: [], workingDirectory: root, additionalData: data })
+    }
   }
   return { host, lockData, launchAgain, listeners }
 }

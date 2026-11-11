@@ -1,8 +1,6 @@
 {
   "curly": {
     "src/main/__tests__/access-cli-staged-cleanup.unit.test.ts": 1,
-    "src/main/__tests__/browser-preview-recording-request-broker.unit.test.ts": 2,
-    "src/main/__tests__/browser-preview-reliability-lifecycle.unit.test.ts": 3,
     "src/main/__tests__/desktop-shell-environment-cache-refresh.unit.test.ts": 1,
     "src/main/__tests__/gui-desktop-services-recovery.unit.test.ts": 1,
     "src/main/__tests__/schedules-cli-machine-output.unit.test.ts": 1,
@@ -15,6 +13,12 @@
     "src/main/adapters/__tests__/sqlite-worker-run-settlement-admission.unit.test.ts": 1,
     "src/main/adapters/__tests__/usage-statistics-recorder-live.integration.test.ts": 1,
     "src/main/adapters/__tests__/workspace-file-watcher-native.integration.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-recording-request-broker.unit.test.ts": 2,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-reliability-lifecycle.unit.test.ts": 3,
+    "src/main/adapters/electron/browser-preview/browser-preview-automation-input-arbitration.ts": 2,
+    "src/main/adapters/electron/browser-preview/browser-preview-automation-page-actions.ts": 2,
+    "src/main/adapters/electron/browser-preview/browser-preview-context-menu.ts": 1,
+    "src/main/adapters/electron/browser-preview/browser-preview-record-registry.ts": 3,
     "src/main/adapters/git/worktree-failures.ts": 1,
     "src/main/adapters/git/worktree-membership.ts": 1,
     "src/main/adapters/git/worktree.ts": 2,
@@ -127,10 +131,6 @@
     "src/main/application/session-resource-extraction.ts": 1,
     "src/main/application/session-resource-markdown-extraction.ts": 1,
     "src/main/application/settings-operations.ts": 1,
-    "src/main/browser-preview-automation-input-arbitration.ts": 2,
-    "src/main/browser-preview-automation-page-actions.ts": 2,
-    "src/main/browser-preview-context-menu.ts": 1,
-    "src/main/browser-preview-record-registry.ts": 3,
     "src/main/command-cli-option-contract.ts": 2,
     "src/main/config/project-source-control-config.ts": 1,
     "src/main/desktop-shell-environment.ts": 1,
@@ -355,7 +355,6 @@
     "src/renderer/src/features/diff-panel/hooks/useProgressiveCodeViewItems.ts": 1
   },
   "typescript/array-type": {
-    "src/main/__tests__/browser-preview-element-picker.unit.test.ts": 1,
     "src/main/__tests__/cli-output-flush.unit.test.ts": 1,
     "src/main/__tests__/cli-stdout.unit.test.ts": 1,
     "src/main/__tests__/inline-visualization-host-runtime.test-harness.ts": 9,
@@ -404,6 +403,9 @@
     "src/main/adapters/__tests__/sqlite-session-transcript-semantic-search.unit.test.ts": 1,
     "src/main/adapters/__tests__/sqlite-session-transcript-semantic-storage.unit.test.ts": 1,
     "src/main/adapters/__tests__/sqlite-session-turn-query.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-element-picker.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/browser-preview-automation-session.ts": 1,
+    "src/main/adapters/electron/browser-preview/browser-preview-records.ts": 2,
     "src/main/adapters/mcp/config/mcp-write-refusal.ts": 1,
     "src/main/adapters/mcp/pool/mcp-upstream-slot.ts": 1,
     "src/main/adapters/pi/__tests__/agent-run-context-prompt-cache.integration.test.ts": 1,
@@ -467,8 +469,6 @@
     "src/main/application/host-background-gate.ts": 1,
     "src/main/application/session-resource-image-positions.ts": 4,
     "src/main/boot/__tests__/main-compile-cache.unit.test.ts": 3,
-    "src/main/browser-preview-automation-session.ts": 1,
-    "src/main/browser-preview-records.ts": 2,
     "src/main/detached-process.ts": 1,
     "src/main/extension-frame-protocol.ts": 1,
     "src/main/ipc/__tests__/agent-background-run-handler.unit.test.ts": 1,
@@ -525,7 +525,7 @@
     "src/main/adapters/mcp/migration/migration-record.ts": 1
   },
   "typescript/consistent-indexed-object-style": {
-    "src/main/__tests__/browser-preview-test-harness.ts": 2,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-test-harness.ts": 2,
     "src/main/adapters/pi/agent-kernel/session-projection.ts": 1,
     "src/main/adapters/pi/json-schema-object.ts": 2,
     "src/main/adapters/pi/pi-session-file-prefix.ts": 8,
@@ -554,7 +554,7 @@
     "src/main/domain/mcp/config/mcp-server-entry-validation.ts": 1,
     "src/main/domain/usage-statistics/usage-statistics-observations.ts": 1,
     "src/main/openwaggle-mcp-session-input-types-v2.ts": 1,
-    "src/main/security/electron-security.ts": 1,
+    "src/main/security/web-security-policy.ts": 1,
     "src/main/store/settings/settings-patch-writes.ts": 1,
     "src/renderer/src/features/chat/components/AssistantMessageBubble.tsx": 1,
     "src/renderer/src/features/chat/components/__tests__/SessionsToolRows.component.test.tsx": 1,
@@ -572,7 +572,8 @@
     "src/shared/types/terminal.ts": 1
   },
   "typescript/no-base-to-string": {
-    "src/main/__tests__/browser-preview-automation-page-actions.unit.test.ts": 3,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 3,
+    "src/main/adapters/electron/browser-preview/browser-preview-automation-diagnostics.ts": 2,
     "src/main/adapters/extensions/__tests__/github-issues-fixture-runtime.unit.test.ts": 1,
     "src/main/adapters/mcp/import/import-normalization.ts": 1,
     "src/main/adapters/mcp/runtime/websocket-transport.ts": 1,
@@ -583,7 +584,6 @@
     "src/main/adapters/pi/pi-message-mapper.ts": 1,
     "src/main/adapters/pi/sessions-tool-help.ts": 1,
     "src/main/adapters/project-actions/__tests__/action-workspace-environment.unit.test.ts": 2,
-    "src/main/browser-preview-automation-diagnostics.ts": 2,
     "src/main/openwaggle-mcp-session-options-v2.ts": 1,
     "src/main/services/__tests__/hive-tool-name-migration.unit.test.ts": 1,
     "src/main/session-host/local-session-server-frame.ts": 1,
@@ -597,14 +597,14 @@
     "src/main/application/extension-lifecycle-model.ts": 2
   },
   "typescript/no-floating-promises": {
-    "src/main/__tests__/browser-preview-close.unit.test.ts": 1,
-    "src/main/__tests__/browser-preview-controls-security.unit.test.ts": 1,
-    "src/main/__tests__/browser-preview-reliability-lifecycle.unit.test.ts": 2,
-    "src/main/__tests__/browser-preview-selection-readiness.unit.test.ts": 1,
-    "src/main/__tests__/browser-preview-viewport-lifecycle.unit.test.ts": 7,
-    "src/main/__tests__/browser-preview.unit.test.ts": 1,
     "src/main/__tests__/updater.unit.test.ts": 1,
-    "src/main/adapters/__tests__/electron-browser-preview-automation-service.unit.test.ts": 3,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-close.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-controls-security.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-reliability-lifecycle.unit.test.ts": 2,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-selection-readiness.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-viewport-lifecycle.unit.test.ts": 7,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 3,
     "src/main/adapters/pi/__tests__/agent-run-context-extension.unit.test.ts": 2,
     "src/main/adapters/pi/__tests__/agent-run-identity-waggle.unit.test.ts": 1,
     "src/main/adapters/pi/__tests__/available-agents-prompt.unit.test.ts": 1,
@@ -668,10 +668,10 @@
     "src/renderer/src/features/terminal/components/TerminalPane.tsx": 1
   },
   "typescript/no-misused-promises": {
-    "src/main/__tests__/browser-preview-picture-in-picture.unit.test.ts": 2,
-    "src/main/adapters/__tests__/electron-browser-preview-automation-service.unit.test.ts": 2,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-picture-in-picture.unit.test.ts": 2,
+    "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 2,
+    "src/main/adapters/electron/browser-preview/browser-preview-element-picker.ts": 1,
     "src/main/adapters/pi/__tests__/pi-session-title-virtual-model.integration.test.ts": 1,
-    "src/main/browser-preview-element-picker.ts": 1,
     "src/main/ipc/__tests__/attachments-handler.test-harness.ts": 8,
     "src/main/ipc/__tests__/git-handler-stacked-destination-gates.unit.test.ts": 1,
     "src/main/ipc/follow-up-edit-hold-window-leases.ts": 1,
@@ -707,7 +707,7 @@
     "src/shared/utils/altgraph-character.ts": 1
   },
   "typescript/no-redundant-type-constituents": {
-    "src/main/__tests__/browser-preview-automation-page-actions.unit.test.ts": 1,
+    "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 1,
     "src/main/adapters/terminal/__tests__/terminal-pty-runner-test-harness.ts": 1,
     "src/main/application/local-session-profile-narrowing.ts": 1,
     "src/main/gui-runtime.ts": 1,
@@ -862,6 +862,9 @@
     "src/main/adapters/workspace-language-detection.ts": 1
   },
   "typescript/prefer-optional-chain": {
+    "src/main/adapters/electron/browser-preview/browser-preview-annotation-attachment.ts": 1,
+    "src/main/adapters/electron/browser-preview/browser-preview-automation-validation.ts": 2,
+    "src/main/adapters/electron/browser-preview/browser-preview-replacement.ts": 1,
     "src/main/adapters/mcp/config/mcp-config-file-edit.ts": 1,
     "src/main/adapters/pi/mcp/mcp-sign-in-page.ts": 1,
     "src/main/adapters/pi/pi-session-file-prefix.ts": 1,
@@ -877,9 +880,6 @@
     "src/main/adapters/terminal/terminal-service-actions.ts": 1,
     "src/main/application/desktop-notifications/desktop-notification-observer.ts": 1,
     "src/main/application/scheduled-task-heartbeat-commands.ts": 1,
-    "src/main/browser-preview-annotation-attachment.ts": 1,
-    "src/main/browser-preview-automation-validation.ts": 2,
-    "src/main/browser-preview-replacement.ts": 1,
     "src/main/domain/session-control/follow-up-adopt.ts": 1,
     "src/main/domain/session-control/run-lifecycle.ts": 1,
     "src/main/ipc/git/push-service.ts": 1,
@@ -928,11 +928,11 @@
     "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-registration.component.test.tsx": 1
   },
   "typescript/return-await": {
+    "src/main/adapters/electron/browser-preview/browser-preview-favicon-capture.ts": 1,
     "src/main/adapters/extensions/discovery.ts": 1,
     "src/main/adapters/filesystem-workspace-file-service.ts": 1,
     "src/main/adapters/pi/agent-kernel/run-lifecycle.ts": 1,
     "src/main/adapters/project-actions/managed-workspace-preparation.ts": 1,
-    "src/main/browser-preview-favicon-capture.ts": 1,
     "src/main/extension-runtime-protocol.ts": 1,
     "src/main/run-cli.ts": 1,
     "src/main/session-host/profile-credential-destination-support.ts": 1
@@ -990,7 +990,7 @@
     "src/main/application/extension-capability-broker-runtime.ts": 1,
     "src/main/application/skill-operations.ts": 1,
     "src/main/auth/index.ts": 1,
-    "src/main/security/electron-security.ts": 1,
+    "src/main/security/web-security-policy.ts": 1,
     "src/main/store/settings.ts": 1,
     "src/renderer/src/features/settings/state/project-preference-writes.ts": 1,
     "src/renderer/src/shared/lib/markdown-safety.tsx": 2

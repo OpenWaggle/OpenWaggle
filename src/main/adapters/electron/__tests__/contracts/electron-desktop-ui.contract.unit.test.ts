@@ -10,9 +10,7 @@ import { prepareElectronShell } from './electron-shell'
 /** One test per contract case, each against a freshly prepared Electron shell. */
 function runContract<Harness>(contract: PortContract<Harness>, setup: () => Promise<Harness>) {
   describe(`${contract.port} contract (Electron)`, () => {
-    for (const [title, check] of Object.entries(contract.cases)) {
-      it(title, async () => check(await setup()))
-    }
+    it.for(Object.entries(contract.cases))('%s', async ([, check]) => check(await setup()))
   })
 }
 

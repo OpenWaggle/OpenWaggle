@@ -9,10 +9,7 @@ function updater(): AppUpdater {
   return autoUpdater
 }
 
-function subscribe<A extends unknown[]>(
-  event: Parameters<AppUpdater['on']>[0],
-  handler: (...args: A) => void,
-) {
+function subscribe(event: Parameters<AppUpdater['on']>[0], handler: (...args: never[]) => void) {
   updater().on(event, handler)
   return () => {
     updater().off(event, handler)

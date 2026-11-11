@@ -14,8 +14,9 @@ export const electronWebSecurity: WebSecurityShape = {
     return {
       clear: (origins) => {
         if (!profile) return
-        for (const origin of origins)
+        for (const origin of origins) {
           void profile.clearStorageData({ origin }).catch(() => undefined)
+        }
       },
     }
   },
