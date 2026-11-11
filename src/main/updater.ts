@@ -6,6 +6,7 @@ import { updateEngine } from './desktop-shell/update-engine'
 import { createLogger } from './logger'
 import type { UpdateFeedSelection } from './update-feed'
 import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
+import { automationUpdateReleaseUrl, configureAutomationUpdateFeed } from './update-feed-automation'
 import * as install from './update-install-tracker'
 import { getUpdateStatus, setUpdateStatus as setStatus } from './update-status'
 
@@ -88,7 +89,12 @@ async function runUpdaterCheck(generation: number, selection: UpdateFeedSelectio
 function startUpdaterCheck(channel: UpdateChannel, generation: number) {
   let operation: Promise<void>
   try {
-    operation = configureUpdaterFeed(updateEngine, channel).then((selection) => {
+    const automationReleaseUrl = automationUpdateReleaseUrl()
+    const selected =
+      automationReleaseUrl === null
+        ? configureUpdaterFeed(updateEngine, channel)
+        : configureAutomationUpdateFeed(updateEngine, automationReleaseUrl)
+    operation = selected.then((selection) => {
       if (generation !== checkGeneration) return
       acceptUpdaterEvents = true
       return runUpdaterCheck(generation, selection)

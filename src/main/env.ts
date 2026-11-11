@@ -49,6 +49,7 @@ const envSchema = Schema.Struct({
   OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: optionalString, // Hidden QA Pi fixtures
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: optionalString,
   OPENWAGGLE_AUTOMATION_PROJECT_PATH: optionalString,
+  OPENWAGGLE_AUTOMATION_UPDATE_FEED: optionalUrlSchema, // CI's update proof (update-feed-automation.ts)
   OPENWAGGLE_USER_DATA_DIR: optionalString,
   OPENWAGGLE_DISABLE_SINGLE_INSTANCE: optionalString,
   OPENWAGGLE_LOG_LEVEL: Schema.optionalWith(LOG_LEVEL, { exact: true }),
@@ -118,11 +119,8 @@ const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
-/**
- * This process's own environment, which `desktop-shell-environment-process` hydrates in place
- * from the login shell.
- */
-export function liveProcessEnvironment() {
+/** This process's own environment, which `desktop-shell-environment-process` hydrates in place. */
+export function liveProcessEnvironment(): NodeJS.ProcessEnv {
   return process.env
 }
 
