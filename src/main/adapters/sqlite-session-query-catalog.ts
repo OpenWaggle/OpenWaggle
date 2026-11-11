@@ -171,7 +171,7 @@ function projectPathsFilter(sql: SqlClient.SqlClient, projectPaths: readonly str
 function catalogSearchFilter(sql: SqlClient.SqlClient, searchText: string | undefined) {
   const query = searchText?.trim().toLowerCase() ?? ''
   if (query === '') return sql.literal('TRUE')
-  if ([...query].length >= MINIMUM_TRIGRAM_SEARCH_LENGTH) {
+  if (Array.from(query).length >= MINIMUM_TRIGRAM_SEARCH_LENGTH) {
     const ftsQuery = `"${query.replaceAll('"', '""')}"`
     return sql`sessions.id IN (
       SELECT session_id FROM session_catalog_search
@@ -196,7 +196,7 @@ function catalogSearchFilter(sql: SqlClient.SqlClient, searchText: string | unde
  * most two characters, so that is at most four patterns.
  */
 function shortQueryCasings(query: string) {
-  return [...query].reduce<readonly string[]>(
+  return Array.from(query).reduce<readonly string[]>(
     (casings, character) => [
       ...new Set(
         casings.flatMap((casing) => [

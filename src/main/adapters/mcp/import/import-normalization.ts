@@ -104,7 +104,9 @@ function typeField(value: Raw, context: ImportValueContext): PiMcpEntry {
   const type = value.type
   if (type === undefined || (typeof type === 'string' && IMPLICIT_TYPES.has(type))) return {}
   if (type === 'sse') return { type: 'sse' }
-  context.warnings.push(`type ${String(type)} is not supported and was not imported.`)
+  context.warnings.push(
+    `type ${typeof type === 'string' ? type : JSON.stringify(type)} is not supported and was not imported.`,
+  )
   return {}
 }
 

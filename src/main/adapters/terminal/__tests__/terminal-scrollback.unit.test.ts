@@ -98,9 +98,9 @@ describe('createTerminalScrollback', () => {
     const trimModel = () => {
       while (
         Buffer.byteLength(model, 'utf8') > maxBytes ||
-        [...model].filter((character) => character === '\n').length > maxLines
+        model.split('\n').length - 1 > maxLines
       ) {
-        model = [...model].slice(1).join('')
+        model = Array.from(model).slice(1).join('')
       }
     }
 

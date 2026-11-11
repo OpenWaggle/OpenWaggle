@@ -225,8 +225,11 @@ describe('GitHub Issues Overview extension runtime fixture', () => {
     await sidePanelModule.mount(context)
 
     expect(fetchMock).toHaveBeenCalledOnce()
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
-      'https://api.github.com/repos/OpenWaggle/OpenWaggle/issues',
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        href: expect.stringContaining('https://api.github.com/repos/OpenWaggle/OpenWaggle/issues'),
+      }),
+      expect.anything(),
     )
     expect(metricValues(context.root)).toEqual(['2', '1', '1'])
     expect(context.root.textContent).toContain('Updated from GitHub')

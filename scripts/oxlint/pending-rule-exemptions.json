@@ -383,10 +383,6 @@
   "typescript/no-base-to-string": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 3,
     "src/main/adapters/electron/browser-preview/browser-preview-automation-diagnostics.ts": 2,
-    "src/main/adapters/extensions/__tests__/github-issues-fixture-runtime.unit.test.ts": 1,
-    "src/main/adapters/mcp/import/import-normalization.ts": 1,
-    "src/main/adapters/mcp/runtime/websocket-transport.ts": 1,
-    "src/main/adapters/project-actions/__tests__/action-workspace-environment.unit.test.ts": 2,
     "src/main/openwaggle-mcp-session-options-v2.ts": 1,
     "src/main/services/__tests__/hive-tool-name-migration.unit.test.ts": 1,
     "src/main/session-host/local-session-server-frame.ts": 1,
@@ -467,11 +463,6 @@
     "src/renderer/src/features/workspace-files/components/__tests__/ProjectContentSearch.component.test.tsx": 1
   },
   "typescript/no-misused-spread": {
-    "src/main/adapters/mcp/registry/registry-oci-resolver.ts": 1,
-    "src/main/adapters/mcp/registry/registry-package-launchers.ts": 1,
-    "src/main/adapters/sqlite-session-query-catalog.ts": 2,
-    "src/main/adapters/terminal/__tests__/terminal-prompt-readiness.unit.test.ts": 1,
-    "src/main/adapters/terminal/__tests__/terminal-scrollback.unit.test.ts": 2,
     "src/main/application/inline-visualization-download.ts": 1,
     "src/main/extension-frame-protocol.ts": 1,
     "src/main/services/__tests__/session-transcript-term-tokenizer.unit.test.ts": 1,

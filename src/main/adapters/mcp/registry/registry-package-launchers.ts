@@ -85,7 +85,7 @@ function exactPackageVersion(value: unknown) {
 }
 
 function hasForbiddenCharacter(value: string) {
-  return [...value].some((character) => {
+  return Array.from(value).some((character) => {
     const code = character.charCodeAt(0)
     return (
       /\s/.test(character) || code <= MAX_CONTROL_CHARACTER_CODE || code === DELETE_CHARACTER_CODE
