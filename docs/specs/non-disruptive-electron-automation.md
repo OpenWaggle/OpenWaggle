@@ -4,6 +4,11 @@
 
 Implemented and verified on macOS with Electron 43.2.0 and Playwright 1.61.1.
 
+Carried over to Electrobun (ADR 0064). The contract below still holds; its Electron mechanisms are
+history. The one launcher is `scripts/support/electrobun-app-launch.ts`: hidden CEF window, CDP on
+port 9223, ephemeral profile. The main-process policy lives in
+`src/main/adapters/electrobun/electrobun-automation.ts` and `scripts/standards/desktop-automation.ts`.
+
 ## Problem
 
 OpenWaggle's current `headless` Playwright setting does not control windows launched through Playwright's Electron API. The application creates its `BrowserWindow` with `show: false`, then calls `show()` after `ready-to-show`. On macOS that activates OpenWaggle and can switch applications or Spaces while someone is presenting or working elsewhere.
