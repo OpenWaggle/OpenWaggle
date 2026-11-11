@@ -10,6 +10,7 @@ import {
   PATCH_BASE_URL_ENV,
   packageVersion,
 } from '../electrobun/app-config'
+import { patchBaseRelease } from '../electrobun/patch-base-url'
 import { macosSigningOrder } from '../electrobun/sign-macos'
 import {
   externalRoots,
@@ -133,5 +134,35 @@ describe('macosSigningOrder', () => {
       'Contents/Frameworks/Squirrel.framework',
       '.',
     ])
+  })
+})
+
+describe('patchBaseRelease', () => {
+  const manifest = 'stable-win-x64-update-v2.json'
+  const release = (tag: string, assets: readonly string[] = [manifest], draft = false) => ({
+    tag,
+    draft,
+    assets,
+  })
+
+  it('picks the newest earlier published release with Electrobun files for the target', () => {
+    const base = patchBaseRelease(
+      [
+        release('v1.0.0-beta.42'),
+        release('v1.0.0-beta.41'),
+        release('v1.0.0-beta.40'),
+        release('v1.0.0-beta.39', ['beta.yml']),
+        release('v1.0.0-beta.38', [manifest], true),
+      ],
+      '1.0.0-beta.42',
+      'win-x64',
+    )
+    expect(base?.tag).toBe('v1.0.0-beta.41')
+  })
+
+  it('finds none before the first Electrobun release', () => {
+    expect(
+      patchBaseRelease([release('v1.0.0-beta.38', ['beta.yml'])], '1.0.0-beta.39', 'win-x64'),
+    ).toBeNull()
   })
 })

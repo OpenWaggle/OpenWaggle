@@ -5,14 +5,16 @@ import { describe, expect, it } from 'vitest'
 const WORKFLOW = fs.readFileSync(path.join(process.cwd(), '.github/workflows/release.yml'), 'utf8')
 
 describe('desktop app release publication', () => {
-  it('publishes update blockmaps for differential downloads and never the builder debug dump', () => {
-    const uploads = WORKFLOW.match(
-      /name: (?:macos|windows)-artifacts\n\s+path: \|(?:\n\s+dist\/\S+)+/gu,
-    )
-    expect(uploads?.map((upload) => upload.includes('dist/*.blockmap'))).toEqual([true, true])
-    expect(WORKFLOW).toContain(
-      "-o -name '*.blockmap' -o \\( -name '*.yml' ! -name 'builder-debug.yml' \\)",
-    )
+  it("publishes Electrobun's update files and no blockmaps", () => {
+    // A transition download shares no blocks with the Electron install it replaces, and
+    // Electrobun's updater reads its manifests, archives and delta patches from the release.
+    const collect = WORKFLOW.slice(WORKFLOW.indexOf('name: Collect release assets'))
+    const find = collect.slice(0, collect.indexOf('SHA256SUMS.txt'))
+    for (const pattern of ["-name '*.tar.zst'", "-name '*.patch'", "-name '*update*.json'"]) {
+      expect(find).toContain(pattern)
+    }
+    expect(find).not.toContain("'*.blockmap'")
+    expect(WORKFLOW).not.toContain('dist/*.blockmap')
   })
 
   it('lets only Stable app releases become the GitHub Latest release', () => {
@@ -95,13 +97,13 @@ describe('desktop app release publication', () => {
     expect(WORKFLOW).toContain("format('{0}/release-notes.md', runner.temp)")
   })
 
-  it('verifies that both DMGs are signed, notarized and stapled, not only the apps', () => {
+  it("verifies that each architecture's DMG is signed, notarized and stapled, not only the app", () => {
     const verify = WORKFLOW.slice(
       WORKFLOW.indexOf('name: Verify macOS signing and notarization'),
       WORKFLOW.indexOf('name: Prepare macOS update channels'),
     )
     expect(verify).toContain('dmgs=(dist/*.dmg)')
-    expect(verify).toContain('[ "${#dmgs[@]}" -eq 2 ]')
+    expect(verify).toContain('[ "${#dmgs[@]}" -eq 1 ]')
     expect(verify).toContain('codesign --verify --strict --verbose=2 "$dmg"')
     expect(verify).toContain('xcrun stapler validate "$dmg"')
     expect(verify).toContain(
@@ -131,7 +133,7 @@ describe('desktop app release publication', () => {
 
   it('checks macOS signing again before building release candidate or Stable artifacts', () => {
     const guard = WORKFLOW.indexOf('name: Require macOS signing for release candidates and Stable')
-    const build = WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)')
+    const build = WORKFLOW.indexOf('name: Package macOS with Electrobun')
     expect(guard).toBeGreaterThan(WORKFLOW.indexOf('  build-macos:'))
     expect(guard).toBeLessThan(build)
     expect(WORKFLOW).toMatch(

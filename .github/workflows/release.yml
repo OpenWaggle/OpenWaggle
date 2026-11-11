@@ -12,6 +12,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  ELECTROBUN_TELEMETRY: "0"
+  HUTCH_VERSION: "0.29.0"
 
 concurrency:
   group: "${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}"
@@ -592,12 +594,30 @@ jobs:
           echo "Release PR ready for maintainer review: ${PR_URL}"
           write_no_release_output
 
-  build-macos:
-    name: Build macOS
+  # OpenWaggle's Electrobun native layer for every target, checked against the supported-platform
+  # floor before anything is packaged with it.
+  native:
+    name: Electrobun native layer
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    # GitHub retired the macos-14 image; jobs on it are cancelled before any step runs.
-    runs-on: macos-15
+    uses: ./.github/workflows/electrobun-native.yml
+    with:
+      probes: false
+
+  # Electrobun packages one architecture per runner: OpenWaggle's native layer is built and
+  # floor-checked natively (electrobun-native.yml), and each app is launched on its own CPU.
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    needs: [version, native]
+    if: needs.version.outputs.should_release == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # GitHub retired the macos-14 image; jobs on it are cancelled before any step runs.
+          - { arch: arm64, runner: macos-15, target: darwin-arm64 }
+          - { arch: x64, runner: macos-15-intel, target: darwin-x64 }
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -612,8 +632,26 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
-      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
+      - uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      # OpenWaggle's Electrobun native layer for this target, built and floor-checked by the
+      # native job (electrobun-native.yml); Hutch packages against it instead of its own download.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-${{ matrix.target }}
+          path: out
+
+      - name: Unpack the Electrobun native layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/electrobun-native
+          tar -xzf out/electrobun-native-${{ matrix.target }}.tgz -C out/electrobun-native
+          echo "HUTCH_ELECTROBUN_DEVKIT_ROOT=$GITHUB_WORKSPACE/out/electrobun-native/${{ matrix.target }}/devkit" >> "$GITHUB_ENV"
+
+      - run: bun install --frozen-lockfile
 
       - name: Stamp release Build channel
         shell: bash
@@ -647,44 +685,38 @@ jobs:
 
       - run: bun run build
 
-      # A runner blip must not fail the release. Three are known: notarytool losing Apple while it
-      # polls (1.0.0-beta.1, run 36695614844), stapler losing Apple's ticket service after a
-      # successful notarization (1.0.0-beta.36, run 42493633669), and hdiutil failing a dmgbuild
-      # call with a device error (1.0.0-beta.8, run 37285929256, all three attempts). Only those failures rebuild,
-      # at most twice. A rejection or any other failure still fails the first attempt. hdiutil
-      # breaks under concurrent disk activity on hosted runners (actions/runner-images#7522), so
-      # Spotlight indexing is turned off once and XProtect is stopped before every attempt. The
-      # dmg-builder patch (patches/dmg-builder@*.patch) first retries only the failed DMG, so a
-      # full rebuild with fresh notarization is the last resort.
-      - name: Build macOS artifacts (arm64 + x64)
+      - name: Import the macOS Developer ID
         shell: bash
-        run: |
-          set -uo pipefail
-          BUILD_LOG="$RUNNER_TEMP/electron-builder-mac.log"
-          sudo mdutil -a -i off >/dev/null 2>&1 || true
-          for BUILD_ATTEMPT in 1 2 3; do
-            sudo pkill -9 XProtect >/dev/null 2>&1 || true
-            if bunx electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
-              exit 0
-            fi
-            if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then
-              exit 1
-            fi
-            echo "::warning::${FAILURE_REASON}; rebuilding macOS artifacts (attempt $((BUILD_ATTEMPT + 1)) of 3)."
-            # A failed dmgbuild can leave its read-write image attached; detach it before rebuilding.
-            for volume in /Volumes/OpenWaggle*; do
-              [ -d "$volume" ] && hdiutil detach "$volume" -force >/dev/null 2>&1 || true
-            done
-            sync
-          done
         env:
-          # Unset secrets keep Alpha/Beta builds unsigned; RC and Stable fail closed without them.
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
-          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/electrobun/ci/macos-import-identity.sh
+
+      # Notarization and stapling retry Apple's transport failures (notarytool losing Apple while it
+      # polls, 1.0.0-beta.1; stapler losing the ticket service, 1.0.0-beta.36) and hdiutil retries
+      # its device errors (1.0.0-beta.8), inside scripts/electrobun/notarize-macos.ts and
+      # macos-dmg.ts, so a runner blip retries one call instead of the whole build. Spotlight
+      # indexing and XProtect still make hdiutil flaky on hosted runners (actions/runner-images#7522).
+      - name: Package macOS with Electrobun
+        shell: bash
+        env:
+          OPENWAGGLE_HUTCH: hutch electrobun
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          sudo pkill -9 XProtect >/dev/null 2>&1 || true
+          args=(--arch "${{ matrix.arch }}")
+          # Squirrel.Mac in the Electron installs accepts the transition zip only if it satisfies
+          # their designated requirement: the same bundle identifier and Team ID.
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "${OPENWAGGLE_MACOS_SIGN_IDENTITY:-}" ]; then
+            args+=(--requirement "$(bun -e "import('./scripts/electrobun-transition/macos-transition-zip.ts').then((m) => console.log(m.developerIdRequirement('com.openwaggle.app', process.env.APPLE_TEAM_ID)))")")
+          fi
+          bun scripts/electrobun/package.ts "${args[@]}"
+          mkdir -p dist
+          cp out/electrobun/release/* dist/
 
       - name: Check macOS native platform floor
         run: bun scripts/check-native-platform-floor.ts
@@ -696,23 +728,21 @@ jobs:
           MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          apps=(out/electrobun/inner/*/*.app)
+          [ "${#apps[@]}" -eq 1 ]
+          codesign --verify --deep --strict --verbose=2 "${apps[0]}"
           if [ "$MACOS_SIGNING_CONFIGURED" != "true" ]; then
-            echo "macOS signing is not configured; this ${OPENWAGGLE_RELEASE_CHANNEL} build is unsigned."
+            echo "macOS signing is not configured; this ${OPENWAGGLE_RELEASE_CHANNEL} build is signed ad hoc."
             exit 0
           fi
-          shopt -s nullglob
-          apps=(dist/mac*/*.app)
-          [ "${#apps[@]}" -gt 0 ]
-          for app in "${apps[@]}"; do
-            codesign --verify --deep --strict --verbose=2 "$app"
-            if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
-              xcrun stapler validate "$app"
-              spctl --assess --type execute --verbose "$app"
-            fi
-          done
+          if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
+            xcrun stapler validate "${apps[0]}"
+            spctl --assess --type execute --verbose "${apps[0]}"
+          fi
           # The DMG users download is signed, notarized and stapled itself, not only the app inside.
           dmgs=(dist/*.dmg)
-          [ "${#dmgs[@]}" -eq 2 ]
+          [ "${#dmgs[@]}" -eq 1 ]
           for dmg in "${dmgs[@]}"; do
             codesign --verify --strict --verbose=2 "$dmg"
             if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
@@ -721,39 +751,74 @@ jobs:
             fi
           done
 
-      - name: Prepare macOS update channels
-        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
-
       - name: Smoke packaged macOS PTY runtime
         run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: macos-artifacts
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.blockmap
-            dist/*.yml
+          name: macos-${{ matrix.arch }}-build
+          path: dist/*
           if-no-files-found: error
 
-      # The minified bundles' hidden source maps (electron.vite.config.ts), to map field stack
-      # traces back to source. Never in the app, and not release assets (the publish job downloads
-      # only *-artifacts).
+      # The minified bundles' hidden source maps, to map field stack traces back to source. Never in
+      # the app, and not release assets (the publish job downloads only *-artifacts).
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: matrix.arch == 'arm64'
         with:
           name: macos-source-maps
           path: out/**/*.map
           retention-days: 90
+
+  # electron-updater reads one `*-mac.yml` for both architectures, so it is written once both
+  # transition zips exist.
+  macos-update-metadata:
+    name: macOS update metadata
+    needs: [version, build-macos]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: macos-*-build
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare macOS update channels
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) export OPENWAGGLE_RELEASE_CHANNEL=alpha ;;
+            *-beta.*) export OPENWAGGLE_RELEASE_CHANNEL=beta ;;
+            *-rc.*) export OPENWAGGLE_RELEASE_CHANNEL=rc ;;
+            *) export OPENWAGGLE_RELEASE_CHANNEL=stable ;;
+          esac
+          bun scripts/electrobun/package.ts metadata dist mac
+          ls -la dist
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: macos-artifacts
+          path: dist/*
           if-no-files-found: error
 
   build-linux:
     name: Build Linux
-    needs: version
+    needs: [version, native]
     if: needs.version.outputs.should_release == 'true'
-    # Native modules link against the build host's glibc and libstdc++. Ubuntu 22.04 (glibc 2.35)
-    # is the supported Linux floor (scripts/supported-platform-floor.ts); ubuntu-latest (24.04)
-    # made node-pty need glibc 2.38 in 1.0.0-beta.25.
+    # Ubuntu 22.04 (glibc 2.35) is the supported Linux floor (scripts/supported-platform-floor.ts);
+    # ubuntu-latest (24.04) made node-pty need glibc 2.38 in 1.0.0-beta.25.
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -769,8 +834,26 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
-      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
+      - uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      # OpenWaggle's Electrobun native layer for this target, built and floor-checked by the
+      # native job (electrobun-native.yml); Hutch packages against it instead of its own download.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-linux-x64
+          path: out
+
+      - name: Unpack the Electrobun native layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/electrobun-native
+          tar -xzf out/electrobun-native-linux-x64.tgz -C out/electrobun-native
+          echo "HUTCH_ELECTROBUN_DEVKIT_ROOT=$GITHUB_WORKSPACE/out/electrobun-native/linux-x64/devkit" >> "$GITHUB_ENV"
+
+      - run: bun install --frozen-lockfile
 
       - name: Stamp release Build channel
         shell: bash
@@ -788,8 +871,34 @@ jobs:
 
       - run: bun run build
 
-      - name: Build Linux AppImage
-        run: bunx electron-builder --linux --publish never
+      # Hutch builds the delta patch from the previous release that has Electrobun update files.
+      - name: Find the release to build a delta patch against
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base="$(bun scripts/electrobun/patch-base-url.ts '${{ needs.version.outputs.new_version }}' linux x64)"
+          echo "OPENWAGGLE_ELECTROBUN_PATCH_BASE_URL=$base" >> "$GITHUB_ENV"
+          echo "Delta patch base: ${base:-none}"
+
+      # The transition AppImage (build/electrobun-transition/AppRun.sh) that electron-updater swaps
+      # in for the Electron AppImage.
+      - name: Package Linux with Electrobun
+        shell: bash
+        env:
+          OPENWAGGLE_HUTCH: hutch electrobun
+          APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -q libfuse2 zstd
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/appimagetool" "$APPIMAGETOOL_URL"
+          echo "$APPIMAGETOOL_SHA256  $RUNNER_TEMP/appimagetool" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          bun scripts/electrobun/package.ts --appimagetool "$RUNNER_TEMP/appimagetool"
+          mkdir -p dist
+          cp out/electrobun/release/* dist/
 
       - name: Check Linux native platform floor
         run: bun scripts/check-native-platform-floor.ts
@@ -803,26 +912,22 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: linux-artifacts
-          path: |
-            dist/*.AppImage
-            dist/*.yml
+          path: dist/*
           if-no-files-found: error
 
-      # The minified bundles' hidden source maps (electron.vite.config.ts), to map field stack
-      # traces back to source. Never in the app, and not release assets (the publish job downloads
-      # only *-artifacts).
+      # The minified bundles' hidden source maps, to map field stack traces back to source. Never in
+      # the app, and not release assets (the publish job downloads only *-artifacts).
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: linux-source-maps
           path: out/**/*.map
           retention-days: 90
-          if-no-files-found: error
 
   build-windows:
     name: Build Windows
-    needs: version
+    needs: [version, native]
     if: needs.version.outputs.should_release == 'true'
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -837,8 +942,26 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
-      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
+      - uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      # OpenWaggle's Electrobun native layer for this target, built and floor-checked by the
+      # native job (electrobun-native.yml); Hutch packages against it instead of its own download.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-win32-x64
+          path: out
+
+      - name: Unpack the Electrobun native layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/electrobun-native
+          tar -xzf out/electrobun-native-win32-x64.tgz -C out/electrobun-native
+          echo "HUTCH_ELECTROBUN_DEVKIT_ROOT=$GITHUB_WORKSPACE/out/electrobun-native/win32-x64/devkit" >> "$GITHUB_ENV"
+
+      - run: bun install --frozen-lockfile
 
       - name: Stamp release Build channel
         shell: bash
@@ -856,8 +979,47 @@ jobs:
 
       - run: bun run build
 
-      - name: Build Windows NSIS installer
-        run: bunx electron-builder --win --publish never
+      # Hutch builds the delta patch from the previous release that has Electrobun update files.
+      - name: Find the release to build a delta patch against
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base="$(bun scripts/electrobun/patch-base-url.ts '${{ needs.version.outputs.new_version }}' win x64)"
+          echo "OPENWAGGLE_ELECTROBUN_PATCH_BASE_URL=$base" >> "$GITHUB_ENV"
+          echo "Delta patch base: ${base:-none}"
+
+      # Authenticode signing (scripts/electrobun/sign-windows.ts) runs when a certificate secret is
+      # configured; Windows builds were unsigned under electron-builder too.
+      - name: Windows signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_PFX_BASE64) { Write-Output 'Windows signing is not configured; this build is unsigned.'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'release-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
+          Add-Content -Path $env:GITHUB_ENV -Value "OPENWAGGLE_WINDOWS_SIGN_PFX=$pfx"
+          Add-Content -Path $env:GITHUB_ENV -Value "OPENWAGGLE_WINDOWS_SIGN_TIMESTAMP_URL=http://timestamp.digicert.com"
+
+      # The NSIS transition installer (build/electrobun-transition/windows-transition.nsi) that
+      # electron-updater runs like the Electron installer it replaces, around Electrobun's Setup.
+      - name: Package Windows with Electrobun
+        shell: bash
+        env:
+          OPENWAGGLE_HUTCH: hutch electrobun
+          OPENWAGGLE_WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # vendor/electrobun/build.ts downloaded it and checked Microsoft's Authenticode signature.
+          webview2="$GITHUB_WORKSPACE/out/electrobun-native/win32-x64/webview2/MicrosoftEdgeWebview2Setup.exe"
+          makensis="/c/Program Files (x86)/NSIS/makensis.exe"
+          [ -x "$makensis" ] || choco install nsis -y --no-progress
+          bun scripts/electrobun/package.ts --webview2 "$webview2" --makensis "$makensis"
+          mkdir -p dist
+          cp out/electrobun/release/* dist/
 
       - name: Check Windows native platform floor
         run: bun scripts/check-native-platform-floor.ts
@@ -872,25 +1034,20 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-artifacts
-          path: |
-            dist/*.exe
-            dist/*.blockmap
-            dist/*.yml
+          path: dist/*
           if-no-files-found: error
 
-      # The minified bundles' hidden source maps (electron.vite.config.ts), to map field stack
-      # traces back to source. Never in the app, and not release assets (the publish job downloads
-      # only *-artifacts).
+      # The minified bundles' hidden source maps, to map field stack traces back to source. Never in
+      # the app, and not release assets (the publish job downloads only *-artifacts).
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-source-maps
           path: out/**/*.map
           retention-days: 90
-          if-no-files-found: error
 
   verify-installers:
     name: Verify release installers
-    needs: [version, build-macos, build-linux, build-windows]
+    needs: [version, macos-update-metadata, build-linux, build-windows]
     if: needs.version.outputs.should_release == 'true'
     strategy:
       fail-fast: false
@@ -992,19 +1149,34 @@ jobs:
           test -f "$ARTIFACT_DIR/$ARM64_ZIP"
           test -f "$ARTIFACT_DIR/$X64_ZIP"
 
+          # Electrobun's updater files and the electron-updater metadata for the transition zips.
+          for ARCH in arm64 x64; do
+            test -f "$ARTIFACT_DIR/stable-macos-${ARCH}-update-v2.json"
+            ls "$ARTIFACT_DIR"/stable-macos-${ARCH}-*.tar.zst >/dev/null
+          done
+          ls "$ARTIFACT_DIR"/*-mac.yml >/dev/null
+
           MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
           trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
           APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
           test -d "$APP_PATH"
-          APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
-          test -x "$APP_BINARY"
+          # The executable Squirrel.Mac names the installed bundle after, and the launcher
+          # Electrobun's updater requires (scripts/electrobun-transition/macos-transition-bundle.ts).
+          test -x "$APP_PATH/Contents/MacOS/OpenWaggle"
+          test -x "$APP_PATH/Contents/MacOS/launcher"
+          codesign --verify --deep --strict "$APP_PATH"
+
+          # The transition zip unpacks to the same signed app.
+          UNZIPPED="$RUNNER_TEMP/transition-zip"
+          ditto -x -k "$ARTIFACT_DIR/$ARM64_ZIP" "$UNZIPPED"
+          codesign --verify --deep --strict "$(find "$UNZIPPED" -maxdepth 1 -name '*.app' | head -n 1)"
 
       - name: Verify Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
-          INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+          RELEASE_DIRECTORY: ${{ runner.temp }}\release\windows
+        run: bun scripts/electrobun/ci/smoke.ts install "$env:RELEASE_DIRECTORY"
 
   release:
     name: Create GitHub Release
@@ -1038,10 +1210,13 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release
-          # Blockmaps let electron-updater download only the changed blocks of an update (the
-          # AppImage embeds its own). builder-debug.yml is a local build dump, not a release asset.
+          # The transition artifacts and their electron-updater metadata (*.yml), the downloads for new
+          # installs (*.dmg, *-setup.zip, *.tar.gz), and Electrobun's updater files: its manifests
+          # (*update*.json), archives (*.tar.zst) and delta patches (*.patch). No blockmaps: a
+          # transition download shares no blocks with the Electron install it replaces.
           find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' \
-            -o -name '*.blockmap' -o \( -name '*.yml' ! -name 'builder-debug.yml' \) \) -exec cp {} release/ \;
+            -o -name '*.tar.gz' -o -name '*.tar.zst' -o -name '*.patch' -o -name '*update*.json' \
+            -o -name '*.yml' \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
       # softprops publishes a prerelease before it uploads, so beta.25's update checks briefly got a

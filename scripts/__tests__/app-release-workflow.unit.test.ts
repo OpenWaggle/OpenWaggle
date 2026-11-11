@@ -183,11 +183,13 @@ describe('desktop app release workflow', () => {
 
     expect(actionReferences.length).toBeGreaterThan(0)
     for (const reference of actionReferences) {
+      // A repository-local action or reusable workflow runs from the release commit itself.
+      if (reference?.startsWith('./.github/')) continue
       expect(reference).toMatch(/^[^@\s]+@[0-9a-f]{40}$/u)
     }
   })
 
-  it('verifies the Windows installer through the typed deterministic verifier', () => {
+  it('installs the Windows transition installer before publishing', () => {
     const parsed: unknown = parse(WORKFLOW)
     assertMatching(
       {
@@ -220,13 +222,10 @@ describe('desktop app release workflow', () => {
       run: 'bun install --frozen-lockfile --ignore-scripts',
     }
     const verifierPattern = {
-      env: {
-        INSTALLER_PATH:
-          '${{ runner.temp }}\\release\\windows\\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe',
-      },
+      env: { RELEASE_DIRECTORY: '${{ runner.temp }}\\release\\windows' },
       if: windowsGuard,
       name: 'Verify Windows installer',
-      run: 'bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+      run: 'bun scripts/electrobun/ci/smoke.ts install "$env:RELEASE_DIRECTORY"',
       shell: 'pwsh',
     }
 
@@ -266,9 +265,9 @@ describe('desktop app release workflow', () => {
 
   it('runs the semantic packaged PTY smoke after every platform build', () => {
     const buildCommands = [
-      'bunx electron-builder --mac --arm64 --x64 --publish never',
-      'bunx electron-builder --linux --publish never',
-      'bunx electron-builder --win --publish never',
+      'name: Package macOS with Electrobun',
+      'name: Package Linux with Electrobun',
+      'name: Package Windows with Electrobun',
     ]
     const smokeStepNames = [
       'Smoke packaged macOS PTY runtime',
@@ -287,26 +286,30 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW.match(/run: bun run packaged-app:smoke/gu)).toHaveLength(3)
   })
 
-  it('rebuilds macOS at most twice, only for a transient runner failure', () => {
+  it('retries only the macOS calls that hosted runners fail transiently', () => {
     const build = WORKFLOW.slice(
-      WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)'),
+      WORKFLOW.indexOf('name: Package macOS with Electrobun'),
       WORKFLOW.indexOf('name: Verify macOS signing and notarization'),
     )
-    expect(build).toContain('for BUILD_ATTEMPT in 1 2 3; do')
     expect(build).toContain('sudo mdutil -a -i off')
     expect(build).toContain('sudo pkill -9 XProtect')
-    expect(build).toContain('--publish never 2>&1 | tee "$BUILD_LOG"; then')
-    expect(build).toContain('set -uo pipefail')
+    expect(build).toContain('bun scripts/electrobun/package.ts "${args[@]}"')
+    expect(build).toContain('--requirement')
     expect(build).toContain(
-      'if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then',
+      "developerIdRequirement('com.openwaggle.app', process.env.APPLE_TEAM_ID)",
     )
-    expect(build).toContain('hdiutil detach "$volume" -force')
+  })
+
+  it('packages every target against the floor-checked Electrobun native layer', () => {
+    expect(WORKFLOW).toContain('uses: ./.github/workflows/electrobun-native.yml')
+    expect(WORKFLOW.match(/name: electrobun-native-/gu)).toHaveLength(3)
+    expect(WORKFLOW.match(/OPENWAGGLE_HUTCH: hutch electrobun/gu)).toHaveLength(3)
+    expect(WORKFLOW).not.toContain('electron-builder --')
   })
 
   it('prepares compatible update metadata for every published platform channel', () => {
-    expect(WORKFLOW).toContain(
-      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac',
-    )
+    // macOS writes one *-mac.yml for both architectures (package.ts metadata).
+    expect(WORKFLOW).toContain('bun scripts/electrobun/package.ts metadata dist mac')
     expect(WORKFLOW).toContain(
       'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux',
     )

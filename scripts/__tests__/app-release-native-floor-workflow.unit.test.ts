@@ -9,9 +9,9 @@ const WORKFLOW = fs.readFileSync(path.join(process.cwd(), '.github/workflows/rel
 describe('desktop app release workflow native platform floor', () => {
   it('checks the native platform floor after every platform build and before upload', () => {
     const buildCommands = [
-      'bunx electron-builder --mac --arm64 --x64 --publish never',
-      'bunx electron-builder --linux --publish never',
-      'bunx electron-builder --win --publish never',
+      'name: Package macOS with Electrobun',
+      'name: Package Linux with Electrobun',
+      'name: Package Windows with Electrobun',
     ]
     const guardStepNames = [
       'Check macOS native platform floor',
@@ -37,7 +37,25 @@ describe('desktop app release workflow native platform floor', () => {
   it('builds macOS on a runner image GitHub still supports', () => {
     // macos-14 was retired: every release job on it was cancelled before any step ran, so
     // v1.0.0-beta.33 through beta.35 were tagged but never published.
+    // Electrobun packages each architecture on its own CPU (electrobun-native.yml builds there too).
     const parsed: unknown = parse(WORKFLOW)
-    assertMatching({ jobs: { 'build-macos': { 'runs-on': 'macos-15' } } }, parsed)
+    assertMatching(
+      {
+        jobs: {
+          'build-macos': {
+            'runs-on': '${{ matrix.runner }}',
+            strategy: {
+              matrix: {
+                include: [
+                  { arch: 'arm64', runner: 'macos-15' },
+                  { arch: 'x64', runner: 'macos-15-intel' },
+                ],
+              },
+            },
+          },
+        },
+      },
+      parsed,
+    )
   })
 })
