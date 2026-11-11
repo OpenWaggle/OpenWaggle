@@ -254,6 +254,7 @@ export function registerVoiceHandlers(): void {
       })
 
       const modelConfig = VOICE_MODEL_CONFIG[model]
+      const language = payload.language ?? modelConfig.language
       const rawResult = yield* Effect.tryPromise({
         try: () =>
           transcriber(audio, {
@@ -261,7 +262,7 @@ export function registerVoiceHandlers(): void {
             return_timestamps: false,
             chunk_length_s: AUDIO_RECORDING.CHUNK_LENGTH_S,
             stride_length_s: AUDIO_RECORDING.STRIDE_LENGTH_S,
-            language: payload.language ?? modelConfig.language,
+            ...(language === undefined ? {} : { language }),
           }),
         catch: (error) => new Error(mapTranscriptionError(error)),
       })

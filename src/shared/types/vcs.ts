@@ -124,18 +124,18 @@ export interface GitActionProgressEvent {
 export interface GitRunStackedActionOptions {
   readonly action: GitStackedAction
   /** Renderer-generated id used to scope progress and cancellation to this invocation. */
-  readonly operationId?: string
+  readonly operationId?: string | undefined
   /** Session that initiated the action, used only to project created outputs. */
   readonly sessionId?: SessionId | undefined
   readonly commitMessage?: string | undefined
-  readonly createFeatureBranch?: boolean
+  readonly createFeatureBranch?: boolean | undefined
   readonly featureBranchName?: string | undefined
   /** Preserve a validated user-entered ref verbatim instead of auto-sanitizing or suffixing it. */
   readonly exactFeatureBranchName?: boolean | undefined
   readonly baseRef?: string | undefined
-  readonly changeRequestTitle?: string
-  readonly changeRequestBody?: string
-  readonly draft?: boolean
+  readonly changeRequestTitle?: string | undefined
+  readonly changeRequestBody?: string | undefined
+  readonly draft?: boolean | undefined
   /**
    * Repo-relative paths to stage for the commit phase.
    *
@@ -145,7 +145,7 @@ export interface GitRunStackedActionOptions {
    */
   readonly paths?: readonly string[] | undefined
   /** False commits only the existing index and leaves unstaged changes untouched. */
-  readonly includeUnstaged?: boolean
+  readonly includeUnstaged?: boolean | undefined
 }
 
 export const GIT_STACKED_ACTION_ERROR_CODES = [
@@ -193,8 +193,8 @@ export type SessionGitWorkingPathVerification =
 /** Git artifacts a Session-scoped action produced, recorded as Outputs by the Session Host. */
 export interface SessionGitOutputsPayload {
   readonly occurrence: SessionGitOutputOccurrence
-  readonly commit?: { readonly commitHash: string; readonly summary: string }
-  readonly changeRequest?: { readonly title: string; readonly url: string }
+  readonly commit?: { readonly commitHash: string; readonly summary: string } | undefined
+  readonly changeRequest?: { readonly title: string; readonly url: string } | undefined
 }
 
 export interface SessionGitOutputsRecording {

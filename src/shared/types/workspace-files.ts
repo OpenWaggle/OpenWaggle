@@ -125,8 +125,8 @@ export interface WorkspaceDocumentApplyInput {
   readonly expectedRevision: string
   readonly baseVersion: number
   readonly batches: readonly WorkspaceDocumentEditBatch[]
-  readonly normalizeLineEnding?: 'lf' | 'crlf'
-  readonly targetEncoding?: WorkspaceTextEncoding
+  readonly normalizeLineEnding?: 'lf' | 'crlf' | undefined
+  readonly targetEncoding?: WorkspaceTextEncoding | undefined
 }
 
 export interface WorkspaceDocumentSavedResult {
@@ -164,8 +164,8 @@ export type WorkspaceDocumentApplyResult =
 export interface WorkspaceEntryMutationInput {
   readonly projectPath: string
   readonly path: string
-  readonly targetPath?: string
-  readonly overwrite?: boolean
+  readonly targetPath?: string | undefined
+  readonly overwrite?: boolean | undefined
 }
 
 export interface WorkspaceEntryMutationResult {

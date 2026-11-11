@@ -17,9 +17,7 @@ const { typedHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv }
   () => {
     const transformersEnv: TransformersEnvMock = {
       backends: {
-        onnx: {
-          logLevel: undefined,
-        },
+        onnx: {},
       },
     }
 
@@ -80,11 +78,11 @@ describe('registerVoiceHandlers', () => {
     getPathMock.mockClear()
     mkdirMock.mockClear()
     pipelineMock.mockReset()
-    transformersEnv.allowLocalModels = undefined
-    transformersEnv.allowRemoteModels = undefined
-    transformersEnv.cacheDir = undefined
+    delete transformersEnv.allowLocalModels
+    delete transformersEnv.allowRemoteModels
+    delete transformersEnv.cacheDir
     if (transformersEnv.backends?.onnx) {
-      transformersEnv.backends.onnx.logLevel = undefined
+      delete transformersEnv.backends.onnx.logLevel
     }
     resetVoiceHandlerForTests()
   })

@@ -65,7 +65,7 @@ export function registerProjectHandlers(): void {
           defaultId: 0,
           cancelId: 0,
           message,
-          detail,
+          ...(detail === undefined ? {} : { detail }),
         }),
       )
       return result.response === 1

@@ -36,7 +36,7 @@ const candidateResultSchema = Schema.Union(
       'unknown',
     ),
     message: Schema.String,
-    attention: Schema.optional(sourceControlAttentionSchema),
+    attention: Schema.optionalWith(sourceControlAttentionSchema, { exact: true }),
   }),
 )
 

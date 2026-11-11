@@ -53,13 +53,13 @@ export interface WorkspaceFileExternalOpenInput {
   readonly projectPath: string
   readonly path: string
   readonly editor: WorkspaceExternalEditorId
-  readonly line?: number
-  readonly column?: number
+  readonly line?: number | undefined
+  readonly column?: number | undefined
 }
 
 export interface WorkspaceAbsoluteFileExternalOpenInput {
   readonly path: string
   readonly editor: WorkspaceExternalEditorId
-  readonly line?: number
-  readonly column?: number
+  readonly line?: number | undefined
+  readonly column?: number | undefined
 }
