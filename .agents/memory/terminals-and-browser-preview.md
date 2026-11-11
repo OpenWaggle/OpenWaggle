@@ -6,6 +6,11 @@ owner leases, profiles, recording, and GUI versus Host native ownership.
 Load when touching `features/terminal`, `adapters/terminal`, `browser-preview-*` or
 `features/browser-preview`.
 
+Since the Electrobun switch (ADR 0064), terminals run on `Bun.spawn({ terminal })`
+(`adapters/terminal/bun-pty`; ConPTY through FFI on Windows) and node-pty is gone, and the Browser
+preview is a CEF webview driven over CDP (`.agents/memory/electrobun-webview.md`). Entries below
+that name node-pty or Electron 43 APIs are the history behind behaviour the new adapters keep.
+
 ## Session-bound terminals (ADR 0030, September 2026)
 
 node-pty 1.1.0 leaves its master-side tty.ReadStream paused in Electron. The runner now pauses deliberately before listeners attach; the service resumes only after attachment, preserving the first prompt without an output race. Integration probes must resume after installing listeners too. xterm's WebGL path failed real-Electron visible-ink checks despite correct canvas geometry, so the DOM renderer remains the release path. Do not restore another renderer without the same in-app evidence.
@@ -49,7 +54,7 @@ Agent Browser preview access is one fail-closed setting. When disabled or unread
 
 Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: success requires the matching renderer to acknowledge a live `MediaRecorder`, and stop returns only after its bounded artifact is saved. Screenshots, recordings, element context, diagnostics, and action history have independent count and byte caps. Pi depends on the Browser preview service port; keep Electron view/CDP details in the desktop adapter so a future remote transport can preserve Session, approval, and target semantics.
 
-## Filed under "Electron Runtime Memory"
+## Filed under "Desktop runtime"
 
 - xterm 6.0 stable lacks Kitty keyboard-protocol negotiation. The terminal pins the supply-chain-aged `@xterm/xterm@6.1.0-beta.303` exactly and enables `vtExtensions.kittyKeyboard`; a real-DOM test covers legacy-before-negotiation plus CSI-u press/release after `CSI > 3 u`. xterm calls custom key handlers on keydown and keyup in this line, so every app-owned/clipboard keydown must retain `event.code` and swallow its paired release or report-event-types clients receive an orphan keyup. Move back to stable only after those protocol tests and real-Electron performance/IME QA pass.
 
