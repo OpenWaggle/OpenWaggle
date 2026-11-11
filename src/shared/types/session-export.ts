@@ -49,7 +49,7 @@ export interface SessionExportManifest {
       readonly createdAt: number
       readonly deliveryState: 'pending' | 'needs_attention'
       readonly attentionReason?: 'profile_revoked' | 'authority_changed' | undefined
-      readonly intent?: unknown | undefined
+      readonly intent?: unknown
     }[]
   }
 }

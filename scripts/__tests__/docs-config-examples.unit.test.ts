@@ -8,6 +8,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { ScheduledTask, ScheduledTasksResponse } from '@shared/types/scheduled-task'
+import type { HeartbeatSettingsInput } from '@shared/types/scheduled-task-heartbeat'
 import { fromPartial } from '@total-typescript/shoehorn'
 import JsonSchema from 'typebox/schema'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -28,6 +29,23 @@ import {
   removeScratchDirectories,
   scratchDirectory,
 } from './published-json-schemas.test-harness'
+
+/** The exported Heartbeat of a task created from `input`: omitted settings stay omitted. */
+function exportedHeartbeat(input: HeartbeatSettingsInput) {
+  return {
+    ...(input.stopWhen === undefined ? {} : { stopWhen: input.stopWhen }),
+    ...(input.indefinite === undefined ? {} : { indefinite: input.indefinite }),
+    ...(input.idlePauseAfter === undefined ? {} : { idlePauseAfter: input.idlePauseAfter }),
+    wakeCheck: input.wakeCheck
+      ? {
+          command: input.wakeCheck.command,
+          ...(input.wakeCheck.onFailure === undefined
+            ? {}
+            : { onFailure: input.wakeCheck.onFailure }),
+        }
+      : null,
+  }
+}
 
 afterEach(removeScratchDirectories)
 
@@ -172,11 +190,19 @@ const scheduledTasksExport: ExampleKind = {
     // The export of tasks created from these inputs is the example itself.
     const tasks = inputs.map((input) =>
       fromPartial<ScheduledTask>({
-        ...input,
         id: 'task',
-        heartbeat: input.heartbeat
-          ? { ...input.heartbeat, wakeCheck: input.heartbeat.wakeCheck ?? null }
-          : null,
+        name: input.name,
+        prompt: input.prompt,
+        enabled: input.enabled,
+        schedule: input.schedule,
+        target: input.target,
+        ...(input.timeZone === undefined ? {} : { timeZone: input.timeZone }),
+        ...(input.endsAt === undefined ? {} : { endsAt: input.endsAt }),
+        ...(input.maxRuns === undefined ? {} : { maxRuns: input.maxRuns }),
+        ...(input.notificationPolicy === undefined
+          ? {}
+          : { notificationPolicy: input.notificationPolicy }),
+        heartbeat: input.heartbeat ? exportedHeartbeat(input.heartbeat) : null,
       }),
     )
     expect(

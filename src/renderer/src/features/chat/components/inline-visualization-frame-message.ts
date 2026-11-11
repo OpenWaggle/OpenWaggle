@@ -58,8 +58,9 @@ export function handleInlineVisualizationFrameMessage(
     context.sendTheme()
     return
   }
-  if (value['capability'] !== context.capability.current || context.capability.current === null)
+  if (value['capability'] !== context.capability.current || context.capability.current === null) {
     return
+  }
   match(value['type'])
     .with('openwaggle:inline-visualization:open-link', () => {
       if (typeof value['url'] !== 'string' || context.brokerPending.current) return
