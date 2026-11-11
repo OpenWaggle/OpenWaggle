@@ -602,7 +602,6 @@ export default defineConfig({
       // which split their long one-line tables and calls. Split them, then drop them from here.
       files: [
         'scripts/__tests__/app-release-train.integration.test.ts',
-        'scripts/__tests__/check-conventional-commits.unit.test.ts',
         'scripts/benchmark-docker/__tests__/benchmark-proxy.integration.test.ts',
         'scripts/native-binary-formats.ts',
         'scripts/package-release-promote.ts',
