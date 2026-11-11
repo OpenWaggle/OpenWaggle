@@ -99,7 +99,7 @@ function callerCeiling(
         LIMIT 1
       `
       const profile = rows[0]
-      const verdict = profile && profile.revoked_at === null ? profile.authorization_ceiling : ASK
+      const verdict = profile?.revoked_at === null ? profile.authorization_ceiling : ASK
       return { verdict, followRuns: [] }
     })
   }

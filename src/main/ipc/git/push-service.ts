@@ -198,7 +198,7 @@ async function pushResolvedRef(
       message: 'The Git push URL changed after the destination was confirmed.',
     }
   }
-  if (pinnedTarget && pinnedTarget.pushUrls.length === 0) {
+  if (pinnedTarget?.pushUrls.length === 0) {
     return {
       ok: false,
       code: 'push-failed',

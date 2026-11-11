@@ -185,13 +185,9 @@ async function describeActiveRun(
       ? (statusOutcome.activeRunId ?? null)
       : null
   const session =
-    readOutcome && readOutcome.operation === 'read' && 'session' in readOutcome
-      ? readOutcome.session
-      : undefined
+    readOutcome?.operation === 'read' && 'session' in readOutcome ? readOutcome.session : undefined
   const pendingQuestions =
-    requestsOutcome &&
-    requestsOutcome.operation === 'requests-list' &&
-    'requests' in requestsOutcome
+    requestsOutcome?.operation === 'requests-list' && 'requests' in requestsOutcome
       ? requestsOutcome.requests.length
       : null
   return {

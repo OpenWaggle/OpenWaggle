@@ -93,7 +93,7 @@ function proofFor(
 export function createLocalSessionServerAuthenticationRequest(
   profile?: string,
 ): LocalSessionServerAuthenticationRequest {
-  if (profile !== undefined && profile.length === 0) {
+  if (profile?.length === 0) {
     throw new Error('A Local Session profile name is required for server authentication.')
   }
   return {

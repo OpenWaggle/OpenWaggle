@@ -107,8 +107,7 @@ export async function streamFullTranscript(input: {
     })
     const page = transcriptPage(result)
     if (
-      !page ||
-      page.highWaterMark === undefined ||
+      page?.highWaterMark === undefined ||
       page.branchScope === undefined ||
       page.selectedBranchId === undefined ||
       page.snapshotHeadNodeId === undefined
