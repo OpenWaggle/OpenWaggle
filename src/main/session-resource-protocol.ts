@@ -80,8 +80,9 @@ function freshToken() {
   throw new Error('Could not create a unique Session resource capability.')
 }
 
+/** Where the renderer reaches a resource: the scheme form in Electron, loopback in Electrobun. */
 function contentUrl(token: string, action: string) {
-  return `${SESSION_RESOURCE_PROTOCOL.SCHEME}://${SESSION_RESOURCE_PROTOCOL.HOST}/${token}/${action}`
+  return `${trustedOrigins.originOf('session-resource', SESSION_RESOURCE_PROTOCOL.HOST)}/${token}/${action}`
 }
 
 export function registerSessionResourceContentReference(

@@ -10,10 +10,10 @@ import type {
   InlineVisualizationFrameUnregisterInput,
   InlineVisualizationReadResult,
 } from '@shared/types/inline-visualization'
-import { inlineVisualizationFrameUrl } from '@shared/utils/inline-visualization'
 import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { trustedOrigins } from './desktop-shell/trusted-origins'
+import { visualizationContentSecurityPolicy } from './inline-visualization-policy'
 import baseStyles from './inline-visualization-assets/base.css.raw?raw'
 import hostStyles from './inline-visualization-assets/host.css.raw?raw'
 import hostRuntime from './inline-visualization-assets/host-runtime.js.raw?raw'
@@ -29,51 +29,10 @@ const FRAME_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3
 const STATIC_ASSET_HOST = 'assets'
 const LUCIDE_RUNTIME_DIGEST = createHash('sha256').update(lucideRuntime).digest('hex').slice(0, 16)
 const LUCIDE_RUNTIME_PATH = `/lucide-${LUCIDE_RUNTIME_DIGEST}.js`
-const LUCIDE_RUNTIME_URL = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${STATIC_ASSET_HOST}${LUCIDE_RUNTIME_PATH}`
-const CDN_SOURCES = [
-  'https://cdnjs.cloudflare.com',
-  'https://cdn.jsdelivr.net',
-  'https://esm.sh',
-  'https://fonts.bunny.net',
-  'https://fonts.googleapis.com',
-  'https://fonts.gstatic.com',
-  'https://unpkg.com',
-] as const
-const LOCAL_RESOURCE_SOURCES = ['blob:', 'data:'] as const
-const SCRIPT_SOURCES = [
-  "'unsafe-inline'",
-  "'unsafe-eval'",
-  "'wasm-unsafe-eval'",
-  `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`,
-  ...LOCAL_RESOURCE_SOURCES,
-  ...CDN_SOURCES,
-] as const
-const STYLE_SOURCES = [
-  "'unsafe-inline'",
-  `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`,
-  ...LOCAL_RESOURCE_SOURCES,
-  ...CDN_SOURCES,
-] as const
-const IMAGE_SOURCES = ['data:', 'blob:', ...CDN_SOURCES] as const
-
-export const VISUALIZATION_CONTENT_SECURITY_POLICY = [
-  `default-src 'none'`,
-  `script-src ${SCRIPT_SOURCES.join(' ')}`,
-  `script-src-elem ${SCRIPT_SOURCES.join(' ')}`,
-  `style-src ${STYLE_SOURCES.join(' ')}`,
-  `img-src ${IMAGE_SOURCES.join(' ')}`,
-  `font-src ${LOCAL_RESOURCE_SOURCES.join(' ')} ${CDN_SOURCES.join(' ')}`,
-  `media-src data: blob: ${CDN_SOURCES.join(' ')}`,
-  'connect-src blob: data:',
-  `worker-src 'none'`,
-  `child-src 'none'`,
-  `frame-src 'none'`,
-  `object-src 'none'`,
-  `base-uri 'none'`,
-  `form-action 'none'`,
-].join('; ')
-
-const HOST_RUNTIME = `<script>${hostRuntime.replace('__OPENWAGGLE_LUCIDE_ASSET_URL__', LUCIDE_RUNTIME_URL)}</script>`
+function hostRuntimeScript() {
+  const lucideUrl = `${trustedOrigins.originOf('inline-visualization', STATIC_ASSET_HOST)}${LUCIDE_RUNTIME_PATH}`
+  return `<script>${hostRuntime.replace('__OPENWAGGLE_LUCIDE_ASSET_URL__', lucideUrl)}</script>`
+}
 const HOST_STYLES = `<style>${hostStyles}</style>`
 
 interface InlineVisualizationProtocolDependencies {
@@ -133,7 +92,7 @@ export function registerInlineVisualizationFrame(
     sourcePath: input.sourcePath,
   })
   return {
-    frameUrl: inlineVisualizationFrameUrl(input.frameId),
+    frameUrl: inlineVisualizationUrl(input.frameId),
     registrationId,
   }
 }
@@ -146,12 +105,15 @@ export function unregisterInlineVisualizationFrame(
   const registration = registeredFrames.get(frameHost)
   if (registration?.registrationId === input.registrationId && registration.ownerId === ownerId) {
     registeredFrames.delete(frameHost)
+    trustedOrigins.release('inline-visualization', frameHost)
   }
 }
 
 export function unregisterInlineVisualizationFramesForOwner(ownerId: number) {
   for (const [frameHost, registration] of registeredFrames) {
-    if (registration.ownerId === ownerId) registeredFrames.delete(frameHost)
+    if (registration.ownerId !== ownerId) continue
+    registeredFrames.delete(frameHost)
+    trustedOrigins.release('inline-visualization', frameHost)
   }
 }
 
@@ -210,7 +172,7 @@ function visualizationDocument(
   options: { readonly errorReason?: string; readonly restoredStateJson?: string | null } = {},
 ) {
   const { errorReason, restoredStateJson } = options
-  const frameOrigin = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${frameHost}`
+  const frameOrigin = trustedOrigins.originOf('inline-visualization', frameHost)
   const baseStyleUrl = `${frameOrigin}${INLINE_VISUALIZATION_PROTOCOL.BASE_STYLE_PATH}`
   const errorMetadata = errorReason
     ? `<meta name="openwaggle-visualization-error" content="${escapeHtmlAttribute(errorReason)}">`
@@ -220,14 +182,14 @@ function visualizationDocument(
     ? `<meta name="openwaggle-visualization-state" content="${escapeHtmlAttribute(restoredStateJson)}">`
     : ''
   const motionAttribute = reducedMotion ? ' data-motion="reduced"' : ''
-  return `<!doctype html><html${motionAttribute}><head><meta charset="utf-8">${errorMetadata}${stateMetadata}<link rel="stylesheet" href="${baseStyleUrl}">${HOST_STYLES}${HOST_RUNTIME}</head><body>${contents}</body></html>`
+  return `<!doctype html><html${motionAttribute}><head><meta charset="utf-8">${errorMetadata}${stateMetadata}<link rel="stylesheet" href="${baseStyleUrl}">${HOST_STYLES}${hostRuntimeScript()}</head><body>${contents}</body></html>`
 }
 
 function visualizationResponse(document: string) {
   return new Response(document, {
     headers: {
       'content-type': TEXT_HTML_CONTENT_TYPE,
-      'content-security-policy': VISUALIZATION_CONTENT_SECURITY_POLICY,
+      'content-security-policy': visualizationContentSecurityPolicy(),
       'referrer-policy': 'no-referrer',
       'x-content-type-options': 'nosniff',
       'x-dns-prefetch-control': 'off',
@@ -250,8 +212,10 @@ async function defaultReadSource(input: {
   return runGuiEffect(readInlineVisualizationSource(input))
 }
 
+/** Where pages reach a frame: the scheme form in Electron, a loopback origin in Electrobun. */
 export function inlineVisualizationUrl(frameId: string) {
-  return inlineVisualizationFrameUrl(frameId)
+  const host = `${INLINE_VISUALIZATION_PROTOCOL.FRAME_HOST_PREFIX}${frameId}`
+  return `${trustedOrigins.originOf('inline-visualization', host)}${INLINE_VISUALIZATION_PROTOCOL.DOCUMENT_PATH}`
 }
 
 export function registerInlineVisualizationProtocolOnce(

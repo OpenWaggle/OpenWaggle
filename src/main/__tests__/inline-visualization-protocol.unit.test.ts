@@ -21,8 +21,8 @@ import {
   registerInlineVisualizationProtocolOnce,
   unregisterInlineVisualizationFrame,
   unregisterInlineVisualizationFramesForOwner,
-  VISUALIZATION_CONTENT_SECURITY_POLICY,
 } from '../inline-visualization-protocol'
+import { visualizationContentSecurityPolicy } from '../inline-visualization-policy'
 
 function registeredProtocolHandler() {
   const handler = handleMock.mock.calls[0]?.[1]
@@ -66,22 +66,22 @@ describe('inline visualization protocol', () => {
 
     expect(response).toBeInstanceOf(Response)
     expect(response.headers.get('content-security-policy')).toBe(
-      VISUALIZATION_CONTENT_SECURITY_POLICY,
+      visualizationContentSecurityPolicy(),
     )
-    expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain(
+    expect(visualizationContentSecurityPolicy()).toContain(
       "script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
     )
     for (const directive of ['script-src', 'script-src-elem', 'style-src', 'font-src']) {
-      expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toMatch(
+      expect(visualizationContentSecurityPolicy()).toMatch(
         new RegExp(`${directive}[^;]*blob:[^;]*data:`),
       )
     }
     for (const origin of CODEX_VISUALIZATION_CDN_ORIGINS) {
-      expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain(origin)
+      expect(visualizationContentSecurityPolicy()).toContain(origin)
     }
-    expect(VISUALIZATION_CONTENT_SECURITY_POLICY).not.toContain('https: *')
-    expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain("worker-src 'none'")
-    expect(VISUALIZATION_CONTENT_SECURITY_POLICY).not.toContain('worker-src blob:')
+    expect(visualizationContentSecurityPolicy()).not.toContain('https: *')
+    expect(visualizationContentSecurityPolicy()).toContain("worker-src 'none'")
+    expect(visualizationContentSecurityPolicy()).not.toContain('worker-src blob:')
     expect(response.headers.get('origin-agent-cluster')).toBeNull()
     expect(response.headers.get('x-dns-prefetch-control')).toBe('off')
     const document = await response.text()
@@ -157,7 +157,7 @@ describe('inline visualization protocol', () => {
     })
     expect(unavailableResponse.status).toBe(200)
     expect(unavailableResponse.headers.get('content-security-policy')).toBe(
-      VISUALIZATION_CONTENT_SECURITY_POLICY,
+      visualizationContentSecurityPolicy(),
     )
     const unavailableDocument = await unavailableResponse.text()
     expect(unavailableDocument).toContain('openwaggle:inline-visualization:error')

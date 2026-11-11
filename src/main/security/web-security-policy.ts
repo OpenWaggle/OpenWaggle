@@ -24,27 +24,31 @@ const VITE_REACT_PREAMBLE_HASH = "'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2Wd
  */
 export const STARTUP_APPEARANCE_SCRIPT_HASH =
   "'sha256-AzeWj8P/bvRHuRLOMEOepvQ0Qa2MUlvQ93kUJ7hu9co='" as const
-const EXTENSION_RUNTIME_SCRIPT_SOURCE =
-  `${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME}:` as const
-const SCRIPT_SRC_VALUES = [
-  "'self'",
-  VITE_REACT_PREAMBLE_HASH,
-  STARTUP_APPEARANCE_SCRIPT_HASH,
-  EXTENSION_RUNTIME_SCRIPT_SOURCE,
-] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
-const SESSION_RESOURCE_IMAGE_SOURCE = `${SESSION_RESOURCE_PROTOCOL.SCHEME}:` as const
-const IMG_SRC_VALUES = ["'self'", 'data:', 'blob:', SESSION_RESOURCE_IMAGE_SOURCE] as const
-const EXTENSION_FRAME_SOURCE = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` as const
-const INLINE_VISUALIZATION_FRAME_SOURCE = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:` as const
-const MCP_APP_FRAME_SOURCE = `${MCP_APP_FRAME_PROTOCOL.SCHEME}:` as const
-const FRAME_SRC_VALUES = [
-  "'self'",
-  'blob:',
-  EXTENSION_FRAME_SOURCE,
-  INLINE_VISUALIZATION_FRAME_SOURCE,
-  MCP_APP_FRAME_SOURCE,
-] as const
+
+/**
+ * The trusted origins the renderer's policy names, as CSP sources. Electron's are its custom
+ * schemes; Electrobun's are the loopback origins of its trusted origin servers
+ * (`TrustedOriginsShape.sourcesOf`), plus the loopback socket of its RPC in `connect`.
+ */
+export interface RendererPolicySources {
+  readonly extensionRuntime: readonly string[]
+  readonly sessionResource: readonly string[]
+  readonly extensionFrame: readonly string[]
+  readonly inlineVisualization: readonly string[]
+  readonly mcpAppFrame: readonly string[]
+  readonly connect: readonly string[]
+}
+
+const SCHEME_POLICY_SOURCES: RendererPolicySources = {
+  extensionRuntime: [`${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME}:`],
+  sessionResource: [`${SESSION_RESOURCE_PROTOCOL.SCHEME}:`],
+  extensionFrame: [`${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:`],
+  inlineVisualization: [`${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`],
+  mcpAppFrame: [`${MCP_APP_FRAME_PROTOCOL.SCHEME}:`],
+  connect: [],
+}
+
 const CONNECT_SRC_VALUES = [
   "'self'",
   'ws://localhost:*',
@@ -54,15 +58,36 @@ const CONNECT_SRC_VALUES = [
   'https://api.github.com',
 ] as const
 
-const CSP_DIRECTIVES = [
-  ['default-src', ["'self'"]],
-  ['script-src', SCRIPT_SRC_VALUES],
-  ['script-src-elem', SCRIPT_SRC_VALUES],
-  ['style-src', STYLE_SRC_VALUES],
-  ['img-src', IMG_SRC_VALUES],
-  ['frame-src', FRAME_SRC_VALUES],
-  ['connect-src', CONNECT_SRC_VALUES],
-] as const
+function unique(values: readonly string[]) {
+  return [...new Set(values)]
+}
+
+function cspDirectives(sources: RendererPolicySources) {
+  const scriptSources = [
+    "'self'",
+    VITE_REACT_PREAMBLE_HASH,
+    STARTUP_APPEARANCE_SCRIPT_HASH,
+    ...sources.extensionRuntime,
+  ]
+  return [
+    ['default-src', ["'self'"]],
+    ['script-src', scriptSources],
+    ['script-src-elem', scriptSources],
+    ['style-src', STYLE_SRC_VALUES],
+    ['img-src', ["'self'", 'data:', 'blob:', ...sources.sessionResource]],
+    [
+      'frame-src',
+      unique([
+        "'self'",
+        'blob:',
+        ...sources.extensionFrame,
+        ...sources.inlineVisualization,
+        ...sources.mcpAppFrame,
+      ]),
+    ],
+    ['connect-src', [...CONNECT_SRC_VALUES, ...sources.connect]],
+  ] as const
+}
 
 type CspResponseHeaders = Record<string, string[] | string>
 
@@ -102,10 +127,11 @@ interface SessionWithHeadersHandler {
 
 const sessionCspInstallState = new WeakSet<SessionWithHeadersHandler>()
 
-export function buildContentSecurityPolicy() {
-  return CSP_DIRECTIVES.map(([name, values]) => `${name} ${values.join(VALUE_SEPARATOR)}`).join(
-    DIRECTIVE_SEPARATOR,
-  )
+/** The renderer's Content Security Policy; Electron's custom-scheme sources unless given. */
+export function buildContentSecurityPolicy(sources: RendererPolicySources = SCHEME_POLICY_SOURCES) {
+  return cspDirectives(sources)
+    .map(([name, values]) => `${name} ${values.join(VALUE_SEPARATOR)}`)
+    .join(DIRECTIVE_SEPARATOR)
 }
 
 export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy()

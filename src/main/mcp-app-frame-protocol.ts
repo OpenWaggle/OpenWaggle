@@ -8,7 +8,7 @@ import type {
   McpAppFrameRegisterInput,
   McpAppFrameUnregisterInput,
 } from '@shared/types/mcp-app-frame'
-import { mcpAppContentSecurityPolicy, mcpAppFrameUrl } from '@shared/utils/mcp-app-csp'
+import { mcpAppContentSecurityPolicy } from '@shared/utils/mcp-app-csp'
 import { trustedOrigins } from './desktop-shell/trusted-origins'
 
 const TEXT_HTML_CONTENT_TYPE = 'text/html; charset=utf-8'
@@ -78,7 +78,10 @@ export function registerMcpAppFrame(input: McpAppFrameRegisterInput, ownerId: nu
     html: input.html,
     policy: mcpAppContentSecurityPolicy(input.csp),
   })
-  return { frameUrl: mcpAppFrameUrl(input.frameId), registrationId }
+  // The address pages reach the frame at: this scheme form in Electron, a loopback origin in
+  // Electrobun (ADR 0064).
+  const frameUrl = `${trustedOrigins.originOf('mcp-app-frame', host)}${MCP_APP_FRAME_PROTOCOL.DOCUMENT_PATH}`
+  return { frameUrl, registrationId }
 }
 
 function frameOrigin(host: string) {
@@ -93,6 +96,7 @@ export function unregisterMcpAppFrame(input: McpAppFrameUnregisterInput, ownerId
     return []
   }
   registeredFrames.delete(host)
+  trustedOrigins.release('mcp-app-frame', host)
   return [frameOrigin(host)]
 }
 
@@ -102,6 +106,7 @@ export function unregisterMcpAppFramesForOwner(ownerId: number) {
   for (const [host, registration] of registeredFrames) {
     if (registration.ownerId !== ownerId) continue
     registeredFrames.delete(host)
+    trustedOrigins.release('mcp-app-frame', host)
     origins.push(frameOrigin(host))
   }
   return origins
