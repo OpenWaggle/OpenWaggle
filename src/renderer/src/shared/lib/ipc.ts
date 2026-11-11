@@ -1,6 +1,9 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
+import { createRendererLogger } from './logger'
 import { createSessionControlQueryReader } from './session-control-query-reader'
 import { createSessionDetailReader } from './session-detail-reader'
+
+const logger = createRendererLogger('ipc')
 
 /**
  * Type-safe access to the preload API.
@@ -80,8 +83,8 @@ export function rejectedApiMethodOf(error: unknown): string | undefined {
 
 function createMissingApiMethod(prop: string) {
   return (..._args: unknown[]) => {
-    const message = `[ipc] window.api unavailable; attempted to call "${prop}". Ensure Electron main/preload have been restarted.`
-    console.error(message)
+    const message = `window.api unavailable; attempted to call "${prop}". Ensure Electron main/preload have been restarted.`
+    logger.error(message)
     if (prop.startsWith('on')) {
       return () => {}
     }

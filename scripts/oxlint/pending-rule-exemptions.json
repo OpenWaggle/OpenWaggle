@@ -1,8 +1,4 @@
 {
-  "no-console": {
-    "src/renderer/src/shared/lib/ipc.ts": 1,
-    "src/renderer/src/shell/useUnifiedShortcutCapture.ts": 1
-  },
   "react/globals": {
     "src/renderer/src/features/chat/hooks/__tests__/use-session-summary-space.component.test.tsx": 1
   },
