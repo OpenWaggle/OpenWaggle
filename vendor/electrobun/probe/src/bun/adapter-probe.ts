@@ -16,6 +16,7 @@ import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from '
 import path from 'node:path'
 import { createElectrobunBrowserPreviewViews } from '../../../../../src/main/adapters/electrobun/electrobun-browser-preview-views'
 import { loadElectrobun } from '../../../../../src/main/adapters/electrobun/electrobun-sdk'
+import { configurePreparedAttachmentRegistry } from '../../../../../src/main/utils/attachment-registry'
 import { PICK_PAGE, probePicker } from './picker-probe'
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
@@ -132,6 +133,9 @@ async function until(label: string, previewId: string, test: (state: PreviewStat
 
 const loaded = (url: string) => (state: PreviewState) =>
   state.url === url && !state.loading && state.title !== '' && !state.title.startsWith('about:')
+
+// The app configures this at startup; an annotation's attachment is remembered in it.
+configurePreparedAttachmentRegistry(path.join(outDir ?? Utils.paths.userData, 'attachments'))
 
 const views = createElectrobunBrowserPreviewViews({
   appPaths: { userData: () => path.join(outDir ?? Utils.paths.userData, 'user-data') },
