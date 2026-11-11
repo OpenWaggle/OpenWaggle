@@ -4,6 +4,7 @@ import type { AppPathsShape } from '../ports/desktop-shell/app-paths'
 import type { BootShellShape } from '../ports/desktop-shell/boot-shell'
 import type { ClipboardShape } from '../ports/desktop-shell/clipboard'
 import type { NetworkFetchShape } from '../ports/desktop-shell/network-fetch'
+import type { OsShellShape } from '../ports/desktop-shell/os-shell'
 import type { SecureStorageShape } from '../ports/desktop-shell/secure-storage'
 import type { SystemIntegrationShape } from '../ports/desktop-shell/system-integration'
 import type {
@@ -235,4 +236,15 @@ export function fakeSecureStorage(options: { available?: boolean } = {}) {
     warm: async () => undefined,
   } satisfies SecureStorageShape
   return Object.assign(storage, { state })
+}
+
+/** An OS shell that opens, reveals and trashes nothing; each member is a `vi.fn` a test may read. */
+export function fakeOsShell() {
+  return {
+    openExternal: vi.fn<OsShellShape['openExternal']>(async () => undefined),
+    openPath: vi.fn<OsShellShape['openPath']>(async () => ''),
+    showItemInFolder: vi.fn<OsShellShape['showItemInFolder']>(),
+    trashItem: vi.fn<OsShellShape['trashItem']>(async () => undefined),
+    beep: vi.fn<OsShellShape['beep']>(),
+  } satisfies OsShellShape
 }

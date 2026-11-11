@@ -13,32 +13,30 @@ interface TransformersEnvMock {
   }
 }
 
-const { typedHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(
-  () => {
-    const transformersEnv: TransformersEnvMock = {
-      backends: {
-        onnx: {},
-      },
-    }
+const { typedHandleMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(() => {
+  const transformersEnv: TransformersEnvMock = {
+    backends: {
+      onnx: {},
+    },
+  }
 
-    return {
-      typedHandleMock: vi.fn(),
-      getPathMock: vi.fn(() => '/tmp/openwaggle-user-data'),
-      mkdirMock: vi.fn(async () => undefined),
-      pipelineMock: vi.fn(),
-      transformersEnv,
-    }
-  },
-)
+  return {
+    typedHandleMock: vi.fn(),
+    mkdirMock: vi.fn(async () => undefined),
+    pipelineMock: vi.fn(),
+    transformersEnv,
+  }
+})
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: getPathMock,
-  },
+// The model cache lives under `userData`.
+vi.mock('../../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../../test-support/fake-desktop-shell')).fakeAppPaths(
+    '/tmp/openwaggle-user-data',
+  ),
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -75,7 +73,6 @@ function toPcm16(values: number[]) {
 describe('registerVoiceHandlers', () => {
   beforeEach(() => {
     typedHandleMock.mockReset()
-    getPathMock.mockClear()
     mkdirMock.mockClear()
     pipelineMock.mockReset()
     delete transformersEnv.allowLocalModels

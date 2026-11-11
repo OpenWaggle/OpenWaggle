@@ -6,28 +6,25 @@ import { afterEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const env: { OPENWAGGLE_USER_DATA_DIR?: string } = {}
   return {
-    /** Electron's app paths, as `setPath` and `setAppLogsPath` leave them. */
-    paths: new Map<string, string>(),
     env,
     initFileLogger: vi.fn(async () => undefined),
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
-    exit: vi.fn(),
-    getPath: vi.fn((name: string) => mocks.paths.get(name) ?? '/default/profile'),
-    setPath: vi.fn((name: string, value: string) => mocks.paths.set(name, value)),
-    setAppLogsPath: vi.fn((value: string) => mocks.paths.set('logs', value)),
-    getVersion: vi.fn(() => '1.0.0'),
-    whenReady: vi.fn(async () => undefined),
-    setActivationPolicy: vi.fn(),
-    commandLine: { hasSwitch: vi.fn(() => false), appendSwitch: vi.fn() },
-    disableHardwareAcceleration: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  },
+// The fake keeps `userData` and `logs` as `setUserData` and `setLogs` leave them.
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths('/default/profile'),
 }))
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle(),
+}))
+vi.mock('../desktop-shell/system-integration', async () => ({
+  systemIntegration: (await import('../test-support/fake-desktop-shell')).fakeSystemIntegration(),
+}))
+vi.mock('../desktop-shell/desktop-windows', () => ({
+  desktopWindows: { installWindowPolicy: vi.fn() },
+}))
+
 vi.mock('../env', () => ({
   env: mocks.env,
   installLinuxSessionBusEnvironment: () => undefined,
@@ -56,7 +53,6 @@ let userDataPath = ''
 
 afterEach(async () => {
   delete mocks.env.OPENWAGGLE_USER_DATA_DIR
-  mocks.paths.clear()
   await rm(userDataPath, { recursive: true, force: true })
 })
 

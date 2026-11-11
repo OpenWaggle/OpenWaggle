@@ -15,10 +15,10 @@ const selectionState = vi.hoisted<SelectionState>(() => ({
   selectedOption: undefined,
 }))
 
-vi.mock('electron', () => ({
-  shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
+// Starting a sign-in opens the provider's page in the browser; the fake opens nothing.
+vi.mock('../desktop-shell/os-shell', async () => ({
+  osShell: (await import('../test-support/fake-desktop-shell')).fakeOsShell(),
 }))
-
 vi.mock('../logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn() }),
 }))

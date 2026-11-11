@@ -5,9 +5,8 @@ import { ProviderOAuthService } from '../../ports/provider-oauth-service'
 
 const mockHandle = vi.hoisted(() => vi.fn())
 
-vi.mock('electron', () => ({
-  ipcMain: { handle: mockHandle, on: vi.fn() },
-  BrowserWindow: { getAllWindows: () => [] },
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: { handle: mockHandle, on: vi.fn() },
 }))
 
 vi.mock('../../runtime', () => ({

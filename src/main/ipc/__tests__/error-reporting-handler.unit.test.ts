@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({
-  ipcMain: {
+vi.mock('../../desktop-shell/ipc-transport', () => ({
+  ipcMainTransport: {
     handle: vi.fn(),
     on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => {
       mocks.listeners.set(channel, listener)

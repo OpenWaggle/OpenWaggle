@@ -3,13 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: () => true,
-    encryptString: (value: string) => Buffer.from(value, 'utf8').map((byte) => byte ^ 0xa5),
-    decryptString: (value: Buffer) =>
-      Buffer.from(value.map((byte) => byte ^ 0xa5)).toString('utf8'),
-  },
+// Credentials sealed for the store go through SecureStorage; the fake never reaches the keychain.
+vi.mock('../../desktop-shell/secure-storage', async () => ({
+  secureStorage: (await import('../../test-support/fake-desktop-shell')).fakeSecureStorage(),
 }))
 
 import { generateProfileCredential } from '../profile-credential'

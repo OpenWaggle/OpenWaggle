@@ -10,18 +10,27 @@ import { DocsBundleService } from '../../../ports/docs-bundle-service'
 import type { ExtensionManagerServiceShape } from '../../../ports/extension-manager-service'
 import type { OpenWagglePiExtensionSelectionServices } from '../openwaggle-pi-extension-selection'
 
-// The packaged layout: the bundle sits at `<resourcesPath>/openwaggle-docs`.
-vi.mock('electron', () => ({ app: { isPackaged: true } }))
+const resources = vi.hoisted(() => ({ path: '' }))
+
+// The packaged layout: the bundle sits at `<appPaths.resources()>/openwaggle-docs`.
+vi.mock('../../../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../../../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    isPackaged: () => true,
+  }),
+}))
+vi.mock('../../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), resources: () => resources.path } }
+})
 
 const { FilesystemDocsBundleLive } = await import('../../filesystem-docs-bundle-service')
 const { createOpenWaggleDocsToolExtension } = await import('../openwaggle-docs-tool-extension')
 const { createOpenWaggleDocsToolServices } = await import('../openwaggle-docs-tool-services')
 
 let resourcesPath = ''
-const originalResourcesPath = process.resourcesPath
 
 function setResourcesPath(value: string) {
-  Object.defineProperty(process, 'resourcesPath', { value, configurable: true, writable: true })
+  resources.path = value
 }
 
 async function docsServices() {
@@ -74,7 +83,6 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  setResourcesPath(originalResourcesPath)
   await rm(resourcesPath, { recursive: true, force: true })
 })
 
