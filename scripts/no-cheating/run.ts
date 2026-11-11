@@ -54,6 +54,7 @@ export async function noCheatingFindings(root: string, base: string): Promise<Fi
       moved,
       exists: (file) => Promise.resolve(present.has(file)),
       existed: async (file) => (await textsAt(root, base, [file])).get(file) !== undefined,
+      textNow: (file) => currentText(root, file),
     }),
     tsconfigFindings({
       root,

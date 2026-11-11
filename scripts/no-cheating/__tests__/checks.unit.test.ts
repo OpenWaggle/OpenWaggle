@@ -190,17 +190,31 @@ describe('skipped and deleted tests', () => {
   it('blocks a deleted test whose code remains, and passes one deleted with its code', async () => {
     const now = new Set(['src/a.ts'])
     const then = new Set(['src/a.ts', 'src/b.ts'])
+    const texts = new Map<string, string>()
     const check = (files: readonly FileState[], moved: readonly string[] = []) =>
       deletedTestFindings({
         changes: files,
         moved: new Set(moved),
         exists: (file) => Promise.resolve(now.has(file)),
         existed: (file) => Promise.resolve(then.has(file)),
+        textNow: (file) => Promise.resolve(texts.get(file)),
       })
     const deleted = (file: string) => ({ file, existedBefore: true, existsNow: false })
     expect((await check([deleted('src/__tests__/a.unit.test.ts')])).map(formatFinding)).toEqual([
-      'src/__tests__/a.unit.test.ts:1 [GATE-03] deleted while src/a.ts still exists; restore the test',
+      'src/__tests__/a.unit.test.ts:1 [GATE-03] deleted while src/a.ts still exists; restore the test, or merge its cases into a test file that imports it',
     ])
+    // Merged into an edited test file that imports the subject: passes.
+    const receiver = {
+      file: 'src/__tests__/a-flows.integration.test.ts',
+      existedBefore: true,
+      existsNow: true,
+    }
+    texts.set(receiver.file, "import { run } from '../a'\n")
+    expect(await check([deleted('src/__tests__/a.unit.test.ts'), receiver])).toEqual([])
+    // An edited test file that imports something else does not count.
+    texts.set(receiver.file, "import { run } from '../b'\n")
+    expect(await check([deleted('src/__tests__/a.unit.test.ts'), receiver])).toHaveLength(1)
+    texts.clear()
     expect(await check([deleted('src/__tests__/b.unit.test.ts')])).toEqual([])
     const flows = 'src/__tests__/flows.integration.test.ts'
     expect(await check([deleted(flows)])).toHaveLength(1)

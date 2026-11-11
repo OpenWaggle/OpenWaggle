@@ -2,7 +2,8 @@
  * Tests skipped or deleted to get a change through (GATE-03): a new `.skip`, `.only`, `.todo`,
  * `xit` or `fit` in a test file, a `skipIf` or `runIf` with no comment above it saying when it
  * runs, and a deleted test file whose subject still exists or cannot be told. A test deleted
- * with its code (its subject, or code beside it), or one git sees as moved, passes.
+ * with its code (its subject, or code beside it), one git sees as moved, or one merged into a
+ * test file that the same change edits and that imports the subject, passes.
  */
 import path from 'node:path'
 import { addedLines } from './added-lines'
@@ -16,6 +17,13 @@ const SKIP =
 const TEST_SUFFIX =
   /(?:\.(?:unit|integration|component|e2e|browser))?\.(?:test|spec)\.[cm]?[jt]sx?$/u
 const SUBJECT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '/index.ts']
+const MODULE_EXTENSION = /(?:\/index)?\.[cm]?[jt]sx?$/u
+const SPECIFIER = /(?:\bfrom|\bimport\s*\(|\bmock\s*\(|\bimport)\s*['"](?<specifier>[^'"]+)['"]/gu
+/** Path aliases the tsconfigs declare, as repository paths. */
+const ALIASES: readonly (readonly [string, string])[] = [
+  ['@/', 'src/renderer/src/'],
+  ['@shared/', 'src/shared/'],
+]
 
 /** Conditional skips, such as a test of a build artifact that only runs after the build. */
 const CONDITIONAL = new Set(['skipIf', 'runIf'])
@@ -88,11 +96,44 @@ export interface DeletedTestInput {
   readonly exists: (file: string) => Promise<boolean>
   /** Whether a file existed at the base. */
   readonly existed: (file: string) => Promise<boolean>
+  /** A file's current text, or undefined when it cannot be read. */
+  readonly textNow: (file: string) => Promise<string | undefined>
+}
+
+/** The repository path, without extension, that an import specifier in `file` names. */
+function resolvedModule(file: string, specifier: string) {
+  const alias = ALIASES.find(([prefix]) => specifier.startsWith(prefix))
+  if (alias !== undefined) return `${alias[1]}${specifier.slice(alias[0].length)}`
+  if (!specifier.startsWith('.')) return undefined
+  return path.posix.join(path.posix.dirname(file), specifier)
+}
+
+function importsModule(file: string, text: string, subject: string) {
+  const target = subject.replace(MODULE_EXTENSION, '')
+  for (const match of text.matchAll(SPECIFIER)) {
+    const specifier = match.groups?.['specifier']
+    const resolved = specifier === undefined ? undefined : resolvedModule(file, specifier)
+    if (resolved?.replace(MODULE_EXTENSION, '') === target) return true
+  }
+  return false
+}
+
+/** Test files this change added or edited that import `subject`: where merged tests went. */
+async function receivingTestFile(input: DeletedTestInput, subject: string) {
+  const candidates = input.changes.filter(
+    (change) => change.existsNow && TEST_SUFFIX.test(change.file),
+  )
+  const texts = await Promise.all(candidates.map((change) => input.textNow(change.file)))
+  return candidates.find((change, index) => {
+    const text = texts[index]
+    return text !== undefined && importsModule(change.file, text, subject)
+  })?.file
 }
 
 /**
  * Deleted test files whose code is still there, or whose code cannot be told and that did not
- * move. A test deleted together with its code, or moved to another file, passes.
+ * move. A test deleted together with its code, moved to another file, or merged into a test file
+ * the same change edits and that imports the code, passes.
  */
 export async function deletedTestFindings(input: DeletedTestInput): Promise<Finding[]> {
   const { exists, existed } = input
@@ -116,7 +157,13 @@ export async function deletedTestFindings(input: DeletedTestInput): Promise<Find
       ])
       const subject = subjects.find((_, index) => now[index] === true)
       if (subject !== undefined) {
-        return [finding(file, `deleted while ${subject} still exists; restore the test`)]
+        if ((await receivingTestFile(input, subject)) !== undefined) return []
+        return [
+          finding(
+            file,
+            `deleted while ${subject} still exists; restore the test, or merge its cases into a test file that imports it`,
+          ),
+        ]
       }
       // No subject by name: the test went with its code when code beside it was deleted too.
       const known =
