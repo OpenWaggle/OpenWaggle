@@ -8,7 +8,12 @@ const mocks = vi.hoisted(() => ({
   runAppEffect: vi.fn(),
 }))
 
-vi.mock('electron', () => ({ protocol: { handle: mocks.handle } }))
+vi.mock('../desktop-shell/trusted-origins', async () => ({
+  trustedOrigins: {
+    ...(await import('../test-support/fake-desktop-shell')).fakeTrustedOrigins(),
+    serve: mocks.handle,
+  },
+}))
 vi.mock('../renderer-protocol', () => ({ registerRendererProtocolOnce: vi.fn() }))
 vi.mock('../extension-frame-protocol', () => ({ registerExtensionFrameProtocolOnce: vi.fn() }))
 vi.mock('../extension-runtime-protocol', () => ({
@@ -26,7 +31,7 @@ vi.mock('../application/session-resource-content', () => ({
 vi.mock('../runtime', () => ({ runAppEffect: mocks.runAppEffect }))
 
 function sessionResourceHandler() {
-  const call = mocks.handle.mock.calls.find(([scheme]) => scheme === 'openwaggle-session-resource')
+  const call = mocks.handle.mock.calls.find(([domain]) => domain === 'session-resource')
   const handler = call?.[1]
   if (typeof handler !== 'function') throw new Error('Expected the Session resource handler.')
   return handler

@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { typedHandleMock } = vi.hoisted(() => ({ typedHandleMock: vi.fn() }))
 
-vi.mock('electron', () => ({ protocol: { handle: vi.fn() } }))
+vi.mock('../../desktop-shell/trusted-origins', async () => ({
+  trustedOrigins: (await import('../../test-support/fake-desktop-shell')).fakeTrustedOrigins(),
+}))
 vi.mock('../typed-ipc', () => ({ typedHandle: typedHandleMock }))
 // The Electron adapter clears the storage of the sender's own web profile, as this stand-in does.
 vi.mock('../../desktop-shell/web-security', () => ({

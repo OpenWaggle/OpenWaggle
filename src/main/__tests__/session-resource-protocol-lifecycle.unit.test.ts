@@ -6,7 +6,12 @@ import type { RendererSurface } from '../ports/desktop-shell/renderer-surfaces'
 
 const { handleMock } = vi.hoisted(() => ({ handleMock: vi.fn() }))
 
-vi.mock('electron', () => ({ protocol: { handle: handleMock } }))
+vi.mock('../desktop-shell/trusted-origins', async () => ({
+  trustedOrigins: {
+    ...(await import('../test-support/fake-desktop-shell')).fakeTrustedOrigins(),
+    serve: handleMock,
+  },
+}))
 
 const loadSubject = () => import('../session-resource-protocol')
 type Subject = Awaited<ReturnType<typeof loadSubject>>

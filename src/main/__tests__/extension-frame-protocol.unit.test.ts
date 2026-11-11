@@ -4,36 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const HTTP_FOUND_STATUS = 302
 const HTTP_NOT_FOUND_STATUS = 404
 
-interface ProtocolRequest {
-  readonly url: string
-}
-
-type ProtocolHandler = (request: ProtocolRequest) => Response | Promise<Response>
-
-const protocolMocks = vi.hoisted(() => {
-  const protocolHandlers = new Map<string, ProtocolHandler>()
+const protocolMocks = await vi.hoisted(async () => {
+  const { fakeTrustedOrigins } = await import('../test-support/fake-desktop-shell')
   return {
     is: { dev: true },
     env: { ELECTRON_RENDERER_URL: 'http://localhost:5173' },
-    handle: vi.fn((scheme: string, handler: ProtocolHandler) => {
-      protocolHandlers.set(scheme, handler)
-    }),
-    getProtocolHandler: (scheme: string) => protocolHandlers.get(scheme) ?? null,
-    resetHandler: () => {
-      protocolHandlers.clear()
-    },
+    trustedOrigins: fakeTrustedOrigins(),
   }
 })
 
-vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
-  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !protocolMocks.is.dev } }
-})
-
-vi.mock('electron', () => ({
-  protocol: {
-    handle: protocolMocks.handle,
-  },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    isPackaged: () => !protocolMocks.is.dev,
+  }),
+}))
+vi.mock('../desktop-shell/trusted-origins', () => ({
+  trustedOrigins: protocolMocks.trustedOrigins,
 }))
 
 vi.mock('../env', () => ({
@@ -44,10 +30,8 @@ async function loadExtensionFrameProtocol() {
   return import('../extension-frame-protocol')
 }
 
-function dispatchProtocolRequest(scheme: string, url: string) {
-  const handler = protocolMocks.getProtocolHandler(scheme)
-  if (!handler) throw new Error('Expected protocol handler')
-  return handler({ url })
+function dispatchProtocolRequest(url: string) {
+  return protocolMocks.trustedOrigins.dispatchUrl(url)
 }
 
 describe('extension frame protocol', () => {
@@ -55,8 +39,7 @@ describe('extension frame protocol', () => {
     vi.resetModules()
     protocolMocks.is.dev = true
     protocolMocks.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
-    protocolMocks.handle.mockClear()
-    protocolMocks.resetHandler()
+    protocolMocks.trustedOrigins.reset()
   })
 
   it('serves the static frame document and CSS with per-frame CSP', async () => {
@@ -70,10 +53,7 @@ describe('extension frame protocol', () => {
       networkOrigins: ['https://api.github.com'],
     })
 
-    const documentResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
-      registration.frameUrl,
-    )
+    const documentResponse = await dispatchProtocolRequest(registration.frameUrl)
     const documentText = await documentResponse.text()
     const csp = documentResponse.headers.get('content-security-policy') ?? ''
 
@@ -92,7 +72,6 @@ describe('extension frame protocol', () => {
     expect(csp).toContain('connect-src https://api.github.com ws://localhost:* ws://127.0.0.1:*')
 
     const styleResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
       new URL('./frame.css', registration.frameUrl).toString(),
     )
 
@@ -104,12 +83,8 @@ describe('extension frame protocol', () => {
       frameId: 'frame-1',
       registrationId: registration.registrationId,
     })
-    const unregisteredResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
-      registration.frameUrl,
-    )
+    const unregisteredResponse = await dispatchProtocolRequest(registration.frameUrl)
     const lateStyleResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
       new URL('./frame.css', registration.frameUrl).toString(),
     )
     expect(unregisteredResponse.status).toBe(HTTP_NOT_FOUND_STATUS)
@@ -129,7 +104,6 @@ describe('extension frame protocol', () => {
     })
 
     const bootstrapResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
       new URL('./bootstrap.js', registration.frameUrl).toString(),
     )
 
@@ -151,7 +125,6 @@ describe('extension frame protocol', () => {
     })
 
     const bootstrapResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
       new URL('./bootstrap.js', registration.frameUrl).toString(),
     )
 
@@ -211,12 +184,8 @@ describe('extension frame protocol', () => {
       registrationId: staleRegistration.registrationId,
     })
 
-    const documentResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
-      activeRegistration.frameUrl,
-    )
+    const documentResponse = await dispatchProtocolRequest(activeRegistration.frameUrl)
     const bootstrapResponse = await dispatchProtocolRequest(
-      'openwaggle-extension-frame',
       new URL('./bootstrap.js', activeRegistration.frameUrl).toString(),
     )
 
@@ -234,7 +203,6 @@ describe('extension frame protocol', () => {
     expect(
       (
         await dispatchProtocolRequest(
-          'openwaggle-extension-frame',
           'openwaggle-extension-frame://frame/frames/missing/index.html',
         )
       ).status,

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ protocol: { handle: vi.fn() } }))
+vi.mock('../desktop-shell/trusted-origins', async () => ({
+  trustedOrigins: (await import('../test-support/fake-desktop-shell')).fakeTrustedOrigins(),
+}))
 
 import {
   mcpAppFrameResponse,

@@ -21,28 +21,20 @@ const REFUSED_MODULE_REQUESTS: readonly {
   { name: 'a directory that is not an extension package', packageDirectory: 'not-an-extension' },
 ]
 
-interface ProtocolRequest {
-  readonly url: string
-}
-
-type ProtocolHandler = (request: ProtocolRequest) => Response | Promise<Response>
-
-const protocolMocks = vi.hoisted(() => {
-  const protocolHandlers = new Map<string, ProtocolHandler>()
+const protocolMocks = await vi.hoisted(async () => {
+  const { fakeAppPaths, fakeNetworkFetch, fakeTrustedOrigins } =
+    await import('../test-support/fake-desktop-shell')
+  const networkFetch = fakeNetworkFetch()
+  networkFetch.fetch.mockImplementation((input) =>
+    Promise.resolve(new Response(typeof input === 'string' ? input : input.url)),
+  )
   return {
     is: { dev: false },
     env: { ELECTRON_RENDERER_URL: '' },
-    app: { getPath: vi.fn(() => '/tmp/user-data') },
+    appPaths: fakeAppPaths('/tmp/user-data'),
     existsSync: vi.fn(),
-    fetch: vi.fn((url: string) => Promise.resolve(new Response(url))),
-    registerSchemesAsPrivileged: vi.fn(),
-    handle: vi.fn((scheme: string, handler: ProtocolHandler) => {
-      protocolHandlers.set(scheme, handler)
-    }),
-    getProtocolHandler: (scheme: string) => protocolHandlers.get(scheme) ?? null,
-    resetHandler: () => {
-      protocolHandlers.clear()
-    },
+    networkFetch,
+    trustedOrigins: fakeTrustedOrigins(),
   }
 })
 
@@ -50,20 +42,15 @@ vi.mock('node:fs', () => ({
   existsSync: protocolMocks.existsSync,
 }))
 
-vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
-  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !protocolMocks.is.dev } }
-})
-
-vi.mock('electron', () => ({
-  app: protocolMocks.app,
-  net: {
-    fetch: protocolMocks.fetch,
-  },
-  protocol: {
-    registerSchemesAsPrivileged: protocolMocks.registerSchemesAsPrivileged,
-    handle: protocolMocks.handle,
-  },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    isPackaged: () => !protocolMocks.is.dev,
+  }),
+}))
+vi.mock('../desktop-shell/app-paths', () => ({ appPaths: protocolMocks.appPaths }))
+vi.mock('../desktop-shell/network-fetch', () => ({ networkFetch: protocolMocks.networkFetch }))
+vi.mock('../desktop-shell/trusted-origins', () => ({
+  trustedOrigins: protocolMocks.trustedOrigins,
 }))
 
 vi.mock('../env', () => ({
@@ -82,10 +69,8 @@ async function loadRendererProtocol() {
   return import('../extension-runtime-protocol')
 }
 
-function dispatchProtocolRequest(scheme: string, url: string) {
-  const handler = protocolMocks.getProtocolHandler(scheme)
-  if (!handler) throw new Error('Expected protocol handler')
-  return handler({ url })
+function dispatchProtocolRequest(url: string) {
+  return protocolMocks.trustedOrigins.dispatchUrl(url)
 }
 
 describe('extension runtime protocol', () => {
@@ -94,10 +79,9 @@ describe('extension runtime protocol', () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-runtime-protocol-'))
     protocolMocks.is.dev = false
     protocolMocks.env.ELECTRON_RENDERER_URL = ''
-    protocolMocks.app.getPath.mockReturnValue(path.join(tmpRoot, 'user-data'))
-    protocolMocks.fetch.mockClear()
-    protocolMocks.handle.mockClear()
-    protocolMocks.resetHandler()
+    protocolMocks.appPaths.setUserData(path.join(tmpRoot, 'user-data'))
+    protocolMocks.networkFetch.fetch.mockClear()
+    protocolMocks.trustedOrigins.reset()
   })
 
   afterEach(async () => {
@@ -110,8 +94,7 @@ describe('extension runtime protocol', () => {
   it(
     'serves hash-covered runtime entries and relative chunks from project packages',
     async () => {
-      const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-        await loadRendererProtocol()
+      const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
       const projectPath = path.join(tmpRoot, 'project')
       const extensionPackage = await writeExtensionPackage({
         projectPath,
@@ -131,12 +114,10 @@ describe('extension runtime protocol', () => {
       })
       const chunkUrl = new URL('./chunk.js', routeUrl).href
 
-      const routeResponse = await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)
+      const routeResponse = await dispatchProtocolRequest(routeUrl)
       expect(routeResponse.headers.get('access-control-allow-origin')).toBe('*')
       expect(await routeResponse.text()).toContain('dist/route.js')
-      expect(
-        await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
-      ).toContain('dist/chunk.js')
+      expect(await (await dispatchProtocolRequest(chunkUrl)).text()).toContain('dist/chunk.js')
       expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenCalledWith({
         packagePath: extensionPackage.packagePath,
         contentHash: extensionPackage.contentHash,
@@ -151,8 +132,7 @@ describe('extension runtime protocol', () => {
   it(
     'answers 404 when an allowed module cannot be read',
     async () => {
-      const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-        await loadRendererProtocol()
+      const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
       const projectPath = path.join(tmpRoot, 'project')
       const extensionPackage = await writeExtensionPackage({
         projectPath,
@@ -161,10 +141,11 @@ describe('extension runtime protocol', () => {
         tmpRoot,
       })
       registerExtensionRuntimeProtocolOnce(allowRuntimeModuleAccess())
-      protocolMocks.fetch.mockRejectedValueOnce(new Error('ENOENT: the module was removed'))
+      protocolMocks.networkFetch.fetch.mockRejectedValueOnce(
+        new Error('ENOENT: the module was removed'),
+      )
 
       const response = await dispatchProtocolRequest(
-        EXTENSION_RUNTIME_PROTOCOL,
         runtimeModuleUrl({
           packagePath: extensionPackage.packagePath,
           contentHash: extensionPackage.contentHash,
@@ -179,8 +160,7 @@ describe('extension runtime protocol', () => {
   )
 
   it('serves hash-covered runtime entries from global extension packages', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
+    const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
     const globalRootPath = path.join(tmpRoot, 'user-data', 'extensions')
     const extensionPackage = await writeExtensionPackage({
@@ -198,14 +178,11 @@ describe('extension runtime protocol', () => {
       relativePath: 'dist/route.js',
     })
 
-    expect(
-      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)).text(),
-    ).toContain('dist/route.js')
+    expect(await (await dispatchProtocolRequest(routeUrl)).text()).toContain('dist/route.js')
   })
 
   it('keeps session context in access checks for entries and their relative chunks', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
+    const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
     const extensionPackage = await writeExtensionPackage({
       projectPath,
@@ -231,20 +208,15 @@ describe('extension runtime protocol', () => {
       sessionId: 'session-1',
     }
 
-    expect(
-      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)).text(),
-    ).toContain('dist/route.js')
+    expect(await (await dispatchProtocolRequest(routeUrl)).text()).toContain('dist/route.js')
     expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenLastCalledWith(sessionAccess)
     const chunkUrl = new URL('./chunk.js', routeUrl).href
-    expect(
-      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
-    ).toContain('dist/chunk.js')
+    expect(await (await dispatchProtocolRequest(chunkUrl)).text()).toContain('dist/chunk.js')
     expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenLastCalledWith(sessionAccess)
   })
 
   it.each(REFUSED_MODULE_REQUESTS)('answers 404 for $name', async (request) => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
+    const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
     const extensionPackage = await writeExtensionPackage({
       projectPath,
@@ -266,14 +238,11 @@ describe('extension runtime protocol', () => {
       relativePath: request.relativePath ?? 'dist/route.js',
     })
 
-    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, url)).status).toBe(
-      HTTP_NOT_FOUND_STATUS,
-    )
+    expect((await dispatchProtocolRequest(url)).status).toBe(HTTP_NOT_FOUND_STATUS)
   })
 
   it('rejects hash-covered runtime files that resolve outside the extension package', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
+    const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
     const extensionPackage = await writeExtensionPackage({
       projectPath,
@@ -294,15 +263,12 @@ describe('extension runtime protocol', () => {
       relativePath: 'dist/route.js',
     })
 
-    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, escapedUrl)).status).toBe(
-      HTTP_NOT_FOUND_STATUS,
-    )
-    expect(protocolMocks.fetch).not.toHaveBeenCalled()
+    expect((await dispatchProtocolRequest(escapedUrl)).status).toBe(HTTP_NOT_FOUND_STATUS)
+    expect(protocolMocks.networkFetch.fetch).not.toHaveBeenCalled()
   })
 
   it('rejects hash-covered runtime files when current registry policy denies access', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
+    const { registerExtensionRuntimeProtocolOnce } = await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
     const extensionPackage = await writeExtensionPackage({
       projectPath,
@@ -323,9 +289,7 @@ describe('extension runtime protocol', () => {
       projectPaths: [projectPath],
     })
 
-    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)).status).toBe(
-      HTTP_NOT_FOUND_STATUS,
-    )
-    expect(protocolMocks.fetch).not.toHaveBeenCalled()
+    expect((await dispatchProtocolRequest(routeUrl)).status).toBe(HTTP_NOT_FOUND_STATUS)
+    expect(protocolMocks.networkFetch.fetch).not.toHaveBeenCalled()
   })
 })

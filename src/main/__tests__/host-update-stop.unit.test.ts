@@ -1,11 +1,11 @@
 import { EventEmitter } from 'node:events'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, type Mock, vi } from 'vitest'
 
 const { electronApp } = vi.hoisted(() => {
   const electronApp: {
     emitter: import('node:events').EventEmitter | null
-    readonly exit: ReturnType<typeof vi.fn<(code?: number) => void>>
-  } = { emitter: null, exit: vi.fn<(code?: number) => void>() }
+    readonly exit: Mock<(code?: number) => void>
+  } = { emitter: null, exit: vi.fn() }
   return { electronApp }
 })
 vi.mock('../desktop-shell/app-lifecycle', async () => ({

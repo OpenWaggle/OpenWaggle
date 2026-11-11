@@ -5,6 +5,7 @@ import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
 import { MCP_APP_FRAME_PROTOCOL } from '@shared/constants/mcp-app-frame'
 import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const HTTP_OK_STATUS = 200
@@ -12,41 +13,30 @@ const HTTP_NOT_FOUND_STATUS = 404
 // Full-suite workers can contend while Vitest transforms the renderer protocol graph.
 const MODULE_LOAD_TEST_TIMEOUT_MS = 60_000
 
-interface ProtocolRequest {
-  readonly url: string
-}
-
-type ProtocolHandler = (request: ProtocolRequest) => Response | Promise<Response>
-
 interface RendererProtocolEnvMock {
   ELECTRON_RENDERER_URL: string
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: string | undefined
 }
 
-const protocolMocks = vi.hoisted(() => {
-  const protocolHandlers = new Map<string, ProtocolHandler>()
+const protocolMocks = await vi.hoisted(async () => {
+  const { fakeAppPaths, fakeNetworkFetch, fakeTrustedOrigins } =
+    await import('../test-support/fake-desktop-shell')
   const env: RendererProtocolEnvMock = {
     ELECTRON_RENDERER_URL: '',
     OPENWAGGLE_AUTOMATION_LEASE_TOKEN: undefined,
   }
+  const networkFetch = fakeNetworkFetch()
+  networkFetch.fetch.mockImplementation((input) =>
+    Promise.resolve(new Response(typeof input === 'string' ? input : input.url)),
+  )
   return {
     is: { dev: false },
     env,
     appendSwitch: vi.fn(),
-    app: {
-      commandLine: { appendSwitch: vi.fn() },
-      getPath: vi.fn(() => '/tmp/user-data'),
-    },
+    appPaths: fakeAppPaths('/tmp/user-data'),
     existsSync: vi.fn(),
-    fetch: vi.fn((url: string) => Promise.resolve(new Response(url))),
-    registerSchemesAsPrivileged: vi.fn(),
-    handle: vi.fn((scheme: string, handler: ProtocolHandler) => {
-      protocolHandlers.set(scheme, handler)
-    }),
-    getProtocolHandler: (scheme: string) => protocolHandlers.get(scheme) ?? null,
-    resetHandler: () => {
-      protocolHandlers.clear()
-    },
+    networkFetch,
+    trustedOrigins: fakeTrustedOrigins(),
   }
 })
 
@@ -54,20 +44,20 @@ vi.mock('node:fs', () => ({
   existsSync: protocolMocks.existsSync,
 }))
 
-vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
-  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !protocolMocks.is.dev } }
-})
-
-vi.mock('electron', () => ({
-  app: protocolMocks.app,
-  net: {
-    fetch: protocolMocks.fetch,
-  },
-  protocol: {
-    registerSchemesAsPrivileged: protocolMocks.registerSchemesAsPrivileged,
-    handle: protocolMocks.handle,
-  },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    isPackaged: () => !protocolMocks.is.dev,
+    commandLine: {
+      appendSwitch: protocolMocks.appendSwitch,
+      hasSwitch: () => false,
+      getSwitchValue: () => '',
+    },
+  }),
+}))
+vi.mock('../desktop-shell/app-paths', () => ({ appPaths: protocolMocks.appPaths }))
+vi.mock('../desktop-shell/network-fetch', () => ({ networkFetch: protocolMocks.networkFetch }))
+vi.mock('../desktop-shell/trusted-origins', () => ({
+  trustedOrigins: protocolMocks.trustedOrigins,
 }))
 
 vi.mock('../env', () => ({
@@ -88,10 +78,8 @@ async function loadExtensionFrameProtocol() {
   return import('../extension-frame-protocol')
 }
 
-function dispatchProtocolRequest(scheme: string, url: string) {
-  const handler = protocolMocks.getProtocolHandler(scheme)
-  if (!handler) throw new Error('Expected protocol handler')
-  return handler({ url })
+function dispatchProtocolRequest(url: string) {
+  return protocolMocks.trustedOrigins.dispatch('renderer', url)
 }
 
 describe('renderer protocol', () => {
@@ -101,13 +89,11 @@ describe('renderer protocol', () => {
     protocolMocks.is.dev = false
     protocolMocks.env.ELECTRON_RENDERER_URL = ''
     protocolMocks.env.OPENWAGGLE_AUTOMATION_LEASE_TOKEN = undefined
-    protocolMocks.app.getPath.mockReturnValue(path.join(tmpRoot, 'user-data'))
+    protocolMocks.appPaths.setUserData(path.join(tmpRoot, 'user-data'))
     protocolMocks.existsSync.mockReset()
-    protocolMocks.fetch.mockClear()
-    protocolMocks.registerSchemesAsPrivileged.mockClear()
-    protocolMocks.app.commandLine.appendSwitch.mockClear()
-    protocolMocks.handle.mockClear()
-    protocolMocks.resetHandler()
+    protocolMocks.networkFetch.fetch.mockClear()
+    protocolMocks.appendSwitch.mockClear()
+    protocolMocks.trustedOrigins.reset()
   })
 
   afterEach(async () => {
@@ -123,65 +109,29 @@ describe('renderer protocol', () => {
 
     registerRendererScheme()
 
-    expect(protocolMocks.registerSchemesAsPrivileged).toHaveBeenCalledWith([
-      {
-        scheme: RENDERER_PROTOCOL,
-        privileges: {
-          standard: true,
-          secure: true,
-          supportFetchAPI: true,
-          corsEnabled: true,
-          codeCache: true,
-        },
-      },
-      {
-        scheme: EXTENSION_RUNTIME_PROTOCOL,
-        privileges: {
-          standard: true,
-          secure: true,
-          supportFetchAPI: true,
-          corsEnabled: true,
-          codeCache: true,
-        },
-      },
-      {
-        scheme: OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME,
-        privileges: {
-          standard: true,
-          secure: true,
-          supportFetchAPI: true,
-          corsEnabled: true,
-          codeCache: true,
-        },
-      },
-      {
-        scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
-        privileges: {
-          standard: true,
-          secure: true,
-          supportFetchAPI: true,
-          corsEnabled: false,
-        },
-      },
-      {
-        scheme: MCP_APP_FRAME_PROTOCOL.SCHEME,
-        privileges: {
-          standard: true,
-          secure: true,
-          supportFetchAPI: true,
-          corsEnabled: false,
-        },
-      },
-      {
-        scheme: SESSION_RESOURCE_PROTOCOL.SCHEME,
-        privileges: {
-          standard: true,
-          secure: true,
-          supportFetchAPI: true,
-          corsEnabled: false,
-        },
-      },
+    expect(protocolMocks.trustedOrigins.declare).toHaveBeenCalledWith([
+      { domain: 'renderer', corsEnabled: true, codeCache: true },
+      { domain: 'extension-runtime', corsEnabled: true, codeCache: true },
+      { domain: 'extension-frame', corsEnabled: true, codeCache: true },
+      { domain: 'inline-visualization', corsEnabled: false, codeCache: false },
+      { domain: 'mcp-app-frame', corsEnabled: false, codeCache: false },
+      { domain: 'session-resource', corsEnabled: false, codeCache: false },
     ])
+    // Each domain is the custom scheme pages address it by.
+    expect(
+      protocolMocks.trustedOrigins.declare.mock.calls[0]?.[0].map(({ domain }) =>
+        protocolMocks.trustedOrigins.originOf(domain, 'app'),
+      ),
+    ).toEqual(
+      [
+        RENDERER_PROTOCOL,
+        EXTENSION_RUNTIME_PROTOCOL,
+        OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME,
+        INLINE_VISUALIZATION_PROTOCOL.SCHEME,
+        MCP_APP_FRAME_PROTOCOL.SCHEME,
+        SESSION_RESOURCE_PROTOCOL.SCHEME,
+      ].map((scheme) => `${scheme}://app`),
+    )
   })
 
   it('enforces out-of-process isolation for visualization origins before startup', async () => {
@@ -189,9 +139,7 @@ describe('renderer protocol', () => {
 
     configureInlineVisualizationProcessIsolation()
 
-    expect(protocolMocks.app.commandLine.appendSwitch).toHaveBeenCalledExactlyOnceWith(
-      'site-per-process',
-    )
+    expect(protocolMocks.appendSwitch).toHaveBeenCalledExactlyOnceWith('site-per-process')
   })
 
   it('skips file protocol registration while a dev renderer URL is active', async () => {
@@ -202,7 +150,7 @@ describe('renderer protocol', () => {
     registerRendererProtocolOnce()
 
     expect(devRendererUrl()).toBe('http://localhost:5173')
-    expect(protocolMocks.handle).not.toHaveBeenCalled()
+    expect(protocolMocks.trustedOrigins.serve).not.toHaveBeenCalled()
   })
 
   it('adds the managed launcher identity to the renderer URL', async () => {
@@ -222,14 +170,8 @@ describe('renderer protocol', () => {
 
     registerRendererProtocolOnce()
 
-    const assetResponse = await dispatchProtocolRequest(
-      'openwaggle',
-      'openwaggle://app/assets/main.js',
-    )
-    const missingAssetResponse = await dispatchProtocolRequest(
-      'openwaggle',
-      'openwaggle://app/assets/missing.js',
-    )
+    const assetResponse = await dispatchProtocolRequest('openwaggle://app/assets/main.js')
+    const missingAssetResponse = await dispatchProtocolRequest('openwaggle://app/assets/missing.js')
 
     expect(assetResponse.status).toBe(HTTP_OK_STATUS)
     expect(assetResponse.headers.get('access-control-allow-origin')).toBe('*')
@@ -244,23 +186,22 @@ describe('renderer protocol', () => {
     registerRendererProtocolOnce()
 
     expect(
-      await (
-        await dispatchProtocolRequest('openwaggle', 'openwaggle://app/sessions/session-1')
-      ).text(),
+      await (await dispatchProtocolRequest('openwaggle://app/sessions/session-1')).text(),
     ).toContain('index.html')
     expect(
-      await (await dispatchProtocolRequest('openwaggle', 'openwaggle://other-host/session')).text(),
+      await (await dispatchProtocolRequest('openwaggle://other-host/session')).text(),
     ).toContain('index.html')
-    expect(
-      (await dispatchProtocolRequest('openwaggle', 'openwaggle://other-host/assets/main.js'))
-        .status,
-    ).toBe(HTTP_NOT_FOUND_STATUS)
-    expect(
-      (await dispatchProtocolRequest('openwaggle', 'openwaggle://app/%2e%2e/secret.txt')).status,
-    ).toBe(HTTP_NOT_FOUND_STATUS)
-    expect(await (await dispatchProtocolRequest('openwaggle', 'not a url')).text()).toContain(
-      'index.html',
+    expect((await dispatchProtocolRequest('openwaggle://other-host/assets/main.js')).status).toBe(
+      HTTP_NOT_FOUND_STATUS,
     )
+    expect((await dispatchProtocolRequest('openwaggle://app/%2e%2e/secret.txt')).status).toBe(
+      HTTP_NOT_FOUND_STATUS,
+    )
+    // A `Request` cannot carry a malformed URL, so a partial one proves the fallback.
+    const malformed = fromPartial<Request>({ url: 'not a url' })
+    expect(
+      await (await protocolMocks.trustedOrigins.handlerOf('renderer')(malformed)).text(),
+    ).toContain('index.html')
   })
 
   it(
@@ -280,7 +221,7 @@ describe('renderer protocol', () => {
       extensionFrameProtocol.registerExtensionFrameProtocolOnce()
       extensionFrameProtocol.registerExtensionFrameProtocolOnce()
 
-      expect(protocolMocks.handle).toHaveBeenCalledTimes(3)
+      expect(protocolMocks.trustedOrigins.serve).toHaveBeenCalledTimes(3)
     },
     MODULE_LOAD_TEST_TIMEOUT_MS,
   )

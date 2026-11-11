@@ -13,7 +13,12 @@ const CODEX_VISUALIZATION_CDN_ORIGINS = [
   'https://unpkg.com',
 ] as const
 
-vi.mock('electron', () => ({ protocol: { handle: handleMock } }))
+vi.mock('../desktop-shell/trusted-origins', async () => ({
+  trustedOrigins: {
+    ...(await import('../test-support/fake-desktop-shell')).fakeTrustedOrigins(),
+    serve: handleMock,
+  },
+}))
 
 import {
   inlineVisualizationUrl,
