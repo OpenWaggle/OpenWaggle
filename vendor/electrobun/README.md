@@ -7,9 +7,9 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0007 to 0009, Zig tools and Dawn rebuilt for 13.4 |
-| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0007 and 0009, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0007 and 0009, plus the WebView2 Evergreen bootstrapper |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0006 to 0009, Zig tools and Dawn rebuilt for 13.4 |
+| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0006, 0007 and 0009, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0006, 0007 and 0009, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -61,8 +61,7 @@ release targets (docs/release-and-versioning.md), so they are not built.
 6. **launcher: forward the launcher's arguments to the main process.** The launcher ran `bun
    main.js` with nothing after it, so the app never saw a protocol link or file Windows and Linux
    pass as arguments, nor `--use-mock-keychain`. Every argument now follows `main.js` in order,
-   except the launcher's private `--automation` and macOS's `-psn_*`. Windows keeps upstream's
-   launcher until it is built here, so it still drops them.
+   except the launcher's private `--automation` and macOS's `-psn_*`.
 7. **launcher: choose a CEF remote debugging port per launch.** With
    `chromiumFlags['remote-debugging-port'] = 'launch'` the launcher reserves a free loopback port
    before the native core starts CEF and sets `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT` through

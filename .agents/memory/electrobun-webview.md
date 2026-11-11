@@ -132,8 +132,8 @@ runtime module URLs, or renderer error reporting (`sentry-renderer.ts`).
   packaged app served the checkout's source `index.html` (splash forever). Main uses
   `import.meta.dirname`/`filename`; `no-restricted-globals` forbids the CJS names in `src/main`.
   Bundled CJS packages keep theirs (undici: stack-trace only).
-- The Zig launcher started `bun main.js` with no arguments; vendor patch 0006 forwards them (not on
-  Windows until its launcher is built here). Without it, pass QA inputs through env:
+- The Zig launcher started `bun main.js` with no arguments; vendor patch 0006 forwards them once the
+  native layer is rebuilt with it. Without it, pass QA inputs through env:
   `OPENWAGGLE_AUTOMATION=1` alone already uses the profile's mock keychain.
 - Hidden QA screenshots: `OPENWAGGLE_AUTOMATION=1 OPENWAGGLE_QA_MAIN_WINDOW_RENDERER=cef
   ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT=<port>` renders the hidden main window with the bundled CEF;
