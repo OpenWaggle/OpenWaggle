@@ -5,8 +5,8 @@ import path from 'node:path'
 import { fromPartial } from '@total-typescript/shoehorn'
 import sharp from 'sharp'
 import { afterEach, describe, it, vi } from 'vitest'
-import type { DesktopWindow } from '../../../../ports/desktop-shell/desktop-windows'
 import type { PortContract } from '../../../../ports/desktop-shell/__tests__/contracts/port-contract'
+import type { DesktopWindow } from '../../../../ports/desktop-shell/desktop-windows'
 import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import { readEnvironmentVariables } from '../../../../env'
 import { appLifecycleContract } from '../../../../ports/desktop-shell/__tests__/contracts/app-lifecycle.contract'
@@ -26,13 +26,6 @@ afterEach(async () => {
   for (const profile of profiles.splice(0)) await rm(profile, { recursive: true, force: true })
 })
 
-/** One test per contract case, each against a freshly prepared Electrobun shell. */
-function runContract<Harness>(contract: PortContract<Harness>, setup: () => Promise<Harness>) {
-  describe(`${contract.port} contract (Electrobun)`, () => {
-    it.for(Object.entries(contract.cases))('%s', async ([, check]) => check(await setup()))
-  })
-}
-
 /** Electrobun windows are numbered; the windows adapter hands out their ids as `DesktopWindow.id`. */
 function fakeWindow(id: number): DesktopWindow {
   return fromPartial({ id, isDestroyed: () => false })
@@ -48,6 +41,13 @@ function devUserData() {
     return path.join(APPDATA ?? path.join(homedir(), 'AppData', 'Roaming'), PRODUCT_NAME)
   }
   return path.join(XDG_CONFIG_HOME ?? path.join(homedir(), '.config'), PRODUCT_NAME)
+}
+
+/** One test per contract case, each against a fresh harness of the Electrobun adapter. */
+function runContract<Harness>(contract: PortContract<Harness>, setup: () => Promise<Harness>) {
+  describe(`${contract.port} contract (Electrobun)`, () => {
+    it.for(Object.entries(contract.cases))('%s', async ([, check]) => check(await setup()))
+  })
 }
 
 runContract(appPathsContract, async () => {

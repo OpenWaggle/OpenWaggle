@@ -44,12 +44,50 @@ export function isSealedBlob(blob: Buffer) {
   return blob.subarray(0, SEALED_PREFIX.length).equals(SEALED_PREFIX)
 }
 
-function decodeKey(encoded: string) {
+/** A stored key: base64 of 32 random bytes. */
+export function decodeKey(encoded: string) {
   const key = Buffer.from(encoded, 'base64')
   if (key.length !== KEY_BYTES) {
     throw new KeychainSealerError('The keychain secret-storage key is invalid.')
   }
   return key
+}
+
+/** A new random key in the stored encoding. */
+export function newEncodedKey() {
+  return randomBytes(KEY_BYTES).toString('base64')
+}
+
+function assertSealedBlob(blob: Buffer) {
+  if (!isSealedBlob(blob) || blob.length < SEALED_PREFIX.length + NONCE_BYTES + TAG_BYTES) {
+    throw new KeychainSealerError('This secret is not in the keychain-sealed format.')
+  }
+}
+
+/** Seals with a key already in memory: what the Electrobun SecureStorage does synchronously. */
+export function sealWithKey(key: Buffer, plaintext: string) {
+  const nonce = randomBytes(NONCE_BYTES)
+  const cipher = createCipheriv('aes-256-gcm', key, nonce)
+  cipher.setAAD(SEALED_PREFIX)
+  const body = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  return Buffer.concat([SEALED_PREFIX, nonce, body, cipher.getAuthTag()])
+}
+
+/** Opens a sealed blob with a key already in memory; throws for bytes it did not seal. */
+export function openWithKey(key: Buffer, blob: Buffer) {
+  assertSealedBlob(blob)
+  const nonceEnd = SEALED_PREFIX.length + NONCE_BYTES
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    key,
+    blob.subarray(SEALED_PREFIX.length, nonceEnd),
+  )
+  decipher.setAAD(SEALED_PREFIX)
+  decipher.setAuthTag(blob.subarray(blob.length - TAG_BYTES))
+  return Buffer.concat([
+    decipher.update(blob.subarray(nonceEnd, blob.length - TAG_BYTES)),
+    decipher.final(),
+  ]).toString('utf8')
 }
 
 export function createKeychainSealer(options: KeychainSealerOptions) {
@@ -68,7 +106,7 @@ export function createKeychainSealer(options: KeychainSealerOptions) {
     return options.withCreationLock(async () => {
       const raced = await existingKey()
       if (raced) return raced
-      await options.secrets.set({ ...item, value: randomBytes(KEY_BYTES).toString('base64') })
+      await options.secrets.set({ ...item, value: newEncodedKey() })
       // Read back what the keychain kept, so this process never seals with a key it failed to store.
       const stored = await existingKey()
       if (!stored) {
@@ -88,29 +126,12 @@ export function createKeychainSealer(options: KeychainSealerOptions) {
   }
 
   async function seal(plaintext: string) {
-    const nonce = randomBytes(NONCE_BYTES)
-    const cipher = createCipheriv('aes-256-gcm', await key(true), nonce)
-    cipher.setAAD(SEALED_PREFIX)
-    const body = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
-    return Buffer.concat([SEALED_PREFIX, nonce, body, cipher.getAuthTag()])
+    return sealWithKey(await key(true), plaintext)
   }
 
   async function open(blob: Buffer) {
-    if (!isSealedBlob(blob) || blob.length < SEALED_PREFIX.length + NONCE_BYTES + TAG_BYTES) {
-      throw new KeychainSealerError('This secret is not in the keychain-sealed format.')
-    }
-    const nonceEnd = SEALED_PREFIX.length + NONCE_BYTES
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      await key(false),
-      blob.subarray(SEALED_PREFIX.length, nonceEnd),
-    )
-    decipher.setAAD(SEALED_PREFIX)
-    decipher.setAuthTag(blob.subarray(blob.length - TAG_BYTES))
-    return Buffer.concat([
-      decipher.update(blob.subarray(nonceEnd, blob.length - TAG_BYTES)),
-      decipher.final(),
-    ]).toString('utf8')
+    assertSealedBlob(blob)
+    return openWithKey(await key(false), blob)
   }
 
   return { seal, open }
