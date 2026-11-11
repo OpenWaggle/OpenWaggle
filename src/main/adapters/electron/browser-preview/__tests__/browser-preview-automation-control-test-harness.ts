@@ -14,7 +14,7 @@ export function createBrowserPreviewAutomationPageFixture(
   const sendCommand = vi.fn(
     async (method: string, params?: Readonly<Record<string, unknown>>): Promise<unknown> => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = params?.expression
+      const expression = params?.['expression']
       if (expression === 'answer') return { result: { value: 42 } }
       if (expression === 'Boolean(globalThis.__openWagglePlaywrightInjected)') {
         return { result: { value: true } }

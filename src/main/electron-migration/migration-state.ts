@@ -86,18 +86,18 @@ function isStepStatus(value: unknown): value is MigrationStepStatus {
 function parseStep(value: unknown): MigrationStepState {
   if (
     !isRecord(value) ||
-    !isStepStatus(value.status) ||
-    typeof value.attempts !== 'number' ||
-    typeof value.updatedAt !== 'string'
+    !isStepStatus(value['status']) ||
+    typeof value['attempts'] !== 'number' ||
+    typeof value['updatedAt'] !== 'string'
   ) {
     throw new MigrationStateError('migration-state.json has an invalid step.')
   }
   return {
-    status: value.status,
-    attempts: value.attempts,
-    updatedAt: value.updatedAt,
-    ...(typeof value.error === 'string' ? { error: value.error } : {}),
-    ...(value.detail === undefined ? {} : { detail: value.detail }),
+    status: value['status'],
+    attempts: value['attempts'],
+    updatedAt: value['updatedAt'],
+    ...(typeof value['error'] === 'string' ? { error: value['error'] } : {}),
+    ...(value['detail'] === undefined ? {} : { detail: value['detail'] }),
   }
 }
 
@@ -105,26 +105,26 @@ export function parseMigrationState(raw: string): MigrationState {
   const parsed: unknown = JSON.parse(raw)
   if (
     !isRecord(parsed) ||
-    parsed.version !== STATE_VERSION ||
-    typeof parsed.createdAt !== 'string' ||
-    typeof parsed.updatedAt !== 'string' ||
-    typeof parsed.fromElectron !== 'boolean' ||
-    !isRecord(parsed.steps)
+    parsed['version'] !== STATE_VERSION ||
+    typeof parsed['createdAt'] !== 'string' ||
+    typeof parsed['updatedAt'] !== 'string' ||
+    typeof parsed['fromElectron'] !== 'boolean' ||
+    !isRecord(parsed['steps'])
   ) {
     throw new MigrationStateError('migration-state.json has an unsupported format.')
   }
-  const steps = parsed.steps
+  const steps = parsed['steps']
   return {
     version: STATE_VERSION,
-    createdAt: parsed.createdAt,
-    updatedAt: parsed.updatedAt,
-    fromElectron: parsed.fromElectron,
+    createdAt: parsed['createdAt'],
+    updatedAt: parsed['updatedAt'],
+    fromElectron: parsed['fromElectron'],
     steps: {
       'local-storage': parseStep(steps['local-storage']),
-      secrets: parseStep(steps.secrets),
+      secrets: parseStep(steps['secrets']),
       'browser-preview-reset': parseStep(steps['browser-preview-reset']),
     },
-    ...(typeof parsed.completedAt === 'string' ? { completedAt: parsed.completedAt } : {}),
+    ...(typeof parsed['completedAt'] === 'string' ? { completedAt: parsed['completedAt'] } : {}),
   }
 }
 

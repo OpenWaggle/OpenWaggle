@@ -103,7 +103,7 @@ async function reseal(codec: SecretCodec, blob: Buffer) {
 
 function parseVersionedJson(raw: Buffer, file: string) {
   const parsed: unknown = JSON.parse(raw.toString('utf8'))
-  if (!isRecord(parsed) || parsed.version !== CURRENT_FILE_VERSION) {
+  if (!isRecord(parsed) || parsed['version'] !== CURRENT_FILE_VERSION) {
     throw new Error(`${file} has an unsupported format.`)
   }
   return parsed
@@ -120,10 +120,10 @@ async function resealVaultEntries(
   let alreadySealed = 0
   const unrecoverable: string[] = []
   for (const [name, entry] of Object.entries(entries)) {
-    if (!isRecord(entry) || typeof entry.encryptedValue !== 'string') {
+    if (!isRecord(entry) || typeof entry['encryptedValue'] !== 'string') {
       throw new Error(`${file} entry ${JSON.stringify(name)} is invalid.`)
     }
-    const result = await reseal(codec, Buffer.from(entry.encryptedValue, 'base64'))
+    const result = await reseal(codec, Buffer.from(entry['encryptedValue'], 'base64'))
     if (result.kind === 'unrecoverable') {
       unrecoverable.push(name)
       // A takeover copies only what this install can open, as the Electron build's first save does.
@@ -152,11 +152,11 @@ async function migrateVaultFile(
   const source = own ?? (await readOptional(sharedPath))
   if (!source) return undefined
   const vault = parseVersionedJson(source, file)
-  if (!isRecord(vault.secrets)) throw new Error(`${file} has no secret map.`)
+  if (!isRecord(vault['secrets'])) throw new Error(`${file} has no secret map.`)
   const { secrets, resealed, alreadySealed, unrecoverable } = await resealVaultEntries(
     codec,
     file,
-    vault.secrets,
+    vault['secrets'],
     own === undefined,
   )
   if (own && resealed === 0) return { file, resealed, alreadySealed, unrecoverable }
@@ -182,8 +182,8 @@ async function migrateOAuthFile(
   const source = own ?? (await readOptional(sharedPath))
   if (!source) return undefined
   const store = parseVersionedJson(source, file)
-  if (typeof store.encrypted !== 'string') throw new Error(`${file} has no encrypted payload.`)
-  const result = await reseal(codec, Buffer.from(store.encrypted, 'base64'))
+  if (typeof store['encrypted'] !== 'string') throw new Error(`${file} has no encrypted payload.`)
+  const result = await reseal(codec, Buffer.from(store['encrypted'], 'base64'))
   const base = { file, resealed: 0, alreadySealed: 0, unrecoverable: [] }
   if (result.kind === 'sealed') return { ...base, alreadySealed: 1 }
   if (result.kind === 'unrecoverable') return { ...base, unrecoverable: ['oauth-states'] }

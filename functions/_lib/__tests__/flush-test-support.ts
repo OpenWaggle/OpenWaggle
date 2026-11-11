@@ -110,9 +110,9 @@ export function publishedCount(
   return records.find(
     (record) =>
       record.event === event &&
-      record.properties.field === field &&
-      record.properties.value === value,
-  )?.properties.count
+      record.properties['field'] === field &&
+      record.properties['value'] === value,
+  )?.properties['count']
 }
 
 /** The count of one row added up over records from several batches. */
@@ -126,8 +126,8 @@ export function totalCount(
     .filter(
       (record) =>
         record.event === event &&
-        record.properties.field === field &&
-        record.properties.value === value,
+        record.properties['field'] === field &&
+        record.properties['value'] === value,
     )
-    .reduce((sum, record) => sum + Number(record.properties.count), 0)
+    .reduce((sum, record) => sum + Number(record.properties['count']), 0)
 }

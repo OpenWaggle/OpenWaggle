@@ -84,9 +84,9 @@ function expectedSignal(
   now: number,
 ): ExpectedInputSignal | null {
   if (method === 'Input.dispatchKeyEvent') {
-    const phase = keyPhase(params.type)
-    const key = stringValue(params.key)
-    const code = stringValue(params.code)
+    const phase = keyPhase(params['type'])
+    const key = stringValue(params['key'])
+    const code = stringValue(params['code'])
     if (!phase || key === undefined || code === undefined) return null
     return {
       kind: 'keyboard',
@@ -95,14 +95,14 @@ function expectedSignal(
       expiresAt: now + EXPECTED_INPUT_TTL_MS,
       key,
       code,
-      location: finiteNumber(params.location) ?? 0,
-      modifiers: finiteNumber(params.modifiers) ?? 0,
+      location: finiteNumber(params['location']) ?? 0,
+      modifiers: finiteNumber(params['modifiers']) ?? 0,
     }
   }
   if (method !== 'Input.dispatchMouseEvent') return null
-  const phase = stringValue(params.type) ? CDP_MOUSE_PHASES[String(params.type)] : undefined
-  const x = finiteNumber(params.x)
-  const y = finiteNumber(params.y)
+  const phase = stringValue(params['type']) ? CDP_MOUSE_PHASES[String(params['type'])] : undefined
+  const x = finiteNumber(params['x'])
+  const y = finiteNumber(params['y'])
   if (!phase || x === undefined || y === undefined) return null
   return {
     kind: 'mouse',
@@ -111,10 +111,10 @@ function expectedSignal(
     expiresAt: now + EXPECTED_INPUT_TTL_MS,
     x,
     y,
-    button: stringValue(params.button),
-    modifiers: finiteNumber(params.modifiers) ?? 0,
-    deltaX: finiteNumber(params.deltaX),
-    deltaY: finiteNumber(params.deltaY),
+    button: stringValue(params['button']),
+    modifiers: finiteNumber(params['modifiers']) ?? 0,
+    deltaX: finiteNumber(params['deltaX']),
+    deltaY: finiteNumber(params['deltaY']),
   }
 }
 

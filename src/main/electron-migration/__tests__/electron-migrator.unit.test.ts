@@ -142,12 +142,12 @@ describe('runElectronMigration', () => {
     )
 
     const blobs = await vaultBlobs(install.userData)
-    expect(isSealedBlob(blobs.GITHUB_TOKEN ?? Buffer.alloc(0))).toBe(true)
-    await expect(options.sealer.open(blobs.GITHUB_TOKEN ?? Buffer.alloc(0))).resolves.toBe(
+    expect(isSealedBlob(blobs['GITHUB_TOKEN'] ?? Buffer.alloc(0))).toBe(true)
+    await expect(options.sealer.open(blobs['GITHUB_TOKEN'] ?? Buffer.alloc(0))).resolves.toBe(
       'ghp_example',
     )
     // Sealed by another build's key: kept as it was, reported for re-entry.
-    expect(blobs.FOREIGN?.subarray(0, 3).toString()).toBe('v10')
+    expect(blobs['FOREIGN']?.subarray(0, 3).toString()).toBe('v10')
     expect(JSON.stringify(report.state.steps.secrets.detail)).toContain('FOREIGN')
 
     const credential = await readFile(
@@ -268,7 +268,7 @@ describe('runElectronMigration', () => {
     const resumed = await runElectronMigration(working)
     expect(resumed.state.steps.secrets.status).toBe('done')
     const blobs = await vaultBlobs(install.userData)
-    await expect(working.sealer.open(blobs.GITHUB_TOKEN ?? Buffer.alloc(0))).resolves.toBe(
+    await expect(working.sealer.open(blobs['GITHUB_TOKEN'] ?? Buffer.alloc(0))).resolves.toBe(
       'ghp_example',
     )
   })
@@ -297,7 +297,9 @@ describe('runElectronMigration', () => {
     await runElectronMigration(options)
     const blobs = await vaultBlobs(install.userData)
     expect(Object.keys(blobs)).toEqual(['SHARED'])
-    await expect(options.sealer.open(blobs.SHARED ?? Buffer.alloc(0))).resolves.toBe('shared value')
+    await expect(options.sealer.open(blobs['SHARED'] ?? Buffer.alloc(0))).resolves.toBe(
+      'shared value',
+    )
     expect(await readFile(sharedVault, 'utf8')).toBe(JSON.stringify(shared))
   })
 

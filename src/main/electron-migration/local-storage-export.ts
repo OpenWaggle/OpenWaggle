@@ -50,13 +50,13 @@ export async function readLocalStorageExport(
   const parsed: unknown = JSON.parse(raw)
   if (
     !isRecord(parsed) ||
-    parsed.version !== EXPORT_VERSION ||
-    typeof parsed.importId !== 'string' ||
-    !isStringRecord(parsed.entries)
+    parsed['version'] !== EXPORT_VERSION ||
+    typeof parsed['importId'] !== 'string' ||
+    !isStringRecord(parsed['entries'])
   ) {
     throw new Error(`${LOCAL_STORAGE_EXPORT_FILE} has an unsupported format.`)
   }
-  return { importId: parsed.importId, entries: parsed.entries }
+  return { importId: parsed['importId'], entries: parsed['entries'] }
 }
 
 export function removeLocalStorageExport(userData: string) {

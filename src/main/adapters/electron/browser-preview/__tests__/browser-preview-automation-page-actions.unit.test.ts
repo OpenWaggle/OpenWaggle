@@ -119,7 +119,7 @@ describe('browser preview automation page actions', () => {
     let navigate = () => undefined
     const { contentsEvents, page, sendCommand } = createPage((method, params) => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = String(params?.expression ?? '')
+      const expression = String(params?.['expression'] ?? '')
       if (expression === 'Boolean(globalThis.__openWagglePlaywrightInjected)') {
         runtimeChecks += 1
         return evaluated(runtimeChecks === 1)
@@ -163,7 +163,7 @@ describe('browser preview automation page actions', () => {
       if (method === 'Runtime.evaluate') {
         return evaluated({ width: 800, height: 600 })
       }
-      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mousePressed') {
+      if (method === 'Input.dispatchMouseEvent' && params?.['type'] === 'mousePressed') {
         throw new Error('mouse dispatch failed')
       }
       return {}
@@ -194,7 +194,7 @@ describe('browser preview automation page actions', () => {
     let clickAttempts = 0
     const { page, sendCommand } = createPage((method, params) => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = String(params?.expression ?? '')
+      const expression = String(params?.['expression'] ?? '')
       if (expression.includes('__openWagglePlaywrightInjected)')) return evaluated(true)
       if (expression.includes("kind: 'point'")) {
         clickAttempts += 1
@@ -219,7 +219,7 @@ describe('browser preview automation page actions', () => {
     let typeAttempts = 0
     const { page } = createPage((method, params) => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = String(params?.expression ?? '')
+      const expression = String(params?.['expression'] ?? '')
       if (expression.includes('__openWagglePlaywrightInjected)')) return evaluated(true)
       typeAttempts += 1
       return evaluated(
@@ -247,7 +247,7 @@ describe('browser preview automation page actions', () => {
       fromPartial<WebContents>({ id: 2, focus: previousFocus, isDestroyed: () => false }),
     )
     const { focus, page, sendCommand } = createPage((method, params) => {
-      if (method === 'Input.dispatchKeyEvent' && params?.type !== 'keyUp') {
+      if (method === 'Input.dispatchKeyEvent' && params?.['type'] !== 'keyUp') {
         throw new Error('key dispatch failed')
       }
       return {}
