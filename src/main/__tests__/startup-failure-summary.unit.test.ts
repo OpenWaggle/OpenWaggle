@@ -85,6 +85,10 @@ describe('Session Host startup failure summary', () => {
     expect(new StartupFailureSummary('session-host', spoofedType).message).toBe(
       'session-host: TypeError',
     )
+    const settings = Object.assign(new Error('read failed'), { name: 'SettingsStoreReadError' })
+    expect(new StartupFailureSummary('session-host', settings).message).toBe(
+      'session-host: SettingsStoreReadError',
+    )
   })
 
   it('survives the report scrubbers whole, network codes and HTTP-like exit codes included', () => {

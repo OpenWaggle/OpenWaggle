@@ -62,7 +62,10 @@ const OPERATING_SYSTEM_NAMES: Readonly<Partial<Record<NodeJS.Platform, string>>>
   win32: 'Windows',
 }
 
-/** This process's one start attempt; it settles once reporting started, waits or stays off. */
+/**
+ * The current start attempt; it settles once reporting started, waits or stays off. A later
+ * attempt without Settings chains onto it ({@link startErrorReportingWithoutSettings}).
+ */
 let startup: Promise<void> | null = null
 /** Set when the SDK starts after its start attempt settled, once Usage statistics turned on. */
 let lateSdkStart: Promise<void> | null = null

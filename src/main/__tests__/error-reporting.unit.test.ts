@@ -298,6 +298,27 @@ describe('main-process error reporting', () => {
     )
   })
 
+  it.each([
+    ['a Host, Settings unreadable, saved off', 'session-host', 'settings-unavailable', false],
+    ['a Host, Settings unreadable, none saved', 'session-host', 'settings-unavailable', null],
+    ['a Host whose Settings loaded with statistics off', 'session-host', 'setting', true],
+    ['a GUI whose Settings loaded with statistics off', 'gui', 'setting', true],
+  ] as const)('sends nothing from %s', async (_case, processKind, reason, saved) => {
+    state.enablement = { enabled: false, reason }
+    state.lastKnownSetting = saved ?? undefined
+    const errorReporting = await loadErrorReporting()
+    await errorReporting.startErrorReporting(processKind)
+
+    void errorReporting.reportStartupFailure(
+      new Error('fatal'),
+      processKind === 'gui' ? 'gui-session-host-start' : 'session-host',
+    )
+    await errorReporting.flushErrorReporting()
+
+    expect(adapter.startSentryMainErrorReporter).not.toHaveBeenCalled()
+    expect(adapter.reporter.captureException).not.toHaveBeenCalled()
+  })
+
   it('never acts on a saved Setting under a fixed opt-out', async () => {
     state.env = { DO_NOT_TRACK: '1' }
     state.enablement = { enabled: false, reason: 'do-not-track' }

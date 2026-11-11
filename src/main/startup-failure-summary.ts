@@ -57,6 +57,7 @@ const STARTUP_ERROR_TYPES: ReadonlySet<string> = new Set([
   'McpMigrationSourceError',
   'FilesystemWriteScopeError',
   'ProfileCredentialPreparationError',
+  'SettingsStoreReadError',
 ])
 
 const MAX_CAUSE_DEPTH = 4
