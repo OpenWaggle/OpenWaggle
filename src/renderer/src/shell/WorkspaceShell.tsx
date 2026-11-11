@@ -43,6 +43,12 @@ const LazyDesktopNativeAdmissionNotice = lazy(() =>
     default: module.DesktopNativeAdmissionNotice,
   })),
 )
+// Off the initial graph: it shows something only on the first launches after the Electron build.
+const LazyElectronMigrationNotice = lazy(() =>
+  import('./ElectronMigrationNotice').then((module) => ({
+    default: module.ElectronMigrationNotice,
+  })),
+)
 const LazyWorkspaceBrowserFloatingPreview = lazy(() =>
   import('./WorkspaceBrowserFloatingPreview').then((module) => ({
     default: module.WorkspaceBrowserFloatingPreview,
@@ -89,6 +95,9 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!settingsOpen && <Header />}
         {!settingsOpen && <AdmissionNotice placement="top" />}
+        <Suspense fallback={null}>
+          {!settingsOpen && <LazyElectronMigrationNotice placement="top" />}
+        </Suspense>
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <ActionPanelLayout>
             <WorkspaceRightPanel hidden={settingsOpen}>
@@ -104,6 +113,9 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
           {chatRoute ? <RightPanelHost /> : null}
           <RightPanelMaximizePublisher />
         </div>
+        <Suspense fallback={null}>
+          {settingsOpen && <LazyElectronMigrationNotice placement="bottom" />}
+        </Suspense>
         {settingsOpen && <AdmissionNotice placement="bottom" />}
       </div>
 

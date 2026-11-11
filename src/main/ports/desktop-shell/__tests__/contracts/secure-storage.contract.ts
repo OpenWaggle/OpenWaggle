@@ -30,6 +30,11 @@ export const secureStorageContract = definePortContract<SecureStorageContractHar
       )
     },
 
+    'warms without rejecting and stays usable': async ({ subject }) => {
+      await expect(subject.warm()).resolves.toBeUndefined()
+      expect(subject.decryptString(subject.encryptString('after warm'))).toBe('after warm')
+    },
+
     'refuses bytes it did not write': async ({ subject }) => {
       expect(() => subject.decryptString(Buffer.from('not a stored secret'))).toThrow()
       await expect(subject.decryptStringAsync(Buffer.from('not a stored secret'))).rejects.toThrow()

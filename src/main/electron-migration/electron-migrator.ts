@@ -256,3 +256,29 @@ export function acknowledgeLocalStorageImport(
     return next
   })
 }
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * The user will enter a step's data again ("Skip, I'll enter them again"): the step becomes final
+ * if it was not, and its detail records the choice, so nothing asks about it again.
+ */
+export function skipMigrationStep(
+  options: Pick<ElectronMigrationOptions, 'userData' | 'withLock' | 'now'>,
+  step: MigrationStep,
+) {
+  return options.withLock(async () => {
+    const state = await readMigrationState(options.userData)
+    if (!state) return state
+    const current = state.steps[step]
+    const skipped = {
+      status: isStepFinal(current) ? current.status : ('not-needed' as const),
+      detail: { ...(isRecord(current.detail) ? current.detail : {}), skippedByUser: true },
+    }
+    const next = withStep(state, step, skipped, options.now?.() ?? new Date(), false)
+    await writeMigrationState(options.userData, next)
+    return next
+  })
+}

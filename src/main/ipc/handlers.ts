@@ -10,6 +10,7 @@ import { registerDocsHandlers } from './docs-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
 import { registerExtensionFrameHandlers } from './extension-frame-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
+import { registerElectronMigrationHandlers } from './electron-migration-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
 import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
@@ -73,6 +74,7 @@ export function registerAllIpcHandlers() {
   registerWaggleHandlers()
   registerWagglePresetsHandlers()
   registerFeedbackHandlers()
+  registerElectronMigrationHandlers()
   registerUpdaterHandlers()
   registerComposerHandlers()
   registerDocsHandlers()

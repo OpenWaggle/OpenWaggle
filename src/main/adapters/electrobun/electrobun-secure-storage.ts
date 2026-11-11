@@ -21,8 +21,9 @@ import { electrobunBootShell } from './electrobun-boot-shell'
  * The port is synchronous, as `safeStorage` was, and `Bun.secrets` is not: the key is read once
  * per process by a short `bun -e` child the process waits for (the same signed `bun`, so the
  * keychain sees the same identity), then kept in memory. A process that knows it will need it calls
- * `warmElectrobunSecureStorage()` at startup to read it in-process instead. Cost: one child start
- * (0.2 to 0.4 s on an M-series Mac) the first time an unwarmed process uses a secret; a keychain prompt blocks the caller until it is answered or
+ * the port's `warm()` at startup to read it in-process instead (the Session Host does). Cost: one
+ * child start (0.2 to 0.4 s on an M-series Mac) the first time an unwarmed process uses a secret;
+ * a keychain prompt blocks the caller until it is answered or
  * `KEY_READ_TIMEOUT_MS` passes, exactly as `safeStorage`'s synchronous calls blocked before.
  */
 const SERVICE = 'OpenWaggle Secret Storage'
@@ -70,11 +71,6 @@ export type KeychainKeyReader = (item: {
   readonly name: string
 }) => Promise<string | null>
 
-export interface KeychainSecureStorage extends SecureStorageShape {
-  /** Reads an existing key in-process, so the first secret needs no child; never creates one. */
-  readonly warm: () => Promise<void>
-}
-
 export interface KeychainSecureStorageOptions {
   readonly store: KeychainKeyStore
   readonly read?: KeychainKeyReader
@@ -87,7 +83,7 @@ export interface KeychainSecureStorageOptions {
 
 export function createKeychainSecureStorage(
   options: KeychainSecureStorageOptions,
-): KeychainSecureStorage {
+): SecureStorageShape {
   const state: { key: Buffer | null; failedAt: number | null } = { key: null, failedAt: null }
   const now = options.now ?? Date.now
 
@@ -129,6 +125,7 @@ export function createKeychainSecureStorage(
     },
     encryptString: (plainText) => sealWithKey(key(), plainText),
     decryptString: (encrypted) => openWithKey(key(), encrypted),
+    // Reads an existing key in-process, so the first secret needs no child; never creates one.
     warm: async () => {
       if (state.key || !options.read) return
       const stored = await options
@@ -173,8 +170,3 @@ export const electrobunSecureStorage = createKeychainSecureStorage({
       KEY_READ_TIMEOUT_MS,
     ),
 })
-
-/** Reads this build's key in-process at startup of a process that will open secrets. */
-export function warmElectrobunSecureStorage() {
-  return electrobunSecureStorage.warm()
-}

@@ -1,4 +1,3 @@
-import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 // Must be first: renames dev builds before any module reads app userData.
@@ -11,6 +10,7 @@ import {
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
 } from './adapters/multilingual-e5-session-embedding-model'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
+import { quitAutomationSecondInstance } from './automation-second-instance'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
 import { registerApplicationProtocols } from './application-protocols'
@@ -24,6 +24,7 @@ import { systemIntegration } from './desktop-shell/system-integration'
 import { webSecurity } from './desktop-shell/web-security'
 import { focusExistingWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
+import { firstLaunchMigrationBeforeWindow } from './electron-migration/first-launch'
 import { env } from './env'
 import { openExternalFromRenderer as openLink } from './external-navigation'
 import { describeError } from './error-description'
@@ -57,13 +58,8 @@ import { requestOpenSessionLink } from './session-link-requests'
 import { createStartupMark } from './startup-timing'
 import { startTopLevelCli, type TopLevelCliLaunch } from './top-level-cli-entry'
 
-const FAILURE_EXIT_CODE = 1
-const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
 /** At most this long the window waits for the Host process to be launched or reached. */
 const HOST_LAUNCH_HEAD_START_MAX_MS = 150
-const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
-  'openwaggle-automation-single-instance-lock-denied-marker'
-const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
 
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
 const importIpcHandlersModule = () => import('./ipc/handlers')
@@ -96,26 +92,6 @@ let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null 
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 
 const startupMark = createStartupMark('main/index')
-
-function quitAutomationSecondInstance() {
-  const markerPath = appLifecycle.commandLine.getSwitchValue(
-    AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH,
-  )
-  if (!markerPath) {
-    logger.error('Automation second-instance probe omitted its lock-denied marker path')
-    appLifecycle.exit(FAILURE_EXIT_CODE)
-    return
-  }
-  void writeFile(markerPath, AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT, {
-    flag: 'wx',
-  }).then(
-    () => setTimeout(() => appLifecycle.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS),
-    (error: unknown) => {
-      logger.error('Automation second-instance lock-denied marker failed', describeError(error))
-      appLifecycle.exit(FAILURE_EXIT_CODE)
-    },
-  )
-}
 
 function getRuntimeModule() {
   runtimeModulePromise ??= importRuntimeModule()
@@ -198,6 +174,7 @@ async function bootstrapServicesAndWindow() {
   startup.run()
   await hostHeadStart
   startupMark('session-host-underway')
+  await firstLaunchMigrationBeforeWindow()
 
   await openWindowThenRegisterIpc({
     registerProtocols: () =>
@@ -235,8 +212,6 @@ function registerAppLifecycle() {
       systemIntegration.setAppUserModelId('com.openwaggle.app')
       configureDesktopUiAfterReady(devDockIconPath)
       installDesktopNotificationPresenter({ revealWindow: revealMainWindow })
-
-      // Initialize file logger now that app paths are available
       void initFileLogger(appPaths.logs())
       webSecurity.maintainCaches()
 

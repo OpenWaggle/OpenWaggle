@@ -10,6 +10,7 @@ import type {
   FeedbackSubmitResult,
   GhCliStatus,
 } from './feedback'
+import type { ElectronMigrationNotice } from './electron-migration'
 import type { GuiStartupStatus } from './gui-startup'
 import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
 import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
@@ -177,6 +178,19 @@ export interface IpcIntegrationInvokeChannelMap
   'waggle-presets:delete': {
     args: [id: WagglePresetId, projectPath?: string | null]
     return: undefined
+  }
+  // The first launch after the Electron build (docs/electrobun-transition.md)
+  'electron-migration:get-notice': {
+    args: []
+    return: ElectronMigrationNotice | null
+  }
+  'electron-migration:continue-secrets': {
+    args: []
+    return: ElectronMigrationNotice | null
+  }
+  'electron-migration:skip-secrets': {
+    args: []
+    return: ElectronMigrationNotice | null
   }
   // Feedback
   'feedback:check-gh': {

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { homeDirectoryRendererArguments } from '@shared/home-directory-argument'
 import { isAutomationMode } from '../../desktop-automation-policy'
 import { appPaths } from '../../desktop-shell/app-paths'
+import { electronMigrationRendererArguments } from '../../electron-migration/first-launch'
 import { errorReportingRendererArguments } from '../../error-reporting'
 import type { MainWindowRequest } from '../../ports/desktop-shell/desktop-windows'
 import {
@@ -48,6 +49,7 @@ function preloadScript() {
   const args = JSON.stringify([
     ...errorReportingRendererArguments(),
     ...homeDirectoryRendererArguments(homedir()),
+    ...electronMigrationRendererArguments(),
   ])
   return `globalThis.${RENDERER_ARGUMENTS_GLOBAL} = ${args};\n${bundle}`
 }

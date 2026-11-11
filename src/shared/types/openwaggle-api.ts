@@ -1,6 +1,7 @@
 import type { PreparedAttachment } from './agent'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleDesktopNotificationsApi } from './openwaggle-api-desktop-notifications'
+import type { OpenWaggleElectronMigrationApi } from './openwaggle-api-electron-migration'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
@@ -32,6 +33,7 @@ export interface OpenWaggleApi
     OpenWaggleBrowserPreviewApi,
     OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
+    OpenWaggleElectronMigrationApi,
     OpenWaggleGitApi,
     OpenWaggleProjectConfigApi,
     OpenWaggleScheduledTasksApi,

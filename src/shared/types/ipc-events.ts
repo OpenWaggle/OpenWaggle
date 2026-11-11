@@ -45,6 +45,10 @@ export interface AgentRunCompletedPayload {
 }
 
 export interface IpcSendChannelMap {
+  /** The preload applied the Electron build's exported `localStorage`. */
+  'electron-migration:local-storage-applied': {
+    args: [importId: string]
+  }
   'sessions:resources:activate-owner': {
     args: [sessionId: SessionId | null]
   }

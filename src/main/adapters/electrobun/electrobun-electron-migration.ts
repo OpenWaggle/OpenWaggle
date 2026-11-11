@@ -7,6 +7,7 @@ import {
   acknowledgeLocalStorageImport,
   type ElectronMigrationReport,
   runElectronMigration,
+  skipMigrationStep,
 } from '../../electron-migration/electron-migrator'
 import type { MigrationStep } from '../../electron-migration/migration-state'
 import {
@@ -96,7 +97,13 @@ function keychainReader(): KeychainReader | undefined {
   }
 }
 
-function migrationOptions(steps?: readonly MigrationStep[]) {
+interface MigrationRun {
+  readonly steps?: readonly MigrationStep[]
+  /** A run the user asked for retries a step past the automatic attempt cap. */
+  readonly userRequested?: boolean
+}
+
+function migrationOptions(run: MigrationRun = {}) {
   const userData = electrobunBootShell.userData()
   const keychain = keychainReader()
   const reader = createElectronSafeStorageReader(
@@ -123,15 +130,21 @@ function migrationOptions(steps?: readonly MigrationStep[]) {
       }),
     log: (message: string, context: Readonly<Record<string, unknown>>) =>
       logger.info(message, context),
-    ...(steps ? { steps } : {}),
+    ...(run.steps ? { steps: run.steps } : {}),
+    ...(run.userRequested ? { maxAttempts: Number.POSITIVE_INFINITY } : {}),
   }
 }
 
 /** Runs every unfinished step; resolves with the state and any localStorage import to apply. */
 export function runElectrobunFirstLaunchMigration(
-  steps?: readonly MigrationStep[],
+  run?: MigrationRun,
 ): Promise<ElectronMigrationReport> {
-  return runElectronMigration(migrationOptions(steps))
+  return runElectronMigration(migrationOptions(run))
+}
+
+/** The user will enter this step's data again. */
+export function skipElectrobunMigrationStep(step: MigrationStep) {
+  return skipMigrationStep(migrationOptions(), step)
 }
 
 /** The renderer applied the exported localStorage. */

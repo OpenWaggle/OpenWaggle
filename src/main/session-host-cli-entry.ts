@@ -5,6 +5,7 @@ import { installDesktopShellEnvironment } from './desktop-shell-environment-proc
 import type { StartedDesktopShellEnvironment } from './desktop-shell-environment-start'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { appPaths } from './desktop-shell/app-paths'
+import { secureStorage } from './desktop-shell/secure-storage'
 import { desktopWindows } from './desktop-shell/desktop-windows'
 import { systemIntegration } from './desktop-shell/system-integration'
 import { env, installLinuxSessionBusEnvironment, takeShellEnvironmentRefreshedSince } from './env'
@@ -217,6 +218,8 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         appLifecycle.exit(0)
         return
       }
+      // The Host opens the saved secrets; their key is read now, not on the first one's demand.
+      void secureStorage.warm()
       // Started once this Host owns the profile, so a Host that exits at once leaves no probe.
       const shellEnvironment = hydrateSessionHostShellEnvironment()
       try {

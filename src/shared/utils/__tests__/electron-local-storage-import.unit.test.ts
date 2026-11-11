@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   applyElectronLocalStorageImport,
   ELECTRON_LOCAL_STORAGE_IMPORT_MARKER,
+  electronLocalStorageImportFromArguments,
+  electronLocalStorageImportRendererArguments,
   type ImportableStorage,
 } from '../electron-local-storage-import'
 
@@ -57,5 +59,29 @@ describe('applyElectronLocalStorageImport', () => {
     expect(result.applied).toBe(1)
     expect(result.failed).toBe(1)
     expect(items.has('huge')).toBe(false)
+  })
+})
+
+describe('the localStorage import renderer argument', () => {
+  it('round-trips an import through the renderer arguments', () => {
+    const payload = { importId: 'import-1', entries: { theme: 'dark', 'a=b': '{"x":1}' } }
+    const argv = ['--other', ...electronLocalStorageImportRendererArguments(payload)]
+    expect(electronLocalStorageImportFromArguments(argv)).toEqual(payload)
+  })
+
+  it('passes nothing without an import, and ignores a malformed argument', () => {
+    expect(electronLocalStorageImportRendererArguments(null)).toEqual([])
+    expect(electronLocalStorageImportFromArguments([])).toBeNull()
+    for (const malformed of [
+      '{',
+      '{"importId":1,"entries":{}}',
+      '{"importId":"a","entries":{"k":2}}',
+    ]) {
+      expect(
+        electronLocalStorageImportFromArguments([
+          `--openwaggle-electron-local-storage-import=${malformed}`,
+        ]),
+      ).toBeNull()
+    }
   })
 })

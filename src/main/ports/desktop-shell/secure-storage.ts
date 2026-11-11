@@ -18,6 +18,11 @@ export interface SecureStorageShape {
   readonly isAsyncEncryptionAvailable: () => Promise<boolean>
   readonly encryptStringAsync: (plainText: string) => Promise<Buffer>
   readonly decryptStringAsync: (encrypted: Buffer) => Promise<{ readonly result: string }>
+  /**
+   * Reads the key without blocking, so a process that will open secrets does not wait for the
+   * keychain on its first one. Never rejects; a failed read leaves the synchronous path to retry.
+   */
+  readonly warm: () => Promise<void>
 }
 
 export class SecureStorage extends Context.Tag('@openwaggle/SecureStorage')<
