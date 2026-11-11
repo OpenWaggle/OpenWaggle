@@ -12,7 +12,6 @@ import {
   formatFinding,
 } from './findings'
 
-export const GATE_MESSAGE_TYPE = 'openwaggle-agent-gate'
 /** Findings shown per message; the manual check prints the rest. */
 export const MAX_SHOWN_FINDINGS = 30
 const QUALITY_RULE = /^(?:fallow|react-doctor)\//u

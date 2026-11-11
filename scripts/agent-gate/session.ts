@@ -106,11 +106,6 @@ export class AgentGateSession {
     )
   }
 
-  /** The run settled; the next run gets a new round budget. */
-  settled() {
-    this.rounds = 0
-  }
-
   /** A user prompt; naming a package in one approves adding it. */
   notePrompt(text: string) {
     this.approvals.notePrompt(text)

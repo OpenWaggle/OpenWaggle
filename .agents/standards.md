@@ -117,7 +117,7 @@ Mechanical enforcement:
 - Tests should verify behavior through public interfaces. Use typed builders, `satisfies`, and Shoehorn test helpers instead of casts. [TEST-02]
 - Mock setup must avoid hoisting races; dynamically import subject modules after `vi.mock(...)` setup when needed. [TEST-03]
 - A test that spawns many real child processes is an integration test, and a large module graph loads once in `beforeAll` (`.agents/verification.md`). [TEST-04]
-- After changing source, run the relevant tests in the same turn and leave them passing; the agent gate blocks a turn that changed source without a test run. [TEST-05]
+- After changing source, run the relevant tests in the same turn and leave them passing [TEST-05]
 
 Mechanical enforcement:
 
@@ -147,7 +147,7 @@ Mechanical enforcement:
 ## Dependencies
 
 - Direct dependencies and catalog entries are exact versions; `workspace:` and `catalog:` references pass (`docs/dependency-updates.md`). [DEP-01]
-- Add a dependency only when the maintainer approved it; the agent gate asks when a Session adds one. [DEP-02]
+- Add a dependency only when the maintainer approved it [DEP-02]
 - A pin that is not the latest release, or that has a reason (a patch, an override, a known break in the next release), has a row in `DEPENDENCIES.md`. `bun run check:dependency-pins` fails a new or changed pin without one. [DEP-03]
 - A release-age exception names one exact `name@version` with its reason. [DEP-04]
 
@@ -159,7 +159,7 @@ Mechanical enforcement:
 
 ## Agent gate
 
-The end-of-turn gate (`.pi/extensions/quality-gates.ts`, logic in `scripts/agent-gate/` and `scripts/agent-quality-gates/`) checks the files a Session changed before the agent stops, and `bun scripts/agent-gate/check.ts` prints the same verdict by hand. `.agents/verification.md` describes its checks.
+`bun scripts/agent-gate/check.ts` checks the files a Session changed. It never runs as an in-session hook that prompts the maintainer. `.agents/verification.md` describes its checks.
 
 - Fix its findings before you stop. When you cannot, say why in the final answer; the gate hands a finding it already blocked once to the user. [GATE-01]
 - Fallow dead-code and duplication findings in changed files are fixed; a false positive gets a config entry with its reason, never a suppression comment. [GATE-02]

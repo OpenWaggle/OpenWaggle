@@ -113,7 +113,7 @@ Agent-facing release and update-track guidance lives in `docs/agents/release.md`
 
 1. Scope is met without unapproved side effects.
 2. Types, lint, architecture, and relevant tests are green or reported with exact blockers.
-3. Fallow (`bun run check:fallow`) and React Doctor (`bun run check:react-doctor`) report zero findings; both are required steps of `check` and CI, and `.pi/extensions/quality-gates.ts`, the end-of-turn agent gate, runs them with the other changed-file checks before an agent's run ends. Fix findings in code; a false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry with its reason, never a suppression comment.
+3. Fallow (`bun run check:fallow`) and React Doctor (`bun run check:react-doctor`) report zero findings; both are required steps of `check` and CI. Fix findings in code; a false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry with its reason, never a suppression comment.
 4. Renderer, preload, IPC, and interaction changes are verified through non-disruptive real-Electron QA via `bun run dev:debug` and `electron-qa` when practical. Every completed agent-run Electron QA captures representative screenshots outside the repository and renders them in the final report. Never run headed Electron QA without the maintainer's explicit approval for that exact run.
 5. Significant OpenWaggle technical findings are added to the matching `.agents/memory/<topic>.md` file (a new topic gets one line in the `MEMORY.md` index) or a focused skill, not to deleted legacy memory files.
 6. The final report states what changed, what was validated, and any remaining risk.

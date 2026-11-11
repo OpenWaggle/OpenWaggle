@@ -41,7 +41,7 @@ bun run check:react-doctor  # react-doctor, fails on warnings and errors
 
 Both are required steps of `check` (the CI Typecheck & Lint job). Fix findings in code. A verified false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry scoped to the file and rule, with a comment giving the reason; never a `fallow-ignore` or other suppression comment. `fallow health` is advisory.
 
-The end-of-turn agent gate (next section) runs both on the files an agent changed.
+`bun scripts/agent-gate/check.ts` (next section) runs both on the files an agent changed.
 
 ## End-Of-Turn Agent Gate
 
@@ -49,7 +49,7 @@ The end-of-turn agent gate (next section) runs both on the files an agent change
 bun scripts/agent-gate/check.ts [--base <ref>] [files...]   # the same verdict by hand
 ```
 
-The project Pi extension `.pi/extensions/quality-gates.ts` (logic in `scripts/agent-gate/` and `scripts/agent-quality-gates/`) checks an agent's work at Pi's `agent_before_settle` boundary, before the run ends. It records the files each tool call changed: from the path of `edit` and `write` calls, and from content hashes of the dirty files before and after shell and `codemode` calls, so a change made from the shell counts too. At the boundary it checks the files changed since the last passing gate:
+The in-session end-of-turn gate is switched off: it must never prompt the maintainer or post into the conversation. `bun scripts/agent-gate/check.ts` still runs these checks by hand. What follows describes them as that command runs them. It records the files each tool call changed: from the path of `edit` and `write` calls, and from content hashes of the dirty files before and after shell and `codemode` calls, so a change made from the shell counts too. At the boundary it checks the files changed since the last passing gate:
 
 - oxfmt and the type-aware lint config on the changed files, and a type check of each affected project (`tsconfig.node.json`, incremental `tsc -b tsconfig.web.json`). Type errors in changed files block; errors elsewhere block when the Session-start type check did not have them.
 - New inline suppressions compared with the Session start [TS-08]; added dependencies without the user's approval [DEP-02], range specs [DEP-01], and changed pins behind `latest` without a `DEPENDENCIES.md` row [DEP-03]; weakened tsconfigs [TS-01]; generated files changed by anything but their generator [TOOL-07] (`scripts/agent-gate/generated-files.ts` lists them); source changes with no passing test run since [TEST-05]; Fallow and React Doctor findings [GATE-02] [REACT-07].
