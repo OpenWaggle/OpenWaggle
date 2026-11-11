@@ -37,3 +37,24 @@ browser preview.
   (`ghcr.io/cirruslabs/macos-ventura-vanilla:13.4`; Tart 2.41 rejects that image's old disk layout),
   SSH as admin/admin, and launch GUI apps with `sudo launchctl asuser 501 sudo -u admin ...`.
   `screencapture` there lacks Screen Recording permission and captures only the desktop.
+- The Electrobun Browser preview (`src/main/adapters/electrobun/browser-preview/`) drives CEF
+  `BrowserView`s over CEF's DevTools endpoint and finds each page by a random `about:blank#<marker>`
+  first URL in `/json/list`. An app cannot pick the CEF port itself: its Worker starts after the
+  main thread entered the native event loop (CEF reads the port once), and Bun's `process.env`
+  never reaches `getenv`. Patch 0007 has the launcher reserve a loopback port for
+  `chromiumFlags['remote-debugging-port'] = 'launch'`; the adapter removes the variable from
+  `process.env` so terminals and tools do not inherit it.
+- Stock 2.0.6 CEF gaps the preview hit: removing a CEF view on macOS closed its whole window (CEF's
+  default `DoClose`, patch 0008); a named non-`persist:` partition got a new in-memory context per
+  webview (patch 0009); `webviewSetPageZoom` is WKWebView-only (zoom is CDP device metrics);
+  `Session` cookies and storage reach WebKit or WebView2 stores, never CEF (use CDP `Network.*` and
+  `Storage.*` from a page in the partition); `BrowserView` has no frame or visibility setter (bind
+  core `resizeWebview`/`webviewSetHidden`). A page restored from the back-forward cache runs no
+  script, so titles also come from `Page.getNavigationHistory`.
+- CEF `persist:*` partitions live under `Application Support/<identifier>/<channel>/CEF/<name>` on
+  macOS with no `@available` gate, so CEF preview profiles persist on macOS 13.4 and 14+ alike;
+  patch 0002's in-memory stores apply to system-webview (WKWebView) partitions only.
+- App config the preview needs: `bundleCEF: true` on every OS; `defaultRenderer: 'native'` on macOS
+  and Windows (system-webview shell, CEF previews), `'cef'` on Linux, because one Linux process
+  cannot mix CEF and WebKitGTK views; `chromiumFlags: { 'remote-debugging-port': 'launch' }` and
+  never `remote-allow-origins`. The adapter creates `renderer: 'cef'` views either way.
