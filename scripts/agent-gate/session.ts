@@ -1,15 +1,15 @@
 /**
  * The agent gate for one Pi Session, kept apart from Pi so it can be tested. It records what each
- * tool call changed (content hashes of the dirty files around shell and script calls, from the path for edit and
- * write calls), asks the user when a change needs their approval, and when the agent is about to
- * stop runs the gate on the files changed since the last passing gate.
+ * tool call changed (content hashes of the dirty files around shell and script calls, from the
+ * path for edit and write calls), and when the agent is about to stop runs the gate on the files
+ * changed since the last passing gate. It never asks the user anything: findings go back to the
+ * agent, and when the loop guard gives up the run ends without a message.
  */
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { SessionActivity } from './activity'
 import { type Baseline, captureBaseline } from './baseline'
 import { type CommandRun, bashRun } from './commands'
-import { type FetchLatest, dependencyCheck } from './dependencies'
 import { type GatePlugin, runGate } from './gate'
 import { type GateDecision, type LoopState, decide, nextLoopState } from './report'
 import {
@@ -21,7 +21,6 @@ import { type RunProcess, runProcess } from '../agent-quality-gates/process'
 import { repositoryRoot } from './git'
 import type { LintRunner } from './tool-checks'
 import { typecheckProjects, typeErrorKey } from './typecheck'
-import { type ApprovalAsk, Approvals } from './approvals'
 
 export interface ToolCall {
   readonly id: string
@@ -32,7 +31,6 @@ export interface ToolCall {
 
 export interface ToolResult extends ToolCall {
   readonly isError: boolean
-  readonly structuredContent?: unknown
 }
 
 export interface SettleState {
@@ -43,9 +41,7 @@ export interface SettleState {
 export interface AgentGateOptions {
   readonly run?: RunProcess
   readonly runner?: LintRunner
-  readonly ask?: ApprovalAsk
   readonly plugins?: readonly GatePlugin[]
-  readonly latest?: FetchLatest
 }
 
 /**
@@ -79,17 +75,15 @@ export class AgentGateSession {
   private readonly inFlight = new Map<string, InFlight>()
   private typeBaseline: Promise<ReadonlySet<string> | undefined> | undefined = undefined
   private readonly activity = new SessionActivity()
-  private loop: LoopState = { blocked: undefined, handedOff: undefined }
+  private loop: LoopState = { blocked: undefined, given: undefined }
   private rounds = 0
   private readonly run: RunProcess
-  private readonly approvals: Approvals
 
   private readonly options: AgentGateOptions
 
   constructor(options: AgentGateOptions = {}) {
     this.options = options
     this.run = options.run ?? runProcess
-    this.approvals = new Approvals(options.ask)
   }
 
   /** The Session started: record the baseline. Outside a git repository the gate stays off. */
@@ -106,9 +100,9 @@ export class AgentGateSession {
     )
   }
 
-  /** A user prompt; naming a package in one approves adding it. */
-  notePrompt(text: string) {
-    this.approvals.notePrompt(text)
+  /** The run settled; the next run gets a new round budget. */
+  settled() {
+    this.rounds = 0
   }
 
   async beforeTool(call: ToolCall) {
@@ -122,13 +116,11 @@ export class AgentGateSession {
     this.inFlight.set(call.id, { name: call.name, commands: [] })
   }
 
-  /** Records what the call changed; returns a note for the tool result when the user said no. */
-  async afterTool(result: ToolResult): Promise<string | undefined> {
+  /** Records what the call changed. */
+  async afterTool(result: ToolResult): Promise<void> {
     const root = this.root
-    if (root === undefined || this.baseline === undefined) return undefined
-    const commandRun = SHELL_TOOLS.has(result.name)
-      ? bashRun(result.input, result.structuredContent, result.isError)
-      : undefined
+    if (root === undefined || this.baseline === undefined) return
+    const commandRun = SHELL_TOOLS.has(result.name) ? bashRun(result.input) : undefined
     const parent = result.parentId === undefined ? undefined : this.inFlight.get(result.parentId)
     if (parent !== undefined && commandRun !== undefined) parent.commands.push(commandRun)
     const changed = await this.changedBy(root, result)
@@ -143,7 +135,6 @@ export class AgentGateSession {
       commands: runs.map((run) => run.command),
     })
     this.activity.recordCommands(runs)
-    return changed.length === 0 ? undefined : this.approvals.review(root, changed, this.baseline)
   }
 
   async settle(state: SettleState, signal?: AbortSignal): Promise<GateDecision | undefined> {
@@ -162,17 +153,12 @@ export class AgentGateSession {
       runner: this.options.runner ?? 'oxlint',
       sessionFindings,
       typeBaseline: () => this.typeBaseline ?? Promise.resolve(undefined),
-      sessionFiles: [...this.activity.sessionFiles],
-      dependencies: dependencyCheck({
-        approved: (pin) => this.approvals.dependencyApproved(pin),
-        ...(this.options.latest === undefined ? {} : { latest: this.options.latest }),
-      }),
       ...(this.options.plugins === undefined ? {} : { plugins: this.options.plugins }),
       ...(signal === undefined ? {} : { signal }),
     })
     if (signal?.aborted === true) return undefined
     const canContinue = state.canContinue && this.rounds < MAX_FEEDBACK_ROUNDS
-    const decision = decide(verdict.findings, verdict.failures, this.loop, canContinue)
+    const decision = decide(verdict.findings, this.loop, canContinue)
     if (decision.kind === 'block') this.rounds += 1
     this.loop = nextLoopState(this.loop, decision)
     if (decision.kind === 'pass') {

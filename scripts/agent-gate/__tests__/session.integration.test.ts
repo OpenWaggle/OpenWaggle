@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -13,20 +13,21 @@ function git(...args: string[]) {
 }
 
 function write(file: string, text: string) {
+  mkdirSync(path.dirname(path.join(root, file)), { recursive: true })
   writeFileSync(path.join(root, file), text)
 }
 
 /** One bash call that runs `effect` between the gate's before and after hooks. */
-async function bash(session: AgentGateSession, command: string, effect: () => void, exitCode = 0) {
+async function bash(session: AgentGateSession, command: string, effect: () => void) {
   calls += 1
   const call: ToolCall = { id: `call-${calls}`, name: 'bash', input: { command } }
   await session.beforeTool(call)
   effect()
-  return session.afterTool({
-    ...call,
-    isError: exitCode !== 0,
-    structuredContent: { exit_code: exitCode },
-  })
+  await session.afterTool({ ...call, isError: false })
+}
+
+function content(decision: Awaited<ReturnType<AgentGateSession['settle']>>) {
+  return decision?.kind === 'block' ? decision.content : ''
 }
 
 const COMPLETED = { outcome: 'completed', canContinue: true } as const
@@ -39,12 +40,10 @@ beforeEach(() => {
   write('package.json', JSON.stringify({ name: 'x', dependencies: { a: '1.0.0' } }, null, 2))
   write('.gitignore', 'node_modules/\n')
   write('tsconfig.json', '{ "compilerOptions": { "strict": true }, "include": ["src"] }')
-  write(
-    'DEPENDENCIES.md',
-    '| Package | Pin | Reason | Last known good |\n| --- | --- | --- | --- |\n',
-  )
-  execFileSync('mkdir', ['-p', 'src'], { cwd: root })
   write('src/a.ts', 'export const a = 1\n')
+  write('src/__tests__/a.unit.test.ts', "it('works', () => {})\n")
+  write('oxlint.config.mts', "export default {\n  rules: {\n    'no-console': 'error',\n  },\n}\n")
+  write('scripts/check/output-budget.json', '{ "check": 20 }\n')
   git('add', '-A')
   git('commit', '-q', '-m', 'init')
 })
@@ -54,7 +53,7 @@ afterEach(() => {
 })
 
 describe('agent gate Session', () => {
-  it('catches a shell edit, blocks once, then hands the same findings to the user', async () => {
+  it('catches a shell edit, blocks once, then stops silently on the same findings', async () => {
     const session = new AgentGateSession()
     await session.start(root)
     await bash(session, "printf '// @ts-ignore\\n' >> src/a.ts", () =>
@@ -63,28 +62,25 @@ describe('agent gate Session', () => {
 
     const first = await session.settle(COMPLETED)
     expect(first?.kind).toBe('block')
-    const lines = first?.content?.split('\n') ?? []
+    const lines = content(first).split('\n')
     expect(lines).toContain(
       'src/a.ts:2:1 gate/suppressions [TS-08] new @ts-ignore comment; fix the code or the shared config instead',
     )
-    expect(lines).toContain(
-      'src/a.ts:1:1 gate/tests [TEST-05] changed with no test run since; run the tests that cover them',
-    )
-    // No lint tools in the scratch repository: one advisory line each, never a block.
-    expect(lines.filter((line) => line.startsWith('gate: '))).toHaveLength(2)
+    // No lint tools in the scratch repository: their failures stay out of the agent's message.
+    expect(lines.filter((line) => line.startsWith('gate: '))).toEqual([])
+    expect(lines.join('\n')).not.toContain('TEST-05')
 
-    expect((await session.settle(COMPLETED))?.kind).toBe('handoff')
-    expect(await session.settle(COMPLETED)).toEqual({ kind: 'pass', content: expect.any(String) })
+    expect(await session.settle(COMPLETED)).toEqual({ kind: 'stop', key: expect.any(String) })
+    expect(await session.settle(COMPLETED)).toEqual({ kind: 'pass' })
   })
 
-  it('passes after the fix and a passing test run, keeping tool-failed files for the next gate', async () => {
+  it('passes silently with no test run, keeping tool-failed files for the next gate', async () => {
     const session = new AgentGateSession()
     await session.start(root)
     await bash(session, 'edit', () => write('src/a.ts', 'export const a = 2\n'))
-    await bash(session, 'bunx vitest run src', () => undefined)
-    const decision = await session.settle(COMPLETED)
-    expect(decision?.kind).toBe('pass')
-    expect(decision?.content).toContain('stays unchecked')
+    expect(await session.settle(COMPLETED)).toEqual({ kind: 'pass' })
+    // The tools that failed to run leave src/a.ts pending, so the next stop checks it again.
+    expect(await session.settle(COMPLETED)).toEqual({ kind: 'pass' })
   })
 
   it('stays quiet when nothing changed and ignores files changed before the Session', async () => {
@@ -100,65 +96,69 @@ describe('agent gate Session', () => {
     await session.start(root)
     write('bun.lock', '{}\n')
     await session.afterTool({ id: 'e1', name: 'edit', input: { path: 'bun.lock' }, isError: false })
-    const decision = await session.settle(COMPLETED)
-    expect(decision?.content).toContain(
+    expect(content(await session.settle(COMPLETED))).toContain(
       'bun.lock:1:1 gate/generated [TOOL-07] Bun lockfile changed by the edit tool',
     )
   })
 
-  it('blocks a weaker tsconfig without asking the user', async () => {
-    const asked: string[] = []
-    const session = new AgentGateSession({
-      ask: (title) => {
-        asked.push(title)
-        return Promise.resolve(true)
-      },
-    })
+  it('blocks a weaker tsconfig, with no prompt', async () => {
+    const session = new AgentGateSession()
     await session.start(root)
-    const note = await bash(session, 'edit tsconfig', () =>
+    await bash(session, 'edit tsconfig', () =>
       write('tsconfig.json', '{ "compilerOptions": { "strict": false }, "include": ["src"] }'),
     )
-    expect(asked).toEqual([])
-    expect(note).toBeUndefined()
-    const decision = await session.settle(COMPLETED)
-    expect(decision?.kind).toBe('block')
-    expect(decision?.content).toContain(
-      'tsconfig.json:1:1 gate/tsconfig [TS-01] strict checks less on 1 file: src/a.ts',
+    expect(content(await session.settle(COMPLETED))).toContain(
+      'tsconfig.json:1:1 gate/tsconfig [TS-01] strict checks less on 2 files: src/__tests__/a.unit.test.ts, src/a.ts',
     )
   })
 
-  it('needs approval and a DEPENDENCIES.md row for a new dependency behind latest', async () => {
-    const session = new AgentGateSession({
-      ask: () => Promise.resolve(undefined),
-      latest: () => Promise.resolve('2.0.0'),
-    })
+  it('passes a stricter tsconfig', async () => {
+    const session = new AgentGateSession()
     await session.start(root)
-    await bash(session, 'edit package.json', () =>
+    await bash(session, 'edit tsconfig', () =>
       write(
-        'package.json',
-        JSON.stringify({ name: 'x', dependencies: { a: '1.0.0', b: '1.0.0', c: '^1.0.0' } }),
+        'tsconfig.json',
+        '{ "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true }, "include": ["src"] }',
       ),
     )
-    const content = (await session.settle(COMPLETED))?.content ?? ''
-    expect(content).toContain(
-      "package.json:1:1 gate/dependencies [DEP-02] b@1.0.0 added without the user's approval",
-    )
-    expect(content).toMatch(/DEPENDENCIES\.md:1:1 gate\/dependencies \[DEP-03\] .*\bb\b/u)
-    expect(content).toMatch(/package\.json:1:1 gate\/dependencies \[DEP-01\] .*\bc\b/u)
+    expect(content(await session.settle(COMPLETED))).not.toContain('TS-01')
   })
 
-  it('counts a package named in a user prompt as approved', async () => {
-    const session = new AgentGateSession({ latest: () => Promise.resolve('1.0.0') })
+  it('leaves a new dependency to review', async () => {
+    const session = new AgentGateSession()
     await session.start(root)
-    session.notePrompt('please add b to the dependencies')
     await bash(session, 'bun add b', () =>
       write(
         'package.json',
-        JSON.stringify({ name: 'x', dependencies: { a: '1.0.0', b: '1.0.0' } }),
+        JSON.stringify({ name: 'x', dependencies: { a: '1.0.0', b: '^1.0.0' } }),
       ),
     )
-    const content = (await session.settle(COMPLETED))?.content ?? ''
-    expect(content).not.toContain('DEP-02')
-    expect(content).not.toContain('DEP-03')
+    expect(await session.settle(COMPLETED)).toEqual({ kind: 'pass' })
+  })
+
+  it('blocks a lint rule turned off, a raised budget and a skipped test', async () => {
+    const session = new AgentGateSession()
+    await session.start(root)
+    await bash(session, 'loosen', () => {
+      write(
+        'oxlint.config.mts',
+        "export default {\n  rules: {\n    'no-console': 'off',\n  },\n}\n",
+      )
+      write('scripts/check/output-budget.json', '{ "check": 40 }\n')
+      write('src/__tests__/a.unit.test.ts', "it.skip('works', () => {})\n")
+    })
+    const ids = content(await session.settle(COMPLETED))
+      .split('\n')
+      .flatMap((line) => /\[(?<id>[A-Z]+-\d+)\]/u.exec(line)?.groups?.['id'] ?? [])
+    expect(ids.slice(1).sort()).toEqual(['GATE-03', 'GATE-03', 'GATE-05'])
+  })
+
+  it('blocks a deleted test whose code remains', async () => {
+    const session = new AgentGateSession()
+    await session.start(root)
+    await bash(session, 'rm', () => rmSync(path.join(root, 'src/__tests__/a.unit.test.ts')))
+    expect(content(await session.settle(COMPLETED))).toContain(
+      'src/__tests__/a.unit.test.ts:1:1 gate/tests [GATE-03] deleted while src/a.ts still exists; restore the test',
+    )
   })
 })

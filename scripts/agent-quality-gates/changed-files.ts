@@ -56,7 +56,10 @@ export async function takeSnapshot(
   return { root, head, dirty: await contentHashes(run, root, files) }
 }
 
-/** Files whose content differs from the snapshot, relative to the repository root; existing files only. */
+/**
+ * Files whose content differs from the snapshot, relative to the repository root. A file deleted
+ * since the snapshot counts, so the gate sees a deleted test.
+ */
 export async function changedFiles(
   run: RunProcess,
   snapshot: WorkspaceSnapshot,
@@ -82,7 +85,7 @@ export async function changedFiles(
   return candidates.filter((file) => {
     const current = now.get(file) ?? ''
     const before = snapshot.dirty.get(file) ?? atHead.get(file) ?? ''
-    return current !== '' && current !== before
+    return current !== before
   })
 }
 

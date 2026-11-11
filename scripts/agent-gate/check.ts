@@ -5,14 +5,12 @@
  *   bun scripts/agent-gate/check.ts [--base <ref>] [--runner oxlint|bun] [--no-plugins] [files...]
  *
  * Without files it checks every file changed since `--base` (default HEAD), untracked files
- * included. New suppressions, dependency pins and tsconfig changes are compared with the base.
- * Session-only checks (test runs, generator attribution, the user's approvals) have no history
- * here: an added dependency and a changed generated file are advisory lines instead.
+ * included. Suppressions, tsconfigs, lint configs, budgets and tests are compared with the base.
+ * Generator attribution is Session-only, so a changed generated file is an advisory line here.
  */
 import { performance } from 'node:perf_hooks'
 import { pathToFileURL } from 'node:url'
 import { baselineAtRef } from './baseline'
-import { dependencyCheck } from './dependencies'
 import type { Finding } from './findings'
 import { runGate } from './gate'
 import { generatedFilesFor } from './generated-files'
@@ -93,7 +91,6 @@ export async function main(argv: readonly string[]) {
     run: runProcess,
     runner: options.runner,
     sessionFindings: generatedAdvisories(files),
-    dependencies: dependencyCheck({ approved: () => false, unapproved: 'advisory' }),
     plugins: options.plugins ? [qualityGatesPlugin] : [],
   })
   const seconds = ((performance.now() - started) / MILLISECONDS_PER_SECOND).toFixed(1)

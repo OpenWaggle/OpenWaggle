@@ -1,8 +1,10 @@
 /**
- * New inline suppressions (TS-08): lint and type-check directive comments that a Session added,
- * compared with the same file when the Session started. Existing ones are left to the lint rules;
- * the gate only stops new ones from slipping in, including in files lint does not cover.
+ * New inline suppressions (TS-08) and silencing casts (TS-05): lint and type-check directive
+ * comments, `as any`, `as unknown as` and `as never` that a Session added, compared with the same
+ * file when the Session started. Existing ones are left to the lint rules; the gate only stops new
+ * ones from slipping in, including in files lint does not cover or still exempts.
  */
+import { addedLines } from './added-lines'
 import type { Finding } from './findings'
 
 const CODE_FILE = /\.(?:[cm]?[jt]sx?|astro|vue|svelte|css|scss|html)$/u
@@ -10,6 +12,9 @@ const CODE_FILE = /\.(?:[cm]?[jt]sx?|astro|vue|svelte|css|scss|html)$/u
 const EXEMPT_FILE = /^(?:scripts\/oxlint\/|scripts\/agent-gate\/|scripts\/standards\/)/u
 const DIRECTIVE =
   /(?:\/\/|\/\*|^\s*\*|<!--|\{\/\*)\s*(?<directive>eslint-disable(?:-next-line|-line)?|eslint-enable|oxlint-disable(?:-next-line|-line)?|oxlint-enable|biome-ignore(?:-all|-start|-end)?|fallow-ignore(?:-next-line|-file)?|@ts-ignore|@ts-expect-error|@ts-nocheck)\b/u
+
+const TYPESCRIPT_FILE = /\.(?:[cm]?tsx?|astro|vue|svelte)$/u
+const SILENCING_CAST = /\bas\s+(?<cast>any|never|unknown\s+as)\b/u
 
 export interface Suppression {
   readonly line: number
@@ -42,7 +47,7 @@ export function newSuppressions(
   for (const existing of suppressions(before ?? '')) {
     remaining.set(existing.text, (remaining.get(existing.text) ?? 0) + 1)
   }
-  return suppressions(after).flatMap((suppression) => {
+  const directives = suppressions(after).flatMap((suppression) => {
     const left = remaining.get(suppression.text) ?? 0
     if (left > 0) {
       remaining.set(suppression.text, left - 1)
@@ -56,6 +61,28 @@ export function newSuppressions(
         rule: 'gate/suppressions',
         id: 'TS-08',
         message: `new ${suppression.directive} comment; fix the code or the shared config instead`,
+        severity: 'block' as const,
+      },
+    ]
+  })
+  return [...directives, ...silencingCasts(file, before, after)]
+}
+
+/** Casts that turn the type checker off for a value, added since `before`. */
+function silencingCasts(file: string, before: string | undefined, after: string): Finding[] {
+  if (!TYPESCRIPT_FILE.test(file)) return []
+  return addedLines(before, after).flatMap((added) => {
+    const match = SILENCING_CAST.exec(added.text)
+    const cast = match?.groups?.['cast']
+    if (match === null || cast === undefined) return []
+    return [
+      {
+        file,
+        line: added.line,
+        column: match.index + 1,
+        rule: 'gate/suppressions',
+        id: 'TS-05',
+        message: `new \`as ${cast.replaceAll(/\s+/gu, ' ')}\` cast; type the value instead`,
         severity: 'block' as const,
       },
     ]

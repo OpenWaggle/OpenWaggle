@@ -15,11 +15,11 @@ Each rule cites its stable ID from `.agents/rules.json`, the machine-readable ca
 
 Type safety is stricter than convenience.
 
-- TypeScript stays `strict` and uses the strongest practical strictness flags. Turning a strict flag off or widening an `include` needs the maintainer's approval. [TS-01]
+- TypeScript stays `strict` and uses the strongest practical strictness flags. A tsconfig change may only make checking stricter: every source file stays checked by some project reachable from `tsconfig.json`, and no strictness flag gets weaker for any file. Moving files to a stricter project, adding a reference and excluding build outputs are fine. The agent gate and `bun run check:tsconfig-strictness` compare by effect, not by the diff, and nothing approves a weaker change. [TS-01]
 - Raw type assertions are forbidden everywhere except `as const`. [TS-02]
 - Use `satisfies`, explicit annotations, generics, type guards, discriminated unions, and Effect Schema instead of casts. [TS-03]
 - Use `@total-typescript/shoehorn` only in tests, and only when a test needs partial mocks or intentionally invalid inputs. [TS-04]
-- Never use `any`, `as unknown as`, `as never`, handler casts, `Record<string, unknown>` casts, or `// SAFETY:` comments. [TS-05]
+- Never use `any`, `as unknown as`, `as never`, handler casts, `Record<string, unknown>` casts, or `// SAFETY:` comments. The agent gate also blocks a new `as any`, `as unknown as` or `as never` in files lint does not cover. [TS-05]
 - Runtime inputs must be validated at boundaries with shared Effect Schema helpers from `src/shared/schema.ts` and schemas under `src/shared/schemas/`. [TS-06]
 - Do not use silent parse fallbacks. Log structured context or surface a visible error path. [TS-07]
 
@@ -117,7 +117,8 @@ Mechanical enforcement:
 - Tests should verify behavior through public interfaces. Use typed builders, `satisfies`, and Shoehorn test helpers instead of casts. [TEST-02]
 - Mock setup must avoid hoisting races; dynamically import subject modules after `vi.mock(...)` setup when needed. [TEST-03]
 - A test that spawns many real child processes is an integration test, and a large module graph loads once in `beforeAll` (`.agents/verification.md`). [TEST-04]
-- After changing source, run the relevant tests in the same turn and leave them passing [TEST-05]
+- After changing source, run the relevant tests in the same turn and leave them passing.
+- Never skip, focus or delete a test to get a change through. The agent gate blocks a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, and a deleted test file whose code still exists. [GATE-03]
 
 Mechanical enforcement:
 
@@ -147,7 +148,7 @@ Mechanical enforcement:
 ## Dependencies
 
 - Direct dependencies and catalog entries are exact versions; `workspace:` and `catalog:` references pass (`docs/dependency-updates.md`). [DEP-01]
-- Add a dependency only when the maintainer approved it [DEP-02]
+- Add a dependency only when the maintainer approved it. Review checks this; no tool does.
 - A pin that is not the latest release, or that has a reason (a patch, an override, a known break in the next release), has a row in `DEPENDENCIES.md`. `bun run check:dependency-pins` fails a new or changed pin without one. [DEP-03]
 - A release-age exception names one exact `name@version` with its reason. [DEP-04]
 
@@ -161,12 +162,14 @@ Mechanical enforcement:
 
 `bun scripts/agent-gate/check.ts` checks the files a Session changed. It never runs as an in-session hook that prompts the maintainer. `.agents/verification.md` describes its checks.
 
-- Fix its findings before you stop. When you cannot, say why in the final answer; the gate hands a finding it already blocked once to the user. [GATE-01]
+- The gate's job is to keep an agent from getting a change through by checking less, and it never involves the user: it asks nothing, and its findings go only to the agent. Fix them before you stop. When you cannot, say why in the final answer; the same findings at the next stop end the run without a message. [GATE-01]
 - Fallow dead-code and duplication findings in changed files are fixed; a false positive gets a config entry with its reason, never a suppression comment. [GATE-02]
+- A lint config change that checks less (a rule turned off or down to a warning, a new ignore or exemption entry, a raised limit) in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts` carries a comment that says why, on the entry or above its group. [GATE-03]
+- Never raise a budget, cap or coverage threshold (bundle, output-token, first-turn prefix, memory and rule-catalogue budgets), or grow an only-shrinks list (`scripts/oxlint/pending-rule-exemptions.json`, the design-token and renderer-test type exemptions, the legacy ADR numbers). Get under the limit instead; `scripts/agent-gate/ratchets.ts` lists what the gate watches. [GATE-05]
 
 ## Docs and memory
 
-- When a change touches a file that an ADR or doc watches (`scripts/agent-gate/doc-watch.ts`), update that doc or say why it still holds. [DOC-01]
+- When a change makes an ADR or doc wrong, update it in the same change.
 - User docs in `website/src/content/docs/` follow the `write-docs` skill (ADR 0061). [DOC-02]
 - Significant technical findings go in the matching `.agents/memory/<topic>.md`, within its token cap. [DOC-03]
 - Prose follows the `unslop` skill. [DOC-04]

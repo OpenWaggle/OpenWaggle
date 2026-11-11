@@ -1,6 +1,7 @@
 /**
- * What a file held when the Session started, the reference for new suppressions, added
- * dependencies and weakened tsconfigs. Files that were already dirty are read at the start; the
+ * What a file held when the Session started, the reference for the checks that compare a change
+ * with what was there: new suppressions, weaker tsconfigs, loosened lint configs, raised budgets
+ * and skipped tests. Files that were already dirty are read at the start; the
  * rest come from the starting `HEAD`, so a commit during the Session does not move the baseline.
  * The manual check uses a git ref instead.
  */
@@ -11,6 +12,9 @@ import type { WorkspaceSnapshot } from '../agent-quality-gates/changed-files'
 import type { RunProcess } from '../agent-quality-gates/process'
 import { git } from './git'
 import { TSCONFIG_FILE } from './tsconfig-strictness'
+import { LINT_CONFIGS } from './lint-config'
+import { BUDGETS, SHRINKING_LISTS } from './ratchets'
+import { isTestFile } from './skipped-tests'
 
 export interface Baseline {
   /** The file's text at the baseline, or undefined when it did not exist then. */
@@ -19,10 +23,14 @@ export interface Baseline {
 
 const GIT_SHOW_TIMEOUT_MS = 10_000
 const MAX_BASELINE_BYTES = 2 * 1024 * 1024
-const MANIFEST = /(?:^|\/)package\.json$/u
-
 function needsBaseline(file: string) {
-  return isSuppressionCandidate(file) || MANIFEST.test(file) || TSCONFIG_FILE.test(file)
+  return (
+    isSuppressionCandidate(file) ||
+    isTestFile(file) ||
+    TSCONFIG_FILE.test(file) ||
+    file in LINT_CONFIGS ||
+    [...BUDGETS, ...SHRINKING_LISTS].some((entry) => entry.files.test(file))
+  )
 }
 
 /** The file's text at `ref`, or undefined when it was not there. */

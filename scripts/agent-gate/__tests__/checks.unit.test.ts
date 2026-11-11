@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isTestCommand, bashRun } from '../commands'
-import { staleDocs } from '../doc-watch'
+import { bashRun } from '../commands'
 import { findingSetKey, formatFinding, parseFindingLine, type Finding } from '../findings'
 import { ranGenerator } from '../generated-files'
 import { newSuppressions } from '../suppressions'
@@ -29,37 +28,9 @@ describe('new suppressions', () => {
 })
 
 describe('shell commands', () => {
-  it('recognizes test runs in compound commands', () => {
-    for (const command of [
-      'bunx vitest run -c vitest.unit.config.ts src/a.unit.test.ts',
-      'cd x && bun run test:unit 2>&1 | tail',
-      'node_modules/.bin/vitest run scripts/agent-gate',
-      'bun run verify',
-    ]) {
-      expect(isTestCommand(command)).toBe(true)
-    }
-    for (const command of [
-      'bun run lint',
-      'vitest --version',
-      'cat vitest.config.ts',
-      'git commit -m test',
-    ]) {
-      expect(isTestCommand(command)).toBe(false)
-    }
-  })
-
-  it('reads the exit status from the bash result', () => {
-    expect(bashRun({ command: 'false' }, { exit_code: 1 }, true)).toEqual({
-      command: 'false',
-      exitCode: 1,
-      failed: true,
-    })
-    expect(bashRun({ command: 'true' }, undefined, false)).toEqual({
-      command: 'true',
-      exitCode: undefined,
-      failed: false,
-    })
-    expect(bashRun({}, undefined, false)).toBeUndefined()
+  it('reads the command from the bash call', () => {
+    expect(bashRun({ command: 'bun install' })).toEqual({ command: 'bun install' })
+    expect(bashRun({})).toBeUndefined()
   })
 
   it('matches generated files to their generators', () => {
@@ -72,21 +43,6 @@ describe('shell commands', () => {
       true,
     )
     expect(ranGenerator('src/a.ts', ['bun install'])).toBe(false)
-  })
-})
-
-describe('doc watch-list', () => {
-  const watches = [{ paths: ['scripts/lint.ts'], docs: ['.agents/standards.md'] }]
-
-  it('flags a watched file changed without its doc', () => {
-    expect(staleDocs(['scripts/lint.ts'], undefined, watches)).toEqual([
-      { file: 'scripts/lint.ts', touched: ['scripts/lint.ts'], docs: ['.agents/standards.md'] },
-    ])
-  })
-
-  it('passes when the doc changed too, now or earlier in the Session', () => {
-    expect(staleDocs(['scripts/lint.ts', '.agents/standards.md'], undefined, watches)).toEqual([])
-    expect(staleDocs(['scripts/lint.ts'], ['.agents/standards.md'], watches)).toEqual([])
   })
 })
 

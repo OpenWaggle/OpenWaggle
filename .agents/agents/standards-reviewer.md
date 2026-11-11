@@ -36,7 +36,7 @@ read-only checks are fine.
 3. Spend your attention on the rules whose `by` list includes `review`, and on what no tool can
    see: correctness, regressions, data loss, security, missing or weak tests, architecture drift,
    Pi semantics (PI-02 to PI-07), boundary validation (TS-06, TS-07), and whether docs and memory
-   still hold (DOC-01 to DOC-03).
+   still hold (DOC-02, DOC-03).
 4. Check each finding against the code before you report it. Read the surrounding file, the
    callers and the tests. Drop anything you cannot point to.
 

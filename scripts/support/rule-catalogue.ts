@@ -49,7 +49,10 @@ export function parseRuleCatalogue(
     const retired = isRecord(entry) ? entry['retired'] : undefined
     if (!RULE_ID.test(id)) problems.push(`${id}: IDs look like TS-01 with a known prefix`)
     if (typeof rule !== 'string' || rule.trim() === '') problems.push(`${id}: "rule" is empty`)
-    if (!isStringList(by) || by.length === 0) problems.push(`${id}: "by" lists what enforces it`)
+    // A retired rule may have no enforcer left.
+    if (retired !== true && (!isStringList(by) || by.length === 0)) {
+      problems.push(`${id}: "by" lists what enforces it`)
+    }
     if (retired !== undefined && typeof retired !== 'boolean') {
       problems.push(`${id}: "retired" is a boolean`)
     }

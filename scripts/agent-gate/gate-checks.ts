@@ -7,11 +7,11 @@ export const GATE_CHECKS = [
   'lint',
   'typecheck',
   'suppressions',
-  'dependencies',
   'tsconfig',
+  'lint-config',
+  'ratchets',
   'generated',
   'tests',
-  'docs',
   'loop',
   // The git guardrails extension (.pi/extensions/git-guardrails.ts) blocks hook bypasses per call.
   'git-guardrails',

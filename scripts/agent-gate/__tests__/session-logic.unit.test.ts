@@ -15,56 +15,53 @@ const blocking: Finding = {
 }
 const advisory: Finding = {
   file: 'src/b.ts',
-  rule: 'gate/docs',
-  id: 'DOC-01',
-  message: 'stale doc',
+  rule: 'gate/generated',
+  id: 'TOOL-07',
+  message: 'route tree changed',
   severity: 'advisory',
 }
-const fresh: LoopState = { blocked: undefined, handedOff: undefined }
+const fresh: LoopState = { blocked: undefined, given: undefined }
 
 describe('loop guard', () => {
-  it('blocks a new set once, then hands the same set to the user', () => {
-    const first = decide([blocking], [], fresh, true)
+  it('blocks a new set once, then stops silently on the same set', () => {
+    const first = decide([blocking], fresh, true)
     expect(first.kind).toBe('block')
-    const second = decide([{ ...blocking, line: 9 }], [], nextLoopState(fresh, first), true)
-    expect(second.kind).toBe('handoff')
-    const third = decide([blocking], [], nextLoopState(nextLoopState(fresh, first), second), true)
-    expect(third).toEqual({ kind: 'pass', content: undefined })
+    const second = decide([{ ...blocking, line: 9 }], nextLoopState(fresh, first), true)
+    expect(second).toEqual({ kind: 'stop', key: expect.any(String) })
+    expect(second).not.toHaveProperty('content')
+    const third = decide([blocking], nextLoopState(nextLoopState(fresh, first), second), true)
+    expect(third).toEqual({ kind: 'pass' })
   })
 
   it('blocks again when the set changes', () => {
-    const first = decide([blocking], [], fresh, true)
-    const changed = decide(
-      [{ ...blocking, message: 'Other.' }],
-      [],
-      nextLoopState(fresh, first),
-      true,
-    )
+    const first = decide([blocking], fresh, true)
+    const changed = decide([{ ...blocking, message: 'Other.' }], nextLoopState(fresh, first), true)
     expect(changed.kind).toBe('block')
   })
 
-  it('hands off at once when the run cannot continue', () => {
-    expect(decide([blocking], [], fresh, false).kind).toBe('handoff')
+  it('stops at once when the run cannot continue', () => {
+    expect(decide([blocking], fresh, false).kind).toBe('stop')
   })
 
-  it('never blocks on advisories or tool failures', () => {
-    const decision = decide(
-      [advisory],
-      [{ check: 'lint', files: ['src/a.ts'], reason: 'timed out' }],
-      fresh,
-      true,
-    )
-    expect(decision.kind).toBe('pass')
-    expect(decision.content?.split('\n')).toEqual([
-      'Agent gate passed.',
+  it('passes silently on advisories and a clean gate', () => {
+    expect(decide([advisory], fresh, true)).toEqual({ kind: 'pass' })
+    expect(decide([], fresh, true)).toEqual({ kind: 'pass' })
+  })
+
+  it('lists advisories and tool failures in the manual check only', () => {
+    expect(
+      checkReport(
+        [advisory],
+        [{ check: 'lint', files: ['src/a.ts'], reason: 'timed out' }],
+        1,
+        '1.0',
+      ),
+    ).toEqual([
+      'agent-gate: no blocking findings in 1 file (1.0s)',
       'Advisory, does not block:',
-      'src/b.ts:1:1 gate/docs [DOC-01] stale doc',
+      'src/b.ts:1:1 gate/generated [TOOL-07] route tree changed',
       'gate: lint did not run (timed out); 1 file stays unchecked for the next gate',
     ])
-  })
-
-  it('stays silent on a clean gate', () => {
-    expect(decide([], [], fresh, true)).toEqual({ kind: 'pass', content: undefined })
   })
 
   it('prints one line for a clean manual check', () => {
@@ -79,30 +76,13 @@ describe('loop guard', () => {
 })
 
 describe('Session activity', () => {
-  it('asks for a test run after a source change and clears it on a passing run', () => {
-    const activity = new SessionActivity()
-    activity.recordChanges(['src/a.ts', 'docs/a.md'], { tool: 'edit', commands: [] })
-    expect(activity.findings().map((finding) => finding.id)).toEqual(['TEST-05'])
-    activity.recordCommands([{ command: 'bunx vitest run src/a', exitCode: 1, failed: true }])
-    expect(activity.findings()[0]?.message).toContain('the last test run failed')
-    activity.recordCommands([{ command: 'bunx vitest run src/a', exitCode: 0, failed: false }])
-    expect(activity.findings()).toEqual([])
-  })
-
-  it('needs no test run for docs only', () => {
-    const activity = new SessionActivity()
-    activity.recordChanges(['README.md'], { tool: 'write', commands: [] })
-    activity.recordCommands([{ command: 'bun test', exitCode: 1, failed: true }])
-    expect(activity.findings()).toEqual([])
-  })
-
   it('reports a hand-edited generated file until its generator runs', () => {
     const activity = new SessionActivity()
     activity.recordChanges(['bun.lock'], { tool: 'bash', commands: ["sed -i '' s/a/b/ bun.lock"] })
     expect(activity.findings()[0]?.message).toBe(
       "Bun lockfile changed by `sed -i '' s/a/b/ bun.lock`, not its generator; revert it and run the generator",
     )
-    activity.recordCommands([{ command: 'bun install', exitCode: 0, failed: false }])
+    activity.recordCommands([{ command: 'bun install' }])
     expect(activity.findings()).toEqual([])
     activity.recordChanges(['bun.lock'], { tool: 'bash', commands: ['bun add zod'] })
     expect(activity.findings()).toEqual([])
