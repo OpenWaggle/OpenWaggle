@@ -214,7 +214,7 @@ const config: DoctorConfig = {
       {
         // The Electrobun CEF probe types into the preview over CDP one key at a time: each
         // keyDown/keyUp pair must reach the page in order, or the typed value is scrambled.
-        files: ['vendor/electrobun/probe/src/bun/index.ts'],
+        files: ['vendor/electrobun/probe/src/bun/cdp-probe.ts'],
         rules: ['react-doctor/async-await-in-loop'],
       },
       {

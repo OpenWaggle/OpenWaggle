@@ -96,9 +96,11 @@ export class ElectrobunPreviewProfiles {
     const origins = all.success ? originsOfCookieDomains(all.data.cookies.map((c) => c.domain)) : []
     await this.send(profileId, 'Network.clearBrowserCookies')
     await this.send(profileId, 'Network.clearBrowserCache')
-    for (const origin of origins) {
-      await this.send(profileId, 'Storage.clearDataForOrigin', { origin, storageTypes: 'all' })
-    }
+    await Promise.all(
+      origins.map((origin) =>
+        this.send(profileId, 'Storage.clearDataForOrigin', { origin, storageTypes: 'all' }),
+      ),
+    )
     await this.release(profileId)
   }
 

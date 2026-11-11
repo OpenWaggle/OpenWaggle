@@ -144,6 +144,10 @@
       "files": [
         "src/main/adapters/electron/browser-preview/browser-preview-artifacts.ts",
         "src/main/adapters/electron/browser-preview/browser-preview-automation-control.ts",
+        // CdpConnection.connect builds the instance behind a private constructor, and the
+        // Electrobun preview reaches its guest through ElectrobunPreviewRecord.guest.
+        "src/main/adapters/electrobun/browser-preview/cdp-connection.ts",
+        "src/main/adapters/electrobun/browser-preview/electrobun-preview-guest.ts",
         "src/main/adapters/mcp/migration/migration-record.ts",
         "src/main/adapters/mcp/pool/mcp-connection-catalog.ts",
         "src/main/adapters/mcp/pool/mcp-connection-lease.ts",

@@ -79,10 +79,6 @@ export class ElectrobunBrowserPreviewManager {
     return this.records.listOwned(ownerKey)
   }
 
-  findOwnedPreview(ownerKey: string, previewId?: string) {
-    return this.records.findOwned(ownerKey, previewId)
-  }
-
   setCurrentPreview(sender: RendererSurface, ownerKey: string, previewId: string | null): void {
     this.ownerRegistry.assertRegistered(ownerKey, sender)
     this.records.setCurrent(sender, ownerKey, previewId)
