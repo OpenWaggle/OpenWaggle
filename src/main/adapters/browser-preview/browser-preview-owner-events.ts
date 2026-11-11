@@ -3,9 +3,17 @@ import type {
   BrowserPreviewShortcutEvent,
   BrowserPreviewState,
 } from '@shared/types/browser-preview'
-import type { BrowserPreviewRecord } from './browser-preview-records'
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 
-export function emitBrowserPreviewState(record: BrowserPreviewRecord) {
+/** A preview that reports to the renderer page owning it. */
+export interface BrowserPreviewOwnerEventTarget {
+  readonly disposed: boolean
+  readonly state: BrowserPreviewState
+  readonly owner: { readonly sender: RendererSurface }
+  readonly onOwnerEventFailure: () => void
+}
+
+export function emitBrowserPreviewState(record: BrowserPreviewOwnerEventTarget) {
   sendBrowserPreviewOwnerEvent(record, {
     channel: 'browser-preview:state',
     payload: record.state,
@@ -27,9 +35,9 @@ type BrowserPreviewOwnerEvent =
       readonly payload: BrowserPreviewKeyEvent
     }
 
-/** Sends to the renderer that owns the native view without throwing through Electron listeners. */
+/** Sends to the renderer that owns the native view without throwing through shell listeners. */
 export function sendBrowserPreviewOwnerEvent(
-  record: BrowserPreviewRecord,
+  record: BrowserPreviewOwnerEventTarget,
   event: BrowserPreviewOwnerEvent,
 ) {
   if (record.disposed || record.owner.sender.isDestroyed()) return

@@ -3,7 +3,7 @@ import {
   BrowserPreviewCrashRecovery,
   isRecoverableBrowserPreviewCrash,
 } from './browser-preview-crash-recovery'
-import { browserPreviewStateError } from './browser-preview-policy'
+import { browserPreviewStateError } from '../../browser-preview/browser-preview-page-state'
 import type { BrowserPreviewEventActions, BrowserPreviewRecord } from './browser-preview-records'
 
 export function monitorBrowserPreviewCrashRecovery(

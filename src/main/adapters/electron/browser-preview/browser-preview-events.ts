@@ -9,20 +9,16 @@ import {
   faviconAfterBrowserPreviewNavigation,
   monitorBrowserPreviewFavicon,
 } from './browser-preview-favicon-monitor'
-import {
-  ABORTED_LOAD_ERROR_CODE,
-  boundedBrowserPreviewText,
-  browserPreviewInputKeyIdentity,
-  browserPreviewKeyEventForInput,
-  browserPreviewShortcutBindingsMatchInput,
-  browserPreviewShortcutForInput,
-  browserPreviewStateError,
-  isBrowserPreviewNativeShortcutChord,
-  MAX_TITLE_LENGTH,
-} from './browser-preview-policy'
 import { installBrowserPreviewPopupPolicy } from './browser-preview-popup-policy'
 import type { BrowserPreviewEventActions, BrowserPreviewRecord } from './browser-preview-records'
 import { monitorBrowserPreviewSecurityPrompts } from './browser-preview-security-prompts'
+import { decideBrowserPreviewKeyInput } from '../../browser-preview/browser-preview-key-input'
+import {
+  ABORTED_LOAD_ERROR_CODE,
+  boundedBrowserPreviewText,
+  browserPreviewStateError,
+  MAX_TITLE_LENGTH,
+} from '../../browser-preview/browser-preview-page-state'
 
 function monitorLoadState(record: BrowserPreviewRecord, actions: BrowserPreviewEventActions) {
   const contents = record.view.webContents
@@ -148,38 +144,26 @@ function monitorInputAndLifecycle(
   const isMac = process.platform === 'darwin'
   const onInput = (event: Event, input: Input) => {
     synchronizeBrowserPreviewEditingShortcuts(contents, input)
-    const keyIdentity = browserPreviewInputKeyIdentity(input)
-    if (input.type === 'keyUp') {
-      const wasClaimed = record.claimedShortcutKeys.delete(keyIdentity)
-      if (wasClaimed) {
-        event.preventDefault()
-        const keyEvent = browserPreviewKeyEventForInput(record.previewId, input)
-        if (keyEvent !== null) actions.emitKeyEvent(keyEvent)
-        return
-      }
-      if (isBrowserPreviewNativeShortcutChord(input, isMac)) event.preventDefault()
-      return
-    }
-    if (input.type !== 'keyDown') return
-
-    if (browserPreviewShortcutBindingsMatchInput(input, record.owner.shortcutBindings, isMac)) {
-      record.claimedShortcutKeys.add(keyIdentity)
-      event.preventDefault()
-      const keyEvent = browserPreviewKeyEventForInput(record.previewId, input)
-      if (keyEvent !== null) actions.emitKeyEvent(keyEvent)
-      return
-    }
-
-    const shortcut = browserPreviewShortcutForInput(input, isMac)
-    if (!shortcut) {
-      if (isBrowserPreviewNativeShortcutChord(input, isMac)) event.preventDefault()
-      return
-    }
+    const decision = decideBrowserPreviewKeyInput(
+      {
+        previewId: record.previewId,
+        bindings: record.owner.shortcutBindings,
+        claimedKeys: record.claimedShortcutKeys,
+        isMac,
+      },
+      input,
+    )
+    if (decision.kind === 'page') return
     event.preventDefault()
-    if (shortcut === 'reload') return actions.reload()
-    if (shortcut === 'back') return actions.goBack()
-    if (shortcut === 'forward') return actions.goForward()
-    actions.emitShortcut(shortcut)
+    if (decision.kind === 'claim' || decision.kind === 'release') {
+      if (decision.event !== null) actions.emitKeyEvent(decision.event)
+      return
+    }
+    if (decision.kind === 'swallow') return
+    if (decision.shortcut === 'reload') return actions.reload()
+    if (decision.shortcut === 'back') return actions.goBack()
+    if (decision.shortcut === 'forward') return actions.goForward()
+    actions.emitShortcut(decision.shortcut)
   }
   const onDestroyed = () => {
     if (isBrowserPreviewClosePending(record)) return actions.detachDestroyed()

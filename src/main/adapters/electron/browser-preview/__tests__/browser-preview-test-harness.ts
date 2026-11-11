@@ -3,7 +3,7 @@ import type { BrowserPreviewOpenInput } from '@shared/types/browser-preview'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { Input, WebContents, WebPreferences } from 'electron'
 import { type Mock, vi } from 'vitest'
-import type { BrowserPreviewOwnerRegistry } from '../browser-preview-owner-registry'
+import type { BrowserPreviewOwnerRegistry } from '../../../browser-preview/browser-preview-owner-registry'
 
 interface FakeNavigationHistory {
   readonly canGoBack: ReturnType<typeof vi.fn>
@@ -207,7 +207,7 @@ vi.mock('../browser-preview-owner-registry', () => ({
 const browserPreviewModule = await import('../browser-preview')
 
 export const BrowserPreviewManager = browserPreviewModule.BrowserPreviewManager
-export const browserPreviewShortcutForInput = browserPreviewModule.browserPreviewShortcutForInput
+export { browserPreviewShortcutForInput } from '../../../browser-preview/browser-preview-key-input'
 
 export function previewInput(overrides: Partial<Input> = {}) {
   const input: Input = {

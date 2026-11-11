@@ -1,22 +1,22 @@
 import { EventEmitter } from 'node:events'
 import type { BrowserPreviewOpenRequest } from '@shared/types/browser-preview-owner'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { BrowserWindow, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const windowFromWebContents = vi.hoisted(() => vi.fn())
+import type { RendererSurface } from '../../../ports/desktop-shell/renderer-surfaces'
+import {
+  type BrowserPreviewOwnerWindow,
+  BrowserPreviewOwnerRegistry,
+} from '../browser-preview-owner-registry'
 
-vi.mock('../../electron-window-policy', () => ({
-  browserWindowFromWebContents: windowFromWebContents,
-}))
-
-import { BrowserPreviewOwnerRegistry } from '../browser-preview-owner-registry'
+/** The shell's window lookup for an owner page. */
+const ownerWindowOf = vi.fn<(sender: RendererSurface) => BrowserPreviewOwnerWindow | null>()
 
 function owner() {
   const senderEvents = new EventEmitter()
   const windowEvents = new EventEmitter()
   const send = vi.fn()
-  const sender = fromPartial<WebContents>({
+  const sender = fromPartial<RendererSurface>({
     id: Math.floor(Math.random() * 1_000_000),
     isDestroyed: () => false,
     on: senderEvents.on.bind(senderEvents),
@@ -24,7 +24,7 @@ function owner() {
     removeListener: senderEvents.removeListener.bind(senderEvents),
     send,
   })
-  const window = fromPartial<BrowserWindow>({
+  const window = fromPartial<BrowserPreviewOwnerWindow>({
     isDestroyed: () => false,
     once: windowEvents.once.bind(windowEvents),
     removeListener: windowEvents.removeListener.bind(windowEvents),
@@ -42,7 +42,7 @@ function sentOpenRequest(send: ReturnType<typeof vi.fn>, index = 0) {
 
 function acknowledgeSuccess(
   registry: BrowserPreviewOwnerRegistry,
-  sender: WebContents,
+  sender: RendererSurface,
   sent: BrowserPreviewOpenRequest,
 ) {
   registry.acknowledge(sender, {
@@ -65,14 +65,14 @@ const request = {
 
 describe('BrowserPreviewOwnerRegistry', () => {
   beforeEach(() => {
-    windowFromWebContents.mockReset()
+    ownerWindowOf.mockReset()
     vi.useRealTimers()
   })
 
   it('resolves only after trusted native materialization and renderer acknowledgment', async () => {
     const registered = owner()
-    windowFromWebContents.mockReturnValue(registered.window)
-    const registry = new BrowserPreviewOwnerRegistry()
+    ownerWindowOf.mockReturnValue(registered.window)
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
 
     let completed = false
@@ -97,8 +97,8 @@ describe('BrowserPreviewOwnerRegistry', () => {
 
   it('also handles a renderer acknowledgment that arrives before native materialization', async () => {
     const registered = owner()
-    windowFromWebContents.mockReturnValue(registered.window)
-    const registry = new BrowserPreviewOwnerRegistry()
+    ownerWindowOf.mockReturnValue(registered.window)
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
     const opening = registry.requestOpen(request)
     const sent = sentOpenRequest(registered.send)
@@ -112,10 +112,10 @@ describe('BrowserPreviewOwnerRegistry', () => {
   it('rejects owner-key takeover by another renderer', () => {
     const first = owner()
     const second = owner()
-    windowFromWebContents.mockImplementation((sender: WebContents) =>
+    ownerWindowOf.mockImplementation((sender: RendererSurface) =>
       sender === first.sender ? first.window : second.window,
     )
-    const registry = new BrowserPreviewOwnerRegistry()
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, first.sender)
 
     expect(() => registry.register(request.ownerKey, second.sender)).toThrow('already registered')
@@ -124,10 +124,10 @@ describe('BrowserPreviewOwnerRegistry', () => {
   it('retains every Session owner across a trusted renderer reload and revokes on escape', () => {
     const first = owner()
     const second = owner()
-    windowFromWebContents.mockImplementation((sender: WebContents) =>
+    ownerWindowOf.mockImplementation((sender: RendererSurface) =>
       sender === first.sender ? first.window : second.window,
     )
-    const registry = new BrowserPreviewOwnerRegistry()
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register('session-1', first.sender)
     registry.register('session-2', first.sender)
 
@@ -152,8 +152,8 @@ describe('BrowserPreviewOwnerRegistry', () => {
 
   it('rejects a pending open when the owner unregisters', async () => {
     const registered = owner()
-    windowFromWebContents.mockReturnValue(registered.window)
-    const registry = new BrowserPreviewOwnerRegistry()
+    ownerWindowOf.mockReturnValue(registered.window)
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
     const opening = registry.requestOpen(request)
     const sent = sentOpenRequest(registered.send)
@@ -171,8 +171,8 @@ describe('BrowserPreviewOwnerRegistry', () => {
 
   it('still rejects pending opens when owner listener cleanup throws', async () => {
     const registered = owner()
-    windowFromWebContents.mockReturnValue(registered.window)
-    const registry = new BrowserPreviewOwnerRegistry()
+    ownerWindowOf.mockReturnValue(registered.window)
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
     const opening = registry.requestOpen(request)
     const sent = sentOpenRequest(registered.send)
@@ -192,10 +192,10 @@ describe('BrowserPreviewOwnerRegistry', () => {
   it('rejects forged acknowledgments without settling the trusted request', async () => {
     const registered = owner()
     const attacker = owner()
-    windowFromWebContents.mockImplementation((sender: WebContents) =>
+    ownerWindowOf.mockImplementation((sender: RendererSurface) =>
       sender === registered.sender ? registered.window : attacker.window,
     )
-    const registry = new BrowserPreviewOwnerRegistry()
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
     const opening = registry.requestOpen(request)
     const sent = sentOpenRequest(registered.send)
@@ -209,8 +209,8 @@ describe('BrowserPreviewOwnerRegistry', () => {
 
   it('propagates renderer failure and cancels a possibly stale native materialization', async () => {
     const registered = owner()
-    windowFromWebContents.mockReturnValue(registered.window)
-    const registry = new BrowserPreviewOwnerRegistry()
+    ownerWindowOf.mockReturnValue(registered.window)
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
     const opening = registry.requestOpen(request)
     const rejection = expect(opening).rejects.toThrow('could not open this URL')
@@ -235,8 +235,8 @@ describe('BrowserPreviewOwnerRegistry', () => {
   it('supports abort and a bounded materialization timeout', async () => {
     vi.useFakeTimers()
     const registered = owner()
-    windowFromWebContents.mockReturnValue(registered.window)
-    const registry = new BrowserPreviewOwnerRegistry()
+    ownerWindowOf.mockReturnValue(registered.window)
+    const registry = new BrowserPreviewOwnerRegistry(ownerWindowOf)
     registry.register(request.ownerKey, registered.sender)
     const controller = new AbortController()
     const aborted = registry.requestOpen(request, { signal: controller.signal })

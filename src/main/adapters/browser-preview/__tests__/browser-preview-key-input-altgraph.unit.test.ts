@@ -1,7 +1,9 @@
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Input } from 'electron'
 import { describe, expect, it } from 'vitest'
-import { browserPreviewShortcutBindingsMatchInput } from '../browser-preview-policy'
+import {
+  type BrowserPreviewKeyInput,
+  browserPreviewShortcutBindingsMatchInput,
+} from '../browser-preview-key-input'
 
 const BINDINGS = [
   { key: 'L', mod: true, alt: true },
@@ -9,7 +11,7 @@ const BINDINGS = [
 ] as const
 
 function input(key: string, code: string) {
-  return fromPartial<Input>({
+  return fromPartial<BrowserPreviewKeyInput>({
     type: 'keyDown',
     key,
     code,

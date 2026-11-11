@@ -1,12 +1,12 @@
 import { isBrowserPreviewUrl, normalizeBrowserPreviewUrl } from '@shared/schemas/browser-preview'
 import { monitorBrowserPreview } from './browser-preview-events'
-import { sendBrowserPreviewOwnerEvent } from './browser-preview-owner-events'
+import type { BrowserPreviewRecord } from './browser-preview-records'
 import {
   boundedBrowserPreviewText,
   browserPreviewStateError,
   MAX_TITLE_LENGTH,
-} from './browser-preview-policy'
-import type { BrowserPreviewRecord } from './browser-preview-records'
+} from '../../browser-preview/browser-preview-page-state'
+import { sendBrowserPreviewOwnerEvent } from '../../browser-preview/browser-preview-owner-events'
 
 interface BrowserPreviewNavigationHost {
   readonly detachDestroyed: (record: BrowserPreviewRecord) => void

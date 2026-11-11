@@ -1,4 +1,5 @@
-import { MAX_PREVIEWS_PER_OWNER, MAX_PREVIEWS_PER_RENDERER } from './browser-preview-policy'
+const MAX_PREVIEWS_PER_OWNER = 8
+const MAX_PREVIEWS_PER_RENDERER = 32
 
 export function assertBrowserPreviewCapacity(ownerCount: number, rendererCount: number) {
   if (ownerCount >= MAX_PREVIEWS_PER_OWNER) {

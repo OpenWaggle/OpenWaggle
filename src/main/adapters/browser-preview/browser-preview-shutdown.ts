@@ -1,16 +1,28 @@
-import type { BrowserPreviewRecord } from './browser-preview-records'
+/** A native preview, as shutdown sees it. */
+interface BrowserPreviewShutdownRecord {
+  readonly ownerKey: string
+}
 
 /** Tracks native lifetime independently of the renderer-visible preview registry. */
-export class BrowserPreviewShutdown {
-  private readonly records = new Set<BrowserPreviewRecord>()
-  private readonly closing = new Map<BrowserPreviewRecord, Promise<void>>()
+export class BrowserPreviewShutdown<Preview extends BrowserPreviewShutdownRecord> {
+  private readonly records = new Set<Preview>()
+  private readonly closing = new Map<Preview, Promise<void>>()
   private readonly closingOwners = new Map<string, Promise<void>>()
   private shuttingDown = false
 
-  private readonly closeRecord: (record: BrowserPreviewRecord) => Promise<void>
+  private readonly closeRecord: (record: Preview) => Promise<void>
+  private readonly whenDestroyed: (record: Preview, listener: () => void) => void
 
-  constructor(closeRecord: (record: BrowserPreviewRecord) => Promise<void>) {
+  /**
+   * `closeRecord` closes a preview and resolves once its native view is gone; `whenDestroyed`
+   * calls back once when the shell destroys the view for any reason.
+   */
+  constructor(
+    closeRecord: (record: Preview) => Promise<void>,
+    whenDestroyed: (record: Preview, listener: () => void) => void,
+  ) {
     this.closeRecord = closeRecord
+    this.whenDestroyed = whenDestroyed
   }
 
   assertCanOpen(ownerKey: string) {
@@ -18,9 +30,9 @@ export class BrowserPreviewShutdown {
     if (this.closingOwners.has(ownerKey)) throw new Error('Browser previews are closing.')
   }
 
-  track(record: BrowserPreviewRecord) {
+  track(record: Preview) {
     this.records.add(record)
-    record.view.webContents.once('destroyed', () => this.records.delete(record))
+    this.whenDestroyed(record, () => this.records.delete(record))
   }
 
   beginShutdown() {
@@ -43,7 +55,7 @@ export class BrowserPreviewShutdown {
     return this.closeRecords([...this.records])
   }
 
-  private async closeRecords(records: readonly BrowserPreviewRecord[]) {
+  private async closeRecords(records: readonly Preview[]) {
     const results = await Promise.allSettled(records.map((record) => this.close(record)))
     const failures = results.flatMap((result) => {
       if (result.status !== 'rejected') return []
@@ -58,7 +70,7 @@ export class BrowserPreviewShutdown {
     }
   }
 
-  private close(record: BrowserPreviewRecord) {
+  private close(record: Preview) {
     const existing = this.closing.get(record)
     if (existing) return existing
     const operation = this.closeRecord(record)

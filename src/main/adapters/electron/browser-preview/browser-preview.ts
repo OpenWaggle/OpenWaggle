@@ -13,31 +13,32 @@ import type {
 } from '@shared/types/browser-preview-controls'
 import type { DesktopMutationScope } from '@shared/types/desktop-service'
 import type { WebContents } from 'electron'
-import { assertBrowserPreviewCapacity } from './browser-preview-capacity'
 import { BrowserPreviewControlCoordinator } from './browser-preview-control-coordinator'
 import { BrowserPreviewLifecycle } from './browser-preview-lifecycle'
-import { BrowserPreviewMutationFences } from './browser-preview-mutation-fences'
 import { BrowserPreviewNavigation } from './browser-preview-navigation'
-import { emitBrowserPreviewState } from './browser-preview-owner-events'
 import { browserPreviewOwnerRegistry } from './browser-preview-owner-registry'
 import { createBrowserPreviewRecord } from './browser-preview-record-factory'
 import { applyBrowserPreviewBounds } from './browser-preview-record-layout'
-import { BrowserPreviewRecordRegistry } from './browser-preview-record-registry'
+import type { BrowserPreviewRecord } from './browser-preview-records'
+import {
+  createBrowserPreviewRecordRegistry,
+  createBrowserPreviewShutdown,
+} from './browser-preview-registries'
 import { BrowserPreviewReplacement } from './browser-preview-replacement'
-import { BrowserPreviewShutdown } from './browser-preview-shutdown'
-import { nextBrowserPreviewZoomFactor } from './browser-preview-zoom'
+import { assertBrowserPreviewCapacity } from '../../browser-preview/browser-preview-capacity'
+import { BrowserPreviewMutationFences } from '../../browser-preview/browser-preview-mutation-fences'
+import { emitBrowserPreviewState } from '../../browser-preview/browser-preview-owner-events'
+import { nextBrowserPreviewZoomFactor } from '../../browser-preview/browser-preview-zoom'
 import { assertDesktopNativeAdmission } from '../../../desktop-native-admission'
-
-export { browserPreviewShortcutForInput } from './browser-preview-policy'
 
 export class BrowserPreviewManager {
   private readonly mutationFences = new BrowserPreviewMutationFences()
-  private readonly shutdown = new BrowserPreviewShutdown((record) =>
+  private readonly shutdown = createBrowserPreviewShutdown((record) =>
     this.lifecycle.disposeAndWait(record),
   )
-  private readonly records = new BrowserPreviewRecordRegistry({
-    disposeRecord: (record) => this.lifecycle.retire(record),
-  })
+  private readonly records = createBrowserPreviewRecordRegistry((record) =>
+    this.lifecycle.retire(record),
+  )
   private readonly replacement = new BrowserPreviewReplacement({
     findOwned: (ownerKey, previewId) => this.records.findOwned(ownerKey, previewId),
     isLive: (record) => this.records.isLive(record),

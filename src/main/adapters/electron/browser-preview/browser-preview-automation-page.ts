@@ -1,7 +1,7 @@
 import type { BrowserPreviewAutomationPage } from './browser-preview-automation-control'
 import { synchronizeBrowserPreviewControllerOverlay } from './browser-preview-controller-overlay'
-import { sendBrowserPreviewOwnerEvent } from './browser-preview-owner-events'
 import type { BrowserPreviewRecord } from './browser-preview-records'
+import { sendBrowserPreviewOwnerEvent } from '../../browser-preview/browser-preview-owner-events'
 
 /** Canonical controller identity shared by user controls and Pi automation. */
 export function browserPreviewAutomationPage(record: BrowserPreviewRecord) {
