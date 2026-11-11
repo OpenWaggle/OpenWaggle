@@ -1,22 +1,25 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useAutoTextAttachment } from '../useAutoTextAttachment'
 
 const LONG_PASTE = 'x'.repeat(12_001)
 
 /*
- * No window.api here, as with a preload that failed or predates the method: the api proxy still
- * answers every name with a function, so a typeof guard never fired and the paste vanished with
- * nothing said (fix(renderer): ask the preload what it has, not the api proxy).
+ * No window.api here, as with a preload that failed to load: the api proxy rejects the call. The
+ * intercepted paste never reached the editor, so it must not vanish with nothing said, which is
+ * what an earlier capability guard let happen (fix(renderer): ask the preload what it has, not the
+ * api proxy). Any rejected conversion now says so.
  */
-describe('useAutoTextAttachment without the preload method', () => {
-  it('tells the person to restart instead of dropping the long paste', () => {
+describe('useAutoTextAttachment when the conversion fails', () => {
+  it('tells the person the long paste was not attached instead of dropping it silently', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const setAttachmentError = vi.fn()
+    const addAttachments = vi.fn()
     const { result } = renderHook(() =>
       useAutoTextAttachment({
         attachments: [],
-        addAttachments: vi.fn(),
+        addAttachments,
         removeAttachment: vi.fn(),
         setAttachmentError,
       }),
@@ -26,9 +29,12 @@ describe('useAutoTextAttachment without the preload method', () => {
       expect(result.current.checkAndConvertPaste(LONG_PASTE, '')).toBe(true)
     })
 
-    expect(setAttachmentError).toHaveBeenCalledExactlyOnceWith(
-      'Attachment conversion is unavailable. Please restart the app.',
-    )
+    await waitFor(() => {
+      expect(setAttachmentError).toHaveBeenCalledExactlyOnceWith(
+        'Could not turn the long paste into an attachment. Paste it again, or attach it as a file.',
+      )
+    })
     expect(result.current.pendingTextAttachmentChips).toEqual([])
+    expect(addAttachments).not.toHaveBeenCalled()
   })
 })
