@@ -29,7 +29,7 @@ Each line names a topic file and when to load it:
 - [`project-actions`](.agents/memory/project-actions.md): touching Project Actions, Setup/cleanup preparation, action bindings or action output.
 - [`terminals-and-browser-preview`](.agents/memory/terminals-and-browser-preview.md): touching Session-bound terminals, node-pty/xterm, or the Session-owned Browser preview.
 - [`session-resources`](.agents/memory/session-resources.md): touching Session resources, captured images, the resource protocol or extension resource contributions.
-- [`electron-shell`](.agents/memory/electron-shell.md): touching Electron main-process startup, the desktop shell ports and Electron adapters, packaging, native addons, hidden QA, visualizations or `bun run dev:debug`.
+- [`desktop-shell`](.agents/memory/desktop-shell.md): touching main-process startup, the desktop shell ports and Electrobun adapters, packaging, native addons, hidden QA, visualizations or `bun run dev:debug`.
 - [`electrobun-native-layer`](.agents/memory/electrobun-native-layer.md): touching `vendor/electrobun/`, the Electrobun floor guards, `electrobun-native.yml`, or the Electrobun CEF preview and CDP.
 - [`electrobun-webview`](.agents/memory/electrobun-webview.md): touching the Electrobun shell's loopback trusted origins, webview RPC, preload, windows, renderer surfaces or web security.
 - [`persistence-and-migrations`](.agents/memory/persistence-and-migrations.md): adding a migration or touching SQLite schemas, settings keys or `src/main/services/database-*`.
