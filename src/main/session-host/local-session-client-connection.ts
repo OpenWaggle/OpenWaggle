@@ -44,7 +44,10 @@ export class LocalSessionFrameReader {
   private waiter: ((value: unknown) => void) | null = null
   private failure: Error | null = null
 
-  constructor(private readonly socket: Socket) {
+  private readonly socket: Socket
+
+  constructor(socket: Socket) {
+    this.socket = socket
     socket.pause()
     socket.on('data', (chunk) => {
       try {

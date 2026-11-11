@@ -81,11 +81,16 @@ export class LocalSessionInflightCommands {
    *   returns is called when the command ends. By default the Host's background gate, so its
    *   background work gives way while clients' commands are in flight (W12).
    */
+  private readonly now: () => number
+  private readonly onForegroundCommand: () => () => void
+
   constructor(
-    private readonly now: () => number = () => performance.now(),
-    private readonly onForegroundCommand: () => () => void = () =>
-      hostBackgroundGate.foregroundStarted(),
-  ) {}
+    now: () => number = () => performance.now(),
+    onForegroundCommand: () => () => void = () => hostBackgroundGate.foregroundStarted(),
+  ) {
+    this.now = now
+    this.onForegroundCommand = onForegroundCommand
+  }
 
   track(payload: unknown): () => void {
     const id = this.nextId

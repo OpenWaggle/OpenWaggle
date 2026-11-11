@@ -59,7 +59,10 @@ class GuiDesktopServiceBridge implements GuiDesktopServiceLifecycle {
   private completedPoll = 0
   private readonly request: (request: DesktopServiceRequest) => Promise<DesktopServiceResponse>
 
-  constructor(private readonly input: GuiDesktopBridgeInput) {
+  private readonly input: GuiDesktopBridgeInput
+
+  constructor(input: GuiDesktopBridgeInput) {
+    this.input = input
     this.guiInstanceId = input.executor.guiInstanceId
     this.recoveryPending = input.recoverPreviousOwner === true
     this.paths = input.client.paths

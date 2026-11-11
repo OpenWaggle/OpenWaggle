@@ -5,8 +5,8 @@ import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {
   type ActiveLocalSessionCommand,
+  abortProfileFencedCommands,
   isSelfProfileCredentialMutation,
-  LocalSessionProfileAdmissionChangedError,
 } from './local-session-command-admission'
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
 import { bindLocalSessionConnectionInput } from './local-session-connection-input'
@@ -53,14 +53,23 @@ export class LocalSessionConnection {
   private readonly outbound: LocalSessionOutboundWriter
   private readonly invalidationCloser = new LocalSessionInvalidationCloser()
 
+  private readonly socket: Socket
+  private readonly dependencies: LocalSessionServerDependencies
+  private readonly authenticationBudget: LocalSessionAuthenticationBudget
+  private readonly cursorProjection: LocalSessionEventCursorProjection
+
   constructor(
-    private readonly socket: Socket,
-    private readonly dependencies: LocalSessionServerDependencies,
+    socket: Socket,
+    dependencies: LocalSessionServerDependencies,
     inboundBudget: LocalSessionInboundByteBudget,
-    private readonly authenticationBudget: LocalSessionAuthenticationBudget,
+    authenticationBudget: LocalSessionAuthenticationBudget,
     outboundBudget: LocalSessionOutboundByteBudget,
-    private readonly cursorProjection: LocalSessionEventCursorProjection,
+    cursorProjection: LocalSessionEventCursorProjection,
   ) {
+    this.socket = socket
+    this.dependencies = dependencies
+    this.authenticationBudget = authenticationBudget
+    this.cursorProjection = cursorProjection
     this.inbound = new LocalSessionInboundRetention(inboundBudget)
     this.outbound = new LocalSessionOutboundWriter(
       socket,
@@ -112,11 +121,7 @@ export class LocalSessionConnection {
     if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
     const drained = this.admission.fence()
     this.subscriptions.requireResync()
-    for (const command of this.commandControllers.values()) {
-      if (command.abortOnProfileFence) {
-        command.controller.abort(new LocalSessionProfileAdmissionChangedError())
-      }
-    }
+    abortProfileFencedCommands(this.commandControllers.values())
     return this.drainProfileAdmission(drained)
   }
 
@@ -251,10 +256,7 @@ export class LocalSessionConnection {
           frame,
           negotiatedRevision,
         })
-        if (selfCredentialMutation) {
-          activeCommand.abortOnProfileFence = false
-          releaseAdmissionReader()
-        }
+        if (selfCredentialMutation) releaseAdmissionReader()
         try {
           await executeLocalSessionCommandFrame({
             frame,
@@ -266,7 +268,7 @@ export class LocalSessionConnection {
             exposeEventCursor: (cursor) => this.cursorProjection.expose(caller, cursor),
             signal: controller.signal,
             send: (response) => this.outbound.send(response),
-            ...(!selfCredentialMutation ? { releaseAdmissionReader: releaseAdmissionReader } : {}),
+            ...(!selfCredentialMutation ? { releaseAdmissionReader } : {}),
           })
         } finally {
           releaseAdmissionReader()

@@ -37,7 +37,11 @@ export class FollowUpEditHoldWindowLeases {
   private stopRenewal: (() => void) | undefined
   private renewing = false
 
-  constructor(private readonly dependencies: FollowUpEditHoldWindowLeaseDependencies) {}
+  private readonly dependencies: FollowUpEditHoldWindowLeaseDependencies
+
+  constructor(dependencies: FollowUpEditHoldWindowLeaseDependencies) {
+    this.dependencies = dependencies
+  }
 
   /** Starts tracking a hold the window began. Tracking the same hold again is a no-op. */
   track(windowId: number, hold: WindowFollowUpEditHold) {
@@ -149,13 +153,20 @@ export class FollowUpEditHoldWindowLeases {
 export class WindowPageGenerations {
   private readonly generations = new Map<number, number>()
 
+  /** Subscribes to the window's page changes; `false` when the window is already gone. */
+  private readonly watch: (
+    windowId: number,
+    events: { readonly pageChanged: () => void; readonly destroyed: () => void },
+  ) => boolean
+
   constructor(
-    /** Subscribes to the window's page changes; `false` when the window is already gone. */
-    private readonly watch: (
+    watch: (
       windowId: number,
       events: { readonly pageChanged: () => void; readonly destroyed: () => void },
     ) => boolean,
-  ) {}
+  ) {
+    this.watch = watch
+  }
 
   snapshot(windowId: number): number | undefined {
     const current = this.generations.get(windowId)

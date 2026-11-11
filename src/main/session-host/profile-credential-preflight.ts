@@ -16,14 +16,14 @@ interface CredentialPreflightInput {
 }
 
 class ProfileCredentialPreparationError extends Error {
-  constructor(
-    readonly recoveryLocation: string,
-    cause: unknown,
-  ) {
+  readonly recoveryLocation: string
+
+  constructor(recoveryLocation: string, cause: unknown) {
     super(
       `Credential destination validation failed. Protected credential data remains recoverable at ${recoveryLocation}. Confirm any prior operation before removing it.`,
       { cause },
     )
+    this.recoveryLocation = recoveryLocation
     this.name = 'ProfileCredentialPreparationError'
   }
 }

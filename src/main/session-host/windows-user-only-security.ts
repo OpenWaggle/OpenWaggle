@@ -17,10 +17,14 @@ export type WindowsUserOnlySecurity = (
 ) => Promise<{ readonly userSid: string }>
 
 export class WindowsUserOnlySecurityTimeoutError extends Error {
+  readonly stage: string
+  readonly exitCode: number | null
+  readonly signalCode: NodeJS.Signals | null
+
   constructor(
-    readonly stage: string,
-    readonly exitCode: number | null,
-    readonly signalCode: NodeJS.Signals | null,
+    stage: string,
+    exitCode: number | null,
+    signalCode: NodeJS.Signals | null,
     stderr: string,
   ) {
     super(
@@ -28,6 +32,9 @@ export class WindowsUserOnlySecurityTimeoutError extends Error {
         `Exit code: ${String(exitCode)}; signal: ${String(signalCode)}. ` +
         `Stderr tail: ${JSON.stringify(stderr.slice(-TIMEOUT_STDERR_TAIL_LENGTH))}`,
     )
+    this.stage = stage
+    this.exitCode = exitCode
+    this.signalCode = signalCode
     this.name = 'WindowsUserOnlySecurityTimeoutError'
   }
 }

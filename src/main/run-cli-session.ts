@@ -3,10 +3,7 @@ import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
-import {
-  isSessionlessHostEvent,
-  type SessionHostEventEnvelope,
-} from '@shared/types/session-host-event'
+import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
 import { sessionControlPayload } from './run-cli-interactions'
@@ -27,7 +24,7 @@ import type {
   LocalSessionWatchResult,
 } from './session-host/local-session-event-client'
 import { sessionsCliStreamRecordLine } from './sessions-cli-output'
-import { watchEventRecord } from './sessions-cli-watch-records'
+import { watchEventRecord, watchEventSessionId } from './sessions-cli-watch-records'
 
 /** Events buffered before the launch response names the new Session. */
 export const RUN_CLI_PENDING_EVENT_LIMIT = 10_000
@@ -40,11 +37,6 @@ export interface RunCliSessionDependencies extends RunCliOutputSinks {
   /** Whether questions can be answered from this terminal. */
   readonly interactive: boolean
   readonly ask: (question: string, signal: AbortSignal) => Promise<string>
-}
-
-function payloadSessionId(event: SessionHostEventEnvelope) {
-  const payload = event.payload
-  return isSessionlessHostEvent(payload) ? undefined : payload.sessionId
 }
 
 function errorMessage(error: unknown) {
@@ -77,11 +69,18 @@ export class RunCliSession {
     this.resolveSettlement = resolve
   })
 
+  private readonly clientInput: LocalSessionCliClientInput
+  private readonly jsonl: boolean
+  private readonly dependencies: RunCliSessionDependencies
+
   constructor(
-    private readonly clientInput: LocalSessionCliClientInput,
-    private readonly jsonl: boolean,
-    private readonly dependencies: RunCliSessionDependencies,
+    clientInput: LocalSessionCliClientInput,
+    jsonl: boolean,
+    dependencies: RunCliSessionDependencies,
   ) {
+    this.clientInput = clientInput
+    this.jsonl = jsonl
+    this.dependencies = dependencies
     this.output = new RunCliOutput(dependencies, () => this.stdoutClosed())
     this.presenter = new RunCliPresenter({
       reply: (text) => this.output.reply(text),
@@ -120,7 +119,7 @@ export class RunCliSession {
   }
 
   private buffer(event: SessionHostEventEnvelope) {
-    const sessionId = payloadSessionId(event)
+    const sessionId = watchEventSessionId(event)
     if (sessionId === undefined || this.preexistingSessions.has(sessionId)) return
     if (this.pendingEvents.length >= RUN_CLI_PENDING_EVENT_LIMIT) {
       this.pendingEventsOverflowed = true
@@ -222,7 +221,7 @@ export class RunCliSession {
   }
 
   private handle(event: SessionHostEventEnvelope, target: RunTarget) {
-    if (payloadSessionId(event) !== target.sessionId) return
+    if (watchEventSessionId(event) !== target.sessionId) return
     const payload = event.payload
     if (!this.belongsToOtherRun(payload, target)) {
       if (this.jsonl) this.output.stdout(sessionsCliStreamRecordLine(watchEventRecord(event)))

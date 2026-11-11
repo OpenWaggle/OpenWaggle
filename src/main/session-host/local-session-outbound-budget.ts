@@ -102,10 +102,13 @@ export class LocalSessionOutboundByteBudget {
   private readonly wallNow: () => number
   private readonly clock: LocalSessionHostLiveClock
 
+  private readonly capacity: number
+
   constructor(
-    private readonly capacity = DEFAULT_MAX_PENDING_OUTBOUND_BYTES_GLOBAL,
+    capacity: number = DEFAULT_MAX_PENDING_OUTBOUND_BYTES_GLOBAL,
     options: LocalSessionOutboundByteBudgetOptions = {},
   ) {
+    this.capacity = capacity
     if (!Number.isSafeInteger(capacity) || capacity < MAX_OUTBOUND_ENCODING_RESERVATION_BYTES) {
       throw new Error(
         `Local Session outbound byte capacity must be at least ${MAX_OUTBOUND_ENCODING_RESERVATION_BYTES} bytes.`,

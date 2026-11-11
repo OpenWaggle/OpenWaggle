@@ -47,8 +47,10 @@ export class CliError extends Error {
   override readonly name: string = 'CliError'
   readonly code: string | undefined
 
+  readonly kind: CliErrorKind
+
   constructor(
-    readonly kind: CliErrorKind,
+    kind: CliErrorKind,
     message: string,
     options?: ErrorOptions & {
       /** The Session Host's refusal code, when one caused the error; `--json` carries it. */
@@ -56,6 +58,7 @@ export class CliError extends Error {
     },
   ) {
     super(message, options)
+    this.kind = kind
     this.code = options?.code
   }
 }

@@ -42,7 +42,11 @@ export class RunCliQuestions {
   private readonly open = new Map<string, AbortController>()
   private queue = Promise.resolve()
 
-  constructor(private readonly input: RunCliQuestionsInput) {}
+  private readonly input: RunCliQuestionsInput
+
+  constructor(input: RunCliQuestionsInput) {
+    this.input = input
+  }
 
   enqueue(interaction: AgentLoopInteraction) {
     const controller = new AbortController()

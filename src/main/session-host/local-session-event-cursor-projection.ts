@@ -86,10 +86,13 @@ export class LocalSessionEventCursorProjection {
   readonly #statesByAuthority = new Map<string, RestrictedReplayState>()
   readonly #statesByView = new Map<string, RestrictedReplayState>()
 
+  private readonly eventHub: SessionHostEventHub
+
   constructor(
-    private readonly eventHub: SessionHostEventHub,
+    eventHub: SessionHostEventHub,
     options: LocalSessionEventCursorProjectionOptions = {},
   ) {
+    this.eventHub = eventHub
     this.#maxReplayAuthorities = options.maxReplayAuthorities ?? DEFAULT_MAX_REPLAY_AUTHORITIES
     this.#replayEventsPerAuthority =
       options.replayEventsPerAuthority ?? DEFAULT_REPLAY_EVENTS_PER_AUTHORITY

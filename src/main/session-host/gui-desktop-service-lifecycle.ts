@@ -34,14 +34,14 @@ export class DesktopNativeRecoveryError extends Error {
 }
 
 export class DesktopServiceAttachmentError extends Error {
-  constructor(
-    readonly lifecycle: GuiDesktopServiceLifecycle,
-    cause: unknown,
-  ) {
+  readonly lifecycle: GuiDesktopServiceLifecycle
+
+  constructor(lifecycle: GuiDesktopServiceLifecycle, cause: unknown) {
     super(
       'Could not attach desktop services. Native cleanup must finish before releasing desktop ownership.',
       { cause },
     )
+    this.lifecycle = lifecycle
     this.name = 'DesktopServiceAttachmentError'
   }
 }

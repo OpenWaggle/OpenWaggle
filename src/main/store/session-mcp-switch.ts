@@ -22,8 +22,11 @@ export async function isSessionMcpEnabled(sessionId: string): Promise<boolean> {
 
 /** A switch for a Session the Host does not have. */
 export class UnknownMcpSessionError extends Error {
-  constructor(readonly sessionId: string) {
+  readonly sessionId: string
+
+  constructor(sessionId: string) {
     super(`No Session ${sessionId} to switch MCP off for.`)
+    this.sessionId = sessionId
     this.name = 'UnknownMcpSessionError'
   }
 }

@@ -92,7 +92,11 @@ class SvgMarkupReader {
   private index = 0
   private elementCount = 0
 
-  constructor(private readonly source: string) {}
+  private readonly source: string
+
+  constructor(source: string) {
+    this.source = source
+  }
 
   parseDocument() {
     this.skipMisc()

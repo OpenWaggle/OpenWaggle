@@ -17,7 +17,10 @@ const DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL = 256
 export class LocalSessionSubscriptionBudget {
   private active = 0
 
-  constructor(private readonly capacity = DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL) {
+  private readonly capacity: number
+
+  constructor(capacity: number = DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL) {
+    this.capacity = capacity
     if (!Number.isSafeInteger(capacity) || capacity < 1) {
       throw new Error('Local Session subscription capacity must be a positive safe integer.')
     }
@@ -38,7 +41,10 @@ export class LocalSessionSubscriptionBudget {
 export class LocalSessionInboundByteBudget {
   private retainedBytes = 0
 
-  constructor(private readonly capacity = DEFAULT_MAX_PENDING_INBOUND_BYTES_GLOBAL) {
+  private readonly capacity: number
+
+  constructor(capacity: number = DEFAULT_MAX_PENDING_INBOUND_BYTES_GLOBAL) {
+    this.capacity = capacity
     if (!Number.isSafeInteger(capacity) || capacity < 1) {
       throw new Error('Local Session inbound byte capacity must be a positive safe integer.')
     }

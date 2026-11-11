@@ -27,7 +27,11 @@ export const typedHandleMock: TestMock = mocks.typedHandleMock
 
 vi.mock('../typed-ipc', () => ({
   RelayedHostResult: class {
-    constructor(readonly value: unknown) {}
+    readonly value: unknown
+
+    constructor(value: unknown) {
+      this.value = value
+    }
   },
   hostHandle: typedHandleMock,
   relayingHandle: typedHandleMock,

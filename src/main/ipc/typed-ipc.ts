@@ -169,7 +169,11 @@ export function typedHandle<C extends IpcInvokeChannel>(
  * window relays to the renderer unchanged, as `hostHandle` does for a whole channel.
  */
 export class RelayedHostResult {
-  constructor(readonly value: unknown) {}
+  readonly value: unknown
+
+  constructor(value: unknown) {
+    this.value = value
+  }
 }
 
 /** `typedHandle` for window-side orchestration that may relay part of its work to the Host. */

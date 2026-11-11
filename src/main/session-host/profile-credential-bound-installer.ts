@@ -89,14 +89,14 @@ process.stdin.resume();
 `
 
 export class ProfileCredentialInstallerRecoveryError extends Error {
-  constructor(
-    readonly recoveryLocations: readonly string[],
-    options?: ErrorOptions,
-  ) {
+  readonly recoveryLocations: readonly string[]
+
+  constructor(recoveryLocations: readonly string[], options?: ErrorOptions) {
     super(
       `Credential installation did not finish. Protected installer artifacts may remain at ${recoveryLocations.join(' and ')}.`,
       options,
     )
+    this.recoveryLocations = recoveryLocations
     this.name = 'ProfileCredentialInstallerRecoveryError'
   }
 }

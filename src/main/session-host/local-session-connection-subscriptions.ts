@@ -37,7 +37,11 @@ export class LocalSessionConnectionSubscriptions {
   private readonly subscriptions = new Map<string, ActiveLocalSessionSubscription>()
   private readonly provisionals = new Set<() => void>()
 
-  constructor(private readonly input: LocalSessionConnectionSubscriptionsInput) {}
+  private readonly input: LocalSessionConnectionSubscriptionsInput
+
+  constructor(input: LocalSessionConnectionSubscriptionsInput) {
+    this.input = input
+  }
 
   async subscribe(
     requestId: string,
@@ -89,14 +93,13 @@ export class LocalSessionConnectionSubscriptions {
         })
         return true
       }
-      const snapshotCursor = cursorResolution.cursor
       releaseBudget = this.input.dependencies.subscriptionBudget?.reserve()
       if (!releaseBudget) {
         await this.sendLimitReached(requestId)
         return true
       }
       const result = this.input.dependencies.eventHub.subscribeAfter(
-        snapshotCursor,
+        cursorResolution.cursor,
         createLocalSessionEventAdmissionFilter(
           () => (this.input.admission.isFenced() ? null : this.input.caller()),
           sessionIds,
@@ -139,7 +142,7 @@ export class LocalSessionConnectionSubscriptions {
         kind: 'subscribed',
         requestId,
         subscriptionId,
-        cursor: this.input.cursorProjection.expose(caller, snapshotCursor),
+        cursor: this.input.cursorProjection.expose(caller, cursorResolution.cursor),
         ...(activeRuns ? { activeRuns } : {}),
       })
       void this.pump(subscriptionId, active)

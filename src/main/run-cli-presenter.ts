@@ -51,7 +51,11 @@ export function summarizeToolArguments(args: JsonValue | undefined) {
 export class RunCliPresenter {
   private stdoutLineOpen = false
 
-  constructor(private readonly output: RunCliPresenterOutput) {}
+  private readonly output: RunCliPresenterOutput
+
+  constructor(output: RunCliPresenterOutput) {
+    this.output = output
+  }
 
   /** Keep stderr progress lines from splitting a partially written stdout line. */
   private note(text: string) {

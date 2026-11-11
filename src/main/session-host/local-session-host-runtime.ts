@@ -9,6 +9,7 @@ import {
 } from './local-session-server'
 import { monitorSessionHostEventLoop } from './session-host-event-loop-monitor'
 import { installSessionHostEventRuntime } from './session-host-events'
+import { observeIdleGracePeriod } from './session-host-idle-grace-period'
 import { acquireSessionHostOwnership, type SessionHostOwnership } from './session-host-ownership'
 
 const SESSION_HOST_STARTUP_GRACE_PERIOD_MS = 30_000
@@ -64,16 +65,33 @@ export class LocalSessionHostRuntime {
   private readonly stoppedPromise: Promise<void>
   private resolveStopped!: () => void
 
+  readonly eventHub: SessionHostEventHub
+  readonly liveness: SessionHostLiveness
+  private readonly server: LocalSessionServerHandle
+  private readonly ownership: SessionHostOwnership
+  private readonly releaseOwnershipOnStop: boolean
+  private readonly releaseEventPublisher: () => void
+  private readonly releaseBackgroundObservers: () => void
+  private readonly stopOwnedServices: () => Promise<void>
+
   constructor(
-    readonly eventHub: SessionHostEventHub,
-    readonly liveness: SessionHostLiveness,
-    private readonly server: LocalSessionServerHandle,
-    private readonly ownership: SessionHostOwnership,
-    private readonly releaseOwnershipOnStop: boolean,
-    private readonly releaseEventPublisher: () => void,
-    private readonly releaseBackgroundObservers: () => void = () => undefined,
-    private readonly stopOwnedServices: () => Promise<void> = () => Promise.resolve(),
+    eventHub: SessionHostEventHub,
+    liveness: SessionHostLiveness,
+    server: LocalSessionServerHandle,
+    ownership: SessionHostOwnership,
+    releaseOwnershipOnStop: boolean,
+    releaseEventPublisher: () => void,
+    releaseBackgroundObservers: () => void = () => undefined,
+    stopOwnedServices: () => Promise<void> = () => Promise.resolve(),
   ) {
+    this.eventHub = eventHub
+    this.liveness = liveness
+    this.server = server
+    this.ownership = ownership
+    this.releaseOwnershipOnStop = releaseOwnershipOnStop
+    this.releaseEventPublisher = releaseEventPublisher
+    this.releaseBackgroundObservers = releaseBackgroundObservers
+    this.stopOwnedServices = stopOwnedServices
     this.stoppedPromise = new Promise((resolve) => {
       this.resolveStopped = resolve
     })
@@ -124,36 +142,6 @@ export class LocalSessionHostRuntime {
     if (errors.length > 1) {
       throw new AggregateError(errors, 'Session Host shutdown failed in multiple cleanup stages.')
     }
-  }
-}
-
-function observeIdleGracePeriod(input: {
-  readonly liveness: SessionHostLiveness
-  readonly read: () => Promise<number>
-  readonly intervalMs: number
-}) {
-  let closed = false
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const schedule = () => {
-    if (closed) return
-    timer = setTimeout(() => {
-      void input
-        .read()
-        .then((idleGracePeriodMs) => {
-          if (!closed) input.liveness.updateIdleGracePeriod(idleGracePeriodMs)
-        })
-        .catch((error: unknown) => {
-          logger.warn('Failed to refresh the Session Host idle grace period.', {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        })
-        .finally(schedule)
-    }, input.intervalMs)
-  }
-  schedule()
-  return () => {
-    closed = true
-    if (timer) clearTimeout(timer)
   }
 }
 

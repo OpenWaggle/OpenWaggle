@@ -126,7 +126,11 @@ export function runtimeHarness(
     observe() {}
   }
   class RuntimePerformanceEntry {
-    constructor(private readonly durationValue: number) {}
+    private readonly durationValue: number
+
+    constructor(durationValue: number) {
+      this.durationValue = durationValue
+    }
 
     get duration() {
       return this.durationValue
@@ -149,7 +153,11 @@ export function runtimeHarness(
     observe() {}
   }
   class RuntimePerformanceObserverEntryList {
-    constructor(private readonly entries: RuntimePerformanceEntry[]) {}
+    private readonly entries: RuntimePerformanceEntry[]
+
+    constructor(entries: RuntimePerformanceEntry[]) {
+      this.entries = entries
+    }
 
     getEntries() {
       return this.entries

@@ -146,7 +146,10 @@ export class LocalSessionFrameDecoder {
   private headOffset = 0
   private retainedBytes = 0
 
-  constructor(private maxFrameBytes = MAX_LOCAL_SESSION_FRAME_BYTES) {
+  private maxFrameBytes: number
+
+  constructor(maxFrameBytes: number = MAX_LOCAL_SESSION_FRAME_BYTES) {
+    this.maxFrameBytes = maxFrameBytes
     this.logicalChunksEnabled = maxFrameBytes > MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES
   }
 
