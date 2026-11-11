@@ -58,3 +58,11 @@ browser preview.
   and Windows (system-webview shell, CEF previews), `'cef'` on Linux, because one Linux process
   cannot mix CEF and WebKitGTK views; `chromiumFlags: { 'remote-debugging-port': 'launch' }` and
   never `remote-allow-origins`. The adapter creates `renderer: 'cef'` views either way.
+- The element picker runs in the page script's isolated world over `Runtime.evaluate`. It waits
+  for the user far longer than a CDP command may, so it returns at once and reports through the
+  world-only `Runtime.addBinding`, tagged with a token. A result counts only from the main frame
+  world it started in, and a destroyed world ends the pick as a cancel would. CDP screenshot clips
+  are in document CSS pixels, so add `cssVisualViewport.pageX/pageY` to a viewport rectangle.
+- A local `package.ts` build bundles stock `node_modules/electrobun` binaries without the vendor
+  patches. On macOS, previews there never appear on the DevTools port (no patch 0004), so native
+  preview checks need the CI-built devkit or the adapter probe.
