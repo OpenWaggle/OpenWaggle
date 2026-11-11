@@ -4,7 +4,8 @@ How the Electrobun shell (ADR 0064) serves the app's pages from loopback trusted
 IPC over the webview RPC, injects the preload and enforces web security in the system webviews.
 Load when touching `src/main/adapters/electrobun/` webview, window, origin or security modules,
 `src/preload/electrobun-*.ts`, `scripts/build-electrobun-preload.ts`,
-`src/shared/structured-wire.ts` or `src/shared/types/desktop-shell-rpc.ts`.
+`src/shared/structured-wire.ts`, `src/shared/types/desktop-shell-rpc.ts`, extension frame and
+runtime module URLs, or renderer error reporting (`sentry-renderer.ts`).
 
 ## Trusted origins on loopback
 
@@ -82,13 +83,52 @@ Load when touching `src/main/adapters/electrobun/` webview, window, origin or se
   `Date` intact, CSP blocked an inline script and `fetch('https://example.com')` while the RPC
   socket connected, and `reveal` threw under automation with the window still hidden.
 
+## Extensions on loopback
+
+- The renderer builds extension module URLs in render, so it needs the base synchronously: main
+  passes `--openwaggle-extension-runtime-base=<originOf('extension-runtime', 'runtime')>`
+  (`trustedOriginBaseRendererArguments(origins)`, both main windows, their own adapter) and the
+  preload exposes `window.api.getTrustedOriginBases()`, which throws when main passed none. An
+  IPC invoke was not taken: it would add a loading state to every frame mount. Electron passes
+  `openwaggle-extension://runtime`, so its module URLs are byte-identical.
+- Main builds frame URLs (`registerExtensionFrame`) from `originOf('extension-frame', 'frame')`.
+  The frame CSP names `sourcesOf` of that host and of the runtime host (exact ports on
+  Electrobun, the same scheme sources as before on Electron) plus the bootstrap's origin. A
+  bootstrap is trusted when it starts with `originOf('renderer', 'app')/` or is the Vite dev
+  origin; only the dev origin gets the Vite sockets in `connect-src` (it used to be any localhost
+  URL, which on Electrobun is every built bootstrap).
+- The frame document path carries the capability (`/<cap>/frames/<id>/index.html`);
+  `extensionFrameIdFromPath` reads it from the end. The bootstrap module loads cross-origin from
+  the renderer server, which sends `access-control-allow-origin: *`.
+- All extension frames share host `frame`, one origin, as on Electron. A host per extension
+  would separate their storage; not done.
+
+## Renderer error reports
+
+- One lazy chunk, `sentry-renderer.ts`, holds both SDKs, picked at runtime by the preload's
+  global: `__SENTRY_IPC__` starts `@sentry/electron/renderer`; the Electrobun bridge's
+  `__OPENWAGGLE_ERROR_REPORT_ENVELOPES__` (only with the reporting switch) starts
+  `@sentry/browser`. Not a build-time alias: both shells load one renderer build, and the Electron
+  renderer SDK is the browser SDK plus a few KB, so the chunk barely grows. Revisit if an
+  Electrobun-only renderer build appears.
+- Browser SDK: the shared options policy, the placeholder DSN (no transport starts without one),
+  `sendClientReports: false`, and a `createTransport` that hands each envelope string to
+  `window.api.sendErrorReportEnvelope` (`error-reporting:renderer-envelope`, exempt from the
+  backend gate) → `reportRendererEnvelope` → `ErrorReporter.captureRendererEnvelope`. Electron's
+  reporter has none, so the channel drops envelopes there.
+- Frames under the page base (`new URL('./', location.href)`) are rewritten to
+  `openwaggle://app/` (`RENDERER_CODE_LOCATION_PREFIX`): the code rules keep them as app code and
+  no report carries the port or capability. Other loopback frames (extension modules) become
+  `<external>`.
+- The browser SDK always sets `environment` (`production` by default): `rendererEnvelopeEvents`
+  drops the renderer's release and environment so the main SDK applies its own.
+
 ## Still open
 
-- Renderer-built URLs still use schemes: extension runtime modules
-  (`extension-module-url.ts`) and extension frames need the loopback bases from main (for
-  example a startup invoke or renderer argument) before extensions work on Electrobun.
+- `src/main/error-reporting.ts` still loads the Electron main reporter; until the shell switch
+  binds the Bun reporter, Electrobun renderer envelopes reach no `captureRendererEnvelope`.
 - Dropped/picked files have no paths in the system webviews: `prepareSelectedAttachments`
-  rejects with a reason. Renderer error-report bridge is a no-op on Electrobun.
+  rejects with a reason.
 - Session resource requests are tied to their owner page by Electron's `webRequest` frame
   identity (`shouldBlockSessionResourceRequest`); on Electrobun only the per-resource token and
   the host capability guard them. The bindings in `src/main/desktop-shell/` still point at
