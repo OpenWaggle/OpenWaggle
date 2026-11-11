@@ -77,8 +77,9 @@ export function useAutoTextAttachment({
     const trimmedPastedText = pastedText.trim()
     if (!trimmedPastedText) return
 
-    const prepareAttachmentFromText = api.prepareAttachmentFromText
-    if (typeof prepareAttachmentFromText !== 'function') {
+    // `in`, not typeof: the api proxy answers every name with a function, and `in` reports what
+    // the loaded preload really has.
+    if (!('prepareAttachmentFromText' in api)) {
       clearPendingChip(operationId)
       setAttachmentError('Attachment conversion is unavailable. Please restart the app.')
       return
@@ -86,7 +87,7 @@ export function useAutoTextAttachment({
 
     const autoAttachment = await trackAttachmentPreparation(
       // Named by the Host, so the sent message's copy shows, and matches, the chip's name.
-      prepareAttachmentFromText(trimmedPastedText, operationId, chipName).catch(() => null),
+      api.prepareAttachmentFromText(trimmedPastedText, operationId, chipName).catch(() => null),
     )
     if (!isCurrentDraft()) {
       clearPendingChip(operationId)
@@ -159,12 +160,9 @@ export function useAutoTextAttachment({
   }
 
   useEffect(() => {
-    const subscribeToProgress = api.onPrepareAttachmentFromTextProgress
-    if (typeof subscribeToProgress !== 'function') {
-      return () => {}
-    }
+    if (!('onPrepareAttachmentFromTextProgress' in api)) return () => {}
 
-    const unsubscribe = subscribeToProgress((payload) => {
+    const unsubscribe = api.onPrepareAttachmentFromTextProgress((payload) => {
       setPendingTextAttachmentChips((chips) =>
         chips.map((chip) =>
           chip.operationId === payload.operationId

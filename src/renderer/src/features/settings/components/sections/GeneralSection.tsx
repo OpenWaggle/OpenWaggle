@@ -230,9 +230,9 @@ export function GeneralSection() {
                   variant="primary"
                   size="xs"
                   onClick={() => {
-                    const install = isWaitingForRuns ? api.installUpdateNow : api.installUpdate
-                    if (typeof install === 'function') {
-                      install().catch((err: unknown) => {
+                    const install = isWaitingForRuns ? 'installUpdateNow' : 'installUpdate'
+                    if (install in api) {
+                      api[install]().catch((err: unknown) => {
                         logger.warn('Failed to install update', { error: String(err) })
                       })
                     }
