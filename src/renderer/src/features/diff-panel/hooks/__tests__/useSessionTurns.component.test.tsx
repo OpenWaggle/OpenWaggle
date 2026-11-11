@@ -1,16 +1,23 @@
 import { RepositoryPath, SessionId } from '@shared/types/brand'
 import type { GitBranchListResult } from '@shared/types/git'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiffScopeSelection } from '../../state/diff-scope-store'
 import { useBaseRefChoices } from '../useBaseRefChoices'
-import { useTurnDiffFiles } from '../useSessionTurns'
+import { useSessionTurns } from '../useSessionTurns'
+import { useTurnDiffFiles } from '../useTurnDiffFiles'
 
 const getTurnDiffMock = vi.hoisted(() => vi.fn())
 const listGitBranchesMock = vi.hoisted(() => vi.fn())
+const listTurnCheckpointsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
-  api: { getTurnDiff: getTurnDiffMock, listGitBranches: listGitBranchesMock },
+  api: {
+    getTurnDiff: getTurnDiffMock,
+    listGitBranches: listGitBranchesMock,
+    listTurnCheckpoints: listTurnCheckpointsMock,
+  },
 }))
 
 const SESSION = SessionId('session-1')
@@ -55,6 +62,44 @@ function branches(...names: readonly string[]): GitBranchListResult {
 beforeEach(() => {
   getTurnDiffMock.mockReset()
   listGitBranchesMock.mockReset()
+  listTurnCheckpointsMock.mockReset()
+})
+
+function checkpoint(turnId: string): TurnCheckpointSummary {
+  return { turnId, turnIndex: 0, createdAt: 1, insertions: 1, deletions: 0 }
+}
+
+describe('useSessionTurns', () => {
+  it('keeps the list through a refresh but never shows it under another Session', async () => {
+    const refreshed = deferred<readonly TurnCheckpointSummary[]>()
+    const other = deferred<readonly TurnCheckpointSummary[]>()
+    listTurnCheckpointsMock
+      .mockResolvedValueOnce([checkpoint('t1')])
+      .mockReturnValueOnce(refreshed.promise)
+      .mockReturnValueOnce(other.promise)
+    const initialProps: { sessionId: SessionId | null; refresh: number } = {
+      sessionId: SESSION,
+      refresh: 0,
+    }
+    const { result, rerender } = renderHook(
+      ({ sessionId, refresh }: typeof initialProps) => useSessionTurns(sessionId, refresh),
+      { initialProps },
+    )
+    await waitFor(() => expect(result.current).toEqual([checkpoint('t1')]))
+
+    rerender({ sessionId: SESSION, refresh: 1 })
+    expect(result.current).toEqual([checkpoint('t1')])
+    await act(async () => refreshed.resolve([checkpoint('t1'), checkpoint('t2')]))
+    expect(result.current).toHaveLength(2)
+
+    rerender({ sessionId: SessionId('session-2'), refresh: 1 })
+    expect(result.current).toEqual([])
+    await act(async () => other.resolve([checkpoint('t9')]))
+    expect(result.current).toEqual([checkpoint('t9')])
+
+    rerender({ sessionId: null, refresh: 1 })
+    expect(result.current).toEqual([])
+  })
 })
 
 describe('useTurnDiffFiles', () => {
