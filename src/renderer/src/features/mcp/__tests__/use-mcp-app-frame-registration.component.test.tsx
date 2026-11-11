@@ -22,7 +22,12 @@ const CSP = {
 const RESOURCE = { html: '<main>App</main>', csp: CSP, requestedPermissions: [] }
 
 function frameIdOf(call: unknown) {
-  return typeof call === 'object' && call !== null && 'frameId' in call ? call.frameId : undefined
+  return typeof call === 'object' &&
+    call !== null &&
+    'frameId' in call &&
+    typeof call.frameId === 'string'
+    ? call.frameId
+    : ''
 }
 
 beforeEach(() => {

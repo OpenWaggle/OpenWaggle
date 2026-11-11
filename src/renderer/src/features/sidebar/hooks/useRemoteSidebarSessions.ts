@@ -21,6 +21,7 @@ import {
 import { isTerminalState, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
 import { useRemovedRemoteSessions } from './useRemovedRemoteSessions'
 import { useSidebarTerminalCounts } from './useSidebarTerminalCounts'
+import { codePointLength } from '@shared/utils/code-point-length'
 
 const REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH = 3
 const REMOTE_SIDEBAR_SEARCH_DEBOUNCE_MS = 150
@@ -219,7 +220,7 @@ export function useRemoteSidebarSessions(input: {
       return
     }
     if (normalizedQuery !== '') {
-      if ([...normalizedQuery].length < REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH) {
+      if (codePointLength(normalizedQuery) < REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH) {
         mode.current = { kind: 'none' }
         return
       }

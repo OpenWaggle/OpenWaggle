@@ -86,14 +86,14 @@ describe('firstRowIndexBelow', () => {
 })
 
 describe('createDomViewportGeometry row lookup', () => {
-  function row(key: string, top: number) {
+  function row(key: string, top: number, measure = () => rect(top, 50)) {
     const state = { connected: true }
     const element = fromPartial<HTMLElement>({
       get isConnected() {
         return state.connected
       },
       getAttribute: () => key,
-      getBoundingClientRect: () => rect(top, 50),
+      getBoundingClientRect: measure,
     })
     return { element, unmount: () => (state.connected = false) }
   }
@@ -128,9 +128,8 @@ describe('createDomViewportGeometry row lookup', () => {
 
   it('tells whether a row is mounted without measuring it', () => {
     vi.stubGlobal('CSS', { escape: (value: string) => value })
-    const mounted = row('message:a', 100)
     const measure = vi.fn(() => rect(100, 50))
-    const element = fromPartial<HTMLElement>({ ...mounted.element, getBoundingClientRect: measure })
+    const { element } = row('message:a', 100, measure)
     const content = fromPartial<HTMLElement>({
       querySelector: (selector: string) => (selector.includes('message:a') ? element : null),
       contains: () => true,

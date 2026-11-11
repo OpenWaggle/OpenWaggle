@@ -2,6 +2,7 @@ import { isMatching, match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
 import { normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
+import { lenientJsonStringify } from '@/shared/lib/lenient-json'
 import { languageFromPath } from '@/shared/lib/syntax/language-registry'
 
 export const JSON_STRINGIFY_SPACES = 2
@@ -38,7 +39,7 @@ function formatUnknownContent(content: unknown, serialized?: string | null) {
   try {
     return serialized ?? JSON.stringify(content, null, JSON_STRINGIFY_SPACES)
   } catch {
-    return String(content)
+    return lenientJsonStringify(content, JSON_STRINGIFY_SPACES)
   }
 }
 

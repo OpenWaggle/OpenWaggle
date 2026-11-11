@@ -66,10 +66,6 @@
   "typescript/await-thenable": {
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-continuation.component.test.tsx": 3
   },
-  "typescript/no-base-to-string": {
-    "src/renderer/src/features/chat/lib/chat-stream-state-helpers.ts": 1,
-    "src/renderer/src/features/chat/lib/tool-call-block.ts": 1
-  },
   "typescript/no-floating-promises": {
     "src/renderer/src/features/browser-preview/hooks/useBrowserPreviewAdvancedControls.ts": 2,
     "src/renderer/src/features/chat/components/__tests__/InlineVisualization.health.component.test.tsx": 1,
@@ -111,20 +107,11 @@
     "src/renderer/src/features/settings/components/sections/mcp/McpServerActions.tsx": 1,
     "src/renderer/src/features/workspace-files/components/__tests__/ProjectContentSearch.component.test.tsx": 1
   },
-  "typescript/no-misused-spread": {
-    "src/renderer/src/features/chat/lib/__tests__/transcript-viewport-geometry.unit.test.ts": 1,
-    "src/renderer/src/features/sidebar/hooks/useRemoteSidebarSessions.ts": 1,
-    "src/renderer/src/features/terminal/lib/terminal-native-keybindings.ts": 1,
-    "src/shared/utils/altgraph-character.ts": 1
-  },
   "typescript/only-throw-error": {
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 1,
     "src/renderer/src/features/project-actions/hooks/__tests__/useProjectActionShortcutCapture.component.test.tsx": 1,
     "src/renderer/src/routes/agents.tsx": 1,
     "src/renderer/src/routes/skills.tsx": 1
-  },
-  "typescript/restrict-template-expressions": {
-    "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-registration.component.test.tsx": 1
   },
   "typescript/unbound-method": {
     "src/renderer/src/features/chat/components/InlineVisualization.tsx": 1,

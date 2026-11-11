@@ -1,3 +1,5 @@
+import { codePointLength } from '@shared/utils/code-point-length'
+
 interface TerminalNativeKeyEvent {
   readonly type?: string
   readonly key: string
@@ -23,7 +25,7 @@ function isMacPlatform(platform: string) {
 }
 
 function isAltGraphPrintable(event: TerminalNativeKeyEvent) {
-  return event.getModifierState?.('AltGraph') === true && [...event.key].length === 1
+  return event.getModifierState?.('AltGraph') === true && codePointLength(event.key) === 1
 }
 
 function hasOnlyControl(event: TerminalNativeKeyEvent) {

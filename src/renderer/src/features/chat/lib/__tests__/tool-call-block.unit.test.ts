@@ -8,6 +8,7 @@ import {
   inferLanguageFromPath,
   shouldHighlightCode,
 } from '../tool-call-block'
+import { stringifyToolInput } from '../chat-stream-state-helpers'
 
 const LONG_HIGHLIGHT_TEXT = `${'x'.repeat(80_000)}x`
 const MANY_LINE_TEXT = Array.from({ length: 1_201 }, () => 'line').join('\n')
@@ -31,6 +32,15 @@ describe('tool call block view helpers', () => {
     expect(
       getToolResultText({ content: [{ type: 'image', mimeType: 'image/png', data: 'abc' }] }),
     ).toContain('"type": "image"')
+  })
+
+  // A bigint or a cycle survives structured clone but makes JSON.stringify throw; the fallback
+  // printed `[object Object]` (fix(renderer): show tool data JSON cannot encode).
+  it('shows a result JSON cannot encode as JSON text, not [object Object]', () => {
+    const result: Record<string, unknown> = { count: 2n }
+    result['self'] = result
+    expect(getToolResultText(result)).toBe('{\n  "count": "2",\n  "self": "[Circular]"\n}')
+    expect(stringifyToolInput({ id: 7n })).toBe('{"id":"7"}')
   })
 
   it('extracts explicit and structured error messages', () => {
