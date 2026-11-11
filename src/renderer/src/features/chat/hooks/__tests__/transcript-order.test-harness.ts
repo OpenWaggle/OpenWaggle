@@ -61,7 +61,7 @@ export function createTranscriptOrderHarness(
   // The Host put steers Pi never took back in the queue; the renderer learns of it once told.
   const forgetPromotions = () => promotions.forgetUndelivered(dropping)
   // The settlements on their way, oldest first: the bridge relays them in order.
-  const pendingSettlements: Array<() => Promise<void>> = []
+  const pendingSettlements: (() => Promise<void>)[] = []
   const receive = (event: AgentTransportEvent) => {
     const tracked = useBackgroundRunStore.getState().renderSnapshotsBySessionId.has(SESSION_ID)
     for (const handler of [...apiMock.agentEventHandlers]) handler({ sessionId: SESSION_ID, event })

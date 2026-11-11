@@ -22,7 +22,7 @@ export function createSavedAnswerMatcher(
   persistedMessages: readonly UIMessage[],
   since: SavedAnswerSince = {},
 ) {
-  const unmatched: Array<{ readonly id: string; readonly key: string; readonly order: number }> = []
+  const unmatched: { readonly id: string; readonly key: string; readonly order: number }[] = []
   const notBefore = since.createdAt ?? Number.NEGATIVE_INFINITY
   for (const message of persistedMessages) {
     const order = message.metadata?.sessionNodeCreatedOrder

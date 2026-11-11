@@ -16,7 +16,7 @@ export interface ModelState {
   runs: number
   texts: number
   /** Promoted steers, in promotion order; several may wait, and with the same text. */
-  promotions: Array<{ readonly text: string; incorporated: boolean }>
+  promotions: { readonly text: string; incorporated: boolean }[]
 }
 
 export interface ModelAction {

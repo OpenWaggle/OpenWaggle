@@ -51,7 +51,7 @@ export interface TerminalInputIdentity {
 }
 
 /** Semantic intent carried with an ordered input item when it needs main-process arbitration. */
-export type TerminalInputIntent = {
+export interface TerminalInputIntent {
   readonly kind: 'project-action'
   /** Unique logical execution id; retries must retain this exact value. */
   readonly executionId: string

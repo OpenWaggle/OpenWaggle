@@ -21,7 +21,7 @@ function isUnknownRecord(value: unknown): value is Readonly<Record<string, unkno
 }
 
 export function resolveWorkspacePanelStorage(): StateStorage {
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+  if (typeof window !== 'undefined') return window.localStorage
   return {
     getItem: (key) => memoryStorage.get(key) ?? null,
     setItem: (key, value) => {

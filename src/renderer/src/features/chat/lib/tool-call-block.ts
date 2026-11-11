@@ -59,7 +59,7 @@ function textFromContentBlocks(content: readonly unknown[]) {
   return textBlocks.length > 0 ? textBlocks.join('\n') : null
 }
 
-function textFromResultRecord(parsed: { readonly [key: string]: unknown }) {
+function textFromResultRecord(parsed: Readonly<Record<string, unknown>>) {
   const contentText = match(parsed)
     .with({ content: P.select('content', P.array(P._)) }, ({ content }) =>
       textFromContentBlocks(content),

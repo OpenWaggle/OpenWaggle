@@ -162,61 +162,8 @@
   "react/use-memo": {
     "src/renderer/src/features/diff-panel/hooks/useProgressiveCodeViewItems.ts": 1
   },
-  "typescript/array-type": {
-    "src/renderer/src/features/browser-preview/components/BrowserPreviewMoreMenu.tsx": 1,
-    "src/renderer/src/features/chat/components/__tests__/TurnFoldRow.component.test.tsx": 1,
-    "src/renderer/src/features/chat/components/use-inline-visualization-modal.ts": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.history.ts": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.host-reads.ts": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.ipc-mock.ts": 3,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.model-state.ts": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.promotions.ts": 3,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.test-harness.ts": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/useAgentChat.test-utils.ts": 3,
-    "src/renderer/src/features/chat/hooks/__tests__/useBackgroundRunMonitor.compaction.component.test.tsx": 2,
-    "src/renderer/src/features/chat/lib/__tests__/transcript-viewport-controller.sent-turn-reader.unit.test.ts": 9,
-    "src/renderer/src/features/chat/lib/__tests__/transcript-viewport-controller.sent-turn.unit.test.ts": 1,
-    "src/renderer/src/features/chat/lib/__tests__/transcript-viewport.fixtures.ts": 3,
-    "src/renderer/src/features/chat/lib/chat-message-text.ts": 1,
-    "src/renderer/src/features/chat/lib/saved-run-answers.ts": 1,
-    "src/renderer/src/features/chat/lib/streaming-markdown-html.ts": 1,
-    "src/renderer/src/features/chat/lib/transcript-reading-positions.ts": 1,
-    "src/renderer/src/features/chat/state/inline-visualization-state.ts": 1,
-    "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-layout.component.test.tsx": 1,
-    "src/renderer/src/features/settings/components/sections/AgentToolsSettings.tsx": 1,
-    "src/renderer/src/features/settings/hooks/__tests__/useSettings.component.test.tsx": 1,
-    "src/renderer/src/features/sidebar/hooks/sidebar-project-actions.ts": 1,
-    "src/renderer/src/features/terminal/lib/terminal-context.ts": 1,
-    "src/renderer/src/features/terminal/state/__tests__/terminal-store-persistence.unit.test.ts": 1,
-    "src/renderer/src/queries/turn-checkpoints.ts": 1,
-    "src/renderer/src/shared/ui/__tests__/SourceView.component.test.tsx": 1,
-    "src/shared/schema.ts": 1,
-    "src/shared/types/__tests__/session-status.unit.test.ts": 1
-  },
   "typescript/await-thenable": {
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-continuation.component.test.tsx": 3
-  },
-  "typescript/consistent-indexed-object-style": {
-    "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 2,
-    "src/renderer/src/features/chat/lib/agent-loop-transcript-event-fields.ts": 1,
-    "src/renderer/src/features/chat/lib/tool-call-block.ts": 1,
-    "src/shared/error-reporting/error-report-scrubbing.ts": 4
-  },
-  "typescript/consistent-type-definitions": {
-    "src/renderer/src/features/chat/components/AssistantMessageBubble.tsx": 1,
-    "src/renderer/src/features/chat/components/__tests__/SessionsToolRows.component.test.tsx": 1,
-    "src/renderer/src/features/chat/lib/agent-loop-transcript-event-fields.ts": 1,
-    "src/renderer/src/features/diff-panel/components/DiffCodeView.tsx": 1,
-    "src/renderer/src/features/hive-panel/components/__tests__/HivePanel.archived.component.test.tsx": 1,
-    "src/renderer/src/features/hive-panel/components/__tests__/HivePanel.component.test.tsx": 1,
-    "src/renderer/src/features/hive-panel/components/__tests__/HivePanel.tree.component.test.tsx": 1,
-    "src/renderer/src/features/session-summary/components/__tests__/session-summary-hub.test-harness.tsx": 1,
-    "src/renderer/src/features/sidebar/hooks/remote-sidebar-terminal-status.ts": 1,
-    "src/renderer/src/shared/lib/right-sidebar-coordinator.ts": 2,
-    "src/renderer/src/shell/useSessionHostRefresh.ts": 1,
-    "src/shared/types/scheduled-task.ts": 2,
-    "src/shared/types/session-interaction-control.ts": 1,
-    "src/shared/types/terminal.ts": 1
   },
   "typescript/no-base-to-string": {
     "src/renderer/src/features/chat/lib/chat-stream-state-helpers.ts": 1,
@@ -330,38 +277,6 @@
     "src/renderer/src/routes/agents.tsx": 1,
     "src/renderer/src/routes/skills.tsx": 1
   },
-  "typescript/prefer-for-of": {
-    "src/renderer/src/features/command-palette/lib/command-palette-navigation.ts": 1,
-    "src/renderer/src/features/settings/lib/archived-items-view.ts": 1
-  },
-  "typescript/prefer-optional-chain": {
-    "src/renderer/src/env.ts": 1,
-    "src/renderer/src/features/chat/components/TranscriptRows.tsx": 1,
-    "src/renderer/src/features/chat/hooks/useStableRowContext.ts": 1,
-    "src/renderer/src/features/chat/lib/retryable-last-user-message.ts": 1,
-    "src/renderer/src/features/chat/lib/turn-reply-actions.ts": 1,
-    "src/renderer/src/features/chat/state/changed-files-card-store.ts": 1,
-    "src/renderer/src/features/composer/hooks/queued-message-edit-drafts.ts": 1,
-    "src/renderer/src/features/diff-panel/state/diff-scope-store.ts": 1,
-    "src/renderer/src/features/hive-panel/lib/hive-tree-model.ts": 1,
-    "src/renderer/src/features/hive-panel/state/hive-panel-view-store.ts": 1,
-    "src/renderer/src/features/project-actions/state/action-panel-storage.ts": 1,
-    "src/renderer/src/features/project-actions/state/project-action-store.ts": 1,
-    "src/renderer/src/features/scheduled-tasks/state/scheduled-tasks-preferences-store.ts": 1,
-    "src/renderer/src/features/sidebar/state/pinned-sessions-store.ts": 1,
-    "src/renderer/src/features/sidebar/state/sidebar-view-store.ts": 1,
-    "src/renderer/src/features/terminal/state/terminal-store-persistence.ts": 1,
-    "src/renderer/src/shared/lib/session-detail-reader.ts": 1,
-    "src/renderer/src/shared/lib/syntax/__tests__/syntax-service-failures.unit.test.ts": 1,
-    "src/renderer/src/shared/lib/syntax/__tests__/syntax-service.unit.test.ts": 1,
-    "src/renderer/src/shell/open-workspace-web-link.ts": 1,
-    "src/renderer/src/shell/right-panel/useRightPanelController.ts": 1,
-    "src/renderer/src/shell/workspace-panel-actions.ts": 1,
-    "src/renderer/src/shell/workspace-panel-persistence.ts": 1
-  },
-  "typescript/prefer-string-starts-ends-with": {
-    "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
-  },
   "typescript/restrict-template-expressions": {
     "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-registration.component.test.tsx": 1
   },
@@ -388,12 +303,5 @@
   "typescript/use-unknown-in-catch-callback-variable": {
     "src/renderer/src/features/composer/lib/send-result.ts": 1,
     "src/renderer/src/features/git/hooks/useSessionContextRow.ts": 2
-  },
-  "unicorn/no-new-array": {
-    "src/renderer/src/features/settings/lib/available-models-filter.ts": 1
-  },
-  "unicorn/no-useless-fallback-in-spread": {
-    "src/renderer/src/features/settings/state/project-preference-writes.ts": 1,
-    "src/renderer/src/shared/lib/markdown-safety.tsx": 2
   }
 }

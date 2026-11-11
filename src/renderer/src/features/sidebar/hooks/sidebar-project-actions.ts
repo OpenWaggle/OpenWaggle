@@ -122,7 +122,7 @@ export function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
   const ordered: SessionSummary[] = []
   const discovered = new Set<string>()
   for (const root of sessions) {
-    const stack: Array<{ readonly session: SessionSummary; readonly expanded: boolean }> = [
+    const stack: { readonly session: SessionSummary; readonly expanded: boolean }[] = [
       { session: root, expanded: false },
     ]
     while (stack.length > 0) {

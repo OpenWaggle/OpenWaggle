@@ -61,9 +61,8 @@ function rowFor(
   lineage: ReadonlyMap<string, HiveLineageEntry>,
 ): HiveTreeRow {
   const entry = lineage.get(String(session.id))
-  if (rootId === null || entry === undefined || entry.parentId === null) {
-    return { session, parent: null }
-  }
+  if (rootId === null || entry === undefined) return { session, parent: null }
+  if (entry.parentId === null) return { session, parent: null }
   return {
     session,
     parent: {

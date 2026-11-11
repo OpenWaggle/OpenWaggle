@@ -185,7 +185,7 @@ function buildAnnotationsByPath(
   return byPath
 }
 
-type ReviewAnnotationMetadataAnnotation = {
+interface ReviewAnnotationMetadataAnnotation {
   side: 'additions' | 'deletions'
   lineNumber: number
   metadata: ReviewAnnotationMetadata

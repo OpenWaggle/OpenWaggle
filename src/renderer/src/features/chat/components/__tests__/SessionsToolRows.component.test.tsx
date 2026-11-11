@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 type ToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
-type NavigateOptions = { to: string; params: Record<string, string> }
+interface NavigateOptions {
+  to: string
+  params: Record<string, string>
+}
 
 const listHiveTreeSessionCatalogPage = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn<(options: NavigateOptions) => Promise<unknown>>())

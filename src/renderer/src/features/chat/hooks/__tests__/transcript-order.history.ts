@@ -10,7 +10,7 @@ export const HISTORY_RUN_ID = 'history'
 /** Texts later Runs repeat: a prompt or answer matched by text must not take one of these. */
 const HISTORY_TEXTS = ['continue', 'Done.', 'ok', 'ok', 'continue', 'Done.']
 
-export function historyEntries(): Array<Omit<TruthEntry, 'order' | 'runId' | 'timestamp'>> {
+export function historyEntries(): Omit<TruthEntry, 'order' | 'runId' | 'timestamp'>[] {
   return HISTORY_TEXTS.map((text, index) => ({
     role: index % 2 === 0 ? 'user' : 'assistant',
     text,

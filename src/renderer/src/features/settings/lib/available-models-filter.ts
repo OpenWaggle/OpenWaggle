@@ -137,7 +137,7 @@ export function highlightSegments(text: string, search: string): readonly Highli
   const tokens = searchTokens(search)
   if (tokens.length === 0 || text.length === 0) return [{ start: 0, text, match: false }]
   const lower = text.toLowerCase()
-  const marked = new Array<boolean>(text.length).fill(false)
+  const marked = Array.from({ length: text.length }, () => false)
   for (const token of tokens) {
     let index = lower.indexOf(token)
     while (index !== -1) {

@@ -93,7 +93,7 @@ function MessageActionButtons({
   )
 }
 
-type ToolResultEntry = {
+interface ToolResultEntry {
   content: unknown
   state: string
   error?: string | undefined

@@ -289,12 +289,12 @@ export interface ScheduledTasksResponse {
   readonly outcome: ScheduledTasksOutcome
 }
 
-export type LocalScheduledTasksCommandPayload = {
+export interface LocalScheduledTasksCommandPayload {
   readonly contract: 'scheduled-tasks-v1'
   readonly request: ScheduledTasksRequest
 }
 
-export type LocalScheduledTasksCommandResult = {
+export interface LocalScheduledTasksCommandResult {
   readonly contract: 'scheduled-tasks-v1'
   readonly response: ScheduledTasksResponse
 }

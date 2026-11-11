@@ -128,7 +128,8 @@ export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | 
 export function toggleWorkspaceRightPanel(ownerKey: string) {
   const store = useWorkspacePanelStore.getState()
   const group = store.groups[ownerKey]
-  if (ownerKey.length === 0 || group === undefined || group.activeSurface === null) return false
+  if (ownerKey.length === 0 || group === undefined) return false
+  if (group.activeSurface === null) return false
   if (group.panelOpen) {
     store.hidePanel(ownerKey)
     return true

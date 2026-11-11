@@ -36,7 +36,7 @@ function selectSyntaxThemeCatalog<T>(
 function selectProviders<T>(
   selector: (state: {
     loadProviderModels: typeof loadProviderModelsMock
-    providerModels: Array<{ provider: string; auth: { supportsOAuth: boolean } }>
+    providerModels: { provider: string; auth: { supportsOAuth: boolean } }[]
   }) => T,
 ) {
   return selector({

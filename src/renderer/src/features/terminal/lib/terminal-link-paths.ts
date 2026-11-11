@@ -21,7 +21,7 @@ interface ReferencePosition {
 type PathFlavor = 'posix' | 'windows'
 
 const WINDOWS_DRIVE_ABSOLUTE_PATTERN = /^[A-Za-z]:[\\/]/u
-const WINDOWS_UNC_PATTERN = /^\\\\/u
+const WINDOWS_UNC_PREFIX = '\\\\'
 const SCHEME_PATTERN = /^[A-Za-z][A-Za-z0-9+.-]*:/u
 const COLON_POSITION_PATTERN = /:(\d+)(?::(\d+))?$/u
 const PAREN_POSITION_PATTERN = /\((\d+)\s*(?:,\s*(\d+))?\)$/u
@@ -40,7 +40,7 @@ function hasControlCharacter(value: string) {
 }
 
 function isWindowsAbsolutePath(value: string) {
-  return WINDOWS_DRIVE_ABSOLUTE_PATTERN.test(value) || WINDOWS_UNC_PATTERN.test(value)
+  return WINDOWS_DRIVE_ABSOLUTE_PATTERN.test(value) || value.startsWith(WINDOWS_UNC_PREFIX)
 }
 
 function isAbsolutePath(value: string) {
@@ -79,7 +79,7 @@ function normalizedSegments(segments: readonly string[], absolute: boolean) {
 
 function normalizeWindowsPath(value: string) {
   const slashPath = value.replaceAll('/', '\\')
-  if (WINDOWS_UNC_PATTERN.test(slashPath)) {
+  if (slashPath.startsWith(WINDOWS_UNC_PREFIX)) {
     const parts = slashPath
       .slice(WINDOWS_ROOT_PREFIX_LENGTH)
       .split('\\')

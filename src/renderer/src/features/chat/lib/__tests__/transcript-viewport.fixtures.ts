@@ -2,7 +2,7 @@ import type { TranscriptRowIndex } from '../transcript-sent-turn'
 import type { ViewportGeometry } from '../transcript-viewport-geometry'
 
 /** A column of rows with known heights, standing in for browser layout. */
-export function fakeViewport(rows: Array<[string, number]>, clientHeight = 500) {
+export function fakeViewport(rows: [string, number][], clientHeight = 500) {
   let list = rows
   let scrollTop = 0
   let endSpace = 0
@@ -46,7 +46,7 @@ export function fakeViewport(rows: Array<[string, number]>, clientHeight = 500) 
   }
   return {
     geometry,
-    setRows: (next: Array<[string, number]>) => {
+    setRows: (next: [string, number][]) => {
       list = next
       scrollTop = clamp(scrollTop)
     },
@@ -86,4 +86,4 @@ export function rowIndex(
 }
 
 /** The keys of a row list, in order. */
-export const keysOf = (list: ReadonlyArray<readonly [string, number]>) => list.map(([key]) => key)
+export const keysOf = (list: readonly (readonly [string, number])[]) => list.map(([key]) => key)

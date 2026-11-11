@@ -17,7 +17,7 @@ export interface SafeDecodeFailure {
   readonly issues: readonly string[]
 }
 
-function formatIssuePath(path: ReadonlyArray<PropertyKey>) {
+function formatIssuePath(path: readonly PropertyKey[]) {
   const joinedPath = path.map(String).join('.')
   return joinedPath.length > 0 ? joinedPath : '(root)'
 }

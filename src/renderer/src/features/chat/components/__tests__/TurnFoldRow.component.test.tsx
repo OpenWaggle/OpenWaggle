@@ -6,7 +6,7 @@ import { useTurnFoldStore } from '../../state/turn-fold-store'
 import { TurnFoldRow } from '../TurnFoldRow'
 
 /** Passthrough spy: renders the real fallback while capturing surface inputs. */
-const surfaceInputs: Array<{ surface: string; status: { label: string; tone: string } }> = []
+const surfaceInputs: { surface: string; status: { label: string; tone: string } }[] = []
 vi.mock('@/features/extensions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/extensions')>()
   return {

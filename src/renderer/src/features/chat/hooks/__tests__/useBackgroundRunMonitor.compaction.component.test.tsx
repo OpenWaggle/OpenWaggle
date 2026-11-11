@@ -75,9 +75,9 @@ describe('useBackgroundRunMonitor compaction lifecycle', () => {
   })
 
   it('does not end an initialized agent run when automatic compaction finishes', async () => {
-    let resolveActiveRuns: ((runs: Array<{ sessionId: typeof SESSION_ID }>) => void) | undefined
+    let resolveActiveRuns: ((runs: { sessionId: typeof SESSION_ID }[]) => void) | undefined
     apiMock.listActiveRuns.mockReturnValue(
-      new Promise<Array<{ sessionId: typeof SESSION_ID }>>((resolve) => {
+      new Promise<{ sessionId: typeof SESSION_ID }[]>((resolve) => {
         resolveActiveRuns = resolve
       }),
     )

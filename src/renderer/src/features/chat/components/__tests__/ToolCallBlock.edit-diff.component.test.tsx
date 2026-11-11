@@ -79,7 +79,7 @@ function editArgs(path: string) {
 
 const PI_EDIT_RESULT = 'Successfully replaced 1 block(s) in src/geo.ts.'
 
-function editResult(details: { readonly [key: string]: unknown }, text = PI_EDIT_RESULT) {
+function editResult(details: Readonly<Record<string, unknown>>, text = PI_EDIT_RESULT) {
   return {
     content: { content: [{ type: 'text', text }], details },
     state: 'complete',
@@ -93,7 +93,7 @@ function renderEdit({
   resultText = PI_EDIT_RESULT,
 }: {
   readonly path?: string
-  readonly details?: { readonly [key: string]: unknown }
+  readonly details?: Readonly<Record<string, unknown>>
   readonly workingPath?: string | null
   readonly resultText?: string
 } = {}) {

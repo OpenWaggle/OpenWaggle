@@ -39,7 +39,7 @@ export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string): Pr
   const tab = useWorkspacePanelStore
     .getState()
     .groups[ownerKey]?.browserTabs.find((candidate) => candidate.id === previewId)
-  if (tab === undefined || tab.error !== null) {
+  if (tab?.error !== null) {
     clearBrowserPreviewExternalFallback(previewId)
     await api.openExternal(url)
     return

@@ -266,7 +266,7 @@ function useSessionPanelMemory(input: {
       ? model.surfaces.find((surface) => surface.id === memory.surface)
       : undefined
   // A remembered extension panel or Session Tree can need a moment to become available.
-  const rememberedReady = remembered !== undefined && remembered.disabledReason === null
+  const rememberedReady = remembered?.disabledReason === null
   // Extension panels are unknown until the registry answers; that wait has no time limit.
   const waitingForRegistry =
     memory?.surface !== undefined &&

@@ -15,7 +15,7 @@ const CACHE_WARMING_CHOICES = [
   ['off', 'Off'],
   ['streaming', 'While working'],
   ['idle', 'Between runs'],
-] as const satisfies ReadonlyArray<readonly [PiCacheWarmingMode, string]>
+] as const satisfies readonly (readonly [PiCacheWarmingMode, string])[]
 
 function useSavingAction<T>(action: (value: T) => Promise<void>, failure: string) {
   const [saving, setSaving] = useState(false)

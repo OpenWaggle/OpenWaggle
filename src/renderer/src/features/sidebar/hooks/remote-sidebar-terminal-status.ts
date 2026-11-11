@@ -7,7 +7,7 @@ export function isTerminalState(state: SidebarRowState | null): state is Sidebar
   return state === 'completed' || state === 'error'
 }
 
-export type HydratedTerminalIds = {
+export interface HydratedTerminalIds {
   completed: Set<string>
   error: Set<string>
 }

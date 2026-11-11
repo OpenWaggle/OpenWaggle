@@ -54,7 +54,7 @@ function createdAtMs(message: UIMessage) {
  * any.
  */
 export function savedSendIds(saved: readonly UIMessage[], sent: readonly UIMessage[]) {
-  const savedByText = new Map<string, Array<number | null>>()
+  const savedByText = new Map<string, (number | null)[]>()
   for (const message of saved) {
     const text = getNonEmptyUserMessageText(message)
     if (text) savedByText.set(text, [...(savedByText.get(text) ?? []), createdAtMs(message)])

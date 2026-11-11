@@ -170,7 +170,7 @@ export function gitState(
   }
 }
 
-type HubProps = {
+interface HubProps {
   readonly activeSession?: SessionDetail | null
   readonly messageCount?: number
   readonly hiveAvailable?: boolean

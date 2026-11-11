@@ -65,7 +65,7 @@ async function reconcileProjectIdentity(
     record: Record<string, Readonly<Record<string, boolean>>>,
   ): Record<string, Record<string, boolean>> {
     if (!(requestedPath in record)) return record
-    const merged = { ...(record[canonicalPath] ?? {}), ...record[requestedPath] }
+    const merged = { ...record[canonicalPath], ...record[requestedPath] }
     const next = { ...record, [canonicalPath]: merged }
     delete next[requestedPath]
     return next
