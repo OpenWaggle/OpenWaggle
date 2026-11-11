@@ -1,30 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UpdateEngineShape } from '../ports/desktop-shell/update-engine'
 
 const { broadcastMock, checkForUpdatesMock, configureUpdaterFeedMock } = vi.hoisted(() => ({
   broadcastMock: vi.fn(),
-  checkForUpdatesMock: vi.fn<() => Promise<unknown>>(),
+  checkForUpdatesMock: vi.fn<UpdateEngineShape['checkForUpdates']>(),
   configureUpdaterFeedMock: vi.fn(),
 }))
+
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
 
 vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
   return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => true } }
 })
 vi.mock('@shared/build-identity-runtime', () => ({ BUILD_CHANNEL: 'beta' }))
-vi.mock('electron-updater', async () => {
-  const { EventEmitter } = await import('node:events')
-  return {
-    autoUpdater: Object.assign(new EventEmitter(), {
-      allowDowngrade: false,
-      allowPrerelease: false,
-      autoDownload: true,
-      autoInstallOnAppQuit: false,
-      logger: null,
-      checkForUpdates: () => checkForUpdatesMock(),
-      quitAndInstall: vi.fn(),
-    }),
-  }
-})
+vi.mock('../desktop-shell/update-engine', () => ({
+  updateEngine: {
+    ...engine,
+    checkForUpdates: () => checkForUpdatesMock(),
+    quitAndInstall: vi.fn(),
+  },
+}))
 vi.mock('../update-feed', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../update-feed')>()),
   configureUpdaterFeed: (...args: unknown[]) => configureUpdaterFeedMock(...args),
@@ -41,7 +39,7 @@ import { checkForUpdates, disposeAutoUpdater, getUpdateStatus, initAutoUpdater }
 describe('updater channel without a release', () => {
   beforeEach(() => {
     checkForUpdatesMock.mockReset()
-    checkForUpdatesMock.mockResolvedValue(undefined)
+    checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
     broadcastMock.mockReset()
     disposeAutoUpdater()

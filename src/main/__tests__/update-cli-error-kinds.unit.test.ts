@@ -5,10 +5,14 @@ const { createClientMock, env, fetchMock } = vi.hoisted(() => {
   return { createClientMock: vi.fn(), env: environment, fetchMock: vi.fn() }
 })
 
-vi.mock('electron', () => ({
-  app: { isPackaged: false, getVersion: () => '1.0.0-beta.25', on: vi.fn(), off: vi.fn() },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => '1.0.0-beta.25',
+  }),
 }))
-vi.mock('electron-updater', () => ({ autoUpdater: {} }))
+vi.mock('../desktop-shell/update-engine', async () => ({
+  updateEngine: (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+}))
 vi.mock('../env', () => ({ env }))
 vi.mock('../local-session-cli-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../local-session-cli-client')>()),

@@ -1,49 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  checkForUpdatesMock,
   configureUpdaterFeedMock,
   executeLocalSessionCommandMock,
-  quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
-  updater,
 } = vi.hoisted(() => ({
-  checkForUpdatesMock: vi.fn(),
   configureUpdaterFeedMock: vi.fn(),
   executeLocalSessionCommandMock: vi.fn(),
-  quitAndInstallMock: vi.fn(),
   writeCliStdoutMock: vi.fn((_value: string) => Promise.resolve()),
   createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
-  updater: {
-    channel: null,
-    allowPrerelease: false,
-    allowDowngrade: false,
-    autoDownload: true,
-    autoInstallOnAppQuit: true,
-    logger: null,
-    once: vi.fn(),
-    off: vi.fn(),
-  },
 }))
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
 
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: false,
-    getAppPath: () => '/workspace/OpenWaggle',
-    getVersion: () => '1.0.0-beta.25',
-    requestSingleInstanceLock: () => true,
-    releaseSingleInstanceLock: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  },
-}))
-vi.mock('electron-updater', () => ({
-  autoUpdater: Object.assign(updater, {
-    checkForUpdates: checkForUpdatesMock,
-    quitAndInstall: quitAndInstallMock,
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => '1.0.0-beta.25',
   }),
 }))
+vi.mock('../desktop-shell/system-integration', async () => ({
+  systemIntegration: (await import('../test-support/fake-desktop-shell')).fakeSystemIntegration(),
+}))
+vi.mock('../desktop-shell/update-engine', () => ({ updateEngine: engine }))
 vi.mock('../session-host/local-session-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../session-host/local-session-client')>()),
   executeLocalSessionCommand: executeLocalSessionCommandMock,
@@ -67,7 +47,7 @@ import { writeUpdateCheckError } from '../update-cli-check-output'
 describe('update CLI --check --json', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    checkForUpdatesMock.mockResolvedValue(null)
+    engine.reset()
     configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v1.0.0-rc.1' })
   })
 
@@ -109,10 +89,7 @@ describe('update CLI --check --json', () => {
 
   it('reports the saved channel and an available release without changing anything', async () => {
     savedChannel('beta')
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '1.0.0-rc.1' },
-    })
+    engine.offer('1.0.0-rc.1', null)
 
     await expect(runUpdateCli(['--check', '--json'])).resolves.toEqual({
       exitCode: 0,
@@ -128,8 +105,8 @@ describe('update CLI --check --json', () => {
       }),
     )
     expectChannelOnlyRead()
-    expect(updater.autoDownload).toBe(false)
-    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(engine.settings.autoDownload).toBe(false)
+    expect(engine.quitAndInstall).not.toHaveBeenCalled()
   })
 
   it('reports the saved channel when it is up to date', async () => {
@@ -205,7 +182,7 @@ describe('update CLI --check --json', () => {
   ])('keeps the saved channel in the error envelope after %s', async (_label, args) => {
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
     savedChannel('beta')
-    checkForUpdatesMock.mockRejectedValueOnce(new Error('feed unavailable'))
+    engine.checkForUpdates.mockRejectedValueOnce(new Error('feed unavailable'))
 
     await expect(runUpdateCli(args)).resolves.toEqual({ exitCode: 1, updaterOwnsExit: false })
 
@@ -223,7 +200,7 @@ describe('update CLI --check --json', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
     savedChannel('alpha')
-    checkForUpdatesMock.mockReturnValue(new Promise(() => undefined))
+    engine.checkForUpdates.mockReturnValue(new Promise(() => undefined))
 
     const result = runUpdateCli(['--check', '--json'])
     await vi.advanceTimersByTimeAsync(30_000)
@@ -246,7 +223,7 @@ describe('update CLI --check --json', () => {
       updaterOwnsExit: false,
     })
 
-    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(engine.checkForUpdates).not.toHaveBeenCalled()
     expect(JSON.parse(String(stderr.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
       type: 'error',

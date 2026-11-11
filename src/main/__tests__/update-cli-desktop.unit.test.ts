@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  checkForUpdatesMock,
   executeLocalSessionCommandMock,
   configureUpdaterFeedMock,
-  quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
   requestSingleInstanceLockMock,
@@ -12,42 +10,28 @@ const {
   spawnMock,
   stopHostForUpdateMock,
   appOnMock,
-  updater,
-} = vi.hoisted(() => {
-  const updater: {
-    channel: string | null
-    allowPrerelease: boolean
-    allowDowngrade: boolean
-    autoDownload: boolean
-    autoInstallOnAppQuit: boolean
-    logger: null
-    on: ReturnType<typeof vi.fn>
-    off: ReturnType<typeof vi.fn>
-  } = {
-    channel: null,
-    allowPrerelease: false,
-    allowDowngrade: false,
-    autoDownload: true,
-    autoInstallOnAppQuit: true,
-    logger: null,
-    on: vi.fn(),
-    off: vi.fn(),
-  }
-  return {
-    checkForUpdatesMock: vi.fn(),
-    executeLocalSessionCommandMock: vi.fn(),
-    configureUpdaterFeedMock: vi.fn(),
-    quitAndInstallMock: vi.fn(),
-    writeCliStdoutMock: vi.fn(() => Promise.resolve()),
-    createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
-    requestSingleInstanceLockMock: vi.fn(() => true),
-    releaseSingleInstanceLockMock: vi.fn(),
-    spawnMock: vi.fn(),
-    stopHostForUpdateMock: vi.fn(),
-    appOnMock: vi.fn(),
-    updater,
-  }
-})
+} = vi.hoisted(() => ({
+  executeLocalSessionCommandMock: vi.fn(),
+  configureUpdaterFeedMock: vi.fn(),
+  writeCliStdoutMock: vi.fn(() => Promise.resolve()),
+  createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
+  requestSingleInstanceLockMock: vi.fn(() => true),
+  releaseSingleInstanceLockMock: vi.fn(),
+  spawnMock: vi.fn(),
+  stopHostForUpdateMock: vi.fn(),
+  appOnMock: vi.fn(),
+}))
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
+
+/** The engine finds `version` and reports it downloaded right after the check. */
+function offerDownloaded(version: string) {
+  engine.checkForUpdates.mockImplementation(async () => {
+    queueMicrotask(() => engine.report.downloaded(version))
+    return { version, download: Promise.resolve(), cancelDownload: vi.fn() }
+  })
+}
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('../desktop-shell/app-lifecycle', async () => ({
@@ -70,12 +54,7 @@ vi.mock('../desktop-shell/system-integration', async () => ({
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
   }),
 }))
-vi.mock('electron-updater', () => ({
-  autoUpdater: Object.assign(updater, {
-    checkForUpdates: checkForUpdatesMock,
-    quitAndInstall: quitAndInstallMock,
-  }),
-}))
+vi.mock('../desktop-shell/update-engine', () => ({ updateEngine: engine }))
 vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: executeLocalSessionCommandMock,
 }))
@@ -96,10 +75,7 @@ import { runUpdateCli } from '../update-cli'
 describe('update CLI with the desktop app', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    updater.channel = null
-    updater.allowPrerelease = false
-    updater.allowDowngrade = false
-    updater.autoDownload = true
+    engine.reset()
     executeLocalSessionCommandMock.mockImplementation(
       ({ payload }: { readonly payload: { readonly request: { readonly operation: string } } }) =>
         Promise.resolve({
@@ -110,7 +86,6 @@ describe('update CLI with the desktop app', () => {
           },
         }),
     )
-    checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
     configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v0.4.1' })
     requestSingleInstanceLockMock.mockReturnValue(true)
@@ -124,42 +99,24 @@ describe('update CLI with the desktop app', () => {
 
   it('installs silently without opening the app when the desktop app is closed', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
-    updater.on.mockImplementation(
-      (event: string, listener: (info: { readonly version: string }) => void) => {
-        if (event === 'update-downloaded') queueMicrotask(() => listener({ version: '0.4.1' }))
-        return updater
-      },
-    )
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.4.1' },
-    })
+    offerDownloaded('0.4.1')
 
     await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: true })
 
-    expect(updater.autoDownload).toBe(true)
+    expect(engine.settings.autoDownload).toBe(true)
     expect(releaseSingleInstanceLockMock).toHaveBeenCalledOnce()
     // The old version's Host stops first, as it does for Restart to update.
     expect(stopHostForUpdateMock).toHaveBeenCalledOnce()
     expect(stopHostForUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
-      quitAndInstallMock.mock.invocationCallOrder[0] ?? 0,
+      engine.quitAndInstall.mock.invocationCallOrder[0] ?? 0,
     )
-    expect(quitAndInstallMock).toHaveBeenCalledWith(true, false)
+    expect(engine.quitAndInstall).toHaveBeenCalledWith({ silent: true, relaunch: false })
   })
 
   it('does not install when the user cancels because agent runs are active', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-    updater.on.mockImplementation(
-      (event: string, listener: (info: { readonly version: string }) => void) => {
-        if (event === 'update-downloaded') queueMicrotask(() => listener({ version: '0.4.1' }))
-        return updater
-      },
-    )
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.4.1' },
-    })
+    offerDownloaded('0.4.1')
     stopHostForUpdateMock.mockResolvedValue({ state: 'cancelled', activeRuns: 1 })
 
     // A conflict (exit 6), as `host stop --update` reports a cancel (#351).
@@ -167,25 +124,22 @@ describe('update CLI with the desktop app', () => {
     expect(process.stderr.write).toHaveBeenCalledWith(
       'error [conflict]: Update cancelled. OpenWaggle was not changed.\n',
     )
-    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(engine.quitAndInstall).not.toHaveBeenCalled()
   })
 
-  it('installs through the bundled installer on macOS, where Squirrel always relaunches', async () => {
+  it('installs through the bundled installer on macOS, where the engine always relaunches', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     spawnMock.mockImplementation(() => ({
       once: (event: string, listener: (code: number) => void) => {
         if (event === 'exit') queueMicrotask(() => listener(0))
       },
     }))
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.4.1' },
-    })
+    engine.offer('0.4.1', null)
 
     await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
 
-    expect(updater.autoDownload).toBe(false)
-    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(engine.settings.autoDownload).toBe(false)
+    expect(engine.quitAndInstall).not.toHaveBeenCalled()
     // The install script stops the Host itself, after it quits the app.
     expect(stopHostForUpdateMock).not.toHaveBeenCalled()
     // Ctrl-C reaches the install script, which cancels; this process waits for its status.
@@ -227,10 +181,7 @@ describe('update CLI with the desktop app', () => {
 
   it('leaves installation to a running desktop app so it can protect active runs', async () => {
     requestSingleInstanceLockMock.mockReturnValue(false)
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.4.1' },
-    })
+    engine.offer('0.4.1', null)
 
     await expect(runUpdateCli([])).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
 
@@ -238,9 +189,9 @@ describe('update CLI with the desktop app', () => {
       openwaggleInstanceProbe: 'update-cli',
     })
     expect(releaseSingleInstanceLockMock).not.toHaveBeenCalled()
-    expect(updater.autoDownload).toBe(false)
-    expect(updater.autoInstallOnAppQuit).toBe(false)
-    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(engine.settings.autoDownload).toBe(false)
+    expect(engine.settings.installOnQuit).toBe(false)
+    expect(engine.quitAndInstall).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       expect.stringContaining('Check now, then Restart to update'),
     )

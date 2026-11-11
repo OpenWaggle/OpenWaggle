@@ -1,34 +1,20 @@
-import type { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => {
-  const emitter: { current: EventEmitter | null } = { current: null }
-  return {
-    emitter,
-    broadcast: vi.fn(),
-    checkForUpdates: vi.fn<() => Promise<unknown>>(async () => undefined),
-    quitAndInstall: vi.fn(),
-    recordAttempt: vi.fn(async (..._args: unknown[]) => undefined),
-    settleAttempt: vi.fn<() => Promise<unknown>>(async () => null),
-  }
-})
+const mocks = vi.hoisted(() => ({
+  broadcast: vi.fn(),
+  recordAttempt: vi.fn(async (..._args: unknown[]) => undefined),
+  settleAttempt: vi.fn<() => Promise<unknown>>(async () => null),
+}))
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
 
 vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
   return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => true } }
 })
 vi.mock('@shared/build-identity-runtime', () => ({ BUILD_CHANNEL: 'beta' }))
-vi.mock('electron-updater', async () => {
-  const { EventEmitter: Emitter } = await import('node:events')
-  const emitter = new Emitter()
-  mocks.emitter.current = emitter
-  return {
-    autoUpdater: Object.assign(emitter, {
-      checkForUpdates: () => mocks.checkForUpdates(),
-      quitAndInstall: (...args: unknown[]) => mocks.quitAndInstall(...args),
-    }),
-  }
-})
+vi.mock('../desktop-shell/update-engine', () => ({ updateEngine: engine }))
 vi.mock('../utils/broadcast', () => ({
   broadcastToWindows: (...args: unknown[]) => mocks.broadcast(...args),
 }))
@@ -54,24 +40,19 @@ import {
   isInstallingUpdate,
 } from '../updater'
 
-function emitter() {
-  if (!mocks.emitter.current) throw new Error('autoUpdater emitter not initialized')
-  return mocks.emitter.current
-}
-
 describe('Restart to update', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     mocks.settleAttempt.mockResolvedValue(null)
-    emitter().removeAllListeners()
+    engine.reset()
     disposeAutoUpdater()
   })
 
   afterEach(() => {
     vi.useRealTimers()
     disposeAutoUpdater()
-    emitter().removeAllListeners()
+    engine.reset()
   })
 
   it('shows the restart at once and records the attempt before handing over', async () => {
@@ -81,7 +62,7 @@ describe('Restart to update', () => {
       bundleIdentifier: 'com.openwaggle.app',
     }
     initAutoUpdater('stable', undefined, environment)
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
 
     await installUpdate()
 
@@ -93,31 +74,31 @@ describe('Restart to update', () => {
       attemptedAt: expect.any(Number),
     })
     expect(mocks.recordAttempt.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.quitAndInstall.mock.invocationCallOrder[0] ?? 0,
+      engine.quitAndInstall.mock.invocationCallOrder[0] ?? 0,
     )
   })
 
   it('keeps the installing state while the app quits, even through a re-check', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
     mocks.broadcast.mockClear()
 
     checkForUpdates()
-    emitter().emit('checking-for-update')
-    emitter().emit('update-not-available')
+    engine.report.checking()
+    engine.report.notAvailable()
 
-    expect(mocks.checkForUpdates).not.toHaveBeenCalled()
+    expect(engine.checkForUpdates).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
     expect(getUpdateStatus()).toEqual({ type: 'installing', version: '1.2.3' })
   })
 
   it('reports an installer error instead of looking like it is still restarting', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
 
-    emitter().emit('error', new Error('code signature mismatch'))
+    engine.report.error(new Error('code signature mismatch'))
 
     expect(isInstallingUpdate()).toBe(false)
     // The app did not quit, so the download is still there: say why and offer it again.
@@ -131,7 +112,7 @@ describe('Restart to update', () => {
 
   it('keeps the install flag through the quit, which releases the Host after disposing', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
 
     // before-quit disposes the updater first and asks isInstallingUpdate() afterwards.
@@ -144,7 +125,7 @@ describe('Restart to update', () => {
 
   it('reports a restart that neither quits nor fails, so it can be tried again', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
 
     await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
@@ -164,25 +145,25 @@ describe('Restart to update', () => {
 
   it('keeps releasing the Host once the installer has started the quit', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
     await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
     markUpdateQuit()
 
     // A check failing while the app quits must not cancel the release.
-    emitter().emit('error', new Error('net::ERR_NETWORK_CHANGED'))
+    engine.report.error(new Error('net::ERR_NETWORK_CHANGED'))
 
     expect(shouldReleaseHostOnQuit()).toBe(true)
   })
 
   it('lets the watchdog clear the release again on a later attempt', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
     // The installer announced a quit that did not happen, so the update is offered again.
     markUpdateQuit()
-    emitter().emit('error', new Error('relaunch failed'))
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.error(new Error('relaunch failed'))
+    engine.report.downloaded('1.2.3')
 
     await installUpdate()
     await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
@@ -192,22 +173,22 @@ describe('Restart to update', () => {
 
   it('clears the release on a late installer error after the watchdog', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
     await vi.advanceTimersByTimeAsync(3 * 60 * 1000)
 
-    emitter().emit('error', new Error('code signature mismatch'))
+    engine.report.error(new Error('code signature mismatch'))
 
     expect(shouldReleaseHostOnQuit()).toBe(false)
   })
 
   it('stops releasing the Host on quit once the installer reports an error', async () => {
     initAutoUpdater('stable')
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     await installUpdate()
     expect(shouldReleaseHostOnQuit()).toBe(true)
 
-    emitter().emit('error', new Error('code signature mismatch'))
+    engine.report.error(new Error('code signature mismatch'))
 
     expect(shouldReleaseHostOnQuit()).toBe(false)
   })
@@ -225,14 +206,14 @@ describe('Restart to update', () => {
     })
     await vi.advanceTimersByTimeAsync(0)
 
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     expect(getUpdateStatus()).toEqual({
       type: 'downloaded',
       version: '1.2.3',
       installFailure: 'Version 1.2.3 did not finish installing.',
     })
 
-    emitter().emit('update-downloaded', { version: '1.2.4' })
+    engine.report.downloaded('1.2.4')
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '1.2.4' })
   })
 
@@ -244,7 +225,7 @@ describe('Restart to update', () => {
       currentVersion: '1.2.2',
       bundleIdentifier: 'com.openwaggle.app',
     })
-    emitter().emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '1.2.3' })
 
     settle({

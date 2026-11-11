@@ -209,7 +209,7 @@ describe('updater-handler', () => {
   })
 
   describe('app:get-version', () => {
-    it('returns the app version from electron', async () => {
+    it('returns the app version from the app lifecycle', async () => {
       registerUpdaterHandlers()
 
       const handler = handlers.get('app:get-version')

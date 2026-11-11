@@ -1,5 +1,6 @@
 import type { BuildChannel } from '@shared/types/build-identity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UpdateEngineShape } from '../ports/desktop-shell/update-engine'
 
 const {
   broadcastMock,
@@ -7,19 +8,20 @@ const {
   checkForUpdatesMock,
   configureUpdaterFeedMock,
   quitAndInstallMock,
-  updaterRef,
 } = vi.hoisted(() => {
-  const updaterRef: { current: import('node:events').EventEmitter | null } = { current: null }
   const buildChannel: { value: BuildChannel } = { value: 'alpha' }
   return {
     broadcastMock: vi.fn(),
     buildChannel,
-    checkForUpdatesMock: vi.fn<() => Promise<unknown>>(),
+    checkForUpdatesMock: vi.fn<UpdateEngineShape['checkForUpdates']>(),
     configureUpdaterFeedMock: vi.fn(),
-    quitAndInstallMock: vi.fn(),
-    updaterRef,
+    quitAndInstallMock: vi.fn<UpdateEngineShape['quitAndInstall']>(),
   }
 })
+
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
 
 vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
@@ -30,20 +32,13 @@ vi.mock('@shared/build-identity-runtime', () => ({
     return buildChannel.value
   },
 }))
-vi.mock('electron-updater', async () => {
-  const { EventEmitter } = await import('node:events')
-  const updater = Object.assign(new EventEmitter(), {
-    allowDowngrade: false,
-    allowPrerelease: false,
-    autoDownload: true,
-    autoInstallOnAppQuit: true,
-    logger: null,
+vi.mock('../desktop-shell/update-engine', () => ({
+  updateEngine: {
+    ...engine,
     checkForUpdates: () => checkForUpdatesMock(),
     quitAndInstall: quitAndInstallMock,
-  })
-  updaterRef.current = updater
-  return { autoUpdater: updater }
-})
+  },
+}))
 vi.mock('../update-feed', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../update-feed')>()),
   configureUpdaterFeed: (...args: unknown[]) => configureUpdaterFeedMock(...args),
@@ -73,25 +68,25 @@ describe('updater overlapping checks', () => {
     configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v0.5.0-alpha.1' })
     quitAndInstallMock.mockReset()
     broadcastMock.mockReset()
-    updaterRef.current?.removeAllListeners()
+    engine.reset()
     disposeAutoUpdater()
   })
 
   afterEach(() => {
     disposeAutoUpdater()
-    updaterRef.current?.removeAllListeners()
+    engine.reset()
     vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
   it('waits for an active check before checking the newly selected channel', async () => {
-    let resolveFirstCheck: ((value: { readonly isUpdateAvailable: false }) => void) | undefined
+    let resolveFirstCheck: ((value: null) => void) | undefined
     checkForUpdatesMock.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveFirstCheck = resolve
       }),
     )
-    checkForUpdatesMock.mockResolvedValue(undefined)
+    checkForUpdatesMock.mockResolvedValue(null)
     initAutoUpdater('alpha')
 
     checkForUpdates('alpha')
@@ -99,10 +94,10 @@ describe('updater overlapping checks', () => {
     checkForUpdates('stable')
     await vi.advanceTimersByTimeAsync(0)
     expect(checkForUpdatesMock).toHaveBeenCalledOnce()
-    updaterRef.current?.emit('update-not-available')
+    engine.report.notAvailable()
     expect(broadcastMock).not.toHaveBeenCalled()
 
-    resolveFirstCheck?.({ isUpdateAvailable: false })
+    resolveFirstCheck?.(null)
     await vi.advanceTimersByTimeAsync(0)
 
     expect(checkForUpdatesMock).toHaveBeenCalledTimes(2)
@@ -117,7 +112,7 @@ describe('updater overlapping checks', () => {
           resolveRead = resolve
         }),
     )
-    checkForUpdatesMock.mockResolvedValue(undefined)
+    checkForUpdatesMock.mockResolvedValue(null)
     initAutoUpdater('alpha', readChannel)
 
     checkForUpdates()
@@ -129,7 +124,7 @@ describe('updater overlapping checks', () => {
 
     expect(configureUpdaterFeedMock).toHaveBeenCalledTimes(1)
     expect(configureUpdaterFeedMock).toHaveBeenLastCalledWith(expect.anything(), 'stable')
-    expect(updaterRef.current).toHaveProperty('channel', 'latest')
+    expect(engine.settings.feedChannel).toBe('latest')
   })
 
   it('waits for a cancelled download to settle before checking the replacement channel', async () => {
@@ -140,12 +135,11 @@ describe('updater overlapping checks', () => {
     })
     checkForUpdatesMock
       .mockResolvedValueOnce({
-        cancellationToken: { cancel },
-        downloadPromise,
-        isUpdateAvailable: true,
-        updateInfo: { version: '0.5.0-alpha.1' },
+        version: '0.5.0-alpha.1',
+        download: downloadPromise,
+        cancelDownload: cancel,
       })
-      .mockResolvedValue(undefined)
+      .mockResolvedValue(null)
     initAutoUpdater('alpha')
 
     checkForUpdates('alpha')
@@ -175,22 +169,17 @@ describe('updater overlapping checks', () => {
     const downloadPromise = new Promise<void>((resolve) => {
       settleDownload = resolve
     })
-    // electron-updater announces the check and the update while checkForUpdates runs.
+    // The engine announces the check and the update while checkForUpdates runs.
     checkForUpdatesMock.mockImplementationOnce(async () => {
-      updaterRef.current?.emit('checking-for-update')
-      updaterRef.current?.emit('update-available', { version: '0.5.0-alpha.1' })
-      return {
-        isUpdateAvailable: true,
-        updateInfo: { version: '0.5.0-alpha.1' },
-        cancellationToken: { cancel },
-        downloadPromise,
-      }
+      engine.report.checking()
+      engine.report.available('0.5.0-alpha.1')
+      return { version: '0.5.0-alpha.1', download: downloadPromise, cancelDownload: cancel }
     })
     initAutoUpdater('stable')
 
     checkForUpdates('stable')
     await vi.advanceTimersByTimeAsync(0)
-    updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
+    engine.report.downloaded('0.5.0-alpha.1')
 
     expect(cancel).toHaveBeenCalledOnce()
     expect(getUpdateStatus()).toEqual({ type: 'not-available' })
@@ -229,32 +218,32 @@ describe('updater overlapping checks', () => {
     })
   })
 
-  it('keeps macOS downloads out of Squirrel until an eligible Restart action', async () => {
+  it('installs a macOS download only on an eligible Restart action', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     checkForUpdatesMock.mockResolvedValueOnce({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.5.0' },
-      downloadPromise: Promise.resolve([]),
+      version: '0.5.0',
+      download: Promise.resolve([]),
+      cancelDownload: vi.fn(),
     })
     initAutoUpdater('alpha')
-    updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
-    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
+    engine.report.downloaded('0.5.0-alpha.1')
+    expect(engine.settings.installOnQuit).toBe(false)
 
     checkForUpdates('stable')
     await Promise.resolve()
-    updaterRef.current?.emit('update-available', { version: '0.5.0' })
-    updaterRef.current?.emit('update-downloaded', { version: '0.5.0' })
+    engine.report.available('0.5.0')
+    engine.report.downloaded('0.5.0')
     await Promise.resolve()
 
-    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
+    expect(engine.settings.installOnQuit).toBe(false)
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '0.5.0' })
     await installUpdate()
-    expect(quitAndInstallMock).toHaveBeenCalledWith(true, true)
+    expect(quitAndInstallMock).toHaveBeenCalledWith({ silent: true, relaunch: true })
   })
 
   it('reports and clears how many runs Restart when idle is waiting for', () => {
     initAutoUpdater('stable')
-    updaterRef.current?.emit('update-downloaded', { version: '1.2.3' })
+    engine.report.downloaded('1.2.3')
     setUpdateWaitingForRuns(2)
     expect(getUpdateStatus()).toEqual({ type: 'downloaded', version: '1.2.3', waitingForRuns: 2 })
     setUpdateWaitingForRuns(null)
@@ -264,13 +253,13 @@ describe('updater overlapping checks', () => {
   it('re-reads the authoritative channel before installing a downloaded update', async () => {
     const readChannel = vi.fn().mockResolvedValue('stable')
     initAutoUpdater('alpha', readChannel)
-    updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
+    engine.report.downloaded('0.5.0-alpha.1')
 
     await installUpdate()
 
     expect(readChannel).toHaveBeenCalledOnce()
     expect(quitAndInstallMock).not.toHaveBeenCalled()
-    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
+    expect(engine.settings.installOnQuit).toBe(false)
     expect(getUpdateStatus()).toEqual({ type: 'not-available' })
   })
 
@@ -278,8 +267,8 @@ describe('updater overlapping checks', () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
 
     initAutoUpdater('stable')
-    updaterRef.current?.emit('update-downloaded', { version: '0.4.1' })
+    engine.report.downloaded('0.4.1')
 
-    expect(updaterRef.current).toHaveProperty('autoInstallOnAppQuit', false)
+    expect(engine.settings.installOnQuit).toBe(false)
   })
 })

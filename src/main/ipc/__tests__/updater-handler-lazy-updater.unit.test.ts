@@ -22,7 +22,7 @@ vi.mock('../../runtime', () => ({
   runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
   runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
-// The real updater imports electron-updater; its factory runs when the module is first loaded.
+// The real updater imports the update engine; this factory runs when the module is first loaded.
 vi.mock('../../updater', () => {
   updaterModuleLoaded()
   return { checkForUpdates: mockCheckForUpdates, installUpdate: vi.fn() }
@@ -46,7 +46,7 @@ vi.mock('../../desktop-ui', () => ({
 }))
 
 describe('updater IPC handlers', () => {
-  it('do not load the updater, and electron-updater with it, until a check needs it', async () => {
+  it('do not load the updater, and the update engine with it, until a check needs it', async () => {
     const { registerUpdaterHandlers } = await import('../updater-handler')
 
     registerUpdaterHandlers()

@@ -1,35 +1,26 @@
 import type { BuildChannel } from '@shared/types/build-identity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// vi.hoisted() callbacks are hoisted above all imports, so they cannot reference
-// imported symbols. Use a plain object container to share the emitter from the
-// vi.mock factory (which also runs before module-scope code but after Node is ready).
 const {
   mockIsDev,
   mockBuildChannel,
   mockBroadcastToWindows,
-  mockCheckForUpdatesFn,
   mockConfigureUpdaterFeed,
   mockCancelDownload,
-  mockQuitAndInstall,
-  autoUpdaterRef,
 } = vi.hoisted(() => {
-  const autoUpdaterRef: {
-    current: import('node:events').EventEmitter | null
-  } = { current: null }
   const mockBuildChannel: { value: BuildChannel } = { value: 'alpha' }
 
   return {
     mockIsDev: { value: false },
     mockBuildChannel,
     mockBroadcastToWindows: vi.fn(),
-    mockCheckForUpdatesFn: vi.fn<() => Promise<unknown>>(() => Promise.resolve()),
     mockConfigureUpdaterFeed: vi.fn(),
     mockCancelDownload: vi.fn(),
-    mockQuitAndInstall: vi.fn(),
-    autoUpdaterRef,
   }
 })
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
 
 vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
@@ -42,28 +33,7 @@ vi.mock('@shared/build-identity-runtime', () => ({
   },
 }))
 
-vi.mock('electron-updater', async () => {
-  // EventEmitter is available here — vi.mock factories execute in Node context
-  // after vi.hoisted() but before module-scope code outside mocks.
-  const { EventEmitter } = await import('node:events')
-  const emitter = new EventEmitter()
-
-  // Expose to outer scope so tests can emit events and inspect listeners.
-  autoUpdaterRef.current = emitter
-
-  const autoUpdater = Object.assign(emitter, {
-    allowDowngrade: false,
-    allowPrerelease: false,
-    autoDownload: true,
-    autoInstallOnAppQuit: true,
-    logger: null,
-    checkForUpdates: () => mockCheckForUpdatesFn(),
-    quitAndInstall: (isSilent: boolean, isForceRunAfter: boolean) =>
-      mockQuitAndInstall(isSilent, isForceRunAfter),
-  })
-
-  return { autoUpdater }
-})
+vi.mock('../desktop-shell/update-engine', () => ({ updateEngine: engine }))
 
 vi.mock('../utils/broadcast', () => ({
   broadcastToWindows: (...args: unknown[]) => mockBroadcastToWindows(...args),
@@ -91,33 +61,24 @@ import {
   installUpdate,
 } from '../updater'
 
-// Convenience getter so tests read more cleanly.
-function emitter() {
-  if (!autoUpdaterRef.current) throw new Error('autoUpdater emitter not initialized')
-  return autoUpdaterRef.current
-}
-
 describe('updater service', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mockIsDev.value = false
     mockBuildChannel.value = 'alpha'
     mockBroadcastToWindows.mockReset()
-    mockCheckForUpdatesFn.mockReset()
     mockConfigureUpdaterFeed.mockReset()
     // The feed lists a release, so each check goes on to ask the updater.
     mockConfigureUpdaterFeed.mockResolvedValue({ type: 'release', tag: 'v0.5.0-alpha.1' })
     mockCancelDownload.mockReset()
-    mockQuitAndInstall.mockReset()
-    mockCheckForUpdatesFn.mockResolvedValue(undefined)
-    emitter().removeAllListeners()
+    engine.reset()
     disposeAutoUpdater()
   })
 
   afterEach(() => {
     vi.useRealTimers()
     disposeAutoUpdater()
-    emitter().removeAllListeners()
+    engine.reset()
   })
 
   describe('getUpdateStatus', () => {
@@ -131,29 +92,29 @@ describe('updater service', () => {
     it('is a no-op in dev mode', () => {
       mockIsDev.value = true
       checkForUpdates()
-      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
+      expect(engine.checkForUpdates).not.toHaveBeenCalled()
     })
 
-    it('calls autoUpdater.checkForUpdates in prod mode', async () => {
+    it('asks the update engine to check in prod mode', async () => {
       mockIsDev.value = false
       checkForUpdates()
-      await vi.waitFor(() => expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce())
+      await vi.waitFor(() => expect(engine.checkForUpdates).toHaveBeenCalledOnce())
     })
 
     it('is a no-op for dev channel builds even outside dev mode', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'dev'
       checkForUpdates()
-      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
+      expect(engine.checkForUpdates).not.toHaveBeenCalled()
     })
   })
 
   describe('installUpdate', () => {
     it('installs silently and forces the app to relaunch', async () => {
       initAutoUpdater('stable')
-      emitter().emit('update-downloaded', { version: '1.2.3' })
+      engine.report.downloaded('1.2.3')
       await installUpdate()
-      expect(mockQuitAndInstall).toHaveBeenCalledWith(true, true)
+      expect(engine.quitAndInstall).toHaveBeenCalledWith({ silent: true, relaunch: true })
     })
   })
 
@@ -162,27 +123,22 @@ describe('updater service', () => {
       mockIsDev.value = true
       initAutoUpdater('alpha')
       vi.advanceTimersByTime(10_000)
-      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
-      expect(emitter().listenerCount('checking-for-update')).toBe(0)
+      expect(engine.checkForUpdates).not.toHaveBeenCalled()
+      expect(engine.listenerCounts().checking).toBe(0)
     })
 
     it('registers event listeners in prod mode', () => {
       mockIsDev.value = false
       initAutoUpdater('alpha')
-      expect(emitter().listenerCount('checking-for-update')).toBeGreaterThan(0)
-      expect(emitter().listenerCount('update-available')).toBeGreaterThan(0)
-      expect(emitter().listenerCount('update-not-available')).toBeGreaterThan(0)
-      expect(emitter().listenerCount('download-progress')).toBeGreaterThan(0)
-      expect(emitter().listenerCount('update-downloaded')).toBeGreaterThan(0)
-      expect(emitter().listenerCount('error')).toBeGreaterThan(0)
+      for (const count of Object.values(engine.listenerCounts())) expect(count).toBeGreaterThan(0)
     })
 
     it('triggers an initial checkForUpdates after the startup delay', async () => {
       mockIsDev.value = false
       initAutoUpdater('alpha')
-      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
+      expect(engine.checkForUpdates).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(5_001)
-      expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+      expect(engine.checkForUpdates).toHaveBeenCalledOnce()
     })
 
     it('refreshes the authoritative channel before periodic checks', async () => {
@@ -200,11 +156,10 @@ describe('updater service', () => {
     })
 
     it('cancels and invalidates an Alpha download when switching to Stable', async () => {
-      mockCheckForUpdatesFn.mockResolvedValueOnce({
-        isUpdateAvailable: true,
-        updateInfo: { version: '0.5.0-alpha.1' },
-        cancellationToken: { cancel: mockCancelDownload },
-        downloadPromise: Promise.resolve([]),
+      engine.checkForUpdates.mockResolvedValueOnce({
+        version: '0.5.0-alpha.1',
+        cancelDownload: mockCancelDownload,
+        download: Promise.resolve([]),
       })
       initAutoUpdater('alpha')
 
@@ -214,26 +169,26 @@ describe('updater service', () => {
       checkForUpdates('stable')
 
       expect(mockCancelDownload).toHaveBeenCalledOnce()
-      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+      expect(engine.settings.installOnQuit).toBe(false)
     })
 
     it('invalidates an already downloaded Alpha update when switching to Stable', async () => {
       initAutoUpdater('alpha')
-      emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
-      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+      engine.report.downloaded('0.5.0-alpha.1')
+      expect(engine.settings.installOnQuit).toBe(false)
 
       checkForUpdates('stable')
 
-      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+      expect(engine.settings.installOnQuit).toBe(false)
       expect(getUpdateStatus()).not.toEqual({ type: 'downloaded', version: '0.5.0-alpha.1' })
       await installUpdate()
-      expect(mockQuitAndInstall).not.toHaveBeenCalled()
+      expect(engine.quitAndInstall).not.toHaveBeenCalled()
       mockBroadcastToWindows.mockClear()
 
-      emitter().emit('update-available', { version: '0.5.0-alpha.1' })
-      emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
+      engine.report.available('0.5.0-alpha.1')
+      engine.report.downloaded('0.5.0-alpha.1')
 
-      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+      expect(engine.settings.installOnQuit).toBe(false)
       const statusTypes = mockBroadcastToWindows.mock.calls.map(([, status]) => status.type)
       expect(statusTypes).not.toContain('available')
       expect(statusTypes).not.toContain('downloaded')
@@ -244,61 +199,58 @@ describe('updater service', () => {
       mockBuildChannel.value = 'dev'
       initAutoUpdater('alpha')
       vi.advanceTimersByTime(10_000)
-      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
-      expect(emitter().listenerCount('checking-for-update')).toBe(0)
+      expect(engine.checkForUpdates).not.toHaveBeenCalled()
+      expect(engine.listenerCounts().checking).toBe(0)
     })
 
-    it('uses the Alpha feed, allows prereleases, and still prevents downgrades', () => {
+    it('uses the Alpha feed and allows prereleases', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'alpha'
       initAutoUpdater('alpha')
-      expect(emitter()).toHaveProperty('channel', 'alpha')
-      expect(emitter()).toHaveProperty('allowPrerelease', true)
-      expect(emitter()).toHaveProperty('allowDowngrade', false)
+      // The engine never downgrades (UpdateEngine.configure), whatever the channel allows.
+      expect(engine.settings).toMatchObject({ feedChannel: 'alpha', allowPrerelease: true })
     })
 
-    it('maps the Stable preference to the electron-updater latest feed', () => {
+    it('maps the Stable preference to the latest feed channel', () => {
       initAutoUpdater('stable')
-      expect(emitter()).toHaveProperty('channel', 'latest')
-      expect(emitter()).toHaveProperty('allowPrerelease', false)
-      expect(emitter()).toHaveProperty('allowDowngrade', false)
+      expect(engine.settings).toMatchObject({ feedChannel: 'latest', allowPrerelease: false })
     })
   })
 
-  describe('status broadcasting via autoUpdater events', () => {
+  describe('status broadcasting from update engine events', () => {
     beforeEach(() => {
       mockIsDev.value = false
       initAutoUpdater('alpha')
     })
 
-    it('broadcasts checking status on checking-for-update event', () => {
-      emitter().emit('checking-for-update')
+    it('broadcasts checking status when the engine starts checking', () => {
+      engine.report.checking()
       expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
         type: 'checking',
       })
     })
 
-    it('broadcasts available status with version on update-available event', () => {
-      emitter().emit('update-available', { version: '1.2.3' })
+    it('broadcasts available status with version when the engine finds an update', () => {
+      engine.report.available('1.2.3')
       expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
         type: 'available',
         version: '1.2.3',
       })
     })
 
-    it('broadcasts not-available status on update-not-available event', () => {
-      emitter().emit('update-not-available')
+    it('broadcasts not-available status when the engine finds none', () => {
+      engine.report.notAvailable()
       expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
         type: 'not-available',
       })
     })
 
-    it('broadcasts downloading status with percent rounded to integer on download-progress event', () => {
+    it('broadcasts downloading status with percent rounded to integer as the download progresses', () => {
       // Emit available first so the version is tracked by the service
-      emitter().emit('update-available', { version: '2.0.0' })
+      engine.report.available('2.0.0')
       mockBroadcastToWindows.mockClear()
 
-      emitter().emit('download-progress', { percent: 42.7 })
+      engine.report.progress(42.7)
       expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
         type: 'downloading',
         version: '2.0.0',
@@ -307,20 +259,20 @@ describe('updater service', () => {
     })
 
     it('ignores download progress before a channel-eligible available event', () => {
-      emitter().emit('download-progress', { percent: 10.0 })
+      engine.report.progress(10.0)
       expect(mockBroadcastToWindows).not.toHaveBeenCalled()
     })
 
-    it('broadcasts downloaded status with version on update-downloaded event', () => {
-      emitter().emit('update-downloaded', { version: '3.0.0' })
+    it('broadcasts downloaded status with version once the engine has downloaded it', () => {
+      engine.report.downloaded('3.0.0')
       expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
         type: 'downloaded',
         version: '3.0.0',
       })
     })
 
-    it('broadcasts error status on error event', () => {
-      emitter().emit('error', new Error('network failure'))
+    it('broadcasts error status when the engine fails', () => {
+      engine.report.error(new Error('network failure'))
       expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
         type: 'error',
         message: 'network failure',
@@ -334,13 +286,13 @@ describe('updater service', () => {
       initAutoUpdater('alpha')
 
       await vi.advanceTimersByTimeAsync(5_001)
-      expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
-      mockCheckForUpdatesFn.mockClear()
+      expect(engine.checkForUpdates).toHaveBeenCalledOnce()
+      engine.checkForUpdates.mockClear()
 
       disposeAutoUpdater()
 
       vi.advanceTimersByTime(4 * 60 * 60 * 1_000 + 1)
-      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
+      expect(engine.checkForUpdates).not.toHaveBeenCalled()
     })
 
     it('is safe to call when no interval is active', () => {

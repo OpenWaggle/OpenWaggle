@@ -1,54 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  checkForUpdatesMock,
   executeLocalSessionCommandMock,
   configureUpdaterFeedMock,
-  quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
   requestSingleInstanceLockMock,
   releaseSingleInstanceLockMock,
   spawnMock,
   stopHostForUpdateMock,
-  updater,
-} = vi.hoisted(() => {
-  const updater: {
-    channel: string | null
-    allowPrerelease: boolean
-    allowDowngrade: boolean
-    autoDownload: boolean
-    autoInstallOnAppQuit: boolean
-    logger: null
-    on: ReturnType<typeof vi.fn>
-    off: ReturnType<typeof vi.fn>
-  } = {
-    channel: null,
-    allowPrerelease: false,
-    allowDowngrade: false,
-    autoDownload: true,
-    autoInstallOnAppQuit: true,
-    logger: null,
-    on: vi.fn(),
-    off: vi.fn(),
-  }
-  return {
-    checkForUpdatesMock: vi.fn(),
-    executeLocalSessionCommandMock: vi.fn(),
-    configureUpdaterFeedMock: vi.fn(),
-    quitAndInstallMock: vi.fn(),
-    writeCliStdoutMock: vi.fn(() => Promise.resolve()),
-    createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
-    requestSingleInstanceLockMock: vi.fn(() => true),
-    releaseSingleInstanceLockMock: vi.fn(),
-    spawnMock: vi.fn(),
-    stopHostForUpdateMock: vi.fn(),
-    updater,
-  }
-})
-
-/** The update engine's feed setter, which `configureUpdaterFeed` receives. */
-const FEED_TARGET = expect.objectContaining({ setFeedURL: expect.any(Function) })
+} = vi.hoisted(() => ({
+  executeLocalSessionCommandMock: vi.fn(),
+  configureUpdaterFeedMock: vi.fn(),
+  writeCliStdoutMock: vi.fn(() => Promise.resolve()),
+  createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
+  requestSingleInstanceLockMock: vi.fn(() => true),
+  releaseSingleInstanceLockMock: vi.fn(),
+  spawnMock: vi.fn(),
+  stopHostForUpdateMock: vi.fn(),
+}))
+const engine = await vi.hoisted(async () =>
+  (await import('../test-support/fake-update-engine')).fakeUpdateEngine(),
+)
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('../desktop-shell/app-lifecycle', async () => ({
@@ -67,12 +40,7 @@ vi.mock('../desktop-shell/system-integration', async () => ({
     releaseSingleInstanceLock: releaseSingleInstanceLockMock,
   }),
 }))
-vi.mock('electron-updater', () => ({
-  autoUpdater: Object.assign(updater, {
-    checkForUpdates: checkForUpdatesMock,
-    quitAndInstall: quitAndInstallMock,
-  }),
-}))
+vi.mock('../desktop-shell/update-engine', () => ({ updateEngine: engine }))
 vi.mock('../session-host/local-session-client', () => ({
   executeLocalSessionCommand: executeLocalSessionCommandMock,
 }))
@@ -93,10 +61,7 @@ import { runUpdateCli } from '../update-cli'
 describe('update CLI', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    updater.channel = null
-    updater.allowPrerelease = false
-    updater.allowDowngrade = false
-    updater.autoDownload = true
+    engine.reset()
     executeLocalSessionCommandMock.mockImplementation(
       ({
         payload,
@@ -113,7 +78,6 @@ describe('update CLI', () => {
           },
         }),
     )
-    checkForUpdatesMock.mockResolvedValue(null)
     configureUpdaterFeedMock.mockReset()
     configureUpdaterFeedMock.mockResolvedValue({ type: 'release', tag: 'v1.0.0-beta.25' })
     requestSingleInstanceLockMock.mockReturnValue(true)
@@ -135,10 +99,7 @@ describe('update CLI', () => {
   })
 
   it('checks an explicit channel without saving it', async () => {
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '1.0.0-rc.1' },
-    })
+    engine.offer('1.0.0-rc.1', null)
 
     await expect(runUpdateCli(['--channel', 'alpha', '--check'])).resolves.toEqual({
       exitCode: 0,
@@ -148,11 +109,12 @@ describe('update CLI', () => {
     // --check is read-only: the saved channel is neither changed nor needed.
     expect(executeLocalSessionCommandMock).not.toHaveBeenCalled()
     expect(createClientMock).not.toHaveBeenCalled()
-    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(FEED_TARGET, 'alpha')
-    expect(updater.channel).toBe('alpha')
-    expect(updater.allowPrerelease).toBe(true)
-    expect(updater.allowDowngrade).toBe(false)
-    expect(updater.autoDownload).toBe(false)
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(engine, 'alpha')
+    expect(engine.settings).toMatchObject({
+      feedChannel: 'alpha',
+      allowPrerelease: true,
+      autoDownload: false,
+    })
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       'OpenWaggle 1.0.0-rc.1 is available on the alpha channel. The saved update channel was not changed.\n',
     )
@@ -179,7 +141,7 @@ describe('update CLI', () => {
         },
       }),
     )
-    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(FEED_TARGET, 'alpha')
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(engine, 'alpha')
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       'OpenWaggle is up to date on the alpha channel.\n',
     )
@@ -193,7 +155,7 @@ describe('update CLI', () => {
 
     await expect(runUpdateCli(args)).resolves.toEqual({ exitCode: 0, updaterOwnsExit: false })
 
-    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(engine.checkForUpdates).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       `OpenWaggle is up to date on the stable channel: no release is available on it yet.${unsaved}\n`,
     )
@@ -210,8 +172,8 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
 
-    expect(updater.channel).toBe('beta')
-    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(FEED_TARGET, 'beta')
+    expect(engine.settings.feedChannel).toBe('beta')
+    expect(configureUpdaterFeedMock).toHaveBeenCalledWith(engine, 'beta')
     expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
@@ -225,26 +187,8 @@ describe('update CLI', () => {
     )
   })
 
-  it('reports no update when the feed metadata describes the installed version', async () => {
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: false,
-      updateInfo: { version: '0.4.0' },
-    })
-
-    await expect(runUpdateCli(['--check'])).resolves.toEqual({
-      exitCode: 0,
-      updaterOwnsExit: false,
-    })
-    expect(writeCliStdoutMock).toHaveBeenCalledWith(
-      'OpenWaggle is up to date on the stable channel.\n',
-    )
-  })
-
   it('rejects an update that is ineligible for the selected channel', async () => {
-    checkForUpdatesMock.mockResolvedValue({
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.5.0-alpha.2' },
-    })
+    engine.offer('0.5.0-alpha.2', null)
 
     await expect(runUpdateCli(['--check'])).resolves.toEqual({
       exitCode: 1,
@@ -257,24 +201,18 @@ describe('update CLI', () => {
 
   it('cancels an ineligible channel download without installing it', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
-    const cancel = vi.fn()
-    checkForUpdatesMock.mockResolvedValue({
-      cancellationToken: { cancel },
-      downloadPromise: Promise.reject(new Error('cancelled')),
-      isUpdateAvailable: true,
-      updateInfo: { version: '0.5.0-alpha.2' },
-    })
+    const { cancelDownload } = engine.offer('0.5.0-alpha.2', Promise.reject(new Error('cancelled')))
 
     await expect(runUpdateCli([])).resolves.toEqual({
       exitCode: 1,
       updaterOwnsExit: false,
     })
 
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(updater.autoInstallOnAppQuit).toBe(false)
-    expect(updater.off).toHaveBeenCalledWith('update-downloaded', expect.any(Function))
-    expect(updater.off).toHaveBeenCalledWith('error', expect.any(Function))
-    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(cancelDownload).toHaveBeenCalledOnce()
+    expect(engine.settings.installOnQuit).toBe(false)
+    // The download waiter stopped listening.
+    expect(engine.listenerCounts()).toMatchObject({ downloaded: 0, error: 0 })
+    expect(engine.quitAndInstall).not.toHaveBeenCalled()
     expect(writeCliStdoutMock).not.toHaveBeenCalledWith(
       expect.stringMatching(/Downloading|Installing/u),
     )
@@ -301,7 +239,7 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
 
-    checkForUpdatesMock.mockRejectedValueOnce(new Error('feed unavailable'))
+    engine.checkForUpdates.mockRejectedValueOnce(new Error('feed unavailable'))
     await expect(runUpdateCli(['--check'])).resolves.toEqual({
       exitCode: 1,
       updaterOwnsExit: false,
@@ -313,10 +251,8 @@ describe('update CLI', () => {
     const onUnhandled = (reason: unknown) => unhandled.push(reason)
     process.on('unhandledRejection', onUnhandled)
     try {
-      checkForUpdatesMock.mockImplementation(() => {
-        const errorRegistration = updater.on.mock.calls.find(([event]) => event === 'error')
-        const errorListener = errorRegistration?.[1]
-        if (typeof errorListener === 'function') errorListener(new Error('download failed'))
+      engine.checkForUpdates.mockImplementation(() => {
+        engine.report.error(new Error('download failed'))
         return Promise.reject(new Error('metadata failed'))
       })
 
