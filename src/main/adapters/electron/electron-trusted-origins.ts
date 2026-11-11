@@ -19,4 +19,8 @@ export const electronTrustedOrigins: TrustedOriginsShape = {
     ),
   serve: (domain, handler) => protocol.handle(TRUSTED_ORIGIN_SCHEMES[domain], handler),
   originOf: (domain, host) => `${TRUSTED_ORIGIN_SCHEMES[domain]}://${host}`,
+  // A scheme source matches every host of the scheme; hosts differ only by origin.
+  sourcesOf: (domain) => [`${TRUSTED_ORIGIN_SCHEMES[domain]}:`],
+  // A custom scheme serves every host without allocating anything per host.
+  release: () => undefined,
 }

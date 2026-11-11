@@ -11,7 +11,8 @@ import { Context } from 'effect'
  * - `session-resource`: Session images and files the renderer displays.
  *
  * Electron serves a privileged custom scheme per domain (`TRUSTED_ORIGIN_SCHEMES`) through
- * `protocol.handle`.
+ * `protocol.handle`. Electrobun serves a `Bun.serve` origin on `127.0.0.1` per domain and host,
+ * which answers only requests under that host's capability path (`electrobun-trusted-origins.ts`).
  */
 export type TrustedOriginDomain =
   | 'renderer'
@@ -40,8 +41,23 @@ export interface TrustedOriginsShape {
   readonly declare: (declarations: readonly TrustedOriginDeclaration[]) => void
   /** Serves a declared domain: from now on every request to it reaches `handler`. */
   readonly serve: (domain: TrustedOriginDomain, handler: TrustedOriginHandler) => void
-  /** The origin (`scheme://host`) of `host` in a declared domain, as pages address it. */
+  /**
+   * Where pages address `host` of a declared domain: its origin, plus the path prefix the shell
+   * needs, with no trailing slash. Pages request `${originOf(domain, host)}/path`, and the domain
+   * handler sees that request as `<scheme>://<host>/path` (`TRUSTED_ORIGIN_SCHEMES`) on every
+   * shell. Distinct domains and distinct hosts of one domain are distinct web origins.
+   */
   readonly originOf: (domain: TrustedOriginDomain, host: string) => string
+  /**
+   * The Content Security Policy sources that match `hosts` of `domain`, or every host of it when
+   * `hosts` is omitted (for hosts allocated after the policy is written, such as per-frame hosts).
+   */
+  readonly sourcesOf: (domain: TrustedOriginDomain, hosts?: readonly string[]) => readonly string[]
+  /**
+   * Stops serving `host` of `domain` once nothing addresses it (a frame was unregistered). A
+   * later `originOf` serves it again, perhaps from another origin.
+   */
+  readonly release: (domain: TrustedOriginDomain, host: string) => void
 }
 
 export class TrustedOrigins extends Context.Tag('@openwaggle/TrustedOrigins')<
