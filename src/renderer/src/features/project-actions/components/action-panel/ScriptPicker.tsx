@@ -24,7 +24,7 @@ interface ScriptPickerProps {
 }
 
 /** A roomy script list: the common scripts first, the rest behind "Show all" or a search. */
-export function ScriptPicker(props: ScriptPickerProps) {
+export function ScriptPicker({ rootRef, ...props }: ScriptPickerProps) {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(false)
   const ranked = rankScripts(props.tasks)
@@ -58,7 +58,7 @@ export function ScriptPicker(props: ScriptPickerProps) {
     )
   }
   return (
-    <div ref={props.rootRef} className="grid min-w-0 grid-cols-1 gap-2.5">
+    <div ref={rootRef} className="grid min-w-0 grid-cols-1 gap-2.5">
       {ranked.length > COLLAPSED_SCRIPT_COUNT ? (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-tertiary" />

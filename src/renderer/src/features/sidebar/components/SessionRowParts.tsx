@@ -110,7 +110,8 @@ export function SessionRowTitle({
   readonly rename: SessionTitleRenameController
   readonly onSelect: () => void
 }) {
-  if (rename.isEditing) {
+  const { isEditing, returnFocusRef, start: startRename } = rename
+  if (isEditing) {
     return (
       <span
         data-qa="sidebar-row-title-line"
@@ -133,19 +134,19 @@ export function SessionRowTitle({
        * layered above it.
        */}
       <Button
-        ref={rename.returnFocusRef}
+        ref={returnFocusRef}
         variant="unstyled"
         type="button"
         onClick={onSelect}
         onDoubleClick={(event) => {
           if (!isTitleText(event.target)) return
           event.preventDefault()
-          rename.start()
+          startRename()
         }}
         onKeyDown={(event) => {
           if (event.key !== RENAME_KEY) return
           event.preventDefault()
-          rename.start()
+          startRename()
         }}
         className="min-w-0 flex-1 truncate text-left leading-normal after:absolute after:inset-0 after:content-['']"
       >

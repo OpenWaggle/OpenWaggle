@@ -52,7 +52,11 @@ function selectionEndClientRect(terminal: Terminal | null) {
   }
 }
 
-export function createTerminalPaneActions(options: TerminalPaneActionOptions) {
+/**
+ * The pane's imperative actions. A hook, though it calls none, so the pane may hand it its refs
+ * during render: every action reads them only when it runs.
+ */
+export function useTerminalPaneActions(options: TerminalPaneActionOptions) {
   const focus = () => options.terminalRef.current?.focus()
   const restart = async (next?: TerminalRestartOptions) => options.restartRef.current?.(next)
   const sendInputNow = () => {

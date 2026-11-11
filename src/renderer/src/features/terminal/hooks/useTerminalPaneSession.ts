@@ -17,10 +17,7 @@ import {
 } from '../lib/terminal-input-attachment'
 import { terminalInputDispatcher } from '../lib/terminal-input-dispatcher'
 import { createTerminalOutputDelivery } from '../lib/terminal-output-delivery'
-import {
-  createTerminalPaneActions,
-  type TerminalRestartOptions,
-} from '../lib/terminal-pane-actions'
+import { useTerminalPaneActions, type TerminalRestartOptions } from '../lib/terminal-pane-actions'
 import { connectTerminalInput } from '../lib/terminal-replay-input-guard'
 import { acquireTerminalSurfaceLease } from '../lib/terminal-surface-lease'
 import { resetTerminalOutput } from '../lib/write-terminal-output'
@@ -295,7 +292,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
     }
   }, [ownerKey, terminalId, cwd, launchEnv, projectRoot, containerRef])
 
-  const actions = createTerminalPaneActions({
+  const actions = useTerminalPaneActions({
     terminalRef: termRef,
     restartRef,
     sendInputNowRef,

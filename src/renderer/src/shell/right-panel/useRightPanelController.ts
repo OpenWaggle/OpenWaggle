@@ -69,11 +69,11 @@ function useRouteHasPanel() {
  * later choice or navigate back to the Session it started in.
  */
 function useSurfaceRequests(sessionKey: string | null) {
-  const surfaceRequest = useRef({ sessionKey, request: 0 })
+  const surfaceRequestRef = useRef({ sessionKey, request: 0 })
   useEffect(() => {
-    surfaceRequest.current = { sessionKey, request: surfaceRequest.current.request + 1 }
+    surfaceRequestRef.current = { sessionKey, request: surfaceRequestRef.current.request + 1 }
   }, [sessionKey])
-  return surfaceRequest
+  return surfaceRequestRef
 }
 
 function openExtensionSurface(input: {
@@ -114,7 +114,7 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
   const routeFilePath = useRouteFileTarget()
   const routeHasPanel = useRouteHasPanel()
   const { ownerKey, sessionKey, shown } = model
-  const surfaceRequest = useSurfaceRequests(sessionKey)
+  const surfaceRequestRef = useSurfaceRequests(sessionKey)
 
   function hideWorkspacePanel() {
     if (useWorkspacePanelStore.getState().groups[ownerKey]?.panelOpen === true) {
@@ -131,9 +131,9 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
 
   function closePanel() {
     // A Files lookup still in flight must not reopen the panel the user just closed.
-    surfaceRequest.current = {
-      ...surfaceRequest.current,
-      request: surfaceRequest.current.request + 1,
+    surfaceRequestRef.current = {
+      ...surfaceRequestRef.current,
+      request: surfaceRequestRef.current.request + 1,
     }
     const coordinator = useRightSidebarCoordinator.getState()
     if (coordinator.activeClaim?.kind === 'action-panel') coordinator.releaseActionPanel()
@@ -145,7 +145,7 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
     const remembered = sessionRightPanelMemory(sessionKey).lastFilePath
     // The check runs before anything closes, so switching to Files never flashes a closed panel.
     void existingWorkspaceFile(workingPath, remembered).then((filePath) => {
-      if (request !== surfaceRequest.current.request) return
+      if (request !== surfaceRequestRef.current.request) return
       hideWorkspacePanel()
       if (filePath === null) {
         route.open({ panel: 'file' }, workspaceFileRightSidebarRequest('', null))
@@ -163,8 +163,8 @@ export function useRightPanelController(model: RightPanelModel, workingPath: str
       return
     }
     if (entry.extension !== null) useRightPanelRailStore.getState().acknowledge([id])
-    const request = surfaceRequest.current.request + 1
-    surfaceRequest.current = { ...surfaceRequest.current, request }
+    const request = surfaceRequestRef.current.request + 1
+    surfaceRequestRef.current = { ...surfaceRequestRef.current, request }
     match(id)
       .with('changes', () => {
         hideWorkspacePanel()

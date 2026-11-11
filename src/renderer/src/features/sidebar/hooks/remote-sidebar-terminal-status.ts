@@ -12,6 +12,11 @@ export interface HydratedTerminalIds {
   error: Set<string>
 }
 
+/** The terminal rows Host pages have hydrated so far; the pages add to it as they load. */
+export function emptyHydratedTerminalIds(): HydratedTerminalIds {
+  return { completed: new Set<string>(), error: new Set<string>() }
+}
+
 export function sidebarRemoteStatusIds(
   filterState: SidebarRowState | null,
   stateBySessionId: ReadonlyMap<string, SidebarRowState>,

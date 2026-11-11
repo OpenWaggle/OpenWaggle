@@ -1,37 +1,4 @@
 {
-  "react/globals": {
-    "src/renderer/src/features/chat/hooks/__tests__/use-session-summary-space.component.test.tsx": 1
-  },
-  "react/immutability": {
-    "src/renderer/src/features/workspace-files/hooks/useWorkspaceFileSaveQueue.ts": 2,
-    "src/renderer/src/shell/right-panel/useRightPanelController.ts": 2
-  },
-  "react/preserve-manual-memoization": {
-    "src/renderer/src/features/sidebar/hooks/useRemoteSidebarSessions.ts": 3
-  },
-  "react/purity": {
-    "src/renderer/src/features/settings/components/sections/archived/ArchivedResults.tsx": 1
-  },
-  "react/refs": {
-    "src/renderer/src/features/browser-preview/components/BrowserPreviewFloatingPanel.tsx": 2,
-    "src/renderer/src/features/chat/hooks/__tests__/use-session-summary-space.component.test.tsx": 1,
-    "src/renderer/src/features/diff-panel/components/DiffCodeView.tsx": 3,
-    "src/renderer/src/features/hive-panel/components/HiveTreeRow.tsx": 1,
-    "src/renderer/src/features/mcp/McpAppHost.tsx": 4,
-    "src/renderer/src/features/project-actions/components/action-panel/PanelFooter.tsx": 1,
-    "src/renderer/src/features/project-actions/components/action-panel/RemovalSection.tsx": 1,
-    "src/renderer/src/features/project-actions/components/action-panel/ScriptPicker.tsx": 1,
-    "src/renderer/src/features/session-summary/components/ChangeRequestComposerActions.tsx": 1,
-    "src/renderer/src/features/session-summary/components/SourceControlAttentionNotice.tsx": 1,
-    "src/renderer/src/features/session-summary/hooks/useSessionMessageResources.ts": 5,
-    "src/renderer/src/features/session-title/components/SessionTitleInput.tsx": 1,
-    "src/renderer/src/features/sidebar/components/SessionRowParts.tsx": 1,
-    "src/renderer/src/features/sidebar/hooks/useRemoteSidebarSessions.ts": 2,
-    "src/renderer/src/features/terminal/components/TerminalPaneLayers.tsx": 1,
-    "src/renderer/src/features/terminal/hooks/useTerminalPaneSession.ts": 1,
-    "src/renderer/src/shared/ui/NumberStepper.tsx": 5,
-    "src/renderer/src/shell/HeaderSessionTitle.tsx": 1
-  },
   "react/set-state-in-effect": {
     "src/renderer/src/features/browser-preview/components/BrowserPreviewLauncher.tsx": 1,
     "src/renderer/src/features/browser-preview/hooks/useBrowserPreviewControls.ts": 1,
@@ -52,11 +19,5 @@
     "src/renderer/src/features/workspace-files/components/ProjectContentMatchRow.tsx": 1,
     "src/renderer/src/features/workspace-files/components/WorkspaceFilePreview.tsx": 1,
     "src/renderer/src/features/workspace-files/hooks/useWorkspaceFileEditing.ts": 1
-  },
-  "react/static-components": {
-    "src/renderer/src/features/chat/components/AgentNotificationStack.tsx": 1
-  },
-  "react/use-memo": {
-    "src/renderer/src/features/diff-panel/hooks/useProgressiveCodeViewItems.ts": 1
   }
 }

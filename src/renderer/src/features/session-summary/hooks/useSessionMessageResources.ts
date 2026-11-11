@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
 import { queryOptions, type UseQueryResult, useQueries } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { loadLegacyCatalogPage } from './useSessionResourceCatalog'
 
@@ -228,22 +228,20 @@ export function useSessionImageResourcesByNodeIds(
 ): SessionMessageResourceQueryResult {
   const uniqueNodeIds = [...new Set(nodeIds)]
   const chunks = chunkNodeIds(uniqueNodeIds)
-  const previousCompleted = useRef<CompletedMessageResourceQuery | null>(null)
+  const [previousCompleted, setPreviousCompleted] = useState<CompletedMessageResourceQuery | null>(
+    null,
+  )
   const query = useQueries({
     queries: chunks.map((chunk) => sessionMessageResourceChunkQueryOptions(sessionId, chunk)),
     combine: combineNodeResourceQueries,
   })
-  const data = isExpandedTranscriptWindow(previousCompleted.current, sessionId, uniqueNodeIds)
-    ? mergeNodeResources([...(previousCompleted.current?.data ?? []), ...query.data])
+  const data = isExpandedTranscriptWindow(previousCompleted, sessionId, uniqueNodeIds)
+    ? mergeNodeResources([...(previousCompleted?.data ?? []), ...query.data])
     : query.data
-  useEffect(() => {
-    if (!query.isSuccess) return
-    previousCompleted.current = {
-      sessionId,
-      nodeIds: [...new Set(nodeIds)],
-      data: query.data,
-    }
-  }, [nodeIds, query.data, query.isSuccess, sessionId])
+  // Remember the last complete answer, so a window that grows keeps its rows while it loads.
+  if (query.isSuccess && previousCompleted?.data !== query.data) {
+    setPreviousCompleted({ sessionId, nodeIds: uniqueNodeIds, data: query.data })
+  }
   return {
     data,
     error: query.error,
