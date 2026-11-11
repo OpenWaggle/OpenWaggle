@@ -169,13 +169,15 @@ describe('main-process error reporter', () => {
     ])
   })
 
-  it("re-captures a renderer envelope's error events and nothing else", () => {
+  it("re-captures a renderer envelope's error events and nothing else, under main's release", () => {
     const reporter = startSentryMainErrorReporter(reporterInput())
     const error = { exception: { values: [{ type: 'TypeError', value: 'x' }] } }
+    // The browser SDK always names an environment, its default `production` without one.
+    const rendererEvent = { ...error, environment: 'production', release: 'renderer@0' }
     const envelope = [
       JSON.stringify({ sent_at: '2026-11-11T00:00:00Z' }),
       JSON.stringify({ type: 'event' }),
-      JSON.stringify(error),
+      JSON.stringify(rendererEvent),
       JSON.stringify({ type: 'session' }),
       JSON.stringify({ sid: 'renderer-session' }),
       JSON.stringify({ type: 'event' }),

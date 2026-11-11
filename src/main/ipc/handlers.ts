@@ -7,6 +7,7 @@ import { registerBrowserPreviewHandlers } from './browser-preview-handler'
 import { registerComposerHandlers } from './composer-handler'
 import { registerDesktopNotificationsHandlers } from './desktop-notifications-handler'
 import { registerDocsHandlers } from './docs-handler'
+import { registerErrorReportingHandlers } from './error-reporting-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
 import { registerExtensionFrameHandlers } from './extension-frame-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
@@ -79,5 +80,6 @@ export function registerAllIpcHandlers() {
   registerComposerHandlers()
   registerDocsHandlers()
   registerDesktopNotificationsHandlers()
+  registerErrorReportingHandlers()
   registerWorkspaceFileHandlers()
 }

@@ -9,6 +9,7 @@ import type { OpenWaggleScheduledTasksApi } from './openwaggle-api-scheduled-tas
 import type { OpenWaggleSessionCatalogApi } from './openwaggle-api-session-catalog'
 import type { OpenWaggleSessionControlApi } from './openwaggle-api-session-control'
 import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
+import type { OpenWaggleErrorReportingApi } from './openwaggle-api-error-reporting'
 import type { OpenWaggleStartupApi } from './openwaggle-api-startup'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
@@ -30,6 +31,7 @@ export interface OpenWaggleApi
     OpenWaggleAuthorizationGrantApi,
     OpenWaggleDesktopApi,
     OpenWaggleStartupApi,
+    OpenWaggleErrorReportingApi,
     OpenWaggleBrowserPreviewApi,
     OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,

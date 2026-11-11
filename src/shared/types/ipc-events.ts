@@ -65,6 +65,10 @@ export interface IpcSendChannelMap {
   'desktop-notifications:set-viewing-session': {
     args: [sessionId: string | null]
   }
+  /** One envelope the renderer's browser SDK serialized, on Electrobun (ADR 0045, 0064). */
+  'error-reporting:renderer-envelope': {
+    args: [envelope: string]
+  }
 }
 
 /**

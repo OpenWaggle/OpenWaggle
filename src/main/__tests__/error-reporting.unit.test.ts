@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ErrorReporter } from '../ports/error-reporter'
 
 type Enablement = { enabled: true } | { enabled: false; reason: string }
 
@@ -36,9 +37,13 @@ const lastKnown = vi.hoisted(() => ({ record: vi.fn((_userData: string) => () =>
 const adapter = vi.hoisted(() => {
   const reporter = {
     captureException: vi.fn(),
+    captureRendererEnvelope: vi.fn((_envelope: string) => undefined),
     flush: vi.fn(async (_timeout: number) => undefined),
   }
-  return { reporter, startSentryMainErrorReporter: vi.fn((_input: unknown) => reporter) }
+  return {
+    reporter,
+    startSentryMainErrorReporter: vi.fn((_input: unknown): ErrorReporter => reporter),
+  }
 })
 
 vi.mock('@shared/build-identity-runtime', () => ({
@@ -151,6 +156,28 @@ describe('main-process error reporting', () => {
       [error, 'tool-execution'],
     ])
     expect(adapter.reporter.flush).toHaveBeenCalledWith(expect.any(Number))
+  })
+
+  it('routes renderer envelopes to the reporter once reporting started, never before', async () => {
+    const errorReporting = await loadErrorReporting()
+
+    errorReporting.reportRendererEnvelope('before start')
+    await errorReporting.startErrorReporting('gui')
+    errorReporting.reportRendererEnvelope('after start')
+    await errorReporting.flushErrorReporting()
+
+    expect(adapter.reporter.captureRendererEnvelope.mock.calls).toEqual([['after start']])
+  })
+
+  it("drops renderer envelopes where the reporter takes renderer reports its own way (Electron's)", async () => {
+    const { captureRendererEnvelope: _sdkBridge, ...electronReporter } = adapter.reporter
+    adapter.startSentryMainErrorReporter.mockImplementationOnce(() => electronReporter)
+    const errorReporting = await loadErrorReporting()
+    await errorReporting.startErrorReporting('gui')
+
+    expect(() => errorReporting.reportRendererEnvelope('ignored')).not.toThrow()
+    await errorReporting.flushErrorReporting()
+    expect(adapter.reporter.captureRendererEnvelope).not.toHaveBeenCalled()
   })
 
   it('loads nothing while the Setting is off, and starts once the user turns it on', async () => {

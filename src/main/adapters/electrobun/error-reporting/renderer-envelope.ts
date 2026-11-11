@@ -5,7 +5,9 @@ import type { Event } from '@sentry/bun'
  * The error events of an envelope a renderer's SDK serialized (`@sentry/browser` over the IPC
  * channel `error-reporting:renderer-envelope`). Everything else a renderer could put in an
  * envelope (sessions, attachments, client reports, transactions) is dropped here, and an
- * oversized envelope is dropped whole: only error events are ever reported.
+ * oversized envelope is dropped whole: only error events are ever reported. Release and
+ * environment are the main process's: the browser SDK always names an environment, `production`
+ * by default, so the renderer's are dropped for the main SDK to apply its own.
  */
 const MAX_RENDERER_ENVELOPE_BYTES = 256 * 1024
 
@@ -21,6 +23,8 @@ export function rendererEnvelopeEvents(envelope: string): readonly Event[] {
     if (header.type !== 'event' || !isEvent(payload)) continue
     // A renderer never sets the event type; `undefined` is an error event.
     if (payload.type !== undefined) continue
+    delete payload.release
+    delete payload.environment
     events.push(payload)
   }
   return events

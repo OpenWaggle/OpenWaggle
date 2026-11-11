@@ -5,6 +5,7 @@ export const PRELOAD_APP_LIFECYCLE_METHODS = [
   ...PRELOAD_SCHEDULED_TASKS_METHODS,
   'getHomeDirectory',
   'getTrustedOriginBases',
+  'sendErrorReportEnvelope',
   'getStartupStatus',
   'retryStartup',
   'onStartupStatusChanged',

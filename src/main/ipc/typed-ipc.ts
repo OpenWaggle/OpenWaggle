@@ -139,6 +139,7 @@ export const GUI_BACKEND_GATE_EXEMPT_CHANNELS: ReadonlySet<IpcInvokeChannel> = n
 /** Messages the window handles itself, with nothing of the backend: they never wait for it. */
 const GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS: ReadonlySet<IpcSendChannel> = new Set([
   'clipboard:write-text',
+  'error-reporting:renderer-envelope',
 ])
 
 /**

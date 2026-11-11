@@ -223,6 +223,16 @@ export function reportError(error: unknown, origin?: ErrorReportOrigin) {
   void startup?.then(() => reporter?.captureException(error, origin))
 }
 
+/**
+ * Reports the error events of an envelope a renderer's SDK serialized (the Electrobun renderer,
+ * over `error-reporting:renderer-envelope`) through this process's reporter, with its scrubbing and
+ * Usage statistics check. Does nothing while reporting is off, and where the reporter takes
+ * renderer reports another way (Electron's SDK bridge).
+ */
+export function reportRendererEnvelope(envelope: string): void {
+  void startup?.then(() => reporter?.captureRendererEnvelope?.(envelope))
+}
+
 async function settledWithin(work: Promise<void> | null, timeoutMs: number) {
   if (!work) return
   let timer: ReturnType<typeof setTimeout> | undefined
