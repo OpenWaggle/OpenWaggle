@@ -114,7 +114,7 @@ function isAuthorizedTlsConnection(
  * allowed are TLS connections that an allowed HTTPS request opens to its declared origin.
  */
 export function installTrustedMainSocketNetworkGuard(guard: TrustedMainSocketNetworkGuard) {
-  const connectValue: unknown = net.Socket.prototype.connect
+  const connectValue: unknown = Reflect.get(net.Socket.prototype, 'connect')
   if (!isSocketConnect(connectValue)) {
     throw new TypeError('node:net Socket.prototype.connect is unavailable.')
   }
