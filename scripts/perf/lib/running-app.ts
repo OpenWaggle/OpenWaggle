@@ -1,7 +1,7 @@
 import type { Browser, Page } from '@playwright/test'
 import { freePort, type LaunchedApp, launchApp, type PerfApp, stopProcessGroup } from './perf-app'
+import { cefDevToolsEnvironment } from '../../support/electrobun-app-launch'
 import { type BootConditions, connectRenderer, waitForMilestones } from './perf-page'
-import { type CdpClient, connectInspector } from './main-inspector'
 import {
   createPerfProfile,
   disposePerfProfile,
@@ -21,8 +21,6 @@ export interface RunningAppOptions {
   readonly timeoutMs: number
   /** How long a pre-started Host idles before the warm launch. */
   readonly warmHostIdleMs: number
-  /** Attach the Node inspector to the GUI main process (for IPC accounting). */
-  readonly mainInspector?: boolean
   readonly environment?: Readonly<Record<string, string>>
   /** Called with the fresh profile before anything starts, to add fixtures such as models. */
   readonly prepareProfile?: (profile: PerfProfile) => Promise<void>
@@ -34,7 +32,6 @@ export interface RunningApp {
   readonly browser: Browser
   readonly page: Page
   readonly instrumentedFromStart: boolean
-  readonly inspector: CdpClient | null
 }
 
 const LOADING_CHAT_TEXT = 'Loading chat'
@@ -66,16 +63,15 @@ export async function startHost(
   }
 }
 
+/** The hidden main window renders with CEF so its DevTools endpoint serves the renderer. */
 async function launchGui(app: PerfApp, profile: PerfProfile, options: RunningAppOptions) {
   const port = await freePort()
-  const inspectorPort = options.mainInspector ? await freePort() : null
-  const launched = launchApp(app, profileEnvironment(profile, options.environment), [
-    ...(inspectorPort ? [`--inspect=${String(inspectorPort)}`] : []),
+  const environment = { ...options.environment, ...cefDevToolsEnvironment(port) }
+  const launched = launchApp(app, profileEnvironment(profile, environment), [
     '--use-mock-keychain',
-    `--remote-debugging-port=${String(port)}`,
     '--openwaggle-startup-timings',
   ])
-  return { launched, port, inspectorPort }
+  return { launched, port }
 }
 
 /**
@@ -96,7 +92,6 @@ export async function withRunningApp<Result>(
   })
   let launched: LaunchedApp | null = null
   let browser: Browser | null = null
-  let inspector: CdpClient | null = null
   try {
     await options.prepareProfile?.(profile)
     if (options.mode === 'warm') {
@@ -113,17 +108,14 @@ export async function withRunningApp<Result>(
     browser = connected.browser
     const wanted = ['shell', 'chatReady', ...(options.sessionListText ? ['sessionList'] : [])]
     await waitForMilestones(connected.page, wanted, options.timeoutMs)
-    if (gui.inspectorPort) inspector = await connectInspector(gui.inspectorPort, options.timeoutMs)
     return await use({
       profile,
       launched,
       browser,
       page: connected.page,
       instrumentedFromStart: connected.instrumentedFromStart,
-      inspector,
     })
   } finally {
-    inspector?.close()
     await browser?.close().catch(() => undefined)
     if (launched) await stopProcessGroup(launched.child)
     // OWPERF_KEEP_PROFILE=1 keeps the stopped profile (logs, database) for diagnosis.

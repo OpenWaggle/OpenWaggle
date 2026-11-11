@@ -243,7 +243,7 @@ function scaled(region: Region, ratio: number) {
 
 /**
  * Places a Browser preview guest's own screenshot at its native view's bounds, at any screenshot
- * scale. A hidden window's screenshot leaves the native view out (.agents/memory/electron-shell.md).
+ * scale. The renderer's screenshot leaves the native view out.
  */
 export async function compositeGuestImage(input: {
   readonly renderer: Buffer

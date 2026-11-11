@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { executeLocalSessionCommand } from '../../src/main/session-host/local-session-client'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { HOST_UI_CONTRACT_VERSION } from '../../src/shared/types/host-ui-protocol'
+import { cefDevToolsEnvironment, freePort } from '../support/electrobun-app-launch'
 import {
   childEnvironment,
   cliOutcome,
@@ -25,11 +26,7 @@ import {
   transcriptInvokedSkill,
 } from './live-session-transcript-evidence'
 import { prepareLiveQaCliExecutable } from './live-session-cli-executable'
-import {
-  reserveDebugPort,
-  verifyLiveHiveGui,
-  waitForLiveGui,
-} from './live-session-orchestration-gui'
+import { verifyLiveHiveGui, waitForLiveGui } from './live-session-orchestration-gui'
 import {
   type LiveQaLifecycleState,
   runLiveQaProfileLifecycle,
@@ -42,14 +39,15 @@ const LIST_LIMIT = 20
 const DISABLED_QA_SKILL = 'herdr-orchestration'
 const DETACHED_HOST_SURVIVAL_DELAY_MS = 10_000
 
+/** The hidden main window renders with CEF, whose DevTools endpoint serves the renderer. */
 async function launchLiveGui(executable: string, environment: Record<string, string>) {
-  const debugPort = await reserveDebugPort()
+  const debugPort = await freePort()
   const automationIdentity = randomUUID()
-  const gui = await launchGui(
-    executable,
-    { ...environment, OPENWAGGLE_AUTOMATION_LEASE_TOKEN: automationIdentity },
-    [`--remote-debugging-port=${String(debugPort)}`],
-  )
+  const gui = await launchGui(executable, {
+    ...environment,
+    ...cefDevToolsEnvironment(debugPort),
+    OPENWAGGLE_AUTOMATION_LEASE_TOKEN: automationIdentity,
+  })
   return { automationIdentity, debugPort, gui }
 }
 

@@ -25,7 +25,7 @@ const INTERRUPTED_SESSION_INDEX = 2
 /** node, script path. */
 const CLI_ARG_OFFSET = 2
 
-/** Electron's userData location for this app, per platform. */
+/** A release build's userData location, per platform (src/main/adapters/electrobun/electrobun-boot-shell.ts). */
 function resolveUserDataDir() {
   const env = scriptEnv()
   const override = env.OPENWAGGLE_USER_DATA_DIR

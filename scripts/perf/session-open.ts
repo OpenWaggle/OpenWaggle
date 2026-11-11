@@ -3,8 +3,10 @@
  * `cp -c` and launches `.app` bundles, so `resolvePerfApp` refuses other platforms.
  *
  * "Open a large Session" gate of the v1 performance plan: from clicking a multi-megabyte Session
- * in the sidebar until its last message is on screen, with every main-process IPC response and
- * pushed event counted (bytes are JSON characters). Runs on a generated large profile.
+ * in the sidebar until its last message is on screen, with the renderer's DOM size and JS heap
+ * after it settled. Runs on a generated large profile. The Electron build also counted every
+ * main-process IPC response and pushed event through the main process's Node inspector; the
+ * Electrobun main process is a Bun Worker without one, so those counts are gone.
  *
  *   bun run perf:session-open --app <before.app> --app <after.app> --template <large-profile> --runs 10
  *
@@ -12,18 +14,16 @@
  * project, `--switch-delay` ms after the first one is on screen. The default, 5 s, lands the switch in the
  * Host's background work, which starts 5 s after the window attached; on the medium profile its
  * transcript term repair then runs about 2 s, on the large one minutes. That open is
- * `crossProjectOpenMs`, and the IPC totals then cover the switch alone (W12).
+ * `crossProjectOpenMs` (W12).
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import type { Page } from '@playwright/test'
-import { IPC_LOG_INSTALL, IPC_LOG_READ, IPC_LOG_RESET } from './lib/main-inspector'
 import { resolvePerfApp } from './lib/perf-app'
 import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
 import { summarizeRuns } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
-import { summarizeIpc } from './lib/ipc-summary'
 import { warmTemplateFor } from './lib/warm-template'
 import { Schema } from '@shared/schema'
 
@@ -33,14 +33,7 @@ const SETTLE_AFTER_OPEN_MS = 3_000
 const DECIMAL = 10
 const ORDERS = 2
 const USAGE_EXIT_CODE = 2
-const OPEN_METRICS = [
-  'openMs',
-  'invokeBytes',
-  'invokeCount',
-  'pushedBytes',
-  'domNodes',
-  'jsHeapBytes',
-]
+const OPEN_METRICS = ['openMs', 'domNodes', 'jsHeapBytes']
 const CROSS_PROJECT_METRICS = ['crossProjectOpenMs', ...OPEN_METRICS]
 const DEFAULT_SWITCH_DELAY_MS = 5_000
 // Generated transcripts number their turns from 0; the large Sessions have 3,600 messages.
@@ -153,21 +146,15 @@ async function measureOpen(
       sessionListText: manifest.sessionListText,
       timeoutMs: TIMEOUT_MS,
       warmHostIdleMs: 0,
-      mainInspector: true,
     },
-    async ({ page, inspector }) => {
-      if (!inspector) throw new Error('The main-process inspector did not attach.')
-      await inspector.evaluate(IPC_LOG_INSTALL)
-      await inspector.evaluate(IPC_LOG_RESET)
+    async ({ page }) => {
       const openMs = await openAndWait(page, title, LAST_TURN_TEXT)
       let crossProjectOpenMs: number | null = null
       if (options.mode === 'cross-project' && otherProjectTitle) {
         await delay(options.switchDelayMs)
-        await inspector.evaluate(IPC_LOG_RESET)
         crossProjectOpenMs = await openAndWait(page, otherProjectTitle, LAST_TURN_TEXT)
       }
       await delay(SETTLE_AFTER_OPEN_MS)
-      const ipc: unknown = JSON.parse(String(await inspector.evaluate(IPC_LOG_READ)))
       const dom = await page.evaluate(() => ({
         domNodes: document.getElementsByTagName('*').length,
         // Chromium's non-standard `performance.memory`.
@@ -186,7 +173,6 @@ async function measureOpen(
         ...(options.mode === 'cross-project'
           ? { crossProjectSession: otherProjectTitle, crossProjectOpenMs }
           : {}),
-        ...summarizeIpc(ipc),
         ...dom,
       }
     },

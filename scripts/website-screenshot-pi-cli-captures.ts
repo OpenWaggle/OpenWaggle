@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect } from '@playwright/test'
-import { playwrightElectronHome } from './playwright-electron-launcher'
+import { electrobunAppHome } from './support/electrobun-app-launch'
 import { regionOf, shootRegion, unionRegion } from './website-screenshot-capture-kit'
 import { prepareEssentials, sendMessage, sidebar } from './website-screenshot-essentials-setup'
 import { MINUTE_MS } from './website-screenshot-essentials-tool-rows'
@@ -43,7 +43,7 @@ const REPLY_USAGE = { input: 4_210, output: 380, cacheRead: 0, cacheWrite: 0 } a
 const BACKDROP_PX = 32
 
 async function writePiCliSession(context: CaptureContext, projectPath: string) {
-  const { piAgentDir } = playwrightElectronHome(context)
+  const { piAgentDir } = electrobunAppHome(context)
   const now = Date.now()
   const at = (agoMs: number) => new Date(now - agoMs).toISOString()
   const lines = [

@@ -1,13 +1,11 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertMatching, P } from '@diegogbrisa/ts-match'
-import { build } from 'vite'
-import { buildSafeElectronEnvironment } from '../../safe-electron-environment'
+import { buildSafeAppEnvironment } from '../../safe-app-environment'
 import {
   snapshotWindowsProcessTree,
   verifyWindowsProcessTreeExit,
@@ -86,36 +84,15 @@ async function finishProbe(input: Parameters<typeof cleanupProbe>[0], originalFa
 export async function probeWindowsDetachedHandleIsolation() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-detached-handles-蜂 '))
   const expectedEnvironmentSentinel = `qa-${randomUUID()}`
-  const fixturePath = path.join(directory, 'fixture.cjs')
+  // Bun, the app's runtime, runs the fixture source as the desktop main process does.
+  const fixturePath = fileURLToPath(
+    new URL('./fixtures/windows-detached-process.fixture.ts', import.meta.url),
+  )
   await Promise.all(['parent', 'child'].map((mode) => fs.mkdir(path.join(directory, mode))))
-  await build({
-    configFile: false,
-    publicDir: false,
-    logLevel: 'error',
-    resolve: {
-      alias: { '@shared': fileURLToPath(new URL('../../../src/shared', import.meta.url)) },
-    },
-    ssr: { noExternal: true, external: ['electron'] },
-    build: {
-      ssr: fileURLToPath(
-        new URL('./fixtures/windows-detached-process.fixture.ts', import.meta.url),
-      ),
-      outDir: directory,
-      emptyOutDir: false,
-      target: 'node24',
-      minify: false,
-      rolldownOptions: {
-        output: { format: 'cjs', entryFileNames: 'fixture.cjs' },
-      },
-    },
-  })
-  const electronExecutablePath: unknown = createRequire(import.meta.url)('electron')
-  if (typeof electronExecutablePath !== 'string') {
-    throw new Error('Node did not resolve the Electron executable path.')
-  }
+  const bunExecutable = process.execPath
 
-  const parent = spawn(electronExecutablePath, [fixturePath, 'parent', directory], {
-    env: buildSafeElectronEnvironment({
+  const parent = spawn(bunExecutable, [fixturePath, 'parent', directory], {
+    env: buildSafeAppEnvironment({
       OPENWAGGLE_AUTOMATION: '1',
       [WINDOWS_DETACHED_PROCESS_SENTINEL_KEY]: expectedEnvironmentSentinel,
     }),

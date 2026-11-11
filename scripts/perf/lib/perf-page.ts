@@ -1,10 +1,10 @@
-import { type Browser, chromium, type Page } from '@playwright/test'
+import { chromium, type Page } from '@playwright/test'
+import { rendererPage } from '../../support/electrobun-app-launch'
 
 const CDP_POLL_MS = 20
 /** The shell counts as visible once it has this many buttons and this much text (Track A). */
 const SHELL_MINIMUM_BUTTONS = 5
 const SHELL_MINIMUM_TEXT_LENGTH = 20
-const RENDERER_URL_PREFIX = 'openwaggle://app'
 /**
  * A runner that compiles this file with esbuild's keepNames (tsx did, before the scripts moved to
  * Bun) wraps named functions in `__name(...)`. Functions sent into the page carry those calls, so
@@ -107,13 +107,6 @@ async function waitForCdp(port: number, deadline: number) {
     await new Promise((resolve) => setTimeout(resolve, CDP_POLL_MS))
   }
   throw new Error(`No DevTools endpoint on port ${String(port)}.`)
-}
-
-function rendererPage(browser: Browser) {
-  return browser
-    .contexts()
-    .flatMap((context) => context.pages())
-    .find((page) => page.url().startsWith(RENDERER_URL_PREFIX))
 }
 
 /**

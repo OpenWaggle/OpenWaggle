@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { playwrightElectronHome } from './playwright-electron-launcher'
+import { electrobunAppHome } from './support/electrobun-app-launch'
 import {
   type FixtureSession,
   type Rates,
@@ -173,7 +173,7 @@ export async function writeUsageCostSessions(input: {
   readonly homeDir: string
   readonly now: Date
 }) {
-  const { piAgentDir } = playwrightElectronHome(input)
+  const { piAgentDir } = electrobunAppHome(input)
   const sessionsRoot = path.join(piAgentDir, 'sessions')
   const next = generator(SEED)
   const today = new Date(input.now)

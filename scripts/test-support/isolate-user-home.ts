@@ -3,7 +3,7 @@
  * HOME, Pi agent directory, OpenWaggle user-data directory, and temporary directory (TMPDIR, TMP,
  * TEMP) of its own, no Pi session directory override, and no inherited Host temp directory, and
  * fails fast if any of them resolves to the real user's home. Code that reads or writes
- * `~/.openwaggle`, `~/.pi/agent`, or Electron user data (MCP migration, Pi settings and credential
+ * `~/.openwaggle`, `~/.pi/agent`, or the app's userData (MCP migration, Pi settings and credential
  * migrations, Pi session discovery, the cache-warming settings fallback) then only ever sees these
  * directories.
  *

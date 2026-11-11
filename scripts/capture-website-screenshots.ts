@@ -2,9 +2,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type ElectronApplication, expect, type Page } from '@playwright/test'
-import { stopElectronQaSessionHost } from './electron-qa-shutdown'
-import { launchOpenWaggleElectron } from './playwright-electron-launcher'
+import { expect, type Page } from '@playwright/test'
+import { stopQaProfileSessionHost } from './qa/session-host-shutdown'
+import {
+  type ConnectedElectrobunApp,
+  launchElectrobunApp,
+  resolveElectrobunLauncher,
+} from './support/electrobun-app-launch'
 import { CAPTURES } from './website-screenshot-captures'
 import { MODEL_SCENARIOS } from './website-screenshot-essentials-scenarios'
 import { settleEssentials } from './website-screenshot-essentials-setup'
@@ -29,7 +33,12 @@ import {
   type ScreenshotProject,
 } from './website-screenshot-project'
 import { createScheduledTasks, scheduledTaskFixtures } from './website-screenshot-scheduled-tasks'
-import { type CaptureContext, recordFailureEvidence, WINDOW_SIZE } from './website-screenshot-ui'
+import {
+  type CaptureContext,
+  recordFailureEvidence,
+  setWindowSize,
+  WINDOW_SIZE,
+} from './website-screenshot-ui'
 import { WAGGLE_SCENARIO } from './website-screenshot-waggle-captures'
 import { scriptEnv } from './support/env'
 
@@ -39,6 +48,7 @@ const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screensh
 const POSIX_TEMP_DIR = '/tmp'
 /** `node` and the script path come before the user's arguments. */
 const USER_ARGUMENT_OFFSET = 2
+const APP_FLAG = '--app'
 
 interface ScratchProfile {
   readonly root: string
@@ -46,29 +56,20 @@ interface ScratchProfile {
   readonly homeDir: string
 }
 
-async function launchApp(profile: ScratchProfile, projectPath: string) {
-  console.info('[website-shots] launching the built app, hidden')
-  const app = await launchOpenWaggleElectron({
+async function launchApp(launcher: string, profile: ScratchProfile, projectPath: string) {
+  console.info('[website-shots] launching the packaged app, hidden')
+  const app = await launchElectrobunApp({
+    launcher,
     cwd: projectPath,
-    appPath: ROOT_DIR,
     userDataDir: profile.userDataDir,
     homeDir: profile.homeDir,
-    hidden: true,
   })
   const page = await closingOnFailure(app, async () => {
-    const firstWindow = await app.firstWindow()
-    await app.evaluate(async ({ BrowserWindow }, { width, height }) => {
-      BrowserWindow.getAllWindows()[0]?.setBounds({ width, height })
-    }, WINDOW_SIZE)
-    await expect(firstWindow.getByRole('button', { name: 'New session' }).first()).toBeVisible()
-    const runtime = await firstWindow.evaluate(() => ({
-      hasApi: typeof window.api.getSessionDetail === 'function',
-      isElectron: navigator.userAgent.includes('Electron'),
-    }))
-    if (!runtime.hasApi || !runtime.isElectron) {
-      throw new Error('Screenshot capture did not reach the Electron app with its preload API.')
-    }
-    return firstWindow
+    await setWindowSize(app.page, WINDOW_SIZE)
+    await expect(app.page.getByRole('button', { name: 'New session' }).first()).toBeVisible()
+    const hasApi = await app.page.evaluate(() => typeof window.api.getSessionDetail === 'function')
+    if (!hasApi) throw new Error('Screenshot capture reached a renderer without the preload API.')
+    return app.page
   })
   return { app, page }
 }
@@ -88,9 +89,9 @@ async function configureProject(page: Page, projectPath: string) {
 
 /**
  * Runs `step` with a launched app and closes the app if the step throws, so `main()`'s `finally`
- * never stops the Session Host while an Electron it does not know about could start another one.
+ * never stops the Session Host while an app it does not know about could start another one.
  */
-async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise<T>) {
+async function closingOnFailure<T>(app: ConnectedElectrobunApp, step: () => Promise<T>) {
   try {
     return await step()
   } catch (error) {
@@ -100,8 +101,12 @@ async function closingOnFailure<T>(app: ElectronApplication, step: () => Promise
 }
 
 /** Seeds the Host database the first launch created, then restarts so the GUI reads it fresh. */
-async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProject) {
-  const first = await launchApp(profile, project.projectPath)
+async function launchSeededApp(
+  launcher: string,
+  profile: ScratchProfile,
+  project: ScreenshotProject,
+) {
+  const first = await launchApp(launcher, profile, project.projectPath)
   const hive = await closingOnFailure(first.app, async () => {
     await configureProject(first.page, project.projectPath)
     await seedMarketingSession(profile.userDataDir, project.projectPath)
@@ -109,7 +114,7 @@ async function launchSeededApp(profile: ScratchProfile, project: ScreenshotProje
     return seedHiveExample(profile.userDataDir, project)
   })
   await first.app.close()
-  const launched = await launchApp(profile, project.projectPath)
+  const launched = await launchApp(launcher, profile, project.projectPath)
   await closingOnFailure(launched.app, async () => {
     await createScheduledTasks(
       launched.page,
@@ -157,6 +162,12 @@ async function evidenceDirectory() {
   return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-website-shots-evidence-'))
 }
 
+/** `--app <path>` picks the app; without it, the build `bun run package:app` left in `out/`. */
+function appLauncher() {
+  const index = process.argv.indexOf(APP_FLAG)
+  return resolveElectrobunLauncher(index === -1 ? undefined : process.argv[index + 1])
+}
+
 async function runCaptures(context: CaptureContext, screenshots: readonly WebsiteScreenshot[]) {
   for (const screenshot of screenshots) {
     try {
@@ -182,7 +193,7 @@ async function main() {
   const evidenceDir = await evidenceDirectory()
   console.info('[website-shots] scratch profile', root)
   console.info('[website-shots] evidence', evidenceDir)
-  let app: ElectronApplication | null = null
+  let app: ConnectedElectrobunApp | null = null
   let page: Page | null = null
   // The one scripted model behind every real Run; Pi reaches it through the scratch agent
   // directory's auth.json and models.json, written before the first launch.
@@ -197,7 +208,7 @@ async function main() {
       worktreeIds: SCREENSHOT_WORKTREE_IDS,
     })
     await addFeatureProjectFiles(project, profile.homeDir)
-    const launched = await launchSeededApp(profile, project)
+    const launched = await launchSeededApp(await appLauncher(), profile, project)
     app = launched.app
     page = launched.page
     const rendererErrors = observeRendererErrors(launched.page)
@@ -239,7 +250,7 @@ async function main() {
  */
 async function releaseScratchProfile(profile: ScratchProfile) {
   try {
-    await stopElectronQaSessionHost(profile.userDataDir)
+    await stopQaProfileSessionHost(profile.userDataDir)
   } catch (error) {
     console.error(`[website-shots] Session Host shutdown failed; kept ${profile.root}`, error)
     process.exitCode = 1

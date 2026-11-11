@@ -229,3 +229,14 @@ export async function shutdownSessionHostForQa(
     `Timed out after ${String(timeoutMs)}ms waiting for the QA Session Host to release ${basePaths.databasePath}.`,
   )
 }
+
+/**
+ * Drains a scratch profile's Session Host and clears the profile while holding the Host's
+ * ownership, so no Host keeps its SQLite files open after the caller deletes the profile. The Host
+ * is detached and outlives the app's process group; stop the app first, or it starts another Host.
+ */
+export function stopQaProfileSessionHost(userDataRoot: string) {
+  return shutdownSessionHostForQa(userDataRoot, (ownership) =>
+    prepareQaProfileRemoval(userDataRoot, ownership),
+  )
+}

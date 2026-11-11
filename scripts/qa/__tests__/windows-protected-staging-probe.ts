@@ -1,12 +1,10 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertMatching, P } from '@diegogbrisa/ts-match'
-import { build } from 'vite'
-import { buildSafeElectronEnvironment } from '../../safe-electron-environment'
+import { buildSafeAppEnvironment } from '../../safe-app-environment'
 import {
   snapshotWindowsProcessTree,
   terminateWindowsProcessTree,
@@ -41,7 +39,7 @@ async function terminateFixture(child: ChildProcess) {
 async function runFixture(executable: string, fixturePath: string, directory: string) {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(executable, [fixturePath, directory], {
-      env: buildSafeElectronEnvironment({ OPENWAGGLE_AUTOMATION: '1' }),
+      env: buildSafeAppEnvironment({ OPENWAGGLE_AUTOMATION: '1' }),
       windowsHide: true,
       stdio: 'ignore',
     })
@@ -76,35 +74,16 @@ async function runFixture(executable: string, fixturePath: string, directory: st
 export async function probeWindowsProtectedStaging() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-protected-staging-蜂 '))
   await fs.mkdir(path.join(directory, 'profile'))
-  const fixturePath = path.join(directory, 'fixture.cjs')
-  await build({
-    configFile: false,
-    publicDir: false,
-    logLevel: 'error',
-    resolve: {
-      alias: { '@shared': fileURLToPath(new URL('../../../src/shared', import.meta.url)) },
-    },
-    ssr: { noExternal: true, external: ['electron'] },
-    build: {
-      ssr: fileURLToPath(
-        new URL('./fixtures/windows-protected-staging.fixture.ts', import.meta.url),
-      ),
-      outDir: directory,
-      emptyOutDir: false,
-      target: 'node24',
-      minify: false,
-      rolldownOptions: { output: { format: 'cjs', entryFileNames: 'fixture.cjs' } },
-    },
-  })
-  const executable: unknown = createRequire(import.meta.url)('electron')
-  if (typeof executable !== 'string') {
-    throw new Error('Node did not resolve the Electron executable.')
-  }
+  // Bun, the app's runtime, runs the fixture source as the desktop main process does.
+  const fixturePath = fileURLToPath(
+    new URL('./fixtures/windows-protected-staging.fixture.ts', import.meta.url),
+  )
+  const executable = process.execPath
   await runFixture(executable, fixturePath, directory)
   const result: unknown = JSON.parse(await fs.readFile(path.join(directory, 'result.json'), 'utf8'))
   assertMatching(
     {
-      identity: { pid: P.integer, electron: P.string, node: P.string, uv: P.string },
+      identity: { pid: P.integer, bun: P.string, node: P.string, uv: P.string },
       directorySharing: { held: { ok: P.boolean }, closed: { ok: P.boolean } },
       descriptor: { ok: P.boolean },
       protectedStaging: { ok: P.boolean, stage: P.string },

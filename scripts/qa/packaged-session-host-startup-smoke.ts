@@ -4,7 +4,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import { pathToFileURL } from 'node:url'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
-import { buildSafeElectronEnvironment } from '../safe-electron-environment'
+import { buildSafeAppEnvironment } from '../safe-app-environment'
 import {
   type CompleteLiveQaCleanupInput,
   type LiveQaLifecycleState,
@@ -235,7 +235,7 @@ export async function runPackagedSessionHostStartupScenario(
         const seedDatabase = dependencies.seedLegacyDatabase ?? seedLegacyDatabase
         seedDatabase(paths.legacyDatabasePath)
       }
-      const environment = buildSafeElectronEnvironment({
+      const environment = buildSafeAppEnvironment({
         OPENWAGGLE_AUTOMATION: '1',
         OPENWAGGLE_USER_DATA_DIR: input.userDataRoot,
       })

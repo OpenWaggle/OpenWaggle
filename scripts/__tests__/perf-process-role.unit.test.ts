@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { appBundleOf, processRole } from '../perf/lib/perf-processes'
 
-const EXECUTABLE =
-  '/tmp/evidence/builds/integrated/mac-arm64/OpenWaggle.app/Contents/MacOS/OpenWaggle'
-const BUNDLE = '/tmp/evidence/builds/integrated/mac-arm64/OpenWaggle.app'
-const HELPER = `/private${BUNDLE}/Contents/Frameworks/OpenWaggle Dev (x) Helper (Renderer).app/Contents/MacOS/OpenWaggle Dev (x) Helper (Renderer)`
+const BUNDLE = '/tmp/evidence/builds/integrated/stable-macos-arm64/OpenWaggle.app'
+const EXECUTABLE = `${BUNDLE}/Contents/MacOS/OpenWaggle`
+const BUN = `${BUNDLE}/Contents/MacOS/bun`
+const HELPER = `/private${BUNDLE}/Contents/Frameworks/bun Helper (Renderer).app/Contents/MacOS/bun Helper (Renderer)`
 
 describe('perf process roles', () => {
   it('finds the app bundle of a packaged executable', () => {
@@ -13,11 +13,12 @@ describe('perf process roles', () => {
 
   it.each([
     [`${EXECUTABLE} --use-mock-keychain`, 'gui-main'],
-    [`/private${EXECUTABLE} --use-mock-keychain session-host-internal`, 'host'],
+    [`${BUN} ${BUNDLE}/Contents/Resources/main.js`, 'gui-main'],
     [
-      `${EXECUTABLE} -e require(x) {"model":"m","transformersPath":"/a/transformers"}`,
-      'host-embedding',
+      `/private${BUN} ${BUNDLE}/Contents/Resources/app/out/main/index.js session-host-internal`,
+      'host',
     ],
+    [`${BUN} -e require(x) {"model":"m","transformersPath":"/a/transformers"}`, 'host-embedding'],
     [`${HELPER} --type=renderer --lang=en`, 'renderer'],
     [`${HELPER} --type=gpu-process`, 'gpu'],
     [`${HELPER} --type=utility --utility-sub-type=network`, 'utility'],
@@ -26,7 +27,7 @@ describe('perf process roles', () => {
       'mcp-server',
     ],
     ['npm exec @playwright/mcp@0.0.70', 'mcp-npm-wrapper'],
-    ['/Applications/Electron.app/Contents/MacOS/Electron --type=renderer', 'mcp-server'],
+    ['/Applications/Other.app/Contents/MacOS/Other --type=renderer', 'mcp-server'],
   ])('classifies %s as %s', (command, role) => {
     expect(processRole(command, BUNDLE)).toBe(role)
   })

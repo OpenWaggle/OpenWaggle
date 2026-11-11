@@ -84,7 +84,7 @@ export function sampleProcesses(pids: readonly number[]) {
   return samples
 }
 
-/** The `.app` bundle an executable belongs to, or its directory for a development Electron. */
+/** The `.app` bundle an executable belongs to, or its directory outside a bundle. */
 export function appBundleOf(executable: string) {
   const end = executable.indexOf(APP_BUNDLE_SUFFIX)
   return end < 0

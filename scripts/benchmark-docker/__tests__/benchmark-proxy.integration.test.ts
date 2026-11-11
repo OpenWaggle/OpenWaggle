@@ -5,7 +5,6 @@ import { createServer as createNetServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { asarImage } from '../../__tests__/asar-fixtures'
 import { readAppIdentity } from '../app-identity'
 import { firstRequestOf, requestTokens } from '../request-tokens'
 
@@ -338,14 +337,10 @@ describe('benchmark OpenWaggle build identity', () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'bench-identity-'))
     cleanups.push(() => rm(directory, { recursive: true, force: true }))
     const bundle = path.join(directory, 'OpenWaggle.app')
-    await mkdir(path.join(bundle, 'Contents', 'Resources'), { recursive: true })
-    await writeFile(
-      path.join(bundle, 'Contents', 'Resources', 'app.asar'),
-      asarImage({
-        'package.json': JSON.stringify({ version: VERSION }),
-        'out/build-meta.json': JSON.stringify({ commit: COMMIT }),
-      }),
-    )
+    const app = path.join(bundle, 'Contents', 'Resources', 'app')
+    await mkdir(path.join(app, 'out'), { recursive: true })
+    await writeFile(path.join(app, 'package.json'), JSON.stringify({ version: VERSION }))
+    await writeFile(path.join(app, 'out', 'build-meta.json'), JSON.stringify({ commit: COMMIT }))
     const checkout = path.join(directory, 'checkout')
     await mkdir(path.join(checkout, 'out'), { recursive: true })
     await writeFile(path.join(checkout, 'package.json'), JSON.stringify({ version: VERSION }))

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { buildSafeElectronEnvironment } from './safe-electron-environment'
+import { buildSafeAppEnvironment } from './safe-app-environment'
 
 const execFileAsync = promisify(execFile)
 
@@ -22,7 +22,7 @@ const EMPTY_HOOKS_DIRECTORY = path.join('.cache', 'openwaggle-fixture-git-hooks'
  * credential helpers) and any inherited `GIT_*` variable never apply.
  */
 function fixtureGitEnvironment(scratchHome: string) {
-  return buildSafeElectronEnvironment({
+  return buildSafeAppEnvironment({
     HOME: scratchHome,
     USERPROFILE: scratchHome,
     GIT_CONFIG_GLOBAL: os.devNull,

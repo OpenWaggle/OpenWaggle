@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from '../../qa/session-host-shutdown'
-import { buildSafeElectronEnvironment } from '../../safe-electron-environment'
+import { buildSafeAppEnvironment } from '../../safe-app-environment'
 import { interruptCleanup } from './interrupt-cleanup'
 import { processTree, profileHostPids } from './perf-processes'
 import { scriptEnv } from '../../support/env'
@@ -92,8 +92,7 @@ export function profileEnvironment(
   // temp directory, never under a temp directory another Host shares.
   const temporaryDirectory = os.tmpdir()
   const env = scriptEnv()
-  return buildSafeElectronEnvironment({
-    ELECTRON_ENABLE_LOGGING: '1',
+  return buildSafeAppEnvironment({
     TMPDIR: temporaryDirectory,
     OPENWAGGLE_HOST_TMPDIR: temporaryDirectory,
     HOME: profile.home,

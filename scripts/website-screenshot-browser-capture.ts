@@ -20,24 +20,43 @@ import {
 const GUEST_TIMEOUT_MS = 30_000
 const GUEST_POLL_MS = 100
 
-/** The window's native WebContentsView children showing `url`, with their bounds in the window. */
-async function guestViewBounds(context: CaptureContext, url: string) {
-  return context.app.evaluate(({ BrowserWindow, WebContentsView }, guestUrl) => {
-    const window = BrowserWindow.getAllWindows()[0]
-    if (!window) return []
-    return window.contentView.children.flatMap((child) =>
-      child instanceof WebContentsView && child.webContents.getURL().startsWith(guestUrl)
-        ? [child.getBounds()]
-        : [],
-    )
-  }, url)
+/**
+ * The Browser preview's native view sits over the renderer's `[data-browser-preview-viewport]`
+ * element (src/renderer/src/features/browser-preview/lib/browser-preview-native-bounds.ts), so its
+ * bounds in the window are that element's, rounded the same way.
+ */
+async function previewViewportBounds(page: Page) {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-browser-preview-viewport]')].flatMap(
+      (element) => {
+        const bounds = element.getBoundingClientRect()
+        if (bounds.width < 1 || bounds.height < 1) return []
+        return [
+          {
+            x: Math.max(0, Math.round(bounds.x)),
+            y: Math.max(0, Math.round(bounds.y)),
+            width: Math.max(1, Math.round(bounds.width)),
+            height: Math.max(1, Math.round(bounds.height)),
+          },
+        ]
+      },
+    ),
+  )
+}
+
+/** The preview's guest page: a CEF browser of the app, so a target on the same DevTools endpoint. */
+function guestPage(context: CaptureContext, url: string) {
+  return context.app.browser
+    .contexts()
+    .flatMap((browserContext) => browserContext.pages())
+    .find((candidate) => candidate.url().startsWith(url))
 }
 
 export async function waitForGuest(context: CaptureContext, url: string) {
   const deadline = Date.now() + GUEST_TIMEOUT_MS
   while (Date.now() < deadline) {
-    const page = context.app.windows().find((candidate) => candidate.url().startsWith(url))
-    const bounds = await guestViewBounds(context, url)
+    const page = guestPage(context, url)
+    const bounds = await previewViewportBounds(context.page)
     if (page && bounds.length === 1 && bounds[0]) {
       await page.waitForLoadState('load')
       return { page, bounds: bounds[0] }
@@ -66,8 +85,8 @@ export async function captureBrowserPreview(context: CaptureContext) {
     await openPreview(page, site.url)
     const guest = await waitForGuest(context, site.url)
     await settleForShot(page)
-    // Hidden-window screenshots on macOS can leave out the native WebContentsView even when its
-    // page is loaded (.agents/memory/electron-shell.md), so the guest is captured on its own.
+    // The guest is a native view over the hidden window, which the renderer's screenshot leaves
+    // out, so it is captured on its own and composited in.
     const renderer = await page.screenshot({ animations: 'disabled', scale: 'css' })
     const guestImage = await guest.page.screenshot({ animations: 'disabled', scale: 'css' })
     const composite = await compositeGuestImage({

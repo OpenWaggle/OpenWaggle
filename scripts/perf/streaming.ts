@@ -4,8 +4,9 @@
  *
  * Streaming gate of the v1 performance plan: the renderer while a long markdown answer streams
  * from a local fake provider (about 125 tokens/s), at a 4x CPU throttle by default. Reports the
- * renderer main thread's busy share from a Chrome trace, rAF frame times, and the `agent:event`
- * traffic the main process pushed.
+ * renderer main thread's busy share from a Chrome trace and rAF frame times. The Electron build also
+ * counted the `agent:event` traffic the main process pushed, through its Node inspector; the
+ * Electrobun main process is a Bun Worker without one, so that count is gone.
  *
  *   bun run perf:streaming --app <before.app> --app <after.app> --runs 5 --cpu-throttle 4
  */
@@ -17,8 +18,6 @@ import {
   isTitleRequest,
   startFakeProvider,
 } from './lib/fake-openai-provider'
-import { summarizeIpc } from './lib/ipc-summary'
-import { IPC_LOG_INSTALL, IPC_LOG_READ, IPC_LOG_RESET } from './lib/main-inspector'
 import { resolvePerfApp } from './lib/perf-app'
 import { compareApps, reportComparison } from './lib/perf-app-comparison'
 import { exitWhenFlushed } from './lib/perf-results'
@@ -51,8 +50,6 @@ const METRICS = [
   'frameP99Ms',
   'framesOver33Ms',
   'framesOver100Ms',
-  'agentEventCount',
-  'agentEventBytes',
   'domNodes',
 ]
 
@@ -136,13 +133,10 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
         sessionListText: null,
         timeoutMs: TIMEOUT_MS,
         warmHostIdleMs: 0,
-        mainInspector: true,
         prepareProfile: (profile) => configureFakeProvider(profile.agentDir, provider.baseUrl),
       },
-      async ({ page, inspector }) => {
+      async ({ page }) => {
         await selectFakeModel(page)
-        await inspector?.evaluate(IPC_LOG_INSTALL)
-        await inspector?.evaluate(IPC_LOG_RESET)
         await page.evaluate(() => {
           Object.assign(globalThis, { __owFrames: [] })
           const holder: object = globalThis
@@ -171,9 +165,6 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
           const value: unknown = '__owFrames' in holder ? holder.__owFrames : null
           return value
         })
-        const ipcLog: unknown = await inspector?.evaluate(IPC_LOG_READ)
-        const ipc = summarizeIpc(JSON.parse(typeof ipcLog === 'string' ? ipcLog : 'null'))
-        const agentEvents = ipc.pushedChannels['agent:event'] ?? { count: 0, bytes: 0 }
         const bounds = traceBounds(trace)
         return {
           app: app.label,
@@ -185,8 +176,6 @@ async function measureStreaming(appPath: string, label: string | undefined, thro
               ? frames.filter((frame): frame is number => typeof frame === 'number')
               : [],
           ),
-          agentEventCount: agentEvents.count,
-          agentEventBytes: agentEvents.bytes,
           domNodes: await page.evaluate(() => document.getElementsByTagName('*').length),
         }
       },

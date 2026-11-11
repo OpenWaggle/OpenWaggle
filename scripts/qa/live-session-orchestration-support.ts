@@ -1,13 +1,12 @@
 import { spawn } from 'node:child_process'
-import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from '../support/object-fields'
+import { discoverElectrobunApps } from '../native-platform-floor-targets'
 import { type RunProcessOptions, runProcess } from './bounded-child-process'
 
-const APP_NAME = 'OpenWaggle.app'
 const FIRST_USER_ARGUMENT_INDEX = 2
 const STARTUP_TIMEOUT_MS = 30_000
 const RETRY_DELAY_MS = 250
@@ -22,59 +21,31 @@ interface WaitForHostOptions {
   readonly wait?: (milliseconds: number) => Promise<void>
 }
 
-async function pathExists(candidate: string) {
-  try {
-    await fs.access(candidate)
-    return true
-  } catch {
-    return false
-  }
-}
+/** The macOS bundle's executable: the Electrobun launcher under the name Finder starts. */
+const MACOS_EXECUTABLE = ['Contents', 'MacOS', 'OpenWaggle'] as const
 
-export async function findPackagedExecutable() {
-  const explicit = process.argv[FIRST_USER_ARGUMENT_INDEX]
+/**
+ * The packaged app to drive: the path given on the command line (an `.app` bundle, or an installed
+ * Linux or Windows launcher), or on macOS the app `bun run package:app` left in `out/electrobun`.
+ */
+export async function findPackagedExecutable(
+  argv: readonly string[] = process.argv,
+  platform: NodeJS.Platform = process.platform,
+) {
+  const explicit = argv[FIRST_USER_ARGUMENT_INDEX]
   if (explicit) {
     const resolved = path.resolve(explicit)
-    return resolved.endsWith('.app')
-      ? path.join(resolved, 'Contents', 'MacOS', 'OpenWaggle')
-      : resolved
+    return resolved.endsWith('.app') ? path.join(resolved, ...MACOS_EXECUTABLE) : resolved
   }
-  const entries = await fs.readdir('dist', { withFileTypes: true })
-  const candidates = entries.flatMap((entry) => {
-    if (process.platform === 'darwin' && entry.isDirectory()) {
-      return [path.resolve('dist', entry.name, APP_NAME, 'Contents', 'MacOS', 'OpenWaggle')]
-    }
-    if (process.platform === 'win32' && entry.isDirectory()) {
-      return [path.resolve('dist', entry.name, 'OpenWaggle.exe')]
-    }
-    if (process.platform === 'linux') {
-      if (entry.isFile() && entry.name.endsWith('.AppImage')) {
-        return [path.resolve('dist', entry.name)]
-      }
-      if (entry.isDirectory()) {
-        return [
-          path.resolve('dist', entry.name, 'openwaggle'),
-          path.resolve('dist', entry.name, 'OpenWaggle'),
-        ]
-      }
-    }
-    return []
-  })
-  const existing: string[] = []
-  for (const candidate of candidates) {
-    if (await pathExists(candidate)) existing.push(candidate)
+  if (platform !== 'darwin') {
+    throw new Error('Pass the installed OpenWaggle launcher: its Electrobun build is packaged.')
   }
-  return selectPackagedExecutable(existing, process.platform)
-}
-
-export function selectPackagedExecutable(existing: readonly string[], platform: NodeJS.Platform) {
-  const appImages =
-    platform === 'linux' ? existing.filter((entry) => entry.endsWith('.AppImage')) : []
-  const candidates = appImages.length > 0 ? appImages : existing
-  if (candidates.length !== 1) {
-    throw new Error(`Expected one packaged OpenWaggle executable, found ${candidates.length}.`)
+  const apps = await discoverElectrobunApps('darwin')
+  const [app] = apps
+  if (apps.length !== 1 || app === undefined) {
+    throw new Error(`Expected one packaged OpenWaggle app, found ${String(apps.length)}.`)
   }
-  return candidates[0] ?? ''
+  return path.join(app, ...MACOS_EXECUTABLE)
 }
 
 export function childEnvironment(userDataRoot: string) {
@@ -85,8 +56,6 @@ export function childEnvironment(userDataRoot: string) {
       OPENWAGGLE_USER_DATA_DIR: userDataRoot,
       OPENWAGGLE_AUTOMATION: '1',
       OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1',
-      ELECTRON_ENABLE_LOGGING: '1',
-      ELECTRON_RUN_AS_NODE: undefined,
     }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
   )
 }

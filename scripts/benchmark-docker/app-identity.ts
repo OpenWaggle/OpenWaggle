@@ -5,14 +5,14 @@
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { readAsarArchive } from '../asar-archive'
 
 export interface AppIdentity {
   readonly appVersion: string | null
   readonly commit: string | null
 }
 
-const PACKAGED_ASAR = path.join('Contents', 'Resources', 'app.asar')
+/** Where an Electrobun `.app` keeps OpenWaggle's files (scripts/electrobun/app-config.ts). */
+const PACKAGED_APP = path.join('Contents', 'Resources', 'app')
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -25,9 +25,9 @@ function field(raw: string | null, name: string) {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-async function readOrNull(read: () => Promise<Buffer | string>) {
+async function readOrNull(file: string) {
   try {
-    return (await read()).toString()
+    return await readFile(file, 'utf8')
   } catch {
     return null
   }
@@ -36,23 +36,10 @@ async function readOrNull(read: () => Promise<Buffer | string>) {
 /** `appPath` is an `OpenWaggle.app` bundle or a built checkout, as `--app` accepts. */
 export async function readAppIdentity(appPath: string) {
   const resolved = path.resolve(appPath)
-  if (resolved.endsWith('.app')) {
-    const archive = await readAsarArchive(path.join(resolved, PACKAGED_ASAR))
-    const identity: AppIdentity = {
-      appVersion: field(await readOrNull(() => archive.readFile('/package.json')), 'version'),
-      commit: field(await readOrNull(() => archive.readFile('/out/build-meta.json')), 'commit'),
-    }
-    return identity
-  }
+  const root = resolved.endsWith('.app') ? path.join(resolved, PACKAGED_APP) : resolved
   const identity: AppIdentity = {
-    appVersion: field(
-      await readOrNull(() => readFile(path.join(resolved, 'package.json'), 'utf8')),
-      'version',
-    ),
-    commit: field(
-      await readOrNull(() => readFile(path.join(resolved, 'out', 'build-meta.json'), 'utf8')),
-      'commit',
-    ),
+    appVersion: field(await readOrNull(path.join(root, 'package.json')), 'version'),
+    commit: field(await readOrNull(path.join(root, 'out', 'build-meta.json')), 'commit'),
   }
   return identity
 }

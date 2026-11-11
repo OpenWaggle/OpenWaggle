@@ -1,28 +1,25 @@
 import { type ChildProcessByStdio, spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { interruptCleanup } from './interrupt-cleanup'
 
-/** An OpenWaggle build to launch: a packaged `.app`, or a repository whose `out/` was built. */
+/**
+ * An OpenWaggle build to launch: a packaged `.app`, or a checkout where `bun run package:app` left
+ * one (`out/electrobun/inner`, scripts/electrobun/package.ts).
+ */
 export interface PerfApp {
   readonly label: string
+  /** The bundle's executable: Electrobun's launcher, which forwards its arguments to main. */
   readonly executable: string
-  /** Arguments that precede the app's own: the app directory for a development Electron. */
+  /** Arguments that precede the app's own. */
   readonly leadingArguments: readonly string[]
 }
 
 const PACKAGED_EXECUTABLE = path.join('Contents', 'MacOS', 'OpenWaggle')
-const DEVELOPMENT_ELECTRON = path.join(
-  'node_modules',
-  'electron',
-  'dist',
-  'Electron.app',
-  'Contents',
-  'MacOS',
-  'Electron',
-)
+const CHECKOUT_APPS = path.join('out', 'electrobun', 'inner')
+const STABLE_MACOS_TARGET = 'stable-macos-'
 const PROCESS_EXIT_WAIT_MS = 5_000
 const PROCESS_EXIT_POLL_MS = 100
 const EPHEMERAL_PORT = 0
@@ -31,8 +28,20 @@ const STARTUP_TIMING_PATTERN = /Startup timing.*label: '([^']+)'.*elapsedMs: ([0
 const LABEL_GROUP = 1
 const ELAPSED_GROUP = 2
 
+/** The `.app` a checkout's Electrobun build left for this machine's architecture. */
+function checkoutApp(checkout: string) {
+  const targets = path.join(checkout, CHECKOUT_APPS)
+  if (!existsSync(targets)) return null
+  const target = readdirSync(targets).find(
+    (name) => name === `${STABLE_MACOS_TARGET}${process.arch}`,
+  )
+  if (target === undefined) return null
+  const app = readdirSync(path.join(targets, target)).find((name) => name.endsWith('.app'))
+  return app === undefined ? null : path.join(targets, target, app)
+}
+
 /**
- * Resolves `--app <path>`: an `OpenWaggle.app` bundle or a repository checkout with `out/`.
+ * Resolves `--app <path>`: an `OpenWaggle.app` bundle or a checkout with a packaged build.
  * Every harness that launches the app comes through here, so this is where it refuses to run off
  * macOS: elsewhere `profileHostPids` (BSD `ps -E`) finds nothing, so a Host that did not drain
  * could not be stopped, and the profile clones (`cp -c`) and `.app` paths fail.
@@ -48,23 +57,18 @@ export function resolvePerfApp(
     )
   }
   const resolved = path.resolve(appPath)
-  if (resolved.endsWith('.app')) {
+  const bundle = resolved.endsWith('.app') ? resolved : checkoutApp(resolved)
+  if (bundle !== null) {
     const app: PerfApp = {
       label,
-      executable: path.join(resolved, PACKAGED_EXECUTABLE),
+      executable: path.join(bundle, PACKAGED_EXECUTABLE),
       leadingArguments: [],
     }
     return app
   }
-  if (existsSync(path.join(resolved, 'out', 'main', 'index.js'))) {
-    const app: PerfApp = {
-      label,
-      executable: path.join(resolved, DEVELOPMENT_ELECTRON),
-      leadingArguments: [resolved],
-    }
-    return app
-  }
-  throw new Error(`${appPath} is neither an OpenWaggle.app bundle nor a built checkout.`)
+  throw new Error(
+    `${appPath} is neither an OpenWaggle.app bundle nor a checkout with a packaged build (bun run package:app).`,
+  )
 }
 
 export type AppProcess = ChildProcessByStdio<null, Readable, Readable>

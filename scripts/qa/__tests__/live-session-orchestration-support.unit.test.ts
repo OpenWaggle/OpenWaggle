@@ -4,9 +4,9 @@ import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { prepareLiveQaCliExecutable } from '../live-session-cli-executable'
 import {
+  findPackagedExecutable,
   launchGui,
   runProcess,
-  selectPackagedExecutable,
   stopChild,
   waitForHost,
 } from '../live-session-orchestration-support'
@@ -36,7 +36,7 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
     const executable = path.join(workingDirectory, 'fake-appimage')
     await fs.writeFile(
       executable,
-      "#!/bin/sh\nprintf 'Electron diagnostic\\n{}\\n'\nprintf '{\"ok\":true}\\n' >&3\n",
+      "#!/bin/sh\nprintf 'runtime diagnostic\\n{}\\n'\nprintf '{\"ok\":true}\\n' >&3\n",
       { mode: 0o700 },
     )
     const command = await prepareLiveQaCliExecutable({
@@ -51,13 +51,16 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
     })
   })
 
-  it('prefers the Linux AppImage when unpacked build output also exists', () => {
-    expect(
-      selectPackagedExecutable(
-        ['/project/dist/linux-unpacked/openwaggle', '/project/dist/openwaggle-x64.AppImage'],
-        'linux',
-      ),
-    ).toBe('/project/dist/openwaggle-x64.AppImage')
+  it('drives the executable of a given app bundle, and asks for the launcher off macOS', async () => {
+    await expect(
+      findPackagedExecutable(['bun', 'qa.ts', '/Applications/OpenWaggle.app'], 'darwin'),
+    ).resolves.toBe(path.join('/Applications/OpenWaggle.app', 'Contents', 'MacOS', 'OpenWaggle'))
+    await expect(
+      findPackagedExecutable(['bun', 'qa.ts', '/opt/openwaggle/bin/launcher'], 'linux'),
+    ).resolves.toBe('/opt/openwaggle/bin/launcher')
+    await expect(findPackagedExecutable(['bun', 'qa.ts'], 'linux')).rejects.toThrow(
+      'Pass the installed OpenWaggle launcher',
+    )
   })
 
   it('rejects a GUI spawn error so the profile lifecycle can retain evidence', async () => {

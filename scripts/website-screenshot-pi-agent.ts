@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { playwrightElectronHome } from './playwright-electron-launcher'
+import { electrobunAppHome } from './support/electrobun-app-launch'
 import type { FixtureModelServer } from './website-screenshot-model-server'
 
 /** The model the scripted endpoint stands in for: the one the seeded Sessions already use. */
@@ -40,7 +40,7 @@ export async function writeFixturePiAgent(input: {
   readonly model: Pick<FixtureModelServer, 'openAiBaseUrl' | 'anthropicBaseUrl'>
 }) {
   const openAiBaseUrl = input.model.openAiBaseUrl
-  const { piAgentDir } = playwrightElectronHome(input)
+  const { piAgentDir } = electrobunAppHome(input)
   await fs.mkdir(piAgentDir, { recursive: true })
   await fs.writeFile(
     path.join(piAgentDir, 'auth.json'),

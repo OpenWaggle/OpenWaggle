@@ -1,4 +1,4 @@
-const SAFE_ELECTRON_ENVIRONMENT_KEYS = [
+const SAFE_APP_ENVIRONMENT_KEYS = [
   'CI',
   'COLORTERM',
   'DISPLAY',
@@ -31,9 +31,9 @@ const SAFE_ELECTRON_ENVIRONMENT_KEYS = [
  * The inherited allow-listed variables, then the launcher's overrides. An override wins: a
  * launcher that isolates HOME or the Pi agent directory must not get the caller's real one back.
  */
-export function buildSafeElectronEnvironment(overrides: Readonly<Record<string, string>>) {
+export function buildSafeAppEnvironment(overrides: Readonly<Record<string, string>>) {
   const environment: Record<string, string> = {}
-  for (const key of SAFE_ELECTRON_ENVIRONMENT_KEYS) {
+  for (const key of SAFE_APP_ENVIRONMENT_KEYS) {
     const value = process.env[key]
     if (typeof value === 'string' && value.length > 0) environment[key] = value
   }

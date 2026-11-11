@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { type ElectronApplication, expect, type Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import type { OpenWaggleApi } from '@shared/types/ipc'
+import type { ConnectedElectrobunApp } from './support/electrobun-app-launch'
 import type { FixtureModelServer } from './website-screenshot-model-server'
 
 const UI_SETTLE_DELAY_MS = 400
@@ -18,13 +19,13 @@ declare global {
 }
 
 export interface CaptureContext {
-  readonly app: ElectronApplication
+  readonly app: ConnectedElectrobunApp
   readonly page: Page
   readonly outputDir: string
   readonly evidenceDir: string
   /** The scratch profile's HOME, which the launcher forces on the app; fixtures write only here. */
   readonly homeDir: string
-  /** The scratch profile's Electron user data directory, which holds the Host database. */
+  /** The scratch profile's userData directory, which holds the Host database. */
   readonly userDataDir: string
   /** The scripted model every real Run talks to. */
   readonly model: FixtureModelServer
@@ -124,15 +125,17 @@ interface WindowSize {
   readonly height: number
 }
 
-async function setWindowSize(context: CaptureContext, size: WindowSize) {
-  await context.app.evaluate(async ({ BrowserWindow }, bounds) => {
-    BrowserWindow.getAllWindows()[0]?.setBounds(bounds)
-  }, size)
-  await context.page.waitForFunction(
+/**
+ * Sizes the renderer's viewport over CDP. The window is hidden, so its own frame never shows, and
+ * the renderer lays out (and reports native preview bounds) for the emulated size.
+ */
+export async function setWindowSize(page: Page, size: WindowSize) {
+  await page.setViewportSize(size)
+  await page.waitForFunction(
     ({ width, height }) => window.innerWidth === width && window.innerHeight === height,
     size,
   )
-  await waitForUi(context.page)
+  await waitForUi(page)
 }
 
 /** Runs a capture at another window size, then restores the standard one. */
@@ -141,11 +144,11 @@ export async function withWindowSize<T>(
   size: WindowSize,
   capture: () => Promise<T>,
 ) {
-  await setWindowSize(context, size)
+  await setWindowSize(context.page, size)
   try {
     return await capture()
   } finally {
-    await setWindowSize(context, WINDOW_SIZE)
+    await setWindowSize(context.page, WINDOW_SIZE)
   }
 }
 

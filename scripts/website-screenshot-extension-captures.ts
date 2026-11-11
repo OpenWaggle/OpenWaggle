@@ -108,7 +108,7 @@ const routedPages = new WeakSet<Page>()
 /**
  * The fixture reads public GitHub issues; the capture answers those requests itself, so the images
  * never depend on the network or show live data. The route stays for the rest of the run:
- * `unroute` on an Electron window's context can hang, and nothing else calls GitHub.
+ * `unroute` on the app window's context hung under Electron, and nothing else calls GitHub.
  */
 async function answerGithubWithFixture(page: Page) {
   if (routedPages.has(page)) return

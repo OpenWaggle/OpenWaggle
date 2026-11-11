@@ -1,9 +1,9 @@
-import { createServer } from 'node:net'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { type Browser, chromium } from '@playwright/test'
 import { AUTOMATION_IDENTITY_QUERY_PARAM } from '../../src/shared/constants/electron-automation'
+import { rendererPage } from '../support/electrobun-app-launch'
 
 const CDP_RETRY_DELAY_MS = 250
 
@@ -18,24 +18,7 @@ export function assertLiveQaPageAutomationIdentity(url: string, automationIdenti
   }
 }
 
-export async function reserveDebugPort() {
-  const server = createServer()
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-  const address = server.address()
-  if (typeof address !== 'object' || address === null) {
-    server.close()
-    throw new Error('Could not reserve an Electron debugging port.')
-  }
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()))
-  })
-  return address.port
-}
-
-async function connectToElectron(debugPort: number, timeoutMs: number) {
+async function connectToApp(debugPort: number, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs
   let lastError: unknown
   while (Date.now() < deadline) {
@@ -46,7 +29,7 @@ async function connectToElectron(debugPort: number, timeoutMs: number) {
       await new Promise((resolve) => setTimeout(resolve, CDP_RETRY_DELAY_MS))
     }
   }
-  throw new Error(`Could not connect to packaged Electron over CDP: ${String(lastError)}`)
+  throw new Error(`Could not connect to the packaged app over CDP: ${String(lastError)}`)
 }
 
 async function waitForRendererPage(
@@ -56,17 +39,14 @@ async function waitForRendererPage(
 ) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const page = browser
-      .contexts()
-      .flatMap((context) => context.pages())
-      .find((candidate) => candidate.url().startsWith('openwaggle://'))
+    const page = rendererPage(browser)
     if (page) {
       assertLiveQaPageAutomationIdentity(page.url(), automationIdentity)
       return page
     }
     await new Promise((resolve) => setTimeout(resolve, CDP_RETRY_DELAY_MS))
   }
-  throw new Error('Packaged Electron did not expose its renderer page.')
+  throw new Error('The packaged app did not expose its renderer page.')
 }
 
 export async function waitForLiveGui(
@@ -74,7 +54,7 @@ export async function waitForLiveGui(
   timeoutMs: number,
   automationIdentity: string,
 ) {
-  const browser = await connectToElectron(debugPort, timeoutMs)
+  const browser = await connectToApp(debugPort, timeoutMs)
   try {
     const page = await waitForRendererPage(browser, timeoutMs, automationIdentity)
     await page.locator('body').waitFor({ state: 'visible', timeout: timeoutMs })
@@ -89,7 +69,7 @@ export async function verifyLiveHiveGui(input: {
   readonly timeoutMs: number
   readonly automationIdentity: string
 }) {
-  const browser = await connectToElectron(input.debugPort, input.timeoutMs)
+  const browser = await connectToApp(input.debugPort, input.timeoutMs)
   try {
     const page = await waitForRendererPage(browser, input.timeoutMs, input.automationIdentity)
     const consoleErrors: string[] = []
@@ -97,13 +77,8 @@ export async function verifyLiveHiveGui(input: {
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text())
     })
-    const runtime = await page.evaluate(() => ({
-      hasApi: 'api' in window,
-      isElectron: navigator.userAgent.includes('Electron'),
-    }))
-    if (!runtime.hasApi || !runtime.isElectron) {
-      throw new Error('Live Hive QA requires the real Electron renderer and preload API.')
-    }
+    const hasApi = await page.evaluate(() => 'api' in window)
+    if (!hasApi) throw new Error('Live Hive QA requires the real renderer and preload API.')
     const row = (title: string) =>
       page.locator('[data-qa="sidebar-session-row"]').filter({ hasText: title })
     const queenRow = row(input.queenTitle)

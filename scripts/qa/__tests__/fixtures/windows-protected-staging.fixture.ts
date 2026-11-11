@@ -1,8 +1,6 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { app } from 'electron'
-import { prepareDesktopUi } from '../../../../src/main/desktop-window-policy'
 import { getSafeChildEnv } from '../../../../src/main/env'
 import { generateProfileCredential } from '../../../../src/main/session-host/profile-credential'
 import {
@@ -21,10 +19,8 @@ try {
 `
 
 const [directoryArgument] = process.argv.slice(2)
-prepareDesktopUi()
 if (!directoryArgument) throw new Error('Protected-staging probe requires its private directory.')
 const directory = directoryArgument
-app.setPath('userData', path.join(directory, 'profile'))
 
 function failure(stage: string, error: unknown) {
   const code =
@@ -71,7 +67,7 @@ async function descriptorProbe() {
     return await new Promise<{ readonly ok: boolean; readonly exitCode: number | null }>(
       (resolve, reject) => {
         const child = spawn(process.execPath, ['-e', FD_READER], {
-          env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+          env: getSafeChildEnv(),
           windowsHide: true,
           stdio: ['ignore', 'pipe', 'ignore', source.fd],
         })
@@ -119,11 +115,10 @@ async function protectedStagingProbe() {
 }
 
 async function run() {
-  await app.whenReady()
   const result = {
     identity: {
       pid: process.pid,
-      electron: process.versions.electron,
+      bun: process.versions['bun'],
       node: process.versions.node,
       uv: process.versions.uv,
     },
@@ -136,7 +131,6 @@ async function run() {
   }
   // Credentials and unrestricted exception messages never enter the diagnostic record.
   await fs.writeFile(path.join(directory, 'result.json'), JSON.stringify(result))
-  app.quit()
 }
 
 void run().catch(async (error: unknown) => {
@@ -144,5 +138,5 @@ void run().catch(async (error: unknown) => {
     path.join(directory, 'startup-error.json'),
     JSON.stringify(failure('startup', error)),
   )
-  app.exit(1)
+  process.exitCode = 1
 })

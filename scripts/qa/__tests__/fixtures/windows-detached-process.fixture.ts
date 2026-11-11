@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { app } from 'electron'
+import { fileURLToPath } from 'node:url'
 import { launchHeadlessBackgroundProcess } from '../../../../src/main/desktop-ui'
-import { prepareDesktopUi } from '../../../../src/main/desktop-window-policy'
 import { getSessionHostChildEnv } from '../../../../src/main/env'
 import {
   WINDOWS_DETACHED_PROCESS_ARGUMENTS,
@@ -14,13 +13,10 @@ const CHILD_LIFETIME_MS = 25_000
 const POLL_INTERVAL_MS = 25
 
 const [mode, directoryArgument, ...receivedArguments] = process.argv.slice(2)
-prepareDesktopUi()
 if ((mode !== 'parent' && mode !== 'child') || !directoryArgument) {
   throw new Error('Detached-process probe requires its mode and private directory.')
 }
 const directory = directoryArgument
-
-app.setPath('userData', path.join(directory, mode))
 
 async function publishReady(fileName: string, value: unknown) {
   const filePath = path.join(directory, fileName)
@@ -39,7 +35,6 @@ async function exists(filePath: string) {
 }
 
 async function run() {
-  await app.whenReady()
   if (mode === 'child') {
     const deadline = Date.now() + CHILD_LIFETIME_MS
     await publishReady('child-ready.json', {
@@ -51,14 +46,13 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
     }
     await fs.writeFile(path.join(directory, 'child-stopped'), '')
-    app.quit()
     return
   }
 
   await launchHeadlessBackgroundProcess({
     command: process.execPath,
     args: [
-      path.join(directory, 'fixture.cjs'),
+      fileURLToPath(import.meta.url),
       'child',
       directory,
       ...WINDOWS_DETACHED_PROCESS_ARGUMENTS,
@@ -75,10 +69,9 @@ async function run() {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
   }
   await publishReady('parent-ready.json', { pid: process.pid, versions: process.versions })
-  app.quit()
 }
 
 void run().catch(async (error: unknown) => {
   await fs.writeFile(path.join(directory, `${mode}-error.txt`), String(error))
-  app.exit(1)
+  process.exitCode = 1
 })

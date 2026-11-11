@@ -110,7 +110,7 @@ function countLineFeeds(text: string) {
 function throughputCommand() {
   if (process.platform === 'win32') {
     throw new Error(
-      'The main-process terminal benchmark command currently requires a POSIX shell. Renderer performance is gated separately in Electron QA.',
+      'The main-process terminal benchmark command currently requires a POSIX shell. Renderer performance is gated separately in desktop QA.',
     )
   }
   // Encode underscores in the marker so the echoed command line cannot be
@@ -141,7 +141,7 @@ async function main() {
     )
 
     // This script gates the main-process PTY pipeline. Renderer long-task and
-    // input-latency p95 belong in the real-Electron performance scenario.
+    // input-latency p95 belong in the real-app performance scenario.
     await delay(SETTLE_MS)
     events.length = 0
 
