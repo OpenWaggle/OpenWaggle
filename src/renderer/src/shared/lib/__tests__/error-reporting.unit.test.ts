@@ -21,9 +21,11 @@ async function loadErrorReporting() {
 
 function rendererReporter() {
   const reporter = { captureException: vi.fn() }
+  const start = vi.fn((_bridge: 'sentry-ipc' | 'renderer-envelope') => reporter)
   return {
     reporter,
-    load: vi.fn(async () => ({ startSentryRendererErrorReporter: () => reporter })),
+    start,
+    load: vi.fn(async () => ({ startSentryRendererErrorReporter: start })),
   }
 }
 
@@ -83,6 +85,21 @@ describe('renderer error reporting', () => {
     reportRendererError(new Error('nowhere to go'))
 
     expect(load).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Electron', { __SENTRY_IPC__: { 'sentry-ipc': {} } }, 'sentry-ipc'],
+    ['Electrobun', { __OPENWAGGLE_ERROR_REPORT_ENVELOPES__: true }, 'renderer-envelope'],
+  ])('starts the SDK for the bridge the %s preload defined', async (_shell, bridge, expected) => {
+    vi.stubGlobal('window', { location: RENDERER_LOCATION, ...bridge })
+    const { scheduleRendererErrorReporting } = await loadErrorReporting()
+    const { load, start } = rendererReporter()
+    const idle = heldSchedule()
+
+    scheduleRendererErrorReporting(ENABLED, idle.schedule, load)
+    idle.runIdle()
+
+    await vi.waitFor(() => expect(start).toHaveBeenCalledWith(expected))
   })
 
   it('never loads the SDK in a Dev build', async () => {

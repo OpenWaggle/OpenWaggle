@@ -32,6 +32,14 @@ export function errorReportingRelease(appVersion: string) {
  */
 export const ERROR_REPORTING_RENDERER_SWITCH = '--openwaggle-error-reporting'
 
+/**
+ * Global the Electrobun preload defines, with the error-reporting switch, to tell the renderer that
+ * it hands reports to the main process as Sentry envelopes over the app's IPC
+ * (`window.api.sendErrorReportEnvelope`). Electron's preload defines the Sentry Electron SDK's
+ * `__SENTRY_IPC__` bridge instead.
+ */
+export const ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL = '__OPENWAGGLE_ERROR_REPORT_ENVELOPES__'
+
 /** Tag naming where a reported error came from. */
 export const ERROR_REPORT_ORIGIN_TAG = 'openwaggle.error_origin'
 

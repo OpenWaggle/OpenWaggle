@@ -2,20 +2,25 @@
  * Renderer error reporting (ADR 0045).
  *
  * The SDK can start only when the main process reports errors, which it signals by having the
- * preload expose the SDK's IPC bridge; Dev builds, automation and the environment opt-outs never
- * get the bridge. It then starts once this window's Settings have Usage statistics on, now or
+ * preload expose a bridge: the Sentry Electron SDK's IPC bridge on Electron, the envelope bridge on
+ * Electrobun (ADR 0064), which also picks the SDK the chunk starts. Dev builds, automation and the
+ * environment opt-outs never get a bridge. It then starts once this window's Settings have Usage statistics on, now or
  * when the user turns them on later, at the next idle moment. The SDK is a separate chunk, so it
  * stays off the startup path, and off entirely while statistics stay off.
  */
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
+import { ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL } from '@shared/error-reporting/error-report-constants'
 import { createRendererLogger } from './logger'
+import type { RendererErrorReportingBridge } from './sentry-renderer'
 
 interface RendererErrorReporter {
   readonly captureException: (error: unknown) => void
 }
 
 interface RendererErrorReporterModule {
-  readonly startSentryRendererErrorReporter: () => RendererErrorReporter
+  readonly startSentryRendererErrorReporter: (
+    bridge: RendererErrorReportingBridge,
+  ) => RendererErrorReporter
 }
 
 /** This window's view of the Usage statistics Setting. */
@@ -32,8 +37,8 @@ type ReportingState =
   | { readonly kind: 'pending'; readonly pending: unknown[] }
   | { readonly kind: 'on'; readonly reporter: RendererErrorReporter }
 
-/** Global the Sentry preload bridge defines when the main process reports errors. */
-const ERROR_REPORTING_BRIDGE_GLOBAL = '__SENTRY_IPC__'
+/** Global the Sentry Electron preload bridge defines when the main process reports errors. */
+const SENTRY_IPC_BRIDGE_GLOBAL = '__SENTRY_IPC__'
 /** Errors the app reports while the SDK is about to start; later ones are dropped. */
 const MAX_PENDING_ERRORS = 10
 /** The SDK starts by then even if the renderer never goes idle. */
@@ -42,8 +47,12 @@ const IDLE_START_TIMEOUT_MS = 5_000
 const logger = createRendererLogger('error-reporting')
 let state: ReportingState = { kind: 'off' }
 
-function hasErrorReportingBridge() {
-  return typeof window !== 'undefined' && Reflect.has(window, ERROR_REPORTING_BRIDGE_GLOBAL)
+/** The bridge this window's preload defined, or null when the main process reports no errors. */
+function errorReportingBridge(): RendererErrorReportingBridge | null {
+  if (typeof window === 'undefined') return null
+  if (Reflect.has(window, SENTRY_IPC_BRIDGE_GLOBAL)) return 'sentry-ipc'
+  if (Reflect.has(window, ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL)) return 'renderer-envelope'
+  return null
 }
 
 function importSentryRendererErrorReporter() {
@@ -59,12 +68,13 @@ function whenIdle(start: () => void) {
 }
 
 function startReporter(
+  bridge: RendererErrorReportingBridge,
   pending: unknown[],
   loadReporter: () => Promise<RendererErrorReporterModule>,
 ) {
   loadReporter().then(
     ({ startSentryRendererErrorReporter }) => {
-      const reporter = startSentryRendererErrorReporter()
+      const reporter = startSentryRendererErrorReporter(bridge)
       state = { kind: 'on', reporter }
       for (const error of pending) reporter.captureException(error)
     },
@@ -87,11 +97,12 @@ export function scheduleRendererErrorReporting(
   schedule: (start: () => void) => void = whenIdle,
   loadReporter: () => Promise<RendererErrorReporterModule> = importSentryRendererErrorReporter,
 ) {
-  if (state.kind !== 'off' || BUILD_CHANNEL === 'dev' || !hasErrorReportingBridge()) return
+  const bridge = errorReportingBridge()
+  if (state.kind !== 'off' || BUILD_CHANNEL === 'dev' || bridge === null) return
   const begin = () => {
     const pending: unknown[] = []
     state = { kind: 'pending', pending }
-    schedule(() => startReporter(pending, loadReporter))
+    schedule(() => startReporter(bridge, pending, loadReporter))
   }
   if (usageStatistics.isEnabled()) {
     begin()

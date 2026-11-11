@@ -1,19 +1,20 @@
-import type { ErrorEvent } from '@sentry/electron/renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as SentryBrowser from '@sentry/browser'
+import type { ErrorEvent } from '@sentry/browser'
+import { parseEnvelope } from '@sentry/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const sentry = vi.hoisted(() => {
-  const integration = (name: string) => () => ({ name })
+const electronRenderer = vi.hoisted(() => ({ init: vi.fn() }))
+
+vi.mock('@sentry/electron/renderer', () => electronRenderer)
+// The browser SDK runs for real; the spies only record what the adapter asked of it.
+vi.mock('@sentry/browser', async (importOriginal) => {
+  const actual = await importOriginal<typeof SentryBrowser>()
   return {
-    init: vi.fn(),
-    captureException: vi.fn(),
-    dedupeIntegration: integration('Dedupe'),
-    eventFiltersIntegration: integration('EventFilters'),
-    globalHandlersIntegration: integration('GlobalHandlers'),
-    linkedErrorsIntegration: integration('LinkedErrors'),
+    ...actual,
+    init: vi.fn(actual.init),
+    captureException: vi.fn(actual.captureException),
   }
 })
-
-vi.mock('@sentry/electron/renderer', () => sentry)
 
 import { createSentryRendererOptions, startSentryRendererErrorReporter } from '../sentry-renderer'
 
@@ -102,14 +103,15 @@ describe('Sentry renderer options', () => {
     })
   })
 
-  it('initializes Sentry once and reports caught errors', () => {
-    const reporter = startSentryRendererErrorReporter()
+  it('starts the Electron renderer SDK over its IPC bridge on Electron', () => {
+    const reporter = startSentryRendererErrorReporter('sentry-ipc')
     const error = new Error('render failed')
 
     reporter.captureException(error)
 
-    expect(sentry.init).toHaveBeenCalledOnce()
-    expect(sentry.captureException).toHaveBeenCalledWith(error)
+    expect(electronRenderer.init).toHaveBeenCalledOnce()
+    expect(SentryBrowser.init).not.toHaveBeenCalled()
+    expect(SentryBrowser.captureException).toHaveBeenCalledWith(error)
   })
 
   it('tags a report with the API method whose rejected call reported it', async () => {
@@ -164,5 +166,63 @@ describe('Sentry renderer options', () => {
     expect(plain?.tags).toEqual({ 'openwaggle.error_origin': 'unhandled' })
 
     consoleSpy.mockRestore()
+  })
+})
+
+describe('Sentry renderer on Electrobun', () => {
+  const PAGE_BASE = 'http://127.0.0.1:49152/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+  const sendErrorReportEnvelope = vi.fn((_envelope: string) => undefined)
+
+  beforeEach(() => {
+    vi.resetModules()
+    sendErrorReportEnvelope.mockClear()
+    vi.stubGlobal('window', {
+      location: { href: `${PAGE_BASE}/index.html#/sessions/0199a1b2` },
+      api: { sendErrorReportEnvelope },
+    })
+  })
+
+  afterEach(async () => {
+    await SentryBrowser.getClient()?.close()
+    vi.unstubAllGlobals()
+  })
+
+  it('hands each scrubbed error event to the main process as an envelope over the app IPC', async () => {
+    const { startSentryRendererErrorReporter: start } = await import('../sentry-renderer')
+    const error = new TypeError("cannot open C:\\Users\\Sean O'Brien\\plan.md")
+    error.stack = [
+      `TypeError: ${error.message}`,
+      `    at render (${PAGE_BASE}/assets/index-Bx1.js:10:5)`,
+      '    at mount (http://127.0.0.1:50000/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB/module/x/dist/settings.js:1:1)',
+    ].join('\n')
+
+    start('renderer-envelope').captureException(error)
+    await SentryBrowser.flush(1_000)
+
+    expect(electronRenderer.init).not.toHaveBeenCalled()
+    expect(sendErrorReportEnvelope).toHaveBeenCalledOnce()
+    const [envelope] = sendErrorReportEnvelope.mock.calls[0] ?? []
+    const [, items] = parseEnvelope(envelope ?? '')
+    expect(items.map(([header]) => header.type)).toEqual(['event'])
+    const [[, event]] = items
+    expect(event).toMatchObject({
+      exception: {
+        values: [
+          {
+            type: 'TypeError',
+            value: 'unknown',
+            stacktrace: {
+              frames: [
+                // Another loopback origin, such as an extension module, is external code.
+                { filename: '<external>', function: '<external>' },
+                // The page's own code reads as on Electron, without its port or capability.
+                { filename: 'openwaggle://app/assets/index-Bx1.js', function: 'render' },
+              ],
+            },
+          },
+        ],
+      },
+    })
+    expect(JSON.stringify(event)).not.toContain('127.0.0.1')
   })
 })

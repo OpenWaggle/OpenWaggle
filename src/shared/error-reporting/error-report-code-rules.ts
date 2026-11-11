@@ -7,8 +7,13 @@
  * type. Like the other rules this module imports nothing, so the statistics endpoint bundles it.
  */
 
-/** App code (`app:///`, the renderer's `RENDERER_PROTOCOL_ORIGIN`, see src/main) and Node.js. */
-const OWN_CODE_PREFIXES = ['app:///', 'node:', 'openwaggle://app/'] as const
+/**
+ * Where the renderer's own code lives in a report: Electron's `RENDERER_PROTOCOL_ORIGIN` (see
+ * src/main). The Electrobun renderer rewrites its loopback page URLs to it before reporting.
+ */
+export const RENDERER_CODE_LOCATION_PREFIX = 'openwaggle://app/'
+/** App code (`app:///`, the renderer's) and Node.js. */
+const OWN_CODE_PREFIXES = ['app:///', 'node:', RENDERER_CODE_LOCATION_PREFIX] as const
 /**
  * Native code and V8's pseudo-locations: `<anonymous>`, `<data:…>`, `Promise.all`'s `index 0`.
  * `<external>` marks code these rules already reduced, which stays external.
