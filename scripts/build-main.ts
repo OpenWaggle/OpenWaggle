@@ -109,7 +109,7 @@ const PACKAGE_ENTRIES: Readonly<Record<string, string>> = {
 
 /** Pi's workers, resolved from `import.meta.url` beside the bundle Pi runs in. */
 const PI_CODING_AGENT_DIST = 'node_modules/@earendil-works/pi-coding-agent/dist'
-const PI_WORKERS: readonly {
+export const PI_WORKERS: readonly {
   readonly entry: string
   readonly fileName: string
   readonly format: 'esm' | 'cjs'
@@ -174,11 +174,19 @@ async function build(config: BunBuildConfig) {
   return result
 }
 
-export async function buildMain() {
+export interface MainBuildOptions {
+  /** Default `out/main`. */
+  readonly outDirectory?: string
+  /** The GUI and CLI entry, default `src/main/index.ts`; scripts/pi-main-bundle-smoke.ts swaps it. */
+  readonly entry?: string
+}
+
+export async function buildMain(options: MainBuildOptions = {}) {
+  const outDirectory = options.outDirectory ?? OUT_DIRECTORY
   const manifest: unknown = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
   const externals = mainExternalPackages(manifest)
   const shared = {
-    outdir: OUT_DIRECTORY,
+    outdir: outDirectory,
     // `node`, not `bun`: for the `bun` target Bun resolves `undici` and `ws` to its own builtins
     // and bundles nothing of them: Bun's `undici` has no `Dispatcher1Wrapper` or `install`, and its
     // `fetch` ignores a `dispatcher`, which would bypass MCP's pinned DNS lookup. The output runs on Bun all the same,
@@ -193,11 +201,11 @@ export async function buildMain() {
       lazyExternals(externals),
     ],
   } as const
-  await rm(OUT_DIRECTORY, { recursive: true, force: true })
-  await mkdir(OUT_DIRECTORY, { recursive: true })
+  await rm(outDirectory, { recursive: true, force: true })
+  await mkdir(outDirectory, { recursive: true })
   const main = await build({
     ...shared,
-    entrypoints: [path.join(ROOT, MAIN_ENTRY)],
+    entrypoints: [path.join(ROOT, options.entry ?? MAIN_ENTRY)],
     naming: 'index.js',
     // Minified with names kept, as before: logs and libraries read function and class names.
     minify: { whitespace: true, syntax: true, identifiers: true, keepNames: true },
@@ -214,7 +222,7 @@ export async function buildMain() {
   })
   for (const worker of PI_WORKERS) {
     await build({
-      outdir: OUT_DIRECTORY,
+      outdir: outDirectory,
       target: 'bun',
       format: worker.format,
       entrypoints: [path.join(ROOT, worker.entry)],
@@ -223,7 +231,7 @@ export async function buildMain() {
     })
   }
   const outputs = main.metafile?.outputs ?? {}
-  const file = path.join(OUT_DIRECTORY, MAIN_CHUNK_MANIFEST_PATH)
+  const file = path.join(outDirectory, MAIN_CHUNK_MANIFEST_PATH)
   await mkdir(path.dirname(file), { recursive: true })
   await writeFile(file, `${JSON.stringify(chunkManifest(outputs), null, JSON_INDENT)}\n`)
 }

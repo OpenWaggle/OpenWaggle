@@ -5,8 +5,8 @@ import { pathToFileURL } from 'node:url'
 import { bunExecutable, nodeRuntime } from './support/node-runtime'
 
 /**
- * Some scripts must run on Node.js or Electron rather than Bun: the native load probe loads
- * modules built for those ABIs, and the MCP conformance client exercises the HTTP stack the app
+ * Some scripts must run on Node.js rather than Bun: the native load probe loads modules built for
+ * Node's ABI, and the MCP conformance client exercises the HTTP stack the app
  * ships (Bun replaces the `undici` package with its own). Node cannot load the repository's
  * extensionless TypeScript imports or path aliases, so Bun bundles such a script into one ES
  * module under `node_modules/.cache/openwaggle` first.
@@ -47,7 +47,7 @@ export function nodeScriptBuildInvocation(
   }
 }
 
-/** Bundles `source` (relative to `projectRoot`) and returns the module to run with Node or Electron. */
+/** Bundles `source` (relative to `projectRoot`) and returns the module to run with Node. */
 export async function buildNodeScript(projectRoot: string, source: string) {
   const outfile = nodeScriptBundlePath(projectRoot, source)
   await mkdir(dirname(outfile), { recursive: true })

@@ -2,11 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  collectNativeArtifactSignatures,
-  removeElectronRebuildMetadata,
-  removeNativeBuildDirectories,
-} from '../native-rebuild-artifacts'
+import { collectNativeArtifactSignatures } from '../native-rebuild-artifacts'
 
 async function writeJson(filePath: string, value: unknown) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -22,15 +18,6 @@ async function writeArtifact(filePath: string, executable = false) {
 async function symlinkDirectory(target: string, linkPath: string) {
   await fs.mkdir(path.dirname(linkPath), { recursive: true })
   await fs.symlink(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
-}
-
-async function fileExists(filePath: string) {
-  try {
-    await fs.access(filePath)
-    return true
-  } catch {
-    return false
-  }
 }
 
 describe('native rebuild artifacts', () => {
@@ -131,84 +118,6 @@ describe('native rebuild artifacts', () => {
           libc: 'glibc',
         }),
       ).rejects.toThrow('Missing better-sqlite3')
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('removes Electron rebuild markers from active native package roots only', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-native-metadata-'))
-    try {
-      const storeDirectory = path.join(projectRoot, 'node_modules', '.bun')
-      const activeSqliteRoot = path.join(
-        storeDirectory,
-        'better-sqlite3@12.10.0',
-        'node_modules',
-        'better-sqlite3',
-      )
-      const staleSqliteRoot = path.join(
-        storeDirectory,
-        'better-sqlite3@11.10.0',
-        'node_modules',
-        'better-sqlite3',
-      )
-      const activeMetadataPath = path.join(activeSqliteRoot, 'build', 'Release', '.forge-meta')
-      const staleMetadataPath = path.join(staleSqliteRoot, 'build', 'Release', '.forge-meta')
-
-      await writeJson(path.join(activeSqliteRoot, 'package.json'), { name: 'better-sqlite3' })
-      await writeArtifact(path.join(activeSqliteRoot, 'build', 'Release', 'better_sqlite3.node'))
-      await fs.writeFile(activeMetadataPath, 'arm64--146\n', 'utf8')
-      await writeJson(path.join(staleSqliteRoot, 'package.json'), { name: 'better-sqlite3' })
-      await writeArtifact(path.join(staleSqliteRoot, 'build', 'Release', 'better_sqlite3.node'))
-      await fs.writeFile(staleMetadataPath, 'arm64--146\n', 'utf8')
-
-      await symlinkDirectory(
-        path.relative(path.join(projectRoot, 'node_modules'), activeSqliteRoot),
-        path.join(projectRoot, 'node_modules', 'better-sqlite3'),
-      )
-
-      await removeElectronRebuildMetadata({ projectRoot, storeDirectory }, ['better-sqlite3'])
-
-      expect(await fileExists(activeMetadataPath)).toBe(false)
-      expect(await fileExists(staleMetadataPath)).toBe(true)
-    } finally {
-      await fs.rm(projectRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('removes active native package build directories without touching stale store entries', async () => {
-    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-native-build-dir-'))
-    try {
-      const storeDirectory = path.join(projectRoot, 'node_modules', '.bun')
-      const activeSqliteRoot = path.join(
-        storeDirectory,
-        'better-sqlite3@12.10.0',
-        'node_modules',
-        'better-sqlite3',
-      )
-      const staleSqliteRoot = path.join(
-        storeDirectory,
-        'better-sqlite3@11.10.0',
-        'node_modules',
-        'better-sqlite3',
-      )
-      const activeBuildPath = path.join(activeSqliteRoot, 'build')
-      const staleBuildPath = path.join(staleSqliteRoot, 'build')
-
-      await writeJson(path.join(activeSqliteRoot, 'package.json'), { name: 'better-sqlite3' })
-      await writeArtifact(path.join(activeBuildPath, 'Release', 'better_sqlite3.node'))
-      await writeJson(path.join(staleSqliteRoot, 'package.json'), { name: 'better-sqlite3' })
-      await writeArtifact(path.join(staleBuildPath, 'Release', 'better_sqlite3.node'))
-
-      await symlinkDirectory(
-        path.relative(path.join(projectRoot, 'node_modules'), activeSqliteRoot),
-        path.join(projectRoot, 'node_modules', 'better-sqlite3'),
-      )
-
-      await removeNativeBuildDirectories({ projectRoot, storeDirectory }, ['better-sqlite3'])
-
-      expect(await fileExists(activeBuildPath)).toBe(false)
-      expect(await fileExists(staleBuildPath)).toBe(true)
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }

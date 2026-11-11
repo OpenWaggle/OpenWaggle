@@ -4,8 +4,8 @@ import path from 'node:path'
 import { scriptEnv } from './env'
 
 /**
- * Repository scripts run on Bun (`bun scripts/<name>.ts`), but some of them must start the
- * runtime the desktop app ships: Node for the native-module ABI and the main bundle, and Electron.
+ * Repository scripts run on Bun (`bun scripts/<name>.ts`), but some of them must start Node: for
+ * the native-module ABI, and for the MCP conformance client.
  * Under Bun, `process.execPath` is the Bun binary, so these helpers find the real executables.
  */
 

@@ -22,7 +22,7 @@ export interface MainChunkManifestEntry {
  * - a CLI command's module (top-level-cli-entry.ts and the `*-cli-entry.ts` files).
  * A budget counts the static closure of the entry chunk and the chunks holding these modules.
  *
- * The main bundle is one file (electron.vite.config.ts says why), so today every process loads
+ * The main bundle is one file (scripts/build-main.ts says why), so today every process loads
  * all of it and the budgets are the bundle's size: 15.8 MB when set. Splitting it into chunks
  * would let each budget fall to its own graph (GUI 2.5 MB, Host 10.2 MB, CLI 0.9-1.7 MB measured).
  */

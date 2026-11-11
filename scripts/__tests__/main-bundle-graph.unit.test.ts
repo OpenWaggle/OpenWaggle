@@ -15,7 +15,7 @@ function chunk(
 }
 
 const manifest = parseMainChunkManifest([
-  chunk('index.js', ['src/main/index.ts'], ['shell.js', 'electron'], ['gui.js', 'host.js']),
+  chunk('index.js', ['src/main/index.ts'], ['shell.js', 'better-sqlite3'], ['gui.js', 'host.js']),
   chunk('shell.js', ['src/main/main-window.ts']),
   chunk('gui.js', ['src/main/gui-runtime.ts'], ['effect.js']),
   chunk('effect.js', ['effect/Effect.js']),

@@ -1,5 +1,5 @@
 /**
- * Runs inside a bundle built with OpenWaggle's Electron main configuration (see
+ * Runs inside a bundle built with OpenWaggle's main build, scripts/build-main.ts (see
  * `scripts/pi-main-bundle-smoke.ts`). It exercises the Pi 1.0 loaders that only break once Pi is
  * bundled into one main chunk: the codemode sandbox worker and QuickJS wasm, and the MCP
  * extension's lazily loaded runtime with a real stdio server. It also loads `@openwaggle/pi-waggle`
@@ -461,7 +461,7 @@ async function main() {
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
-      `${JSON.stringify({ ok: true, runtime: process.versions.electron ? 'electron' : 'node', codemode, mcp, waggle, imageWorker, packageAssets, oauth })}\n`,
+      `${JSON.stringify({ ok: true, runtime: process.versions['bun'] ? 'bun' : 'node', codemode, mcp, waggle, imageWorker, packageAssets, oauth })}\n`,
     )
   } finally {
     await rm(workDirectory, { recursive: true, force: true })

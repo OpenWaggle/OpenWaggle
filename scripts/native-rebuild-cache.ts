@@ -15,16 +15,13 @@ const CACHE_KEY_HASH_LENGTH = 32
 const FORCE_REBUILD_FLAG = '--force'
 const FORCE_REBUILD_ENV = 'OPENWAGGLE_NATIVE_REBUILD_FORCE'
 const FORCE_REBUILD_ENV_VALUES = new Set(['1', 'true', 'yes'])
-const NATIVE_REBUILD_CACHE_VERSION = 'electron-builder-native-rebuild-v4'
+const NATIVE_REBUILD_CACHE_VERSION = 'native-rebuild-v5'
 const NATIVE_STATE_HASH_FILES = ['package.json', 'bun.lock']
 const NATIVE_PATCH_PREFIXES = ['better-sqlite3@']
-const NODE_NATIVE_ARTIFACT_PACKAGES = ['better-sqlite3']
-const ELECTRON_NATIVE_ARTIFACT_PACKAGES = ['sharp', 'better-sqlite3']
-
-export type RebuildMode = 'node' | 'electron'
+/** The native modules built from source, for the Node.js ABI that Bun also loads. */
+export const NATIVE_ARTIFACT_PACKAGES: readonly string[] = ['better-sqlite3']
 
 export interface NativeRebuildCacheKeyInput {
-  readonly mode: RebuildMode
   readonly platform: string
   readonly arch: string
   readonly runtimeVersion: string
@@ -43,13 +40,8 @@ type NativeRebuildMarker = NativeRebuildCacheKeyInput & {
 }
 
 export type NativeRebuildCachePaths = NativeArtifactPaths & {
-  readonly electronPackageJsonPath: string
   readonly cacheDirectory: string
   readonly patchesDirectory: string
-}
-
-export function isRebuildMode(value: unknown): value is RebuildMode {
-  return value === 'node' || value === 'electron'
 }
 
 function hasNativeRebuildMarkerScalars(
@@ -60,8 +52,6 @@ function hasNativeRebuildMarkerScalars(
     typeof value.cacheVersion === 'string' &&
     'key' in value &&
     typeof value.key === 'string' &&
-    'mode' in value &&
-    isRebuildMode(value.mode) &&
     'runtimeVersion' in value &&
     typeof value.runtimeVersion === 'string' &&
     'nativeStateHash' in value &&
@@ -90,7 +80,6 @@ export function parseNativeRebuildMarker(value: unknown) {
   return {
     cacheVersion: value.cacheVersion,
     key: value.key,
-    mode: value.mode,
     runtimeVersion: value.runtimeVersion,
     nativeStateHash: value.nativeStateHash,
     platform: value.platform,
@@ -105,11 +94,7 @@ export function createNativeRebuildCacheKey(input: NativeRebuildCacheKeyInput) {
     .digest('hex')
     .slice(0, CACHE_KEY_HASH_LENGTH)
 
-  return `${input.mode}-${hash}`
-}
-
-export function nativeArtifactPackagesForMode(mode: RebuildMode) {
-  return mode === 'node' ? NODE_NATIVE_ARTIFACT_PACKAGES : ELECTRON_NATIVE_ARTIFACT_PACKAGES
+  return `node-${hash}`
 }
 
 export function isNativeRebuildForceEnabled(
@@ -132,7 +117,6 @@ export function isNativeRebuildMarkerFresh(
   return (
     marker.cacheVersion === plan.cacheVersion &&
     marker.key === plan.key &&
-    marker.mode === plan.mode &&
     marker.runtimeVersion === plan.runtimeVersion &&
     marker.nativeStateHash === plan.nativeStateHash &&
     marker.platform === plan.platform &&
@@ -143,16 +127,13 @@ export function isNativeRebuildMarkerFresh(
 
 export async function createNativeRebuildPlan(
   paths: NativeRebuildCachePaths,
-  mode: RebuildMode,
-  /** The version of the Node.js the `node` mode builds for; the scripts themselves run on Bun. */
+  /** The version of the Node.js the build targets; the scripts themselves run on Bun. */
   nodeVersion: string = process.versions.node,
 ) {
-  const runtimeVersion = mode === 'node' ? nodeVersion : await getElectronVersion(paths)
   const input = {
-    mode,
     platform: process.platform,
     arch: process.arch,
-    runtimeVersion,
+    runtimeVersion: nodeVersion,
     nativeStateHash: await createNativeStateHash(paths),
     cacheVersion: NATIVE_REBUILD_CACHE_VERSION,
   }
@@ -160,7 +141,7 @@ export async function createNativeRebuildPlan(
   return {
     ...input,
     key: createNativeRebuildCacheKey(input),
-    artifactPackages: nativeArtifactPackagesForMode(mode),
+    artifactPackages: NATIVE_ARTIFACT_PACKAGES,
   }
 }
 
@@ -191,7 +172,6 @@ export async function writeNativeRebuildMarker(
   const marker: NativeRebuildMarker = {
     cacheVersion: plan.cacheVersion,
     key: plan.key,
-    mode: plan.mode,
     runtimeVersion: plan.runtimeVersion,
     nativeStateHash: plan.nativeStateHash,
     platform: plan.platform,
@@ -204,21 +184,6 @@ export async function writeNativeRebuildMarker(
     markerPathForKey(paths, plan.key),
     `${JSON.stringify(marker, null, JSON_INDENT_SPACES)}\n`,
   )
-}
-
-async function getElectronVersion(paths: NativeRebuildCachePaths) {
-  const packageJsonText = await readFile(paths.electronPackageJsonPath, 'utf8')
-  const packageJson: unknown = JSON.parse(packageJsonText)
-  if (
-    typeof packageJson !== 'object' ||
-    packageJson === null ||
-    !('version' in packageJson) ||
-    typeof packageJson.version !== 'string' ||
-    packageJson.version.length === 0
-  ) {
-    throw new Error('Unable to determine installed Electron version for native dependency rebuild.')
-  }
-  return packageJson.version
 }
 
 async function createNativeStateHash(paths: NativeRebuildCachePaths) {

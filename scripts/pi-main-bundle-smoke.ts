@@ -1,76 +1,51 @@
 /**
- * Builds a small entry with OpenWaggle's real Electron main build configuration and runs it under
- * Node and under Electron as Node. Pi 1.0 loads the codemode sandbox worker, the QuickJS wasm,
- * and the MCP runtime through paths that only break once Pi is bundled into one main chunk, so
- * reading the bundle is not enough: this runs a codemode script and loads the MCP extension
- * against a real stdio server inside the bundle. It also loads `@openwaggle/pi-waggle` from the
- * same bundle: the source module its declared Pi extension entry is built from, and the desktop
- * Waggle loop.
+ * Builds a small entry with OpenWaggle's real main build (scripts/build-main.ts) and runs it under
+ * Bun, the runtime the app's main process, Session Host and CLI run on. Pi 1.0 loads the codemode
+ * sandbox worker, the QuickJS wasm, and the MCP runtime through paths that only break once Pi is
+ * bundled into one main chunk, so reading the bundle is not enough: this runs a codemode script and
+ * loads the MCP extension against a real stdio server inside the bundle. It also loads
+ * `@openwaggle/pi-waggle` from the same bundle: the source module its declared Pi extension entry
+ * is built from, and the desktop Waggle loop.
  *
  * Usage: bun run pi-main-bundle:smoke
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { build } from 'electron-vite'
-import { nodeRuntime } from './support/node-runtime'
-import { PI_WORKER_BUNDLES } from './vite/pi-worker-bundles'
+import { buildMain, PI_WORKERS } from './build-main'
 
 const execFileAsync = promisify(execFile)
 
 const SMOKE_OUT_DIR = path.resolve('out/pi-main-bundle-smoke')
-const SMOKE_CONFIG = path.resolve('scripts/support/pi-main-bundle-smoke.electron-vite.config.ts')
-/** electron-vite names a `lib.entry` bundle after its entry file. */
-const SMOKE_BUNDLE_FILE_NAME = 'pi-main-bundle-smoke-entry.js'
+const SMOKE_ENTRY = 'scripts/support/pi-main-bundle-smoke-entry.ts'
+/** The main build names the GUI and CLI bundle `index.js`, whatever its entry. */
+const SMOKE_BUNDLE_FILE_NAME = 'index.js'
 const SMOKE_TIMEOUT_MS = 120_000
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
-/** The `electron` package resolves to the Electron binary path when required from Node. */
-function electronBinary() {
-  const binary: unknown = createRequire(import.meta.url)('electron')
-  if (typeof binary !== 'string') throw new Error('Electron is not installed.')
-  return binary
-}
-
-async function buildSmokeBundle() {
-  await build({ configFile: SMOKE_CONFIG })
-}
-
-async function runSmoke(label: string, command: string, env: NodeJS.ProcessEnv) {
+async function runSmoke() {
   const { stdout } = await execFileAsync(
-    command,
+    process.execPath,
     [path.join(SMOKE_OUT_DIR, SMOKE_BUNDLE_FILE_NAME)],
-    {
-      env,
-      timeout: SMOKE_TIMEOUT_MS,
-      maxBuffer: MAX_OUTPUT_BYTES,
-    },
+    { env: process.env, timeout: SMOKE_TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES },
   )
   const line = stdout.trim().split('\n').at(-1) ?? ''
   const result: unknown = JSON.parse(line)
-  console.log(`${label}: ${line}`)
+  console.log(`bun: ${line}`)
   return result
 }
 
 async function main() {
-  await buildSmokeBundle()
-  for (const { fileName } of PI_WORKER_BUNDLES) {
+  await buildMain({ outDirectory: SMOKE_OUT_DIR, entry: SMOKE_ENTRY })
+  for (const { fileName } of PI_WORKERS) {
     if (!existsSync(path.join(SMOKE_OUT_DIR, fileName))) {
       throw new Error(`The main build did not emit ${fileName}.`)
     }
   }
   try {
-    await runSmoke('node', nodeRuntime().execPath, {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: undefined,
-    })
-    await runSmoke('electron-as-node', electronBinary(), {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-    })
+    await runSmoke()
     console.log(
       'Pi main bundle smoke passed: codemode worker, QuickJS wasm, Photon image read, MCP extension load, every OAuth flow, and the pi-waggle extension and desktop loop.',
     )

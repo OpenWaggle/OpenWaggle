@@ -2,8 +2,8 @@ import { pathToFileURL } from 'node:url'
 import { buildNodeScript, nodeScriptBundlePath } from './node-script-bundle'
 
 /**
- * The native load probe runs inside Node and Electron, which load the native modules for their
- * own ABI. The native modules stay outside the bundle because the probe loads them with `require`
+ * The native load probe runs inside Node, which loads the native modules for its own ABI (the
+ * ABI Bun loads too). The native modules stay outside the bundle because the probe loads them with `require`
  * from the module root it is given.
  */
 const PROBE_SOURCE = 'scripts/native-load-probe.ts'
@@ -15,7 +15,7 @@ export function nativeLoadProbeBundlePath(
   return nodeScriptBundlePath(projectRoot, PROBE_SOURCE, platform)
 }
 
-/** Bundles the probe and returns the path of the module to run with Node or Electron. */
+/** Bundles the probe and returns the path of the module to run with Node. */
 export function buildNativeLoadProbe(projectRoot: string) {
   return buildNodeScript(projectRoot, PROBE_SOURCE)
 }

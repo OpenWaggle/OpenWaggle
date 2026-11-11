@@ -1,14 +1,13 @@
 import { access, readFile } from 'node:fs/promises'
 import { join, posix, win32 } from 'node:path'
 import { findActivePackageRoots } from './native-rebuild-artifacts'
-import { nativeArtifactPackagesForMode } from './native-rebuild-cache'
-import { bunExecutable, nodeRuntime } from './support/node-runtime'
+import { NATIVE_ARTIFACT_PACKAGES } from './native-rebuild-cache'
+import { nodeRuntime } from './support/node-runtime'
 import { scriptEnv } from './support/env'
 
 /**
- * The commands `prepare:native:*` runs to build native modules. Bun has no `npm rebuild`, so the
- * Node.js build runs each package's own install step against the Node.js on PATH; the Electron
- * build runs electron-builder's `install-app-deps`.
+ * The commands `prepare:native:node` runs to build native modules. Bun has no `npm rebuild`, so
+ * the build runs each package's own install step against the Node.js on PATH.
  */
 
 const SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION = '--no-deprecation'
@@ -121,7 +120,7 @@ export async function nodeNativeRebuildInvocations(
 ) {
   const invocations: PackageRebuildInvocation[] = []
   const paths = { projectRoot, storeDirectory: join(projectRoot, 'node_modules', '.bun') }
-  for (const packageName of nativeArtifactPackagesForMode('node')) {
+  for (const packageName of NATIVE_ARTIFACT_PACKAGES) {
     const [packageRoot] = await findActivePackageRoots(paths, packageName)
     if (packageRoot === undefined) {
       throw new Error(`${packageName} is not installed; run bun install.`)
@@ -143,17 +142,6 @@ export async function nodeNativeRebuildInvocations(
     })
   }
   return invocations
-}
-
-export function electronNativeRebuildInvocation(
-  baseEnvironment: NodeJS.ProcessEnv = process.env,
-  bun: string = bunExecutable(),
-) {
-  return {
-    command: bun,
-    args: ['x', 'electron-builder', 'install-app-deps'],
-    environment: nativeSourceBuildEnvironment(baseEnvironment),
-  } satisfies CommandInvocation & { readonly environment: NodeJS.ProcessEnv }
 }
 
 function nativeSourceBuildEnvironment(baseEnvironment: NodeJS.ProcessEnv) {

@@ -35,7 +35,7 @@
     "packages/**/*.ts",
     /*
      * The scripts that src/main tests, functions and the website import. The rest of scripts/,
-     * with electron.vite.config.ts and electron-builder.ts, is tsconfig.scripts.json.
+     * with the root build configs, is tsconfig.scripts.json.
      */
     "scripts/installed-docs-generator.ts",
     "scripts/installed-docs-generator-model.ts",
