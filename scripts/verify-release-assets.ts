@@ -3,7 +3,8 @@
  * "CI/CD"). The job uploads to a draft, runs this, publishes, then runs it again with `--published`,
  * so update checks never see a published release whose metadata is still missing. Every built file
  * must be on the release with the same size and an `uploaded` state, nothing else may be there, and
- * the update metadata (`*.yml`) and `SHA256SUMS.txt` must match byte for byte.
+ * the update metadata (electron-updater's `*.yml`, Electrobun's `*update*.json`) and
+ * `SHA256SUMS.txt` must match byte for byte.
  *
  * Dependency-free on purpose: the release job runs it with Node's built-in type stripping.
  *
@@ -36,12 +37,18 @@ export interface RemoteRelease {
 const UPLOADED_STATE = 'uploaded'
 const CHECKSUMS_FILE = 'SHA256SUMS.txt'
 const UPDATE_METADATA_SUFFIX = '.yml'
+/** Electrobun's updater manifests: `stable-<os>-<arch>-update.json` and `-update-v2.json`. */
+const ELECTROBUN_MANIFEST = /-update(?:-v2)?\.json$/u
 const GH_MAX_BUFFER_BYTES = 256 * 1024 * 1024
 const FIRST_CLI_ARGUMENT = 2
 const ARGUMENT_VALUE_OFFSET = 1
 
 function isByteVerified(name: string) {
-  return name === CHECKSUMS_FILE || name.endsWith(UPDATE_METADATA_SUFFIX)
+  return (
+    name === CHECKSUMS_FILE ||
+    name.endsWith(UPDATE_METADATA_SUFFIX) ||
+    ELECTROBUN_MANIFEST.test(name)
+  )
 }
 
 export function compareReleaseAssets(

@@ -54,6 +54,37 @@ describe('verifyRelease', () => {
     assets: local.map((asset, index) => remote({ id: index + 1, name: asset.name })),
   }
 
+  it("checks Electrobun's update manifests byte for byte, not its archives", async () => {
+    const built: readonly LocalReleaseAsset[] = [
+      { name: 'stable-macos-arm64-update-v2.json', size: 12, sha256: 'v2' },
+      { name: 'stable-macos-arm64-update.json', size: 11, sha256: 'v1' },
+      { name: 'stable-macos-arm64-OpenWaggle.app.tar.zst', size: 900, sha256: 'archive' },
+    ]
+    const downloaded: string[] = []
+    const problems = await verifyRelease({
+      local: built,
+      release: {
+        draft: true,
+        assets: built.map((asset, index) => ({
+          id: index + 1,
+          name: asset.name,
+          size: asset.size,
+          state: 'uploaded',
+        })),
+      },
+      expectDraft: true,
+      downloadSha256: async (asset) => {
+        downloaded.push(asset.name)
+        return built.find((item) => item.name === asset.name)?.sha256 ?? ''
+      },
+    })
+    expect(problems).toEqual([])
+    expect(downloaded).toEqual([
+      'stable-macos-arm64-update-v2.json',
+      'stable-macos-arm64-update.json',
+    ])
+  })
+
   it('checks the update metadata and checksums byte for byte', async () => {
     const downloaded: string[] = []
     const problems = await verifyRelease({

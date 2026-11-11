@@ -2,7 +2,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { discoverPackagedApps, parseFloorArguments } from '../native-platform-floor-targets'
+import {
+  discoverElectrobunApps,
+  discoverPackagedApps,
+  parseFloorArguments,
+} from '../native-platform-floor-targets'
 
 const temporaryRoots: string[] = []
 
@@ -56,6 +60,28 @@ describe('parseFloorArguments', () => {
   it('rejects platforms the guard does not know', () => {
     expect(() => parseFloorArguments([], 'freebsd')).toThrow(/Usage/u)
     expect(() => parseFloorArguments(['--platform'], 'linux')).toThrow(/Usage/u)
+  })
+})
+
+describe('discoverElectrobunApps', () => {
+  it('checks the unwrapped macOS app package.ts ships, one per architecture', async () => {
+    const root = await dist([
+      'out/electrobun/inner/stable-macos-arm64/OpenWaggle.app/',
+      'out/electrobun/inner/stable-macos-x64/OpenWaggle.app/',
+      'out/electrobun/build/stable-macos-arm64/OpenWaggle.app/',
+    ])
+    expect(await discoverElectrobunApps('darwin', root)).toEqual([
+      path.join(root, 'out/electrobun/inner/stable-macos-arm64/OpenWaggle.app'),
+      path.join(root, 'out/electrobun/inner/stable-macos-x64/OpenWaggle.app'),
+    ])
+  })
+
+  it("checks Hutch's wrapper on Windows and Linux, whose payload the guard unpacks", async () => {
+    const root = await dist(['out/electrobun/build/stable-win-x64/OpenWaggle/'])
+    expect(await discoverElectrobunApps('win32', root)).toEqual([
+      path.join(root, 'out/electrobun/build/stable-win-x64/OpenWaggle'),
+    ])
+    expect(await discoverElectrobunApps('linux', root)).toEqual([])
   })
 })
 

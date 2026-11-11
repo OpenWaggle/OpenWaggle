@@ -20,6 +20,14 @@ const PLATFORMS: readonly FloorTargetPlatform[] = ['darwin', 'linux', 'win32']
 const PLATFORM_FLAG = '--platform'
 const DEVKIT_FLAG = '--devkit'
 const DIST_DIR = 'dist'
+/** scripts/electrobun/app-config.ts: Hutch's build folder and the macOS app package.ts ships. */
+const ELECTROBUN_BUILD_DIR = path.join('out', 'electrobun', 'build')
+const ELECTROBUN_INNER_APP_DIR = path.join('out', 'electrobun', 'inner')
+const ELECTROBUN_OS: Readonly<Record<FloorTargetPlatform, string>> = {
+  darwin: 'macos',
+  linux: 'linux',
+  win32: 'win',
+}
 const APPIMAGE_SUFFIX = '.AppImage'
 const APPIMAGE_EXTRACT_TIMEOUT_MS = 300_000
 const EXECUTABLE_MODE = 0o755
@@ -93,6 +101,29 @@ export async function discoverPackagedApps(
 }
 
 /**
+ * The packaged outputs of an Electrobun build (scripts/electrobun/package.ts), one per build
+ * target directory: on macOS the signed unwrapped app that the DMG, the transition zip and the
+ * update archive carry; on Windows and Linux Hutch's wrapper, whose `.tar.zst` payload the guard
+ * unpacks. Empty when nothing was packaged with Electrobun.
+ */
+export async function discoverElectrobunApps(platform: FloorTargetPlatform, outDirectory = '.') {
+  const root = path.join(
+    outDirectory,
+    platform === 'darwin' ? ELECTROBUN_INNER_APP_DIR : ELECTROBUN_BUILD_DIR,
+  )
+  const found: string[] = []
+  for (const target of await directoryEntries(root)) {
+    if (!target.isDirectory() || !target.name.startsWith(`stable-${ELECTROBUN_OS[platform]}-`)) {
+      continue
+    }
+    for (const child of await directoryEntries(path.join(root, target.name))) {
+      if (child.isDirectory()) found.push(path.join(root, target.name, child.name))
+    }
+  }
+  return found.sort((left, right) => left.localeCompare(right))
+}
+
+/**
  * Unpacks an AppImage with its own runtime, so the guard reads the exact bytes users download.
  * That runtime only runs on Linux x64; elsewhere, extract it first (`unsquashfs -o <offset>`).
  */
@@ -114,7 +145,13 @@ async function extractAppImage(appImagePath: string) {
 
 export async function resolveFloorTargets(args: readonly string[]) {
   const { platform, paths, devkit } = parseFloorArguments(args)
-  const appPaths = paths.length > 0 ? paths : await discoverPackagedApps(platform)
+  const electrobunApps = paths.length > 0 ? [] : await discoverElectrobunApps(platform)
+  const appPaths =
+    paths.length > 0
+      ? paths
+      : electrobunApps.length > 0
+        ? electrobunApps
+        : await discoverPackagedApps(platform)
   const targets: FloorTarget[] = []
   for (const appPath of appPaths) {
     const root = appPath.endsWith(APPIMAGE_SUFFIX)
