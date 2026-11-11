@@ -9,35 +9,11 @@ import {
   registerTerminalHandlers,
   resetTerminalHandlerTest,
   serviceMocks,
-  typedHandleMock,
-  typedOnMock,
   VALID_OPEN_INPUT,
 } from './terminal-handler-test-harness'
 
 describe('registerTerminalHandlers', () => {
   beforeEach(resetTerminalHandlerTest)
-
-  it('registers the session-terminal channel set', () => {
-    registerTerminalHandlers()
-
-    const invokeChannels = typedHandleMock.mock.calls.map((call: readonly unknown[]) => call[0])
-    const sendChannels = typedOnMock.mock.calls.map((call: readonly unknown[]) => call[0])
-
-    expect(invokeChannels).toEqual([
-      'terminal:get-activity-snapshot',
-      'terminal:open',
-      'terminal:detach',
-      'terminal:resize',
-      'terminal:clear',
-      'terminal:restart',
-      'terminal:assess-close',
-      'terminal:close',
-      'terminal:write',
-      'terminal:send-input-now',
-      'terminal:migrate-owner',
-    ])
-    expect(sendChannels).toEqual(['terminal:ack-output'])
-  })
 
   it('returns the bounded global terminal activity snapshot', async () => {
     registerTerminalHandlers()

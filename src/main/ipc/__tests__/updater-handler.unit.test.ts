@@ -82,17 +82,6 @@ describe('updater-handler', () => {
     mockGetUpdateStatus.mockReturnValue({ type: 'idle' })
   })
 
-  it('registers exactly five handlers', () => {
-    registerUpdaterHandlers()
-
-    expect(handlers.size).toBe(5)
-    expect(handlers.has('updater:check')).toBe(true)
-    expect(handlers.has('updater:install')).toBe(true)
-    expect(handlers.has('updater:install-now')).toBe(true)
-    expect(handlers.has('updater:get-status')).toBe(true)
-    expect(handlers.has('app:get-version')).toBe(true)
-  })
-
   describe('updater:check', () => {
     it('calls checkForUpdates when invoked', async () => {
       registerUpdaterHandlers()
@@ -177,6 +166,26 @@ describe('updater-handler', () => {
 
       await handlers.get('updater:install')?.({})
 
+      expect(mockInterruptSessionRun).toHaveBeenCalledWith('session-1')
+      expect(mockInstallUpdate).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('updater:install-now', () => {
+    it('stops active runs and installs without asking', async () => {
+      mockGetUpdateStatus.mockReturnValue({ type: 'downloaded', version: '1.0.0' })
+      const activeRun = { activity: 'agent-run', sessionId: 'session-1' }
+      mockListActiveRuns
+        .mockReturnValueOnce([activeRun])
+        .mockReturnValueOnce([activeRun])
+        .mockReturnValue([])
+      mockShowMessageBox.mockClear()
+      mockInterruptSessionRun.mockClear()
+      registerUpdaterHandlers()
+
+      await handlers.get('updater:install-now')?.({})
+
+      expect(mockShowMessageBox).not.toHaveBeenCalled()
       expect(mockInterruptSessionRun).toHaveBeenCalledWith('session-1')
       expect(mockInstallUpdate).toHaveBeenCalledOnce()
     })

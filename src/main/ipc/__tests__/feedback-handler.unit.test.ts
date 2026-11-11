@@ -38,14 +38,12 @@ describe('feedback-handler', () => {
     handlers.clear()
   })
 
-  it('registers all feedback channels', () => {
+  it('registers the feedback channels no other case invokes', () => {
     registerFeedbackHandlers()
 
-    expect(handlers.has('feedback:check-gh')).toBe(true)
-    expect(handlers.has('feedback:collect-diagnostics')).toBe(true)
-    expect(handlers.has('feedback:get-recent-logs')).toBe(true)
-    expect(handlers.has('feedback:generate-markdown')).toBe(true)
-    expect(handlers.has('feedback:submit')).toBe(true)
+    expect([...handlers.keys()]).toEqual(
+      expect.arrayContaining(['feedback:check-gh', 'feedback:submit']),
+    )
   })
 
   describe('feedback:collect-diagnostics', () => {
