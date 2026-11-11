@@ -15,7 +15,7 @@ Pure business logic. Zero infrastructure imports. Zero vendor imports. Zero side
 - `shared/domain/scheduled-tasks/` — Scheduled task schedules: interval and RRULE evaluation, next and missed occurrences, jitter, and the editor's next-run preview. Shared so the Host and the renderer compute the same times.
 
 **Rules:**
-- MUST NOT import from Pi SDK, `electron`, `node:fs`, `node:child_process`, `@effect/sql`
+- MUST NOT import from Pi SDK, `electrobun`, `node:fs`, `node:child_process`, `@effect/sql`
 - MUST NOT import from `src/main/store/`
 - MAY import from `effect` (it is the language, not infrastructure)
 - MAY import from `src/shared/types/`, `src/shared/constants/`
@@ -65,35 +65,35 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 
 ### Desktop shell ports (`src/main/ports/desktop-shell/`)
 
-ADR 0064 puts the desktop shell behind ports, and ADR 0066 moves it from Electron to Electrobun. Until the switch, main-process code reaches the shell only through these ports, and `src/main/adapters/electron/` is the only main directory that imports `electron`, `electron-updater` or `@electron-toolkit/*`. In the preload, only `src/preload/electron-transport.ts` does (`openwaggle/desktop-shell-boundary`, [SHELL-06]).
+ADR 0064 puts the desktop shell behind ports, and ADR 0066 moves it from Electron to Electrobun. Main-process code reaches the shell only through these ports, and `src/main/adapters/electrobun/` is the only main directory that imports `electrobun` (through `electrobun-sdk.ts`, which loads the SDK on first use). In the preload, only `src/preload/transport.ts` does (`openwaggle/desktop-shell-boundary`).
 
-Shell ports differ from service ports in two ways. Shell APIs are synchronous, and startup code calls them before the Effect runtime exists (the boot shim, `apply-build-identity.ts`, the CLI entries). So each port is a plain shape with a `Context.Tag`, and code calls it through a binding in `src/main/desktop-shell/<port>.ts` (`export const appPaths: AppPathsShape = electronAppPaths`). The shell switch changes only those bindings. `BootShell` is a `Pick` of other ports' members for the boot shim, which keeps the shim within its `check:main-bundle` budget. The Electron adapters reuse the same functions behind it.
+Shell ports differ from service ports in two ways. Shell APIs are synchronous, and startup code calls them before the Effect runtime exists (the boot shim, `apply-build-identity.ts`, the CLI entries). So each port is a plain shape with a `Context.Tag`, and code calls it through a binding in `src/main/desktop-shell/<port>.ts` (`export const appPaths: AppPathsShape = electrobunAppPaths`). `BootShell` is a `Pick` of other ports' members for the boot shim, which keeps the shim within its `check:main-bundle` budget. The full adapters reuse the same functions behind it.
 
-Every port has a contract suite in `src/main/ports/desktop-shell/__tests__/contracts/`. Each suite is a set of named cases over a harness. The Electron runners in `src/main/adapters/electron/__tests__/contracts/` run every case against a fake `electron`. An Electrobun adapter must pass the same suites before its binding replaces Electron's. Under non-disruptive automation each OS-visible port fails closed with `AutomationDesktopUiError`, and the suites check that too.
+Every port has a contract suite in `src/main/ports/desktop-shell/__tests__/contracts/`. Each suite is a set of named cases over a harness. The runners in `src/main/adapters/electrobun/__tests__/contracts/` run every case against a fake Electrobun SDK (`fake-electrobun.ts`). Under non-disruptive automation each OS-visible port fails closed with `AutomationDesktopUiError`, and the suites check that too.
 
-| Electron surface | Port (`src/main/ports/desktop-shell/`) | Electron adapter | Electrobun target (spike report §4) |
-| --- | --- | --- | --- |
-| `BrowserWindow`, `BaseWindow`, window policy, shortcuts | `DesktopWindows` (`desktop-windows.ts`) | `electron-desktop-windows.ts`, `electron-window-policy.ts`, `electron-main-window.ts` | `BrowserWindow` |
-| `Menu`, app and context menus | `DesktopMenus` (`menus.ts`) | `electron-menus.ts` | `ApplicationMenu`, `ContextMenu` |
-| `dialog` | `DesktopDialogs` (`dialogs.ts`) | `electron-dialogs.ts` | `Utils.openFileDialog`, `showMessageBox` |
-| `shell` | `OsShell` (`os-shell.ts`) | `electron-os-shell.ts` | `Utils.openExternal`, `openPath`, `moveToTrash` |
-| `clipboard`, `nativeImage` | `Clipboard` (`clipboard.ts`) | `electron-clipboard.ts` | `Utils.clipboard*`; `sharp` for image encoding |
-| `Notification` | `SystemNotifications` (`system-notifications.ts`) | `electron-system-notifications.ts` | `Utils.showNotification` |
-| `app` lifecycle, `isPackaged`, `getVersion`, `commandLine`, `before-quit-for-update` | `AppLifecycle` (`app-lifecycle.ts`) | `electron-app-lifecycle.ts` | `before-quit` (sync), `quit`; hold async quits in the quit protocol |
-| `app.getPath`, `setPath`, `setName`, `sessionData` | `AppPaths` (`app-paths.ts`) | `electron-app-paths.ts`, `electron-web-profile.ts` | OpenWaggle-resolved paths, not `Utils.paths` |
-| Boot shim's slice of the three above | `BootShell` (`boot-shell.ts`) | `electron-boot-shell.ts` | The same functions as the full adapters |
-| `safeStorage` | `SecureStorage` (`secure-storage.ts`) | `electron-secure-storage.ts` | `Bun.secrets`, with a one-time re-encryption |
-| `protocol.handle`, `registerSchemesAsPrivileged` (6 schemes) | `TrustedOrigins` (`trusted-origins.ts`) | `electron-trusted-origins.ts` | One `Bun.serve` loopback origin per trust domain, with a per-launch token |
-| `net.fetch`, `net.request` and the extension egress guard | `NetworkFetch` (`network-fetch.ts`) | `electron-network-fetch.ts` | Bun `fetch` plus system proxy/PAC resolution |
-| `ipcMain` | `IpcMainTransport` (`ipc-transport.ts`) | `electron-ipc-main-transport.ts` | Typed RPC (`defineRPC`), same channel contract |
-| `contextBridge`, `ipcRenderer` | Preload transport module | `src/preload/electron-transport.ts` | Electrobun `preload` plus typed RPC |
-| `webContents` lookup and events | `RendererSurfaces` (`renderer-surfaces.ts`) | `electron-renderer-surfaces.ts` | Webview ids over RPC; a heartbeat for crash detection |
-| `session` (CSP, frame guard, storage clear, cache upkeep) | `WebSecurity` (`web-security.ts`) | `electron-web-security.ts`, `electron-embedded-frame-guard.ts`, `electron-chromium-disk-cache.ts` | `navigationRules`, `Session`, CSP from the loopback server |
-| `WebContentsView` Browser preview, `webContents.debugger` (CDP) | `BrowserPreviewViews` (`browser-preview-views.ts`) | `electron-browser-preview-views.ts`, `browser-preview/` | `BrowserView` with `partition`, `renderer: "cef"` for CDP |
-| `electron-updater` | `UpdateEngine` (`update-engine.ts`) | `electron-update-engine.ts` | Transition artifacts in electron-updater's format, then Electrobun Updater |
-| Single instance, login items, badge, Dock, activation policy, `powerMonitor`, `open-url`, `*-process-gone` | `SystemIntegration` (`system-integration.ts`) | `electron-system-integration.ts` | Native helpers: lock file + socket/pipe, `SMAppService`/Run key/autostart, `dockTile` via `bun:ffi`, wall-clock resume timer, `urlSchemes` + registry/`.desktop`, heartbeat RPC |
-| `@sentry/electron` | `ErrorReporter` (`src/main/ports/error-reporter.ts`) | `error-reporting/sentry-main-error-reporter.ts` | `@sentry/bun` in main, `@sentry/browser` in the renderer |
-| `ELECTRON_RUN_AS_NODE` script children | `ChildScriptRuntime` (`child-runtime.ts`) | `electron-child-script-runtime.ts` | `process.execPath` (Bun) runs scripts as is |
+| Capability | Port (`src/main/ports/desktop-shell/`) | Electrobun adapter (`src/main/adapters/electrobun/`) |
+| --- | --- | --- |
+| Windows, window policy, shortcuts | `DesktopWindows` (`desktop-windows.ts`) | `electrobun-desktop-windows.ts`, `electrobun-window-policy.ts`, `electrobun-main-window.ts`, `electrobun-window-shortcuts.ts` |
+| App and context menus | `DesktopMenus` (`menus.ts`) | `electrobun-menus.ts` |
+| File and message dialogs | `DesktopDialogs` (`dialogs.ts`) | `electrobun-dialogs.ts`, `electrobun-save-dialog.ts` |
+| Open links, paths, trash | `OsShell` (`os-shell.ts`) | `electrobun-os-shell.ts` |
+| Clipboard, image encoding | `Clipboard` (`clipboard.ts`) | `electrobun-clipboard.ts` (`sharp` encodes images) |
+| Notifications | `SystemNotifications` (`system-notifications.ts`) | `electrobun-system-notifications.ts` |
+| Lifecycle, `isPackaged`, version, command line, quit protocol | `AppLifecycle` (`app-lifecycle.ts`) | `electrobun-app-lifecycle.ts`, `electrobun-shell-events.ts` |
+| Where OpenWaggle keeps its files | `AppPaths` (`app-paths.ts`) | `electrobun-app-paths.ts` |
+| Boot shim's slice of the three above | `BootShell` (`boot-shell.ts`) | `electrobun-boot-shell.ts` |
+| Secrets at rest | `SecureStorage` (`secure-storage.ts`) | `electrobun-secure-storage.ts` (`Bun.secrets`; a profile mock keychain under automation) |
+| The renderer's and frames' trusted origins | `TrustedOrigins` (`trusted-origins.ts`) | `electrobun-trusted-origins.ts`, `electrobun-loopback-gateway.ts`, `electrobun-loopback-serve.ts`: one `Bun.serve` loopback origin per host, under a per-launch capability path |
+| Network with the system proxy | `NetworkFetch` (`network-fetch.ts`) | `electrobun-network-fetch.ts`, `electrobun-system-proxy.ts` |
+| Main side of IPC | `IpcMainTransport` (`ipc-transport.ts`) | `electrobun-ipc-main-transport.ts` (typed RPC, same channel contract) |
+| Preload side of IPC | Preload transport module | `src/preload/transport.ts` |
+| Renderer lookup and events | `RendererSurfaces` (`renderer-surfaces.ts`) | `electrobun-renderer-surfaces.ts` |
+| CSP, frame guard, storage clear | `WebSecurity` (`web-security.ts`) | `electrobun-web-security.ts`, `electrobun-document-policy.ts` |
+| Browser preview and its CDP | `BrowserPreviewViews` (`browser-preview-views.ts`) | `browser-preview/` (CEF `BrowserView`s) |
+| Updates | `UpdateEngine` (`update-engine.ts`) | `electrobun-update-engine.ts` |
+| Single instance, login items, badge, Dock, resume, protocol links, renderer crashes | `SystemIntegration` (`system-integration.ts`) | `electrobun-system-integration.ts`, `electrobun-single-instance.ts`, `electrobun-native-helpers.ts`, `electrobun-windows-registry.ts` |
+| Error reports | `ErrorReporter` (`src/main/ports/error-reporter.ts`) | `error-reporting/sentry-bun-error-reporter.ts` (`@sentry/bun`; the renderer runs `@sentry/browser`) |
+| Script children | `ChildScriptRuntime` (`child-runtime.ts`) | `electrobun-child-script-runtime.ts` (`process.execPath` is Bun) |
 
 ### Application Services (`src/main/application/`)
 
@@ -181,7 +181,7 @@ ESLint enforces the main-process architecture boundary rules on every PR:
 5. No infrastructure imports in `src/main/domain/` or `src/shared/domain/`
 6. No `src/main/providers/` runtime directory
 7. No production `providerRegistry` references outside the Pi adapter boundary
-8. No `electron`, `electron-updater` or `@electron-toolkit/*` imports outside `src/main/adapters/electron/` and `src/preload/electron-transport.ts`, and no `@sentry/electron` outside the crash-reporting adapter and bridges (`openwaggle/desktop-shell-boundary`)
+8. No `electrobun` imports outside `src/main/adapters/electrobun/` and `src/preload/transport.ts` (`openwaggle/desktop-shell-boundary`)
 
 Run: `bun run lint` or `bun run check`
 

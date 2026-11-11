@@ -27,10 +27,10 @@ export interface UpdateCheck {
 /**
  * Downloads and installs app updates (ADR 0047, ADR 0064). OpenWaggle's update policy (channels,
  * eligibility, Restart to update, stopping the Session Host) lives in `updater.ts` and
- * `update-cli.ts`; the engine only fetches, verifies and installs. Electron's is
- * electron-updater on the GitHub release feed. Electrobun's updater takes over after the
- * transition release, which existing installs still read from the electron-updater feed; it reads
- * the same release that OpenWaggle's policy selected (`setFeed`), from that release's assets.
+ * `update-cli.ts`; the engine only fetches, verifies and installs: Electrobun's updater, reading
+ * the release that OpenWaggle's policy selected (`setFeed`) from that release's assets. Electron
+ * installs reach the first Electrobun release through its transition artifacts
+ * (docs/electrobun-transition.md).
  * The policy selects only a release that already carries the file the engine reads
  * (`metadataAssetName`), so a release whose assets are still uploading is never read.
  *

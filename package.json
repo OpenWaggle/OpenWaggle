@@ -184,7 +184,6 @@
     "@sentry/browser": "10.75.0",
     "@sentry/bun": "10.75.0",
     "@sentry/core": "10.75.0",
-    "@sentry/electron": "7.20.0",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/eslint-plugin-query": "5.102.8",
     "@tanstack/eslint-plugin-router": "1.162.0",

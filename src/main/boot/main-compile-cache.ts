@@ -6,7 +6,7 @@ import type { MainCompileCacheLocation } from './main-compile-cache-location'
 /**
  * When the cache is written again after the main bundle loaded, for files each process loads on
  * demand: the externals behind `lazyModule` and Rolldown's lazy stand-ins (sharp, editorconfig,
- * electron-updater, the embedding model), Pi's worker files. The Host loads some before it
+ * the Electrobun updater, the embedding model), Pi's worker files. The Host loads some before it
  * listens (≈1 s), the window while it opens (≈3 s), the rest later. A write finds nothing new for
  * files already written, so the later ones cost almost nothing.
  */

@@ -27,13 +27,8 @@ const { state, getPathMock, dispatch } = vi.hoisted(() => {
 
 getPathMock.mockImplementation(() => state.userDataDir)
 
-vi.mock('electron', () => ({
-  app: { getPath: getPathMock },
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
+vi.mock('../../desktop-shell/app-paths', () => ({
+  appPaths: { userData: () => getPathMock() },
 }))
 
 /** Session Control in another Session: a started Run, after `dispatch.hold` settles. */

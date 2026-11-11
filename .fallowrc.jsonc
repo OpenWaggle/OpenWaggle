@@ -10,6 +10,8 @@
     "oxlint.config.mts",
     // The renderer build: scripts/build-app-bundles.ts passes it to Vite by path.
     "vite.renderer.config.ts",
+    // The preload entry: scripts/build-electrobun-preload.ts bundles it by path.
+    "src/preload/index.ts",
     // Run by path from scripts/benchmark-docker/run.sh.
     "scripts/benchmark-docker/count-request-tokens.ts",
     "scripts/benchmark-docker/openwaggle-row.ts",
@@ -162,13 +164,6 @@
         "src/renderer/src/features/chat/lib/transcript-viewport-session.ts",
         "src/renderer/src/shared/lib/syntax/__tests__/syntax-service-test-helpers.ts"
       ],
-      "rules": { "unused-class-members": "off" }
-    },
-    {
-      // The desktop shell contract fakes stand in for the `electron` and `electron-updater`
-      // modules through vi.doMock (electron-shell.ts). The Electron adapters call their members
-      // through those module names, which fallow cannot follow to the fakes.
-      "files": ["src/main/adapters/electron/__tests__/contracts/fake-electron*.ts"],
       "rules": { "unused-class-members": "off" }
     },
     {

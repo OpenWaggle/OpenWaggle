@@ -1,5 +1,6 @@
+import { HEX_RADIX } from '@shared/constants/math'
+
 const MAX_CONTENT_DISPOSITION_FILENAME_BYTES = 180
-const HEX_RADIX = 16
 
 function truncateUtf8(value: string, maxBytes: number) {
   let result = ''

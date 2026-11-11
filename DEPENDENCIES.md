@@ -75,7 +75,6 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `@sentry/core@10.75.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `@sentry/browser@10.75.0`. Held: the same release as `@sentry/core`, which the shared reporter types use. Unblocked by: moving `@sentry/core` in the next monthly batch.
 - `@sentry/bun@10.75.0`. Held: the same release as `@sentry/core`, which the shared reporter types use. Unblocked by: moving `@sentry/core` in the next monthly batch.
-- `@sentry/electron@7.20.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `@tailwindcss/vite@4.3.3`. Held: nothing. Unblocked by: the next monthly batch.
 - `@tanstack/eslint-plugin-query@5.102.8`. Held: nothing. Unblocked by: the next monthly batch.
 - `@tanstack/react-router-ssr-query@1.167.2`. Held: nothing. Unblocked by: the next monthly batch.

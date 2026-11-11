@@ -29,7 +29,7 @@ import { launchWindowsHeadlessProcess } from './windows-headless-process'
  * (`desktop-automation-policy.ts`) applies to every call: under automation each one fails closed
  * or does nothing.
  */
-export { AutomationDesktopUiError, assertExternalApplicationLaunchAllowed, isAutomationMode }
+export { AutomationDesktopUiError, isAutomationMode }
 
 export function getAllBrowserWindows() {
   return desktopWindows.all()

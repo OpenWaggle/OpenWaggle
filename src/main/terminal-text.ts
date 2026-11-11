@@ -1,3 +1,5 @@
+import { HEX_RADIX } from '@shared/constants/math'
+
 /** Text that came from an agent or another client, made safe to print on a terminal. */
 const DELETE = 0x7f
 const TAB = 0x09
@@ -6,7 +8,6 @@ const CARRIAGE_RETURN = 0x0d
 const C0_END = 0x1f
 const C1_START = 0x80
 const C1_END = 0x9f
-const HEX_RADIX = 16
 const LAST_BYTE = 0xff
 const BYTE_HEX_DIGITS = 2
 const CODE_UNIT_HEX_DIGITS = 4

@@ -20,9 +20,9 @@ import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('update-restart')
 /**
- * The updater brings electron-updater, which took the GUI ≈40–60 ms (and seconds on a busy
- * machine) to load while it registered IPC handlers, before the window opened (A-F4). The status
- * lives in update-status.ts, so only a check or an install loads it.
+ * The updater brings the update engine, which on Electron took the GUI ≈40–60 ms (and seconds on a
+ * busy machine) to load while it registered IPC handlers, before the window opened (A-F4). The
+ * status lives in update-status.ts, so only a check or an install loads it.
  */
 const loadUpdater = lazyModule(() => import('../updater'))
 const UPDATE_RESTART_POLL_INTERVAL_MS = 3_000

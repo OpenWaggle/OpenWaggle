@@ -8,17 +8,6 @@ vi.mock('../desktop-shell/app-paths', () => ({
 }))
 
 describe('trusted origin base renderer arguments', () => {
-  it("pass Electron's extension runtime scheme origin, as the renderer built it before", async () => {
-    const { electronTrustedOrigins } = await import('../adapters/electron/electron-trusted-origins')
-
-    const argv = trustedOriginBaseRendererArguments(electronTrustedOrigins)
-
-    expect(argv).toEqual(['--openwaggle-extension-runtime-base=openwaggle-extension://runtime'])
-    expect(trustedOriginBasesFromRendererArguments(argv)).toEqual({
-      extensionRuntime: 'openwaggle-extension://runtime',
-    })
-  })
-
   it('pass the Electrobun loopback base, whose module URLs reach the extension runtime handler', async () => {
     const { createLoopbackTrustedOrigins } =
       await import('../adapters/electrobun/electrobun-trusted-origins')
