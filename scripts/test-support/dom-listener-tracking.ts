@@ -23,6 +23,18 @@ function captures(options: unknown) {
   )
 }
 
+const SELF = new URL(import.meta.url).pathname
+
+/**
+ * Whether the code adding a listener is a dependency Vitest loads outside its module graph. Such a
+ * dependency is not evaluated again for the next file, and may remember that it added the listener:
+ * React marks the document and a portal's body once, and adds its listeners to them only then.
+ */
+function addedByExternalDependency(stack: string | undefined) {
+  const caller = stack?.split('\n').find((line) => line.includes(' at ') && !line.includes(SELF))
+  return caller?.includes('/node_modules/') === true
+}
+
 /** A listener a file added, and how to remove it. */
 type DomListener = readonly [unknown, (...args: unknown[]) => unknown, readonly unknown[]]
 
@@ -57,7 +69,9 @@ function wrapListenerMethods(
   const removeFrom = (target: unknown, ...args: unknown[]): unknown =>
     Reflect.apply(remove, target, args)
   Reflect.set(holder, 'addEventListener', function trackedAdd(this: unknown, ...args: unknown[]) {
-    if (tracks(this)) listeners.set(key(this, args), [this, removeFrom, args])
+    if (tracks(this) && !addedByExternalDependency(new Error('listener').stack)) {
+      listeners.set(key(this, args), [this, removeFrom, args])
+    }
     const added: unknown = Reflect.apply(add, this, args)
     return added
   })
@@ -73,8 +87,8 @@ function wrapListenerMethods(
 }
 
 /**
- * Records the listeners added to the window, document, html and body, so the next file can
- * remove the ones a file left: the components that added them are unmounted, and a stale one
+ * Records the listeners test and app code add to the window, document, html and body, so the next
+ * file can remove the ones a file left: the components that added them are unmounted, and a stale one
  * would answer the next file's events with the previous file's modules. Vitest's jsdom window
  * methods are the global's own wrappers, so the global is wrapped as well as EventTarget.
  */
