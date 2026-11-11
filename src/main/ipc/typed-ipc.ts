@@ -34,7 +34,7 @@ type MaybeVoid<T> = T extends undefined ? ImplicitVoid : T
 type IpcHandler<C extends IpcInvokeChannel> = (
   event: IpcInvocation,
   ...args: IpcInvokeArgs<C>
-) => unknown | Promise<unknown>
+) => unknown
 
 type EffectIpcHandler<C extends IpcInvokeChannel> = (
   event: IpcInvocation,
@@ -278,7 +278,7 @@ export function typedOn<C extends IpcSendChannel>(
   handler: EffectIpcOnHandler<C>,
 ): void {
   rawOn(channel, (event, ...args) => {
-    runGuiEffect(handler(event, ...args)).catch((err) => {
+    runGuiEffect(handler(event, ...args)).catch((err: unknown) => {
       logger.error(`Unhandled error in "${channel}" listener`, {
         error: err instanceof Error ? err.message : String(err),
       })

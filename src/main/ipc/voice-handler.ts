@@ -191,7 +191,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
       throw new Error('Whisper transcriber could not be created.')
     }
     return transcriber
-  })().catch((error) => {
+  })().catch((error: unknown) => {
     delete transcriberPromises[model]
     throw error
   })

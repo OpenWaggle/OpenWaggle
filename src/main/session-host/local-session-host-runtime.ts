@@ -142,7 +142,7 @@ function observeIdleGracePeriod(input: {
         .then((idleGracePeriodMs) => {
           if (!closed) input.liveness.updateIdleGracePeriod(idleGracePeriodMs)
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           logger.warn('Failed to refresh the Session Host idle grace period.', {
             error: error instanceof Error ? error.message : String(error),
           })

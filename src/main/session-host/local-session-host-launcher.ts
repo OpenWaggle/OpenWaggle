@@ -176,7 +176,7 @@ async function waitForCompatibleHost(
   timeoutMs: number,
   dependencies: LocalSessionHostLauncherDependencies,
 ) {
-  let lastError: unknown
+  let lastFailure: { readonly error: unknown } | undefined
   const ready = await waitForCondition({
     timeoutMs,
     dependencies,
@@ -195,13 +195,13 @@ async function waitForCompatibleHost(
         await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
         return true
       } catch (error) {
-        lastError = error
+        lastFailure = { error }
         return false
       }
     },
   })
   if (ready) return
-  if (lastError) throw lastError
+  if (lastFailure) throw lastFailure.error
   throw new LocalSessionHostUnavailableError('Timed out starting the Local Session Host.')
 }
 
@@ -260,7 +260,7 @@ async function waitForLocalSessionHostAuthority(
  * until the Host one of them launched boots; each would launch its own Host, and all but one would
  * stop on ELOCKED. Clients in one process therefore share one launch per Host database.
  */
-const sharedLaunches = makeSharedOperations<LocalSessionHostLauncherDependencies>()
+const sharedLaunches = makeSharedOperations()
 
 export async function ensureLocalSessionHost(
   input: LocalSessionClientConnectionInput & {

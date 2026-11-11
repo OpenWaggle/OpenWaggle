@@ -108,7 +108,7 @@ function keywordContract(root: Record<string, unknown>, keyword: string, value: 
         .map(([key, property]) => [key, contractOf(root, property)]),
     )
   }
-  if (keyword === 'required' && Array.isArray(value)) return [...value].sort()
+  if (keyword === 'required' && Array.isArray(value)) return value.map(String).toSorted()
   if (!SUBSCHEMA_KEYWORDS.has(keyword)) return value
   return Array.isArray(value)
     ? value.map((subschema) => contractOf(root, subschema))

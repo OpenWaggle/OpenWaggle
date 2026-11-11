@@ -11,10 +11,10 @@ interface SharedOperation {
  * that run instead of starting another. Each caller's signal stops only its own wait; the
  * operation itself is aborted once every waiting caller has aborted, and is then no longer joined.
  */
-export function makeSharedOperations<Owner extends object>() {
-  const running = new WeakMap<Owner, Map<string, SharedOperation>>()
+export function makeSharedOperations() {
+  const running = new WeakMap<object, Map<string, SharedOperation>>()
   return (
-    owner: Owner,
+    owner: object,
     key: string,
     signal: AbortSignal | undefined,
     operation: (signal: AbortSignal) => Promise<void>,

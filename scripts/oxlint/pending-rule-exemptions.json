@@ -379,11 +379,6 @@
   "typescript/no-redundant-type-constituents": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 1,
     "src/main/application/local-session-profile-narrowing.ts": 1,
-    "src/main/gui-runtime.ts": 1,
-    "src/main/ipc/typed-ipc.ts": 1,
-    "src/main/session-host/local-session-connection-subscriptions.ts": 1,
-    "src/main/session-host/local-session-connection.ts": 1,
-    "src/main/session-host/local-user-credential.ts": 2,
     "src/renderer/src/routes/-right-sidebar-panel.ts": 2
   },
   "typescript/no-unnecessary-boolean-literal-compare": {
@@ -460,14 +455,11 @@
     "src/main/application/extension-contribution-registration-model.ts": 1,
     "src/main/application/gui-session-command-router.ts": 1,
     "src/main/application/local-session-authority-limits.ts": 1,
-    "src/main/session-host/shared-operations.ts": 1,
     "src/renderer/src/features/chat/lib/codemode-tool-view.ts": 1,
     "src/shared/schemas/action-definitions.ts": 1,
     "src/shared/types/logger.ts": 4
   },
   "typescript/only-throw-error": {
-    "src/main/session-host/local-session-host-launcher.ts": 1,
-    "src/main/session-host/local-session-host-prelaunch-wait.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 1,
     "src/renderer/src/features/project-actions/hooks/__tests__/useProjectActionShortcutCapture.component.test.tsx": 1,
     "src/renderer/src/routes/agents.tsx": 1,
@@ -512,12 +504,9 @@
     "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
   },
   "typescript/require-array-sort-compare": {
-    "src/main/agents/__tests__/agent-definition-published-schema.unit.test.ts": 1,
     "src/main/application/__tests__/agent-authorization-grants.unit.test.ts": 1
   },
   "typescript/restrict-template-expressions": {
-    "src/main/__tests__/session-data.unit.test.ts": 1,
-    "src/main/ipc/auth-handler.ts": 1,
     "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-registration.component.test.tsx": 1
   },
   "typescript/return-await": {
@@ -554,11 +543,6 @@
   "typescript/use-unknown-in-catch-callback-variable": {
     "src/main/application/session-host-condition-wait.ts": 1,
     "src/main/auth/index.ts": 2,
-    "src/main/ipc/typed-ipc.ts": 1,
-    "src/main/ipc/voice-handler.ts": 1,
-    "src/main/session-host/local-session-connection-input.ts": 1,
-    "src/main/session-host/local-session-host-runtime.ts": 1,
-    "src/main/session-host/profile-credential-consumed.ts": 1,
     "src/renderer/src/features/composer/lib/send-result.ts": 1,
     "src/renderer/src/features/git/hooks/useSessionContextRow.ts": 2
   },

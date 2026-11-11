@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import { acquireSubscriptionLiveness } from '../application/desktop-notifications/desktop-app-presence'
 import {
@@ -30,7 +29,7 @@ interface LocalSessionConnectionSubscriptionsInput {
   readonly caller: () => AuthenticatedLocalSessionCaller | null
   readonly negotiatedRevision: () => number | null
   readonly closed: () => boolean
-  readonly send: (frame: LocalSessionServerFrame | unknown) => Promise<void>
+  readonly send: (frame: unknown) => Promise<void>
   readonly connectionFailed: () => void
 }
 
