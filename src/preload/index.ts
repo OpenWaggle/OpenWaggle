@@ -2,6 +2,10 @@ import { api } from './api'
 import { applyPendingElectronLocalStorageImport } from './electron-local-storage-import'
 import { exposeInMainWorld, rendererArguments, send } from './transport'
 import { exposeErrorReportingBridge } from './error-reporting-bridge'
+import { installIdleCallbackPolyfill } from './idle-callback-polyfill'
+
+// Before the renderer's modules run: libraries call requestIdleCallback unguarded.
+installIdleCallbackPolyfill(window)
 
 // Before the renderer's modules run: they read localStorage when they load.
 applyPendingElectronLocalStorageImport(
