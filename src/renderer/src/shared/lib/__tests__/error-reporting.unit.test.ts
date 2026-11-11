@@ -21,7 +21,7 @@ async function loadErrorReporting() {
 
 function rendererReporter() {
   const reporter = { captureException: vi.fn() }
-  const start = vi.fn((_bridge: 'sentry-ipc' | 'renderer-envelope') => reporter)
+  const start = vi.fn(() => reporter)
   return {
     reporter,
     start,
@@ -51,6 +51,9 @@ function usageStatisticsSetting(initiallyEnabled: boolean) {
 
 const ENABLED = usageStatisticsSetting(true).setting
 
+/** What the preload defines when the main process reports errors. */
+const ENVELOPE_BRIDGE = { __OPENWAGGLE_ERROR_REPORT_ENVELOPES__: true }
+
 /** A scheduler that holds the start until the test runs it, like an idle callback. */
 function heldSchedule() {
   const starts: (() => void)[] = []
@@ -67,7 +70,7 @@ function heldSchedule() {
 describe('renderer error reporting', () => {
   beforeEach(() => {
     state.buildChannel = 'beta'
-    vi.stubGlobal('window', { location: RENDERER_LOCATION, __SENTRY_IPC__: { 'sentry-ipc': {} } })
+    vi.stubGlobal('window', { location: RENDERER_LOCATION, ...ENVELOPE_BRIDGE })
   })
 
   afterEach(() => {
@@ -87,11 +90,7 @@ describe('renderer error reporting', () => {
     expect(load).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['Electron', { __SENTRY_IPC__: { 'sentry-ipc': {} } }, 'sentry-ipc'],
-    ['Electrobun', { __OPENWAGGLE_ERROR_REPORT_ENVELOPES__: true }, 'renderer-envelope'],
-  ])('starts the SDK for the bridge the %s preload defined', async (_shell, bridge, expected) => {
-    vi.stubGlobal('window', { location: RENDERER_LOCATION, ...bridge })
+  it('starts the SDK when the preload defined the bridge', async () => {
     const { scheduleRendererErrorReporting } = await loadErrorReporting()
     const { load, start } = rendererReporter()
     const idle = heldSchedule()
@@ -99,7 +98,7 @@ describe('renderer error reporting', () => {
     scheduleRendererErrorReporting(ENABLED, idle.schedule, load)
     idle.runIdle()
 
-    await vi.waitFor(() => expect(start).toHaveBeenCalledWith(expected))
+    await vi.waitFor(() => expect(start).toHaveBeenCalledOnce())
   })
 
   it('never loads the SDK in a Dev build', async () => {

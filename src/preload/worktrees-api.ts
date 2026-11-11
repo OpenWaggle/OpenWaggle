@@ -1,4 +1,4 @@
-import { invoke } from './electron-transport'
+import { invoke } from './transport'
 
 /** Worktree listing, creation and removal, and Settings > Worktrees (ADR 0060). */
 export const worktreesApi = {

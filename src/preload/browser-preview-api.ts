@@ -1,4 +1,4 @@
-import { invoke, on } from './electron-transport'
+import { invoke, on } from './transport'
 
 export const browserPreviewApi = {
   openBrowserPreview: invoke('browser-preview:open'),

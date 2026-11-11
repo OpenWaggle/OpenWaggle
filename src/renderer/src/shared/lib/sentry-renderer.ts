@@ -3,18 +3,15 @@
  * process reports errors, so the SDK is never part of the initial renderer graph.
  *
  * Reports travel to the main process, which scrubs them again with every text rule, drops them
- * while Usage statistics are off and sends the rest through the OpenWaggle endpoint. How they
- * travel depends on the desktop shell, which the preload tells by the bridge it defines:
- * - Electron (`__SENTRY_IPC__`): the Sentry Electron renderer SDK over its own preload bridge.
- * - Electrobun (`ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL`): the browser SDK, whose transport hands
- *   each serialized envelope to `window.api.sendErrorReportEnvelope`; the main process re-captures
- *   its error events (`ErrorReporter.captureRendererEnvelope`). Its page URLs are loopback URLs
- *   with a capability path, so its frames are rewritten to Electron's renderer origin first.
+ * while Usage statistics are off and sends the rest through the OpenWaggle endpoint. The browser
+ * SDK's transport hands each serialized envelope to `window.api.sendErrorReportEnvelope`, and the
+ * main process re-captures its error events (`ErrorReporter.captureRendererEnvelope`). Page URLs
+ * are loopback URLs with a capability path, so frames are rewritten to the renderer's logical
+ * origin first.
  *
  * An error the renderer reports keeps only its type and code. Breadcrumbs, sessions, tracing,
  * replay, client reports and request data are off: `defaultIntegrations` is off and only uncaught
- * errors, unhandled rejections and errors reported by the app are captured. Both shells share one
- * options policy (`createSentryRendererOptions`); the Electron SDK is the browser SDK underneath.
+ * errors, unhandled rejections and errors reported by the app are captured.
  */
 
 import {
@@ -30,7 +27,6 @@ import {
   linkedErrorsIntegration,
   rewriteFramesIntegration,
 } from '@sentry/browser'
-import { init as initElectronRenderer } from '@sentry/electron/renderer'
 import { RENDERER_CODE_LOCATION_PREFIX } from '@shared/error-reporting/error-report-code-rules'
 import {
   ERROR_REPORT_API_METHOD_TAG,
@@ -39,9 +35,6 @@ import {
 } from '@shared/error-reporting/error-report-constants'
 import { scrubErrorReportEvent } from '@shared/error-reporting/error-report-scrubbing'
 import { api, rejectedApiMethodOf } from './ipc'
-
-/** How this window hands reports to the main process, from the bridge its preload defined. */
-export type RendererErrorReportingBridge = 'sentry-ipc' | 'renderer-envelope'
 
 /**
  * Drops what the renderer must not hand over. The text rules wait for the main process, which
@@ -68,13 +61,10 @@ function errorCaptureIntegrations() {
   ]
 }
 
-/**
- * The renderer options both shells share. Release and environment come from main, and the
- * main-process-only `dsn` is left out: Electron's SDK sets its own placeholder.
- */
+/** The renderer's policy. Release and environment come from main; the transport is added below. */
 type SharedRendererOptions = Omit<BrowserOptions, 'dsn' | 'environment' | 'release'>
 
-/** The complete Sentry options for the renderer, the policy both shells' SDKs start with. */
+/** The Sentry options policy for the renderer. */
 export function createSentryRendererOptions() {
   const options: SharedRendererOptions = {
     dataCollection: errorReportingDataCollection(),
@@ -103,7 +93,7 @@ function envelopeTransport(send: (envelope: string) => void): BrowserTransport {
 }
 
 /**
- * Names the page's own code as Electron's renderer origin does, `openwaggle://app/assets/…`, so the
+ * Names the page's own code by the renderer's logical origin, `openwaggle://app/assets/…`, so the
  * report rules keep it as app code and no report carries the loopback port or capability path.
  */
 function rendererFramesIntegration(documentUrl: string) {
@@ -118,7 +108,7 @@ function rendererFramesIntegration(documentUrl: string) {
   })
 }
 
-/** The browser SDK's options on Electrobun: the shared policy over the envelope transport. */
+/** The browser SDK's options: the policy over the envelope transport. */
 export function createSentryBrowserRendererOptions(input: {
   readonly documentUrl: string
   readonly send: (envelope: string) => void
@@ -134,17 +124,13 @@ export function createSentryBrowserRendererOptions(input: {
 }
 
 /** Initializes Sentry in this renderer and returns how the app reports a caught error. */
-export function startSentryRendererErrorReporter(bridge: RendererErrorReportingBridge) {
-  if (bridge === 'sentry-ipc') {
-    initElectronRenderer(createSentryRendererOptions())
-  } else {
-    initBrowser(
-      createSentryBrowserRendererOptions({
-        documentUrl: window.location.href,
-        send: (envelope) => api.sendErrorReportEnvelope(envelope),
-      }),
-    )
-  }
+export function startSentryRendererErrorReporter() {
+  initBrowser(
+    createSentryBrowserRendererOptions({
+      documentUrl: window.location.href,
+      send: (envelope) => api.sendErrorReportEnvelope(envelope),
+    }),
+  )
   return {
     captureException: (error: unknown) => {
       captureException(error)

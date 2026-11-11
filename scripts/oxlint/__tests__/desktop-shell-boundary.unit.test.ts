@@ -42,32 +42,32 @@ describe('desktop shell boundary', () => {
     }
   })
 
-  it('allows the Electron adapters, the preload transport and the preload tests', () => {
+  it('allows the Electron adapters alone', () => {
     const source = "import { app } from 'electron'\nexport const value = app\n"
     for (const filename of [
       'src/main/adapters/electron/electron-app-paths.ts',
       'src/main/adapters/electron/browser-preview/browser-preview.ts',
       'src/main/adapters/electron/__tests__/electron-app-paths.unit.test.ts',
-      'src/preload/electron-transport.ts',
-      'src/preload/__tests__/api.unit.test.ts',
     ]) {
       expect(lint(source, filename), filename).toHaveLength(0)
     }
+    expect(lint(source, 'src/preload/transport.ts')).toHaveLength(1)
   })
 
   it('keeps each shell to its own adapters', () => {
     const electrobun = "import { Utils } from 'electrobun/main'\nexport const value = Utils\n"
     expect(lint(electrobun, 'src/main/adapters/electrobun/electrobun-os-shell.ts')).toEqual([])
-    expect(lint(electrobun, 'src/preload/electrobun-transport.ts')).toEqual([])
+    expect(lint(electrobun, 'src/preload/transport.ts')).toEqual([])
     expect(lint(electrobun, 'src/main/adapters/electron/electron-os-shell.ts')).toHaveLength(1)
     const electron = "import { shell } from 'electron'\nexport const value = shell\n"
     expect(lint(electron, 'src/main/adapters/electrobun/electrobun-os-shell.ts')).toHaveLength(1)
   })
 
-  it('confines the Sentry Electron SDK to the crash-reporting bridges', () => {
-    const source = "import { init } from '@sentry/electron/renderer'\nexport const value = init\n"
+  it('confines the Sentry SDKs to the crash-reporting adapters', () => {
+    const source = "import { init } from '@sentry/browser'\nexport const value = init\n"
     expect(lint(source, 'src/renderer/src/shared/lib/sentry-renderer.ts')).toHaveLength(0)
-    expect(lint(source, 'src/preload/error-reporting-bridge.ts')).toHaveLength(0)
+    const electron = "import { init } from '@sentry/electron/renderer'\nexport const value = init\n"
+    expect(lint(electron, 'src/renderer/src/shared/lib/sentry-renderer.ts')).toHaveLength(1)
     const messages = lint(source, 'src/renderer/src/features/chat/example.ts')
     expect(messages).toHaveLength(1)
     expect(messages.at(0)?.message).toContain('ErrorReporter port')

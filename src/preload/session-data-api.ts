@@ -1,4 +1,4 @@
-import { invoke } from './electron-transport'
+import { invoke } from './transport'
 
 /**
  * Bounded Session reads (v1 performance, B5) and the batched account read, kept beside api.ts for

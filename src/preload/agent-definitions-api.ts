@@ -1,4 +1,4 @@
-import { invoke } from './electron-transport'
+import { invoke } from './transport'
 
 /** Agent definitions: their sources, display, previews, and enablement. */
 export const agentDefinitionsApi = {

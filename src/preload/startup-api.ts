@@ -1,6 +1,6 @@
 import { homeDirectoryFromRendererArguments } from '@shared/home-directory-argument'
 import { trustedOriginBasesFromRendererArguments } from '@shared/trusted-origin-bases-argument'
-import { invoke, on, rendererArguments, send } from './electron-transport'
+import { invoke, on, rendererArguments, send } from './transport'
 
 const homeDirectory = homeDirectoryFromRendererArguments(rendererArguments())
 const trustedOriginBases = trustedOriginBasesFromRendererArguments(rendererArguments())

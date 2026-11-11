@@ -18,23 +18,14 @@ interface ShellPackages {
 const SHELLS: readonly ShellPackages[] = [
   {
     packages: ['electron', 'electron-updater', '@electron-toolkit/'],
-    owners: [
-      'src/main/adapters/electron/',
-      'src/preload/electron-transport.ts',
-      // The preload tests drive `window.api` through the transport against a stubbed `ipcRenderer`.
-      'src/preload/__tests__/',
-    ],
-    reason: 'src/main/adapters/electron/ or src/preload/electron-transport.ts',
+    owners: ['src/main/adapters/electron/'],
+    reason: 'src/main/adapters/electron/',
   },
   {
     // Electrobun 2.x: `electrobun/main` in the Bun main process, `electrobun/view` in webviews.
     packages: ['electrobun'],
-    owners: [
-      'src/main/adapters/electrobun/',
-      'src/preload/electrobun-transport.ts',
-      'src/preload/__tests__/',
-    ],
-    reason: 'src/main/adapters/electrobun/ or src/preload/electrobun-transport.ts',
+    owners: ['src/main/adapters/electrobun/', 'src/preload/transport.ts', 'src/preload/__tests__/'],
+    reason: 'src/main/adapters/electrobun/ or src/preload/transport.ts',
   },
 ]
 
@@ -45,13 +36,7 @@ const SHELLS: readonly ShellPackages[] = [
 const SENTRY_PACKAGES: readonly ShellPackages[] = [
   {
     packages: ['@sentry/electron'],
-    owners: [
-      'src/main/adapters/electron/',
-      'src/preload/error-reporting-bridge.ts',
-      'src/preload/__tests__/',
-      'src/renderer/src/shared/lib/sentry-renderer.ts',
-      'src/renderer/src/shared/lib/__tests__/sentry-renderer.unit.test.ts',
-    ],
+    owners: ['src/main/adapters/electron/'],
     reason: 'the crash-reporting adapters',
   },
   {

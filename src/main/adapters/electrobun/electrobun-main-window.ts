@@ -33,7 +33,7 @@ import { windowShortcutsInstalled } from './electrobun-window-shortcuts'
  * Not carried over from Electron: the fullscreen events (`window:fullscreen-changed`; Electrobun
  * reports none, so the renderer keeps its non-fullscreen layout), media permission handlers (the
  * system webview asks the user per origin, and only the renderer's origin uses media), and the
- * renderer error-report bridge (`electrobun-error-reporting-bridge.ts`).
+ * renderer error-report bridge (`src/preload/error-reporting-bridge.ts`).
  */
 const WIDTH = 1200
 const HEIGHT = 800
@@ -41,7 +41,7 @@ const TRAFFIC_LIGHT_X = 16
 const TRAFFIC_LIGHT_Y = 16
 /** The preload bundle `scripts/build-electrobun-preload.ts` writes. */
 const PRELOAD_BUNDLE = join('out', 'preload', 'electrobun.js')
-/** Set first in the injected preload; `electrobun-transport.ts` reads and deletes it. */
+/** Set first in the injected preload; `src/preload/transport.ts` reads and deletes it. */
 const RENDERER_ARGUMENTS_GLOBAL = '__openwaggleRendererArguments'
 
 /** The injected preload: the renderer arguments, then the bundle. */

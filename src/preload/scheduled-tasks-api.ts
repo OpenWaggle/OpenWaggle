@@ -1,4 +1,4 @@
-import { invoke } from './electron-transport'
+import { invoke } from './transport'
 
 /** Scheduled tasks and Background start (ADR 0057), kept beside api.ts for its line budget. */
 export const scheduledTasksApi = {

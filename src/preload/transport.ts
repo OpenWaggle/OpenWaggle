@@ -21,11 +21,11 @@ import { structuredTransport } from '@shared/structured-wire'
 import { Electroview } from 'electrobun/view'
 
 /**
- * The Electrobun preload's link to the desktop shell (ADR 0064), the counterpart of
- * `electron-transport.ts` with the same exports: the typed channel contract of `@shared/types/ipc`
- * over Electrobun's typed RPC (`DesktopShellRpc`), `window.api`, and the renderer arguments.
- * `scripts/build-electrobun-preload.ts` bundles the preload with this module in place of the
- * Electron one, and the main process injects the bundle into the app's webview
+ * The preload's only link to the desktop shell (ADR 0064): the typed channel contract of
+ * `@shared/types/ipc` over Electrobun's typed RPC (`DesktopShellRpc`), `window.api`, and the
+ * renderer arguments. Every other preload module builds on these.
+ * `scripts/build-electrobun-preload.ts` bundles the preload, and the main process injects the
+ * bundle into the app's webview
  * (`electrobun-main-window.ts`), which runs it in the page's own world before the page's scripts:
  * WebKit and WebView2 have no context isolation for injected scripts.
  *

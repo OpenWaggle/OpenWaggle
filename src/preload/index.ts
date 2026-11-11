@@ -1,6 +1,6 @@
 import { api } from './api'
 import { applyPendingElectronLocalStorageImport } from './electron-local-storage-import'
-import { exposeInMainWorld, rendererArguments, send } from './electron-transport'
+import { exposeInMainWorld, rendererArguments, send } from './transport'
 import { exposeErrorReportingBridge } from './error-reporting-bridge'
 
 // Before the renderer's modules run: they read localStorage when they load.

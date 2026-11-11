@@ -16,7 +16,7 @@
  *
  * Both ends take what arrives as unvalidated, as Electron types it `any`: main-process handlers
  * decode their arguments, and the preload gives results and events their contract types at one
- * boundary (`electrobun-transport.ts`).
+ * boundary (`src/preload/transport.ts`).
  */
 export const SHELL_INVOKE_REQUEST = 'shell:invoke'
 export const SHELL_SEND_MESSAGE = 'shell:send'

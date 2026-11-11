@@ -1,15 +1,11 @@
 import { SessionId, WorkingPath } from '@shared/types/brand'
-import { fromPartial } from '@total-typescript/shoehorn'
-import type { IpcRendererEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({
-  contextBridge: { exposeInMainWorld: vi.fn() },
-  ipcRenderer: { invoke: vi.fn(), send: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
-  webUtils: { getPathForFile: vi.fn(() => '/mock/path') },
-}))
+vi.mock('../transport', async () =>
+  (await import('./fake-preload-transport')).fakePreloadTransport(),
+)
 
-import { ipcRenderer, webUtils } from 'electron'
+import { shellChannel as ipcRenderer } from './fake-preload-transport'
 import { api } from '../api'
 import { PRELOAD_API_METHODS } from './preload-api-methods'
 
@@ -168,7 +164,7 @@ describe('preload api surface contract', () => {
       .mock.calls.find(([channel]) => channel === 'sessions:resources-invalidated')
 
     expect(registered).toBeDefined()
-    registered?.[1](fromPartial<IpcRendererEvent>({}), {
+    registered?.[1]({
       sessionId: SessionId('session-background'),
     })
     expect(listener).toHaveBeenCalledWith({ sessionId: SessionId('session-background') })
@@ -178,35 +174,6 @@ describe('preload api surface contract', () => {
       'sessions:resources-invalidated',
       registered?.[1],
     )
-  })
-
-  it('preserves original File indexes when preload filters and deduplicates paths', async () => {
-    const pathless = new File(['clipboard'], 'clipboard.png')
-    const file = new File(['screenshot'], 'screenshot.png')
-    const duplicate = new File(['screenshot'], 'copy.png')
-    const attachment = {
-      id: 'prepared-image',
-      kind: 'image' as const,
-      origin: 'user-file' as const,
-      name: 'screenshot.png',
-      path: '/tmp/Desktop/screenshot.png',
-      mimeType: 'image/png',
-      sizeBytes: 10,
-      extractedText: '',
-    }
-    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([attachment])
-    vi.mocked(webUtils.getPathForFile)
-      .mockReturnValueOnce('')
-      .mockReturnValueOnce('/tmp/Desktop/screenshot.png')
-      .mockReturnValueOnce('/tmp/Desktop/screenshot.png')
-
-    await expect(api.prepareAttachments('/tmp/repo', [pathless, file, duplicate])).resolves.toEqual(
-      [{ attachment, fileIndex: 1 }],
-    )
-
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith('attachments:prepare', '/tmp/repo', [
-      '/tmp/Desktop/screenshot.png',
-    ])
   })
 
   it('discards only the exact prepared attachment through typed IPC', async () => {
@@ -311,11 +278,6 @@ describe('preload api surface contract', () => {
   })
 
   describe('event listener methods return unsubscribe functions', () => {
-    beforeEach(() => {
-      vi.mocked(ipcRenderer.on).mockReturnValue(ipcRenderer)
-      vi.mocked(ipcRenderer.removeListener).mockReturnValue(ipcRenderer)
-    })
-
     const EVENT_METHODS = [
       'onAgentEvent',
       'onAgentPhase',

@@ -1,13 +1,11 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({
-  contextBridge: { exposeInMainWorld: vi.fn() },
-  ipcRenderer: { invoke: vi.fn(), send: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
-  webUtils: { getPathForFile: vi.fn(() => '/mock/path') },
-}))
+vi.mock('../transport', async () =>
+  (await import('./fake-preload-transport')).fakePreloadTransport(),
+)
 
-import { ipcRenderer } from 'electron'
+import { shellChannel as ipcRenderer } from './fake-preload-transport'
 import { api } from '../api'
 
 describe('preload extension and docs api contracts', () => {

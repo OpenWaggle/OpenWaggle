@@ -3,9 +3,6 @@ import type { ErrorEvent } from '@sentry/browser'
 import { parseEnvelope } from '@sentry/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const electronRenderer = vi.hoisted(() => ({ init: vi.fn() }))
-
-vi.mock('@sentry/electron/renderer', () => electronRenderer)
 // The browser SDK runs for real; the spies only record what the adapter asked of it.
 vi.mock('@sentry/browser', async (importOriginal) => {
   const actual = await importOriginal<typeof SentryBrowser>()
@@ -16,7 +13,7 @@ vi.mock('@sentry/browser', async (importOriginal) => {
   }
 })
 
-import { createSentryRendererOptions, startSentryRendererErrorReporter } from '../sentry-renderer'
+import { createSentryRendererOptions } from '../sentry-renderer'
 
 describe('Sentry renderer options', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -103,17 +100,6 @@ describe('Sentry renderer options', () => {
     })
   })
 
-  it('starts the Electron renderer SDK over its IPC bridge on Electron', () => {
-    const reporter = startSentryRendererErrorReporter('sentry-ipc')
-    const error = new Error('render failed')
-
-    reporter.captureException(error)
-
-    expect(electronRenderer.init).toHaveBeenCalledOnce()
-    expect(SentryBrowser.init).not.toHaveBeenCalled()
-    expect(SentryBrowser.captureException).toHaveBeenCalledWith(error)
-  })
-
   it('tags a report with the API method whose rejected call reported it', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     // Unit tests have no window.api, so the bridge rejects with its own missing-method error,
@@ -196,10 +182,9 @@ describe('Sentry renderer on Electrobun', () => {
       '    at mount (http://127.0.0.1:50000/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB/module/x/dist/settings.js:1:1)',
     ].join('\n')
 
-    start('renderer-envelope').captureException(error)
+    start().captureException(error)
     await SentryBrowser.flush(1_000)
 
-    expect(electronRenderer.init).not.toHaveBeenCalled()
     expect(sendErrorReportEnvelope).toHaveBeenCalledOnce()
     const [envelope] = sendErrorReportEnvelope.mock.calls[0] ?? []
     const [, items] = parseEnvelope(envelope ?? '')
@@ -215,7 +200,7 @@ describe('Sentry renderer on Electrobun', () => {
               frames: [
                 // Another loopback origin, such as an extension module, is external code.
                 { filename: '<external>', function: '<external>' },
-                // The page's own code reads as on Electron, without its port or capability.
+                // The page's own code reads by its logical origin, without its port or capability.
                 { filename: 'openwaggle://app/assets/index-Bx1.js', function: 'render' },
               ],
             },

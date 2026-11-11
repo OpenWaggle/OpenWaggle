@@ -1,4 +1,4 @@
-import { invoke, on, send } from './electron-transport'
+import { invoke, on, send } from './transport'
 
 /** Settings → Notifications and Notification sounds (ADR 0062). */
 export const desktopNotificationsApi = {
