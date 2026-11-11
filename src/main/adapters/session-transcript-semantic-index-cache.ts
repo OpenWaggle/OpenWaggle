@@ -57,10 +57,13 @@ export class SessionTranscriptSemanticIndexCache {
   #accessSequence = 0
   #fullRebuilds = 0
 
-  constructor(
-    private readonly sql: SqlClient.SqlClient,
-    private readonly model: SessionEmbeddingModel,
-  ) {}
+  private readonly sql: SqlClient.SqlClient
+  private readonly model: SessionEmbeddingModel
+
+  constructor(sql: SqlClient.SqlClient, model: SessionEmbeddingModel) {
+    this.sql = sql
+    this.model = model
+  }
 
   load(sessionIds: readonly string[]): Effect.Effect<SessionFlatVectorIndex, SqlError> {
     if (sessionIds.length === 0) return Effect.succeed(new SessionFlatVectorIndex())

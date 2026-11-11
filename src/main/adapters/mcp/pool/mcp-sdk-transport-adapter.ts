@@ -10,8 +10,11 @@ import { type JsonRpcMessage, type McpWireTransport, WireTransportEvents } from 
  * pi-mcp transport shape the layer works with.
  */
 export class McpSdkTransportAdapter extends WireTransportEvents implements McpWireTransport {
-  constructor(private readonly transport: Transport) {
+  private readonly transport: Transport
+
+  constructor(transport: Transport) {
     super()
+    this.transport = transport
     transport.onmessage = (message: JSONRPCMessage) => this.emitMessage(toWireMessage(message))
     transport.onerror = (error) => this.emitError(error)
     transport.onclose = () => this.emitClose()

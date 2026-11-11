@@ -102,7 +102,10 @@ export class PackageRunnerBypass {
   private readonly probe: PackageRunnerProbe
   private readonly now: () => number
 
-  constructor(private readonly options: PackageRunnerBypassOptions = {}) {
+  private readonly options: PackageRunnerBypassOptions
+
+  constructor(options: PackageRunnerBypassOptions = {}) {
+    this.options = options
     this.probe = options.probe ?? execProbe
     this.now = options.now ?? Date.now
   }

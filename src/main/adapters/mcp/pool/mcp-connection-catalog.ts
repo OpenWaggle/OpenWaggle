@@ -57,11 +57,14 @@ export class McpConnectionCatalog {
   /** Set on the connection that fills a missing catalog for others (`McpCatalogFills`). */
   filled: (() => void) | undefined
 
-  constructor(
-    private readonly store: McpToolCatalogStore,
-    private readonly key: string,
-    private readonly now: () => number = Date.now,
-  ) {
+  private readonly store: McpToolCatalogStore
+  private readonly key: string
+  private readonly now: () => number
+
+  constructor(store: McpToolCatalogStore, key: string, now: () => number = Date.now) {
+    this.store = store
+    this.key = key
+    this.now = now
     this.reload()
   }
 

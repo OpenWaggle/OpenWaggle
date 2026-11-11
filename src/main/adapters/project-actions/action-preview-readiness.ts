@@ -21,7 +21,11 @@ export class ActionPreviewReadiness {
     string,
     { readonly url: string; readonly controller: AbortController }
   >()
-  constructor(private readonly probe = probeActionPreview) {}
+  private readonly probe: (url: string, signal: AbortSignal) => Promise<boolean>
+
+  constructor(probe = probeActionPreview) {
+    this.probe = probe
+  }
 
   watch(id: string, url: string | null, onReady: (url: string) => void) {
     if (!url || this.pending.get(id)?.url === url) return

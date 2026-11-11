@@ -33,11 +33,19 @@ export interface TerminalHistoryMover {
 const historyMoveConflict = () => new Error('Terminal history destination already exists')
 
 class TerminalHistoryMoverImpl implements TerminalHistoryMover {
+  private readonly files: TerminalHistoryFiles
+  private readonly states: Map<TerminalKey, TerminalHistoryCounts>
+  private readonly workingDirectories: Map<TerminalKey, string>
+
   constructor(
-    private readonly files: TerminalHistoryFiles,
-    private readonly states: Map<TerminalKey, TerminalHistoryCounts>,
-    private readonly workingDirectories: Map<TerminalKey, string>,
-  ) {}
+    files: TerminalHistoryFiles,
+    states: Map<TerminalKey, TerminalHistoryCounts>,
+    workingDirectories: Map<TerminalKey, string>,
+  ) {
+    this.files = files
+    this.states = states
+    this.workingDirectories = workingDirectories
+  }
 
   async move(fromKey: TerminalKey, toKey: TerminalKey) {
     await this.files.ensureDirectory()

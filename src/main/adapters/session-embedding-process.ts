@@ -143,10 +143,15 @@ export class SessionEmbeddingProcess {
   private readonly requestTimeoutMs: number
   private readonly spawnChild: EmbeddingChildFactory
 
+  private readonly config: () => SessionEmbeddingProcessConfig
+  private readonly options: SessionEmbeddingProcessOptions
+
   constructor(
-    private readonly config: () => SessionEmbeddingProcessConfig,
-    private readonly options: SessionEmbeddingProcessOptions = {},
+    config: () => SessionEmbeddingProcessConfig,
+    options: SessionEmbeddingProcessOptions = {},
   ) {
+    this.config = config
+    this.options = options
     this.idleExitMs = options.idleExitMs ?? SESSION_EMBEDDING_IDLE_EXIT_MS
     this.requestTimeoutMs = options.requestTimeoutMs ?? SESSION_EMBEDDING_REQUEST_TIMEOUT_MS
     this.spawnChild = options.spawnChild ?? spawnEmbeddingChild

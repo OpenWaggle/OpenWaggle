@@ -42,12 +42,16 @@ function piServers(config: JsonObject | undefined) {
 export class McpFileSources {
   private readonly cache = new Map<string, Promise<JsonObject | undefined>>()
 
-  constructor(
-    private readonly fs: McpMigrationFs,
-    readonly homeDir: string,
-    /** Pi's agent directory (PI_CODING_AGENT_DIR), where its global mcp.json is. */
-    readonly piAgentDir: string,
-  ) {}
+  private readonly fs: McpMigrationFs
+  readonly homeDir: string
+  /** Pi's agent directory (PI_CODING_AGENT_DIR), where its global mcp.json is. */
+  readonly piAgentDir: string
+
+  constructor(fs: McpMigrationFs, homeDir: string, piAgentDir: string) {
+    this.fs = fs
+    this.homeDir = homeDir
+    this.piAgentDir = piAgentDir
+  }
 
   /** A file the migration only reads. Throws when it exists but is not a JSON object. */
   readOnlyConfig(filePath: string) {

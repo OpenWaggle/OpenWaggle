@@ -1,5 +1,6 @@
 import type { ActionCatalog, ActionDefinition } from '@shared/types/action-definitions'
 import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
 import type { PreparedEnvironment } from '../../domain/prepared-environment'
 import type { ActionCatalogScope } from '../../ports/action-catalog-service'
@@ -35,7 +36,10 @@ export class ManagedActionRuns {
   private readonly metadataWrites = new Map<string, Promise<void>>()
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly previews: ActionPreviewReadiness
-  constructor(private readonly deps: ManagedActionDependencies) {
+  private readonly deps: ManagedActionDependencies
+
+  constructor(deps: ManagedActionDependencies) {
+    this.deps = deps
     this.previews = new ActionPreviewReadiness(deps.probePreview)
   }
   private watchPreview(run: ActionRun) {
@@ -100,11 +104,7 @@ export class ManagedActionRuns {
     })().catch(async (error: unknown) => {
       // Keep ownership and liveness when cleanup cannot be proven. Stop remains retryable.
       entry.finishing = null
-      entry.run = {
-        ...entry.run,
-        status: 'stopping',
-        error: error instanceof Error ? error.message : String(error),
-      }
+      entry.run = { ...entry.run, status: 'stopping', error: formatErrorMessage(error) }
       await this.persist(entry.run)
       throw error
     })
@@ -122,7 +122,7 @@ export class ManagedActionRuns {
     try {
       exitCode = (await entry.process.closed).exitCode
     } catch (error) {
-      closeError = error instanceof Error ? error.message : String(error)
+      closeError = formatErrorMessage(error)
     }
     await this.finish(entry, exitCode, closeError)
   }

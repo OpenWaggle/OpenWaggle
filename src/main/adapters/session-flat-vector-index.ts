@@ -142,9 +142,10 @@ function bestGroupMatches(bestByGroup: ReadonlyMap<string, GroupBestRecord>, lim
 export class SessionFlatVectorIndex {
   readonly #records = new Map<string, IndexedSessionVector>()
 
-  constructor(
-    private readonly maximumRecordCount: number = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
-  ) {
+  private readonly maximumRecordCount: number
+
+  constructor(maximumRecordCount: number = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit) {
+    this.maximumRecordCount = maximumRecordCount
     if (!Number.isSafeInteger(maximumRecordCount) || maximumRecordCount < 1) {
       throw new Error('Vector index record limit must be a positive safe integer.')
     }

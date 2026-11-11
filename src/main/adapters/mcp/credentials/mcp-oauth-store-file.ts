@@ -169,10 +169,16 @@ export class OwnLayerFile {
   /** The last read failure warned about: Pi reads the token on every request. */
   private legacyRetryWarning: string | undefined
 
+  private readonly options: McpOAuthStateBackendOptions
+  private readonly warn: (message: string, context: Record<string, unknown>) => void
+
   constructor(
-    private readonly options: McpOAuthStateBackendOptions,
-    private readonly warn: (message: string, context: Record<string, unknown>) => void,
-  ) {}
+    options: McpOAuthStateBackendOptions,
+    warn: (message: string, context: Record<string, unknown>) => void,
+  ) {
+    this.options = options
+    this.warn = warn
+  }
 
   /** The layer, or undefined while it cannot be decrypted (left untouched until then). */
   read(): OwnLayer | undefined {

@@ -40,7 +40,11 @@ export class McpConnectionHandshake {
   private initializedSent = false
   private readonly waiters = new Map<McpConnectionLease, JsonRpcId>()
 
-  constructor(private readonly channel: HandshakeChannel) {}
+  private readonly channel: HandshakeChannel
+
+  constructor(channel: HandshakeChannel) {
+    this.channel = channel
+  }
 
   get isDone() {
     return this.result !== undefined

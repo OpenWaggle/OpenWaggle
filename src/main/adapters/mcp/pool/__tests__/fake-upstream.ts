@@ -26,8 +26,11 @@ export class FakeUpstream extends WireTransportEvents implements McpWireTranspor
   failStart: Error | undefined
   failSend: Error | undefined
 
-  constructor(private readonly respond: Responder = () => undefined) {
+  private readonly respond: Responder
+
+  constructor(respond: Responder = () => undefined) {
     super()
+    this.respond = respond
   }
 
   async start() {

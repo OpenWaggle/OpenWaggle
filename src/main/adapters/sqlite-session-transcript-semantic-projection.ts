@@ -168,10 +168,13 @@ export class SqliteSessionTranscriptSemanticProjection {
   readonly #preparationOperationId = randomUUID()
   #lastMaintenanceAt = 0
 
-  constructor(
-    private readonly sql: SqlClient.SqlClient,
-    private readonly model: SessionEmbeddingModel,
-  ) {}
+  private readonly sql: SqlClient.SqlClient
+  private readonly model: SessionEmbeddingModel
+
+  constructor(sql: SqlClient.SqlClient, model: SessionEmbeddingModel) {
+    this.sql = sql
+    this.model = model
+  }
 
   ensureSessions(sessionIds: readonly string[], operationId?: string) {
     if (sessionIds.length === 0) return Effect.void
@@ -230,7 +233,7 @@ export class SqliteSessionTranscriptSemanticProjection {
       if (rows.length === 0) return { prepared: 0, pending: 0 }
       const sessionIds = [...new Set(rows.map((row) => row.session_id))]
       return yield* Effect.gen(this, function* () {
-        yield* this.#markPreparing()
+        yield* this.#writeState('preparing')
         const vectors = yield* Effect.tryPromise({
           try: () =>
             embedPassagesInBatches(
@@ -254,7 +257,7 @@ export class SqliteSessionTranscriptSemanticProjection {
             }),
           ),
         )
-        const result = yield* publishProjectionBatch(
+        return yield* publishProjectionBatch(
           this.sql,
           this.model,
           rows,
@@ -263,7 +266,6 @@ export class SqliteSessionTranscriptSemanticProjection {
           batchOperationId,
           Date.now(),
         )
-        return result
       }).pipe(
         Effect.ensuring(
           releaseTranscriptSemanticLease({
@@ -278,10 +280,6 @@ export class SqliteSessionTranscriptSemanticProjection {
 
   recordFailure(message: string) {
     return this.#writeState('failed', message)
-  }
-
-  #markPreparing() {
-    return this.#writeState('preparing')
   }
 
   #writeState(status: 'preparing' | 'failed', failureMessage?: string) {

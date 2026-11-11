@@ -61,14 +61,17 @@ export class WorkspaceGitIgnoreFilter {
   private ignoredFiles = new Set<string>()
   private loading: Promise<void> | undefined
 
-  private constructor(
-    private readonly root: string,
-    /**
-     * The repository's `info/exclude`, absolute. A linked worktree's is in the common git
-     * directory, outside the worktree, so the watcher watches it on its own.
-     */
-    readonly excludeFile: string | undefined,
-  ) {}
+  private readonly root: string
+  /**
+   * The repository's `info/exclude`, absolute. A linked worktree's is in the common git
+   * directory, outside the worktree, so the watcher watches it on its own.
+   */
+  readonly excludeFile: string | undefined
+
+  private constructor(root: string, excludeFile: string | undefined) {
+    this.root = root
+    this.excludeFile = excludeFile
+  }
 
   /** The filter of a git working tree, or undefined for a folder git does not manage. */
   static async create(root: string) {

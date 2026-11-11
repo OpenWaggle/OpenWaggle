@@ -34,7 +34,11 @@ export class ManagedWorkspacePreparation {
   private readonly running = new Set<Promise<WorkspacePreparation>>()
   private readonly cancellation = new PreparationCancellation()
   private readonly live = new Map<string, StoredWorkspacePreparation>()
-  constructor(private readonly deps: PreparationDependencies) {}
+  private readonly deps: PreparationDependencies
+
+  constructor(deps: PreparationDependencies) {
+    this.deps = deps
+  }
   private serial<T>(workspaceId: string, operation: () => Promise<T>) {
     return enqueueProjectConfigWrite(`preparation:${workspaceId}`, operation)
   }

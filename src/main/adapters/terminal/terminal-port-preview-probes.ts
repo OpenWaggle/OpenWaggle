@@ -122,10 +122,16 @@ async function mapWithConcurrency<Input, Output>(
 export class TerminalPortPreviewProber {
   private readonly cache = new Map<string, ProbeCacheEntry>()
 
+  private readonly fetchPreview: TerminalPortPreviewFetch
+  private readonly now: () => number
+
   constructor(
-    private readonly fetchPreview: TerminalPortPreviewFetch = (url, init) => fetch(url, init),
-    private readonly now: () => number = Date.now,
-  ) {}
+    fetchPreview: TerminalPortPreviewFetch = (url, init) => fetch(url, init),
+    now: () => number = Date.now,
+  ) {
+    this.fetchPreview = fetchPreview
+    this.now = now
+  }
 
   async probe(candidates: readonly TerminalPortCandidate[]) {
     this.pruneCache()

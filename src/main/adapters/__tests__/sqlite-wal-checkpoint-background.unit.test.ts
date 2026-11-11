@@ -19,8 +19,11 @@ import {
 class FakeWorker extends EventEmitter implements WalCheckpointWorkerPort {
   readonly posted: string[] = []
   /** What the worker sends once it is created. */
-  constructor(private readonly firstMessage: unknown) {
+  private readonly firstMessage: unknown
+
+  constructor(firstMessage: unknown) {
     super()
+    this.firstMessage = firstMessage
   }
   start() {
     setTimeout(() => this.emit('message', this.firstMessage), 0)

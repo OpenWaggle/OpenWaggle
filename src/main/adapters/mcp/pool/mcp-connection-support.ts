@@ -64,12 +64,13 @@ export interface McpPooledConnectionOptions {
 }
 
 export class McpServerError extends Error {
-  constructor(
-    message: string,
-    readonly code: number,
-    readonly data?: unknown,
-  ) {
+  readonly code: number
+  readonly data: unknown
+
+  constructor(message: string, code: number, data?: unknown) {
     super(message)
+    this.code = code
+    this.data = data
     this.name = 'McpServerError'
   }
 }

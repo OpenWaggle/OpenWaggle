@@ -11,14 +11,20 @@ import type {
 export class McpSessionIdleClose {
   policy: McpSessionConnectionPoolOptions['idleCloseMsFor']
 
-  constructor(
-    private readonly input: {
-      readonly clock: McpPoolClock
-      readonly idleCloseMs: number
-      readonly policy: McpSessionConnectionPoolOptions['idleCloseMsFor']
-      readonly close: (sessionId: string) => void
-    },
-  ) {
+  private readonly input: {
+    readonly clock: McpPoolClock
+    readonly idleCloseMs: number
+    readonly policy: McpSessionConnectionPoolOptions['idleCloseMsFor']
+    readonly close: (sessionId: string) => void
+  }
+
+  constructor(input: {
+    readonly clock: McpPoolClock
+    readonly idleCloseMs: number
+    readonly policy: McpSessionConnectionPoolOptions['idleCloseMsFor']
+    readonly close: (sessionId: string) => void
+  }) {
+    this.input = input
     this.policy = input.policy
   }
 

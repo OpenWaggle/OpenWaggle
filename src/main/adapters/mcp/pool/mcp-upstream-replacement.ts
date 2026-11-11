@@ -45,10 +45,13 @@ export class McpUpstreamReplacement {
   private replacing: Promise<void> | undefined
   private lastReplacementAt: number | undefined
 
-  constructor(
-    private readonly host: McpUpstreamReplacementHost,
-    private readonly now: () => number = Date.now,
-  ) {}
+  private readonly host: McpUpstreamReplacementHost
+  private readonly now: () => number
+
+  constructor(host: McpUpstreamReplacementHost, now: () => number = Date.now) {
+    this.host = host
+    this.now = now
+  }
 
   /** Resolves once a replacement in progress is done, whatever its outcome. */
   settled() {
