@@ -127,13 +127,15 @@ jobs:
           args=(--stand-in --allow-missing-resources --arch "${{ matrix.arch }}")
           case "${{ matrix.platform }}" in
             win32)
-              curl -fsSL --retry 3 -o "$tools/MicrosoftEdgeWebview2Setup.exe" "$(bun -e "import('./vendor/electrobun/sources.ts').then((m) => console.log(m.WEBVIEW2_BOOTSTRAPPER.url))")"
+              # vendor/electrobun/build.ts downloaded it and checked Microsoft's Authenticode signature.
+              cp out/electrobun-native/win32-x64/webview2/MicrosoftEdgeWebview2Setup.exe "$tools/"
               makensis="/c/Program Files (x86)/NSIS/makensis.exe"
               [ -x "$makensis" ] || choco install nsis -y --no-progress
               args+=(--webview2 "$tools/MicrosoftEdgeWebview2Setup.exe" --makensis "$makensis")
               ;;
             linux)
-              curl -fsSL --retry 3 -o "$tools/appimagetool" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+              curl -fsSL --retry 3 -o "$tools/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+              echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tools/appimagetool" | sha256sum -c -
               chmod +x "$tools/appimagetool"
               args+=(--appimagetool "$tools/appimagetool")
               ;;
