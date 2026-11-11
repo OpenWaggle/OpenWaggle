@@ -30,7 +30,7 @@ import { interruptAllSessionRuns } from '../session-run-interruption'
 
 // The dispatcher is mocked, so the services its type names are never used.
 function runWithoutRequirements(effect: Effect.Effect<void, unknown, unknown>): Promise<void> {
-  return Effect.runPromise(fromAny<Effect.Effect<void, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<void, unknown>, typeof effect>(effect))
 }
 
 function contract(payload: unknown) {

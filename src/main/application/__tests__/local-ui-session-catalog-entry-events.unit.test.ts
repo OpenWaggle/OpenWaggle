@@ -35,7 +35,7 @@ function runCommand(command: Parameters<typeof changesOnlySessionCatalogEntry>[0
     caller: { callerId: 'gui:local-user' },
     payload: { contract: 'local-ui-v1', request: { requestId: 'request-1', command } },
   }).pipe(Effect.provide(testLayer()))
-  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof effect>(effect))
 }
 
 describe('Local UI commands that change only a Session’s catalog entry (session open)', () => {

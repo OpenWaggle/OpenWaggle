@@ -1,9 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionAcceptUpdateInput,
-  ExtensionApproveBuildInput,
   ExtensionLifecycleMutationTarget,
-  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -28,8 +26,6 @@ export type LifecycleMutationInput =
   | ExtensionSetTrustedInput
   | ExtensionSetEnabledInput
   | ExtensionAcceptUpdateInput
-  | ExtensionApproveBuildInput
-  | ExtensionReloadInput
 
 function scopeKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND

@@ -43,7 +43,7 @@ export function listAgentDefinitionDisplayOperation(rawProjectPath: string) {
       sourcePath: item.sourcePath,
       ...(item.contentDigest ? { contentDigest: item.contentDigest } : {}),
       ...(item.loadError ? { loadError: item.loadError } : {}),
-      enabled: toggles[item.name] !== false,
+      enabled: toggles[item.name],
     }))
   })
 }

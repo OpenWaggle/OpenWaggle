@@ -25,7 +25,7 @@ const MODEL = SupportedModelId('openai/gpt-5.4')
 
 function compact() {
   return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+    fromAny<Effect.Effect<unknown, Error>, unknown>(
       executeManualSessionCompaction({
         caller: { callerId: 'gui:local-user' },
         payload: {
@@ -95,7 +95,7 @@ describe('owner manual compaction recovery', () => {
     })
 
     const activities = await Effect.runPromise(
-      fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+      fromAny<Effect.Effect<unknown, Error>, unknown>(
         dispatchHostUiRequest({
           caller: { callerId: 'gui:local-user' },
           request: {

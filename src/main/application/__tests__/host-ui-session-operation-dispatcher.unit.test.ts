@@ -129,7 +129,7 @@ const sessionRepository = SessionRepository.of({
 })
 
 function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>): Promise<A> {
-  const runnableEffect = fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect)
+  const runnableEffect = fromAny<Effect.Effect<A, unknown>, typeof effect>(effect)
   return Effect.runPromise(runnableEffect)
 }
 

@@ -29,7 +29,7 @@ const SESSION_ID = SessionId('session-1')
 
 function dispatch(channel: 'sessions:delete' | 'sessions:begin-project-removal', args: unknown[]) {
   const effect = dispatchHostBackedSessionGuiOperation(channel, args)
-  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof effect>(effect))
 }
 
 function deletedCommand() {

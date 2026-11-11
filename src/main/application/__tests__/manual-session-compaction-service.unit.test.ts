@@ -56,7 +56,7 @@ function compactionCommand(callerId = 'gui:local-user') {
 
 function runCompactionCommand(callerId?: string) {
   return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, Error, never>, unknown>(compactionCommand(callerId)),
+    fromAny<Effect.Effect<unknown, Error>, unknown>(compactionCommand(callerId)),
   )
 }
 

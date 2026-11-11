@@ -78,7 +78,7 @@ function run<A>(
       fromPartial<SessionProjectionRepositoryShape>(services.projections ?? {}),
     ),
   )
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof provided>(provided))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof provided>(provided))
 }
 
 describe('Host UI Session data reads (B5/D5)', () => {

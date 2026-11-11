@@ -39,11 +39,7 @@ const TREE_SEARCH_CURSOR_ARGUMENT = 2
 const MAX_TURN_DIFF_FILE_BATCH = 500
 
 /** Decodes an optional trailing request argument with its schema, or fails naming `label`. */
-function decodeOptionalArgument<A, I>(
-  schema: Schema.Schema<A, I, never>,
-  value: unknown,
-  label: string,
-) {
+function decodeOptionalArgument<A, I>(schema: Schema.Schema<A, I>, value: unknown, label: string) {
   if (value === undefined) return Effect.succeed(undefined)
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success

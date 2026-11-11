@@ -286,9 +286,6 @@
     "src/renderer/src/features/chat/lib/chat-stream-state-helpers.ts": 1,
     "src/renderer/src/features/chat/lib/tool-call-block.ts": 1
   },
-  "typescript/no-duplicate-type-constituents": {
-    "src/main/application/extension-lifecycle-model.ts": 2
-  },
   "typescript/no-floating-promises": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-close.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-controls-security.unit.test.ts": 1,
@@ -356,11 +353,9 @@
   },
   "typescript/no-redundant-type-constituents": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 1,
-    "src/main/application/local-session-profile-narrowing.ts": 1,
     "src/renderer/src/routes/-right-sidebar-panel.ts": 2
   },
   "typescript/no-unnecessary-boolean-literal-compare": {
-    "src/main/application/agent-definition-display-operations.ts": 1,
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order.model-actions.ts": 1,
     "src/renderer/src/features/chat/hooks/session-follow-up-queue-model.ts": 1,
     "src/renderer/src/features/chat/lib/codemode-tool-view.ts": 1,
@@ -375,41 +370,11 @@
     "src/renderer/src/shell/workspace-panel-actions.ts": 4
   },
   "typescript/no-unnecessary-template-expression": {
-    "src/main/application/__tests__/session-resource-backfill.unit.test.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.component.test.tsx": 1,
     "src/renderer/src/features/settings/components/sections/TerminalPaletteRoleRow.tsx": 1,
     "src/renderer/src/features/terminal/lib/__tests__/terminal-output-delivery.unit.test.ts": 1
   },
   "typescript/no-unnecessary-type-arguments": {
-    "src/main/application/__tests__/automatic-worktree-removal.unit.test.ts": 1,
-    "src/main/application/__tests__/explicit-waggle-command-lifecycle.unit.test.ts": 1,
-    "src/main/application/__tests__/explicit-waggle-command-races.unit.test.ts": 1,
-    "src/main/application/__tests__/explicit-waggle-command-refusal.unit.test.ts": 1,
-    "src/main/application/__tests__/explicit-waggle-command-resource-capture.unit.test.ts": 2,
-    "src/main/application/__tests__/host-ui-archived-items-operations.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-archived-items-validation.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-extension-invocation-dispatch.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-request-dispatcher.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-session-copy-failure-log.unit.test.ts": 2,
-    "src/main/application/__tests__/host-ui-session-data-reads.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-session-delete-operation.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-session-model-operation.unit.test.ts": 1,
-    "src/main/application/__tests__/host-ui-session-operation-dispatcher.unit.test.ts": 1,
-    "src/main/application/__tests__/local-ui-session-catalog-entry-events.unit.test.ts": 1,
-    "src/main/application/__tests__/manual-session-compaction-recovery.unit.test.ts": 2,
-    "src/main/application/__tests__/manual-session-compaction-service.unit.test.ts": 1,
-    "src/main/application/__tests__/pi-session-deleted-files.unit.test.ts": 1,
-    "src/main/application/__tests__/project-authorization-owner-boundary.unit.test.ts": 1,
-    "src/main/application/__tests__/session-run-interruption.unit.test.ts": 1,
-    "src/main/application/__tests__/workspace-project-authorization-dispatcher.unit.test.ts": 1,
-    "src/main/application/__tests__/worktree-inventory.unit.test.ts": 1,
-    "src/main/application/__tests__/worktree-operations.unit.test.ts": 1,
-    "src/main/application/host-ui-archived-items-operations.ts": 1,
-    "src/main/application/host-ui-docs-operation.ts": 1,
-    "src/main/application/host-ui-extension-input.ts": 1,
-    "src/main/application/host-ui-session-data-operations.ts": 1,
-    "src/main/application/pi-session-continuation.ts": 1,
-    "src/main/application/project-model-removal-operation.ts": 1,
     "src/renderer/src/features/chat/state/inline-visualization-state.ts": 1,
     "src/renderer/src/features/extensions/hooks/useExtensionSidePanelContributions.ts": 1,
     "src/renderer/src/features/hive-panel/components/HivePanel.tsx": 2,
@@ -430,9 +395,6 @@
     "src/renderer/src/features/sidebar/components/Sidebar.tsx": 1
   },
   "typescript/no-unnecessary-type-parameters": {
-    "src/main/application/extension-contribution-registration-model.ts": 1,
-    "src/main/application/gui-session-command-router.ts": 1,
-    "src/main/application/local-session-authority-limits.ts": 1,
     "src/renderer/src/features/chat/lib/codemode-tool-view.ts": 1,
     "src/shared/schemas/action-definitions.ts": 1,
     "src/shared/types/logger.ts": 4

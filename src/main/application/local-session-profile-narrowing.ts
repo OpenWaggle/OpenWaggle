@@ -4,7 +4,6 @@ import type {
   LocalSessionProfileAuthority,
   LocalSessionProfileScope,
 } from '@shared/types/local-session-profile'
-import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import {
   LocalSessionCommandAuthorizationError,
@@ -155,7 +154,7 @@ function unique<T>(values: readonly T[]) {
   return [...new Set(values)]
 }
 
-function intersect<T extends string | SessionCapability>(left: readonly T[], right: readonly T[]) {
+function intersect<T extends string>(left: readonly T[], right: readonly T[]) {
   const allowed = new Set(right)
   return unique(left.filter((value) => allowed.has(value)))
 }

@@ -133,7 +133,7 @@ function waggleCommand(withAttachment = false, hostRunCeiling?: number, operatio
 
 function runWaggleCommand(withAttachment = false, hostRunCeiling?: number, operationSuffix = '1') {
   return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+    fromAny<Effect.Effect<unknown, Error>, unknown>(
       waggleCommand(withAttachment, hostRunCeiling, operationSuffix),
     ),
   )
