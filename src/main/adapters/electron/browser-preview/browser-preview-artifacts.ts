@@ -148,13 +148,21 @@ function annotationAttachmentMetadata(
   }
 }
 
+type PrepareAnnotationAttachment = (
+  input: BrowserPreviewAnnotationAttachmentInput,
+) => Promise<PreparedAttachment>
+
 export class BrowserPreviewArtifactStore {
+  private readonly storage: BrowserPreviewArtifactStorage
+  private readonly prepareAnnotation: PrepareAnnotationAttachment
+
   constructor(
-    private readonly storage: BrowserPreviewArtifactStorage,
-    private readonly prepareAnnotation: (
-      input: BrowserPreviewAnnotationAttachmentInput,
-    ) => Promise<PreparedAttachment> = prepareBrowserPreviewAnnotationAttachment,
-  ) {}
+    storage: BrowserPreviewArtifactStorage,
+    prepareAnnotation: PrepareAnnotationAttachment = prepareBrowserPreviewAnnotationAttachment,
+  ) {
+    this.storage = storage
+    this.prepareAnnotation = prepareAnnotation
+  }
 
   async captureScreenshot(
     previewId: string,

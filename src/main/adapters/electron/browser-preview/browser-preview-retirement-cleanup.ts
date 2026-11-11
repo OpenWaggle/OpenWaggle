@@ -15,7 +15,11 @@ interface CleanupAttempt {
 export class BrowserPreviewRetirementCleanup {
   private readonly attempts = new WeakMap<BrowserPreviewRecord, CleanupAttempt>()
 
-  constructor(private readonly close: (record: BrowserPreviewRecord) => Promise<void>) {}
+  private readonly close: (record: BrowserPreviewRecord) => Promise<void>
+
+  constructor(close: (record: BrowserPreviewRecord) => Promise<void>) {
+    this.close = close
+  }
 
   start(record: BrowserPreviewRecord): void {
     if (this.attempts.has(record)) return

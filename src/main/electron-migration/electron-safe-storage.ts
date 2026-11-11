@@ -39,12 +39,11 @@ export type SafeStorageFailureReason =
   | 'unknown-format'
 
 export class SafeStorageDecryptError extends Error {
-  constructor(
-    readonly reason: SafeStorageFailureReason,
-    message: string,
-    options?: ErrorOptions,
-  ) {
+  readonly reason: SafeStorageFailureReason
+
+  constructor(reason: SafeStorageFailureReason, message: string, options?: ErrorOptions) {
     super(message, options)
+    this.reason = reason
   }
 }
 

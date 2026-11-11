@@ -3,7 +3,11 @@ import { EventEmitter } from 'node:events'
 export const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47]
 
 export class FakeNativeImage {
-  constructor(readonly bytes: Uint8Array) {}
+  readonly bytes: Uint8Array
+
+  constructor(bytes: Uint8Array) {
+    this.bytes = bytes
+  }
   isEmpty() {
     return !PNG_SIGNATURE.every((byte, index) => this.bytes[index] === byte)
   }
@@ -17,7 +21,11 @@ export interface FakeMenuItem {
 export class FakeMenu {
   static applicationMenu: FakeMenu | null = null
   readonly popups: unknown[] = []
-  constructor(readonly template: readonly FakeMenuItem[]) {}
+  readonly template: readonly FakeMenuItem[]
+
+  constructor(template: readonly FakeMenuItem[]) {
+    this.template = template
+  }
   static buildFromTemplate(template: readonly FakeMenuItem[]) {
     return new FakeMenu(template)
   }
@@ -40,8 +48,11 @@ export class FakeNotification extends EventEmitter {
   static readonly shown: FakeNotification[] = []
   static readonly removed: string[] = []
   closed = false
-  constructor(readonly options: Record<string, unknown>) {
+  readonly options: Record<string, unknown>
+
+  constructor(options: Record<string, unknown>) {
     super()
+    this.options = options
   }
   static isSupported() {
     return FakeNotification.supported

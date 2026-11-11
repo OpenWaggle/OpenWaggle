@@ -79,7 +79,11 @@ function unmaskCrc(masked: number) {
 
 export class Cursor {
   offset = 0
-  constructor(readonly bytes: Buffer) {}
+  readonly bytes: Buffer
+
+  constructor(bytes: Buffer) {
+    this.bytes = bytes
+  }
 
   get done() {
     return this.offset >= this.bytes.length

@@ -64,7 +64,10 @@ export class BrowserPreviewControlCoordinator {
   >()
   private readonly pictureInPicture: BrowserPreviewPictureInPictureController
 
-  constructor(private readonly host: BrowserPreviewControlHost) {
+  private readonly host: BrowserPreviewControlHost
+
+  constructor(host: BrowserPreviewControlHost) {
+    this.host = host
     this.pictureInPicture = new BrowserPreviewPictureInPictureController({
       onClosed: (controlKey) => this.handlePictureInPictureClosed(controlKey),
     })

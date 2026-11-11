@@ -23,7 +23,11 @@ export interface BrowserPreviewLoadOperation {
 }
 
 export class BrowserPreviewNavigation {
-  constructor(private readonly host: BrowserPreviewNavigationHost) {}
+  private readonly host: BrowserPreviewNavigationHost
+
+  constructor(host: BrowserPreviewNavigationHost) {
+    this.host = host
+  }
 
   navigate(record: BrowserPreviewRecord, canonicalUrl: string): BrowserPreviewState {
     if (record.state.url === canonicalUrl) return this.snapshot(record)

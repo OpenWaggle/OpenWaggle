@@ -23,13 +23,19 @@ interface StoredArtifactEntry {
 export class BrowserPreviewArtifactStorage {
   private mutationTail: Promise<void> = Promise.resolve()
 
+  readonly directory: string
+  private readonly limits: ArtifactStorageLimits
+
   constructor(
-    readonly directory: string,
-    private readonly limits: ArtifactStorageLimits = {
+    directory: string,
+    limits: ArtifactStorageLimits = {
       maxFiles: BROWSER_PREVIEW_CAPTURE_LIMITS.ARTIFACT_FILES,
       maxTotalBytes: BROWSER_PREVIEW_CAPTURE_LIMITS.ARTIFACT_TOTAL_BYTES,
     },
-  ) {}
+  ) {
+    this.directory = directory
+    this.limits = limits
+  }
 
   write(kind: 'screenshot' | 'recording', extension: 'png' | 'webm' | 'mp4', data: Uint8Array) {
     return this.serialize(async () => {

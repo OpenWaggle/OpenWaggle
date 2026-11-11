@@ -29,7 +29,11 @@ export class BrowserPreviewLifecycle {
     this.close(record),
   )
 
-  constructor(private readonly host: BrowserPreviewLifecycleHost) {}
+  private readonly host: BrowserPreviewLifecycleHost
+
+  constructor(host: BrowserPreviewLifecycleHost) {
+    this.host = host
+  }
 
   close(record: BrowserPreviewRecord | undefined): Promise<void> {
     return closeBrowserPreviewRecord(record, (closed) => this.detachDestroyed(closed))

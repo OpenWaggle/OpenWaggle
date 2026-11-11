@@ -30,7 +30,11 @@ export class BrowserPreviewRecordRegistry {
     }
   >()
 
-  constructor(private readonly options: BrowserPreviewRecordRegistryOptions) {}
+  private readonly options: BrowserPreviewRecordRegistryOptions
+
+  constructor(options: BrowserPreviewRecordRegistryOptions) {
+    this.options = options
+  }
 
   findOwned(ownerKey: string, previewId?: string): BrowserPreviewRecord | undefined {
     if (previewId !== undefined) {

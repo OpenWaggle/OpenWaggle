@@ -76,7 +76,10 @@ class BrowserPreviewNavigationWait {
     supersede: () => this.finish(navigationSuperseded()),
   }
 
-  constructor(private readonly input: BrowserPreviewNavigationWaitInput) {
+  private readonly input: BrowserPreviewNavigationWaitInput
+
+  constructor(input: BrowserPreviewNavigationWaitInput) {
+    this.input = input
     this.acceptedUrls = new Set([normalizedUrl(input.url)])
   }
 

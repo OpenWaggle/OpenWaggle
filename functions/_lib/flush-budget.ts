@@ -24,10 +24,13 @@ const KV_CONCURRENCY = 6
 export class OperationBudget {
   private used = 0
 
-  constructor(
-    private readonly limit: number,
-    private readonly reserve: number,
-  ) {}
+  private readonly limit: number
+  private readonly reserve: number
+
+  constructor(limit: number, reserve: number) {
+    this.limit = limit
+    this.reserve = reserve
+  }
 
   /** Whether `count` optional operations still leave the reserve free. */
   allows(count: number) {

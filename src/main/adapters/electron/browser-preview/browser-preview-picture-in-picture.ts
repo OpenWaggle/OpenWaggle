@@ -32,12 +32,15 @@ export type BrowserPreviewPictureInPictureUnavailableReason = 'automation' | 'ca
 export class BrowserPreviewPictureInPictureUnavailableError extends Error {
   readonly code = 'BROWSER_PREVIEW_PICTURE_IN_PICTURE_UNAVAILABLE'
 
-  constructor(readonly reason: BrowserPreviewPictureInPictureUnavailableReason) {
+  readonly reason: BrowserPreviewPictureInPictureUnavailableReason
+
+  constructor(reason: BrowserPreviewPictureInPictureUnavailableReason) {
     super(
       reason === 'automation'
         ? 'Picture-in-picture is unavailable during non-disruptive automation.'
         : `At most ${String(MAX_WINDOWS)} browser picture-in-picture windows may be open.`,
     )
+    this.reason = reason
     this.name = 'BrowserPreviewPictureInPictureUnavailableError'
   }
 }

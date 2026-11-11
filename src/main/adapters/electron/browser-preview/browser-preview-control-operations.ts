@@ -19,9 +19,11 @@ interface BrowserPreviewControlBroker {
 export class BrowserPreviewControlOperations {
   private readonly appearanceByTabId = new Map<string, BrowserPreviewAppearance>()
 
-  constructor(
-    private readonly broker: BrowserPreviewControlBroker = browserPreviewAutomationController,
-  ) {}
+  private readonly broker: BrowserPreviewControlBroker
+
+  constructor(broker: BrowserPreviewControlBroker = browserPreviewAutomationController) {
+    this.broker = broker
+  }
 
   register(
     tabId: string,

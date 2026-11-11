@@ -21,7 +21,11 @@ export class BrowserPreviewCrashRecovery {
   private active = false
   private disposed = false
 
-  constructor(private readonly options: BrowserPreviewCrashRecoveryOptions) {}
+  private readonly options: BrowserPreviewCrashRecoveryOptions
+
+  constructor(options: BrowserPreviewCrashRecoveryOptions) {
+    this.options = options
+  }
 
   start(): void {
     if (this.disposed || !this.options.isCurrent()) return

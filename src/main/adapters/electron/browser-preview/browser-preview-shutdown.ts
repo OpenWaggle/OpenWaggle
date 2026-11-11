@@ -7,7 +7,11 @@ export class BrowserPreviewShutdown {
   private readonly closingOwners = new Map<string, Promise<void>>()
   private shuttingDown = false
 
-  constructor(private readonly closeRecord: (record: BrowserPreviewRecord) => Promise<void>) {}
+  private readonly closeRecord: (record: BrowserPreviewRecord) => Promise<void>
+
+  constructor(closeRecord: (record: BrowserPreviewRecord) => Promise<void>) {
+    this.closeRecord = closeRecord
+  }
 
   assertCanOpen(ownerKey: string): void {
     if (this.shuttingDown) throw new Error('Browser previews are shutting down.')

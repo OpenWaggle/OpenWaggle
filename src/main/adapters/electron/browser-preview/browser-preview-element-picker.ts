@@ -79,7 +79,11 @@ function decodePickPayload(value: unknown): BrowserPreviewElementPickPayload | n
 export class BrowserPreviewElementPicker {
   private readonly active = new Map<string, ActivePick>()
 
-  constructor(private artifacts: ElementPickerArtifactStore | null = null) {}
+  private artifacts: ElementPickerArtifactStore | null
+
+  constructor(artifacts: ElementPickerArtifactStore | null = null) {
+    this.artifacts = artifacts
+  }
 
   async pick(
     pickKey: string,

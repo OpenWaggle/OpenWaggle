@@ -14,7 +14,11 @@ interface ReplacementHost {
 }
 
 export class BrowserPreviewReplacement {
-  constructor(private readonly host: ReplacementHost) {}
+  private readonly host: ReplacementHost
+
+  constructor(host: ReplacementHost) {
+    this.host = host
+  }
 
   replace(
     sender: WebContents,

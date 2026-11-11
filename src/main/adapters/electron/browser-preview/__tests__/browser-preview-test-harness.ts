@@ -177,11 +177,10 @@ vi.mock('electron', async () => {
     readonly setBounds = vi.fn()
     readonly setVisible = vi.fn()
 
-    constructor(
-      readonly constructorOptions: {
-        readonly webPreferences?: { readonly [key: string]: unknown }
-      },
-    ) {
+    readonly constructorOptions: FakePreviewView['constructorOptions']
+
+    constructor(constructorOptions: FakePreviewView['constructorOptions']) {
+      this.constructorOptions = constructorOptions
       electronMocks.createdViews.push(this)
     }
   }

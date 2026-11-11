@@ -62,8 +62,11 @@ export class FakeBrowserWindow extends EventEmitter {
   minimized = false
   destroyed = false
 
-  constructor(readonly options: { readonly show?: boolean } = {}) {
+  readonly options: { readonly show?: boolean }
+
+  constructor(options: { readonly show?: boolean } = {}) {
     super()
+    this.options = options
     this.visible = options.show ?? true
     allWindows.push(this)
   }
