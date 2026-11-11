@@ -1,3 +1,4 @@
+import { isatty } from 'node:tty'
 import { createInterface } from 'node:readline/promises'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import { cliStdoutIsTerminal, writeCliStdout } from './cli-stdout'
@@ -105,7 +106,7 @@ const defaultDependencies: RunCliDependencies = {
   get stdoutIsTerminal() {
     return cliStdoutIsTerminal()
   },
-  interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY),
+  interactive: isatty(process.stdin.fd) && isatty(process.stderr.fd),
   ask: askFromTerminal,
   onInterrupt: (listener) => listenForInterrupts(listener),
 }

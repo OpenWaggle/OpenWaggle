@@ -145,7 +145,7 @@ function registerTerminalLifecycleHandlers() {
           decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
         )
         const service = yield* TerminalService
-        yield* service.close(decoded.ownerKey, decoded.terminalId, deleteHistory === true)
+        yield* service.close(decoded.ownerKey, decoded.terminalId, deleteHistory)
       }),
   )
 }

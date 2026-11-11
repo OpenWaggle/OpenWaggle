@@ -112,7 +112,7 @@ export function registerInlineVisualizationFrame(
   ownerId: number,
 ): InlineVisualizationFrameRegisterResult {
   if (!FRAME_ID_PATTERN.test(input.frameId)) throw new Error('Invalid visualization frame id')
-  if (!input.sessionId || String(input.sessionId).length > MAX_SESSION_ID_LENGTH) {
+  if (!input.sessionId || input.sessionId.length > MAX_SESSION_ID_LENGTH) {
     throw new Error('Invalid visualization session id')
   }
   if (!input.sourcePath || input.sourcePath.length > MAX_INLINE_VISUALIZATION_PATH_LENGTH) {

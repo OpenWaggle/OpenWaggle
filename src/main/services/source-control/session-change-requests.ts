@@ -194,7 +194,7 @@ export function sessionRequestContext(
 export function isFailure(
   value: SessionRequestContext | SourceControlFailure,
 ): value is SourceControlFailure {
-  return 'ok' in value && value.ok === false
+  return 'ok' in value && !value.ok
 }
 
 /** The Change request inspector's snapshot, run by the Session Host (ADR 0048). */

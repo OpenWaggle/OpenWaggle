@@ -396,14 +396,7 @@
     "src/renderer/src/routes/-right-sidebar-panel.ts": 2
   },
   "typescript/no-unnecessary-boolean-literal-compare": {
-    "src/main/agents/agent-definition-discovery.ts": 1,
     "src/main/application/agent-definition-display-operations.ts": 1,
-    "src/main/ipc/background-start-handler.ts": 1,
-    "src/main/ipc/terminal-handler.ts": 1,
-    "src/main/services/source-control/session-change-request-merge.ts": 1,
-    "src/main/services/source-control/session-change-requests.ts": 1,
-    "src/main/session-cli-exit-status.ts": 1,
-    "src/main/sessions-cli-agent-definitions.ts": 1,
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order.model-actions.ts": 1,
     "src/renderer/src/features/chat/hooks/session-follow-up-queue-model.ts": 1,
     "src/renderer/src/features/chat/lib/codemode-tool-view.ts": 1,
@@ -463,10 +456,6 @@
     "src/shared/schema.ts": 3
   },
   "typescript/no-unnecessary-type-conversion": {
-    "src/main/cli-stdout.ts": 1,
-    "src/main/inline-visualization-protocol.ts": 1,
-    "src/main/run-cli.ts": 1,
-    "src/main/store/session-details/pi-session-discovery-store.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ChatRowRenderer.waggle-failure.component.test.tsx": 1,
     "src/renderer/src/features/chat/hooks/__tests__/pi-session-continuation-gate.component.test.tsx": 1,
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-model.component.test.tsx": 1,
