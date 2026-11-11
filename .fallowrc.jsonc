@@ -25,6 +25,8 @@
     "scripts/support/pi-main-bundle-smoke-entry.ts",
     // Vitest globalSetup, referenced by path through TEST_TEMPORARY_ROOT_SETUP.
     "scripts/test-support/vitest-temporary-root.ts",
+    // The reused-worker reset, the first setup file, referenced by path through REUSED_WORKER_SETUP.
+    "scripts/test-support/reused-worker-isolation.ts",
     // The tiers' `node:os`, referenced by path through BUN_RUNTIME_ALIASES.
     "scripts/test-support/node-os.ts",
     // Vitest reporter, referenced by path through TEST_REPORTERS.

@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { EnvironmentGroupedSequencer } from './environment-grouped-sequencer'
 
 /**
  * Options the Vitest tier configs share, so `vitest.coverage.config.ts`, which runs the same tests
@@ -9,6 +10,19 @@ import path from 'node:path'
 
 /** Removes the run's temporary root, under which `isolate-user-home.ts` gives each file its own. */
 export const TEST_TEMPORARY_ROOT_SETUP = 'scripts/test-support/vitest-temporary-root.ts'
+
+/**
+ * The unit and component tiers keep each worker for many files instead of starting one per file,
+ * which made loading the externals again ~60% of the unit tier and jsdom ~50% of the component tier.
+ * `REUSED_WORKER_SETUP` must be the first setup file: it gives every file the modules, mocks,
+ * globals and patched builtins of a fresh worker (see that file for what it cannot reset).
+ */
+export const REUSED_WORKERS = {
+  isolate: false,
+  sequence: { sequencer: EnvironmentGroupedSequencer },
+} as const
+
+export const REUSED_WORKER_SETUP = 'scripts/test-support/reused-worker-isolation.ts'
 
 const NODE_TIER_TIMEOUT_MS = 60_000
 

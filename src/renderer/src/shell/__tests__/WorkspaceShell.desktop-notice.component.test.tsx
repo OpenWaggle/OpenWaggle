@@ -47,6 +47,8 @@ vi.mock('../useAutoUpdater', () => ({ useAutoUpdater: vi.fn() }))
 vi.mock('../useWorkspaceLifecycle', () => ({ useWorkspaceLifecycle: vi.fn() }))
 vi.mock('../WorkspaceRightPanel', () => ({ WorkspaceRightPanel: passThrough }))
 vi.mock('../WorkspaceTerminal', () => ({ WorkspaceTerminal: nothing }))
+// Lazily loaded: it rendered only when its import resolved before the assertions ran.
+vi.mock('../WorkspaceBrowserFloatingPreview', () => ({ WorkspaceBrowserFloatingPreview: nothing }))
 vi.mock('../right-panel/RightPanelHost', () => ({ RightPanelHost: nothing }))
 vi.mock('../right-panel/RightPanelMaximizePublisher', () => ({
   RightPanelMaximizePublisher: nothing,

@@ -1,12 +1,14 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { testTimeZone } from '../test-support/vitest-tier-options'
+import { REUSED_WORKER_SETUP, testTimeZone } from '../test-support/vitest-tier-options'
 
 /*
  * Tests must never see the real user's home: a dev run once migrated a maintainer's real
  * ~/.openwaggle/mcp.json. The home isolation has to be the first setup file of every config, so
- * nothing resolves a path before it, and every Node config also stubs the MCP migration entry.
+ * nothing resolves a path before it, and every Node config also stubs the MCP migration entry. In
+ * the tiers that reuse workers, only the reset that gives each file a fresh worker's modules and
+ * process state comes before it; it resolves no path.
  */
 
 const HOME_ISOLATION = 'scripts/test-support/isolate-user-home.ts'
@@ -38,8 +40,10 @@ function filesOf(test: unknown, key: 'setupFiles' | 'globalSetup') {
   return Array.isArray(files) ? files.filter((file) => typeof file === 'string') : []
 }
 
+/** The setup files after the reused-worker reset, which must come first when a config has it. */
 function setupFilesOf(test: unknown) {
-  return filesOf(test, 'setupFiles')
+  const files = filesOf(test, 'setupFiles')
+  return files[0] === REUSED_WORKER_SETUP ? files.slice(1) : files
 }
 
 function timeoutsOf(test: unknown) {
@@ -67,6 +71,19 @@ describe('Vitest config isolation', () => {
     ['coverage component project', () => coverageProject('component')],
   ])('isolates the home first in the %s config', async (_name, load) => {
     expect(setupFilesOf(await load())[0]).toBe(HOME_ISOLATION)
+  })
+
+  it.each([
+    ['unit', 'vitest.unit.config.ts', true],
+    ['component', 'vitest.component.config.ts', true],
+    ['integration', 'vitest.integration.config.ts', false],
+    ['default', 'vitest.config.ts', false],
+  ])('the %s config reuses workers only with the reset first', async (_name, config, reused) => {
+    const test = await testOptions(config)
+    const files = filesOf(test, 'setupFiles')
+
+    expect(field(test, 'isolate') === false).toBe(reused)
+    expect(files.indexOf(REUSED_WORKER_SETUP)).toBe(reused ? 0 : -1)
   })
 
   it.each([
