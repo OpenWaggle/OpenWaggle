@@ -3,17 +3,23 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { topLevelRequires } from '../main-bundle-requires'
-import { probeStartupExternals, startupExternalFailures } from '../main-bundle-startup-externals'
+import {
+  externalSpecifiers,
+  probeStartupExternals,
+  startupExternalFailures,
+} from '../main-bundle-startup-externals'
 
 /**
- * R6 P3-4: `check:main-bundle` must catch a package that loads at startup even though its
- * `require()` sits in a function, as Rolldown's lazy stand-ins do when an initializer that runs at
- * startup calls them. Child processes: integration tier.
+ * R6 P3-4: `check:main-bundle` must catch a package that loads at startup even though its load
+ * sits in a function, as a lazy external does when an initializer that runs at startup calls it.
+ * Child processes: integration tier.
  */
 const roots: string[] = []
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
+
+const PACKAGES = ['sharp', 'better-sqlite3', 'ajv']
 
 async function bundle(source: string) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'startup-externals-'))
@@ -23,27 +29,24 @@ async function bundle(source: string) {
   return file
 }
 
-/** The shape Rolldown emits: a lazy CommonJS stand-in and an ESM initializer that calls it. */
+/** The shape scripts/build-main-plugins.ts emits: a lazy CommonJS stand-in for an external. */
 const LAZY_STAND_IN = `
-var __commonJSMin = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports)
-var __esmMin = (fn, res) => () => (fn && (res = fn((fn = 0))), res)
-var require_sharp = __commonJSMin((exports, module) => { module.exports = require('sharp') })
-var electron = require('electron')
+import path from 'node:path'
+var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports)
+var require_sharp = __commonJS((exports, module) => { module.exports = import.meta.require('sharp') })
 var sharp
-var init_image = __esmMin(() => { sharp = require_sharp() })
+var initImage = () => { sharp = require_sharp() }
+export const base = path.basename('/a/b')
 `
 
 describe('main bundle startup externals', () => {
   it('reports a package an initializer that runs at startup loads, which the static check misses', async () => {
-    const file = await bundle(`${LAZY_STAND_IN}
-init_image()
-electron.app.whenReady()
-`)
-    const source = LAZY_STAND_IN
-    expect(topLevelRequires(source)).toEqual(['electron'])
+    const source = `${LAZY_STAND_IN}\ninitImage()\n`
+    const file = await bundle(source)
+    expect(topLevelRequires(source)).toEqual(['node:path'])
 
-    const [result] = probeStartupExternals(file, [['host', 'start']])
-    expect(result?.loaded).toEqual(['electron', 'sharp'])
+    const [result] = probeStartupExternals(file, PACKAGES, process.execPath, [['host', 'start']])
+    expect(result?.loaded).toEqual(['sharp'])
     expect(startupExternalFailures(result ? [result] : [])).toEqual([
       expect.stringContaining('`openwaggle host start` loads sharp while the main bundle starts'),
     ])
@@ -51,17 +54,29 @@ electron.app.whenReady()
 
   it('accepts a package whose initializer runs only on use, and passes the argument vector', async () => {
     const file = await bundle(`${LAZY_STAND_IN}
-module.exports = { resize: () => { init_image(); return sharp } }
+export const resize = () => { initImage(); return sharp }
 if (process.argv[2] !== '--version') throw new Error('argv ' + process.argv.slice(2).join(' '))
 `)
-    const results = probeStartupExternals(file, [['--version']])
-    expect(results).toEqual([{ argv: ['--version'], loaded: ['electron'], error: null }])
+    const results = probeStartupExternals(file, PACKAGES, process.execPath, [['--version']])
+    expect(results).toEqual([{ argv: ['--version'], loaded: [], error: null }])
     expect(startupExternalFailures(results)).toEqual([])
   })
 
+  it('stubs the subpaths of an external the bundle names', async () => {
+    const file = await bundle(`const uri = import.meta.require('ajv/dist/runtime/uri')\n`)
+    const [result] = probeStartupExternals(file, PACKAGES, process.execPath, [['run', 'probe']])
+    expect(result).toMatchObject({ loaded: ['ajv'], error: null })
+    expect(externalSpecifiers(["require('ajv/dist/runtime/uri')"], ['ajv'])).toEqual([
+      'ajv',
+      'ajv/dist/runtime/uri',
+    ])
+  })
+
   it('fails a start the stubs could not complete, since it may hide later loads', async () => {
-    const file = await bundle(`require('electron'); throw new Error('cut short')`)
-    const failures = startupExternalFailures(probeStartupExternals(file, [['run', 'probe']]))
+    const file = await bundle(`import 'not-an-external-package'\n`)
+    const failures = startupExternalFailures(
+      probeStartupExternals(file, PACKAGES, process.execPath, [['run', 'probe']]),
+    )
     expect(failures).toEqual([
       expect.stringContaining('`openwaggle run probe` threw while the main bundle started'),
     ])

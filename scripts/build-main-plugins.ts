@@ -74,10 +74,14 @@ export function sourceAliases(
   aliases: readonly SourceAlias[],
   modules: Readonly<Record<string, string>>,
 ): BunPlugin {
+  const prefixes = [...aliases.map((alias) => alias.specifier), ...Object.keys(modules)].map(
+    (prefix) => prefix.replace(/[.*+?^${}()|[\]\\/]/gu, String.raw`\$&`),
+  )
+  const filter = new RegExp(`^(?:${prefixes.join('|')})(?:/|$)`, 'u')
   return {
     name: 'openwaggle:source-aliases',
     setup(builder) {
-      builder.onResolve({ filter: /^(?:@shared|@openwaggle\/|electrobun\/)/u }, (args) => {
+      builder.onResolve({ filter }, (args) => {
         const module = modules[args.path]
         if (module !== undefined) return { path: path.join(root, module) }
         const alias = aliases.find(
@@ -111,6 +115,22 @@ export function rawImports(): BunPlugin {
         contents: `export default ${JSON.stringify(readFileSync(args.path, 'utf8'))};\n`,
         loader: 'js',
       }))
+    },
+  }
+}
+
+/**
+ * Leaves the exact relative `specifier` to the runtime. Bun's `external` matches package names,
+ * so a relative import such as the boot shim's `import('./index.js')` would resolve to its source
+ * file and bundle the whole main graph.
+ */
+export function relativeExternal(specifier: string): BunPlugin {
+  return {
+    name: 'openwaggle:relative-external',
+    setup(builder) {
+      builder.onResolve({ filter: /^\.\// }, (args) =>
+        args.path === specifier ? { path: specifier, external: true } : undefined,
+      )
     },
   }
 }

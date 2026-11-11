@@ -1,30 +1,40 @@
 /**
  * Which external packages the built main bundle loads while it starts, measured by running it.
  *
- * `topLevelRequires` (main-bundle-requires.ts) only checks where a `require()` sits in the file:
- * every function body counts as deferred. But Rolldown's lazy stand-ins are `__commonJSMin`
- * wrappers invoked from `__esmMin` initializers, and nearly every initializer still runs at startup
- * (MEMORY "What every process pays"), so a package imported by a module whose init runs at startup
- * loads at startup although its `require()` sits in a function. This probe evaluates the bundle in
- * Node with every external replaced by a stub that records it, for the argument vectors of the
- * processes that start most often, and reports what was required before the bundle returned.
- * Async work after startup (a Run, an opened window) is not counted; it loads on use by design.
+ * `topLevelRequires` (main-bundle-requires.ts) only checks where an import sits in the file:
+ * every function body counts as deferred. But a bundled module's initializer can still run at
+ * startup and load a package whose `require()` sits in a function (MEMORY "What every process
+ * pays"). This probe evaluates the bundle under Bun, the runtime that runs it, beside a
+ * `node_modules` of stubs: one per external package (scripts/build-main.ts
+ * `mainExternalPackages`, plus every subpath of it the bundle names), each recording that it was
+ * loaded. It reports what loaded before the entry chunk finished evaluating, for the argument
+ * vectors of the processes that start most often. Async work after startup (a Run, an opened
+ * window) is not counted; it loads on use by design. A package that is neither stubbed nor a
+ * runtime built-in fails to resolve, and the start reports that error.
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { nodeRuntime } from './support/node-runtime'
 import { Schema } from '@shared/schema'
 import { scriptEnv } from './support/env'
 import { unknownField } from './support/object-fields'
 
-/** External packages the main bundle may load while it starts. Node built-ins always may. */
-export const ALLOWED_STARTUP_EXTERNALS: readonly string[] = ['electron']
+/** External packages the main bundle may load while it starts. Runtime built-ins always may. */
+export const ALLOWED_STARTUP_EXTERNALS: readonly string[] = []
 
 /**
  * The processes probed: a CLI answer, `openwaggle run`, `host start` and the Session Host itself.
- * The desktop app's own start needs a real Electron; its bundle initialization is the same.
+ * The desktop app's own start needs the Electrobun launcher; its bundle initialization is the same.
  */
 export const STARTUP_PROBE_ARGUMENTS: readonly (readonly string[])[] = [
   ['--version'],
@@ -33,58 +43,10 @@ export const STARTUP_PROBE_ARGUMENTS: readonly (readonly string[])[] = [
   ['session-host-internal'],
 ]
 
-/** Electron's main-process exports, so `__toESM(require('electron'))` gets every name. */
-const ELECTRON_EXPORTS = [
-  'BaseWindow',
-  'BrowserView',
-  'BrowserWindow',
-  'ImageView',
-  'IpcMainServiceWorker',
-  'Menu',
-  'MenuItem',
-  'MessageChannelMain',
-  'Notification',
-  'ShareMenu',
-  'TouchBar',
-  'Tray',
-  'View',
-  'WebContentsView',
-  'WebSocket',
-  'app',
-  'autoUpdater',
-  'contentTracing',
-  'desktopCapturer',
-  'dialog',
-  'globalShortcut',
-  'inAppPurchase',
-  'ipcMain',
-  'nativeTheme',
-  'net',
-  'netLog',
-  'powerMonitor',
-  'powerSaveBlocker',
-  'protocol',
-  'pushNotifications',
-  'safeStorage',
-  'screen',
-  'session',
-  'systemPreferences',
-  'utilityProcess',
-  'webContents',
-  'webFrameMain',
-  'clipboard',
-  'crashReporter',
-  'nativeImage',
-  'shell',
-]
-
-/** Runs as `node -e PROBE_SOURCE <bundle> <electron exports JSON> ...argv`. */
-const PROBE_SOURCE = String.raw`
-const Module = require('node:module')
-const path = require('node:path')
-const [bundle, electronExports, ...argv] = process.argv.slice(1)
-const ELECTRON_KEYS = JSON.parse(electronExports)
-const loaded = []
+/** A stub package's module: it records its name and answers every access with a callable. */
+function stubSource(name: string) {
+  return String.raw`const loaded = (globalThis.__openwaggleStartupProbe ??= [])
+if (!loaded.includes(${JSON.stringify(name)})) loaded.push(${JSON.stringify(name)})
 const value = new Proxy(function () {}, {
   get(_target, key) {
     if (key === 'then') return undefined
@@ -95,37 +57,29 @@ const value = new Proxy(function () {}, {
   apply: () => value,
   construct: () => value,
 })
-function moduleStub(keys) {
-  return new Proxy({}, {
-    get: (_target, key) => (key === 'then' || key === '__esModule' ? undefined : value),
-    ownKeys: () => keys,
-    getOwnPropertyDescriptor: (_target, key) =>
-      keys.includes(key) ? { configurable: true, enumerable: true, writable: true, value } : undefined,
-  })
+module.exports = new Proxy({}, {
+  get: (_target, key) => (key === 'then' || key === '__esModule' ? undefined : value),
+})
+`
 }
-const load = Module._load
-Module._load = function (request) {
-  if (request.startsWith('node:') || Module.builtinModules.includes(request)) return load.apply(this, arguments)
-  if (request.startsWith('.') || path.isAbsolute(request)) return load.apply(this, arguments)
-  const name = request.startsWith('@') ? request.split('/').slice(0, 2).join('/') : request.split('/')[0]
-  if (!loaded.includes(name)) loaded.push(name)
-  return moduleStub(name === 'electron' ? ELECTRON_KEYS : [])
-}
-process.resourcesPath = path.dirname(bundle)
+
+/** Runs as `bun -e PROBE_SOURCE <entry chunk> ...argv`, beside the stub `node_modules`. */
+const PROBE_SOURCE = String.raw`
+const [bundle, ...argv] = process.argv.slice(1)
 process.argv = [process.argv[0], bundle, ...argv]
 let error = null
 try {
-  require(bundle)
+  await import(bundle)
 } catch (thrown) {
   error = String((thrown && thrown.stack) || thrown).slice(0, 1000)
 }
-process.stdout.write(JSON.stringify({ loaded, error }) + '\n')
+process.stdout.write(JSON.stringify({ loaded: globalThis.__openwaggleStartupProbe ?? [], error }) + '\n')
 process.exit(0)
 `
 
 export interface StartupProbeResult {
   readonly argv: readonly string[]
-  /** External packages, in the order the bundle first required them. */
+  /** External packages, in the order the bundle first loaded them. */
   readonly loaded: readonly string[]
   /** Whatever the bundle threw while it started under the stubs, if anything. */
   readonly error: string | null
@@ -140,37 +94,109 @@ const startupProbeOutputSchema = Schema.Struct({
   error: unknownField,
 })
 
-/** Evaluates `bundlePath` once per argument vector, in a throwaway HOME, and reports its loads. */
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)
+}
+
+/** Each external package and every `<package>/<subpath>` string the bundle's files name. */
+export function externalSpecifiers(sources: readonly string[], packages: Iterable<string>) {
+  const specifiers = new Set<string>()
+  for (const name of packages) {
+    specifiers.add(name)
+    const pattern = new RegExp(`["'\`](${escapeRegExp(name)}/[\\w./@-]+)["'\`]`, 'gu')
+    for (const source of sources) {
+      for (const match of source.matchAll(pattern)) {
+        const specifier = match[1]
+        if (specifier !== undefined) specifiers.add(specifier)
+      }
+    }
+  }
+  return [...specifiers].sort()
+}
+
+/** `@scope/name`: a scoped package's name is its first two path segments. */
+const SCOPED_PACKAGE_SEGMENTS = 2
+
+function packageOf(specifier: string) {
+  const parts = specifier.split('/')
+  return specifier.startsWith('@')
+    ? parts.slice(0, SCOPED_PACKAGE_SEGMENTS).join('/')
+    : (parts[0] ?? specifier)
+}
+
+const BARE_APP_MANIFEST = { name: 'openwaggle', version: '0.0.0' }
+
+/** A copy of the bundle's directory beside a `node_modules` of recording stubs. */
+function stagedBundle(root: string, bundleDirectory: string, packages: Iterable<string>) {
+  const outDirectory = path.join(root, 'out', 'main')
+  mkdirSync(outDirectory, { recursive: true })
+  const sources: string[] = []
+  for (const file of readdirSync(bundleDirectory)) {
+    if (!file.endsWith('.js')) continue
+    copyFileSync(path.join(bundleDirectory, file), path.join(outDirectory, file))
+    sources.push(readFileSync(path.join(bundleDirectory, file), 'utf8'))
+  }
+  // The app's package.json, where the shell finds its root and version; a bare one beside a
+  // bundle that is not the app's own (the probe's tests).
+  const appManifest = path.join(bundleDirectory, '..', '..', 'package.json')
+  const manifestCopy = path.join(root, 'package.json')
+  if (existsSync(appManifest)) copyFileSync(appManifest, manifestCopy)
+  else writeFileSync(manifestCopy, `${JSON.stringify(BARE_APP_MANIFEST)}\n`)
+  for (const specifier of externalSpecifiers(sources, packages)) {
+    const name = packageOf(specifier)
+    const packageRoot = path.join(root, 'node_modules', name)
+    mkdirSync(packageRoot, { recursive: true })
+    writeFileSync(path.join(packageRoot, 'package.json'), `${JSON.stringify({ name })}\n`)
+    const file =
+      specifier === name
+        ? path.join(packageRoot, 'index.js')
+        : path.join(root, 'node_modules', `${specifier.replace(/\.js$/u, '')}.js`)
+    mkdirSync(path.dirname(file), { recursive: true })
+    writeFileSync(file, stubSource(name))
+  }
+  return outDirectory
+}
+
+/**
+ * Evaluates `bundlePath` once per argument vector under `runtime` (Bun), in a throwaway HOME,
+ * with `packages` stubbed, and reports what it loaded.
+ */
 export function probeStartupExternals(
   bundlePath: string,
+  packages: Iterable<string>,
+  runtime: string,
   argumentVectors: readonly (readonly string[])[] = STARTUP_PROBE_ARGUMENTS,
 ) {
-  const home = mkdtempSync(path.join(tmpdir(), 'main-bundle-startup-'))
+  const root = mkdtempSync(path.join(tmpdir(), 'main-bundle-startup-'))
   try {
+    const outDirectory = stagedBundle(root, path.dirname(path.resolve(bundlePath)), packages)
+    const entry = path.join(outDirectory, path.basename(bundlePath))
+    const home = path.join(root, 'home')
+    mkdirSync(home)
     return argumentVectors.map((argv) => {
-      const output = execFileSync(
-        nodeRuntime().execPath,
-        ['-e', PROBE_SOURCE, path.resolve(bundlePath), JSON.stringify(ELECTRON_EXPORTS), ...argv],
-        {
-          encoding: 'utf8',
-          env: { PATH: scriptEnv().PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
-          timeout: PROBE_TIMEOUT_MS,
-          maxBuffer: PROBE_MAX_BUFFER_BYTES,
-        },
-      )
+      const output = execFileSync(runtime, ['-e', PROBE_SOURCE, entry, ...argv], {
+        cwd: root,
+        encoding: 'utf8',
+        // The copied bundle has no source maps beside it, which Bun warns about on stderr.
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env: { PATH: scriptEnv().PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
+        timeout: PROBE_TIMEOUT_MS,
+        maxBuffer: PROBE_MAX_BUFFER_BYTES,
+      })
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
       if (!Schema.is(startupProbeOutputSchema)(parsed)) {
         throw new Error(`The startup probe printed ${line}.`)
       }
-      return {
+      const result: StartupProbeResult = {
         argv,
-        loaded: parsed.loaded.filter((entry): entry is string => typeof entry === 'string'),
+        loaded: parsed.loaded.filter((name): name is string => typeof name === 'string'),
         error: typeof parsed.error === 'string' ? parsed.error : null,
       }
+      return result
     })
   } finally {
-    rmSync(home, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true })
   }
 }
 

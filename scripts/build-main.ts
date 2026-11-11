@@ -26,6 +26,7 @@ import {
   chunkManifest,
   lazyExternals,
   rawImports,
+  relativeExternal,
   type SourceAlias,
   sourceAliases,
 } from './build-main-plugins'
@@ -38,6 +39,8 @@ const MAIN_ENTRY = 'src/main/index.ts'
 const BOOT_ENTRY = 'src/main/boot.ts'
 const JSON_INDENT = 0
 const BUN_PRAGMA = '// @bun'
+/** What the boot shim imports: the main bundle beside it. */
+const MAIN_BUNDLE_SPECIFIER = './index.js'
 
 /** Packages always left to the runtime: optional `ws` speedups, never installed. */
 const ALWAYS_EXTERNAL = ['bufferutil', 'utf-8-validate']
@@ -94,6 +97,14 @@ const SOURCE_ALIASES: readonly SourceAlias[] = [
 export const ELECTROBUN_SDK_ENTRIES: Readonly<Record<string, string>> = {
   'electrobun/main': '.hutch/devkit/api/sdks/main/index.ts',
   'electrobun/main/events': '.hutch/devkit/api/sdks/main/entries/events.ts',
+}
+
+/**
+ * Bundled packages whose `main` is a UMD build that loads its own files with a run-time
+ * `require()`, which a bundle cannot serve: their ES module build instead.
+ */
+const PACKAGE_ENTRIES: Readonly<Record<string, string>> = {
+  'jsonc-parser': 'node_modules/jsonc-parser/lib/esm/main.js',
 }
 
 /** Pi's workers, resolved from `import.meta.url` beside the bundle Pi runs in. */
@@ -178,7 +189,7 @@ export async function buildMain() {
     define: buildDefines(),
     plugins: [
       rawImports(),
-      sourceAliases(ROOT, SOURCE_ALIASES, ELECTROBUN_SDK_ENTRIES),
+      sourceAliases(ROOT, SOURCE_ALIASES, { ...ELECTROBUN_SDK_ENTRIES, ...PACKAGE_ENTRIES }),
       lazyExternals(externals),
     ],
   } as const
@@ -199,7 +210,7 @@ export async function buildMain() {
     entrypoints: [path.join(ROOT, BOOT_ENTRY)],
     naming: 'boot.js',
     // The boot shim imports `./index.js` at run time; it must not bundle it.
-    external: ['./index.js'],
+    plugins: [...shared.plugins, relativeExternal(MAIN_BUNDLE_SPECIFIER)],
   })
   for (const worker of PI_WORKERS) {
     await build({

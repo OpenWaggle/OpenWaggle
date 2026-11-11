@@ -6,8 +6,9 @@ import {
   processStartupChunks,
 } from './main-bundle-graph'
 import { disallowedTopLevelRequires } from './main-bundle-requires'
+import { mainExternalPackages } from './build-main'
 import { probeStartupExternals, startupExternalFailures } from './main-bundle-startup-externals'
-import { MAIN_CHUNK_MANIFEST_PATH } from './vite/main-chunk-manifest'
+import { MAIN_CHUNK_MANIFEST_PATH } from './main-bundle-graph'
 
 const KIBIBYTE = 1024
 const MAIN_OUT_DIRECTORY = path.resolve('out/main')
@@ -25,7 +26,7 @@ async function fileBytes(file: string) {
 }
 
 /**
- * Every main chunk has its hidden source map (electron.vite.config.ts): the bundle is minified, so
+ * Every main chunk has its hidden source map (scripts/build-main.ts): the bundle is minified, so
  * a field stack trace is `index.js:1:<column>` and only the map turns it back into source lines.
  */
 async function missingSourceMaps(files: readonly string[]) {
@@ -50,8 +51,8 @@ async function topLevelRequireFailures(files: readonly string[]) {
     const disallowed = disallowedTopLevelRequires(source)
     if (disallowed.length > 0) {
       failures.push(
-        `out/main/${file} requires ${disallowed.join(', ')} at its top level; import them where they are used, ` +
-          'or route them through scripts/vite/lazy-external-requires.ts.',
+        `out/main/${file} loads ${disallowed.join(', ')} at its top level; import them where they are used, ` +
+          'or leave them to the lazy externals of scripts/build-main-plugins.ts.',
       )
     }
   }
@@ -80,7 +81,13 @@ async function main() {
   // Where a require sits is not when it runs: run the bundle's startup and see what it loads.
   const entry = manifest.find((chunk) => chunk.isEntry)
   if (entry) {
-    const probed = probeStartupExternals(path.join(MAIN_OUT_DIRECTORY, entry.file))
+    const packageManifest: unknown = JSON.parse(await fs.readFile('package.json', 'utf8'))
+    // The bundle runs on Bun, so the probe does; this script runs on Bun too.
+    const probed = probeStartupExternals(
+      path.join(MAIN_OUT_DIRECTORY, entry.file),
+      mainExternalPackages(packageManifest),
+      process.execPath,
+    )
     failures.push(...startupExternalFailures(probed))
     lines.push(
       ...probed.map(

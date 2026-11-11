@@ -106,7 +106,7 @@ describe('topLevelRequires', () => {
 
     expect(topLevelRequires(source)).toEqual(['./effect-Ab12.js', 'electron', 'side-effect', 'zod'])
     // Sibling chunks of the same build are budgeted by the chunk graph instead.
-    expect(disallowedTopLevelRequires(source)).toEqual(['side-effect', 'zod'])
+    expect(disallowedTopLevelRequires(source)).toEqual(['electron', 'side-effect', 'zod'])
   })
 
   it('reads a minified bundle, where many statements share a line', () => {
@@ -115,6 +115,26 @@ describe('topLevelRequires', () => {
       'var o=(e,t)=>()=>(t||e((t={exports:{}}).exports,t),t.exports),s=o((e,t)=>{t.exports=require("undici")});'
 
     expect(topLevelRequires(source)).toEqual(['electron', 'node:path', 'ws'])
-    expect(disallowedTopLevelRequires(source)).toEqual(['ws'])
+    expect(disallowedTopLevelRequires(source)).toEqual(['electron', 'ws'])
+  })
+
+  it('reads the static imports and the top-level loads of an ES module bundle', () => {
+    const source = [
+      'import { createRequire } from "node:module";',
+      'import "eager";',
+      'export * from "re-exported";',
+      'const ffi = await import("bun:ffi");',
+      'const later = () => import.meta.require("better-sqlite3");',
+      'const now = import.meta.require("sharp");',
+    ].join('\n')
+
+    expect(topLevelRequires(source)).toEqual([
+      'bun:ffi',
+      'eager',
+      'node:module',
+      're-exported',
+      'sharp',
+    ])
+    expect(disallowedTopLevelRequires(source)).toEqual(['eager', 're-exported', 'sharp'])
   })
 })

@@ -10,7 +10,6 @@
  */
 // Must be first: names dev builds' userData before the Host prelaunch reads it.
 import './apply-build-identity'
-import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import {
@@ -67,7 +66,8 @@ if (outcome !== 'answered') {
       ...(process.getuid ? { uid: process.getuid() } : {}),
     })
   }
-  createRequire(__filename)('./index.js')
+  // An import, not a `require()`: Bun's synchronous require of this ES module graph stalls.
+  await import('./index.js')
   if (compileCache) {
     const schedule = (callback: () => void, delayMs: number) => setTimeout(callback, delayMs)
     // The window and the Host run for minutes: their first write waits until they are up.
