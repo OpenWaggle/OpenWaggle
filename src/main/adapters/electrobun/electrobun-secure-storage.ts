@@ -9,7 +9,7 @@ import {
   sealWithKey,
 } from '../../electron-migration/keychain-sealer'
 import type { SecureStorageShape } from '../../ports/desktop-shell/secure-storage'
-import { withProcessFileLockSync } from '../mcp/process-file-lock'
+import { withProcessFileLockSync } from '../process-file-lock'
 import { electrobunBootShell } from './electrobun-boot-shell'
 
 /**

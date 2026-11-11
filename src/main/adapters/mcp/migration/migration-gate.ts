@@ -8,7 +8,7 @@
  */
 
 import { settledValue } from '@shared/utils/all-in-order'
-import { ProcessFileLockTimeoutError } from '../process-file-lock'
+import { ProcessFileLockTimeoutError } from '../../process-file-lock'
 import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
 import { recordMcpFileMigrationOutcome } from './migration-health'
 import { globalMcpPaths, isInside, managedWorktreesRoot, projectMcpPaths } from './migration-paths'

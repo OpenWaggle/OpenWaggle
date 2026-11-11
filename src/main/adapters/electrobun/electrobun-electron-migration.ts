@@ -17,7 +17,7 @@ import {
 } from '../../electron-migration/os-key-sources'
 import { createLogger } from '../../logger'
 import { sharedMcpStateDirectory } from '../mcp/credentials/mcp-build-state-paths'
-import { withProcessFileLock } from '../mcp/process-file-lock'
+import { withProcessFileLock } from '../process-file-lock'
 import { electrobunBootShell } from './electrobun-boot-shell'
 import { electrobunSecureStorage } from './electrobun-secure-storage'
 

@@ -23,7 +23,7 @@ import {
   type VaultFile,
   writeVault,
 } from './mcp-vault-file'
-import { withProcessFileLock } from './process-file-lock'
+import { withProcessFileLock } from '../process-file-lock'
 
 function validateSecretName(name: string) {
   const normalized = name.trim()

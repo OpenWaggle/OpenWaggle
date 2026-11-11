@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { isDeepStrictEqual } from 'node:util'
 import { isRecord } from '@shared/utils/validation'
-import { withProcessFileLockSync } from '../process-file-lock'
+import { withProcessFileLockSync } from '../../process-file-lock'
 import { isMissing, type OwnLayer, OwnLayerFile } from './mcp-oauth-store-file'
 
 /**

@@ -4,11 +4,6 @@ import {
   type ElectronLocalStorageImport,
   electronLocalStorageImportRendererArguments,
 } from '@shared/utils/electron-local-storage-import'
-import {
-  acknowledgeElectrobunLocalStorageImport,
-  runElectrobunFirstLaunchMigration,
-  skipElectrobunMigrationStep,
-} from '../adapters/electrobun/electrobun-electron-migration'
 import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { createLogger } from '../logger'
 import { describeError } from '../utils/describe-error'
@@ -26,6 +21,12 @@ import { MIGRATION_STEPS, type MigrationState, type MigrationStepState } from '.
  * it waits for the user's Continue in the notice (`electronMigrationNotice`).
  */
 const WINDOW_WAIT_MS = 1500
+
+/**
+ * The migration adapter, loaded when the migration runs: it reaches the MCP state directory and
+ * file lock, which the window's composition root must not load statically (A-F5).
+ */
+const migrationAdapter = () => import('../adapters/electrobun/electrobun-electron-migration')
 
 const logger = createLogger('electron-migration')
 
@@ -53,11 +54,11 @@ function record(report: ElectronMigrationReport) {
 
 /** Runs the steps that need no answer from the user; never throws. */
 export function startFirstLaunchMigration() {
-  state.run ??= runElectrobunFirstLaunchMigration({ steps: automaticSteps() }).then(
-    record,
-    (error: unknown) =>
+  state.run ??= migrationAdapter()
+    .then((adapter) => adapter.runElectrobunFirstLaunchMigration({ steps: automaticSteps() }))
+    .then(record, (error: unknown) =>
       logger.warn('The first-launch migration did not run', { error: describeError(error) }),
-  )
+    )
   return state.run
 }
 
@@ -83,6 +84,7 @@ export function electronMigrationRendererArguments() {
 export async function acknowledgeFirstLaunchLocalStorageImport(importId: string) {
   if (state.pending?.importId !== importId) return
   state.pending = null
+  const { acknowledgeElectrobunLocalStorageImport } = await migrationAdapter()
   const next = await acknowledgeElectrobunLocalStorageImport(importId)
   if (next) state.last = next
 }
@@ -141,6 +143,7 @@ export async function continueElectronSecretsMigration() {
   await state.run
   state.busy = true
   try {
+    const { runElectrobunFirstLaunchMigration } = await migrationAdapter()
     record(await runElectrobunFirstLaunchMigration({ steps: ['secrets'], userRequested: true }))
   } catch (error) {
     logger.warn('Moving the saved secrets failed', { error: describeError(error) })
@@ -153,6 +156,7 @@ export async function continueElectronSecretsMigration() {
 /** Skip, I'll enter them again. */
 export async function skipElectronSecretsMigration() {
   await state.run
+  const { skipElectrobunMigrationStep } = await migrationAdapter()
   const next = await skipElectrobunMigrationStep('secrets')
   if (next) state.last = next
   return noticeFor(state.last)

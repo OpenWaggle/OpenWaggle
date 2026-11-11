@@ -8,7 +8,7 @@ import { createFilesystemMcpConfigurationService } from '../../config/filesystem
 import { mcpUpdateRefusal } from '../../config/mcp-write-refusal'
 import { migrateBeforeEachCall } from '../../config/migrating-mcp-configuration-service'
 import { migrateBeforeImports } from '../../migrating-mcp-import-service'
-import { ProcessFileLockTimeoutError } from '../../process-file-lock'
+import { ProcessFileLockTimeoutError } from '../../../process-file-lock'
 import { gateUnmigratedMcpFiles } from '../migration-gate'
 import { pendingKeptProjects, pendingMcpFileMigration } from '../migration-health'
 import { migrationRecordPath } from '../migration-record'

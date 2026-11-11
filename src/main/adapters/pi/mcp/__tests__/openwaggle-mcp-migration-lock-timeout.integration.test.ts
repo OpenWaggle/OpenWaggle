@@ -10,8 +10,8 @@ const SHORT_LOCK_WAIT_MS = 200
 
 // The shared setup gives this file a temporary HOME; the real migration runs against it here.
 vi.unmock('../openwaggle-mcp-migration')
-vi.mock('../../../mcp/process-file-lock', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../../mcp/process-file-lock')>()
+vi.mock('../../../process-file-lock', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../process-file-lock')>()
   return {
     ...original,
     withProcessFileLock: (
@@ -52,7 +52,7 @@ vi.mock('../../../mcp/encrypted-mcp-secret-vault-service', () => ({
 
 const { migrateOpenWaggleMcpFilesAtHostStart, migrateOpenWaggleMcpFilesOnce } =
   await import('../openwaggle-mcp-migration')
-const { withProcessFileLock } = await import('../../../mcp/process-file-lock')
+const { withProcessFileLock } = await import('../../../process-file-lock')
 
 describe('the MCP file migration when another process keeps the lock', () => {
   it('keeps the old files from loading until it could migrate them', async () => {

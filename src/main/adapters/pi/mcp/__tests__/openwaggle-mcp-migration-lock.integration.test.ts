@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { migrationRecordPath } from '../../../mcp/migration/migration-record'
-import { withProcessFileLock } from '../../../mcp/process-file-lock'
+import { withProcessFileLock } from '../../../process-file-lock'
 
 // The shared setup gives this file a temporary HOME; the real migration runs against it here.
 vi.unmock('../openwaggle-mcp-migration')
