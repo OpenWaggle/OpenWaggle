@@ -57,6 +57,7 @@ export const invalidateVcsStatus: Mock<(workingPath: string) => Promise<void>> =
 export const refreshSourceControlStatus: Mock<OpenWaggleApi['refreshSourceControlStatus']> =
   mocks.refreshSourceControlStatus
 
+// The Hub asks to toggle the Session terminal; useTerminalCommands.component.test.tsx covers it.
 vi.mock('@/features/terminal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/terminal')>()),
   useTerminalCommands: () => ({ toggleTerminal: mocks.toggleTerminal }),
@@ -86,16 +87,19 @@ vi.mock('@/shared/lib/ipc', async () => ({
   }),
 }))
 
+// Git status polling is another feature; the Hub tests drive the status it shows through this.
 vi.mock('@/features/git/hooks', () => ({
   useGit: mocks.useGit,
 }))
 
+// The commit and push dialogs run Git operations; their own tests cover them.
 vi.mock('@/features/git/components', () => ({
   CommitOrPushDialog: mocks.commitOrPushDialog,
   CommitOrPushStatusDialog: () => null,
   CommitMessageDialog: () => null,
 }))
 
+// See '@/features/git/hooks' above: the combined VCS status and stacked actions are Git's.
 vi.mock('@/features/git', () => ({
   resolveQuickAction: () => ({
     label: 'Commit & push',
