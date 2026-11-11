@@ -1,0 +1,109 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Wed, 11 Nov 2026 20:15:39 +0100
+Subject: [PATCH] launcher: forward the launcher's arguments to the main
+ process
+
+The launcher started the Bun main process with the runtime and main.js
+only, so an app never saw what it was opened with: Windows and Linux
+deliver protocol links and opened files as arguments, and a command-line
+wrapper passes its command.
+
+The runtime now runs main.js with the launcher's arguments, in order,
+except the launcher's private --automation flag and macOS LaunchServices'
+-psn_ process serial number.
+---
+ package/src/launcher/build.zig          |  8 ++++++
+ package/src/launcher/forwarded_args.zig | 36 +++++++++++++++++++++++++
+ package/src/launcher/main.zig           |  8 +++++-
+ 3 files changed, 51 insertions(+), 1 deletion(-)
+ create mode 100644 package/src/launcher/forwarded_args.zig
+
+diff --git a/package/src/launcher/build.zig b/package/src/launcher/build.zig
+index 7e9f748..7cafb38 100644
+--- a/package/src/launcher/build.zig
++++ b/package/src/launcher/build.zig
+@@ -118,7 +118,15 @@ pub fn build(b: *std.Build) void {
+             .link_libc = true,
+         }),
+     });
++    const forwarded_args_tests = b.addTest(.{
++        .root_module = b.createModule(.{
++            .root_source_file = b.path("forwarded_args.zig"),
++            .target = b.graph.host,
++            .optimize = optimize,
++        }),
++    });
+     const test_step = b.step("test", "Run launcher tests");
++    test_step.dependOn(&b.addRunArtifact(forwarded_args_tests).step);
+     test_step.dependOn(&b.addRunArtifact(macos_minimum_tests).step);
+     test_step.dependOn(&b.addRunArtifact(runtime_tests).step);
+     test_step.dependOn(&run_unit_tests.step);
+diff --git a/package/src/launcher/forwarded_args.zig b/package/src/launcher/forwarded_args.zig
+new file mode 100644
+index 0000000..1cfbac6
+--- /dev/null
++++ b/package/src/launcher/forwarded_args.zig
+@@ -0,0 +1,36 @@
++const std = @import("std");
++const automation = @import("automation.zig");
++
++/// The arguments the launcher hands the app's main process after its own command: everything after
++/// the launcher's path, except what belongs to the launcher or the OS. Windows and Linux deliver
++/// protocol links and opened files as arguments, and a command-line wrapper passes its command, so
++/// a main process that never sees them cannot open a link or answer a command. The launcher's
++/// private `--automation` flag stays private (automation.zig), and macOS LaunchServices' process
++/// serial number (`-psn_…`) is not the app's.
++pub fn forwarded(allocator: std.mem.Allocator, launcher_args: []const []const u8) ![]const []const u8 {
++    var list: std.ArrayList([]const u8) = .empty;
++    if (launcher_args.len < 2) return list.items;
++    for (launcher_args[1..]) |arg| {
++        if (std.mem.eql(u8, arg, automation.launcher_flag)) continue;
++        if (std.mem.startsWith(u8, arg, "-psn_")) continue;
++        try list.append(allocator, arg);
++    }
++    return list.items;
++}
++
++test "forwards the app's arguments in order and keeps the launcher's own" {
++    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
++    defer arena.deinit();
++    const allocator = arena.allocator();
++
++    try std.testing.expectEqual(@as(usize, 0), (try forwarded(allocator, &.{"launcher"})).len);
++
++    const app = try forwarded(allocator, &.{ "launcher", "--", "openwaggle://sessions/s-1", "--automation", "-psn_0_12345", "--use-mock-keychain" });
++    try std.testing.expectEqual(@as(usize, 3), app.len);
++    try std.testing.expectEqualStrings("--", app[0]);
++    try std.testing.expectEqualStrings("openwaggle://sessions/s-1", app[1]);
++    try std.testing.expectEqualStrings("--use-mock-keychain", app[2]);
++
++    const spaced = try forwarded(allocator, &.{ "launcher", "C:\\Users\\Ada Lovelace\\notes.md" });
++    try std.testing.expectEqualStrings("C:\\Users\\Ada Lovelace\\notes.md", spaced[0]);
++}
+diff --git a/package/src/launcher/main.zig b/package/src/launcher/main.zig
+index d55610f..8a0bf5b 100644
+--- a/package/src/launcher/main.zig
++++ b/package/src/launcher/main.zig
+@@ -6,6 +6,7 @@ const macos_minimum = @import("macos_minimum.zig");
+ const launcher_options = @import("launcher_options");
+ const uninstall = @import("uninstall.zig");
+ const windows_spawn = @import("windows_spawn.zig");
++const forwarded_args = @import("forwarded_args.zig");
+ const windows_process_identity = @import("windows_process_identity.zig");
+ const launcher_pid_environment_variable = "ELECTROBUN_LAUNCHER_PID";
+ // Signal handlers use the POSIX libc ABI and Zig's target-specific signal values.
+@@ -455,7 +456,12 @@ pub fn main(init: std.process.Init) !void {
+                 .macos, .linux, .windows => try std.fs.path.join(arena_alloc, &.{ exe_dir, runtime_name }),
+                 else => @panic("Unsupported platform"),
+             };
+-            argv = &[_][]const u8{ runtime_path, main_script };
++            // The runtime runs main.js with the arguments the launcher was given (forwarded_args.zig).
++            var main_argv: std.ArrayList([]const u8) = .empty;
++            try main_argv.append(arena_alloc, runtime_path);
++            try main_argv.append(arena_alloc, main_script);
++            try main_argv.appendSlice(arena_alloc, try forwarded_args.forwarded(arena_alloc, launcher_args));
++            argv = main_argv.items;
+         },
+     }
+ 
