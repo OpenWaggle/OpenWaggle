@@ -81,15 +81,18 @@ async function readLocalStates(userData: string) {
     path.join(userData, 'session-data', 'Local State'),
     path.join(userData, 'Local State'),
   ]
-  const found: string[] = []
-  for (const candidate of candidates) {
-    try {
-      found.push(await readFile(candidate, 'utf8'))
-    } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
-    }
-  }
-  return found
+  // Read in parallel; the result keeps the candidates' priority order.
+  const contents = await Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        return await readFile(candidate, 'utf8')
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+        return undefined
+      }
+    }),
+  )
+  return contents.filter((content) => content !== undefined)
 }
 
 async function unprotectWithPowerShell(options: OsKeySourceOptions, data: Buffer) {

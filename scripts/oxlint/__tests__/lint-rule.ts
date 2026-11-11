@@ -64,7 +64,7 @@ function isAstNode(value: unknown): value is object {
 /** Sets `parent` on every node, as oxlint does for JS plugins; the Program's is null. */
 function linkParents(program: object) {
   Reflect.set(program, 'parent', null)
-  const pending: Array<{ readonly parent: object; readonly value: unknown }> = [
+  const pending: { readonly parent: object; readonly value: unknown }[] = [
     { parent: program, value: Object.values(program) },
   ]
   while (true) {

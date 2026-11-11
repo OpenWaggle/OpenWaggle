@@ -95,7 +95,7 @@ export function nsisDefines(input: WindowsTransitionDefines) {
 
 function windowsTar() {
   if (process.platform !== 'win32') return 'tar'
-  return path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+  return path.join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'tar.exe')
 }
 
 /** The visible setup executable in Electrobun's Setup zip; its hidden payload sits beside it. */

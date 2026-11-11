@@ -65,7 +65,7 @@ function readNodeRuntime(): NodeRuntime {
         encoding: 'utf8',
         env: {
           ...process.env,
-          PATH: pathWithoutBunNode(process.env.PATH ?? '', process.execPath),
+          PATH: pathWithoutBunNode(process.env['PATH'] ?? '', process.execPath),
         },
         stdio: ['ignore', 'pipe', 'inherit'],
       },

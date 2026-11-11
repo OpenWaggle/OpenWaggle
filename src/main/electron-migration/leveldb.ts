@@ -115,8 +115,9 @@ export async function readLevelDb(directory: string): Promise<LevelDbEntry[]> {
     const number = Number(numberText)
     const filePath = path.join(directory, name)
     if (extension !== 'log') {
-      if (manifest.liveTables.has(number))
+      if (manifest.liveTables.has(number)) {
         records.push(...readTableRecords(await readFile(filePath)))
+      }
       continue
     }
     // Logs older than the MANIFEST's log number are already in tables (or obsolete).

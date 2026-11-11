@@ -19,8 +19,9 @@ function decodeStorageString(encoded: Buffer) {
   const encoding = encoded[0]
   const body = encoded.subarray(1)
   if (encoding === LATIN1_ENCODING) return body.toString('latin1')
-  if (encoding === UTF16_ENCODING && body.length % UTF16_CODE_UNIT_BYTES === 0)
+  if (encoding === UTF16_ENCODING && body.length % UTF16_CODE_UNIT_BYTES === 0) {
     return body.toString('utf16le')
+  }
   throw new LocalStorageDecodeError('A localStorage string has an unknown encoding.')
 }
 

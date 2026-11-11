@@ -16,6 +16,8 @@ playwright-report/
 test-results/
 .env
 *.log
+# LevelDB write-ahead logs are test fixtures, not logs.
+!src/main/electron-migration/__tests__/fixtures/**/*.log
 .DS_Store
 __pycache__/
 .openwaggle/settings.json

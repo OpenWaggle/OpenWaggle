@@ -85,8 +85,9 @@ async function localStorageDirectory(userData: string) {
     // Before session-data (Electron's default profile layout directly under userData).
     path.join(userData, 'Local Storage', 'leveldb'),
   ]
-  for (const candidate of candidates)
+  for (const candidate of candidates) {
     if (await exists(path.join(candidate, 'CURRENT'))) return candidate
+  }
   return undefined
 }
 
@@ -143,8 +144,9 @@ async function runPreviewResetStep(options: ElectronMigrationOptions, state: Mig
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
   }
   const removed = names.filter((name) => name.startsWith(BROWSER_PREVIEW_PARTITION_PREFIX))
-  for (const name of removed)
+  for (const name of removed) {
     await rm(path.join(partitions, name), { recursive: true, force: true })
+  }
   const status = removed.length === 0 ? 'not-needed' : 'done'
   return withStep(state, 'browser-preview-reset', { status, detail: { removed } }, now, true)
 }
@@ -219,9 +221,11 @@ export function acknowledgeLocalStorageImport(
   importId: string,
 ) {
   return options.withLock(async () => {
-    const state = await readMigrationState(options.userData)
-    const exported = await readLocalStorageExport(options.userData)
-    if (!state || state.steps['local-storage'].status !== 'awaiting-renderer') return state
+    const [state, exported] = await Promise.all([
+      readMigrationState(options.userData),
+      readLocalStorageExport(options.userData),
+    ])
+    if (state?.steps['local-storage'].status !== 'awaiting-renderer') return state
     if (exported?.importId !== importId) return state
     const detail = state.steps['local-storage'].detail
     const next = withStep(

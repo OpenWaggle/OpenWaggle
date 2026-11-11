@@ -112,8 +112,9 @@ async function vaultBlobs(userData: string) {
   if (typeof secrets !== 'object' || secrets === null) throw new Error('vault secrets')
   return Object.fromEntries(
     Object.entries(secrets).map(([name, entry]: [string, unknown]) => {
-      if (typeof entry !== 'object' || entry === null || !('encryptedValue' in entry))
+      if (typeof entry !== 'object' || entry === null || !('encryptedValue' in entry)) {
         throw new Error(name)
+      }
       return [name, Buffer.from(String(entry.encryptedValue), 'base64')]
     }),
   )

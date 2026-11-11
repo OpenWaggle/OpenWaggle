@@ -95,7 +95,8 @@ export function decompressSnappy(input: Uint8Array): Uint8Array {
       outputOffset += 1
     }
   }
-  if (outputOffset !== output.length)
+  if (outputOffset !== output.length) {
     throw new SnappyError('Snappy block is shorter than declared.')
+  }
   return output
 }

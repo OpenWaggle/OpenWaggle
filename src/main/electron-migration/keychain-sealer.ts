@@ -46,8 +46,9 @@ export function isSealedBlob(blob: Buffer) {
 
 function decodeKey(encoded: string) {
   const key = Buffer.from(encoded, 'base64')
-  if (key.length !== KEY_BYTES)
+  if (key.length !== KEY_BYTES) {
     throw new KeychainSealerError('The keychain secret-storage key is invalid.')
+  }
   return key
 }
 
@@ -70,8 +71,9 @@ export function createKeychainSealer(options: KeychainSealerOptions) {
       await options.secrets.set({ ...item, value: randomBytes(KEY_BYTES).toString('base64') })
       // Read back what the keychain kept, so this process never seals with a key it failed to store.
       const stored = await existingKey()
-      if (!stored)
+      if (!stored) {
         throw new KeychainSealerError('The keychain did not keep the secret-storage key.')
+      }
       return stored
     })
   }
