@@ -29,6 +29,12 @@ import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
 
+/** A picked or dropped file's name (no directory) and content. */
+export interface SelectedAttachmentFile {
+  readonly name: string
+  readonly bytes: Uint8Array
+}
+
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
@@ -37,6 +43,14 @@ export interface IpcIntegrationInvokeChannelMap
   extends IpcWorkspaceFileInvokeChannelMap, IpcGitInvokeChannelMap, IpcTerminalInvokeChannelMap {
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
+    return: PreparedAttachment[]
+  }
+  /**
+   * Files the user picked or dropped, by content: the system webviews give a `File` no path. Each
+   * is written to the temp attachments directory under its own name, then prepared like a path.
+   */
+  'attachments:prepare-files': {
+    args: [projectPath: string, files: SelectedAttachmentFile[]]
     return: PreparedAttachment[]
   }
   'attachments:prepare-from-text': {

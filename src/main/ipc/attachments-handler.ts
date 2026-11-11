@@ -67,6 +67,28 @@ const operationIdArgumentSchema = withArgumentRefusal(
   Schema.String.pipe(Schema.minLength(1)),
   'Operation ID must be a non-empty string.',
 )
+/** A picked file's own name: one path segment, which cannot leave its staging directory. */
+const selectedFileNameSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.filter(
+    (name) =>
+      name !== '.' &&
+      name !== '..' &&
+      !/[/\\\0]/u.test(name) &&
+      Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES,
+  ),
+)
+const selectedFilesArgumentSchema = withArgumentRefusal(
+  Schema.Array(
+    Schema.Struct({
+      name: selectedFileNameSchema,
+      bytes: Schema.Uint8ArrayFromSelf.pipe(
+        Schema.filter((bytes) => bytes.byteLength <= ATTACHMENT.MAX_SIZE_BYTES),
+      ),
+    }),
+  ).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
+  `Attachment files must be a list of at most ${String(ATTACHMENT.MAX_COUNT)} named files, each within the attachment size limit.`,
+)
 
 function describeUnknownError(error: unknown) {
   if (error instanceof Error) {
@@ -110,6 +132,33 @@ function registerPrepareAttachmentHandler() {
       const paths = yield* decodeSessionOperationArgument(attachmentPathsArgumentSchema, rawPaths)
 
       const projectPath = yield* validateRequiredProjectPath(requestedProjectPath)
+      return yield* prepareAttachmentsThroughHost(
+        projectPath,
+        paths.map((filePath) => ({ path: filePath })),
+      )
+    }),
+  )
+}
+
+function registerPrepareFilesAttachmentHandler() {
+  typedHandle('attachments:prepare-files', (_event, rawProjectPath: unknown, rawFiles: unknown) =>
+    Effect.gen(function* () {
+      const requestedProjectPath = yield* decodeSessionOperationArgument(
+        projectPathArgumentSchema,
+        rawProjectPath,
+      )
+      const files = yield* decodeSessionOperationArgument(selectedFilesArgumentSchema, rawFiles)
+      const projectPath = yield* validateRequiredProjectPath(requestedProjectPath)
+      // Each file in a directory of its own, so two picks of the same name never collide.
+      const paths = yield* Effect.promise(() =>
+        Promise.all(
+          files.map(async (file) => {
+            const filePath = await createTempPromptPath(file.name)
+            await fs.writeFile(filePath, file.bytes)
+            return filePath
+          }),
+        ),
+      )
       return yield* prepareAttachmentsThroughHost(
         projectPath,
         paths.map((filePath) => ({ path: filePath })),
@@ -179,6 +228,7 @@ export function registerAttachmentHandlers() {
   })
 
   registerPrepareAttachmentHandler()
+  registerPrepareFilesAttachmentHandler()
   registerPrepareFromTextAttachmentHandler()
   registerDiscardAttachmentHandler()
 }

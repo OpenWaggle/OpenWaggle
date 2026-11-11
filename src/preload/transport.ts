@@ -17,6 +17,7 @@ import type {
   IpcSendArgs,
   IpcSendChannel,
 } from '@shared/types/ipc'
+import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { structuredTransport } from '@shared/structured-wire'
 import { Electroview } from 'electrobun/view'
 
@@ -35,6 +36,7 @@ import { Electroview } from 'electrobun/view'
 
 /** Set by the main process at the top of the injected preload, before this bundle runs. */
 const RENDERER_ARGUMENTS_GLOBAL = '__openwaggleRendererArguments'
+const BYTES_PER_MEBIBYTE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 
 const rpc = Electroview.defineRPC<DesktopShellRpc>({
   // An invoke may wait on the user (a dialog, an approval) for as long as it takes.
@@ -118,13 +120,30 @@ globalThis.addEventListener('keydown', (event) => {
   if (event.code === 'F12') void rpc.send(SHELL_TOGGLE_DEVTOOLS_MESSAGE)
 })
 
+const invokePrepareFiles = invoke('attachments:prepare-files')
+
 /**
- * The system webviews give a picked or dropped `File` no path, so attachments that Electron
- * prepares from paths cannot be prepared here yet; the composer shows this reason.
+ * The system webviews give a picked or dropped `File` no path, so the page hands main each file's
+ * content (`attachments:prepare-files`), which main stages and prepares as Electron prepared
+ * paths. A file over the attachment size limit is refused here, before it is read.
  */
-export async function prepareSelectedAttachments(_projectPath: string, files: readonly File[]) {
+export async function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
   if (files.length === 0) return []
-  throw new Error(
-    'This build cannot attach dropped or picked files yet: the system webview does not expose their paths.',
+  const oversized = files.find((file) => file.size > ATTACHMENT.MAX_SIZE_BYTES)
+  if (oversized) {
+    throw new Error(
+      `${oversized.name} is larger than ${String(ATTACHMENT.MAX_SIZE_BYTES / BYTES_PER_MEBIBYTE)} MB.`,
+    )
+  }
+  const contents = await Promise.all(
+    files.map(async (file) => ({
+      name: file.name,
+      bytes: new Uint8Array(await file.arrayBuffer()),
+    })),
   )
+  const attachments = await invokePrepareFiles(projectPath, contents)
+  if (attachments.length !== files.length) {
+    throw new Error('Attachment preparation returned an unexpected result count.')
+  }
+  return attachments.map((attachment, fileIndex) => ({ attachment, fileIndex }))
 }

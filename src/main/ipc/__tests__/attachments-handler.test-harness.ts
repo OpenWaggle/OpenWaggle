@@ -30,7 +30,7 @@ interface AttachmentHandlerMocks {
   readonly openMock: AsyncTestMock
   readonly readdirMock: AsyncTestMock
   readonly unlinkMock: AsyncTestMock
-  readonly appGetPathMock: TestMock
+  readonly appGetPathMock: Mock<(name: string) => string>
   readonly broadcastToWindowsMock: TestMock
   readonly showMessageBoxMock: TestMock
   readonly dispatchLocalSessionCommandMock: TestMock
@@ -56,7 +56,7 @@ const mocks: AttachmentHandlerMocks = vi.hoisted(() => ({
   openMock: vi.fn(),
   readdirMock: vi.fn(),
   unlinkMock: vi.fn(),
-  appGetPathMock: vi.fn(),
+  appGetPathMock: vi.fn<(name: string) => string>(),
   broadcastToWindowsMock: vi.fn(),
   showMessageBoxMock: vi.fn(),
   dispatchLocalSessionCommandMock: vi.fn(),
@@ -77,7 +77,7 @@ export const mkdirMock: AsyncTestMock = mocks.mkdirMock
 export const openMock: AsyncTestMock = mocks.openMock
 export const readdirMock: AsyncTestMock = mocks.readdirMock
 export const unlinkMock: AsyncTestMock = mocks.unlinkMock
-export const appGetPathMock: TestMock = mocks.appGetPathMock
+export const appGetPathMock: AttachmentHandlerMocks['appGetPathMock'] = mocks.appGetPathMock
 export const broadcastToWindowsMock: TestMock = mocks.broadcastToWindowsMock
 export const showMessageBoxMock: TestMock = mocks.showMessageBoxMock
 export const dispatchLocalSessionCommandMock: TestMock = mocks.dispatchLocalSessionCommandMock
@@ -128,12 +128,10 @@ vi.mock('../../utils/broadcast', () => ({
   broadcastToWindows: broadcastToWindowsMock,
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: appGetPathMock,
-  },
-  dialog: {
-    showMessageBox: showMessageBoxMock,
+vi.mock('../../desktop-shell/app-paths', async () => ({
+  appPaths: {
+    ...(await import('../../test-support/fake-desktop-shell')).fakeAppPaths(),
+    userData: () => appGetPathMock('userData'),
   },
 }))
 
@@ -152,11 +150,11 @@ export function loadAttachmentHandlers() {
 
 export function registerFile(
   path: string,
-  content: string | Buffer,
+  content: string | Uint8Array,
   size?: number,
   mtimeMs = Date.now(),
 ) {
-  const buffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content
+  const buffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : Buffer.from(content)
   files.set(path, {
     size: size ?? buffer.length,
     content: buffer,
@@ -263,7 +261,7 @@ export function resetAttachmentHandlerMocks() {
     }
     return file.content
   })
-  writeFileMock.mockImplementation(async (filePath: string, content: string | Buffer) => {
+  writeFileMock.mockImplementation(async (filePath: string, content: string | Uint8Array) => {
     registerFile(filePath, content)
   })
   renameMock.mockImplementation(async (sourcePath: string, destinationPath: string) => {
