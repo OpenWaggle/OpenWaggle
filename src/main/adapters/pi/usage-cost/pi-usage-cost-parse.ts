@@ -86,7 +86,7 @@ function shortened(text: string) {
 }
 
 /** The text of a user message, whether Pi stored it as a string or as content blocks. */
-function userPromptText(message: { readonly [key: string]: unknown }) {
+function userPromptText(message: Readonly<Record<string, unknown>>) {
   if (message.role !== 'user') return null
   if (typeof message.content === 'string') return message.content
   if (!Array.isArray(message.content)) return null
@@ -106,7 +106,7 @@ function sessionTitle(state: ParseState) {
   return title ? shortened(title) || null : null
 }
 
-function absorbTitle(state: ParseState, entry: { readonly [key: string]: unknown }) {
+function absorbTitle(state: ParseState, entry: Readonly<Record<string, unknown>>) {
   if (entry.type === 'session_info') {
     state.name = typeof entry.name === 'string' && entry.name.trim() ? entry.name : null
     return
@@ -116,7 +116,7 @@ function absorbTitle(state: ParseState, entry: { readonly [key: string]: unknown
   if (text?.trim()) state.firstPrompt = text
 }
 
-function absorbEntry(state: ParseState, entry: { readonly [key: string]: unknown }) {
+function absorbEntry(state: ParseState, entry: Readonly<Record<string, unknown>>) {
   const type = entry.type
   absorbTitle(state, entry)
 
@@ -151,7 +151,7 @@ function absorbEntry(state: ParseState, entry: { readonly [key: string]: unknown
 }
 
 function extractRecords(
-  entry: { readonly [key: string]: unknown },
+  entry: Readonly<Record<string, unknown>>,
   lastModel: { provider: string; modelId: string } | null,
 ): UsageCostRecord[] {
   const timestampMs = parseTimestampMs(entry.timestamp)
@@ -166,7 +166,7 @@ function extractRecords(
 }
 
 function messageRecords(
-  entry: { readonly [key: string]: unknown },
+  entry: Readonly<Record<string, unknown>>,
   timestampMs: number,
   lastModel: { provider: string; modelId: string } | null,
 ): UsageCostRecord[] {
@@ -194,7 +194,7 @@ function messageRecords(
 }
 
 function directUsageRecords(
-  entry: { readonly [key: string]: unknown },
+  entry: Readonly<Record<string, unknown>>,
   timestampMs: number,
 ): UsageCostRecord[] {
   if (typeof entry.provider !== 'string' || typeof entry.model !== 'string') return []
@@ -203,7 +203,7 @@ function directUsageRecords(
 }
 
 function summaryRecords(
-  entry: { readonly [key: string]: unknown },
+  entry: Readonly<Record<string, unknown>>,
   timestampMs: number,
 ): UsageCostRecord[] {
   if (!isRecord(entry.usage)) return []
@@ -221,7 +221,7 @@ function createRecord(
   timestampMs: number,
   provider: string,
   modelId: string,
-  usage: { readonly [key: string]: unknown },
+  usage: Readonly<Record<string, unknown>>,
 ): UsageCostRecord {
   const tokens: UsageCostRecordTokens = {
     input: tokenCount(usage.input),
@@ -244,7 +244,7 @@ function createRecord(
   }
 }
 
-function recordedCost(usage: { readonly [key: string]: unknown }): number | null {
+function recordedCost(usage: Readonly<Record<string, unknown>>): number | null {
   const cost = usage.cost
   if (!isRecord(cost)) return null
   if (typeof cost.total !== 'number' || !Number.isFinite(cost.total)) return null
@@ -258,7 +258,7 @@ function applyEstimate(record: UsageCostRecord, estimateCost: UsageCostEstimator
   return { ...record, estimatedCostUsd }
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

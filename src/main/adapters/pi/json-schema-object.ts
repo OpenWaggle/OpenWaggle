@@ -1,7 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 
-export type JsonSchemaObject = { readonly [key: string]: unknown }
-export type MutableJsonSchema = { [key: string]: unknown }
+export type JsonSchemaObject = Readonly<Record<string, unknown>>
+export type MutableJsonSchema = Record<string, unknown>
 
 export function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
   return isMatching(P.record(P.string, P._), value) && !Array.isArray(value)

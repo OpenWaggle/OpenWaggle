@@ -494,11 +494,6 @@
   },
   "typescript/consistent-indexed-object-style": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-test-harness.ts": 2,
-    "src/main/adapters/pi/agent-kernel/session-projection.ts": 1,
-    "src/main/adapters/pi/json-schema-object.ts": 2,
-    "src/main/adapters/pi/pi-session-file-prefix.ts": 8,
-    "src/main/adapters/pi/pi-session-prompt-origin.ts": 3,
-    "src/main/adapters/pi/usage-cost/pi-usage-cost-parse.ts": 10,
     "src/main/application/agent-run/agent-loop-events.ts": 1,
     "src/main/ipc/typed-ipc.ts": 1,
     "src/main/run-cli-presenter.ts": 1,

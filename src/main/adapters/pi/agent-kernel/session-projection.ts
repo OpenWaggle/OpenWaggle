@@ -28,7 +28,7 @@ function parsePiEntryTimestamp(timestamp: string) {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
