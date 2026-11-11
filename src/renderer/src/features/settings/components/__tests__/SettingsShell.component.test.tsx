@@ -1,144 +1,129 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { useProviderStore } from '@/features/providers/state'
+import { useSessionStore } from '@/features/sessions/state'
+import { usePreferencesStore } from '@/features/settings/state'
+import type { SettingsTab } from '@/shell/ui-store'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { AppSettingsView } from '../AppSettingsView'
 import { SettingsNav } from '../SettingsNav'
 import { SettingsPage } from '../SettingsPage'
 
-const { navigateMock, fullscreenMock, chatMock } = vi.hoisted(() => ({
-  navigateMock: vi.fn(),
-  fullscreenMock: vi.fn(),
-  chatMock: vi.fn(),
-}))
+/*
+ * Only the preload, the router and the two tabs that read whole Host catalogs are replaced:
+ * the nav, the back-to-app hook, the chat, preference and provider stores, and the Skills,
+ * Agents and Permissions tabs are the real ones. With no project open those tabs read nothing.
+ */
+const mocks = vi.hoisted(() => ({ navigate: vi.fn() }))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    getProviderModels: async () => [],
+    getAuthAccountInfos: async () => ({}),
+    listSessionProjectPage: async () => ({ paths: [], nextCursor: null }),
+  }),
 }))
-
-vi.mock('@/features/chat/hooks/useChat', () => ({
-  useChat: () => chatMock(),
-}))
-
-// The real back-to-app hook, reading the mocked active session, so this stays an end-to-end check.
-vi.mock('@/features/chat/hooks', async () => ({
-  useNavigateBackToApp: (
-    await vi.importActual<typeof import('@/features/chat/hooks/useNavigateBackToApp')>(
-      '@/features/chat/hooks/useNavigateBackToApp',
-    )
-  ).useNavigateBackToApp,
-}))
-
-vi.mock('@/shell/useFullscreen', () => ({
-  useFullscreen: () => fullscreenMock(),
-}))
-
-vi.mock('@/features/agent-definitions/components', () => ({
-  AgentDefinitionsPanel: () => <div>Agents browser</div>,
-}))
-vi.mock('@/features/skills/components', () => ({
-  SkillsPanel: () => <div>Skills browser</div>,
-}))
-vi.mock('../sections/MultiAgentAccessCard', () => ({
-  MultiAgentAccessCard: () => <div>Hive controls</div>,
-}))
-vi.mock('../sections/PermissionsSection', () => ({
-  PermissionsSection: () => <div>Permissions controls</div>,
-}))
-
-vi.mock('../sections/GeneralSection', () => ({ GeneralSection: () => <div>General settings</div> }))
-vi.mock('../sections/WaggleSection', () => ({ WaggleSection: () => <div>Waggle settings</div> }))
-vi.mock('../sections/ExtensionsSection', () => ({
-  ExtensionsSection: () => <div>Extensions settings</div>,
-}))
+// Settings navigation targets the app route tree, which a component test does not build.
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
+// The MCP tab reads the server registry and the Connections tab every provider's sign-in; each
+// has its own tests, and here they only show which tab is mounted.
 vi.mock('../sections/McpSection', () => ({ McpSection: () => <div>MCP settings</div> }))
 vi.mock('../sections/ConnectionsSection', () => ({
   ConnectionsSection: () => <div>Connections settings</div>,
 }))
-vi.mock('../sections/ArchivedSection', () => ({
-  ArchivedSection: () => <div>Archived settings</div>,
-}))
+
+const initialChat = useChatStore.getInitialState()
+const initialSessions = useSessionStore.getInitialState()
+const initialPreferences = usePreferencesStore.getInitialState()
+const initialProviders = useProviderStore.getInitialState()
+
+beforeEach(() => {
+  mocks.navigate.mockReset()
+  // No project is open, so the resource tabs show their empty state without reading the Host.
+  usePreferencesStore.setState({
+    settings: { ...DEFAULT_SETTINGS, projectPath: null, recentProjects: [] },
+  })
+})
+
+afterEach(() => {
+  useChatStore.setState(initialChat, true)
+  useSessionStore.setState(initialSessions, true)
+  usePreferencesStore.setState(initialPreferences, true)
+  useProviderStore.setState(initialProviders, true)
+})
+
+function navButton(name: RegExp) {
+  return within(screen.getByRole('navigation')).getByRole('button', { name })
+}
 
 describe('settings shell components', () => {
-  beforeEach(() => {
-    navigateMock.mockReset()
-    fullscreenMock.mockReturnValue(false)
-    chatMock.mockReturnValue({ activeSessionId: null })
+  it.each([
+    { label: /Waggle Mode/, to: { to: '/settings/$tab', params: { tab: 'waggle' } } },
+    { label: /Extensions/, to: { to: '/settings/$tab', params: { tab: 'extensions' } } },
+    { label: /^Skills$/, to: { to: '/settings/$tab', params: { tab: 'skills' } } },
+    { label: /^Agents$/, to: { to: '/settings/$tab', params: { tab: 'agents' } } },
+    { label: /General/, to: { to: '/settings' } },
+  ])('navigates to the $label tab from the nav', ({ label, to }) => {
+    renderWithQueryClient(<SettingsNav activeTab="general" />)
+
+    fireEvent.click(navButton(label))
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith(to)
   })
 
-  it('navigates between active settings tabs and omits inactive placeholders', () => {
-    render(<SettingsNav activeTab="general" />)
+  it('navigates from the narrow-window section picker', () => {
+    renderWithQueryClient(<SettingsNav activeTab="general" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Waggle Mode/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Extensions/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^Skills$/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^Agents$/ }))
-    fireEvent.click(screen.getByRole('button', { name: /General/ }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Settings section' }), {
+      target: { value: 'mcp' },
+    })
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: '/settings/$tab',
+      params: { tab: 'mcp' },
+    })
+  })
+
+  it('lists active tabs only, active and inactive items in the same layout position', () => {
+    renderWithQueryClient(<SettingsNav activeTab="extensions" />)
 
     expect(screen.queryByRole('button', { name: /Git/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Worktrees/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Personalization/ })).not.toBeInTheDocument()
-    expect(navigateMock).toHaveBeenNthCalledWith(1, {
-      to: '/settings/$tab',
-      params: { tab: 'waggle' },
-    })
-    expect(navigateMock).toHaveBeenNthCalledWith(2, {
-      to: '/settings/$tab',
-      params: { tab: 'extensions' },
-    })
-    expect(navigateMock).toHaveBeenNthCalledWith(3, {
-      to: '/settings/$tab',
-      params: { tab: 'skills' },
-    })
-    expect(navigateMock).toHaveBeenNthCalledWith(4, {
-      to: '/settings/$tab',
-      params: { tab: 'agents' },
-    })
-    expect(navigateMock).toHaveBeenNthCalledWith(5, { to: '/settings' })
-  })
-
-  it('keeps active and inactive nav items in the same layout position', () => {
-    render(<SettingsNav activeTab="extensions" />)
-
-    const activeItem = screen.getByRole('button', { name: /Extensions/ })
-    const inactiveItem = screen.getByRole('button', { name: /Waggle Mode/ })
-
-    expect(activeItem).toHaveClass('w-full', 'justify-start')
-    expect(inactiveItem).toHaveClass('w-full', 'justify-start')
+    expect(navButton(/Worktrees/)).toBeInTheDocument()
+    expect(navButton(/Extensions/)).toHaveClass('w-full', 'justify-start')
+    expect(navButton(/Waggle Mode/)).toHaveClass('w-full', 'justify-start')
   })
 
   it('routes back to the active session from the settings page header', () => {
-    chatMock.mockReturnValue({ activeSessionId: SessionId('session-1') })
+    useChatStore.setState({ activeSessionId: SessionId('session-1') })
 
-    render(<SettingsPage activeTab="connections" />)
+    renderWithQueryClient(<SettingsPage activeTab="connections" />)
     fireEvent.click(screen.getByRole('button', { name: /Back to app/ }))
 
     expect(screen.getByText('Connections settings')).toBeInTheDocument()
-    expect(navigateMock).toHaveBeenCalledWith({
+    expect(mocks.navigate).toHaveBeenCalledWith({
       to: '/sessions/$sessionId',
       params: { sessionId: 'session-1' },
     })
   })
 
-  it('renders resource browsers inside their Settings tabs', () => {
-    const view = render(<SettingsPage activeTab="skills" />)
-    expect(screen.getByText('Skills browser')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Skills$/ })).toBeInTheDocument()
-    view.unmount()
-    render(<SettingsPage activeTab="agents" />)
-    expect(screen.getByText('Agents browser')).toBeInTheDocument()
-    expect(screen.getByText('Hive controls')).toBeInTheDocument()
-    expect(screen.queryByText('Permissions controls')).not.toBeInTheDocument()
-  })
+  it.each<{ tab: SettingsTab; shows: string; hive: boolean }>([
+    { tab: 'skills', shows: 'Open a project folder to browse its skills.', hive: false },
+    { tab: 'agents', shows: 'Open a project folder to browse its agents.', hive: true },
+    { tab: 'permissions', shows: 'Access modes and saved approvals.', hive: false },
+  ])('renders the $tab tab, with Hive controls only beside agents', ({ tab, shows, hive }) => {
+    renderWithQueryClient(<SettingsPage activeTab={tab} />)
 
-  it('keeps permissions separate from agent orchestration', () => {
-    render(<SettingsPage activeTab="permissions" />)
-    expect(screen.getByText('Permissions controls')).toBeInTheDocument()
-    expect(screen.queryByText('Hive controls')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Permissions' })).toBeInTheDocument()
+    expect(screen.getByText(shows)).toBeInTheDocument()
+    expect(navButton(new RegExp(`^${tab}$`, 'i'))).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Hive controls' }) !== null).toBe(hive)
   })
 
   it('renders AppSettingsView through the panel boundary', () => {
-    render(<AppSettingsView activeTab="mcp" />)
+    renderWithQueryClient(<AppSettingsView activeTab="mcp" />)
 
     expect(screen.getByText('MCP settings')).toBeInTheDocument()
     expect(screen.getByText('Settings')).toBeInTheDocument()
