@@ -96,11 +96,11 @@ describe('Electrobun loopback trusted origins', () => {
     expect(await (await fetch(`${base}/index.html`)).text()).toBe('renderer')
   })
 
-  it('adds the shell headers, the domain document headers and a Location pages can follow', async () => {
+  it('adds the shell headers, the domain document policy and a Location pages can follow', async () => {
     const { subject, originOf } = origins()
-    subject.setDocumentHeaders('renderer', () => ({
-      'content-security-policy': "default-src 'self'",
-      'cross-origin-opener-policy': 'same-origin',
+    subject.setDocumentPolicy('renderer', () => ({
+      contentSecurityPolicy: "default-src 'self'; img-src 'self'",
+      headers: { 'cross-origin-opener-policy': 'same-origin' },
     }))
     subject.serve('renderer', (request) =>
       new URL(request.url).pathname === '/moved'
@@ -110,7 +110,8 @@ describe('Electrobun loopback trusted origins', () => {
     const base = originOf('renderer', 'app')
     const document = await fetch(`${base}/index.html`)
     expect(Object.fromEntries(document.headers)).toMatchObject({
-      'content-security-policy': "default-src 'self'",
+      // No <head>: the whole policy stays in the header.
+      'content-security-policy': "default-src 'self'; img-src 'self'",
       'cross-origin-opener-policy': 'same-origin',
       'cross-origin-resource-policy': 'same-site',
       'x-content-type-options': 'nosniff',
@@ -118,6 +119,20 @@ describe('Electrobun loopback trusted origins', () => {
     expect(document.headers.has('clear-site-data')).toBe(false)
     const moved = await fetch(`${base}/moved`, { redirect: 'manual' })
     expect(moved.headers.get('location')).toBe(`${base}/index.html`)
+  })
+
+  it("serves a document with a head its policy in a <meta>, behind CEF's preload", async () => {
+    const { subject, originOf } = origins()
+    subject.setDocumentPolicy('renderer', () => ({
+      contentSecurityPolicy: "script-src 'self'; img-src 'self'",
+    }))
+    subject.serve('renderer', () => html('<html><head><title>é</title></head></html>'))
+    const document = await fetch(`${originOf('renderer', 'app')}/index.html`)
+    expect(document.headers.get('content-security-policy')).toBe("img-src 'self'")
+    expect(document.headers.get('content-type')).toBe('text/html; charset=utf-8')
+    expect(await document.text()).toBe(
+      `<html><head><meta http-equiv="content-security-policy" content="script-src 'self'; img-src 'self'"><title>é</title></head></html>`,
+    )
   })
 
   it('clears the storage of a fresh host, and again after a storage clear, on its next document', async () => {

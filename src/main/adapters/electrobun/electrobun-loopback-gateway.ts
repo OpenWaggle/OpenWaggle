@@ -4,6 +4,7 @@ import type {
   TrustedOriginHandler,
 } from '../../ports/desktop-shell/trusted-origins'
 import { TRUSTED_ORIGIN_SCHEMES } from '../../trusted-origin-schemes'
+import { placeContentSecurityPolicy } from './electrobun-document-policy'
 
 /**
  * The request side of Electrobun's loopback trusted origins (`electrobun-trusted-origins.ts`):
@@ -15,6 +16,7 @@ const HTTP_NOT_FOUND = 404
 const HTTP_UNAVAILABLE = 503
 const CLEAR_STORAGE = '"storage"'
 const HTML_CONTENT_TYPE = /^\s*text\/html\b/iu
+const HTML_UTF8 = 'text/html; charset=utf-8'
 
 /** One served host, as the gateway needs it. */
 export interface GatewayHost {
@@ -25,10 +27,16 @@ export interface GatewayHost {
   clearStorageOnNextDocument: boolean
 }
 
+/** What every HTML document of a domain gets, unless its handler set it. */
+export interface DocumentPolicy {
+  readonly headers?: HeadersInit
+  /** Placed by `placeContentSecurityPolicy`, so CEF's injected preload still runs. */
+  readonly contentSecurityPolicy?: string
+}
+
 export interface GatewayContext {
   readonly handler: TrustedOriginHandler | undefined
-  /** Headers every HTML document of the host's domain gets, unless the handler set them. */
-  readonly documentHeaders: HeadersInit
+  readonly documentPolicy: DocumentPolicy
   /** A URL in `<scheme>://<host>` form, as pages address it. */
   readonly pageUrlOf: (logicalUrl: string) => string
 }
@@ -72,8 +80,18 @@ export function notFound() {
   return new Response(null, { status: HTTP_NOT_FOUND })
 }
 
-function withShellHeaders(host: GatewayHost, context: GatewayContext, response: Response) {
+/** The document with its policy placed; Bun encodes the rewritten text as UTF-8. */
+async function withDocumentPolicy(headers: Headers, response: Response, policy: string) {
+  const placed = placeContentSecurityPolicy(await response.text(), policy)
+  headers.set('content-security-policy', placed.header)
+  headers.set('content-type', HTML_UTF8)
+  headers.delete('content-length')
+  return placed.html
+}
+
+async function withShellHeaders(host: GatewayHost, context: GatewayContext, response: Response) {
   const headers = new Headers(response.headers)
+  let body: BodyInit | null = response.body
   const location = headers.get('location')
   if (location) headers.set('location', context.pageUrlOf(location))
   if (!headers.has('x-content-type-options')) headers.set('x-content-type-options', 'nosniff')
@@ -82,7 +100,11 @@ function withShellHeaders(host: GatewayHost, context: GatewayContext, response: 
     headers.set('cross-origin-resource-policy', 'same-site')
   }
   if (HTML_CONTENT_TYPE.test(headers.get('content-type') ?? '')) {
-    for (const [name, value] of new Headers(context.documentHeaders)) {
+    const { contentSecurityPolicy } = context.documentPolicy
+    if (contentSecurityPolicy !== undefined && !headers.has('content-security-policy')) {
+      body = await withDocumentPolicy(headers, response, contentSecurityPolicy)
+    }
+    for (const [name, value] of new Headers(context.documentPolicy.headers)) {
       if (!headers.has(name)) headers.set(name, value)
     }
     if (host.clearStorageOnNextDocument) {
@@ -90,7 +112,7 @@ function withShellHeaders(host: GatewayHost, context: GatewayContext, response: 
       host.clearStorageOnNextDocument = false
     }
   }
-  return new Response(response.body, {
+  return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers,
@@ -117,7 +139,7 @@ export async function answerTrustedRequest(
     ...(hasBody ? { body: await request.arrayBuffer() } : {}),
   })
   try {
-    return withShellHeaders(host, context, await context.handler(logical))
+    return await withShellHeaders(host, context, await context.handler(logical))
   } catch {
     // The handler's own failure stays inside the main process, as it does on Electron.
     return notFound()

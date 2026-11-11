@@ -8,6 +8,7 @@ import type {
 import {
   answerTrustedRequest,
   capabilityFor,
+  type DocumentPolicy,
   domainOfScheme,
   type GatewayHost,
   hasCapability,
@@ -59,8 +60,8 @@ export interface ElectrobunTrustedOrigins extends TrustedOriginsShape {
   readonly locate: (url: string) => TrustedOriginLocation | null
   /** Asks the engine to drop what pages of these origins stored, on their next document. */
   readonly clearStorage: (origins: readonly string[]) => void
-  /** The response headers every document of `domain` gets, such as the renderer's own policy. */
-  readonly setDocumentHeaders: (domain: TrustedOriginDomain, headers: () => HeadersInit) => void
+  /** What every document of `domain` gets, such as the renderer's own policy. */
+  readonly setDocumentPolicy: (domain: TrustedOriginDomain, policy: () => DocumentPolicy) => void
 }
 
 export interface TrustedOriginLocation {
@@ -170,7 +171,7 @@ export function createLoopbackTrustedOrigins(
 ): ElectrobunTrustedOrigins {
   const declarations = new Map<TrustedOriginDomain, TrustedOriginDeclaration>()
   const handlers = new Map<TrustedOriginDomain, TrustedOriginHandler>()
-  const documentHeaders = new Map<TrustedOriginDomain, () => HeadersInit>()
+  const documentPolicies = new Map<TrustedOriginDomain, () => DocumentPolicy>()
 
   /** A `Location` the handler wrote in scheme form, addressed as pages reach it. */
   function pageUrlOf(logical: string) {
@@ -192,7 +193,7 @@ export function createLoopbackTrustedOrigins(
     answer: (host, request) =>
       answerTrustedRequest(host, request, {
         handler: handlers.get(host.domain),
-        documentHeaders: documentHeaders.get(host.domain)?.() ?? {},
+        documentPolicy: documentPolicies.get(host.domain)?.() ?? {},
         pageUrlOf,
       }),
   })
@@ -226,8 +227,8 @@ export function createLoopbackTrustedOrigins(
         if (entry) entry.clearStorageOnNextDocument = true
       }
     },
-    setDocumentHeaders: (domain, headers) => {
-      documentHeaders.set(domain, headers)
+    setDocumentPolicy: (domain, policy) => {
+      documentPolicies.set(domain, policy)
     },
   }
 }

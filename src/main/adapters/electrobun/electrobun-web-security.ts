@@ -14,9 +14,11 @@ import {
  * per-frame navigation hook and no per-origin storage API, so the policy lives where Electrobun can
  * enforce it:
  *
- * - The renderer's Content Security Policy is a response header of the renderer's loopback server
- *   (`rendererDocumentHeaders`), with the trusted origins' loopback sources and the loopback socket
- *   of the page's RPC (`ws://127.0.0.1:*`). A Vite dev server's pages get no policy.
+ * - The renderer's Content Security Policy comes from the renderer's loopback server
+ *   (`rendererContentSecurityPolicy`), with the trusted origins' loopback sources and the loopback
+ *   socket of the page's RPC (`ws://127.0.0.1:*`). The server places it in a `<meta>` and the
+ *   response header, so CEF's injected preload runs (`electrobun-document-policy.ts`). A Vite dev
+ *   server's pages get no policy.
  * - Embedded frames are confined by that policy's `frame-src`, which names only the trusted
  *   origins, and by each frame host's capability path, so a frame reaches neither the internet
  *   nor another frame's documents. Electrobun's `navigationRules` only see the main frame (macOS
@@ -46,13 +48,11 @@ export function electrobunRendererPolicySources(
   }
 }
 
-/** The headers of every renderer document: the app's Content Security Policy. */
-export function rendererDocumentHeaders(
+/** The Content Security Policy of every renderer document. */
+export function rendererContentSecurityPolicy(
   origins: Pick<ElectrobunTrustedOrigins, 'sourcesOf'> = electrobunTrustedOrigins,
-): HeadersInit {
-  return {
-    'content-security-policy': buildContentSecurityPolicy(electrobunRendererPolicySources(origins)),
-  }
+) {
+  return buildContentSecurityPolicy(electrobunRendererPolicySources(origins))
 }
 
 /** The desktop shell binding takes `createElectrobunWebSecurity()`, on the app's trusted origins. */

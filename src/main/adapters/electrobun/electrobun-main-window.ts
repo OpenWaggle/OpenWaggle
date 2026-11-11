@@ -17,7 +17,7 @@ import {
 import { trustedOriginBaseRendererArguments } from '../../trusted-origin-base-arguments'
 import { electrobun } from './electrobun-sdk'
 import { electrobunTrustedOrigins } from './electrobun-trusted-origins'
-import { rendererDocumentHeaders } from './electrobun-web-security'
+import { rendererContentSecurityPolicy } from './electrobun-web-security'
 import { openAppWindow, revealWindow } from './electrobun-window-policy'
 import { windowShortcutsInstalled } from './electrobun-window-shortcuts'
 
@@ -88,7 +88,9 @@ function qaRenderer(): { readonly renderer?: 'cef' } {
 }
 
 export function createMainWindow(request: MainWindowRequest) {
-  electrobunTrustedOrigins.setDocumentHeaders('renderer', () => rendererDocumentHeaders())
+  electrobunTrustedOrigins.setDocumentPolicy('renderer', () => ({
+    contentSecurityPolicy: rendererContentSecurityPolicy(),
+  }))
   const url = rendererUrl()
   const packaged = electrobun().BuildConfig.getSync().isPackaged
   request.startupMark('renderer-load-start')
