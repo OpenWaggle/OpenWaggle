@@ -25,8 +25,8 @@ import { electrobun } from './electrobun-sdk'
  * find its window (`BrowserView.windowId`) and attach views to it. `send` is a `shell:event`
  * message, and the page's invokes and sends reach the IPC transport with the surface as sender.
  *
- * Electrobun reports `will-navigate` (with whether the navigation rules allowed it), `did-navigate`
- * and `did-navigate-in-page`, which become the port's navigation events. It has no event for a
+ * Electrobun reports `will-navigate` (with whether the navigation rules allowed it),
+ * `did-commit-navigation` and `did-navigate-in-page`, which become the port's navigation events. It has no event for a
  * crashed web process, so the surface sends a `shell:heartbeat` request every few seconds; after
  * `HEARTBEAT_MISSES` unanswered ones in a row it reports `render-process-gone` and reloads the page.
  * The misses are generous because a hidden window's page may be throttled, not dead.
@@ -242,7 +242,11 @@ function watchWebview(
     if (detail.data.allowed) surface.navigated('start', detail.data.url)
     else openLink(detail.data.url)
   })
-  view.on('did-navigate', (event) => {
+  // Electrobun's `did-navigate` is a finished load (WebKit `didFinishNavigation`, CEF `OnLoadEnd`,
+  // WebView2 `NavigationCompleted`); the port's `did-navigate` is Electron's, a committed document.
+  // Taking the finish for the commit counted a document's own first load as a new one, so a slow
+  // start dropped the requests the backend gate held for it (`gated-ipc-sender.ts`).
+  view.on('did-commit-navigation', (event) => {
     const url = eventDetail(event)
     if (typeof url === 'string') surface.navigated('commit', url)
   })

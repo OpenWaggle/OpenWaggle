@@ -31,9 +31,20 @@ describe('Electrobun renderer surfaces', () => {
     const starts: string[] = []
     surface.on('did-start-navigation', (navigation) => starts.push(navigation.url))
     view.emitEvent('will-navigate', JSON.stringify({ url: LOOPBACK_PAGE, allowed: true }))
-    view.emitEvent('did-navigate', LOOPBACK_PAGE)
+    view.emitEvent('did-commit-navigation', LOOPBACK_PAGE)
     expect(starts).toEqual([LOGICAL_PAGE])
     expect(surface.getURL()).toBe(LOGICAL_PAGE)
+  })
+
+  it('commits a document when Electrobun commits it, not when its load finishes', async () => {
+    const { surface, view } = await openPage()
+    const committed = vi.fn()
+    surface.on('did-navigate', committed)
+    view.emitEvent('did-commit-navigation', LOOPBACK_PAGE)
+    expect(committed).toHaveBeenCalledTimes(1)
+    // Electrobun's did-navigate is the same document's finished load: no new document.
+    view.emitEvent('did-navigate', LOOPBACK_PAGE)
+    expect(committed).toHaveBeenCalledTimes(1)
   })
 
   it('opens a refused navigation and a new-window request outside the app', async () => {
