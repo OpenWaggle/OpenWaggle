@@ -29,8 +29,8 @@ describe('system message tool projection (D7.3)', () => {
     expect(JSON.parse(projectionForPiEntry(entry(tools)).contentJson).toolsAddedDigest).toBe(
       content.toolsAddedDigest,
     )
-    const changed = [{ ...tools[0], description: 'Read.' }, tools[1]].filter(
-      (tool) => tool !== undefined,
+    const changed = tools.map((tool, index) =>
+      index === 0 ? { ...tool, description: 'Read.' } : tool,
     )
     expect(JSON.parse(projectionForPiEntry(entry(changed)).contentJson).toolsAddedDigest).not.toBe(
       content.toolsAddedDigest,

@@ -105,7 +105,8 @@ export function flattenSessionsToolParameters(
   const propertiesByKey = new Map<string, TSchema[]>()
   const requiredBy = requiredActionsByProperty(variants, options.requiredNoteActions)
   for (const variant of variants) {
-    actions.push(variant.properties['action'])
+    const action = variant.properties['action']
+    if (action) actions.push(action)
     for (const [key, schema] of Object.entries(variant.properties)) {
       if (key === 'action') continue
       if (options.declaredProperties && !options.declaredProperties.has(key)) continue
@@ -118,7 +119,9 @@ export function flattenSessionsToolParameters(
   }
   const properties: Record<string, TSchema> = {}
   for (const [key, occurrences] of propertiesByKey) {
-    const merged = occurrences.length === 1 ? occurrences[0] : Type.Union(occurrences)
+    const [first, ...others] = occurrences
+    if (!first) continue
+    const merged = others.length === 0 ? first : Type.Union(occurrences)
     // Every non-action property is optional in the flat schema because required-ness is
     // per-action and cannot be expressed here. The description names the actions that need
     // it, and assertSessionsToolActionArguments enforces each variant's contract at run time.
