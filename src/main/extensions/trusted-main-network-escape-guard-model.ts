@@ -61,7 +61,10 @@ export function callablePatch<Args extends readonly unknown[], Result>(
   }
 }
 
-/** Replaces a method that the type definitions do not declare, such as `ChildProcess#spawn`. */
+/**
+ * Replaces a method read off its object, so no unbound reference to it is taken: a prototype or
+ * module method, or one the type definitions do not declare, such as `ChildProcess#spawn`.
+ */
 export function prototypeMethodPatch(patch: {
   readonly target: object
   readonly propertyName: string

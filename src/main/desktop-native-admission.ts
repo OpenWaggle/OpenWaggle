@@ -45,19 +45,19 @@ export function makeDesktopNativeAdmission() {
   }
 
   return {
-    quarantine(
+    quarantine: (
       options: { readonly reason?: string; readonly recover?: DesktopNativeRecovery } = {},
-    ) {
+    ) => {
       if (issue !== null) return
       issue = options.reason?.trim().slice(0, MAX_REASON_LENGTH) || DEFAULT_QUARANTINE_REASON
       recovery = options.recover ?? null
     },
-    assertAdmission() {
+    assertAdmission: () => {
       if (issue !== null) throw new Error(issue)
     },
     getIssue: (): string | null => issue,
     /** Runs the offered recovery one at a time; a failed attempt stays quarantined. */
-    recover(): Promise<DesktopNativeRecoveryOutcome> {
+    recover: (): Promise<DesktopNativeRecoveryOutcome> => {
       if (issue === null) return Promise.resolve({ outcome: 'recovered' })
       const offered = recovery
       if (offered === null) {

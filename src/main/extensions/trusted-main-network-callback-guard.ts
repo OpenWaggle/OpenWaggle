@@ -6,10 +6,29 @@ interface TrustedMainNetworkCallbackGuardInput {
   readonly bindListener: (listener: TrustedMainEventListener) => TrustedMainEventListener
 }
 
-const originalAddListener = EventEmitter.prototype.addListener
-const originalOn = EventEmitter.prototype.on
-const originalPrependListener = EventEmitter.prototype.prependListener
-const originalRemoveListener = EventEmitter.prototype.removeListener
+type EmitterListenerMethod = (
+  this: EventEmitter,
+  eventName: string | symbol,
+  listener: TrustedMainEventListener,
+) => EventEmitter
+
+function isEmitterListenerMethod(value: unknown): value is EmitterListenerMethod {
+  return typeof value === 'function'
+}
+
+/** The method as Node defines it, read before the guard below replaces it. */
+function originalEmitterMethod(name: 'addListener' | 'on' | 'prependListener' | 'removeListener') {
+  const method: unknown = Reflect.get(EventEmitter.prototype, name)
+  if (!isEmitterListenerMethod(method)) {
+    throw new TypeError(`node:events EventEmitter.prototype.${name} is unavailable.`)
+  }
+  return method
+}
+
+const originalAddListener = originalEmitterMethod('addListener')
+const originalOn = originalEmitterMethod('on')
+const originalPrependListener = originalEmitterMethod('prependListener')
+const originalRemoveListener = originalEmitterMethod('removeListener')
 
 function exposeOriginalListener(
   listener: TrustedMainEventListener,

@@ -71,10 +71,9 @@ const ESCAPE_PATCH_INSTALLERS = [
     api: 'node:child_process.spawnSync',
     reason: CHILD_PROCESS_REASON,
   }),
-  callablePatch({
+  prototypeMethodPatch({
     target: cluster,
     propertyName: 'fork',
-    original: cluster.fork,
     api: 'node:cluster.fork',
     reason: CLUSTER_REASON,
   }),
@@ -101,24 +100,21 @@ const ESCAPE_PATCH_INSTALLERS = [
     api: 'node:child_process.ChildProcess.spawn',
     reason: CHILD_PROCESS_REASON,
   }),
-  callablePatch({
+  prototypeMethodPatch({
     target: dgram.Socket.prototype,
     propertyName: 'bind',
-    original: dgram.Socket.prototype.bind,
     api: 'node:dgram.Socket.bind',
     reason: UDP_REASON,
   }),
-  callablePatch({
+  prototypeMethodPatch({
     target: dgram.Socket.prototype,
     propertyName: 'connect',
-    original: dgram.Socket.prototype.connect,
     api: 'node:dgram.Socket.connect',
     reason: UDP_REASON,
   }),
-  callablePatch({
+  prototypeMethodPatch({
     target: dgram.Socket.prototype,
     propertyName: 'send',
-    original: dgram.Socket.prototype.send,
     api: 'node:dgram.Socket.send',
     reason: UDP_REASON,
   }),
