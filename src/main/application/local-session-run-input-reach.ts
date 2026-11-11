@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import { LocalSessionCommandAuthorizationError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 
-type RunInput = {
+interface RunInput {
   readonly sessionId: string
   readonly runId: string
   readonly followUpId?: string

@@ -133,7 +133,7 @@ function localImageFilePath(url: string): string | null {
       return null
     }
   }
-  const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || /^\\\\/u.test(url)
+  const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || url.startsWith('\\\\')
   return isAbsolute ? url : null
 }
 

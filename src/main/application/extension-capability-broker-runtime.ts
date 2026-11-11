@@ -125,7 +125,7 @@ function scopeContributionTarget(input: {
     contribution: {
       ...input.contribution,
       target: {
-        ...(input.contribution.target ?? {}),
+        ...input.contribution.target,
         ...(projectPath !== undefined ? { projectPaths: [projectPath] } : {}),
         ...(sessionId !== undefined ? { sessionIds: [sessionId] } : {}),
       },

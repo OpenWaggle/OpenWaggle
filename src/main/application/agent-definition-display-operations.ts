@@ -79,7 +79,7 @@ export function setAgentDefinitionEnabledOperation(
     const next = {
       ...settings.agentDefinitionTogglesByProject,
       [projectPath]: {
-        ...(settings.agentDefinitionTogglesByProject[projectPath] ?? {}),
+        ...settings.agentDefinitionTogglesByProject[projectPath],
         [name]: enabled,
       },
     }

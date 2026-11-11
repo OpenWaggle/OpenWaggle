@@ -14,7 +14,7 @@ import { SessionWaitService } from '../../ports/session-wait-service'
 import { SettingsService } from '../../services/settings-service'
 import { dispatchSessionWaitQuery } from '../local-session-command-dispatcher'
 
-type LiveProfile = {
+interface LiveProfile {
   capabilities: LocalSessionProfileAuthority['capabilities']
   scope: LocalSessionProfileAuthority['scope']
   authorizationCeiling: LocalSessionProfileAuthority['authorizationCeiling']

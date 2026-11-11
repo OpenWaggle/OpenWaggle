@@ -261,7 +261,7 @@ export class DesktopNotificationObserver {
       const session = yield* facts.session(sessionId)
       // A Worker's Run reaches its parent; it may still be the last Run its Hive waited for,
       // even when the Worker was archived while it ran.
-      if (!session || session.parentSessionId !== null) {
+      if (session?.parentSessionId !== null) {
         return yield* this.readyToRead.settle(sessionId, occurredAt, runId)
       }
       if (session.archived) return

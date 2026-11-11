@@ -37,7 +37,7 @@ interface DurableAgentLoopNodeSource {
   readonly createdOrder: number
 }
 
-type UnknownObject = { readonly [key: string]: unknown }
+type UnknownObject = Readonly<Record<string, unknown>>
 
 export function isDurableAgentLoopEvent(
   event: AgentTransportEvent,

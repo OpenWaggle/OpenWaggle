@@ -210,18 +210,12 @@
   },
   "typescript/consistent-indexed-object-style": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-test-harness.ts": 2,
-    "src/main/application/agent-run/agent-loop-events.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 2,
     "src/renderer/src/features/chat/lib/agent-loop-transcript-event-fields.ts": 1,
     "src/renderer/src/features/chat/lib/tool-call-block.ts": 1,
     "src/shared/error-reporting/error-report-scrubbing.ts": 4
   },
   "typescript/consistent-type-definitions": {
-    "src/main/application/__tests__/local-session-command-search-authorization.test-support.ts": 1,
-    "src/main/application/__tests__/local-session-command-wait-authorization.unit.test.ts": 1,
-    "src/main/application/__tests__/session-wait-service.test-support.ts": 1,
-    "src/main/application/agent-run/agent-loop-events.ts": 1,
-    "src/main/application/local-session-run-input-reach.ts": 1,
     "src/main/security/web-security-policy.ts": 1,
     "src/renderer/src/features/chat/components/AssistantMessageBubble.tsx": 1,
     "src/renderer/src/features/chat/components/__tests__/SessionsToolRows.component.test.tsx": 1,
@@ -371,8 +365,6 @@
     "src/main/adapters/electron/browser-preview/browser-preview-annotation-attachment.ts": 1,
     "src/main/adapters/electron/browser-preview/browser-preview-automation-validation.ts": 2,
     "src/main/adapters/electron/browser-preview/browser-preview-replacement.ts": 1,
-    "src/main/application/desktop-notifications/desktop-notification-observer.ts": 1,
-    "src/main/application/scheduled-task-heartbeat-commands.ts": 1,
     "src/renderer/src/env.ts": 1,
     "src/renderer/src/features/chat/components/TranscriptRows.tsx": 1,
     "src/renderer/src/features/chat/hooks/useStableRowContext.ts": 1,
@@ -398,7 +390,6 @@
     "src/renderer/src/shell/workspace-panel-persistence.ts": 1
   },
   "typescript/prefer-string-starts-ends-with": {
-    "src/main/application/session-resource-markdown-extraction.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
   },
   "typescript/restrict-template-expressions": {
@@ -436,15 +427,9 @@
     "src/renderer/src/features/settings/lib/available-models-filter.ts": 1
   },
   "unicorn/no-useless-fallback-in-spread": {
-    "src/main/application/agent-definition-display-operations.ts": 1,
-    "src/main/application/extension-capability-broker-runtime.ts": 1,
-    "src/main/application/skill-operations.ts": 1,
     "src/main/auth/index.ts": 1,
     "src/main/security/web-security-policy.ts": 1,
     "src/renderer/src/features/settings/state/project-preference-writes.ts": 1,
     "src/renderer/src/shared/lib/markdown-safety.tsx": 2
-  },
-  "unicorn/prefer-string-starts-ends-with": {
-    "src/main/application/session-resource-markdown-extraction.ts": 1
   }
 }
