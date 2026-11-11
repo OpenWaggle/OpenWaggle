@@ -349,7 +349,6 @@
     "src/renderer/src/features/workspace-files/components/__tests__/ProjectContentSearch.component.test.tsx": 1
   },
   "typescript/no-misused-spread": {
-    "src/main/application/inline-visualization-download.ts": 1,
     "src/renderer/src/features/chat/lib/__tests__/transcript-viewport-geometry.unit.test.ts": 1,
     "src/renderer/src/features/sidebar/hooks/useRemoteSidebarSessions.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-native-keybindings.ts": 1,
@@ -481,9 +480,6 @@
   "typescript/prefer-string-starts-ends-with": {
     "src/main/application/session-resource-markdown-extraction.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-link-paths.ts": 2
-  },
-  "typescript/require-array-sort-compare": {
-    "src/main/application/__tests__/agent-authorization-grants.unit.test.ts": 1
   },
   "typescript/restrict-template-expressions": {
     "src/renderer/src/features/mcp/__tests__/use-mcp-app-frame-registration.component.test.tsx": 1

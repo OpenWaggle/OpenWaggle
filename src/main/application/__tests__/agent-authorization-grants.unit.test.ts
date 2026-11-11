@@ -152,7 +152,10 @@ describe('project grants', () => {
     ])
 
     const grants = await listGrantsForProject(projectPath)
-    expect(grants.map((grant) => grant.resource).sort()).toEqual(['create_issue', 'list_issues'])
+    expect(grants).toHaveLength(2)
+    expect(grants.map((grant) => grant.resource)).toEqual(
+      expect.arrayContaining(['create_issue', 'list_issues']),
+    )
   })
 
   it('persists a grant and covers a later request', async () => {
