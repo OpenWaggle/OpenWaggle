@@ -127,9 +127,9 @@ export function decodeAssistantMessageSnapshots(
   const assistantMessages = value.flatMap((candidate, messageIndex) => {
     if (
       !isRecord(candidate) ||
-      typeof candidate.messageId !== 'string' ||
-      typeof candidate.timestamp !== 'number' ||
-      !Array.isArray(candidate.parts)
+      typeof candidate['messageId'] !== 'string' ||
+      typeof candidate['timestamp'] !== 'number' ||
+      !Array.isArray(candidate['parts'])
     ) {
       reportUndecodable(context, 'an earlier assistant message', 'malformed message', {
         messageIndex,
@@ -139,14 +139,14 @@ export function decodeAssistantMessageSnapshots(
     try {
       return [
         {
-          messageId: candidate.messageId,
-          timestamp: candidate.timestamp,
-          parts: candidate.parts.map(decodeMessagePart),
+          messageId: candidate['messageId'],
+          timestamp: candidate['timestamp'],
+          parts: candidate['parts'].map(decodeMessagePart),
         },
       ]
     } catch (error) {
       reportUndecodable(context, 'an earlier assistant message', error, {
-        messageId: candidate.messageId,
+        messageId: candidate['messageId'],
       })
       return []
     }
@@ -173,7 +173,7 @@ export function decodeStreamingParts(
       reportUndecodable(context, 'a streaming message part', error, {
         ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
         partIndex,
-        partType: isRecord(part) && typeof part.type === 'string' ? part.type : null,
+        partType: isRecord(part) && typeof part['type'] === 'string' ? part['type'] : null,
       })
     }
   })

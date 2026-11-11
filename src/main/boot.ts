@@ -42,7 +42,7 @@ function startCompileCache(): MainCompileCache | null {
 const compileCache = startCompileCache()
 const outcome = answerTopLevelCliInBoot({
   argv: process.argv,
-  cliOutputFd: process.env.OPENWAGGLE_CLI_OUTPUT_FD,
+  cliOutputFd: process.env['OPENWAGGLE_CLI_OUTPUT_FD'],
   platform: process.platform,
 })
 if (outcome !== 'answered') {

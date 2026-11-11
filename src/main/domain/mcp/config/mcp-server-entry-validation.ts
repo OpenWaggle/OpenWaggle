@@ -36,8 +36,8 @@ const EXPOSURE_LIST = MCP_EXPOSURES.map((exposure) => `"${exposure}"`).join(', '
 function isSecretReference(value: unknown): value is McpVaultSecretReference {
   return (
     isJsonRecord(value) &&
-    typeof value.secret === 'string' &&
-    value.secret.length > 0 &&
+    typeof value['secret'] === 'string' &&
+    value['secret'].length > 0 &&
     Object.keys(value).length === 1
   )
 }
@@ -94,24 +94,27 @@ function validateToolExposure(name: string, value: unknown): ExposureResult {
 type BaseResult = { readonly ok: true; readonly base: McpServerConfigBase } | Failure
 
 function scalarBaseError(name: string, value: JsonRecord): Failure | undefined {
-  if (value.enabled !== undefined && typeof value.enabled !== 'boolean') {
+  if (value['enabled'] !== undefined && typeof value['enabled'] !== 'boolean') {
     return failure(name, 'enabled must be a boolean')
   }
-  if (value.description !== undefined && typeof value.description !== 'string') {
+  if (value['description'] !== undefined && typeof value['description'] !== 'string') {
     return failure(name, 'description must be a string')
   }
-  if (value.timeout !== undefined && (typeof value.timeout !== 'number' || !(value.timeout > 0))) {
+  if (
+    value['timeout'] !== undefined &&
+    (typeof value['timeout'] !== 'number' || !(value['timeout'] > 0))
+  ) {
     return failure(name, 'timeout must be a positive number of seconds')
   }
   return undefined
 }
 
 function validateBase(name: string, value: JsonRecord): BaseResult {
-  const exposure = resolveMcpExposureAlias(value.exposure)
+  const exposure = resolveMcpExposureAlias(value['exposure'])
   if (exposure !== undefined && !isMcpExposure(exposure)) {
     return failure(name, `exposure must be one of ${EXPOSURE_LIST}`)
   }
-  const toolExposure = validateToolExposure(name, value.toolExposure)
+  const toolExposure = validateToolExposure(name, value['toolExposure'])
   if (!toolExposure.ok) return toolExposure
   const scalarError = scalarBaseError(name, value)
   if (scalarError) return scalarError
@@ -120,9 +123,9 @@ function validateBase(name: string, value: JsonRecord): BaseResult {
     base: {
       ...(exposure === undefined ? {} : { exposure }),
       ...(toolExposure.toolExposure ? { toolExposure: toolExposure.toolExposure } : {}),
-      ...(typeof value.enabled === 'boolean' ? { enabled: value.enabled } : {}),
-      ...(typeof value.description === 'string' ? { description: value.description } : {}),
-      ...(typeof value.timeout === 'number' ? { timeout: value.timeout } : {}),
+      ...(typeof value['enabled'] === 'boolean' ? { enabled: value['enabled'] } : {}),
+      ...(typeof value['description'] === 'string' ? { description: value['description'] } : {}),
+      ...(typeof value['timeout'] === 'number' ? { timeout: value['timeout'] } : {}),
     },
   }
 }
@@ -150,14 +153,14 @@ type AuthResult = { readonly ok: true; readonly auth: { provider: string } | und
 
 function validateProviderAuth(name: string, value: unknown, url: string): AuthResult {
   if (value === undefined) return { ok: true, auth: undefined }
-  if (!isJsonRecord(value) || typeof value.provider !== 'string' || !value.provider) {
+  if (!isJsonRecord(value) || typeof value['provider'] !== 'string' || !value['provider']) {
     return failure(name, 'auth.provider must be a provider name')
   }
   const parsed = new URL(url)
   if (parsed.protocol !== 'https:' && !MCP_LOOPBACK_HOSTS.includes(parsed.hostname)) {
     return failure(name, 'auth requires an https URL, or http on localhost, 127.0.0.1, or [::1]')
   }
-  return { ok: true, auth: { provider: value.provider } }
+  return { ok: true, auth: { provider: value['provider'] } }
 }
 
 function validateUrlServer(
@@ -167,21 +170,21 @@ function validateUrlServer(
   base: McpServerConfigBase,
   options: McpServerValidationOptions,
 ): McpServerValidation | undefined {
-  const transport = urlTransport(value.type, url)
+  const transport = urlTransport(value['type'], url)
   if (transport === 'unsupported') return undefined
   if (transport === 'invalid' || transport === 'stdio') {
     const plainHttp =
-      value.type === 'sse' || value.type === 'http' || value.type === 'streamable-http'
+      value['type'] === 'sse' || value['type'] === 'http' || value['type'] === 'streamable-http'
     return failure(
       name,
       plainHttp ? 'url must be an http or https URL' : 'url must be an http, https, ws, or wss URL',
     )
   }
-  const headers = validateValueMap(name, 'headers', value.headers, options)
+  const headers = validateValueMap(name, 'headers', value['headers'], options)
   if (!headers.ok) return headers
-  const oauth = validateMcpOAuthConfig(name, value.oauth)
+  const oauth = validateMcpOAuthConfig(name, value['oauth'])
   if (!oauth.ok) return oauth
-  const auth = validateProviderAuth(name, value.auth, url)
+  const auth = validateProviderAuth(name, value['auth'], url)
   if (!auth.ok) return auth
   const config: McpHttpServerConfigOf<McpConfiguredValue> = {
     ...base,
@@ -204,20 +207,20 @@ function validateStdioServer(
   base: McpServerConfigBase,
   options: McpServerValidationOptions,
 ): McpServerValidation {
-  if (value.args !== undefined && !isStringArray(value.args)) {
+  if (value['args'] !== undefined && !isStringArray(value['args'])) {
     return failure(name, 'args must be an array of strings')
   }
-  const env = validateValueMap(name, 'env', value.env, options)
+  const env = validateValueMap(name, 'env', value['env'], options)
   if (!env.ok) return env
-  if (value.cwd !== undefined && typeof value.cwd !== 'string') {
+  if (value['cwd'] !== undefined && typeof value['cwd'] !== 'string') {
     return failure(name, 'cwd must be a string')
   }
   const config: McpStdioServerConfigOf<McpConfiguredValue> = {
     ...base,
     command,
-    ...(isStringArray(value.args) ? { args: [...value.args] } : {}),
+    ...(isStringArray(value['args']) ? { args: [...value['args']] } : {}),
     ...(env.values ? { env: env.values } : {}),
-    ...(typeof value.cwd === 'string' ? { cwd: value.cwd } : {}),
+    ...(typeof value['cwd'] === 'string' ? { cwd: value['cwd'] } : {}),
   }
   return { ok: true, server: { config, transport: 'stdio' } }
 }
@@ -237,12 +240,15 @@ export function validateMcpServerEntry(
   if (!isJsonRecord(raw)) return { ok: false, error: `server "${name}" must be an object` }
   const base = validateBase(name, raw)
   if (!base.ok) return base
-  if (typeof raw.url === 'string') {
-    const server = validateUrlServer(name, raw, raw.url, base.base, options)
+  if (typeof raw['url'] === 'string') {
+    const server = validateUrlServer(name, raw, raw['url'], base.base, options)
     if (server) return server
   }
-  if (typeof raw.command === 'string' && (raw.type === undefined || raw.type === 'stdio')) {
-    return validateStdioServer(name, raw, raw.command, base.base, options)
+  if (
+    typeof raw['command'] === 'string' &&
+    (raw['type'] === undefined || raw['type'] === 'stdio')
+  ) {
+    return validateStdioServer(name, raw, raw['command'], base.base, options)
   }
   return {
     ok: false,

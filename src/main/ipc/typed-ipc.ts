@@ -46,27 +46,29 @@ function isObjectWithUnknownValues(value: unknown): value is Readonly<Record<str
 }
 
 function isValidationIssuesError(error: unknown): error is ValidationIssuesError {
-  if (!isObjectWithUnknownValues(error) || error._tag !== 'ValidationIssuesError') {
+  if (!isObjectWithUnknownValues(error) || error['_tag'] !== 'ValidationIssuesError') {
     return false
   }
 
-  return Array.isArray(error.issues) && error.issues.every((issue) => typeof issue === 'string')
+  return (
+    Array.isArray(error['issues']) && error['issues'].every((issue) => typeof issue === 'string')
+  )
 }
 
 function isDatabaseBootstrapTaggedError(error: unknown): error is DatabaseBootstrapError {
   return (
     isObjectWithUnknownValues(error) &&
-    error._tag === 'DatabaseBootstrapError' &&
-    typeof error.stage === 'string' &&
-    typeof error.message === 'string'
+    error['_tag'] === 'DatabaseBootstrapError' &&
+    typeof error['stage'] === 'string' &&
+    typeof error['message'] === 'string'
   )
 }
 
 function isDatabaseQueryTaggedError(error: unknown): error is DatabaseQueryError {
   return (
     isObjectWithUnknownValues(error) &&
-    error._tag === 'DatabaseQueryError' &&
-    typeof error.operation === 'string'
+    error['_tag'] === 'DatabaseQueryError' &&
+    typeof error['operation'] === 'string'
   )
 }
 

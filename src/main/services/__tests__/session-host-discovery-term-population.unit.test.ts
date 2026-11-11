@@ -43,7 +43,7 @@ describe('Session discovery native term bulk validation', () => {
         `EXPLAIN QUERY PLAN ${SESSION_DISCOVERY_TERM_GROUP_SQL}`,
       )
       .all()
-    const scans = plan.flatMap((row) => (typeof row.detail === 'string' ? [row.detail] : []))
+    const scans = plan.flatMap((row) => (typeof row['detail'] === 'string' ? [row['detail']] : []))
     expect(scans.filter((step) => step.includes('VIRTUAL TABLE INDEX'))).toHaveLength(1)
     expect(scans.some((step) => step.includes('CORRELATED'))).toBe(false)
     for (const statement of SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS.slice(1)) {

@@ -13,7 +13,7 @@ export function pathDelimiter(platform: NodeJS.Platform) {
 }
 
 export function readEnvPath(env: MutableEnvironment) {
-  return trimNonEmpty(env.PATH ?? env.Path ?? env.path)
+  return trimNonEmpty(env['PATH'] ?? env['Path'] ?? env['path'])
 }
 
 export function mergePaths(platform: NodeJS.Platform, values: readonly (string | undefined)[]) {
@@ -57,7 +57,7 @@ export function withoutLaunchOnlyPath(
   launchEnvironment: Readonly<MutableEnvironment>,
   previous: ResolvedShellEnvironment | null,
 ): ResolvedShellEnvironment {
-  const probedPath = trimNonEmpty(resolved.environment.PATH)
+  const probedPath = trimNonEmpty(resolved.environment['PATH'])
   const launchPath = readEnvPath(launchEnvironment)
   if (!probedPath || !launchPath) return resolved
   const delimiter = pathDelimiter(platform)
@@ -68,12 +68,12 @@ export function withoutLaunchOnlyPath(
       .filter((entry) => entry.length > 0)
   const fromShell = new Set([
     ...(DEFAULT_SESSION_PATHS[platform] ?? []),
-    ...entriesOf(previous?.environment.PATH),
+    ...entriesOf(previous?.environment['PATH']),
   ])
   const launchOnly = new Set(entriesOf(launchPath).filter((entry) => !fromShell.has(entry)))
   const kept = probedPath.split(delimiter).filter((entry) => !launchOnly.has(entry.trim()))
   const environment = { ...resolved.environment }
-  if (kept.length > 0) environment.PATH = kept.join(delimiter)
+  if (kept.length > 0) environment['PATH'] = kept.join(delimiter)
   else Reflect.deleteProperty(environment, 'PATH')
   return { ...resolved, environment }
 }

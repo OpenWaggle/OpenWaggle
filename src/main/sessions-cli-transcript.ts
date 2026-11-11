@@ -16,8 +16,9 @@ interface TranscriptCursor {
 }
 
 function transcriptOutcome(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) return
-  return value.response.outcome
+  if (!isRecord(value) || !isRecord(value['response'])) return undefined
+  const outcome = value['response']['outcome']
+  return isRecord(outcome) ? outcome : undefined
 }
 
 function optionalNumber(record: Record<string, unknown>, key: string) {
@@ -33,15 +34,15 @@ function optionalNullableString(record: Record<string, unknown>, key: string) {
 function transcriptPage(value: unknown) {
   const outcome = transcriptOutcome(value)
   if (!outcome) return
-  if (isRecord(outcome.error)) throw pageQueryRefusal(outcome.error)
-  if (!Array.isArray(outcome.items)) return
+  if (isRecord(outcome['error'])) throw pageQueryRefusal(outcome['error'])
+  if (!Array.isArray(outcome['items'])) return
   return {
-    items: outcome.items.map((item: unknown) => item),
+    items: outcome['items'].map((item: unknown) => item),
     highWaterMark: optionalNumber(outcome, 'highWaterMark'),
     nextCreatedOrder: optionalNumber(outcome, 'nextCreatedOrder'),
     branchScope:
-      outcome.branchScope === 'tree' || outcome.branchScope === 'active-branch'
-        ? outcome.branchScope
+      outcome['branchScope'] === 'tree' || outcome['branchScope'] === 'active-branch'
+        ? outcome['branchScope']
         : undefined,
     selectedBranchId: optionalNullableString(outcome, 'selectedBranchId'),
     snapshotHeadNodeId: optionalNullableString(outcome, 'snapshotHeadNodeId'),

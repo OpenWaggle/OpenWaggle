@@ -31,7 +31,7 @@ interface TargetCounts {
 }
 
 function validateDatabaseIntegrity(database: HostSqliteDatabase) {
-  const integrity = queryCutoverRecord(database, 'PRAGMA integrity_check')?.integrity_check
+  const integrity = queryCutoverRecord(database, 'PRAGMA integrity_check')?.['integrity_check']
   if (integrity !== 'ok') {
     throw new Error(`Session Host target integrity check failed: ${String(integrity)}`)
   }
@@ -41,7 +41,7 @@ function validateDatabaseIntegrity(database: HostSqliteDatabase) {
   const schemaRevision = queryCutoverRecord(
     database,
     'SELECT schema_revision FROM session_host_schema_metadata WHERE singleton = 1',
-  )?.schema_revision
+  )?.['schema_revision']
   if (schemaRevision !== SESSION_HOST_SCHEMA_REVISION) {
     throw new Error('Session Host target metadata is missing or incompatible.')
   }
@@ -105,16 +105,16 @@ function validateSemanticCoverage(input: {
     const complete =
       input.counts.semanticEmbeddings === input.counts.sessions &&
       input.counts.semanticPending === 0 &&
-      input.state?.status === 'ready' &&
-      input.state.prepared_count === input.counts.sessions &&
-      input.state.pending_count === 0
+      input.state?.['status'] === 'ready' &&
+      input.state['prepared_count'] === input.counts.sessions &&
+      input.state['pending_count'] === 0
     if (!complete) throw new Error('Session Host semantic discovery coverage is incomplete.')
   }
   if (!input.model || !input.state) return
   const compatible =
-    input.state.model_id === input.model.id &&
-    input.state.model_revision === input.model.revision &&
-    input.state.dimensions === input.model.dimensions
+    input.state['model_id'] === input.model.id &&
+    input.state['model_revision'] === input.model.revision &&
+    input.state['dimensions'] === input.model.dimensions
   if (!compatible) {
     throw new Error('Session Host semantic discovery model revision is incompatible.')
   }
@@ -130,7 +130,7 @@ function validateRecoverableSemanticCoverage(database: HostSqliteDatabase) {
       LEFT JOIN session_discovery_embedding_queue AS queue
         ON queue.session_id = sessions.id
       WHERE embeddings.session_id IS NULL AND queue.session_id IS NULL`,
-  )?.count
+  )?.['count']
   if (unrecoverable !== 0) {
     throw new Error('Session Host semantic discovery coverage cannot be recovered from its queue.')
   }
@@ -144,7 +144,7 @@ function validateSemanticVectors(
     database,
     `SELECT COUNT(*) AS count FROM session_discovery_embeddings
       WHERE length(vector) <> dimensions * 4`,
-  )?.count
+  )?.['count']
   if (invalidVectors !== 0) throw new Error('Session Host semantic discovery vectors are invalid.')
   if (!semanticModel) return
   const incompatibleVectors = queryCutoverRecord(
@@ -154,7 +154,7 @@ function validateSemanticVectors(
     semanticModel.id,
     semanticModel.revision,
     String(semanticModel.dimensions),
-  )?.count
+  )?.['count']
   if (incompatibleVectors !== 0) {
     throw new Error('Session Host semantic discovery model revision is incompatible.')
   }
@@ -170,9 +170,9 @@ function isTranscriptStorageCounts(
   value: Record<string, unknown> | undefined,
 ): value is TranscriptStorageCounts {
   return (
-    typeof value?.nodes === 'number' &&
-    typeof value.vector_bytes === 'number' &&
-    typeof value.queued === 'number'
+    typeof value?.['nodes'] === 'number' &&
+    typeof value['vector_bytes'] === 'number' &&
+    typeof value['queued'] === 'number'
   )
 }
 
@@ -215,7 +215,7 @@ function validateTranscriptModel(
     semanticModel.id,
     semanticModel.revision,
     String(semanticModel.dimensions),
-  )?.count
+  )?.['count']
   if (incompatibleVectors !== 0) {
     throw new Error('Session Host semantic transcript model revision is incompatible.')
   }
@@ -237,7 +237,7 @@ function validateTranscriptSemanticProjection(
       LEFT JOIN session_transcript_embedding_queue AS queue ON queue.node_id = nodes.id
       WHERE embeddings.node_id IS NULL AND queue.node_id IS NULL
         AND scopes.coverage_limited = 0`,
-  )?.count
+  )?.['count']
   if (unrecoverable !== 0) {
     throw new Error('Session Host semantic transcript coverage cannot be recovered from its queue.')
   }
@@ -245,7 +245,7 @@ function validateTranscriptSemanticProjection(
     database,
     `SELECT COUNT(*) AS count FROM session_transcript_embeddings
       WHERE length(vector) <> dimensions * 4`,
-  )?.count
+  )?.['count']
   if (invalidVectors !== 0) {
     throw new Error('Session Host semantic transcript vectors are invalid.')
   }
@@ -257,7 +257,7 @@ function validateTranscriptSemanticProjection(
         OR eligible_node_count > searchable_node_count
         OR (coverage_limited = 0 AND coverage_limit_reason IS NOT NULL)
         OR (coverage_limited = 1 AND coverage_limit_reason IS NULL)`,
-  )?.count
+  )?.['count']
   if (invalidScopes !== 0) {
     throw new Error('Session Host semantic transcript scope metadata is invalid.')
   }
@@ -277,7 +277,7 @@ function invalidExecutionProfileCount(database: HostSqliteDatabase) {
           'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'
         )
     `,
-  )?.count
+  )?.['count']
 }
 
 export function validateSessionHostTarget(

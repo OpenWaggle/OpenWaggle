@@ -63,19 +63,19 @@ function muteList(value: unknown): readonly string[] {
 export function resolveDesktopNotificationSettings(raw: unknown): DesktopNotificationSettings {
   if (!isRecord(raw)) return DEFAULTS
   return {
-    enabled: booleanOr(raw.enabled, DEFAULTS.enabled),
-    categories: perCategory(raw.categories, DEFAULTS.categories, booleanOr),
-    sounds: perCategory(raw.sounds, DEFAULTS.sounds, soundOr),
+    enabled: booleanOr(raw['enabled'], DEFAULTS.enabled),
+    categories: perCategory(raw['categories'], DEFAULTS.categories, booleanOr),
+    sounds: perCategory(raw['sounds'], DEFAULTS.sounds, soundOr),
     whileFocused:
-      DESKTOP_NOTIFICATION_FOCUSED_BEHAVIORS.find((behavior) => behavior === raw.whileFocused) ??
+      DESKTOP_NOTIFICATION_FOCUSED_BEHAVIORS.find((behavior) => behavior === raw['whileFocused']) ??
       DEFAULTS.whileFocused,
-    showBadge: booleanOr(raw.showBadge, DEFAULTS.showBadge),
-    showPreviews: booleanOr(raw.showPreviews, DEFAULTS.showPreviews),
-    mutedProjectPaths: muteList(raw.mutedProjectPaths),
-    mutedSessionIds: muteList(raw.mutedSessionIds),
-    permissionRequested: booleanOr(raw.permissionRequested, DEFAULTS.permissionRequested),
-    introductionShown: booleanOr(raw.introductionShown, DEFAULTS.introductionShown),
-    blockedNoticeShown: booleanOr(raw.blockedNoticeShown, DEFAULTS.blockedNoticeShown),
+    showBadge: booleanOr(raw['showBadge'], DEFAULTS.showBadge),
+    showPreviews: booleanOr(raw['showPreviews'], DEFAULTS.showPreviews),
+    mutedProjectPaths: muteList(raw['mutedProjectPaths']),
+    mutedSessionIds: muteList(raw['mutedSessionIds']),
+    permissionRequested: booleanOr(raw['permissionRequested'], DEFAULTS.permissionRequested),
+    introductionShown: booleanOr(raw['introductionShown'], DEFAULTS.introductionShown),
+    blockedNoticeShown: booleanOr(raw['blockedNoticeShown'], DEFAULTS.blockedNoticeShown),
   }
 }
 

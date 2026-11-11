@@ -236,10 +236,10 @@ describe('Session Host full cutover', () => {
       if (typeof value !== 'object' || value === null) throw new Error('Workspace row missing.')
       const row = Object.fromEntries(Object.entries(value))
 
-      expect(row.lifecycle_state).toBe('pending')
-      expect(row.working_path).toContain(`/.openwaggle/worktrees/project/${String(row.id)}`)
-      expect(row.worktree_branch).toBe(`ow/session-${String(row.id)}`)
-      expect(row.working_path).not.toContain('pending://')
+      expect(row['lifecycle_state']).toBe('pending')
+      expect(row['working_path']).toContain(`/.openwaggle/worktrees/project/${String(row['id'])}`)
+      expect(row['worktree_branch']).toBe(`ow/session-${String(row['id'])}`)
+      expect(row['working_path']).not.toContain('pending://')
     } finally {
       target.close()
     }

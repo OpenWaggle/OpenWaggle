@@ -120,20 +120,20 @@ function decodeChunkEnvelope(value: unknown) {
   const envelope = value[LOGICAL_CHUNK_KEY]
   if (!isRecord(envelope)) return null
   if (
-    typeof envelope.id !== 'string' ||
-    typeof envelope.index !== 'number' ||
-    !Number.isSafeInteger(envelope.index) ||
-    typeof envelope.total !== 'number' ||
-    !Number.isSafeInteger(envelope.total) ||
-    typeof envelope.payload !== 'string'
+    typeof envelope['id'] !== 'string' ||
+    typeof envelope['index'] !== 'number' ||
+    !Number.isSafeInteger(envelope['index']) ||
+    typeof envelope['total'] !== 'number' ||
+    !Number.isSafeInteger(envelope['total']) ||
+    typeof envelope['payload'] !== 'string'
   ) {
     return null
   }
   return {
-    id: envelope.id,
-    index: envelope.index,
-    total: envelope.total,
-    payload: Buffer.from(envelope.payload, 'base64'),
+    id: envelope['id'],
+    index: envelope['index'],
+    total: envelope['total'],
+    payload: Buffer.from(envelope['payload'], 'base64'),
   } satisfies LogicalChunk
 }
 
