@@ -11,19 +11,20 @@ import {
   expectEvent,
   feed,
   logFileCount,
-  OUTPUT_FLUSH_MS,
-  OWNER,
   open,
   openInput,
+  OUTPUT_FLUSH_MS,
+  OWNER,
   ptys,
   service,
   settle,
   setupTerminalServiceActionsTest,
+  teardownTerminalServiceActionsTest,
   TERMINAL_ID,
   TERMINAL_KEY,
-  teardownTerminalServiceActionsTest,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 const processProbe = vi.hoisted(() => ({
   rows: new Map<number, ProcessRow>(),
@@ -79,7 +80,7 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
 
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     expect(record?.pendingOutput).toBe('')
     expect(record?.pendingOutputBytes).toBe(0)
     expect(record?.inFlightOutput).toBeNull()
@@ -109,13 +110,13 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
     await vi.advanceTimersByTimeAsync(TERMINAL_GRACEFUL_SHUTDOWN_MS - 1)
 
     expect(first.closeDescriptor).toHaveBeenCalledOnce()
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
     expect(service.records.get(TERMINAL_KEY)?.termination?.pty).toBe(first.pty)
     expect(events.some((payload) => payload.event.type === 'closed')).toBe(false)
 
     first.emitExit(0)
     await closing
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     expectEvent({ type: 'closed' })
   })
 
@@ -147,7 +148,7 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
 
     first.emitPublicExit(0)
     await closing
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('final buffered output')
   })
 
@@ -163,14 +164,14 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
     const closing = Effect.runPromise(service.close(OWNER, TERMINAL_ID, false))
     await vi.advanceTimersByTimeAsync(TERMINAL_GRACEFUL_SHUTDOWN_MS - 1)
     expect(first.closeDescriptor).toHaveBeenCalledOnce()
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
 
     await vi.advanceTimersByTimeAsync(1)
     first.emitExit(137)
     await closing
     expect(first.closeDescriptor).toHaveBeenCalledOnce()
     expect(first.kill).not.toHaveBeenCalled()
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     expectEvent({ type: 'closed' })
   })
 
@@ -240,8 +241,8 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
 
     await Effect.runPromise(service.closeAllForOwner(OWNER, true))
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
-    expect(service.records.has(`session-2::${TERMINAL_ID}`)).toBe(true)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
+    expect(await terminalKeys()).toContain(`session-2::${TERMINAL_ID}`)
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[1]?.closeDescriptor).not.toHaveBeenCalled()
     expectEvent({ type: 'closed' })
@@ -277,8 +278,8 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
       expect(second.closeDescriptor).toHaveBeenCalled()
       expect(first.kill).not.toHaveBeenCalled()
       expect(second.kill).not.toHaveBeenCalled()
-      expect(service.records.has(TERMINAL_KEY)).toBe(true)
-      expect(service.records.has(secondKey)).toBe(false)
+      expect(await terminalKeys()).toContain(TERMINAL_KEY)
+      expect(await terminalKeys()).not.toContain(secondKey)
     } finally {
       processKill.mockRestore()
     }
@@ -300,7 +301,7 @@ describe('makeNodePtyTerminalService close history lifecycle', () => {
     )
 
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
     expect(events.some((payload) => payload.event.type === 'closed')).toBe(false)
   })
 })

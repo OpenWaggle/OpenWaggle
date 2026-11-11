@@ -14,11 +14,15 @@ import {
   settle,
   setupTerminalServiceActionsTest,
   spawn,
-  TERMINAL_ID,
   teardownTerminalServiceActionsTest,
+  TERMINAL_ID,
   terminalHistoryLogsDir,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { lastFlowControl, terminalKeys } from './terminal-service-observations'
+
+const openAs = (ownerKey: string) =>
+  Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey }))
 
 describe('makeNodePtyTerminalService ownership and close', () => {
   beforeEach(setupTerminalServiceActionsTest)
@@ -37,13 +41,18 @@ describe('makeNodePtyTerminalService ownership and close', () => {
     const result = await Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
 
     expect(result).toEqual({ terminalIds: [TERMINAL_ID] })
-    expect(service.records.has(draftKey)).toBe(false)
-    expect(service.records.get(sessionKey)?.live?.pty).toBe(ptys[0]?.pty)
-    expect(service.records.get(sessionKey)?.scrollback.toString()).toBe('draft output')
+    expect(await terminalKeys()).not.toContain(draftKey)
     expect(moves).toEqual([[draftKey, sessionKey]])
     await expect(service.history.read(draftKey)).resolves.toBe('')
     await expect(service.history.read(sessionKey)).resolves.toBe('draft output')
+    // The session owner attaches to the same live shell and its in-memory history.
+    await expect(openAs(sessionOwner)).resolves.toMatchObject({
+      history: 'draft output',
+      running: true,
+    })
+    expect(spawn).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
+    expect(ptys[0]?.closeDescriptor).not.toHaveBeenCalled()
   })
 
   it('migrates a draft terminal while another owner has a persistent history failure', async () => {
@@ -66,7 +75,7 @@ describe('makeNodePtyTerminalService ownership and close', () => {
       await expect(service.history.read(`${sessionOwner}::${TERMINAL_ID}`)).resolves.toBe(
         'draft output',
       )
-      expect(service.records.has(`${draftOwner}::${TERMINAL_ID}`)).toBe(false)
+      expect(await terminalKeys()).not.toContain(`${draftOwner}::${TERMINAL_ID}`)
     } finally {
       await fs.rm(metadataFile, { recursive: true, force: true })
       await service.history.flush()
@@ -77,7 +86,6 @@ describe('makeNodePtyTerminalService ownership and close', () => {
   it('rejects owner migration collisions before mutating either terminal', async () => {
     const draftOwner = 'draft:/repo'
     const sessionOwner = 'session-existing'
-    const draftKey = `${draftOwner}::${TERMINAL_ID}`
     const sessionKey = `${sessionOwner}::${TERMINAL_ID}`
     await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
     await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: sessionOwner }))
@@ -87,9 +95,13 @@ describe('makeNodePtyTerminalService ownership and close', () => {
       `destination ${sessionKey} exists`,
     )
 
-    expect(service.records.get(draftKey)?.live?.pty).toBe(ptys[0]?.pty)
-    expect(service.records.get(sessionKey)?.live?.pty).toBe(ptys[1]?.pty)
     expect(moves).toEqual([])
+    // Both owners keep their own live shell.
+    await expect(openAs(draftOwner)).resolves.toMatchObject({ running: true })
+    await expect(openAs(sessionOwner)).resolves.toMatchObject({ running: true })
+    expect(spawn).toHaveBeenCalledTimes(2)
+    expect(ptys[0]?.closeDescriptor).not.toHaveBeenCalled()
+    expect(ptys[1]?.closeDescriptor).not.toHaveBeenCalled()
   })
 
   it('rolls history and paused runtime state back when attachment migration fails', async () => {
@@ -107,12 +119,16 @@ describe('makeNodePtyTerminalService ownership and close', () => {
       'surface move failed',
     )
 
-    expect(service.records.get(draftKey)?.live?.pty).toBe(ptys[0]?.pty)
-    expect(service.records.has(sessionKey)).toBe(false)
-    expect(service.records.get(draftKey)?.ownerMigration).toBeNull()
-    expect(service.records.get(draftKey)?.live?.outputPaused).toBe(false)
+    expect(await terminalKeys()).not.toContain(sessionKey)
+    expect(lastFlowControl(ptys[0])).toBe('resume')
     await expect(service.history.read(draftKey)).resolves.toBe('draft output')
     await expect(service.history.read(sessionKey)).resolves.toBe('')
+    await expect(openAs(draftOwner)).resolves.toMatchObject({ history: 'draft output' })
+    expect(spawn).toHaveBeenCalledOnce()
+    // The rolled-back migration leaves nothing behind, so a retry succeeds.
+    await expect(
+      Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner)),
+    ).resolves.toEqual({ terminalIds: [TERMINAL_ID] })
   })
 
   it('keeps PTY output paused until owner migration finishes even when an ack drains it', async () => {
@@ -175,7 +191,7 @@ describe('makeNodePtyTerminalService ownership and close', () => {
 
     await migrating
     await closing
-    expect(service.records.has(`${sessionOwner}::${TERMINAL_ID}`)).toBe(false)
+    expect(await terminalKeys()).not.toContain(`${sessionOwner}::${TERMINAL_ID}`)
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
   })
@@ -274,8 +290,8 @@ describe('makeNodePtyTerminalService ownership and close', () => {
     historyMove.resolve()
     await migrating
     await expect(writing).resolves.toEqual({ status: 'written', acceptedBytes: 15 })
-    expect(service.records.has(`${draftOwner}::${TERMINAL_ID}`)).toBe(false)
-    expect(service.records.has(`${sessionOwner}::${TERMINAL_ID}`)).toBe(true)
+    expect(await terminalKeys()).not.toContain(`${draftOwner}::${TERMINAL_ID}`)
+    expect(await terminalKeys()).toContain(`${sessionOwner}::${TERMINAL_ID}`)
     expect(ptys[0]?.write).toHaveBeenCalledExactlyOnceWith('after migration')
   })
 
@@ -307,7 +323,7 @@ describe('makeNodePtyTerminalService ownership and close', () => {
 
     await Promise.all([clearing, reopening, migrating])
     await settle()
-    expect(service.records.has(`${draftOwner}::${TERMINAL_ID}`)).toBe(false)
+    expect(await terminalKeys()).not.toContain(`${draftOwner}::${TERMINAL_ID}`)
     expect(service.records.get(`${sessionOwner}::${TERMINAL_ID}`)?.pendingInputBytes).toBe(0)
     expect(ptys[0]?.write).toHaveBeenCalledExactlyOnceWith('staged before migration')
   })

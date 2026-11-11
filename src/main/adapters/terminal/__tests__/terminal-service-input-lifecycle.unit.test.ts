@@ -19,6 +19,7 @@ import {
   teardownTerminalServiceActionsTest,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { projectActionPending, readinessPhase } from './terminal-service-observations'
 
 describe('makeNodePtyTerminalService input lifecycle', () => {
   beforeEach(setupTerminalServiceActionsTest)
@@ -126,10 +127,10 @@ describe('makeNodePtyTerminalService input lifecycle', () => {
     await settle()
     feed(0, readinessMarker(0))
     expect(ptys[0]?.write).toHaveBeenCalledExactlyOnceWith('pnpm test\r')
-    expect(service.records.get(TERMINAL_KEY)?.projectAction).not.toBeNull()
+    expect(await projectActionPending(TERMINAL_KEY)).toBe(true)
 
     feed(0, readinessMarker(0))
-    expect(service.records.get(TERMINAL_KEY)?.projectAction).toBeNull()
+    expect(await projectActionPending(TERMINAL_KEY)).toBe(false)
   })
 
   it('releases a fast Project Action missed between reliable inspector polls', async () => {
@@ -193,7 +194,7 @@ describe('makeNodePtyTerminalService input lifecycle', () => {
     await settle()
     feed(2, readinessMarker(2))
     expect(ptys[2]?.write).not.toHaveBeenCalled()
-    expect(service.records.get(TERMINAL_KEY)?.projectAction).toBeNull()
+    expect(await projectActionPending(TERMINAL_KEY)).toBe(false)
   })
 
   it('preserves a chunked one-MiB paste in exact order while awaiting readiness', async () => {
@@ -223,21 +224,21 @@ describe('makeNodePtyTerminalService input lifecycle', () => {
     await open(workDirA)
     await settle()
     feed(0, readinessMarker(0))
-    expect(service.records.get(TERMINAL_KEY)?.readinessPhase).toBe('ready')
+    expect(readinessPhase()).toBe('ready')
 
     await Effect.runPromise(service.clear(OWNER, TERMINAL_ID))
-    expect(service.records.get(TERMINAL_KEY)?.readinessPhase).toBe('ready')
+    expect(readinessPhase()).toBe('ready')
     await expect(
       Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'after clear')),
     ).resolves.toEqual({ status: 'written', acceptedBytes: 11 })
 
     await Effect.runPromise(service.restart(openInput(workDirA)))
     await settle()
-    expect(service.records.get(TERMINAL_KEY)?.readinessPhase).toBe('awaiting-prompt')
+    expect(readinessPhase()).toBe('awaiting-prompt')
     ptys[0]?.dataListeners[0]?.(readinessMarker(0))
-    expect(service.records.get(TERMINAL_KEY)?.readinessPhase).toBe('awaiting-prompt')
+    expect(readinessPhase()).toBe('awaiting-prompt')
     feed(1, readinessMarker(1))
-    expect(service.records.get(TERMINAL_KEY)?.readinessPhase).toBe('ready')
+    expect(readinessPhase()).toBe('ready')
   })
 
   it('does not claim Clear succeeded when durable history truncation fails', async () => {
@@ -252,7 +253,7 @@ describe('makeNodePtyTerminalService input lifecycle', () => {
       failure.message,
     )
 
-    expect(service.records.get(TERMINAL_KEY)?.scrollback.toString()).toBe('sensitive output')
+    await expect(open(workDirA)).resolves.toMatchObject({ history: 'sensitive output' })
     expect(events.some((payload) => payload.event.type === 'cleared')).toBe(false)
     expect(ptys[0]?.pauseOutput).toHaveBeenCalledOnce()
     expect(ptys[0]?.resumeOutput).toHaveBeenCalledOnce()
@@ -272,6 +273,9 @@ describe('makeNodePtyTerminalService input lifecycle', () => {
     expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
     expect(ptys[0]?.kill).not.toHaveBeenCalled()
     expect(spawn).toHaveBeenCalledOnce()
-    expect(service.records.get(TERMINAL_KEY)?.scrollback.toString()).toBe('keep this output')
+    // Reopening the exited shell replays the kept output ahead of the previous-session marker.
+    await expect(open(workDirA)).resolves.toMatchObject({
+      history: expect.stringMatching(/^keep this output/),
+    })
   })
 })
