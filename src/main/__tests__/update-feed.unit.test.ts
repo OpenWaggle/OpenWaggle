@@ -1,24 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
+import { electrobunMetadataAssetName } from '../adapters/electrobun/electrobun-update-engine'
 import {
   compareReleaseVersions,
   configureUpdaterFeed,
   isVersionEligibleForChannel,
   type UpdateFeedRuntime,
-  updaterMetadataAssetName,
 } from '../update-feed'
 
 const MAC_ARM64: UpdateFeedRuntime = { platform: 'darwin', arch: 'arm64' }
-const ALL_METADATA = [
-  'latest-mac.yml',
-  'beta-mac.yml',
-  'alpha-mac.yml',
-  'latest-linux.yml',
-  'beta-linux.yml',
-  'alpha-linux.yml',
-  'latest.yml',
-  'beta.yml',
-  'alpha.yml',
-].map((name) => ({ name }))
+const ALL_METADATA = ['macos-arm64', 'macos-x64', 'win-x64', 'linux-x64', 'linux-arm64'].map(
+  (target) => ({ name: `stable-${target}-update-v2.json` }),
+)
+
+/** The feed's view of the bound engine: Electrobun's manifest names, and a recorded feed. */
+function feedEngine() {
+  return { metadataAssetName: electrobunMetadataAssetName, setFeed: vi.fn() }
+}
 
 interface ReleaseFixture {
   readonly tag_name: string
@@ -35,7 +32,7 @@ function response(releases: readonly ReleaseFixture[]) {
 
 describe('update feed selection', () => {
   it('selects Stable semantically when a newer prerelease is mislabelled', async () => {
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
     const fetchReleases = vi
       .fn()
       .mockResolvedValue(
@@ -46,14 +43,11 @@ describe('update feed selection', () => {
         ]),
       )
 
-    await configureUpdaterFeed({ setFeedURL }, 'stable', fetchReleases)
+    await configureUpdaterFeed(engine, 'stable', fetchReleases)
 
     expect(fetchReleases).toHaveBeenCalledOnce()
-    expect(setFeedURL).toHaveBeenLastCalledWith({
-      provider: 'generic',
-      url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.4.1/',
-      channel: 'latest',
-      useMultipleRangeRequest: false,
+    expect(engine.setFeed).toHaveBeenLastCalledWith({
+      releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.4.1/',
     })
   })
 
@@ -65,9 +59,9 @@ describe('update feed selection', () => {
       .fn()
       .mockResolvedValueOnce(response(firstPage))
       .mockResolvedValueOnce(response([{ tag_name: 'v0.4.0' }]))
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await configureUpdaterFeed({ setFeedURL }, 'beta', fetchReleases)
+    await configureUpdaterFeed(engine, 'beta', fetchReleases)
 
     expect(fetchReleases).toHaveBeenNthCalledWith(
       1,
@@ -79,11 +73,8 @@ describe('update feed selection', () => {
       'https://api.github.com/repos/OpenWaggle/OpenWaggle/releases?per_page=100&page=2',
       expect.objectContaining({ headers: expect.any(Object) }),
     )
-    expect(setFeedURL).toHaveBeenLastCalledWith({
-      provider: 'generic',
-      url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.4.0/',
-      channel: 'beta',
-      useMultipleRangeRequest: false,
+    expect(engine.setFeed).toHaveBeenLastCalledWith({
+      releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.4.0/',
     })
   })
 
@@ -95,16 +86,13 @@ describe('update feed selection', () => {
       .fn()
       .mockResolvedValueOnce(response(firstPage))
       .mockResolvedValueOnce(response([{ tag_name: 'v0.5.0-alpha.9' }]))
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await configureUpdaterFeed({ setFeedURL }, 'alpha', fetchReleases)
+    await configureUpdaterFeed(engine, 'alpha', fetchReleases)
 
     expect(fetchReleases).toHaveBeenCalledTimes(2)
-    expect(setFeedURL).toHaveBeenLastCalledWith({
-      provider: 'generic',
-      url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-alpha.9/',
-      channel: 'alpha',
-      useMultipleRangeRequest: false,
+    expect(engine.setFeed).toHaveBeenLastCalledWith({
+      releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-alpha.9/',
     })
   })
 
@@ -120,13 +108,13 @@ describe('update feed selection', () => {
           { tag_name: 'v0.5.0-beta.10' },
         ]),
       )
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await configureUpdaterFeed({ setFeedURL }, 'beta', fetchReleases)
+    await configureUpdaterFeed(engine, 'beta', fetchReleases)
 
-    expect(setFeedURL).toHaveBeenLastCalledWith(
+    expect(engine.setFeed).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-rc.1/',
+        releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-rc.1/',
       }),
     )
   })
@@ -142,13 +130,13 @@ describe('update feed selection', () => {
           { tag_name: 'v0.4.1' },
         ]),
       )
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await configureUpdaterFeed({ setFeedURL }, 'alpha', fetchReleases)
+    await configureUpdaterFeed(engine, 'alpha', fetchReleases)
 
-    expect(setFeedURL).toHaveBeenLastCalledWith(
+    expect(engine.setFeed).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.6.0-rc.2/',
+        releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.6.0-rc.2/',
       }),
     )
   })
@@ -157,13 +145,13 @@ describe('update feed selection', () => {
     const fetchReleases = vi
       .fn()
       .mockResolvedValue(response([{ tag_name: 'v1.0.0-rc.3' }, { tag_name: 'v0.9.0' }]))
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await configureUpdaterFeed({ setFeedURL }, 'stable', fetchReleases)
+    await configureUpdaterFeed(engine, 'stable', fetchReleases)
 
-    expect(setFeedURL).toHaveBeenLastCalledWith(
+    expect(engine.setFeed).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.9.0/',
+        releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.9.0/',
       }),
     )
   })
@@ -172,33 +160,37 @@ describe('update feed selection', () => {
     const fetchReleases = vi
       .fn()
       .mockResolvedValue(response([{ tag_name: 'v1.0.0-rc.1' }, { tag_name: 'v1.0.0-beta.25' }]))
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await expect(
-      configureUpdaterFeed({ setFeedURL }, 'stable', fetchReleases, MAC_ARM64),
-    ).resolves.toEqual({ type: 'no-release' })
-    expect(setFeedURL).not.toHaveBeenCalledWith(expect.objectContaining({ provider: 'generic' }))
+    await expect(configureUpdaterFeed(engine, 'stable', fetchReleases, MAC_ARM64)).resolves.toEqual(
+      { type: 'no-release' },
+    )
+    expect(engine.setFeed).not.toHaveBeenCalled()
   })
 
   it('skips a newer release whose channel metadata is not uploaded yet', async () => {
     const fetchReleases = vi.fn().mockResolvedValue(
       response([
-        // Published moments ago: the installers are still uploading, so beta-mac.yml is missing.
+        // Published moments ago: the archives are still uploading, so the macOS manifest is missing.
         {
           tag_name: 'v1.0.0-beta.26',
-          assets: [{ name: 'openwaggle-1.0.0-beta.26-arm64.dmg' }, { name: 'beta-linux.yml' }],
+          assets: [
+            { name: 'openwaggle-1.0.0-beta.26-arm64.dmg' },
+            { name: 'stable-linux-x64-update-v2.json' },
+          ],
         },
         { tag_name: 'v1.0.0-beta.25' },
       ]),
     )
-    const setFeedURL = vi.fn()
+    const engine = feedEngine()
 
-    await expect(
-      configureUpdaterFeed({ setFeedURL }, 'beta', fetchReleases, MAC_ARM64),
-    ).resolves.toEqual({ type: 'release', tag: 'v1.0.0-beta.25' })
-    expect(setFeedURL).toHaveBeenLastCalledWith(
+    await expect(configureUpdaterFeed(engine, 'beta', fetchReleases, MAC_ARM64)).resolves.toEqual({
+      type: 'release',
+      tag: 'v1.0.0-beta.25',
+    })
+    expect(engine.setFeed).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.0-beta.25/',
+        releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.0-beta.25/',
       }),
     )
   })
@@ -209,21 +201,27 @@ describe('update feed selection', () => {
       .mockResolvedValue(response([{ tag_name: 'v1.0.0-beta.1', assets: [] }]))
 
     await expect(
-      configureUpdaterFeed({ setFeedURL: vi.fn() }, 'beta', fetchReleases, MAC_ARM64),
+      configureUpdaterFeed(feedEngine(), 'beta', fetchReleases, MAC_ARM64),
     ).resolves.toEqual({ type: 'no-release' })
   })
 
-  it('names the metadata file electron-updater requests on each platform', () => {
-    expect(updaterMetadataAssetName('stable', { platform: 'darwin', arch: 'x64' })).toBe(
-      'latest-mac.yml',
+  it("looks for the engine's manifest for this platform and channel", async () => {
+    const engine = { metadataAssetName: vi.fn(() => 'feed-manifest.json'), setFeed: vi.fn() }
+    const fetchReleases = vi.fn().mockResolvedValue(
+      response([
+        { tag_name: 'v1.0.0-beta.2', assets: [{ name: 'stable-macos-arm64-update-v2.json' }] },
+        { tag_name: 'v1.0.0-beta.1', assets: [{ name: 'feed-manifest.json' }] },
+      ]),
     )
-    expect(updaterMetadataAssetName('beta', { platform: 'linux', arch: 'x64' })).toBe(
-      'beta-linux.yml',
-    )
-    expect(updaterMetadataAssetName('beta', { platform: 'linux', arch: 'arm64' })).toBe(
-      'beta-linux-arm64.yml',
-    )
-    expect(updaterMetadataAssetName('alpha', { platform: 'win32', arch: 'x64' })).toBe('alpha.yml')
+
+    await expect(
+      configureUpdaterFeed(engine, 'beta', fetchReleases, { platform: 'linux', arch: 'arm64' }),
+    ).resolves.toEqual({ type: 'release', tag: 'v1.0.0-beta.1' })
+    expect(engine.metadataAssetName).toHaveBeenCalledWith({
+      feedChannel: 'beta',
+      platform: 'linux',
+      arch: 'arm64',
+    })
   })
 
   it('orders versions semantically and rejects tags it cannot parse', () => {

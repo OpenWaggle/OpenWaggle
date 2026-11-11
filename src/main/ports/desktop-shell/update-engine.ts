@@ -1,21 +1,19 @@
 import { Context } from 'effect'
 import type { Unsubscribe } from './shell-events'
 
-/** Where the engine reads update metadata: GitHub releases, or one release's assets. */
-export type UpdateFeed =
-  | {
-      readonly provider: 'github'
-      readonly owner: string
-      readonly repo: string
-      readonly channel: string
-    }
-  | {
-      readonly provider: 'generic'
-      readonly url: string
-      readonly channel: string
-      /** GitHub answers multi-range requests with HTTP 501; differential downloads use one. */
-      readonly useMultipleRangeRequest: boolean
-    }
+/** One release's download directory: the engine reads that release's update metadata there. */
+export interface UpdateFeed {
+  /** `https://github.com/<owner>/<repo>/releases/download/<tag>/`. */
+  readonly releaseUrl: string
+}
+
+/** The OpenWaggle feed channel and the platform a release's update metadata must serve. */
+export interface UpdateMetadataTarget {
+  /** `latest`, `beta` or `alpha` (`updaterFeedChannel`). */
+  readonly feedChannel: string
+  readonly platform: NodeJS.Platform
+  readonly arch: string
+}
 
 /** One check that found an update. */
 export interface UpdateCheck {
@@ -33,6 +31,8 @@ export interface UpdateCheck {
  * electron-updater on the GitHub release feed. Electrobun's updater takes over after the
  * transition release, which existing installs still read from the electron-updater feed; it reads
  * the same release that OpenWaggle's policy selected (`setFeed`), from that release's assets.
+ * The policy selects only a release that already carries the file the engine reads
+ * (`metadataAssetName`), so a release whose assets are still uploading is never read.
  *
  * The engine never installs on its own: OpenWaggle installs only through `quitAndInstall`.
  */
@@ -47,6 +47,12 @@ export interface UpdateEngineShape {
   }) => void
   /** Whether a check that finds an update starts downloading it. */
   readonly setAutoDownload: (autoDownload: boolean) => void
+  /**
+   * The release asset this engine reads its update metadata from: a release without it is not one
+   * the engine can update from on this platform (yet).
+   */
+  readonly metadataAssetName: (target: UpdateMetadataTarget) => string
+  /** Reads the next checks from one release's assets. */
   readonly setFeed: (feed: UpdateFeed) => void
   /** Clears any install the engine had scheduled for the next quit (Electrobun schedules none). */
   readonly cancelInstallOnQuit: () => void

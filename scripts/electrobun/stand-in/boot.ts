@@ -111,12 +111,7 @@ if (feed !== undefined && feed !== '') {
   })
   engine.configure({ feedChannel: 'beta', allowPrerelease: true })
   engine.setAutoDownload(true)
-  engine.setFeed({
-    provider: 'generic',
-    url: feed,
-    channel: 'beta',
-    useMultipleRangeRequest: false,
-  })
+  engine.setFeed({ releaseUrl: feed })
   logUpdate('start', { version: localInfo.version, feed })
   engine.checkForUpdates().then(
     (check) => logUpdate('checked', check?.version ?? null),

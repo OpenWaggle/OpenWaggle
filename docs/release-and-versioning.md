@@ -194,8 +194,9 @@ PR merges. If a competing PR opens anyway, close it without merging and dispatch
 
 Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
 receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
-non-downgrade version whose platform channel metadata (such as `beta-mac.yml`) is already
-uploaded, then points the updater at that release's metadata, so RC does not
+non-downgrade version that already carries the update engine's metadata for this platform (the
+engine names it: `stable-macos-arm64-update-v2.json` for Electrobun, `beta-mac.yml` for
+electron-updater), then points the updater at that release's assets, so RC does not
 depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
 RC build with no saved preference defaults to Beta. Release packaging publishes the matching
 metadata aliases for every eligible automatic channel because electron-builder does not generate

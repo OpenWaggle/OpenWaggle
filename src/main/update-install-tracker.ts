@@ -48,7 +48,7 @@ export function shouldReleaseHostOnQuit() {
   return releaseHostOnQuit
 }
 
-/** The installer is quitting the app (Electron's `before-quit-for-update`). */
+/** The installer is quitting the app (the shell's `before-quit-for-update`). */
 export function markUpdateQuit() {
   releaseHostOnQuit = true
   installerQuitAnnounced = true

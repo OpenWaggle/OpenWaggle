@@ -1,5 +1,8 @@
 import { type AppUpdater, autoUpdater } from 'electron-updater'
-import type { UpdateEngineShape } from '../../ports/desktop-shell/update-engine'
+import type {
+  UpdateEngineShape,
+  UpdateMetadataTarget,
+} from '../../ports/desktop-shell/update-engine'
 
 /**
  * electron-updater. Its `autoUpdater` getter creates the platform updater on first use, so every
@@ -16,6 +19,13 @@ function subscribe(event: Parameters<AppUpdater['on']>[0], handler: (...args: ne
   }
 }
 
+/** The channel metadata file electron-updater requests (its `Provider.getCustomChannelName`). */
+export function electronMetadataAssetName({ feedChannel, platform, arch }: UpdateMetadataTarget) {
+  if (platform === 'darwin') return `${feedChannel}-mac.yml`
+  if (platform === 'linux') return `${feedChannel}-linux${arch === 'x64' ? '' : `-${arch}`}.yml`
+  return `${feedChannel}.yml`
+}
+
 export const electronUpdateEngine: UpdateEngineShape = {
   configure: ({ feedChannel, allowPrerelease }) => {
     const engine = updater()
@@ -29,7 +39,16 @@ export const electronUpdateEngine: UpdateEngineShape = {
   setAutoDownload: (autoDownload) => {
     updater().autoDownload = autoDownload
   },
-  setFeed: (feed) => updater().setFeedURL(feed),
+  metadataAssetName: electronMetadataAssetName,
+  setFeed: ({ releaseUrl }) =>
+    updater().setFeedURL({
+      provider: 'generic',
+      url: releaseUrl,
+      channel: updater().channel,
+      // GitHub release downloads answer multi-range requests with HTTP 501, so differential
+      // (blockmap) downloads must use single ranges, as electron-updater's GitHub provider does.
+      useMultipleRangeRequest: false,
+    }),
   cancelInstallOnQuit: () => {
     updater().autoInstallOnAppQuit = false
   },

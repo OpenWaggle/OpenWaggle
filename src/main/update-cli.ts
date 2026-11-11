@@ -41,7 +41,7 @@ async function configureUpdater(channel: UpdateChannel, checkOnly: boolean) {
   // Installs only through quitAndInstall below. Installing on quit would let a Ctrl-C while the
   // Session Host stops install the update under it.
   updateEngine.cancelInstallOnQuit()
-  return configureUpdaterFeed({ setFeedURL: updateEngine.setFeed }, channel)
+  return configureUpdaterFeed(updateEngine, channel)
 }
 
 function createDownloadWaiter() {
@@ -80,8 +80,9 @@ function channelInstallMode(checkOnly: boolean) {
   // A running desktop app owns installation, so its Restart to update action can protect active
   // agent runs and relaunch it. The terminal then only reports the available version.
   if (isDesktopAppRunning(systemIntegration)) return 'defer-to-desktop' as const
-  // Squirrel.Mac ignores quitAndInstall's arguments and always relaunches the app, so macOS installs
-  // through the bundled installer, which can install without opening a window.
+  // On macOS the engine always relaunches the app after it installs (Squirrel.Mac before the
+  // Electrobun transition, Electrobun's updater after it), so macOS installs through the bundled
+  // installer, which can install without opening a window.
   return process.platform === 'darwin' ? ('bundled-installer' as const) : ('updater' as const)
 }
 

@@ -88,13 +88,11 @@ async function runUpdaterCheck(generation: number, selection: UpdateFeedSelectio
 function startUpdaterCheck(channel: UpdateChannel, generation: number) {
   let operation: Promise<void>
   try {
-    operation = configureUpdaterFeed({ setFeedURL: updateEngine.setFeed }, channel).then(
-      (selection) => {
-        if (generation !== checkGeneration) return
-        acceptUpdaterEvents = true
-        return runUpdaterCheck(generation, selection)
-      },
-    )
+    operation = configureUpdaterFeed(updateEngine, channel).then((selection) => {
+      if (generation !== checkGeneration) return
+      acceptUpdaterEvents = true
+      return runUpdaterCheck(generation, selection)
+    })
   } catch (error) {
     reportUpdateCheckError(error, generation)
     return
@@ -284,7 +282,7 @@ export function initAutoUpdater(
   })
 
   updateEngine.onError((error) => {
-    // Squirrel.Mac unpacks and verifies the update only after Restart to update.
+    // An engine may unpack and verify the update only after Restart to update (macOS).
     if (install.failUpdateInstall(error)) return
     if (!acceptUpdaterEvents) return
     activeUpdateCancellation = null

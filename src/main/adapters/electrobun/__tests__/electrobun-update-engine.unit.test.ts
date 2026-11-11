@@ -10,29 +10,33 @@ async function engine(installedVersion?: string) {
 }
 
 describe('Electrobun UpdateEngine', () => {
-  it('checks the release OpenWaggle selected, or the newest Stable release before that', async () => {
+  it('checks the release OpenWaggle selected, or the feed baked into the build before that', async () => {
     const { updater, subject } = await engine()
     await subject.checkForUpdates()
-    subject.setFeed({
-      provider: 'github',
-      owner: 'OpenWaggle',
-      repo: 'OpenWaggle',
-      channel: 'beta',
-    })
-    await subject.checkForUpdates()
     const selected = 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.1.0-beta.2/'
-    subject.setFeed({
-      provider: 'generic',
-      url: selected,
-      channel: 'beta',
-      useMultipleRangeRequest: false,
-    })
+    subject.setFeed({ releaseUrl: selected })
     await subject.checkForUpdates()
     expect(updater.state.checkedUrls).toEqual([
       'https://github.com/OpenWaggle/OpenWaggle/releases/latest/download',
-      'https://github.com/OpenWaggle/OpenWaggle/releases/latest/download',
       selected,
     ])
+  })
+
+  it('names the manifest Electrobun reads, whatever the OpenWaggle channel', async () => {
+    const { subject } = await engine()
+    const names = [
+      { feedChannel: 'latest', platform: 'darwin', arch: 'arm64' },
+      { feedChannel: 'beta', platform: 'win32', arch: 'x64' },
+      { feedChannel: 'alpha', platform: 'linux', arch: 'arm64' },
+    ] as const
+    expect(names.map((target) => subject.metadataAssetName(target))).toEqual([
+      'stable-macos-arm64-update-v2.json',
+      'stable-win-x64-update-v2.json',
+      'stable-linux-arm64-update-v2.json',
+    ])
+    expect(() =>
+      subject.metadataAssetName({ feedChannel: 'beta', platform: 'freebsd', arch: 'x64' }),
+    ).toThrow(/freebsd/u)
   })
 
   it.each([
@@ -81,10 +85,7 @@ describe('Electrobun UpdateEngine', () => {
     const { updater, subject } = await engine()
     updater.Updater.getLocalInfo = async () => ({ ...updater.localInfo })
     subject.setFeed({
-      provider: 'generic',
-      url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.1/',
-      channel: 'latest',
-      useMultipleRangeRequest: false,
+      releaseUrl: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v1.0.1/',
     })
     await expect(subject.checkForUpdates()).rejects.toThrow(/not the selected feed/u)
     expect(updater.state.checkedUrls).toEqual([])

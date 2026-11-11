@@ -18,8 +18,8 @@ export async function startGuiAutoUpdater() {
     const { disposeAutoUpdater, initAutoUpdater } = await import('./updater')
     const { markUpdateQuit, shouldReleaseHostOnQuit } = await import('./update-install-tracker')
     started = { dispose: disposeAutoUpdater, releasesHost: shouldReleaseHostOnQuit }
-    // Squirrel.Mac and the Windows installer announce the quit they start, even one that comes
-    // after the install watchdog gave up waiting.
+    // The shell announces the quit its installer starts, even one that comes after the install
+    // watchdog gave up waiting.
     appLifecycle.onBeforeQuitForUpdate(markUpdateQuit)
     const { getSettings, hydrateSettingsStoreFromHost } = await import('./store/settings')
     initAutoUpdater(

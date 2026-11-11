@@ -63,6 +63,14 @@ export const updateEngineContract = definePortContract<UpdateEngineContractHarne
       ])
     },
 
+    'names one release asset per platform, the file a release must carry': ({ subject }) => {
+      const names = (['darwin', 'win32', 'linux'] as const).map((platform) =>
+        subject.metadataAssetName({ feedChannel: 'beta', platform, arch: 'x64' }),
+      )
+      for (const name of names) expect(name).toMatch(/^[\w.-]+\.(?:json|yml)$/u)
+      expect(new Set(names).size).toBe(names.length)
+    },
+
     'never installs on quit unless asked, and installs as asked': async ({
       subject,
       installsOnQuit,

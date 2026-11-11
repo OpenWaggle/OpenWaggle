@@ -1,5 +1,6 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-channel'
+import type { UpdateEngineShape } from './ports/desktop-shell/update-engine'
 
 const RELEASES_PER_PAGE = 100
 const MAX_RELEASE_PAGES = 100
@@ -28,23 +29,8 @@ export type UpdateFeedSelection =
   | { readonly type: 'release'; readonly tag: string }
   | { readonly type: 'no-release' }
 
-type FeedConfiguration =
-  | {
-      readonly provider: 'github'
-      readonly owner: 'OpenWaggle'
-      readonly repo: 'OpenWaggle'
-      readonly channel: string
-    }
-  | {
-      readonly provider: 'generic'
-      readonly url: string
-      readonly channel: ReturnType<typeof updaterFeedChannel>
-      readonly useMultipleRangeRequest: false
-    }
-
-interface UpdateFeedTarget {
-  readonly setFeedURL: (configuration: FeedConfiguration) => void
-}
+/** What the feed selection needs of the update engine: the file it reads, and where to read it. */
+export type UpdateFeedEngine = Pick<UpdateEngineShape, 'metadataAssetName' | 'setFeed'>
 
 interface ReleaseListResponse {
   readonly ok: boolean
@@ -116,16 +102,6 @@ export function compareReleaseVersions(left: string, right: string) {
   return compareParsedVersions(parsedLeft, parsedRight)
 }
 
-/** The channel metadata file electron-updater requests (its `Provider.getCustomChannelName`). */
-export function updaterMetadataAssetName(channel: UpdateChannel, runtime: UpdateFeedRuntime) {
-  const feed = updaterFeedChannel(channel)
-  if (runtime.platform === 'darwin') return `${feed}-mac.yml`
-  if (runtime.platform === 'linux') {
-    return `${feed}-linux${runtime.arch === 'x64' ? '' : `-${runtime.arch}`}.yml`
-  }
-  return `${feed}.yml`
-}
-
 /**
  * The newest eligible release that already has this platform's channel metadata. A release is
  * listed as soon as it is published, before its assets finish uploading; reading its metadata then
@@ -134,9 +110,8 @@ export function updaterMetadataAssetName(channel: UpdateChannel, runtime: Update
 function newestEligibleRelease(
   releases: readonly ListedRelease[],
   channel: UpdateChannel,
-  runtime: UpdateFeedRuntime,
+  metadataAsset: string,
 ) {
-  const metadataAsset = updaterMetadataAssetName(channel, runtime)
   let selected: ParsedReleaseVersion | undefined
   for (const release of releases) {
     const parsed = parseReleaseVersion(release.tag_name)
@@ -166,31 +141,29 @@ async function fetchAllReleases(fetchReleases: UpdateReleaseFetcher) {
 
 const fetchReleaseList: UpdateReleaseFetcher = (url, init) => fetch(url, init)
 
+/**
+ * Points the engine at the newest release `channel` accepts that already carries the engine's
+ * update metadata for this platform, and reports which release that is.
+ */
 export function configureUpdaterFeed(
-  updater: UpdateFeedTarget,
+  engine: UpdateFeedEngine,
   channel: UpdateChannel,
   fetchReleases: UpdateReleaseFetcher = fetchReleaseList,
   runtime: UpdateFeedRuntime = process,
 ) {
-  updater.setFeedURL({
-    provider: 'github',
-    owner: 'OpenWaggle',
-    repo: 'OpenWaggle',
-    channel: updaterFeedChannel(channel),
+  const metadataAsset = engine.metadataAssetName({
+    feedChannel: updaterFeedChannel(channel),
+    platform: runtime.platform,
+    arch: runtime.arch,
   })
   return fetchAllReleases(fetchReleases).then((releases) => {
-    const tag = newestEligibleRelease(releases, channel, runtime)
+    const tag = newestEligibleRelease(releases, channel, metadataAsset)
     if (tag === undefined) {
       const selection: UpdateFeedSelection = { type: 'no-release' }
       return selection
     }
-    updater.setFeedURL({
-      provider: 'generic',
-      url: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
-      channel: updaterFeedChannel(channel),
-      // GitHub release downloads answer multi-range requests with HTTP 501, so differential
-      // (blockmap) downloads must use single ranges, as electron-updater's GitHub provider does.
-      useMultipleRangeRequest: false,
+    engine.setFeed({
+      releaseUrl: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
     })
     const selection: UpdateFeedSelection = { type: 'release', tag }
     return selection

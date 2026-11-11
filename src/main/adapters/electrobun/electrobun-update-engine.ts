@@ -1,6 +1,9 @@
 import type { UpdateStatusEntry } from 'electrobun/main'
 import type { Unsubscribe } from '../../ports/desktop-shell/shell-events'
-import type { UpdateEngineShape, UpdateFeed } from '../../ports/desktop-shell/update-engine'
+import type {
+  UpdateEngineShape,
+  UpdateMetadataTarget,
+} from '../../ports/desktop-shell/update-engine'
 import { electrobun } from './electrobun-sdk'
 import { emitShellEvent } from './electrobun-shell-events'
 
@@ -42,8 +45,26 @@ interface EngineState {
   readonly cancelled: Set<string>
 }
 
-function githubLatestDownload(owner: string, repo: string) {
-  return `https://github.com/${owner}/${repo}/releases/latest/download`
+/**
+ * The build environment every release is built with (docs/electrobun-transition.md); Electrobun
+ * prefixes the update files with it, whatever OpenWaggle channel the release is on.
+ */
+const BUILD_ENVIRONMENT = 'stable'
+/** Electrobun's names for the platforms (`SupportedOS` in its shared/platform.ts). */
+const ELECTROBUN_OS: Readonly<Partial<Record<NodeJS.Platform, string>>> = {
+  darwin: 'macos',
+  win32: 'win',
+  linux: 'linux',
+}
+
+/**
+ * `stable-<os>-<arch>-update-v2.json`: the manifest Electrobun's updater reads first (it falls back
+ * to `-update.json` only when this one is missing; OpenWaggle releases publish both).
+ */
+export function electrobunMetadataAssetName({ platform, arch }: UpdateMetadataTarget) {
+  const os = ELECTROBUN_OS[platform]
+  if (os === undefined) throw new Error(`Electrobun publishes no updates for ${platform}.`)
+  return `${BUILD_ENVIRONMENT}-${os}-${arch}-update-v2.json`
 }
 const SEMVER_CORE_PARTS = 3
 const PRERELEASE_SEPARATOR = '-'
@@ -113,10 +134,6 @@ export function compareSemanticVersions(left: string, right: string) {
 }
 
 const updater = () => electrobun().Updater
-
-function feedBaseUrl(feed: UpdateFeed) {
-  return feed.provider === 'generic' ? feed.url : githubLatestDownload(feed.owner, feed.repo)
-}
 
 function createEngineListeners() {
   return {
@@ -238,8 +255,9 @@ function createElectrobunUpdateEngine(): UpdateEngineShape {
     setAutoDownload: (autoDownload) => {
       state.autoDownload = autoDownload
     },
+    metadataAssetName: electrobunMetadataAssetName,
     setFeed: (feed) => {
-      state.baseUrl = feedBaseUrl(feed)
+      state.baseUrl = feed.releaseUrl
     },
     cancelInstallOnQuit: () => undefined,
     checkForUpdates: async () => {

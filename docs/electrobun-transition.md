@@ -211,8 +211,9 @@ target's devkit), with `OPENWAGGLE_RELEASE_CHANNEL` stamped as before.
 
 Decision: **each GitHub release's own download directory**, chosen per check. The Electrobun
 UpdateEngine (`src/main/adapters/electrobun/electrobun-update-engine.ts`) is handed the release that
-`src/main/update-feed.ts` already selects for the channel (newest eligible release with this
-platform's metadata, prereleases included for Beta and Alpha) and points Electrobun's updater at
+`src/main/update-feed.ts` already selects for the channel (newest eligible release that carries
+the manifest the engine names, `UpdateEngine.metadataAssetName`, prereleases included for Beta and
+Alpha) and, through `UpdateEngine.setFeed({ releaseUrl })`, points Electrobun's updater at
 `https://github.com/OpenWaggle/OpenWaggle/releases/download/<tag>/`, where it reads
 `stable-<os>-<arch>-update-v2.json`, the archive and the patch. The baked `release.baseUrl`
 (`releases/latest/download`) is only a fallback.
