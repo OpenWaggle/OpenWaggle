@@ -180,7 +180,10 @@ export class BrowserPreviewAutomationInputArbitrator {
 
   private prune(now: number) {
     let expired = 0
-    while (expired < this.expected.length && this.expected[expired]?.expiresAt < now) expired += 1
+    for (const signal of this.expected) {
+      if (signal.expiresAt >= now) break
+      expired += 1
+    }
     if (expired > 0) this.expected.splice(0, expired)
   }
 }
