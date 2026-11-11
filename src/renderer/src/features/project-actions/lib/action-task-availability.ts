@@ -15,8 +15,9 @@ export function actionTaskUnavailable(
   if (
     discovery.tasks.length >= ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS ||
     discovery.diagnostics.length
-  )
+  ) {
     return undefined
+  }
   return 'This saved task is no longer available in the workspace.'
 }
 

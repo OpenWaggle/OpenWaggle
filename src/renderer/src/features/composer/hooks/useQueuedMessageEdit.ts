@@ -246,8 +246,9 @@ export function useAdoptHeldQueuedMessageEdit(sessionId: SessionId | null) {
     if (isHoldAbandoned(resumed.holdId)) return
     // This window now renews the hold and releases it when it closes (ADR 0044).
     if (!(await queue.adoptEdit(resumed).catch(() => false))) return
-    if (storedEdit(sessionId) || visibleSessionDraftContext(String(sessionId)) !== contextKey)
+    if (storedEdit(sessionId) || visibleSessionDraftContext(String(sessionId)) !== contextKey) {
       return
+    }
     openEdit(sessionId, contextKey, resumed)
   })
 

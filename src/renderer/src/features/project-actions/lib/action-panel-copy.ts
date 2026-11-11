@@ -124,7 +124,7 @@ export const PREPARATION_COPY = {
 
 export function preparationStorageCopy(phase: PreparationPhase, sharedEdit: boolean) {
   const noun = PREPARATION_COPY[phase].noun
-  if (sharedEdit)
+  if (sharedEdit) {
     return {
       question: 'Who should get these changes?',
       options: {
@@ -140,6 +140,7 @@ export function preparationStorageCopy(phase: PreparationPhase, sharedEdit: bool
         },
       },
     } as const
+  }
   return {
     question: `Who should have this ${noun}?`,
     options: {

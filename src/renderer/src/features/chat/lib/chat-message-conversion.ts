@@ -105,8 +105,9 @@ export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
  * the thinking step the live view streamed it into, so a reconnect matches the two.
  */
 function bufferedPartToUIParts(part: MessagePart, messageId: string): UIMessage['parts'] {
-  if (part.type !== 'reasoning' || part.contentIndex === undefined)
+  if (part.type !== 'reasoning' || part.contentIndex === undefined) {
     return messagePartToUIParts(part)
+  }
   return [
     {
       type: 'thinking',

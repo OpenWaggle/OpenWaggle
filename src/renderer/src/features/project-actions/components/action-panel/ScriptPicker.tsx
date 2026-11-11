@@ -31,13 +31,14 @@ export function ScriptPicker(props: ScriptPickerProps) {
   const matches = filterScripts(ranked, query)
   const showingAll = expanded || query.trim().length > 0
   const visible = showingAll ? matches : matches.slice(0, COLLAPSED_SCRIPT_COUNT)
-  if (props.status === 'loading')
+  if (props.status === 'loading') {
     return (
       <p role="status" className="text-sm text-text-tertiary">
         Looking for scripts in this project…
       </p>
     )
-  if (props.status === 'error')
+  }
+  if (props.status === 'error') {
     return (
       <div className="flex flex-wrap items-center gap-2 text-sm text-error-text">
         <span role="alert">
@@ -48,12 +49,14 @@ export function ScriptPicker(props: ScriptPickerProps) {
         </Button>
       </div>
     )
-  if (ranked.length === 0)
+  }
+  if (ranked.length === 0) {
     return (
       <p className="text-sm text-text-tertiary">
         No scripts found in this project. Type a command instead.
       </p>
     )
+  }
   return (
     <div ref={props.rootRef} className="grid min-w-0 grid-cols-1 gap-2.5">
       {ranked.length > COLLAPSED_SCRIPT_COUNT ? (

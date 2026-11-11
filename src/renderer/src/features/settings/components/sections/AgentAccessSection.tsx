@@ -172,8 +172,9 @@ export function AgentAccessSection({
       projectAuthorization.error ||
       mode === projectAuthorization.mode ||
       savingProject
-    )
+    ) {
       return
+    }
 
     setModeError(null)
     setSavingProject(true)

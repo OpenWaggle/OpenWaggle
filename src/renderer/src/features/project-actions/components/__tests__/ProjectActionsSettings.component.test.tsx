@@ -61,8 +61,9 @@ function renderSettings() {
 let discovery: ProjectTaskDiscovery | Error = { tasks: [TEST_TASK], diagnostics: [] }
 function serve(catalog: ActionCatalog) {
   mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type === 'catalog' || operation.type === 'edit')
+    if (operation.type === 'catalog' || operation.type === 'edit') {
       return { type: 'catalog', catalog }
+    }
     if (operation.type === 'runs') return { type: 'runs', runs: [] }
     if (operation.type === 'discover') {
       if (discovery instanceof Error) throw discovery

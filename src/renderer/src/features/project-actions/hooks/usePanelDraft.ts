@@ -44,13 +44,14 @@ export function usePanelDraft<T extends ActionPanelDraft>(
   useEffect(() => {
     if (needsFresh) setDraft(projectPath, createDraft())
   }, [needsFresh, projectPath, setDraft])
-  if (resumable && stored && input.matches(stored))
+  if (resumable && stored && input.matches(stored)) {
     return {
       status: 'ready',
       draft: stored,
       update: (next) => setDraft(projectPath, next),
       discard: () => discardDraft(projectPath),
     }
+  }
   if (blocking && stored) return { status: 'switch', existing: stored }
   return { status: 'loading' }
 }

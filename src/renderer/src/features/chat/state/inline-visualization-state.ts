@@ -72,8 +72,9 @@ function hasBoundedJsonShape(value: unknown) {
     if (
       nodes > MAX_INLINE_VISUALIZATION_STATE_NODES ||
       current.depth > MAX_INLINE_VISUALIZATION_STATE_DEPTH
-    )
+    ) {
       return false
+    }
     if (
       current.value === null ||
       typeof current.value === 'string' ||
@@ -96,8 +97,9 @@ export function decodeInlineVisualizationState(value: unknown): JsonValue | null
   const decoded = safeDecodeUnknown(jsonValueSchema, value)
   if (!decoded.success) return null
   const serialized = JSON.stringify(decoded.data)
-  if (new TextEncoder().encode(serialized).byteLength > MAX_INLINE_VISUALIZATION_STATE_BYTES)
+  if (new TextEncoder().encode(serialized).byteLength > MAX_INLINE_VISUALIZATION_STATE_BYTES) {
     return null
+  }
   return decoded.data
 }
 

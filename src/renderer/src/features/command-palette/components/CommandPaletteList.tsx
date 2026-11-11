@@ -22,10 +22,12 @@ export function CommandPaletteList({
     <div ref={listRef} className="max-h-100 overflow-y-auto">
       {items.length === 0 ? <CommandPaletteEmptyState /> : null}
       {entries.map((entry) => {
-        if (entry.type === 'section')
+        if (entry.type === 'section') {
           return <CommandPaletteSectionHeader key={entry.key} label={entry.label} />
-        if (entry.type === 'separator')
+        }
+        if (entry.type === 'separator') {
           return <div key={entry.key} className="border-t border-border" />
+        }
         return (
           <CommandPaletteItemButton
             key={entry.key}

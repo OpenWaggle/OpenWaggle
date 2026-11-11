@@ -41,11 +41,12 @@ describe('remarkStreamingListTail', () => {
       .use(remarkGfm)
       .use(function spy() {
         const parser = this.parser
-        if (parser)
+        if (parser) {
           this.parser = (document, file) => {
             parse(document, file)
             return parser(document, file)
           }
+        }
       })
       .use(remarkStreamingListTail)
     const tokens = ['- Last item', ' grows', ' word', ' by word']

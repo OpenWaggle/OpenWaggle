@@ -102,10 +102,12 @@ function createApiProxy(base?: OpenWaggleApi) {
       return base !== undefined && Reflect.has(base, prop)
     },
     get(_target, prop) {
-      if (prop === 'getSessionDetail' && readSessionDetail)
+      if (prop === 'getSessionDetail' && readSessionDetail) {
         return reportingApiMethodValue('getSessionDetail', readSessionDetail)
-      if (prop === 'querySessionControl' && querySessionControl)
+      }
+      if (prop === 'querySessionControl' && querySessionControl) {
         return reportingApiMethodValue('querySessionControl', querySessionControl)
+      }
       if (base) {
         const value = Reflect.get(base, prop)
         if (value !== undefined) {

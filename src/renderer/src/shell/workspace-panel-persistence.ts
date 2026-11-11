@@ -109,8 +109,9 @@ function sanitizeActiveSurface(
       typeof value['projectPath'] === 'string' &&
       typeof value['runId'] === 'string' &&
       value['runId'].length > 0
-    )
+    ) {
       return { kind: 'action', projectPath: value['projectPath'], runId: value['runId'] }
+    }
     if (value['kind'] === 'terminal') return { kind: 'terminal' }
     if (value['kind'] === 'project-actions') return { kind: 'project-actions' }
     if (value['kind'] === 'scheduled-tasks') return { kind: 'scheduled-tasks' }

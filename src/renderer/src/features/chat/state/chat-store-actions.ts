@@ -93,15 +93,17 @@ async function createSession(
     initial.activeSessionId === null &&
     (initial.draftSession === null || initial.draftSession.projectPath === projectPath)
   const selectedModel = createsCurrentDraft ? initial.draftSession?.selectedModel : undefined
-  if (createsCurrentDraft && initial.draftSession)
+  if (createsCurrentDraft && initial.draftSession) {
     set({ draftSession: { ...initial.draftSession, isMaterializing: true } })
+  }
   try {
     const session = await requestSession(projectPath, worktreePlan, selectedModel, thinkingLevel)
     const shouldActivate =
       generation === draftMaterializationGeneration() &&
       get().activeSessionId === initial.activeSessionId
-    if (createsCurrentDraft && shouldActivate)
+    if (createsCurrentDraft && shouldActivate) {
       recordDraftMaterialization(projectPath, session.id, generation)
+    }
     get().upsertSession(session)
     if (!shouldActivate) {
       void useSessionStore.getState().loadSessions()

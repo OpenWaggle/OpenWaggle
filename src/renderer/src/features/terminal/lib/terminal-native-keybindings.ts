@@ -44,8 +44,9 @@ function isCopyGesture(event: TerminalNativeKeyEvent, key: string, isMac: boolea
 }
 
 function isPasteGesture(event: TerminalNativeKeyEvent, key: string, isMac: boolean) {
-  if (key === 'insert')
+  if (key === 'insert') {
     return !isMac && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
   if (key !== 'v') return false
   if (isMac) return event.metaKey
   return event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey

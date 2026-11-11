@@ -135,10 +135,11 @@ export function useBranchFromMessage(params: BranchFromMessageParams) {
         applyBranchSelection(params, sessionId, resolvedWorkspace, resolvedSelection)
       })
       .catch((error: unknown) => {
-        if (isCurrent())
+        if (isCurrent()) {
           params.showToast(
             `Failed to load branch source: ${error instanceof Error ? error.message : String(error)}`,
           )
+        }
       })
   }
 }

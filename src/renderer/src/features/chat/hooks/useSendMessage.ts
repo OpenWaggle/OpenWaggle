@@ -131,8 +131,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       await withForegroundSend(sessionId, async () => {
         try {
           await flushDraftAuthorizationModeToSession(draftProjectPath, sessionId)
-          if (preparationProfileId)
+          if (preparationProfileId) {
             await selectDraftWorkspacePreparation(draftProjectPath, sessionId, preparationProfileId)
+          }
         } catch (error) {
           throw firstSendFailure(error, sessionId)
         }

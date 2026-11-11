@@ -261,8 +261,9 @@ export function resolveTerminalUrlTarget(
 }
 
 function fileUriPath(parsed: URL) {
-  if (parsed.username.length > 0 || parsed.password.length > 0 || parsed.port.length > 0)
+  if (parsed.username.length > 0 || parsed.password.length > 0 || parsed.port.length > 0) {
     return null
+  }
   if (parsed.search.length > 0 || parsed.hash.length > 0) return null
   let decodedPath: string
   try {

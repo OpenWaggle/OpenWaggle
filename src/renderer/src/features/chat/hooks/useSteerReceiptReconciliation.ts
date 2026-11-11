@@ -39,8 +39,9 @@ async function receiptMatches(
   const candidates = await Promise.all(
     messages.flatMap((message) => {
       const createdOrder = message.metadata?.sessionNodeCreatedOrder
-      if (message.role !== 'user' || createdOrder === undefined || createdOrder < minimumOrder)
+      if (message.role !== 'user' || createdOrder === undefined || createdOrder < minimumOrder) {
         return []
+      }
       const durableDigest = message.metadata?.durableTextSha256
       const text = message.parts.find((part) => part.type === 'text')?.content
       if (!durableDigest && text === undefined) return []
@@ -84,8 +85,9 @@ export function useSteerReceiptReconciliation(
   previews: readonly OptimisticSteerPreview[],
 ) {
   useEffect(() => {
-    if (!sessionId || !previews.some((preview) => preview.receipt && !preview.durableMessageId))
+    if (!sessionId || !previews.some((preview) => preview.receipt && !preview.durableMessageId)) {
       return
+    }
     let cancelled = false
     void receiptMatches(messages, previews)
       .then((matched) => {
@@ -97,8 +99,9 @@ export function useSteerReceiptReconciliation(
         )
       })
       .catch((error: unknown) => {
-        if (!cancelled)
+        if (!cancelled) {
           logger.error('Could not reconcile the steering delivery receipt', { sessionId, error })
+        }
       })
     return () => {
       cancelled = true

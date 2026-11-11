@@ -195,8 +195,9 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       const draftBranchReady = await params.branchSummary.materializeDraftBranchForSend(
         params.draftBranch,
       )
-      if (!draftBranchReady)
+      if (!draftBranchReady) {
         throw new MessageNotDelivered('refused', 'Branch source is unavailable.')
+      }
 
       // Cleared when the transcript holds the sent row, or below when the send throws. A send path
       // that returns without a row and without throwing would leave it pending in this Session.

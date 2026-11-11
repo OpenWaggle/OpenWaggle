@@ -10,8 +10,14 @@ export function useActionPreview(scope: ActionManagementScope | null, runs: read
   useEffect(() => {
     if (!sessionId) return
     for (const run of runs) {
-      if (!run.ready || !run.previewUrl || run.status !== 'running' || !run.action.autoOpenPreview)
+      if (
+        !run.ready ||
+        !run.previewUrl ||
+        run.status !== 'running' ||
+        !run.action.autoOpenPreview
+      ) {
         continue
+      }
       const preferences = useProjectActionStore.getState()
       if (preferences.previewOpenedRuns.includes(run.id)) continue
       preferences.rememberPreviewOpened(run.id)

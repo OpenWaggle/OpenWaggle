@@ -57,8 +57,9 @@ function withReasoning(parts: readonly MessagePart[], contentIndex: number, delt
     (part) => part.type === 'reasoning' && part.contentIndex === contentIndex,
   )
   const part = parts[index]
-  if (part?.type !== 'reasoning')
+  if (part?.type !== 'reasoning') {
     return [...parts, { type: 'reasoning' as const, text: delta, contentIndex }]
+  }
   return parts.map((other, at) => (at === index ? { ...part, text: part.text + delta } : other))
 }
 
@@ -71,8 +72,9 @@ export function startedBuffer(
   runId: string,
   startedAt: number,
 ) {
-  if (!previous?.runId || runId !== `waggle-of-${previous.runId}`)
+  if (!previous?.runId || runId !== `waggle-of-${previous.runId}`) {
     return emptyBuffer(runId, startedAt)
+  }
   const { userMessages, assistantMessages } = withFinishedAnswer(previous)
   return {
     ...emptyBuffer(runId, previous.startedAt),

@@ -97,8 +97,9 @@ async function exploreSeed(seed: number) {
 async function replayRun(name: string, viewing: 'session' | 'other', names: readonly string[]) {
   await exploreRun(name, viewing, names.length, (enabled, step) => {
     const action = enabled.find((candidate) => candidate.name === names[step])
-    if (!action)
+    if (!action) {
       throw new Error(`${name}: ${String(names[step])} is not enabled at ${String(step)}`)
+    }
     return action
   })
 }

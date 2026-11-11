@@ -86,11 +86,12 @@ export function useSourceControlQueryFreshness() {
   useEffect(() => {
     const existing = freshnessSubscriptions.get(queryClient)
     if (existing) existing.consumers += 1
-    else
+    else {
       freshnessSubscriptions.set(queryClient, {
         consumers: 1,
         stop: subscribeFreshness(queryClient),
       })
+    }
     return () => {
       const subscription = freshnessSubscriptions.get(queryClient)
       if (!subscription) return

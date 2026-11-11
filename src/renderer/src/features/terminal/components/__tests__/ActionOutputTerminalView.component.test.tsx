@@ -138,7 +138,8 @@ describe('Action output terminal view', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Close dev · action output' }))
     })
     expect(screen.queryByRole('tab', { name: /action output/ })).not.toBeInTheDocument()
-    for (const [request] of mocks.manage.mock.calls)
+    for (const [request] of mocks.manage.mock.calls) {
       expect(request).toMatchObject({ operation: { type: 'output' } })
+    }
   })
 })

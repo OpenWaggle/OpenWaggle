@@ -286,8 +286,9 @@ export function useSessionSummaryExtensionActions(input: {
         onOpenSidePanel: input.onOpenSidePanel,
         setDialogEntry,
       })
-    )
+    ) {
       return
+    }
     if (resolution.kind !== 'command') return
     await invokeSessionSummaryExtensionCommand({
       entry: resolution.entry,

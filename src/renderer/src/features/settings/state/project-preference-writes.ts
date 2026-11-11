@@ -29,8 +29,9 @@ function trackPendingWrite(key: string, chain: Promise<void>) {
   const merged = Promise.allSettled([existing, chain]).then(() => undefined)
   pendingProjectPreferenceWrites.set(key, merged)
   void merged.finally(() => {
-    if (pendingProjectPreferenceWrites.get(key) === merged)
+    if (pendingProjectPreferenceWrites.get(key) === merged) {
       pendingProjectPreferenceWrites.delete(key)
+    }
   })
 }
 

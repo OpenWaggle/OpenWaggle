@@ -11,8 +11,9 @@ export function attachmentLimitReason(
   if (
     attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
     ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  )
+  ) {
     return 'size'
+  }
   return null
 }
 

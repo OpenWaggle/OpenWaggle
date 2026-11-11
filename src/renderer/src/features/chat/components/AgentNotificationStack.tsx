@@ -57,8 +57,9 @@ function toVisibleNotifications(
 
 function notificationTone(level: AgentLoopNotifyLevel) {
   if (level === 'error') return { icon: 'text-error', border: 'border-error/40 bg-error/12' }
-  if (level === 'warning')
+  if (level === 'warning') {
     return { icon: 'text-warning', border: 'border-warning/30 bg-warning/10' }
+  }
   return { icon: 'text-info', border: 'border-border/60 bg-bg-secondary/92' }
 }
 

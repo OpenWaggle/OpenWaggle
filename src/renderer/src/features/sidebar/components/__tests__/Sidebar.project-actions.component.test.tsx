@@ -318,8 +318,9 @@ describe('Sidebar project actions', () => {
       )
       expect(apiMock.showConfirm.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
       expect(apiMock.cancelAgent).toHaveBeenCalledWith(SESSION_ID)
-      for (const id of [SESSION_ID, ARCHIVED_SESSION_ID])
+      for (const id of [SESSION_ID, ARCHIVED_SESSION_ID]) {
         expect(apiMock.deleteSession).toHaveBeenCalledWith(id, { removingProject: true })
+      }
       expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(SESSION_ID))
       expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(
         String(ARCHIVED_SESSION_ID),

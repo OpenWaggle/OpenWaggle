@@ -176,8 +176,9 @@ export function sessionResourcesQueryOptions(
     },
     select: (result) => result.resources,
     refetchInterval: (query) => {
-      if (query.state.status === 'error' || query.state.data?.backfillComplete !== false)
+      if (query.state.status === 'error' || query.state.data?.backfillComplete !== false) {
         return false
+      }
       return Math.min(
         SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS *
           SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER ** query.state.data.stalledAttempts,

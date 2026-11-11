@@ -86,7 +86,7 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
       </PanelErrorBoundary>
     )
   }
-  if (props.activeSurface?.kind === 'action')
+  if (props.activeSurface?.kind === 'action') {
     return (
       <PanelErrorBoundary name="Action run" className={FILLED_SURFACE_CLASS}>
         <Suspense fallback={null}>
@@ -101,6 +101,7 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
         </Suspense>
       </PanelErrorBoundary>
     )
+  }
   if (props.activeSurface?.kind === 'terminal') {
     return (
       <div className="min-h-0 flex-1">
