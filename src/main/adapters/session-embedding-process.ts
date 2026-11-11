@@ -203,7 +203,7 @@ export class SessionEmbeddingProcess {
   private start() {
     const transformersPath =
       this.options.transformersPath ??
-      createRequire(__filename).resolve('@huggingface/transformers')
+      createRequire(import.meta.filename).resolve('@huggingface/transformers')
     const child = this.spawnChild(JSON.stringify({ ...this.config(), transformersPath }))
     this.child = child
     this.stderrTail = ''

@@ -9,7 +9,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const REPOSITORY_ROOT = path.resolve(__dirname, '../../..')
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../../..')
 const MAIN_ROOT = path.join(REPOSITORY_ROOT, 'src/main')
 
 /** What the GUI process evaluates while it starts: its entry and what that entry loads at once. */

@@ -32,7 +32,7 @@ type ParserWorkerFactory = (input: {
 const PARSER_MAX_OLD_GENERATION_MB = 128
 const PARSER_MAX_YOUNG_GENERATION_MB = 32
 const PARSER_STACK_MB = 4
-const resolveParserDependency = createRequire(__filename).resolve
+const resolveParserDependency = createRequire(import.meta.filename).resolve
 const PARSER_MODULE_URLS = {
   mammoth: pathToFileURL(resolveParserDependency('mammoth')).href,
   jszip: pathToFileURL(resolveParserDependency('jszip')).href,

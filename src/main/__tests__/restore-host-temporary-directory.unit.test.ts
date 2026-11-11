@@ -24,7 +24,7 @@ describe('Host temp directory restore at startup', () => {
   })
 
   it('runs in the main entry before any OpenWaggle module other than the build identity', async () => {
-    const source = await fs.readFile(path.join(__dirname, '..', 'index.ts'), 'utf8')
+    const source = await fs.readFile(path.join(import.meta.dirname, '..', 'index.ts'), 'utf8')
     const localImports = [...source.matchAll(/(?:from |import )'(\.\/[^']+)'/g)].map(
       (match) => match[1],
     )

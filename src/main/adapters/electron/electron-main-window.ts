@@ -55,7 +55,7 @@ function installDevToolsShortcut(window: BrowserWindow) {
 
 export function createMainWindow(input: MainWindowRequest) {
   const webPreferences = {
-    preload: join(__dirname, '../preload/index.js'),
+    preload: join(import.meta.dirname, '../preload/index.js'),
     // Tells the preload to expose the error-report bridge; empty unless this process reports errors.
     // The home directory lets display paths shorten it to `~` (`window.api.getHomeDirectory()`).
     // The trusted origin bases are where the page builds extension module URLs.

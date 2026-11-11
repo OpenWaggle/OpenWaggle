@@ -74,7 +74,7 @@ const createCheckpointWorker: WalCheckpointWorkerFactory = (input) =>
     eval: true,
     workerData: {
       ...input,
-      betterSqlitePath: createRequire(__filename).resolve('better-sqlite3'),
+      betterSqlitePath: createRequire(import.meta.filename).resolve('better-sqlite3'),
     },
   })
 

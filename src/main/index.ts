@@ -79,11 +79,11 @@ if (appLifecycle.isPackaged()) {
 }
 
 const appIconPath = !appLifecycle.isPackaged()
-  ? join(__dirname, '../../build/icon-dev.png')
+  ? join(import.meta.dirname, '../../build/icon-dev.png')
   : join(appPaths.resources(), 'icon.png')
 // Unpackaged builds have no bundle icon, so macOS takes their Dock icon at runtime; use the
 // generated rounded-square macOS icon rather than the free-form window icon.
-const devDockIconPath = join(__dirname, '../../build', MAC_DEV_DOCK_ICON_FILE)
+const devDockIconPath = join(import.meta.dirname, '../../build', MAC_DEV_DOCK_ICON_FILE)
 const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
 let mainWindowCreated = false

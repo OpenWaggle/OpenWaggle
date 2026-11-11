@@ -45,7 +45,7 @@ export function registerRendererScheme() {
 }
 
 function rendererRootPath() {
-  return resolve(__dirname, '../renderer')
+  return resolve(import.meta.dirname, '../renderer')
 }
 
 function normalizedRendererRequestPath(requestUrl: string) {

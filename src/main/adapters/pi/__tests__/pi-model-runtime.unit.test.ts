@@ -19,7 +19,7 @@ vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => ({
   },
 }))
 
-const MAIN_ROOT = path.resolve(__dirname, '../../..')
+const MAIN_ROOT = path.resolve(import.meta.dirname, '../../..')
 const CHOKEPOINT = path.join(MAIN_ROOT, 'adapters/pi/pi-model-runtime.ts')
 
 function productionSources(directory: string): string[] {
