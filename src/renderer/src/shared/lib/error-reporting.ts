@@ -8,7 +8,7 @@
  * stays off the startup path, and off entirely while statistics stay off.
  */
 import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
-import { ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL } from '@shared/error-reporting/error-report-constants'
+import { ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL } from '@shared/error-reporting/error-report-envelope-bridge'
 import { createRendererLogger } from './logger'
 
 interface RendererErrorReporter {

@@ -1,7 +1,5 @@
-import {
-  ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL,
-  ERROR_REPORTING_RENDERER_SWITCH,
-} from '@shared/error-reporting/error-report-constants'
+import { ERROR_REPORTING_RENDERER_SWITCH } from '@shared/error-reporting/error-report-constants'
+import { ERROR_REPORT_ENVELOPE_BRIDGE_GLOBAL } from '@shared/error-reporting/error-report-envelope-bridge'
 import { exposeInMainWorld } from './transport'
 
 /**
