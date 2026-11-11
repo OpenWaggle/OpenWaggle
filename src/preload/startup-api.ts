@@ -1,7 +1,7 @@
 import { homeDirectoryFromRendererArguments } from '@shared/home-directory-argument'
-import { invoke, on } from './electron-transport'
+import { invoke, on, rendererArguments } from './electron-transport'
 
-const homeDirectory = homeDirectoryFromRendererArguments(process.argv)
+const homeDirectory = homeDirectoryFromRendererArguments(rendererArguments())
 
 /**
  * The window's startup state and Retry (A-F2), and the home directory main passed for display

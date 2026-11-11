@@ -1,5 +1,5 @@
 import { api } from './api'
-import { exposeInMainWorld } from './electron-transport'
+import { exposeInMainWorld, rendererArguments } from './electron-transport'
 import { exposeErrorReportingBridge } from './error-reporting-bridge'
 
 /**
@@ -7,4 +7,4 @@ import { exposeErrorReportingBridge } from './error-reporting-bridge'
  * Access it via `window.api` in React.
  */
 exposeInMainWorld('api', api)
-exposeErrorReportingBridge(process.argv)
+exposeErrorReportingBridge(rendererArguments())

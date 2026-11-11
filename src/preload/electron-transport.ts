@@ -17,6 +17,11 @@ import { contextBridge, type IpcRendererEvent, ipcRenderer, webUtils } from 'ele
  * `error-reporting-bridge.ts`).
  */
 
+/** What the main process passed this page (`webPreferences.additionalArguments`). */
+export function rendererArguments(): readonly string[] {
+  return process.argv
+}
+
 /** Exposes `value` to the renderer page as `window[key]`, across context isolation. */
 export function exposeInMainWorld(key: string, value: unknown) {
   contextBridge.exposeInMainWorld(key, value)
