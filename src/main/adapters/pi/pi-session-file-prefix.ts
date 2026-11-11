@@ -178,7 +178,7 @@ async function readLeadingLines(file: string) {
 async function readPrefix(file: string) {
   const leading = await readLeadingLines(file)
   const parsed = parsePrefix(leading.lines)
-  if (!parsed || parsed.firstUserMessage !== null || leading.complete) return parsed
+  if (parsed?.firstUserMessage !== null || leading.complete) return parsed
   return parsePrefix((await readLines(file, MAX_FIRST_MESSAGE_SCAN_BYTES)).lines)
 }
 

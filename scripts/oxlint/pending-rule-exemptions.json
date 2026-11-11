@@ -661,9 +661,6 @@
   },
   "typescript/no-unnecessary-boolean-literal-compare": {
     "src/main/adapters/mcp/migration/legacy-enablement.ts": 1,
-    "src/main/adapters/pi/pi-agent-kernel-adapter.ts": 1,
-    "src/main/adapters/pi/pi-message-mapper.ts": 1,
-    "src/main/adapters/pi/pi-provider-resources.ts": 1,
     "src/main/adapters/session-lifecycle-execution-profile.ts": 1,
     "src/main/adapters/terminal/__tests__/terminal-process-shutdown-tty-reuse.unit.test.ts": 1,
     "src/main/adapters/workspace-external-editor.ts": 1,
@@ -689,7 +686,6 @@
     "src/renderer/src/shell/workspace-panel-actions.ts": 4
   },
   "typescript/no-unnecessary-template-expression": {
-    "src/main/adapters/pi/__tests__/pi-skill-prompt-listing.unit.test.ts": 1,
     "src/main/adapters/terminal/terminal-shell-integration-scripts.ts": 2,
     "src/main/application/__tests__/session-resource-backfill.unit.test.ts": 1,
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.component.test.tsx": 1,
@@ -698,7 +694,6 @@
   },
   "typescript/no-unnecessary-type-arguments": {
     "src/main/adapters/__tests__/sqlite-session-export-operation-test-layer.ts": 1,
-    "src/main/adapters/pi/sessions-tool-extension.ts": 1,
     "src/main/adapters/sqlite-extension-lifecycle-repository.ts": 1,
     "src/main/application/__tests__/automatic-worktree-removal.unit.test.ts": 1,
     "src/main/application/__tests__/explicit-waggle-command-lifecycle.unit.test.ts": 1,
@@ -759,8 +754,6 @@
     "src/shared/schema.ts": 3
   },
   "typescript/no-unnecessary-type-conversion": {
-    "src/main/adapters/pi/__tests__/pi-session-fork-source.integration.test.ts": 1,
-    "src/main/adapters/pi/__tests__/pi-session-read-only.integration.test.ts": 1,
     "src/main/adapters/sqlite-session-lifecycle-persistence.ts": 1,
     "src/main/adapters/workspace-external-editor-launcher.ts": 1,
     "src/main/cli-stdout.ts": 1,
@@ -785,9 +778,6 @@
     "src/shared/schemas/action-definitions.ts": 1,
     "src/shared/types/logger.ts": 4
   },
-  "typescript/no-useless-default-assignment": {
-    "src/main/adapters/pi/openwaggle-pi-settings-package-exclusions.ts": 1
-  },
   "typescript/only-throw-error": {
     "src/main/session-host/local-session-host-launcher.ts": 1,
     "src/main/session-host/local-session-host-prelaunch-wait.ts": 1,
@@ -808,8 +798,6 @@
     "src/main/adapters/electron/browser-preview/browser-preview-automation-validation.ts": 2,
     "src/main/adapters/electron/browser-preview/browser-preview-replacement.ts": 1,
     "src/main/adapters/mcp/config/mcp-config-file-edit.ts": 1,
-    "src/main/adapters/pi/mcp/mcp-sign-in-page.ts": 1,
-    "src/main/adapters/pi/pi-session-file-prefix.ts": 1,
     "src/main/adapters/session-agent-run-project-reach.ts": 1,
     "src/main/adapters/session-follow-up-authorization.ts": 1,
     "src/main/adapters/session-follow-up-session-agent-authorization.ts": 1,

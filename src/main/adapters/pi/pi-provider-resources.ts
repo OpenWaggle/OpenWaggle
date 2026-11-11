@@ -95,7 +95,7 @@ function getCatalogSkillIdForPiSkill(projectPath: string, skillFilePath: string)
 
 function filterDisabledCatalogSkills(
   projectPath: string,
-  skillToggles: Readonly<Record<string, boolean>>,
+  skillToggles: Readonly<Partial<Record<string, boolean>>>,
   base: PiSkillsOverrideInput,
   skillAllowlist?: readonly string[],
 ) {

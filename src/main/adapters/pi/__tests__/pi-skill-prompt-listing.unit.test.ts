@@ -22,7 +22,7 @@ describe('skills listing in the system prompt', () => {
   })
 
   it('caps long descriptions at a word and keeps short ones whole', () => {
-    const long = `${'Use this skill when reviewing pull requests carefully. '.repeat(10)}`
+    const long = 'Use this skill when reviewing pull requests carefully. '.repeat(10)
     const capped = promptSkillDescription(long)
 
     expect(capped.length).toBeLessThanOrEqual(SKILL_PROMPT_DESCRIPTION_LIMIT)

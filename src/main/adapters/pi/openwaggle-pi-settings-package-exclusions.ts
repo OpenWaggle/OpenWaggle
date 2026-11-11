@@ -72,7 +72,7 @@ function isExcludedNpmPackage(value: JsonValue, excludedNames: ReadonlySet<strin
 export function withoutExcludedPackages(
   content: string | undefined,
   excludedSources: readonly string[] | undefined,
-  excludedNpmPackageNames: readonly string[] | undefined = undefined,
+  excludedNpmPackageNames?: readonly string[],
 ) {
   if (
     (!excludedSources || excludedSources.length === 0) &&

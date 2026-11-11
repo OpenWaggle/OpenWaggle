@@ -65,7 +65,7 @@ async function originForPage(href: string, servers: readonly McpServerEntry[]) {
   if (!state) return undefined
   for (const entry of servers) {
     const origin = await mcpAuthorizationOrigin(entry)
-    if (origin && origin.oauthState === state) return origin
+    if (origin?.oauthState === state) return origin
   }
   return undefined
 }

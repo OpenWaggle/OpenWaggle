@@ -188,7 +188,7 @@ function projectToolResultPart(
       result: Array.isArray(message.content)
         ? toProjectedToolResultValue(message.content, message.details)
         : '',
-      isError: message.isError === true,
+      isError: message.isError,
       duration: toToolResultDuration(message.details),
       details: toJsonValue(message.details ?? null),
     },

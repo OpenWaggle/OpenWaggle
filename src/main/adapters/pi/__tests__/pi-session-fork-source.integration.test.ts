@@ -80,8 +80,8 @@ describe('Forking a discovered Pi session', () => {
     if (!forkFile) throw new Error('The fork has no Pi file.')
     expect(forkFile).not.toBe(cli.file)
     expect(path.dirname(forkFile)).toBe(path.dirname(cli.file))
-    const [header] = (await fs.readFile(forkFile, 'utf8')).split('\n')
-    expect(JSON.parse(String(header))).toMatchObject({ type: 'session', parentSession: cli.file })
+    const header = (await fs.readFile(forkFile, 'utf8')).split('\n').at(0) ?? ''
+    expect(JSON.parse(header)).toMatchObject({ type: 'session', parentSession: cli.file })
   })
 
   it("shows extensions the source before the fork and the fork's own file after it", async () => {

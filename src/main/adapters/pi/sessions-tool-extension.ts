@@ -7,7 +7,6 @@ import type {
 } from '@shared/types/local-session-protocol'
 import type { SessionCapability } from '@shared/types/session-capability'
 import { isRecord } from '@shared/utils/validation'
-import type { TSchema } from 'typebox'
 import type { AgentDefinitionProjectResolver } from '../../agent-definition-project'
 import { createLogger } from '../../logger'
 import { sessionCommandFailureMessage } from '../../session-host/session-command-failure-message'
@@ -175,8 +174,9 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
   }
   return (pi) => {
-    // Typed as a plain schema: arguments stay unknown until parseSessionsToolActionArguments.
-    pi.registerTool<TSchema, unknown>({
+    // sessionsToolSchemaForGrant returns a plain TSchema, so arguments stay unknown until
+    // parseSessionsToolActionArguments.
+    pi.registerTool({
       name: HIVE_TOOL_NAME,
       label: 'Hive',
       description: HIVE_TOOL_DESCRIPTION,
