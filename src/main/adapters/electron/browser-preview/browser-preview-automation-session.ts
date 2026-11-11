@@ -16,7 +16,7 @@ export interface BrowserPreviewAutomationControlSession {
   readonly debugger: Debugger
   readonly diagnostics: BrowserPreviewAutomationDiagnosticsState
   readonly timeline: BrowserPreviewAutomationActionEvent[]
-  readonly removeListeners: Array<() => void>
+  readonly removeListeners: (() => void)[]
   readonly inputArbitrator: BrowserPreviewAutomationInputArbitrator
   readonly onControllerChange: (state: BrowserPreviewControllerState) => void
   controller: BrowserPreviewControllerState

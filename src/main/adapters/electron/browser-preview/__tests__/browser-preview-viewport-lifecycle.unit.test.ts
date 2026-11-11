@@ -27,7 +27,7 @@ describe('browser preview native viewport lifecycle', () => {
     registry.notifyMaterialized.mockReset()
   })
 
-  it('defers initial floating emulation until the native renderer has a DOM', () => {
+  it('defers initial floating emulation until the native renderer has a DOM', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -39,10 +39,10 @@ describe('browser preview native viewport lifecycle', () => {
     expect(view.webContents.enableDeviceEmulation).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ viewSize: { width: 1280, height: 800 }, scale: 0.25 }),
     )
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 
-  it('uses the latest pending viewport, bounds and zoom when the page becomes ready', () => {
+  it('uses the latest pending viewport, bounds and zoom when the page becomes ready', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -61,10 +61,10 @@ describe('browser preview native viewport lifecycle', () => {
     expect(contents.enableDeviceEmulation).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ viewSize: { width: 1100, height: 660 }, scale: 0.5 }),
     )
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 
-  it('reapplies unchanged emulation after cross-document navigation and renderer recovery', () => {
+  it('reapplies unchanged emulation after cross-document navigation and renderer recovery', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -81,13 +81,13 @@ describe('browser preview native viewport lifecycle', () => {
     expect(contents.enableDeviceEmulation).toHaveBeenCalledTimes(2)
     contents.emit('dom-ready')
     expect(contents.enableDeviceEmulation).toHaveBeenCalledTimes(3)
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 
   it.each([
     { isMainFrame: false, isSameDocument: false },
     { isMainFrame: true, isSameDocument: true },
-  ])('does not suspend emulation for navigation %j', (details) => {
+  ])('does not suspend emulation for navigation %j', async (details) => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -99,10 +99,10 @@ describe('browser preview native viewport lifecycle', () => {
     expect(contents.enableDeviceEmulation).toHaveBeenLastCalledWith(
       expect.objectContaining({ scale: 0.125 }),
     )
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 
-  it('clears previously applied emulation when switching to fill during navigation', () => {
+  it('clears previously applied emulation when switching to fill during navigation', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -116,26 +116,27 @@ describe('browser preview native viewport lifecycle', () => {
     expect(contents.disableDeviceEmulation).toHaveBeenCalledOnce()
     contents.emit('dom-ready')
     expect(contents.disableDeviceEmulation).toHaveBeenCalledOnce()
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 
-  it('removes readiness listeners when closed before initial navigation completes', () => {
+  it('removes readiness listeners when closed before initial navigation completes', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
     manager.open(owner, openInput({ bounds: floatingBounds }))
     const contents = firstView().webContents
     expect(contents.listenerCount('dom-ready')).toBeGreaterThan(0)
-    manager.close(owner, 'preview-1')
+    const closing = manager.close(owner, 'preview-1')
     for (const event of ['dom-ready', 'did-navigate', 'render-process-gone']) {
       expect(contents.listenerCount(event)).toBe(0)
     }
     contents.emit('dom-ready')
     expect(contents.enableDeviceEmulation).not.toHaveBeenCalled()
     expect(contents.disableDeviceEmulation).not.toHaveBeenCalled()
+    await closing
   })
 
-  it('keeps the existing document ready when provisional navigation is canceled', () => {
+  it('keeps the existing document ready when provisional navigation is canceled', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -156,6 +157,6 @@ describe('browser preview native viewport lifecycle', () => {
     expect(contents.enableDeviceEmulation).toHaveBeenLastCalledWith(
       expect.objectContaining({ scale: 0.125 }),
     )
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 })

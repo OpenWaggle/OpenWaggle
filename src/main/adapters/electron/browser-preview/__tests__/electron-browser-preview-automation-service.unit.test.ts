@@ -103,8 +103,8 @@ describe('Electron browser preview automation service', () => {
         ?.profileId,
     ).toBe(DEFAULT_SETTINGS.browserDefaultProfileId)
 
-    if (first.tabId) browserPreviewManager.close(owner, first.tabId)
-    if (second.tabId) browserPreviewManager.close(owner, second.tabId)
+    if (first.tabId) await browserPreviewManager.close(owner, first.tabId)
+    if (second.tabId) await browserPreviewManager.close(owner, second.tabId)
   })
 
   it('reads the auto-show default for every open while explicit visibility still wins', async () => {
@@ -149,7 +149,7 @@ describe('Electron browser preview automation service', () => {
     expect(explicitlyHidden.visible).toBe(false)
 
     for (const result of [hidden, visible, explicitlyHidden]) {
-      if (result.tabId) browserPreviewManager.close(owner, result.tabId)
+      if (result.tabId) await browserPreviewManager.close(owner, result.tabId)
     }
   })
 

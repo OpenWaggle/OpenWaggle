@@ -100,10 +100,10 @@ function validateTargetSelectors(
   if (input.selector !== undefined && input.locator !== undefined) {
     throw new Error('Provide at most one of selector or locator.')
   }
-  if (input.selector !== undefined && input.selector.trim().length === 0) {
+  if (input.selector?.trim().length === 0) {
     throw new Error('Browser preview selector cannot be blank.')
   }
-  if (input.locator !== undefined && input.locator.trim().length === 0) {
+  if (input.locator?.trim().length === 0) {
     throw new Error('Browser preview locator cannot be blank.')
   }
 }

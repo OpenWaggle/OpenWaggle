@@ -82,13 +82,27 @@ function boundedText(value: string, maxLength = MAX_DIAGNOSTIC_TEXT_LENGTH) {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength)}…`
 }
 
+/** What `String(value)` gives for a value JSON cannot encode. */
+function unserializableText(value: unknown) {
+  if (
+    typeof value === 'bigint' ||
+    typeof value === 'boolean' ||
+    typeof value === 'number' ||
+    typeof value === 'symbol' ||
+    typeof value === 'function'
+  ) {
+    return value.toString()
+  }
+  return Object.prototype.toString.call(value)
+}
+
 function remoteValueText(value: unknown, description?: string) {
   if (value === undefined) return description ?? 'undefined'
   if (typeof value === 'string') return value
   try {
-    return JSON.stringify(value) ?? description ?? String(value)
+    return JSON.stringify(value) ?? description ?? unserializableText(value)
   } catch {
-    return description ?? String(value)
+    return description ?? unserializableText(value)
   }
 }
 

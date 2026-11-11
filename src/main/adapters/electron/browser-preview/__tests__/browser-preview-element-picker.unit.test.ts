@@ -165,7 +165,7 @@ describe('BrowserPreviewElementPicker', () => {
       throw new Error('Picker promise was not created.')
     }
     const executeJavaScriptInIsolatedWorld = vi.fn(
-      (_worldId: number, scripts: Array<{ readonly code: string }>) => {
+      (_worldId: number, scripts: { readonly code: string }[]) => {
         if (
           scripts[0]?.code === BROWSER_PREVIEW_ELEMENT_PICKER_CANCEL_SCRIPT ||
           scripts[0]?.code === BROWSER_PREVIEW_ELEMENT_PICKER_CAPTURED_SCRIPT

@@ -141,10 +141,12 @@ function matchesMouse(expected: ExpectedInputSignal, input: MouseInputEvent) {
     return false
   }
   if (expected.button !== undefined && input.button !== expected.button) return false
-  if (expected.deltaX !== undefined && Reflect.get(input, 'deltaX') !== expected.deltaX)
+  if (expected.deltaX !== undefined && Reflect.get(input, 'deltaX') !== expected.deltaX) {
     return false
-  if (expected.deltaY !== undefined && Reflect.get(input, 'deltaY') !== expected.deltaY)
+  }
+  if (expected.deltaY !== undefined && Reflect.get(input, 'deltaY') !== expected.deltaY) {
     return false
+  }
   return true
 }
 

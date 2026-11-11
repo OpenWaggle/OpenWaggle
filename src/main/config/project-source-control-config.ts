@@ -61,8 +61,9 @@ export function parseProjectSourceControlConfig(
     else skipped.push(host)
   }
   const destination = raw['changeRequestOpenDestination']
-  if (destination !== undefined && !isDestination(destination))
+  if (destination !== undefined && !isDestination(destination)) {
     skipped.push('changeRequestOpenDestination')
+  }
   if (skipped.length > 0 || declared.length > MAX_DECLARED_HOSTS) {
     logger.warn('Ignoring invalid source-control entries in project settings', {
       projectPath,

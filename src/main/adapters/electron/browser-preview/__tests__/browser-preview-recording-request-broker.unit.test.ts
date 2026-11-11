@@ -71,19 +71,20 @@ describe('BrowserPreviewRecordingRequestBroker', () => {
       const pending = fixture.broker[action](fixture.record)
       const rejected = expect(pending).rejects.toThrow('retired')
       const request = requireRequest(fixture.currentRequest())
-      if (action === 'start')
+      if (action === 'start') {
         fixture.broker.respond(fixture.sender, {
           requestId: request.requestId,
           previewId: request.previewId,
           status: 'started',
         })
-      else
+      } else {
         fixture.broker.respond(fixture.sender, {
           requestId: request.requestId,
           previewId: request.previewId,
           status: 'stopped',
           artifact,
         })
+      }
       quarantineBrowserPreviewContents(fixture.record.view.webContents)
       await rejected
     },

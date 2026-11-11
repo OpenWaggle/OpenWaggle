@@ -89,7 +89,7 @@ interface HeadersReceivedDetails {
 }
 
 /** A web profile that lets main rewrite response headers (Electron's `session.webRequest`). */
-type SessionWithHeadersHandler = {
+interface SessionWithHeadersHandler {
   readonly webRequest: {
     onHeadersReceived(
       listener: (
@@ -114,7 +114,7 @@ export function applyContentSecurityPolicyHeader(
   responseHeaders: CspResponseHeaders | undefined,
 ): CspResponseHeaders {
   return {
-    ...(responseHeaders ?? {}),
+    ...responseHeaders,
     'Content-Security-Policy': [CONTENT_SECURITY_POLICY],
   }
 }

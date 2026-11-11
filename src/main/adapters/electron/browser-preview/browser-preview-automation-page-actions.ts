@@ -192,8 +192,9 @@ export function evaluateBrowserPreviewPage(
   input: BrowserPreviewAutomationEvaluateInput,
   signal?: AbortSignal,
 ) {
-  if (input.expression.trim().length === 0)
+  if (input.expression.trim().length === 0) {
     throw new Error('Evaluation expression cannot be blank.')
+  }
   if (input.expression.length > BROWSER_PREVIEW_AUTOMATION_LIMITS.EXPRESSION_LENGTH) {
     throw new Error('Evaluation expression exceeded the 64 KB limit.')
   }
@@ -248,8 +249,9 @@ export function pressBrowserPreviewKey(
         await context
           .cleanupInput('Emulation.setFocusEmulationEnabled', { enabled: false })
           .catch(() => undefined)
-        if (previous && previous.id !== page.contents.id && !previous.isDestroyed())
+        if (previous && previous.id !== page.contents.id && !previous.isDestroyed()) {
           previous.focus()
+        }
       }
     },
     { signal },

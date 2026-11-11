@@ -88,12 +88,13 @@ describe('browser preview reliability and lifecycle', () => {
     const view = firstView()
 
     view.webContents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 9 })
-    manager.close(owner, 'preview-1')
+    const closing = manager.close(owner, 'preview-1')
     await vi.advanceTimersByTimeAsync(5_000)
 
     expect(view.webContents.reload).not.toHaveBeenCalled()
     expect(view.webContents.close).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
+    await closing
   })
 
   it('disposes native content after a non-recoverable renderer exit', () => {
@@ -121,8 +122,9 @@ describe('browser preview reliability and lifecycle', () => {
     emitter.emit('destroyed')
 
     expect(ownerWindow.removeChildView).toHaveBeenCalledTimes(2)
-    for (const view of electronMocks.createdViews)
+    for (const view of electronMocks.createdViews) {
       expect(view.webContents.close).toHaveBeenCalledOnce()
+    }
     expect(() => manager.close(owner, 'preview-1')).not.toThrow()
   })
 
@@ -169,8 +171,9 @@ describe('browser preview reliability and lifecycle', () => {
 
     expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeDefined()
     expect(manager.findOwnedPreview('session-2', 'background-preview')).toBeDefined()
-    for (const view of electronMocks.createdViews)
+    for (const view of electronMocks.createdViews) {
       expect(view.webContents.close).not.toHaveBeenCalled()
+    }
 
     emitter.emit('did-start-navigation', {
       isMainFrame: true,
@@ -193,8 +196,9 @@ describe('browser preview reliability and lifecycle', () => {
     ownerWindow.emitter.emit('closed')
 
     expect(ownerWindow.removeChildView).toHaveBeenCalledTimes(2)
-    for (const view of electronMocks.createdViews)
+    for (const view of electronMocks.createdViews) {
       expect(view.webContents.close).toHaveBeenCalledOnce()
+    }
     expect(() => manager.close(owner, 'preview-1')).not.toThrow()
   })
 
@@ -220,18 +224,19 @@ describe('browser preview reliability and lifecycle', () => {
     expect(() => manager.reload(owner, 'preview-1')).toThrow('was not found')
   })
 
-  it('destroys the native view on explicit close', () => {
+  it('destroys the native view on explicit close', async () => {
     const { owner } = createOwner()
     const ownerWindow = createWindow()
     electronMocks.windowFromWebContents.mockReturnValue(ownerWindow.window)
     const manager = new BrowserPreviewManager()
     manager.open(owner, openInput())
 
-    manager.close(owner, 'preview-1')
+    const closing = manager.close(owner, 'preview-1')
 
     expect(ownerWindow.removeChildView).toHaveBeenCalledOnce()
     expect(firstView().webContents.close).toHaveBeenCalledOnce()
     expect(() => manager.close(owner, 'preview-1')).not.toThrow()
+    await closing
   })
 
   it('atomically releases a new native view when attachment fails', () => {

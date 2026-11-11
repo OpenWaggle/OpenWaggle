@@ -67,8 +67,9 @@ export class BrowserPreviewRecordRegistry {
     const existing = this.owners.get(sender.id)
     if (existing) {
       if (existing.sender !== sender) throw new Error('Browser preview owner identity changed.')
-      if (this.retiringOwners.has(existing))
+      if (this.retiringOwners.has(existing)) {
         throw new Error('Browser preview owner cleanup is pending.')
+      }
       return existing
     }
     if (sender.isDestroyed()) throw new Error('Browser preview owner has been destroyed.')
@@ -191,10 +192,12 @@ export class BrowserPreviewRecordRegistry {
   }
 
   forgetSelection(sender: WebContents, ownerKey: string): void {
-    if (this.pendingByOwnerKey.get(ownerKey)?.sender === sender)
+    if (this.pendingByOwnerKey.get(ownerKey)?.sender === sender) {
       this.pendingByOwnerKey.delete(ownerKey)
-    if (this.currentByOwnerKey.get(ownerKey)?.owner.sender === sender)
+    }
+    if (this.currentByOwnerKey.get(ownerKey)?.owner.sender === sender) {
       this.currentByOwnerKey.delete(ownerKey)
+    }
   }
 
   remove(record: BrowserPreviewRecord): void {

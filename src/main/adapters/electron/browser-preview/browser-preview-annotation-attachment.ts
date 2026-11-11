@@ -29,8 +29,7 @@ export async function prepareBrowserPreviewAnnotationAttachment(
   const attachment = result.response.attachments[0]
   if (
     result.response.attachments.length !== 1 ||
-    !attachment ||
-    attachment.kind !== 'image' ||
+    attachment?.kind !== 'image' ||
     attachment.origin !== 'browser-preview' ||
     attachment.path !== entry.path
   ) {

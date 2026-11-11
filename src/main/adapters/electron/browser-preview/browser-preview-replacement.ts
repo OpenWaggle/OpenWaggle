@@ -39,7 +39,7 @@ export class BrowserPreviewReplacement {
       return { state: this.host.open(sender, input), replacedState }
     } catch (replacementError) {
       const partial = this.host.findOwned(input.ownerKey, input.previewId)
-      if (partial && partial.owner.sender === sender) this.host.dispose(partial)
+      if (partial?.owner.sender === sender) this.host.dispose(partial)
       try {
         this.host.open(sender, browserPreviewRestorationInput(replacedState))
       } catch (restoreError) {

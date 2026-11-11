@@ -57,14 +57,15 @@ describe('browser selection before native creation', () => {
     expect(manager.findOwnedPreview('session-1')?.previewId).toBe('preview-1')
   })
 
-  it('treats late hide as idempotent but still rejects showing a missing view', () => {
+  it('treats late hide as idempotent but still rejects showing a missing view', async () => {
     const { owner } = createOwner()
     const manager = new BrowserPreviewManager()
     manager.open(owner, openInput())
-    manager.close(owner, 'preview-1')
+    const closing = manager.close(owner, 'preview-1')
     expect(() => manager.setBounds(owner, 'preview-1', null)).not.toThrow()
     expect(() =>
       manager.setBounds(owner, 'preview-1', { x: 0, y: 0, width: 100, height: 100 }),
     ).toThrow('not found')
+    await closing
   })
 })

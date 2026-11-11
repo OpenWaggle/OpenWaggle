@@ -132,7 +132,7 @@ describe('browser preview ownership and capacity', () => {
     await operation.completion
   })
 
-  it('requires the session owner binding and tracks an explicit current preview', () => {
+  it('requires the session owner binding and tracks an explicit current preview', async () => {
     const { owner } = createOwner()
     const ownerWindow = createWindow()
     electronMocks.windowFromWebContents.mockReturnValue(ownerWindow.window)
@@ -151,8 +151,9 @@ describe('browser preview ownership and capacity', () => {
     manager.setCurrentPreview(owner, 'session-1', 'preview-1')
     expect(manager.findOwnedPreview('session-1')?.previewId).toBe('preview-1')
 
-    manager.close(owner, 'preview-1')
+    const closing = manager.close(owner, 'preview-1')
     expect(manager.findOwnedPreview('session-1')?.previewId).toBe('preview-2')
+    await closing
   })
 
   it('fails before native view creation when the owner binding is rejected', () => {

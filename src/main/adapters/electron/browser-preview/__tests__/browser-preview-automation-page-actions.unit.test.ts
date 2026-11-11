@@ -21,10 +21,12 @@ const {
   waitForBrowserPreviewPage,
 } = await import('../browser-preview-automation-page-actions')
 
-type CommandHandler = (
-  method: string,
-  params?: Readonly<Record<string, unknown>>,
-) => unknown | Promise<unknown>
+type CommandHandler = (method: string, params?: Readonly<Record<string, unknown>>) => unknown
+
+function evaluatedExpression(params: Readonly<Record<string, unknown>> | undefined) {
+  const expression = params?.['expression']
+  return typeof expression === 'string' ? expression : ''
+}
 
 function createPage(commandHandler: CommandHandler) {
   const contentsEvents = new EventEmitter()
@@ -119,7 +121,7 @@ describe('browser preview automation page actions', () => {
     let navigate = () => undefined
     const { contentsEvents, page, sendCommand } = createPage((method, params) => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = String(params?.['expression'] ?? '')
+      const expression = evaluatedExpression(params)
       if (expression === 'Boolean(globalThis.__openWagglePlaywrightInjected)') {
         runtimeChecks += 1
         return evaluated(runtimeChecks === 1)
@@ -194,7 +196,7 @@ describe('browser preview automation page actions', () => {
     let clickAttempts = 0
     const { page, sendCommand } = createPage((method, params) => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = String(params?.['expression'] ?? '')
+      const expression = evaluatedExpression(params)
       if (expression.includes('__openWagglePlaywrightInjected)')) return evaluated(true)
       if (expression.includes("kind: 'point'")) {
         clickAttempts += 1
@@ -219,7 +221,7 @@ describe('browser preview automation page actions', () => {
     let typeAttempts = 0
     const { page } = createPage((method, params) => {
       if (method !== 'Runtime.evaluate') return {}
-      const expression = String(params?.['expression'] ?? '')
+      const expression = evaluatedExpression(params)
       if (expression.includes('__openWagglePlaywrightInjected)')) return evaluated(true)
       typeAttempts += 1
       return evaluated(

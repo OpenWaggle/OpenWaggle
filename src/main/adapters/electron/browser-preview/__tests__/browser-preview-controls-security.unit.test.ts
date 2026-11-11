@@ -39,7 +39,7 @@ describe('browser preview controls and page security', () => {
     expect(view.webContents.close).not.toHaveBeenCalled()
   })
 
-  it('scales a floating fill-mode page without mutating its viewport preference', () => {
+  it('scales a floating fill-mode page without mutating its viewport preference', async () => {
     const { owner } = createOwner()
     electronMocks.windowFromWebContents.mockReturnValue(createWindow().window)
     const manager = new BrowserPreviewManager()
@@ -61,7 +61,7 @@ describe('browser preview controls and page security', () => {
     )
     manager.setBounds(owner, 'preview-1', { x: 20, y: 20, width: 800, height: 600 })
     expect(view.webContents.disableDeviceEmulation).toHaveBeenCalledOnce()
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 
   it('reuses the view for a different URL and denies all popup windows', () => {

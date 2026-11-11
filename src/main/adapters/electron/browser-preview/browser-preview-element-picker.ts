@@ -76,6 +76,15 @@ function decodePickPayload(value: unknown): BrowserPreviewElementPickPayload | n
   )
 }
 
+/** Waits for `work`, then for `release` whether `work` succeeded or not. */
+async function settledBefore<T>(work: Promise<T>, release: () => Promise<void>): Promise<T> {
+  try {
+    return await work
+  } finally {
+    await release()
+  }
+}
+
 export class BrowserPreviewElementPicker {
   private readonly active = new Map<string, ActivePick>()
 
@@ -121,9 +130,10 @@ export class BrowserPreviewElementPicker {
       const payload = decodePickPayload(raw)
       if (payload === null) return null
       const artifacts = this.getArtifacts()
-      const screenshot = await artifacts
-        .captureScreenshot(previewId, contents, captureClip(payload, captureScale))
-        .finally(releaseOverlay)
+      const screenshot = await settledBefore(
+        artifacts.captureScreenshot(previewId, contents, captureClip(payload, captureScale)),
+        releaseOverlay,
+      )
       if (this.active.get(pickKey)?.token !== token) return null
       const attachment = await artifacts.prepareAnnotationAttachment(payload, screenshot)
       if (this.active.get(pickKey)?.token !== token) return null

@@ -132,7 +132,7 @@ async function runOAuthFlow(
   const awaitingInput = (prompt?: OAuthInputPrompt): OAuthFlowStatus => ({
     type: 'awaiting-code',
     provider,
-    ...(link ?? {}),
+    ...link,
     ...(prompt ? { prompt } : {}),
   })
 
@@ -143,7 +143,7 @@ async function runOAuthFlow(
         yield* authService.login(provider, {
           onAuthUrl: (url, instructions) => {
             link = { authUrl: url, ...(instructions ? { instructions } : {}) }
-            void openExternal(url).catch((error) => {
+            void openExternal(url).catch((error: unknown) => {
               logger.warn('Failed to open OAuth URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
@@ -154,7 +154,7 @@ async function runOAuthFlow(
             emitStatus(awaitingInput())
           },
           onDeviceCode: (deviceCode) => {
-            void openExternal(deviceCode.verificationUri).catch((error) => {
+            void openExternal(deviceCode.verificationUri).catch((error: unknown) => {
               logger.warn('Failed to open OAuth device-code URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),

@@ -175,7 +175,7 @@ describe('browser preview idempotent close', () => {
     await manager.close(owner, 'preview-1')
   })
 
-  it.each([17, 18])('rejects an existing foreign preview with sender ID %s', (senderId) => {
+  it.each([17, 18])('rejects an existing foreign preview with sender ID %s', async (senderId) => {
     const manager = new BrowserPreviewManager()
     const { owner } = createOwner()
     manager.open(owner, openInput())
@@ -183,6 +183,6 @@ describe('browser preview idempotent close', () => {
     expect(() => manager.close(foreign, 'preview-1')).toThrow()
     expect(firstView().webContents.close).not.toHaveBeenCalled()
     expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeDefined()
-    manager.close(owner, 'preview-1')
+    await manager.close(owner, 'preview-1')
   })
 })

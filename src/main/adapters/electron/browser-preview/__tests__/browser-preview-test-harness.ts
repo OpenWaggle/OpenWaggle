@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events'
 import type { BrowserPreviewOpenInput } from '@shared/types/browser-preview'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { Input, WebContents } from 'electron'
-import { vi } from 'vitest'
+import { type Mock, vi } from 'vitest'
+import type { BrowserPreviewOwnerRegistry } from '../browser-preview-owner-registry'
 
 interface FakeNavigationHistory {
   readonly canGoBack: ReturnType<typeof vi.fn>
@@ -54,7 +55,7 @@ export interface FakePreviewView {
   readonly setBounds: ReturnType<typeof vi.fn>
   readonly setVisible: ReturnType<typeof vi.fn>
   readonly constructorOptions: {
-    readonly webPreferences?: { readonly [key: string]: unknown }
+    readonly webPreferences?: Readonly<Record<string, unknown>>
   }
 }
 
@@ -74,13 +75,13 @@ const electronMocks: BrowserPreviewElectronMocks = vi.hoisted(() => {
 const browserPreviewOwnerRegistryMock = vi.hoisted(() => ({
   assertRegistered: vi.fn(),
   notifyMaterialized: vi.fn(),
-  requestOpen: vi.fn(),
+  requestOpen: vi.fn<BrowserPreviewOwnerRegistry['requestOpen']>(),
 }))
 
 interface BrowserPreviewOwnerRegistryMock {
   readonly assertRegistered: ReturnType<typeof vi.fn>
   readonly notifyMaterialized: ReturnType<typeof vi.fn>
-  readonly requestOpen: ReturnType<typeof vi.fn>
+  readonly requestOpen: Mock<BrowserPreviewOwnerRegistry['requestOpen']>
 }
 
 export function getBrowserPreviewOwnerRegistryMock(): BrowserPreviewOwnerRegistryMock {

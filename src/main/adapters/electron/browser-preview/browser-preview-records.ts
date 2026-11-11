@@ -18,7 +18,7 @@ export interface BrowserPreviewRecord {
   disposed: boolean
   readonly claimedShortcutKeys: Set<string>
   readonly onOwnerEventFailure: () => void
-  readonly removeListeners: Array<() => void>
+  readonly removeListeners: (() => void)[]
 }
 
 export interface BrowserPreviewOwnerRecord {
@@ -26,7 +26,7 @@ export interface BrowserPreviewOwnerRecord {
   readonly window: BrowserWindow
   readonly previews: Map<string, BrowserPreviewRecord>
   shortcutBindings: BrowserPreviewShortcutBindings
-  readonly removeListeners: Array<() => void>
+  readonly removeListeners: (() => void)[]
 }
 
 export interface BrowserPreviewEventActions {

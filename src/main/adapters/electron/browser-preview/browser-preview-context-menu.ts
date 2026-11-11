@@ -37,8 +37,9 @@ export function installBrowserPreviewContextMenu(contents: WebContents, window: 
         contents.isDestroyed() ||
         window.isDestroyed() ||
         params.frame?.detached
-      )
+      ) {
         return
+      }
       action()
     }
     const template: MenuItemConstructorOptions[] = []
