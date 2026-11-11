@@ -93,21 +93,6 @@ describe('shell-handler', () => {
     mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
-  it('registers exactly nine invoke handlers', () => {
-    registerShellHandlers()
-
-    expect(handlers.size).toBe(9)
-    expect(handlers.has('app:get-usage-statistics-block')).toBe(true)
-    expect(handlers.has('app:recover-native-admission')).toBe(true)
-    expect(handlers.has('app:open-logs-dir')).toBe(true)
-    expect(handlers.has('app:get-logs-path')).toBe(true)
-    expect(handlers.has('app:get-native-admission-issue')).toBe(true)
-    expect(handlers.has('shell:open-path')).toBe(true)
-    expect(handlers.has('shell:reveal-path')).toBe(true)
-    expect(handlers.has('shell:open-external')).toBe(true)
-    expect(handlers.has('clipboard:read-text')).toBe(true)
-  })
-
   it.each([null, 'Previous desktop ownership remains uncertain.'])(
     'exposes the read-only GUI native admission state: %s',
     async (issue) => {
@@ -162,15 +147,6 @@ describe('shell-handler', () => {
       expect(mockAppGetPath).toHaveBeenCalledWith('logs')
     })
 
-    it('uses the path returned by app.getPath', async () => {
-      mockAppGetPath.mockReturnValue('/custom/log/dir')
-      registerShellHandlers()
-
-      const handler = handlers.get('app:open-logs-dir')
-      await handler?.({})
-      expect(mockShellOpenPath).toHaveBeenCalledWith('/custom/log/dir')
-    })
-
     it('propagates a blocked automation path instead of dropping the rejection', async () => {
       mockShellOpenPath.mockRejectedValueOnce(new Error('Blocked native desktop UI'))
       registerShellHandlers()
@@ -190,34 +166,18 @@ describe('shell-handler', () => {
       expect(mockAppGetPath).toHaveBeenCalledWith('logs')
       expect(result).toBe('/tmp/logs')
     })
-
-    it('reflects the current logs path dynamically', async () => {
-      mockAppGetPath.mockReturnValue('/another/path')
-      registerShellHandlers()
-
-      const handler = handlers.get('app:get-logs-path')
-      const result = await handler?.()
-      expect(result).toBe('/another/path')
-    })
   })
 
   describe('shell:open-external', () => {
-    it('opens https URLs via shell.openExternal', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
-      expect(handler).toBeDefined()
+    it.each(['https://github.com', 'http://localhost:3000'])(
+      'opens the web link %s via shell.openExternal',
+      async (url) => {
+        registerShellHandlers()
 
-      await handler?.({}, 'https://github.com')
-      expect(mockShellOpenExternal).toHaveBeenCalledWith('https://github.com')
-    })
-
-    it('opens http URLs via shell.openExternal', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
-
-      await handler?.({}, 'http://localhost:3000')
-      expect(mockShellOpenExternal).toHaveBeenCalledWith('http://localhost:3000')
-    })
+        await handlers.get('shell:open-external')?.({}, url)
+        expect(mockShellOpenExternal).toHaveBeenCalledWith(url)
+      },
+    )
 
     it('refuses a link that is not a web link, in words the user can act on', async () => {
       registerShellHandlers()

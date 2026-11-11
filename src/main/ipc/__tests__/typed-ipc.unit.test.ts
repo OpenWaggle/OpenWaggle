@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import type { Settings } from '@shared/types/settings'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
@@ -57,20 +57,12 @@ describe('typedOn', () => {
     ipcMainOnMock.mockReset()
   })
 
-  it('registers a listener on ipcMain.on with the given channel', () => {
-    typedOn(
-      'terminal:ack-output',
-      (_event, _ownerKey, _terminalId, _generation, _offset) => Effect.void,
-    )
-
-    expect(ipcMainOnMock).toHaveBeenCalledOnce()
-    expect(ipcMainOnMock).toHaveBeenCalledWith('terminal:ack-output', expect.any(Function))
-  })
-
   it('runs the effect handler when the listener fires', async () => {
     const effectBody = vi.fn()
     typedOn('terminal:ack-output', () => Effect.sync(() => effectBody()))
 
+    expect(ipcMainOnMock).toHaveBeenCalledOnce()
+    expect(ipcMainOnMock).toHaveBeenCalledWith('terminal:ack-output', expect.any(Function))
     const registeredListener = ipcMainOnMock.mock.calls[0][1]
     const fakeEvent = { sender: {} }
     await registeredListener(fakeEvent, 'owner', 'terminal-id', 1, 42)
@@ -86,16 +78,6 @@ describe('typedHandle', () => {
     ipcMainOnMock.mockReset()
   })
 
-  it('registers a handler on ipcMain.handle', () => {
-    const handler = vi.fn(function handleSettingsGet(_event: IpcInvocation) {
-      return Effect.succeed(DEFAULT_SETTINGS)
-    })
-    typedHandle('settings:get', handler)
-
-    expect(ipcMainHandleMock).toHaveBeenCalledOnce()
-    expect(ipcMainHandleMock).toHaveBeenCalledWith('settings:get', expect.any(Function))
-  })
-
   it('runs the effect handler and returns its result', async () => {
     const handler = vi.fn(function handleSettingsUpdate(
       _event: IpcInvocation,
@@ -105,6 +87,8 @@ describe('typedHandle', () => {
     })
     typedHandle('settings:update', handler)
 
+    expect(ipcMainHandleMock).toHaveBeenCalledOnce()
+    expect(ipcMainHandleMock).toHaveBeenCalledWith('settings:update', expect.any(Function))
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
     const fakeEvent = { sender: {} }
     const result = await registeredHandler(fakeEvent, { thinkingLevel: 'medium' })

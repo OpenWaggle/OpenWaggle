@@ -90,4 +90,12 @@ describe('normalizeGitPath', () => {
   it('strips quotes from the result of a rename', () => {
     expect(normalizeGitPath('"old.txt" => "new.txt"')).toBe('new.txt')
   })
+
+  it('unescapes quotes inside a quoted path', () => {
+    expect(normalizeGitPath('"src/file\\"name.ts"')).toBe('src/file"name.ts')
+  })
+
+  it('resolves a quoted brace rename with spaces', () => {
+    expect(normalizeGitPath('"src/{old name => new name}.ts"')).toBe('src/new name.ts')
+  })
 })

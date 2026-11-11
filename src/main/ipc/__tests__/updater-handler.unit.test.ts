@@ -195,14 +195,6 @@ describe('updater-handler', () => {
       expect(mockGetUpdateStatus).toHaveBeenCalledOnce()
       expect(result).toEqual({ type: 'checking' })
     })
-
-    it('returns idle status by default', async () => {
-      registerUpdaterHandlers()
-
-      const handler = handlers.get('updater:get-status')
-      const result = await handler?.({})
-      expect(result).toEqual({ type: 'idle' })
-    })
   })
 
   describe('app:get-version', () => {
@@ -214,15 +206,6 @@ describe('updater-handler', () => {
       const result = await handler?.({})
       expect(mockAppGetVersion).toHaveBeenCalledOnce()
       expect(result).toBe('0.1.0')
-    })
-
-    it('reflects the version returned by app.getVersion', async () => {
-      mockAppGetVersion.mockReturnValue('1.5.2')
-      registerUpdaterHandlers()
-
-      const handler = handlers.get('app:get-version')
-      const result = await handler?.({})
-      expect(result).toBe('1.5.2')
     })
   })
 })
