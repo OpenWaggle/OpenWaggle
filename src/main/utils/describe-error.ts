@@ -16,6 +16,12 @@ export function unwrapFiberFailure(error: unknown) {
   return Cause.squash(error[Runtime.FiberFailureCauseId])
 }
 
+/** An object with nothing that identifies it is named by its class; its fields may hold secrets. */
+function className(value: object) {
+  const constructor: unknown = Reflect.get(value, 'constructor')
+  return typeof constructor === 'function' && constructor.name ? constructor.name : 'Object'
+}
+
 function describeOne(error: unknown) {
   if (typeof error !== 'object' || error === null) return String(error)
   const tag = readString(error, '_tag') ?? (error instanceof Error ? error.name : null)
@@ -24,7 +30,7 @@ function describeOne(error: unknown) {
   const code = readString(error, 'code')
   const label = [tag, operation ? `(${operation})` : null].filter(Boolean).join(' ')
   const detail = [code && code !== tag ? code : null, message].filter(Boolean).join(': ')
-  return [label, detail].filter(Boolean).join(': ') || String(error)
+  return [label, detail].filter(Boolean).join(': ') || className(error)
 }
 
 /**

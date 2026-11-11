@@ -62,16 +62,10 @@ interface StoredRow {
 
 function storedRows(database: Database.Database) {
   return database
-    .prepare<[], Record<string, unknown>>(
+    .prepare<[], StoredRow>(
       'SELECT session_id, profile_json, resolved_agent_snapshot_json FROM session_execution_profiles ORDER BY session_id',
     )
     .all()
-    .map((row) => ({
-      session_id: String(row.session_id),
-      profile_json: String(row.profile_json),
-      resolved_agent_snapshot_json:
-        row.resolved_agent_snapshot_json === null ? null : String(row.resolved_agent_snapshot_json),
-    })) satisfies StoredRow[]
 }
 
 function storedTools(json: string | null) {

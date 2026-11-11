@@ -40,15 +40,19 @@ function markdownContent(content: unknown) {
   return `\`\`\`json\n${JSON.stringify(content, null, JSON_INDENT_SPACES)}\n\`\`\``
 }
 
+function textField(value: unknown, fallback: string) {
+  return typeof value === 'string' ? value : fallback
+}
+
 function writeHeader(manifest: unknown, format: ExportFormat) {
   if (format === 'jsonl') {
     return writeCliStdout(`${JSON.stringify({ record: 'manifest', manifest })}\n`)
   }
   const value = isRecord(manifest) ? manifest : {}
   return writeCliStdout(
-    `# ${String(value.title ?? 'Session export')}\n\n` +
-      `- Session: ${String(value.sessionId ?? '')}\n` +
-      `- Scope: ${String(value.branchScope ?? '')}\n` +
+    `# ${textField(value.title, 'Session export')}\n\n` +
+      `- Session: ${textField(value.sessionId, '')}\n` +
+      `- Scope: ${textField(value.branchScope, '')}\n` +
       `- Active turn incomplete: ${value.activeTurnIncomplete === true ? 'yes' : 'no'}\n\n`,
   )
 }

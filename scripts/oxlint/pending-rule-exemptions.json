@@ -283,12 +283,6 @@
   "typescript/no-base-to-string": {
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-automation-page-actions.unit.test.ts": 3,
     "src/main/adapters/electron/browser-preview/browser-preview-automation-diagnostics.ts": 2,
-    "src/main/openwaggle-mcp-session-options-v2.ts": 1,
-    "src/main/services/__tests__/hive-tool-name-migration.unit.test.ts": 1,
-    "src/main/session-host/local-session-server-frame.ts": 1,
-    "src/main/sessions-cli-export.ts": 3,
-    "src/main/store/settings/session-title-settings.ts": 1,
-    "src/main/utils/describe-error.ts": 1,
     "src/renderer/src/features/chat/lib/chat-stream-state-helpers.ts": 1,
     "src/renderer/src/features/chat/lib/tool-call-block.ts": 1
   },
