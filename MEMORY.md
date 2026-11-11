@@ -30,6 +30,7 @@ Each line names a topic file and when to load it:
 - [`terminals-and-browser-preview`](.agents/memory/terminals-and-browser-preview.md): touching Session-bound terminals, node-pty/xterm, or the Session-owned Browser preview.
 - [`session-resources`](.agents/memory/session-resources.md): touching Session resources, captured images, the resource protocol or extension resource contributions.
 - [`electron-shell`](.agents/memory/electron-shell.md): touching Electron main-process startup, the desktop shell ports and Electron adapters, packaging, native addons, hidden QA, visualizations or `bun run dev:debug`.
+- [`electrobun-native-layer`](.agents/memory/electrobun-native-layer.md): touching `vendor/electrobun/`, the Electrobun floor guards, `electrobun-native.yml`, or the Electrobun CEF preview and CDP.
 - [`persistence-and-migrations`](.agents/memory/persistence-and-migrations.md): adding a migration or touching SQLite schemas, settings keys or `src/main/services/database-*`.
 - [`release-and-ci`](.agents/memory/release-and-ci.md): touching `.github/workflows/`, release scripts, signing, updater artifacts or the commit policy.
 - [`tooling`](.agents/memory/tooling.md): touching lint, format, TypeScript config, dependencies, repository standards or scripts.
