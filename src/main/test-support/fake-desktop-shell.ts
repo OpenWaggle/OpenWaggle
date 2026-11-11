@@ -31,6 +31,10 @@ function listenerSet<L extends Listener>() {
   }
 }
 
+function callEach(listeners: ReadonlySet<() => void>) {
+  for (const listener of [...listeners]) listener()
+}
+
 export interface FakeAppLifecycle extends AppLifecycleShape {
   /** Runs the `onBeforeQuit` listeners; true when one of them held the quit. */
   readonly emitBeforeQuit: () => boolean
@@ -75,11 +79,10 @@ export function fakeAppLifecycle(overrides: Partial<AppLifecycleShape> = {}): Fa
       }
       return held
     },
-    emitWillQuit: () => [...willQuit.listeners].forEach((listener) => listener()),
-    emitWindowAllClosed: () => [...windowAllClosed.listeners].forEach((listener) => listener()),
-    emitActivate: () => [...activate.listeners].forEach((listener) => listener()),
-    emitBeforeQuitForUpdate: () =>
-      [...beforeQuitForUpdate.listeners].forEach((listener) => listener()),
+    emitWillQuit: () => callEach(willQuit.listeners),
+    emitWindowAllClosed: () => callEach(windowAllClosed.listeners),
+    emitActivate: () => callEach(activate.listeners),
+    emitBeforeQuitForUpdate: () => callEach(beforeQuitForUpdate.listeners),
   })
 }
 
@@ -98,7 +101,7 @@ export function fakeAppPaths(userData = '/tmp/openwaggle-test-profile'): AppPath
   } satisfies AppPathsShape
 }
 
-const NO_UNSUBSCRIBE = () => undefined
+const noUnsubscribe = () => undefined
 
 export function fakeSystemIntegration(
   overrides: Partial<SystemIntegrationShape> = {},
@@ -107,17 +110,17 @@ export function fakeSystemIntegration(
     requestSingleInstanceLock: () => true,
     hasSingleInstanceLock: () => true,
     releaseSingleInstanceLock: vi.fn(),
-    onSecondInstance: () => NO_UNSUBSCRIBE,
+    onSecondInstance: () => noUnsubscribe,
     loginItemOpensAtLogin: () => false,
     setLoginItemOpensAtLogin: vi.fn(),
     setBadgeCount: vi.fn(),
     setActivationPolicy: vi.fn(),
     setDockIcon: vi.fn(),
     setAppUserModelId: vi.fn(),
-    onResume: () => NO_UNSUBSCRIBE,
+    onResume: () => noUnsubscribe,
     setAsDefaultProtocolClient: () => true,
-    onOpenUrl: () => NO_UNSUBSCRIBE,
-    onProcessGone: () => NO_UNSUBSCRIBE,
+    onOpenUrl: () => noUnsubscribe,
+    onProcessGone: () => noUnsubscribe,
     ...overrides,
   } satisfies SystemIntegrationShape
 }

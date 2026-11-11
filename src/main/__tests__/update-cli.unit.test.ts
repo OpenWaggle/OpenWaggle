@@ -11,7 +11,6 @@ const {
   releaseSingleInstanceLockMock,
   spawnMock,
   stopHostForUpdateMock,
-  appOnMock,
   updater,
 } = vi.hoisted(() => {
   const updater: {
@@ -44,7 +43,6 @@ const {
     releaseSingleInstanceLockMock: vi.fn(),
     spawnMock: vi.fn(),
     stopHostForUpdateMock: vi.fn(),
-    appOnMock: vi.fn(),
     updater,
   }
 })
@@ -56,10 +54,6 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('../desktop-shell/app-lifecycle', async () => ({
   appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
     version: () => '1.0.0-beta.25',
-    onBeforeQuit: (listener) => {
-      appOnMock('before-quit', listener)
-      return () => undefined
-    },
   }),
 }))
 vi.mock('../desktop-shell/app-paths', async () => ({
