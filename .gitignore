@@ -55,3 +55,6 @@ build/session-embedding-model/
 # runner's parallel steps (format, repository standards) must not see them.
 electron.vite.config.*.mjs
 *.timestamp-*.mjs
+
+# Hutch (Electrobun build) scratch directory
+.cottontail-tmp/

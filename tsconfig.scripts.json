@@ -41,6 +41,7 @@
     ".pi/extensions/**/*.ts",
     "vendor/electrobun/*.ts",
     "hutch.config.ts",
+    "electrobun.config.ts",
     "vendor/electrobun/hooks/*.ts",
     "electron.vite.config.ts",
     "electron-builder.ts"
