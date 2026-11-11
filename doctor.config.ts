@@ -198,6 +198,12 @@ const config: DoctorConfig = {
         rules: ['react-doctor/async-await-in-loop'],
       },
       {
+        // The Electrobun CEF probe types into the preview over CDP one key at a time: each
+        // keyDown/keyUp pair must reach the page in order, or the typed value is scrambled.
+        files: ['vendor/electrobun/probe/src/bun/index.ts'],
+        rules: ['react-doctor/async-await-in-loop'],
+      },
+      {
         // Each vault secret is decrypted through the OS keychain (Electron safeStorage).
         // The loop returns at the first secret that cannot be read, so a locked or refused
         // keychain is not asked again for the same server's other secrets.

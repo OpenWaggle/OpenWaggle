@@ -79,6 +79,7 @@ const fixtureOrigin = `http://127.0.0.1:${fixture.port}`
 
 async function listTargets() {
   const response = await fetch(`http://127.0.0.1:${cdpPort}/json/list`)
+  if (!response.ok) throw new Error(`DevTools target list failed: HTTP ${response.status}`)
   const targets: CdpTarget[] = await response.json()
   return targets
 }
