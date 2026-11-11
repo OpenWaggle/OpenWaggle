@@ -1,4 +1,3 @@
-import { Effect, Layer } from 'effect'
 import { browserPreviewManager } from './browser-preview'
 import { navigateBrowserPreviewAndWait } from './browser-preview-automation-navigation'
 import { browserPreviewAutomationPage } from './browser-preview-automation-page'
@@ -9,11 +8,8 @@ import {
   type BrowserPreviewAutomationShell,
   makeBrowserPreviewAutomationService as makeAutomationService,
 } from '../../browser-preview/automation/browser-preview-automation-service'
-import {
-  BrowserPreviewAutomationService,
-  type BrowserPreviewAutomationServiceShape,
-} from '../../../ports/browser-preview-automation-service'
-import { SettingsService, type SettingsServiceShape } from '../../../services/settings-service'
+import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browser-preview-automation-service'
+import type { SettingsServiceShape } from '../../../services/settings-service'
 
 /** Electron's previews as the automation sees them: `WebContentsView`s with their debugger. */
 const electronAutomationShell: BrowserPreviewAutomationShell<BrowserPreviewRecord> = {
@@ -57,11 +53,3 @@ export function makeBrowserPreviewAutomationService(settings: SettingsServiceSha
     electronAutomationShell,
   ) satisfies BrowserPreviewAutomationServiceShape
 }
-
-export const ElectronBrowserPreviewAutomationServiceLive = Layer.effect(
-  BrowserPreviewAutomationService,
-  Effect.gen(function* () {
-    const settings = yield* SettingsService
-    return BrowserPreviewAutomationService.of(makeBrowserPreviewAutomationService(settings))
-  }),
-)

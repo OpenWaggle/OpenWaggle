@@ -29,8 +29,8 @@ const mocks = vi.hoisted(() => {
     attachment: vi.fn<() => 'attached' | 'reconnecting' | 'stopped'>(() => 'attached'),
   }
 })
-vi.mock('../adapters/electron/browser-preview/browser-preview', () => ({
-  browserPreviewManager: {
+vi.mock('../desktop-shell/browser-preview-views', () => ({
+  browserPreviewViews: {
     closeForOwner: vi.fn(),
     acquireMutationFence: vi.fn(),
     beginShutdown: () => mocks.beginShutdown(),

@@ -9,7 +9,7 @@ import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
-import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron/browser-preview/electron-browser-preview-automation-service'
+import { ElectrobunBrowserPreviewAutomationServiceLive } from './adapters/electrobun/electrobun-browser-preview'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
@@ -32,7 +32,7 @@ const GuiLayer = Layer.mergeAll(
   AppLogger.Live,
   SettingsService.Live,
   PtyTerminalServiceLive,
-  ElectronBrowserPreviewAutomationServiceLive.pipe(Layer.provide(SettingsService.Live)),
+  ElectrobunBrowserPreviewAutomationServiceLive.pipe(Layer.provide(SettingsService.Live)),
   FilesystemWorkspaceFileLive,
   WorkspaceProjectAuthorizationLive,
   GuiUsageStatisticsRecorderLive,
