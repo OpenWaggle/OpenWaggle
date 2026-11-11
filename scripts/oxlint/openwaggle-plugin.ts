@@ -3,6 +3,7 @@ import { desktopShellBoundaryRule } from './rules/desktop-shell-boundary.ts'
 import { functionNameConventionRule } from './rules/function-name-convention.ts'
 import { jsxMaxPropsRule } from './rules/jsx-max-props.ts'
 import { mainArchitectureBoundariesRule } from './rules/main-architecture-boundaries.ts'
+import { noApiTypeofGuardRule } from './rules/no-api-typeof-guard.ts'
 import { noArchitectureIgnoreCommentsRule } from './rules/no-architecture-ignore-comments.ts'
 import { noForEachRule } from './rules/no-for-each.ts'
 import { noInlineImportTypesRule } from './rules/no-inline-import-types.ts'
@@ -27,6 +28,7 @@ export const openwagglePlugin: Plugin = {
     'function-name-convention': functionNameConventionRule,
     'jsx-max-props': jsxMaxPropsRule,
     'main-architecture-boundaries': mainArchitectureBoundariesRule,
+    'no-api-typeof-guard': noApiTypeofGuardRule,
     'no-architecture-ignore-comments': noArchitectureIgnoreCommentsRule,
     'no-for-each': noForEachRule,
     'no-inline-import-types': noInlineImportTypesRule,

@@ -54,6 +54,7 @@ Mechanical enforcement:
 - `openwaggle/main-architecture-boundaries` enforces Pi isolation, domain purity, no provider registry, and store/application/IPC boundaries.
 - Fallow reports import cycles; oxlint's `import/no-cycle` stays off until the existing cycles are gone. [ARCH-06]
 - `openwaggle/no-uncaught-void-ipc` rejects fire-and-forget IPC calls that drop their rejection. [ARCH-07]
+- `openwaggle/no-api-typeof-guard` rejects `typeof api.*` guards in the renderer: the `api` proxy answers every name with a function, so the guard is always true and its fallback is dead. The typed preload contract makes the member exist; handle the call's rejection, or check a real capability such as `'name' in api`, which the proxy answers from the loaded preload. [ARCH-08]
 
 ## Pi Runtime
 

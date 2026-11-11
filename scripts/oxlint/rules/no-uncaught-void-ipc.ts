@@ -1,14 +1,6 @@
 import type { Node, Rule } from '@oxlint/plugins'
-import { hasNodeType, isLintNode, isUnknownArray, property, sourceValueOf } from '../ast-helpers.ts'
-
-/**
- * The renderer's IPC bridge module (`src/renderer/src/shared/lib/ipc.ts`), reached by alias
- * (`@/shared/lib/ipc`, `@shared/lib/…`) or relatively (`../../shared/lib/ipc`).
- */
-const IPC_BRIDGE_MODULE = /(?:^|\/)shared\/lib\/ipc$/
-
-/** The binding the bridge exports, which every renderer fire-and-forget call routes through. */
-const IPC_BRIDGE_EXPORT = 'api'
+import { hasNodeType, isLintNode, isUnknownArray, property } from '../ast-helpers.ts'
+import { IPC_BRIDGE_EXPORT, importsIpcBridgeApi } from '../ipc-bridge.ts'
 
 /** A chain member call that receives the rejection itself, so nothing after it can float. */
 const REJECTION_HANDLER_PROPERTY = 'catch'
@@ -19,10 +11,6 @@ const REJECTION_HANDLER_PROPERTY = 'catch'
 const THEN_PROPERTY = 'then'
 /** The argument count at which `then` carries its rejection handler. */
 const THEN_REJECTION_HANDLER_ARGUMENT_COUNT = 2
-
-function isImportSpecifier(value: unknown) {
-  return hasNodeType(value, 'ImportSpecifier') || hasNodeType(value, 'ImportDefaultSpecifier')
-}
 
 /** The name of the identifier a member-call chain is rooted at, or `null` when it has none. */
 function bridgeRootName(operand: Node): string | null {
@@ -105,16 +93,7 @@ export const noUncaughtVoidIpcRule: Rule = {
     let importsIpcBridge = false
     return {
       ImportDeclaration(node: Node) {
-        const source = sourceValueOf(node)
-        if (source === null || !IPC_BRIDGE_MODULE.test(source)) return
-        const specifiers: unknown = property(node, 'specifiers')
-        if (!isUnknownArray(specifiers)) return
-        importsIpcBridge ||= specifiers.some((specifier) => {
-          if (!isImportSpecifier(specifier) || !isLintNode(specifier)) return false
-          const local: unknown = property(specifier, 'local')
-          const name: unknown = isLintNode(local) ? property(local, 'name') : null
-          return name === IPC_BRIDGE_EXPORT
-        })
+        importsIpcBridge ||= importsIpcBridgeApi(node)
       },
       UnaryExpression(node: Node) {
         if (property(node, 'operator') !== 'void' || !importsIpcBridge) return

@@ -18,6 +18,7 @@
     "ARCH-05": {"rule": "Stores are persistence details behind ports and services.", "by": ["openwaggle/main-architecture-boundaries"]},
     "ARCH-06": {"rule": "No import cycles.", "by": ["fallow", "review"]},
     "ARCH-07": {"rule": "Fire-and-forget IPC calls handle their rejection.", "by": ["openwaggle/no-uncaught-void-ipc"]},
+    "ARCH-08": {"rule": "No `typeof api.*` guards; preload members always exist.", "by": ["openwaggle/no-api-typeof-guard"]},
     "PKG-01": {"rule": "packages/extension-sdk stays browser-safe: no Electron, Node built-ins, Pi SDK, renderer stores, main services or app internals.", "by": ["standards:package-boundaries"]},
     "PKG-02": {"rule": "packages/waggle-core stays runtime-neutral: no Pi SDK, Electron, Node built-ins, renderer stores or app services.", "by": ["standards:package-boundaries"]},
     "PKG-03": {"rule": "packages/extension-react may use @openwaggle/extension-sdk and React peers only: no renderer components, app CSS, Tailwind internals, Electron or app services.", "by": ["standards:package-boundaries"]},

@@ -515,6 +515,7 @@ export default defineConfig({
     {
       files: ['src/renderer/src/**/*.{ts,tsx}'],
       rules: {
+        'openwaggle/no-api-typeof-guard': 'error',
         'openwaggle/no-uncaught-void-ipc': 'error',
         'openwaggle/renderer-design-token-guardrails': [
           'error',
