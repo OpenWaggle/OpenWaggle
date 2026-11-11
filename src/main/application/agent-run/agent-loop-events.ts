@@ -29,7 +29,7 @@ interface DurableAgentLoopNodeSource {
   readonly parentId: string | null
   readonly piEntryType: string
   readonly kind: string
-  readonly role?: ProjectedSessionNodeInput['role']
+  readonly role?: ProjectedSessionNodeInput['role'] | undefined
   readonly timestampMs: number
   readonly contentJson: string
   readonly metadataJson: string

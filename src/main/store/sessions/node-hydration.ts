@@ -108,6 +108,7 @@ function hydrateSessionNode(
   visibleDepthById: Map<string, number>,
 ) {
   const parentId = visibleParentById.get(row.id) ?? null
+  const message = hydrateNodeMessage(row)
   return {
     id: SessionNodeId(row.id),
     sessionId: SessionId(row.session_id),
@@ -119,7 +120,7 @@ function hydrateSessionNode(
     createdOrder: row.created_order,
     pathDepth: getVisiblePathDepth(row.id, visibleParentById, visibleDepthById),
     branchId: row.branch_hint_id ? SessionBranchId(row.branch_hint_id) : null,
-    message: hydrateNodeMessage(row),
+    ...(message === undefined ? {} : { message }),
     contentJson: row.content_json,
     metadataJson: row.metadata_json,
   }
