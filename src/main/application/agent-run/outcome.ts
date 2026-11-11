@@ -123,8 +123,9 @@ export function classifyRunFailure(error: unknown, reachedAgent: boolean) {
   if (direct.code !== 'unknown') return { classified: direct, detail }
   for (const cause of errorCauseChain(error).slice(1)) {
     const candidate = classifyAgentError(cause)
-    if (candidate.code !== 'unknown')
+    if (candidate.code !== 'unknown') {
       return { classified: { ...candidate, message: detail }, detail }
+    }
   }
   return { classified: { ...direct, message: detail }, detail }
 }

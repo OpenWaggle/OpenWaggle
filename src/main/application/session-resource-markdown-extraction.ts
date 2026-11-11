@@ -260,8 +260,9 @@ export function collectMarkdownResources(
   if (
     images.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages &&
     links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
-  )
+  ) {
     return
+  }
   for (const { image, link } of markdownCandidates(text, imageOrigin)) {
     if (image && images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
       order.push({ kind: 'image', index: images.length })

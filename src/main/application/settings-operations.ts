@@ -90,8 +90,9 @@ function validateShortcutBindingsUpdate(
     }
     const key = shortcutBindingKey(binding)
     const owner = owners.get(key)?.find((existing) => shortcutScopesOverlap(command, existing))
-    if (owner !== undefined)
+    if (owner !== undefined) {
       return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
+    }
     owners.set(key, [...(owners.get(key) ?? []), command])
   }
   return { ok: true, value: candidate }

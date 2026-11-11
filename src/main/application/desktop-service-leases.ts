@@ -65,8 +65,9 @@ export class DesktopServiceLeases {
 
   current() {
     if (this.closed) throw desktopUnavailableError()
-    if (this.lease && Date.now() - this.lease.lastSeen > DESKTOP_SERVICE_LIMITS.leaseTimeoutMs)
+    if (this.lease && Date.now() - this.lease.lastSeen > DESKTOP_SERVICE_LIMITS.leaseTimeoutMs) {
       this.revoke()
+    }
     return this.lease
   }
 
@@ -91,8 +92,9 @@ export class DesktopServiceLeases {
         if (!recover) return { operation: 'quarantined', reason: 'previous-owner-unclean' }
         await this.recoverStaleOwner(current, durable, guiInstanceId)
       }
-      if (current && current.guiInstanceId !== guiInstanceId)
+      if (current && current.guiInstanceId !== guiInstanceId) {
         throw new Error('Another OpenWaggle desktop owns the current lease.')
+      }
       await Effect.runPromise(
         this.input.owners.activate({ guiInstanceId, hostInstanceId: this.hostInstanceId() }),
       )
@@ -222,11 +224,13 @@ export class DesktopServiceLeases {
     request: DesktopServiceRequest,
     signal: AbortSignal,
   ): Promise<DesktopServiceResponse> {
-    if (request.operation === 'register' || request.operation === 'recoverOwner')
+    if (request.operation === 'register' || request.operation === 'recoverOwner') {
       return this.register(request.guiInstanceId, request.operation === 'recoverOwner')
+    }
     if (request.operation === 'markClosed') return this.markClosed(request)
-    if (request.operation === 'disconnect' && !this.current())
+    if (request.operation === 'disconnect' && !this.current()) {
       return { operation: 'disconnect', accepted: true }
+    }
     const owner = this.require(request.leaseId)
     owner.lastSeen = Date.now()
     if (request.operation === 'poll') return this.poll(request.leaseId, signal)
@@ -251,11 +255,12 @@ export class DesktopServiceLeases {
         return { operation: 'ready', accepted: true }
       })
     }
-    if (request.operation === 'complete')
+    if (request.operation === 'complete') {
       return {
         operation: 'complete',
         accepted: this.input.queue.complete(owner.id, request.completion),
       }
+    }
     if (request.operation === 'acknowledgeReleased') {
       await Effect.runPromise(
         this.input.fences.removeReleased(request.token, request.hostInstanceId),
@@ -270,8 +275,9 @@ export class DesktopServiceLeases {
         this.require(owner.id)
         owner.draining = request.operation === 'prepareDisconnect'
         this.input.queue.wake()
-        if (request.operation === 'prepareDisconnect')
+        if (request.operation === 'prepareDisconnect') {
           return { operation: 'prepareDisconnect', accepted: true, fences: await this.readFences() }
+        }
         return { operation: request.operation, accepted: true }
       })
     }

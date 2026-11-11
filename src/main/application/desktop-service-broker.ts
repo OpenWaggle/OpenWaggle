@@ -47,14 +47,16 @@ export function makeDesktopServiceBroker(input: {
         leases.require(owner.id, true)
         const existingAcquire =
           command.service === 'fence' && mutations.hasToken(command.record.token)
-        if (owner.draining && !existingAcquire && !mutations.cleanupAllowed(command, records))
+        if (owner.draining && !existingAcquire && !mutations.cleanupAllowed(command, records)) {
           throw desktopUnavailableError()
+        }
         return { result: queue.execute(command, owner.id, signal) }
       }
       const offlineAllowed =
         isDesktopPresenceInspection(command) || mutations.cleanupAllowed(command, records)
-      if (!offlineAllowed || !(await isDesktopNativeFree(input.owners)))
+      if (!offlineAllowed || !(await isDesktopNativeFree(input.owners))) {
         throw desktopUnavailableError()
+      }
       // Durable active fence predates this proof; any subsequent GUI registration must
       // restore that fence before opening native admission. Never infer proof from TTL.
       return { result: runEffectWithAbortSignal(input.offlineExecute(command), signal) }

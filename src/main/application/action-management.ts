@@ -17,8 +17,9 @@ export function resolveActionManagementWorkspace(scope: ActionManagementScope) {
   return Effect.gen(function* () {
     const authorization = yield* WorkspaceProjectAuthorization
     const projectPath = yield* authorization.authorize(scope.projectPath)
-    if (!scope.sessionId && !scope.workspaceId)
+    if (!scope.sessionId && !scope.workspaceId) {
       return { projectPath, workspacePath: projectPath, workspaceId: null }
+    }
     const repository = yield* SessionWorkspaceResourceRepository
     const workspace = yield* scope.sessionId
       ? repository.getBound(SessionId(scope.sessionId))

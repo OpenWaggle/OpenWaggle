@@ -255,10 +255,12 @@ export function interruptExactSessionRun(sessionId: SessionId, runId: string) {
 
 export function requestExactSessionRunInterruption(sessionId: SessionId, runId: string) {
   if (activeRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) return true
-  if (pendingClassicRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId))
+  if (pendingClassicRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) {
     return true
-  if (activeWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId))
+  }
+  if (activeWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)) {
     return true
+  }
   return pendingWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)
 }
 

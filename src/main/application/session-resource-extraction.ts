@@ -41,8 +41,9 @@ function collectGeneratedImageRecord(
     candidate.type !== 'image' ||
     typeof candidate.data !== 'string' ||
     typeof candidate.mimeType !== 'string'
-  )
+  ) {
     return null
+  }
   const title = typeof candidate.name === 'string' ? candidate.name.trim() : 'Generated image'
   const boundedTitle = title.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
   const consumed = Math.min(title.length, remainingTextCharacters)

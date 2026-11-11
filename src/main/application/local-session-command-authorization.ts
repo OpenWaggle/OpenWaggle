@@ -272,8 +272,9 @@ export function authorizeLocalSessionCommand(input: {
     if (
       payload.contract === 'session-query-v2' &&
       (yield* authorizeWaitTargets(input.caller, payload))
-    )
+    ) {
       return
+    }
     yield* authorizeDelegationFilterTargets(input.caller, payload)
     if (isUnscopedSessionDiscovery(payload)) return
     if (
