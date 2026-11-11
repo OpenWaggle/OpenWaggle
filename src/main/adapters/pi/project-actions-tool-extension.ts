@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { match } from '@diegogbrisa/ts-match'
-import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 import { isActiveActionRun } from '@shared/types/action-runs'
 import { SessionId } from '@shared/types/brand'
@@ -14,6 +14,7 @@ import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/sessio
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
 import { proposeRepair } from './project-actions-repair-proposal'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
 /** Proposal text must contain something other than whitespace. */
@@ -223,7 +224,9 @@ async function execute(
 const PROJECT_ACTIONS_RULE =
   "This Workspace's saved project actions and dev servers (project_actions: list, start, output, stop) load with tool_search or run from codemode."
 
-export function createProjectActionsToolExtension(input: ProjectActionToolInput): ExtensionFactory {
+export function createProjectActionsToolExtension(
+  input: ProjectActionToolInput,
+): SynchronousExtensionFactory {
   return (pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: 'project_actions',

@@ -1,4 +1,3 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import * as Effect from 'effect/Effect'
 import { withRetainedScratchDirectory } from '../../application/session-scratch-retention'
 import { createLogger } from '../../logger'
@@ -38,6 +37,7 @@ import {
 } from './project-actions-tool-extension'
 import { createSessionsToolExtension } from './sessions-tool-extension'
 import { createSourceControlToolExtension } from './source-control-tool-extension'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const logger = createLogger('pi-agent-kernel-run')
 
@@ -122,7 +122,7 @@ export function createRunSessionsExtension(
   workingDirectory: string,
   projectPath: string,
   scratchDirectory: string | undefined,
-): ExtensionFactory {
+): SynchronousExtensionFactory {
   const hive = createSessionsToolExtension({
     sessionId: input.session.id,
     ...(scratchDirectory ? { scratchDirectory } : {}),

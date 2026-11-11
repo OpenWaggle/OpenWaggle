@@ -1,4 +1,3 @@
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type { SessionCapability } from '@shared/types/session-capability'
 import {
@@ -12,6 +11,7 @@ import {
   permitsSessionsToolAction,
   type SessionsToolActionGrant,
 } from './sessions-tool-capability-schema'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const logger = createLogger('available-agents')
 
@@ -147,7 +147,7 @@ function allowsHive(input: AvailableAgentsPromptInput) {
  */
 export function createAvailableAgentsPromptExtension(
   input: AvailableAgentsPromptInput,
-): ExtensionFactory | undefined {
+): SynchronousExtensionFactory | undefined {
   const grant: SessionsToolActionGrant = {
     capabilities: input.sessionCapabilities,
     modelMultiAgentEnabled: input.modelMultiAgentEnabled ?? true,
