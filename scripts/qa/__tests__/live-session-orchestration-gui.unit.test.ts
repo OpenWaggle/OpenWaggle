@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AUTOMATION_IDENTITY_QUERY_PARAM } from '../../../src/shared/constants/electron-automation'
+import { AUTOMATION_IDENTITY_QUERY_PARAM } from '../../../src/shared/constants/desktop-automation'
 import {
   assertLiveQaPageAutomationIdentity,
   LiveQaCdpIdentityError,

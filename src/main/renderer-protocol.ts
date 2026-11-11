@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { extname, join, posix, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-automation'
+import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/desktop-automation'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { networkFetch } from './desktop-shell/network-fetch'
