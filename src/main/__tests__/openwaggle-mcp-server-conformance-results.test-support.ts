@@ -95,7 +95,7 @@ export async function listedSessionIds(client: Client) {
 export function advertisedOperations(tool: { readonly inputSchema: unknown }) {
   const text = JSON.stringify(tool.inputSchema)
   return [...text.matchAll(/"operation":\{"type":"string","const":"([^"]+)"\}/g)]
-    .map((match) => match[1])
+    .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
     .sort()
 }
 

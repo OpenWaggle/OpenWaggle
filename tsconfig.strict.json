@@ -1,24 +1,10 @@
 {
   /*
-   * Strictness flags beyond `strict`, shared by every project that has been brought up to them:
-   * src/renderer (tsconfig.web.json, tsconfig.renderer-tests.json), src/shared with the
-   * runtime-neutral packages it imports (tsconfig.shared.json), and the website's TypeScript
-   * (tsconfig.website.json).
-   *
-   * tsconfig.node.json (src/main, src/preload, scripts, functions, .pi, packages/pi-waggle) does
-   * not extend it yet. It already meets verbatimModuleSyntax, noImplicitOverride,
-   * noUncheckedSideEffectImports, noFallthroughCasesInSwitch, noUnusedParameters,
-   * allowUnreachableCode and allowUnusedLabels. These flags still report errors there, counted
-   * with src/shared and the packages it shares already clean:
-   *
-   *   flag                                 src/main  other node files
-   *   noPropertyAccessFromIndexSignature     2095      932 (827 in scripts)
-   *   exactOptionalPropertyTypes              402       25
-   *   erasableSyntaxOnly                      205       10
-   *   noUncheckedIndexedAccess                 66       34
-   *   noUnusedLocals                            0       14 (all in scripts)
-   *
-   * src/preload reports none for any flag.
+   * Strictness flags beyond `strict`, shared by every TypeScript project: src/main, src/preload,
+   * scripts and functions (tsconfig.node.json), src/renderer (tsconfig.web.json,
+   * tsconfig.renderer-tests.json), src/shared with the runtime-neutral packages it imports
+   * (tsconfig.shared.json) and the website's TypeScript (tsconfig.website.json). The packages and
+   * scripts projects set the same flags through tsconfig.package.base.json.
    */
   "compilerOptions": {
     "verbatimModuleSyntax": true,

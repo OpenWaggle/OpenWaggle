@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.strict.json",
   "compilerOptions": {
     "composite": true,
     "target": "ES2024",

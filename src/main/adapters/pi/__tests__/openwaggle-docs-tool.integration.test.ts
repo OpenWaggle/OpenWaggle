@@ -59,7 +59,7 @@ async function call(tool: ToolDefinition, params: unknown) {
   const [first] = result.content
   if (first?.type !== 'text') throw new Error('Expected a text result')
   return {
-    isError: 'isError' in result && result.isError === true,
+    isError: 'isError' in result && result.isError,
     text: first.text,
     details: result.details,
   }
