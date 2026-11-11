@@ -24,7 +24,15 @@ function encodeSessionContext(sessionId: string) {
   return encodePathSegment(JSON.stringify({ sessionId }))
 }
 
-export function createExtensionModuleUrl(entry: ExtensionContributionRegistryEntry) {
+/**
+ * The URL of an entry's runtime module under `runtimeBase`, the extension runtime's trusted origin
+ * base main passed this window (`window.api.getTrustedOriginBases()`): `openwaggle-extension://runtime`
+ * on Electron, a loopback base with a capability path on Electrobun. Null without an entry path.
+ */
+export function createExtensionModuleUrl(
+  entry: ExtensionContributionRegistryEntry,
+  runtimeBase: string,
+) {
   if (!entry.entryPath) {
     return null
   }
@@ -40,7 +48,7 @@ export function createExtensionModuleUrl(entry: ExtensionContributionRegistryEnt
   const encodedEntryPath = encodeRelativePath(entry.entryPath)
 
   return [
-    `${protocol.SCHEME}://${protocol.HOST}${protocol.MODULE_PATH_PREFIX}`,
+    `${runtimeBase}${protocol.MODULE_PATH_PREFIX}`,
     encodedPackagePath,
     encodedContentHash,
     encodedProjectPaths,

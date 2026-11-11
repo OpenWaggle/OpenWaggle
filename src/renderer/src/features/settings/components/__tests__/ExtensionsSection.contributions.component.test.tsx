@@ -23,6 +23,7 @@ const EXTENSION_FRAME_URL_PREFIX = 'openwaggle-extension-frame://frame/frames/'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
     listExtensionPackages: listExtensionPackagesMock,
     listExtensionContributions: listContributionsMock,
     setExtensionTrusted: vi.fn(),

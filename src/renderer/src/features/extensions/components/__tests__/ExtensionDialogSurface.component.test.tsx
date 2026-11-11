@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionDialogSurfaceContent } from '../ExtensionDialogSurface'
 
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   registerExtensionFrame: vi.fn(),
   unregisterExtensionFrame: vi.fn(),
 }))

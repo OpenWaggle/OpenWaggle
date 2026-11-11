@@ -37,9 +37,14 @@ const ENTRY: ExtensionContributionRegistryEntry = {
   diagnostics: [],
 }
 
+/** Electron's extension runtime origin, `originOf('extension-runtime', 'runtime')`. */
+const ELECTRON_RUNTIME_BASE = 'openwaggle-extension://runtime'
+/** An Electrobun loopback base: a port and the host's capability path. */
+const ELECTROBUN_RUNTIME_BASE = 'http://127.0.0.1:49152/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+
 describe('extension federated module helpers', () => {
   it('creates a protocol URL for package-relative extension modules', () => {
-    const moduleUrl = createExtensionModuleUrl(ENTRY)
+    const moduleUrl = createExtensionModuleUrl(ENTRY, ELECTRON_RUNTIME_BASE)
 
     expect(moduleUrl).toBe(
       'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
@@ -47,7 +52,7 @@ describe('extension federated module helpers', () => {
   })
 
   it('keeps package and hash context when extension modules import relative chunks', () => {
-    const moduleUrl = createExtensionModuleUrl(ENTRY)
+    const moduleUrl = createExtensionModuleUrl(ENTRY, ELECTRON_RUNTIME_BASE)
     if (!moduleUrl) {
       throw new Error('Expected module URL.')
     }
@@ -58,7 +63,10 @@ describe('extension federated module helpers', () => {
   })
 
   it('includes session context for session-targeted extension modules', () => {
-    const moduleUrl = createExtensionModuleUrl({ ...ENTRY, sessionId: 'session-1' })
+    const moduleUrl = createExtensionModuleUrl(
+      { ...ENTRY, sessionId: 'session-1' },
+      ELECTRON_RUNTIME_BASE,
+    )
 
     expect(moduleUrl).toBe(
       'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/__context__/%7B%22sessionId%22%3A%22session-1%22%7D/dist/settings.js',
@@ -66,7 +74,10 @@ describe('extension federated module helpers', () => {
   })
 
   it('keeps session context when session modules import relative chunks', () => {
-    const moduleUrl = createExtensionModuleUrl({ ...ENTRY, sessionId: 'session-1' })
+    const moduleUrl = createExtensionModuleUrl(
+      { ...ENTRY, sessionId: 'session-1' },
+      ELECTRON_RUNTIME_BASE,
+    )
     if (!moduleUrl) {
       throw new Error('Expected module URL.')
     }
@@ -76,8 +87,25 @@ describe('extension federated module helpers', () => {
     )
   })
 
+  it('builds module URLs under an Electrobun loopback base, with chunks under its capability', () => {
+    const moduleUrl = createExtensionModuleUrl(
+      { ...ENTRY, sessionId: 'session-1' },
+      ELECTROBUN_RUNTIME_BASE,
+    )
+    if (!moduleUrl) {
+      throw new Error('Expected module URL.')
+    }
+
+    const modulePath =
+      '/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/__context__/%7B%22sessionId%22%3A%22session-1%22%7D/dist'
+    expect(moduleUrl).toBe(`${ELECTROBUN_RUNTIME_BASE}${modulePath}/settings.js`)
+    expect(new URL('./chunk.js', moduleUrl).href).toBe(
+      `${ELECTROBUN_RUNTIME_BASE}${modulePath}/chunk.js`,
+    )
+  })
+
   it('returns null when a visual registry entry has no module entry path', () => {
-    expect(createExtensionModuleUrl(omitKey(ENTRY, 'entryPath'))).toBeNull()
+    expect(createExtensionModuleUrl(omitKey(ENTRY, 'entryPath'), ELECTRON_RUNTIME_BASE)).toBeNull()
   })
 
   it('identifies modules that export mount(context)', () => {

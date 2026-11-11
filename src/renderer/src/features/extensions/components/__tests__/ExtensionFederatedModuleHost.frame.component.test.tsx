@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   invokeExtension: vi.fn(),
   openExternal: vi.fn(),
   registerExtensionFrame: vi.fn(),

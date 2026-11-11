@@ -16,6 +16,7 @@ const PROJECT_PATH = '/repo'
 const EXTENSION_FRAME_URL_PREFIX = 'openwaggle-extension-frame://frame/frames/'
 
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   registerExtensionFrame: vi.fn((input: { readonly frameId: string }) =>
     Promise.resolve({
       frameUrl: `${EXTENSION_FRAME_URL_PREFIX}${encodeURIComponent(input.frameId)}/index.html`,

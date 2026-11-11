@@ -14,6 +14,7 @@ const loggerMock = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   registerExtensionFrame: vi.fn(),
   unregisterExtensionFrame: vi.fn(),
 }))

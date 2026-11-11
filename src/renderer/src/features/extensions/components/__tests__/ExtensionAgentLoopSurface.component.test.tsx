@@ -12,6 +12,7 @@ import {
 } from '../ExtensionAgentLoopSurface'
 
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   registerExtensionFrame: vi.fn(),
   unregisterExtensionFrame: vi.fn(),
 }))

@@ -13,6 +13,7 @@ import {
   RENDERER_PROTOCOL_HOST,
   rendererUrlWithAutomationIdentity,
 } from '../../renderer-protocol'
+import { trustedOriginBaseRendererArguments } from '../../trusted-origin-base-arguments'
 import { electrobun } from './electrobun-sdk'
 import { electrobunTrustedOrigins } from './electrobun-trusted-origins'
 import { rendererDocumentHeaders } from './electrobun-web-security'
@@ -50,6 +51,7 @@ function preloadScript() {
     ...errorReportingRendererArguments(),
     ...homeDirectoryRendererArguments(homedir()),
     ...electronMigrationRendererArguments(),
+    ...trustedOriginBaseRendererArguments(electrobunTrustedOrigins),
   ])
   return `globalThis.${RENDERER_ARGUMENTS_GLOBAL} = ${args};\n${bundle}`
 }

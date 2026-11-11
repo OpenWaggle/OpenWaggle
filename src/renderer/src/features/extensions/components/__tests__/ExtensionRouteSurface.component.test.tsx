@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionRouteSurfaceContent } from '../ExtensionRouteSurface'
 
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   onFullscreenChanged: vi.fn(),
   registerExtensionFrame: vi.fn(),
   unregisterExtensionFrame: vi.fn(),

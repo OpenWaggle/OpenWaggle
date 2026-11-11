@@ -4,6 +4,7 @@ import { PRELOAD_SCHEDULED_TASKS_METHODS } from './preload-scheduled-tasks-metho
 export const PRELOAD_APP_LIFECYCLE_METHODS = [
   ...PRELOAD_SCHEDULED_TASKS_METHODS,
   'getHomeDirectory',
+  'getTrustedOriginBases',
   'getStartupStatus',
   'retryStartup',
   'onStartupStatusChanged',

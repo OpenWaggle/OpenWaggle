@@ -7,6 +7,7 @@ import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
 import { useAppearancePreferencesRuntimeStore } from '@/shared/lib/appearance-preferences-runtime'
 import { cn } from '@/shared/lib/cn'
 import { formatDisplayPathsInText } from '@/shared/lib/display-path'
+import { api } from '@/shared/lib/ipc'
 import {
   federatedModuleMountKey,
   federatedModuleSurfacePayloadJson,
@@ -170,7 +171,7 @@ export function ExtensionFederatedModuleHost({
   const frameId = useId()
   const [reportedHeight, setReportedHeight] = useState<ReportedFrameHeight | null>(null)
   const [reportedStatus, setReportedStatus] = useState<ReportedMountStatus | null>(null)
-  const moduleUrl = createExtensionModuleUrl(entry)
+  const moduleUrl = createExtensionModuleUrl(entry, api.getTrustedOriginBases().extensionRuntime)
   const frameRuntimeSupported = supportsExtensionFrameRuntime(entry)
   const surfacePayloadJson = federatedModuleSurfacePayloadJson(surfacePayload)
   const mountKey = useAppearanceMountKey(

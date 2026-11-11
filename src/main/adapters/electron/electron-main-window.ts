@@ -18,6 +18,8 @@ import {
   installCspHeaders,
   SECURE_WEB_PREFERENCES,
 } from '../../security/web-security-policy'
+import { trustedOriginBaseRendererArguments } from '../../trusted-origin-base-arguments'
+import { electronTrustedOrigins } from './electron-trusted-origins'
 import { createBrowserWindow, revealWindow } from './electron-window-policy'
 
 const WIDTH = 1200
@@ -56,9 +58,11 @@ export function createMainWindow(input: MainWindowRequest) {
     preload: join(__dirname, '../preload/index.js'),
     // Tells the preload to expose the error-report bridge; empty unless this process reports errors.
     // The home directory lets display paths shorten it to `~` (`window.api.getHomeDirectory()`).
+    // The trusted origin bases are where the page builds extension module URLs.
     additionalArguments: [
       ...errorReportingRendererArguments(),
       ...homeDirectoryRendererArguments(homedir()),
+      ...trustedOriginBaseRendererArguments(electronTrustedOrigins),
     ],
     ...SECURE_WEB_PREFERENCES,
   }

@@ -1,6 +1,5 @@
 import {
   EXTENSION_FRAME_MESSAGE_CHANNEL,
-  OPENWAGGLE_EXTENSION_FRAME_PROTOCOL,
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
 } from '@shared/constants/extension-frame'
 import { createOpenWaggleExtensionSharedModules } from '@shared/extension-context'
@@ -19,6 +18,7 @@ import type { OpenWaggleExtensionMountContext } from './extension-federated-modu
 import { type PendingFrameCalls, settleFrameResult } from './extension-frame-bootstrap-results'
 import { createFrameExtensionSdk } from './extension-frame-bootstrap-sdk'
 import { decodedParentMessage, isFederatedModule } from './extension-frame-bootstrap-validation'
+import { extensionFrameIdFromPath } from './extension-frame-location'
 
 const RESIZE_OBSERVER_TYPE = 'function'
 
@@ -51,34 +51,10 @@ let resizeObserver: ResizeObserver | null = null
 const pendingCalls: PendingFrameCalls = { invocations: new Map(), syntaxHighlights: new Map() }
 const pendingInvocations = pendingCalls.invocations
 const pendingSyntaxHighlights = pendingCalls.syntaxHighlights
-const frameId = frameIdFromLocation()
+const frameId = extensionFrameIdFromPath(window.location.pathname)
 
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
-}
-
-function frameIdFromLocation() {
-  const pathSegments = window.location.pathname.split('/').filter((segment) => segment.length > 0)
-  const prefixSegments = OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.FRAME_PATH_PREFIX.split('/').filter(
-    (segment) => segment.length > 0,
-  )
-  const [prefixSegment] = prefixSegments
-  const [actualPrefix, encodedFrameId] = pathSegments
-  if (prefixSegments.length !== 1 || actualPrefix !== prefixSegment || !encodedFrameId) {
-    throw new Error('Invalid OpenWaggle extension frame URL.')
-  }
-
-  try {
-    const decodedFrameId = decodeURIComponent(encodedFrameId)
-    if (decodedFrameId.length === 0) {
-      throw new Error('Missing OpenWaggle extension frame id.')
-    }
-    return decodedFrameId
-  } catch (error) {
-    throw new Error(`Invalid OpenWaggle extension frame id: ${describeError(error)}.`, {
-      cause: error,
-    })
-  }
 }
 
 function post(message: ExtensionFrameChildMessage) {

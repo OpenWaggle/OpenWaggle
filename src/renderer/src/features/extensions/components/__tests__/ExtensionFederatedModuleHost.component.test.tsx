@@ -8,14 +8,13 @@ import { EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX } from '../../lib/extension-f
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
 const apiMock = vi.hoisted(() => ({
+  getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
   invokeExtension: vi.fn(),
   registerExtensionFrame: vi.fn(),
   unregisterExtensionFrame: vi.fn(),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: apiMock,
-}))
+vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
 const ENTRY: ExtensionContributionRegistryEntry = {
   extensionId: 'sample-extension',

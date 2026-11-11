@@ -11,6 +11,7 @@ import type {
 import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { env } from './env'
+import { RENDERER_PROTOCOL_HOST } from './renderer-protocol'
 import extensionFrameCss from './extension-frame-assets/extension-frame.css.raw?raw'
 import extensionFrameHtml from './extension-frame-assets/extension-frame.html?raw'
 
@@ -22,12 +23,7 @@ const TEXT_HTML_CONTENT_TYPE = 'text/html; charset=utf-8'
 const TEXT_CSS_CONTENT_TYPE = 'text/css; charset=utf-8'
 const FRAME_RESOURCE_PATH_SEGMENT_COUNT = 3
 const INLINE_STYLE_SOURCE = "'unsafe-inline'"
-const LOCALHOST_NAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
-const EXTENSION_RUNTIME_SCRIPT_SOURCE =
-  `${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME}:` as const
 const VITE_DEV_CONNECT_SOURCES = ['ws://localhost:*', 'ws://127.0.0.1:*'] as const
-const RENDERER_PROTOCOL = 'openwaggle'
-const RENDERER_PROTOCOL_HOST = 'app'
 
 interface RegisteredExtensionFrame {
   readonly registrationId: string
@@ -76,35 +72,37 @@ function cspSourceForUrl(url: string) {
   return parsedUrl.protocol
 }
 
+/** A bootstrap from the Vite dev server keeps its hot-reload socket; a built renderer has none. */
 function devConnectSourcesForBootstrap(url: string) {
-  const parsedUrl = new URL(url)
-  if (
-    (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') ||
-    !LOCALHOST_NAMES.has(parsedUrl.hostname)
-  ) {
-    return []
-  }
-
-  return VITE_DEV_CONNECT_SOURCES
+  return new URL(url).origin === devRendererOrigin() ? VITE_DEV_CONNECT_SOURCES : []
 }
 
+/**
+ * The frame's own origin, the renderer's bootstrap module and the extension runtime's modules, as
+ * the shell names them: `openwaggle-extension-frame:` and `openwaggle-extension:` on Electron, the
+ * exact loopback origins of those hosts on Electrobun (`TrustedOriginsShape.sourcesOf`).
+ */
 function frameContentSecurityPolicy(frame: RegisteredExtensionFrame) {
-  const frameProtocolSource = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:`
+  const frameSources = trustedOrigins.sourcesOf('extension-frame', [
+    OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.HOST,
+  ])
   const bootstrapSource = cspSourceForUrl(frame.bootstrapUrl)
   const connectSources = [
     ...frame.networkOrigins,
     ...devConnectSourcesForBootstrap(frame.bootstrapUrl),
   ]
   const scriptSources = [
-    frameProtocolSource,
+    ...frameSources,
     bootstrapSource,
-    EXTENSION_RUNTIME_SCRIPT_SOURCE,
-  ] as const
+    ...trustedOrigins.sourcesOf('extension-runtime', [
+      OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.HOST,
+    ]),
+  ]
   const directives: (readonly [string, readonly string[]])[] = [
     ['default-src', ["'none'"]],
     ['script-src', scriptSources],
     ['script-src-elem', scriptSources],
-    ['style-src', [frameProtocolSource, INLINE_STYLE_SOURCE]],
+    ['style-src', [...frameSources, INLINE_STYLE_SOURCE]],
     ['base-uri', ["'none'"]],
     ['form-action', ["'none'"]],
   ]
@@ -168,7 +166,8 @@ function parseFrameRequest(requestUrl: string) {
 function extensionFrameUrl(frameId: string) {
   const protocolConfig = OPENWAGGLE_EXTENSION_FRAME_PROTOCOL
   const encodedFrameId = encodeURIComponent(frameId)
-  return `${protocolConfig.SCHEME}://${protocolConfig.HOST}${protocolConfig.FRAME_PATH_PREFIX}/${encodedFrameId}/${protocolConfig.DOCUMENT_PATH}`
+  const origin = trustedOrigins.originOf('extension-frame', protocolConfig.HOST)
+  return `${origin}${protocolConfig.FRAME_PATH_PREFIX}/${encodedFrameId}/${protocolConfig.DOCUMENT_PATH}`
 }
 
 function normalizedNetworkOrigins(origins: readonly string[] | undefined) {
@@ -205,10 +204,9 @@ function bootstrapUrlIsTrusted(bootstrapUrl: URL) {
     return false
   }
 
-  if (
-    bootstrapUrl.protocol === `${RENDERER_PROTOCOL}:` &&
-    bootstrapUrl.host === RENDERER_PROTOCOL_HOST
-  ) {
+  // The renderer's own origin on this shell: `openwaggle://app/…`, or its loopback base on Electrobun.
+  const rendererBase = `${trustedOrigins.originOf('renderer', RENDERER_PROTOCOL_HOST)}/`
+  if (bootstrapUrl.href.startsWith(rendererBase)) {
     return true
   }
 
