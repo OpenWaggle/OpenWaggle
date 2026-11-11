@@ -36,7 +36,7 @@ export interface TurnDiffFiles {
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
 export function useSessionTurns(
   sessionId: SessionId | null,
-  refreshToken: number = 0,
+  refreshToken = 0,
 ): readonly TurnCheckpointSummary[] {
   const [turns, setTurns] = useState<readonly TurnCheckpointSummary[]>(EMPTY_TURNS)
 

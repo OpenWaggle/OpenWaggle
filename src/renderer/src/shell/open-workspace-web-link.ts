@@ -44,5 +44,5 @@ export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string): Pr
     await api.openExternal(url)
     return
   }
-  if (tab?.loading === true) registerBrowserPreviewExternalFallback(previewId, url)
+  if (tab?.loading) registerBrowserPreviewExternalFallback(previewId, url)
 }

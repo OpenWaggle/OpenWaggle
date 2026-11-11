@@ -190,7 +190,7 @@ export interface SessionMessageResourceQueryResult {
 }
 
 function combineNodeResourceQueries(
-  results: readonly UseQueryResult<readonly SessionResource[], Error>[],
+  results: readonly UseQueryResult<readonly SessionResource[]>[],
 ): SessionMessageResourceQueryResult {
   return {
     data: mergeNodeResources(results.flatMap((result) => result.data ?? [])),

@@ -62,7 +62,7 @@ export function retainedInlineVisualizationState(
 
 function hasBoundedJsonShape(value: unknown) {
   const pending: { readonly depth: number; readonly value: unknown }[] = [{ depth: 0, value }]
-  const seen = new WeakSet<object>()
+  const seen = new WeakSet()
   let nodes = 0
 
   while (pending.length > 0) {

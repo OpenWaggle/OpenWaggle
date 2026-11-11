@@ -99,14 +99,6 @@
     "src/renderer/src/shell/right-panel/__tests__/PanelRail.component.test.tsx": 4,
     "src/renderer/src/shell/right-panel/__tests__/useRightPanelController.component.test.tsx": 8
   },
-  "typescript/no-inferrable-types": {
-    "src/renderer/src/features/chat/lib/branch-from-message.ts": 2,
-    "src/renderer/src/features/diff-panel/hooks/useSessionTurns.ts": 1
-  },
-  "typescript/no-meaningless-void-operator": {
-    "src/renderer/src/features/sidebar/components/Sidebar.tsx": 2,
-    "src/renderer/src/features/terminal/components/TerminalPane.tsx": 1
-  },
   "typescript/no-misused-promises": {
     "src/renderer/src/features/browser-preview/components/BrowserPreviewMoreMenu.tsx": 3,
     "src/renderer/src/features/browser-preview/components/BrowserPreviewPanel.tsx": 2,
@@ -124,53 +116,6 @@
     "src/renderer/src/features/sidebar/hooks/useRemoteSidebarSessions.ts": 1,
     "src/renderer/src/features/terminal/lib/terminal-native-keybindings.ts": 1,
     "src/shared/utils/altgraph-character.ts": 1
-  },
-  "typescript/no-redundant-type-constituents": {
-    "src/renderer/src/routes/-right-sidebar-panel.ts": 2
-  },
-  "typescript/no-unnecessary-boolean-literal-compare": {
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order.model-actions.ts": 1,
-    "src/renderer/src/features/chat/hooks/session-follow-up-queue-model.ts": 1,
-    "src/renderer/src/features/chat/lib/codemode-tool-view.ts": 1,
-    "src/renderer/src/features/git/components/SessionContextRow.tsx": 1,
-    "src/renderer/src/features/settings/components/sections/ExtensionPackageCardActions.tsx": 1,
-    "src/renderer/src/features/terminal/lib/terminal-focus-location.ts": 2,
-    "src/renderer/src/shell/open-workspace-web-link.ts": 1,
-    "src/renderer/src/shell/right-panel/RightPanelMaximizePublisher.tsx": 1,
-    "src/renderer/src/shell/right-panel/useRightPanelController.ts": 1,
-    "src/renderer/src/shell/right-panel/useRightPanelModel.ts": 1,
-    "src/renderer/src/shell/workspace-browser-close-reconciliation.ts": 2,
-    "src/renderer/src/shell/workspace-panel-actions.ts": 4
-  },
-  "typescript/no-unnecessary-template-expression": {
-    "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.component.test.tsx": 1,
-    "src/renderer/src/features/settings/components/sections/TerminalPaletteRoleRow.tsx": 1,
-    "src/renderer/src/features/terminal/lib/__tests__/terminal-output-delivery.unit.test.ts": 1
-  },
-  "typescript/no-unnecessary-type-arguments": {
-    "src/renderer/src/features/chat/state/inline-visualization-state.ts": 1,
-    "src/renderer/src/features/extensions/hooks/useExtensionSidePanelContributions.ts": 1,
-    "src/renderer/src/features/hive-panel/components/HivePanel.tsx": 2,
-    "src/renderer/src/features/session-summary/hooks/useSessionMessageResources.ts": 1,
-    "src/renderer/src/features/session-summary/hooks/useSessionResourceCatalog.ts": 1,
-    "src/renderer/src/features/settings/hooks/useExtensionsSectionController.ts": 2,
-    "src/renderer/src/shared/lib/logger.ts": 1,
-    "src/shared/schema.ts": 3
-  },
-  "typescript/no-unnecessary-type-conversion": {
-    "src/renderer/src/features/chat/components/__tests__/ChatRowRenderer.waggle-failure.component.test.tsx": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/pi-session-continuation-gate.component.test.tsx": 1,
-    "src/renderer/src/features/chat/hooks/__tests__/transcript-order-model.component.test.tsx": 1,
-    "src/renderer/src/features/chat/lib/agent-loop-card-placement.ts": 1,
-    "src/renderer/src/features/chat/lib/session-workspace-transcript.ts": 1,
-    "src/renderer/src/features/session-summary/components/use-session-summary-panel-lifecycle.ts": 1,
-    "src/renderer/src/features/settings/state/syntax-theme-store.ts": 1,
-    "src/renderer/src/features/sidebar/components/Sidebar.tsx": 1
-  },
-  "typescript/no-unnecessary-type-parameters": {
-    "src/renderer/src/features/chat/lib/codemode-tool-view.ts": 1,
-    "src/shared/schemas/action-definitions.ts": 1,
-    "src/shared/types/logger.ts": 4
   },
   "typescript/only-throw-error": {
     "src/renderer/src/features/chat/components/__tests__/ToolCallBlock.edit-diff.component.test.tsx": 1,

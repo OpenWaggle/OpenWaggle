@@ -25,7 +25,7 @@ function isLevelEnabled(level: LogLevel) {
  * `Name: message`; a repeated object becomes `[Circular]`.
  */
 function describeLogData(data: object) {
-  const seen = new WeakSet<object>()
+  const seen = new WeakSet()
   return JSON.stringify(data, (_key, value: unknown) => {
     if (value instanceof Error) return `${value.name}: ${value.message}`
     if (typeof value === 'bigint') return value.toString()

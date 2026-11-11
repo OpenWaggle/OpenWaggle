@@ -15,7 +15,7 @@ const AFTER_LAST_RGB_CAPTURE = 4
 const COLOR_CHANNEL_MAX = 255
 const HEX_RADIX = 16
 const HEX_BYTE_WIDTH = 2
-const COLOR_PICKER_FALLBACK = `${HEX_COLOR_PREFIX}${'000000'}`
+const COLOR_PICKER_FALLBACK = `${HEX_COLOR_PREFIX}000000`
 
 interface TerminalPaletteRoleRowProps {
   readonly role: TerminalPaletteRole

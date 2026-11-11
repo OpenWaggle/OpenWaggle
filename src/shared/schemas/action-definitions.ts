@@ -85,7 +85,7 @@ export const preparationDefinitionSchema = Schema.Struct({
   phase: Schema.Literal('setup', 'cleanup'),
   invocation: actionInvocationSchema,
 })
-const uniqueIds = <T extends { readonly id: string }>(entries: readonly T[]) =>
+const uniqueIds = (entries: readonly { readonly id: string }[]) =>
   new Set(entries.map((entry) => entry.id)).size === entries.length
 export const actionManifestSchema = Schema.Struct({
   version: Schema.Literal(1),

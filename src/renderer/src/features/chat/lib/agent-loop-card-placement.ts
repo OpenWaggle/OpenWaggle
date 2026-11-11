@@ -70,7 +70,7 @@ function messageIndexById(messages: readonly UIMessage[]) {
   for (const [index, message] of messages.entries()) {
     indexById.set(message.id, index)
     const nodeId = message.metadata?.sessionNodeId
-    if (nodeId !== undefined) indexById.set(String(nodeId), index)
+    if (nodeId !== undefined) indexById.set(nodeId, index)
   }
   return indexById
 }

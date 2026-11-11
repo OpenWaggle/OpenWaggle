@@ -60,7 +60,7 @@ function fromWorkspaceNode(
  */
 function persistedNodeId(message: UIMessage) {
   const nodeId = message.metadata?.sessionNodeId
-  return nodeId === undefined ? null : String(nodeId)
+  return nodeId ?? null
 }
 
 function indexMessagesByPersistedIdentity(messages: readonly UIMessage[]) {

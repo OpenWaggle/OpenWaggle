@@ -43,15 +43,12 @@ export function getParseIssuePaths(error: unknown): readonly string[] | null {
   )
 }
 
-export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I, never>, value: unknown): A {
+export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I>, value: unknown): A {
   return ParseResult.decodeUnknownSync(schema)(value)
 }
 
 /** Decode an external boundary while rejecting undeclared object properties. */
-export function decodeUnknownExactOrThrow<A, I>(
-  schema: Schema.Schema<A, I, never>,
-  value: unknown,
-): A {
+export function decodeUnknownExactOrThrow<A, I>(schema: Schema.Schema<A, I>, value: unknown): A {
   return ParseResult.decodeUnknownSync(schema, { onExcessProperty: 'error' })(value)
 }
 
@@ -61,7 +58,7 @@ export function parseJsonUnknown(raw: string): unknown {
 }
 
 export function safeDecodeUnknown<A, I>(
-  schema: Schema.Schema<A, I, never>,
+  schema: Schema.Schema<A, I>,
   value: unknown,
 ): SafeDecodeSuccess<A> | SafeDecodeFailure {
   try {

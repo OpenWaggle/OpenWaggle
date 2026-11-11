@@ -63,7 +63,7 @@ function optionalString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function withOptional<K extends string, V>(key: K, value: V | undefined) {
+function withOptional<V>(key: string, value: V | undefined) {
   return value === undefined ? {} : { [key]: value }
 }
 

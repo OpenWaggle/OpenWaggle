@@ -43,7 +43,7 @@ interface SessionResourceCatalogOptions {
 }
 
 export type SessionResourceCatalogQueryResult = Pick<
-  UseInfiniteQueryResult<InfiniteData<SessionResourceCatalogPage>, Error>,
+  UseInfiniteQueryResult<InfiniteData<SessionResourceCatalogPage>>,
   | 'data'
   | 'error'
   | 'hasNextPage'

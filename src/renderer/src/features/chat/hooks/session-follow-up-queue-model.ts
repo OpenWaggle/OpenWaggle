@@ -223,7 +223,7 @@ function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
     ...(item.attentionReason ? { attentionReason: item.attentionReason } : {}),
     attachments: item.attachments ?? [],
     ...(item.source ? { source: item.source } : {}),
-    editable: item.editable === true,
+    editable: item.editable,
     ...(item.editHold
       ? {
           editHold: {

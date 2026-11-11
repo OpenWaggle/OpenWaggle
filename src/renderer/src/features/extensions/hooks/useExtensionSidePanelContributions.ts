@@ -13,7 +13,7 @@ interface ExtensionSidePanelContributionsResult {
   readonly error: Error | null
   readonly loading: boolean
   readonly projectPaths: readonly string[]
-  readonly refetch: UseQueryResult<ExtensionContributionRegistryView, Error>['refetch']
+  readonly refetch: UseQueryResult<ExtensionContributionRegistryView>['refetch']
   readonly registry: ExtensionContributionRegistryView | null
 }
 
