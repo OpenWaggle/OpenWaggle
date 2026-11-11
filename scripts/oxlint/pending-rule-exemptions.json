@@ -838,7 +838,6 @@
     "src/main/session-host/profile-credential-destination-support.ts": 1
   },
   "typescript/unbound-method": {
-    "src/main/adapters/pi/mcp/mcp-openwaggle-surface.ts": 1,
     "src/main/application/host-ui-worktree-operation.ts": 1,
     "src/main/desktop-native-admission.ts": 3,
     "src/main/extensions/trusted-main-network-callback-guard.ts": 4,
