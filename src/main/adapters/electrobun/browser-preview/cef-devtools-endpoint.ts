@@ -6,7 +6,7 @@ import { liveProcessEnvironment } from '../../../env'
  * served by CEF on `127.0.0.1:<port>` when the app enables `remote-debugging-port`.
  *
  * The port is chosen per launch. The app's build sets `chromiumFlags['remote-debugging-port']` to
- * `'launch'`; OpenWaggle's Electrobun launcher (vendor/electrobun patch 0006) then reserves a free
+ * `'launch'`; OpenWaggle's Electrobun launcher (vendor/electrobun patch 0007) then reserves a free
  * loopback port before CEF starts and hands it to CEF and the app through
  * `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT`. A fixed port could be taken by another app or a second
  * OpenWaggle, and is known in advance to anything that wants to squat on it. Without the launcher

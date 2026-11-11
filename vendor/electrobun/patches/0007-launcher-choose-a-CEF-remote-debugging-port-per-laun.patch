@@ -1,0 +1,275 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Wed, 11 Nov 2026 13:35:36 +0100
+Subject: [PATCH] launcher: choose a CEF remote debugging port per launch
+
+CEF serves its DevTools endpoint on one loopback port, read once when
+the native layer initializes CEF. The port is either fixed in the
+build's chromiumFlags or scanned from 9222 in dev builds, and an app
+cannot set ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT itself: its Worker
+starts after the main thread has entered the native event loop, and
+Bun's process.env does not reach the C runtime's getenv anyway. A fixed
+port collides with a second instance or another app, and is known in
+advance to anything that wants to squat on it.
+
+chromiumFlags["remote-debugging-port"] = "launch" now asks the launcher
+to reserve a free loopback port before it loads the native core, set
+it in the process environment through setenv (SetEnvironmentVariableW
+on Windows), and in process.env for the app's Worker. The native layer
+then takes the environment path it already has. A port already set in
+the environment wins, and when the launcher cannot set one, CEF reads
+"launch" as an invalid port and keeps remote debugging off, as before.
+---
+ package/src/config/ElectrobunConfig.ts        |  15 ++-
+ package/src/launcher/main.ts                  |   4 +
+ .../launcher/remote_debugging_port.test.ts    |  60 ++++++++++
+ package/src/launcher/remote_debugging_port.ts | 108 ++++++++++++++++++
+ 4 files changed, 184 insertions(+), 3 deletions(-)
+ create mode 100644 package/src/launcher/remote_debugging_port.test.ts
+ create mode 100644 package/src/launcher/remote_debugging_port.ts
+
+diff --git a/package/src/config/ElectrobunConfig.ts b/package/src/config/ElectrobunConfig.ts
+index 6e5a724f..fb0948aa 100644
+--- a/package/src/config/ElectrobunConfig.ts
++++ b/package/src/config/ElectrobunConfig.ts
+@@ -419,7 +419,10 @@ export interface ElectrobunConfig {
+ 			 *
+ 			 * CEF remote debugging is automatic for dev builds and disabled by
+ 			 * default for packaged builds. Set `"remote-debugging-port"` to a
+-			 * string port to opt in, or `false` to disable it explicitly.
++			 * string port to opt in, `"launch"` for a free loopback port chosen
++			 * by the launcher on every launch (read it from
++			 * `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT`), or `false` to disable it
++			 * explicitly.
+ 			 *
+ 			 * @example
+ 			 * ```typescript
+@@ -484,7 +487,10 @@ export interface ElectrobunConfig {
+ 			 *
+ 			 * CEF remote debugging is automatic for dev builds and disabled by
+ 			 * default for packaged builds. Set `"remote-debugging-port"` to a
+-			 * string port to opt in, or `false` to disable it explicitly.
++			 * string port to opt in, `"launch"` for a free loopback port chosen
++			 * by the launcher on every launch (read it from
++			 * `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT`), or `false` to disable it
++			 * explicitly.
+ 			 *
+ 			 * @example
+ 			 * ```typescript
+@@ -576,7 +582,10 @@ export interface ElectrobunConfig {
+ 			 *
+ 			 * CEF remote debugging is automatic for dev builds and disabled by
+ 			 * default for packaged builds. Set `"remote-debugging-port"` to a
+-			 * string port to opt in, or `false` to disable it explicitly.
++			 * string port to opt in, `"launch"` for a free loopback port chosen
++			 * by the launcher on every launch (read it from
++			 * `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT`), or `false` to disable it
++			 * explicitly.
+ 			 *
+ 			 * @example
+ 			 * ```typescript
+diff --git a/package/src/launcher/main.ts b/package/src/launcher/main.ts
+index 4a8c9e6a..5394af5f 100644
+--- a/package/src/launcher/main.ts
++++ b/package/src/launcher/main.ts
+@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
+ import { tmpdir } from "os";
+ import { spawn } from "child_process";
+ import { isBuildEnvironment } from "../shared/naming";
++import { preparePerLaunchRemoteDebuggingPort } from "./remote_debugging_port";
+ 
+ // Since main.js now runs from Resources, we need to find libraries in the MacOS directory
+ const pathToMacOS = dirname(process.argv0);
+@@ -82,6 +83,9 @@ function main() {
+ 		}
+ 	}
+ 
++	// Before the native layer starts CEF, which reads the port once.
++	preparePerLaunchRemoteDebuggingPort(join(pathToMacOS, "..", "Resources"));
++
+ 	let lib;
+ 	try {
+ 		// Set LD_LIBRARY_PATH if not already set
+diff --git a/package/src/launcher/remote_debugging_port.test.ts b/package/src/launcher/remote_debugging_port.test.ts
+new file mode 100644
+index 00000000..4358cb38
+--- /dev/null
++++ b/package/src/launcher/remote_debugging_port.test.ts
+@@ -0,0 +1,60 @@
++import { afterEach, describe, expect, it } from "bun:test";
++import { mkdtempSync, rmSync, writeFileSync } from "fs";
++import { tmpdir } from "os";
++import { join } from "path";
++import {
++	configuredRemoteDebuggingPort,
++	preparePerLaunchRemoteDebuggingPort,
++	REMOTE_DEBUGGING_PORT_ENVIRONMENT,
++	reserveLoopbackPort,
++} from "./remote_debugging_port";
++
++const directories: string[] = [];
++
++function resources(build: unknown) {
++	const directory = mkdtempSync(join(tmpdir(), "electrobun-port-"));
++	directories.push(directory);
++	writeFileSync(join(directory, "build.json"), JSON.stringify(build));
++	return directory;
++}
++
++afterEach(() => {
++	delete process.env[REMOTE_DEBUGGING_PORT_ENVIRONMENT];
++	for (const directory of directories.splice(0)) {
++		rmSync(directory, { recursive: true, force: true });
++	}
++});
++
++describe("per-launch CEF remote debugging port", () => {
++	it("reads the configured port from build.json", () => {
++		const directory = resources({ chromiumFlags: { "remote-debugging-port": "launch" } });
++		expect(configuredRemoteDebuggingPort(join(directory, "build.json"))).toBe("launch");
++		expect(configuredRemoteDebuggingPort(join(directory, "missing.json"))).toBeUndefined();
++	});
++
++	it("reserves a free loopback port", () => {
++		const port = reserveLoopbackPort();
++		expect(port).toBeGreaterThanOrEqual(1024);
++		expect(port).toBeLessThanOrEqual(65535);
++	});
++
++	it("sets a new port only when the build asks for one", () => {
++		preparePerLaunchRemoteDebuggingPort(
++			resources({ chromiumFlags: { "remote-debugging-port": "9222" } }),
++		);
++		expect(process.env[REMOTE_DEBUGGING_PORT_ENVIRONMENT]).toBeUndefined();
++
++		preparePerLaunchRemoteDebuggingPort(
++			resources({ chromiumFlags: { "remote-debugging-port": "launch" } }),
++		);
++		expect(process.env[REMOTE_DEBUGGING_PORT_ENVIRONMENT]).toMatch(/^\d+$/);
++	});
++
++	it("keeps a port the environment already names", () => {
++		process.env[REMOTE_DEBUGGING_PORT_ENVIRONMENT] = "9444";
++		preparePerLaunchRemoteDebuggingPort(
++			resources({ chromiumFlags: { "remote-debugging-port": "launch" } }),
++		);
++		expect(process.env[REMOTE_DEBUGGING_PORT_ENVIRONMENT]).toBe("9444");
++	});
++});
+diff --git a/package/src/launcher/remote_debugging_port.ts b/package/src/launcher/remote_debugging_port.ts
+new file mode 100644
+index 00000000..59a01de9
+--- /dev/null
++++ b/package/src/launcher/remote_debugging_port.ts
+@@ -0,0 +1,108 @@
++import { dlopen } from "bun:ffi";
++import { existsSync, readFileSync } from "fs";
++import { join } from "path";
++
++// Keep in sync with kRemoteDebuggingPortEnvironment in native/shared/chromium_flags.h.
++export const REMOTE_DEBUGGING_PORT_ENVIRONMENT = "ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT";
++
++/** The chromiumFlags value that asks for a new loopback port on every launch. */
++export const PER_LAUNCH_REMOTE_DEBUGGING_PORT = "launch";
++
++const LOOPBACK_HOST = "127.0.0.1";
++
++/** chromiumFlags["remote-debugging-port"] from the app's build.json, if any. */
++export function configuredRemoteDebuggingPort(buildJsonPath: string): unknown {
++	if (!existsSync(buildJsonPath)) return undefined;
++	const build: unknown = JSON.parse(readFileSync(buildJsonPath, "utf8"));
++	if (typeof build !== "object" || build === null) return undefined;
++	const flags: unknown = Reflect.get(build, "chromiumFlags");
++	if (typeof flags !== "object" || flags === null) return undefined;
++	return Reflect.get(flags, "remote-debugging-port");
++}
++
++/** A loopback port that was free a moment ago; CEF binds it a moment later. */
++export function reserveLoopbackPort(): number {
++	const listener = Bun.listen({
++		hostname: LOOPBACK_HOST,
++		port: 0,
++		socket: { data() {} },
++	});
++	const port = listener.port;
++	listener.stop(true);
++	return port;
++}
++
++function nullTerminatedUtf16(value: string) {
++	const units = new Uint16Array(value.length + 1);
++	for (let index = 0; index < value.length; index++) {
++		units[index] = value.charCodeAt(index);
++	}
++	return units;
++}
++
++/**
++ * Sets a variable in the process environment the native layer reads with getenv. Bun's
++ * process.env does not reach the C runtime's environment, so this goes through the OS: libc's
++ * setenv, or SetEnvironmentVariableW on Windows, where the native DLLs (static C runtime) are
++ * loaded afterwards and copy the process environment block when they start.
++ */
++export function setNativeEnvironmentVariable(name: string, value: string) {
++	if (process.platform === "win32") {
++		const kernel32 = dlopen("kernel32.dll", {
++			SetEnvironmentVariableW: { args: ["ptr", "ptr"], returns: "i32" },
++		});
++		try {
++			const set = kernel32.symbols.SetEnvironmentVariableW(
++				nullTerminatedUtf16(name),
++				nullTerminatedUtf16(value),
++			);
++			if (set === 0) throw new Error("SetEnvironmentVariableW failed");
++		} finally {
++			kernel32.close();
++		}
++	} else {
++		const libc = dlopen(
++			process.platform === "darwin" ? "libSystem.B.dylib" : "libc.so.6",
++			{ setenv: { args: ["ptr", "ptr", "i32"], returns: "i32" } },
++		);
++		try {
++			const status = libc.symbols.setenv(
++				Buffer.from(`${name}\0`, "utf8"),
++				Buffer.from(`${value}\0`, "utf8"),
++				1,
++			);
++			if (status !== 0) throw new Error("setenv failed");
++		} finally {
++			libc.close();
++		}
++	}
++	// The app's Worker starts from this process.env.
++	process.env[name] = value;
++}
++
++/**
++ * Gives CEF a new loopback remote-debugging port on every launch when the build asks for one
++ * (chromiumFlags["remote-debugging-port"] = "launch"), before the native layer starts CEF. The app
++ * reads the port from ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT. A port already set in the environment
++ * wins, as it does in the native layer. When no port can be set, CEF reads "launch" as an invalid
++ * port and keeps remote debugging off.
++ */
++export function preparePerLaunchRemoteDebuggingPort(resourcesPath: string) {
++	if (process.env[REMOTE_DEBUGGING_PORT_ENVIRONMENT] !== undefined) return;
++	try {
++		const configured = configuredRemoteDebuggingPort(
++			join(resourcesPath, "build.json"),
++		);
++		if (configured !== PER_LAUNCH_REMOTE_DEBUGGING_PORT) return;
++		const port = reserveLoopbackPort();
++		setNativeEnvironmentVariable(REMOTE_DEBUGGING_PORT_ENVIRONMENT, String(port));
++		console.log(
++			`[LAUNCHER] CEF remote debugging uses the per-launch port ${LOOPBACK_HOST}:${port}`,
++		);
++	} catch (error) {
++		console.error(
++			"[LAUNCHER] Could not choose a per-launch CEF remote debugging port; remote debugging stays off:",
++			error,
++		);
++	}
++}
+-- 
+2.54.0 (Apple Git-157)
+

@@ -7,9 +7,9 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004, Zig tools and Dawn rebuilt for 13.4 |
-| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001 and 0005, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build, plus the WebView2 Evergreen bootstrapper |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0007, Zig tools and Dawn rebuilt for 13.4 |
+| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005 and 0007, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patch 0007, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -63,6 +63,14 @@ release targets (docs/release-and-versioning.md), so they are not built.
    pass as arguments, nor `--use-mock-keychain`. Every argument now follows `main.js` in order,
    except the launcher's private `--automation` and macOS's `-psn_*`. Windows keeps upstream's
    launcher until it is built here, so it still drops them.
+7. **launcher: choose a CEF remote debugging port per launch.** With
+   `chromiumFlags['remote-debugging-port'] = 'launch'` the launcher reserves a free loopback port
+   before the native core starts CEF and sets `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT` through
+   `setenv` (`SetEnvironmentVariableW` on Windows) and in `process.env` for the app's Worker. The
+   app cannot do this itself: its Worker starts after CEF has read the port, and Bun's
+   `process.env` never reaches `getenv`. Without the patch, CEF reads `launch` as invalid and
+   keeps remote debugging off. An `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT` already in the
+   environment wins, so a QA driver can choose the port.
 
 ## Building
 
