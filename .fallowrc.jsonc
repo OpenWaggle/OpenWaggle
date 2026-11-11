@@ -35,6 +35,13 @@
     "scripts/test-support/vitest-compact-reporter.ts",
     // Run by path as the check runner's typecheck step (scripts/check/steps.ts).
     "scripts/check/typecheck.ts",
+    // Hutch reads electrobun.config.ts, imports the hook files the config names, and bundles the
+    // entry it names (scripts/electrobun/app-config.ts); stage.ts builds the stand-in main by path.
+    "electrobun.config.ts",
+    "scripts/electrobun/hooks/post-build.ts",
+    "scripts/electrobun/hooks/post-wrap.ts",
+    "scripts/electrobun/hutch-entry.ts",
+    "scripts/electrobun/stand-in/boot.ts",
     // The Electrobun native layer build, run by path from .github/workflows/electrobun-native.yml.
     "vendor/electrobun/build.ts",
     // Regenerates vendor/electrobun/types from the devkit, run by path (vendor/electrobun/README.md).
