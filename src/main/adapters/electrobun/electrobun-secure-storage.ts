@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { getDesktopHelperChildEnv } from '../../env'
@@ -10,7 +11,7 @@ import {
 } from '../../electron-migration/keychain-sealer'
 import type { SecureStorageShape } from '../../ports/desktop-shell/secure-storage'
 import { withProcessFileLockSync } from '../process-file-lock'
-import { electrobunBootShell } from './electrobun-boot-shell'
+import { electrobunBootShell, electrobunCommandLine } from './electrobun-boot-shell'
 
 /**
  * SecureStorage on `Bun.secrets` (ADR 0064): one random AES-256-GCM key per build lives in the OS
@@ -160,11 +161,49 @@ function inProcessKeyReader(): KeychainKeyReader | undefined {
   return (item) => bun.secrets.get(item)
 }
 
+/** Owner-only: the mock key is a secret like the keychain's. */
+const MOCK_KEY_FILE_MODE = 0o600
+const MOCK_KEY_DIRECTORY = 'mock-keychain'
+
+function isMissingFile(error: unknown) {
+  return error instanceof Error && Reflect.get(error, 'code') === 'ENOENT'
+}
+
+/**
+ * Chromium's `--use-mock-keychain` for this shell: hidden QA and benches pass it so no keychain
+ * prompt can reach the screen, and the desktop app hands it to the Session Host it launches. The
+ * key lives in a file of the profile instead of the OS keychain, readable by every process of that
+ * profile, as Chromium's mock keychain answers every process alike. Never for a user profile.
+ */
+export function mockKeychainKeyStore(directory: () => string): KeychainKeyStore {
+  return (item) => {
+    const file = path.join(directory(), MOCK_KEY_DIRECTORY, encodeURIComponent(item.name))
+    try {
+      return readFileSync(file, 'utf8')
+    } catch (error) {
+      if (!isMissingFile(error)) throw error
+    }
+    if (item.create === null) return null
+    mkdirSync(path.dirname(file), { recursive: true })
+    writeFileSync(file, item.create, { mode: MOCK_KEY_FILE_MODE, flag: 'wx' })
+    return readFileSync(file, 'utf8')
+  }
+}
+
+function usesMockKeychain() {
+  return electrobunCommandLine.hasSwitch('use-mock-keychain')
+}
+
 const inProcessRead = inProcessKeyReader()
+const mockStore = mockKeychainKeyStore(() => electrobunBootShell.userData())
+const keychainStore = bunSecretsKeyStore()
 
 export const electrobunSecureStorage = createKeychainSecureStorage({
-  store: bunSecretsKeyStore(),
-  ...(inProcessRead ? { read: inProcessRead } : {}),
+  store: (item) => (usesMockKeychain() ? mockStore(item) : keychainStore(item)),
+  read: (item) => {
+    if (usesMockKeychain()) return Promise.resolve(mockStore({ ...item, create: null }))
+    return inProcessRead ? inProcessRead(item) : Promise.resolve(null)
+  },
   name: () => path.basename(electrobunBootShell.userData()),
   withCreationLock: (operation) =>
     withProcessFileLockSync(
