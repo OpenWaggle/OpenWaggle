@@ -51,11 +51,6 @@ function bunRuntime(): BunRuntime {
   return bun
 }
 
-/** Whether this process runs on Bun. */
-export function isBun() {
-  return isBunRuntime(Reflect.get(globalThis, 'Bun'))
-}
-
 /** `Bun.spawn` with a pseudo-terminal (POSIX only in Bun 1.4). */
 export function spawnWithTerminal(argv: readonly string[], options: BunSpawnOptions) {
   return bunRuntime().spawn(argv, options)

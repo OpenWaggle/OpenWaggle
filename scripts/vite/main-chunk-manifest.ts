@@ -4,8 +4,6 @@ import type { Plugin } from 'vite'
 
 import { MAIN_CHUNK_MANIFEST_PATH, type MainChunkManifestEntry } from '../main-bundle-graph'
 
-export { MAIN_CHUNK_MANIFEST_PATH }
-
 function sourceModule(root: string, id: string) {
   const withoutQuery = id.replace(/\?.*$/u, '')
   return path.isAbsolute(withoutQuery)

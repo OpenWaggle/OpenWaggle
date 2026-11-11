@@ -8,6 +8,8 @@
     // Tool configs loaded by name from the project root (react-doctor, oxlint).
     "doctor.config.ts",
     "oxlint.config.mts",
+    // The renderer build: scripts/build-app-bundles.ts passes it to Vite by path.
+    "vite.renderer.config.ts",
     // Run by path from scripts/benchmark-docker/run.sh.
     "scripts/benchmark-docker/count-request-tokens.ts",
     "scripts/benchmark-docker/openwaggle-row.ts",
