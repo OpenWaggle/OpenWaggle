@@ -138,7 +138,8 @@ async function webSocketServer() {
   socketServers.push(server)
   server.on('connection', (socket) => {
     socket.on('message', (data) => {
-      const message: { id?: number; method: string } = JSON.parse(data.toString())
+      const bytes = Array.isArray(data) ? Buffer.concat(data) : new Uint8Array(data)
+      const message: { id?: number; method: string } = JSON.parse(new TextDecoder().decode(bytes))
       if (message.id === undefined) return
       const result =
         message.method === 'initialize'

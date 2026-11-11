@@ -38,7 +38,12 @@ export function toJsonValue(value: unknown): JsonValue {
     )
   }
 
-  return String(value)
+  // JSON has no value for these, so they keep their text.
+  if (typeof value === 'bigint' || typeof value === 'symbol' || typeof value === 'function') {
+    return value.toString()
+  }
+  // Every other type returned above.
+  return 'undefined'
 }
 
 export function toJsonObject(value: unknown): JsonObject {
