@@ -20,6 +20,8 @@ vi.mock('@/shared/lib/ipc', async () => ({
 // Other features' surfaces, each with its own tests: a marker shows where the header sits.
 vi.mock('@/features/sidebar/components', () => ({ Sidebar: () => <aside>Sidebar</aside> }))
 vi.mock('../Header', () => ({ Header: () => <header>Header</header> }))
+// The notice after an Electron install reads its state through React Query; not under test here.
+vi.mock('../ElectronMigrationNotice', () => ({ ElectronMigrationNotice: () => null }))
 vi.mock('../right-panel/RightPanelHost', () => ({ RightPanelHost: () => null }))
 // App data loading and shortcuts, covered by useWorkspaceLifecycle*.component.test.tsx.
 vi.mock('../useWorkspaceLifecycle', () => ({ useWorkspaceLifecycle: () => undefined }))
