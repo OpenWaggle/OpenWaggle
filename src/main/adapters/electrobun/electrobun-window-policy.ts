@@ -78,12 +78,15 @@ export function openAppWindow(options: AppWindowOptions, webview: AppWebviewOpti
   return trackWindow(window, link.attach(window.webview, webview))
 }
 
+/** A 1-pixel window on Windows has no client area (120x0), where CEF creates no view. */
+const BACKGROUND_WINDOW_FRAME = { x: 0, y: 0, width: 320, height: 240 } as const
+
 /**
  * Opens a window that is never shown or tracked as a desktop window: a host for background views
  * (the Browser preview's profile maintenance pages). Returns its id.
  */
 export function openBackgroundWindow(options: { readonly title: string; readonly html: string }) {
-  const frame = { x: 0, y: 0, width: 1, height: 1 }
+  const frame = BACKGROUND_WINDOW_FRAME
   return new (electrobun().BrowserWindow)({ ...options, frame, hidden: true, activate: false }).id
 }
 
