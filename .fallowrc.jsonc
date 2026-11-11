@@ -153,6 +153,11 @@
       "rules": { "unused-class-members": "off" }
     },
     {
+      // Vitest constructs the sequencer it is given in `sequence.sequencer` and calls its sort.
+      "files": ["scripts/test-support/environment-grouped-sequencer.ts"],
+      "rules": { "unused-class-members": "off" }
+    },
+    {
       // Served by the extension frame protocol, which answers ./frame.css and
       // ./bootstrap.js itself (src/main/extension-frame-protocol.ts).
       "files": ["src/main/extension-frame-assets/extension-frame.html"],
