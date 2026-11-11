@@ -7,9 +7,9 @@ supports, so OpenWaggle builds them itself from a pinned release plus the patche
 
 | Platform | Upstream 2.0.6 | OpenWaggle floor | How |
 | --- | --- | --- | --- |
-| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0007, Zig tools and Dawn rebuilt for 13.4 |
-| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005 and 0007, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
-| Windows x64 | Windows 10 | Windows 10 | upstream build with patch 0007, plus the WebView2 Evergreen bootstrapper |
+| macOS arm64, x64 | 14.0 | 13.4 (launch 12.0) | patches 0001 to 0004 and 0007 to 0009, Zig tools and Dawn rebuilt for 13.4 |
+| Linux x64 | glibc 2.39, GLIBCXX 3.4.32 | glibc 2.35, GLIBCXX 3.4.30 | patches 0001, 0005, 0007 and 0009, built in Ubuntu 22.04 (`linux/Dockerfile`), Zig `x86_64-linux-gnu.2.35` |
+| Windows x64 | Windows 10 | Windows 10 | upstream build with patches 0007 and 0009, plus the WebView2 Evergreen bootstrapper |
 
 The floors come from `scripts/supported-platform-floor.ts`. Linux arm64 and Windows arm64 are not
 release targets (docs/release-and-versioning.md), so they are not built.
@@ -71,6 +71,14 @@ release targets (docs/release-and-versioning.md), so they are not built.
    `process.env` never reaches `getenv`. Without the patch, CEF reads `launch` as invalid and
    keeps remote debugging off. An `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT` already in the
    environment wins, so a QA driver can choose the port.
+8. **macos: keep the window when a CEF webview is removed.** CEF's default `DoClose` sends
+   `performClose:` to the view's window, so removing one CEF `BrowserView` closed its whole window
+   (closing a Browser preview tab would close OpenWaggle). `DoClose` returns true outside shutdown,
+   as the Windows wrapper already does.
+9. **cef: share one in-memory context per named partition.** A partition without `persist:` got a
+   new in-memory context for every webview, so two webviews of one partition shared no cookies.
+   Named partitions now keep one context for the process, as Electron's do; an omitted partition
+   still gets its own.
 
 ## Building
 

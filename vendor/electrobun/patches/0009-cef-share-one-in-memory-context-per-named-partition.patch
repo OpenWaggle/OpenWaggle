@@ -1,0 +1,92 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Wed, 11 Nov 2026 14:01:50 +0100
+Subject: [PATCH] cef: share one in-memory context per named partition
+
+A named partition without the persist: prefix got a new in-memory
+request context for every webview, so two CEF webviews in the same
+partition shared no cookies or storage, and nothing could reach a
+partition's data from another webview of it. Electron, whose partition
+names Electrobun follows, keeps one in-memory session per name for the
+life of the process.
+
+getOrCreateRequestContextForPartition now caches every named context;
+an omitted partition still gets a context of its own. On macOS the
+readiness gate is cached per named partition too, because a cached
+context keeps the CefRequestContextHandler it was created with. The
+shared test expects one context per in-memory name.
+---
+ package/src/native/macos/nativeWrapper.mm            | 6 ++++--
+ package/src/native/shared/partition_context.h        | 7 +++++--
+ package/src/native/shared/partition_context_test.cpp | 6 ++++--
+ 3 files changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index 481e77ae..159fa0ad 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -7924,7 +7924,7 @@ void WhenInitialized(dispatch_block_t block) {
+   IMPLEMENT_REFCOUNTING(ElectrobunRequestContextReadiness);
+ };
+ 
+-// Readiness for each persist:* partition, kept for as long as its cached
++// Readiness for each named partition, kept for as long as its cached
+ // context. Accessed on the main thread only.
+ static std::map<std::string, CefRefPtr<ElectrobunRequestContextReadiness>> &
+ persistentPartitionReadiness() {
+@@ -7941,7 +7941,9 @@ void WhenInitialized(dispatch_block_t block) {
+   if (identifier == "persist:default") {
+     return nullptr;
+   }
+-  if (identifier.compare(0, 8, "persist:") != 0) {
++  // An omitted partition gets a context of its own; a named one, persistent or
++  // in memory, is cached with the handler it was created with.
++  if (identifier.empty()) {
+     return new ElectrobunRequestContextReadiness();
+   }
+   auto &readiness = persistentPartitionReadiness();
+diff --git a/package/src/native/shared/partition_context.h b/package/src/native/shared/partition_context.h
+index 09eccbe7..73968f33 100644
+--- a/package/src/native/shared/partition_context.h
++++ b/package/src/native/shared/partition_context.h
+@@ -109,7 +109,10 @@ inline CefRefPtr<CefRequestContext> getOrCreateRequestContextForPartition(
+     }
+ 
+     // Reuse cached context for persist:* partitions only.
+-    if (isPersistent) {
++    // A named partition is one session for the life of the process, as in
++    // Electron: every webview in it shares its cookies and storage, on disk for
++    // persist:* and in memory otherwise.
++    {
+         std::lock_guard<std::mutex> lock(partitionContextMutex_());
+         auto& map = partitionContextMap_();
+         auto it = map.find(identifier);
+@@ -146,7 +149,7 @@ inline CefRefPtr<CefRequestContext> getOrCreateRequestContextForPartition(
+ 
+     registerScheme(context);
+ 
+-    if (isPersistent && context) {
++    if (context) {
+         std::lock_guard<std::mutex> lock(partitionContextMutex_());
+         partitionContextMap_()[identifier] = context;
+     }
+diff --git a/package/src/native/shared/partition_context_test.cpp b/package/src/native/shared/partition_context_test.cpp
+index 96716e5c..9acec2c3 100644
+--- a/package/src/native/shared/partition_context_test.cpp
++++ b/package/src/native/shared/partition_context_test.cpp
+@@ -174,8 +174,10 @@ int main() {
+         "temporary", 6, &schemeFactory);
+     auto* ephemeralSecond = electrobun::getOrCreateRequestContextForPartition(
+         "temporary", 7, &schemeFactory);
+-    expect(ephemeralFirst != ephemeralSecond,
+-           "a named ephemeral partition must create a fresh context per webview");
++    expect(ephemeralFirst == ephemeralSecond,
++           "a named ephemeral partition must share one in-memory context");
++    expect(CefRequestContext::createdContexts().size() == 1,
++           "a named ephemeral partition must create exactly one request context");
+     expect(!ephemeralFirst->global && !ephemeralSecond->global,
+            "a named ephemeral partition must not use the global profile");
+     expect(!ephemeralFirst->settings.persist_session_cookies &&
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Garcia Brisa <d.garciabrisa@gmail.com>
+Date: Wed, 11 Nov 2026 14:00:23 +0100
+Subject: [PATCH] macos: keep the window when a CEF webview is removed
+
+Removing a CEF BrowserView closed the window it was in on macOS, with
+the app's own webview and every other view in it. ElectrobunClient has
+no DoClose, and CEF's default (false) sends performClose: to the
+browser's top-level NSWindow once CloseBrowser runs; CEFWebViewImpl's
+remove only takes the view out of its superview on the next turn of
+the main queue, after CEF has found the window. Reproduced on stock
+2.0.6: two windows, one CEF view each, removing either view emits the
+window's close event.
+
+A webview is always a child view (OnBeforePopup blocks popups), so
+DoClose now returns true and the view's removal from the window
+completes the browser close. During shutdown it keeps returning false,
+as the Windows wrapper already does. Linux does not close the
+top-level window on DoClose.
+---
+ package/src/native/macos/nativeWrapper.mm | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/package/src/native/macos/nativeWrapper.mm b/package/src/native/macos/nativeWrapper.mm
+index 357de933..481e77ae 100644
+--- a/package/src/native/macos/nativeWrapper.mm
++++ b/package/src/native/macos/nativeWrapper.mm
+@@ -6937,6 +6937,16 @@ bool OnContextMenuCommand(CefRefPtr<CefBrowser> browser,
+   // Life Span Handler
+   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
+ 
++  // A webview is a child view of an app window, never a window of its own
++  // (OnBeforePopup blocks popups). Returning false asks CEF to send
++  // performClose: to the NSWindow the view is in, so removing one CEF webview
++  // closed its whole window, with every other view in it. CEFWebViewImpl's
++  // remove takes the view out of the window, which completes the close.
++  // During shutdown keep CEF's own close sequence, as Windows does.
++  bool DoClose(CefRefPtr<CefBrowser> browser) override {
++    return !g_eventLoopStopping.load();
++  }
++
+   bool OnBeforePopup(
+       CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int popup_id,
+       const CefString &target_url, const CefString &target_frame_name,
+-- 
+2.54.0 (Apple Git-157)
+
