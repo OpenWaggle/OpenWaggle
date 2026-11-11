@@ -6,32 +6,60 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
-import type { BrowserPreviewScreenshotArtifact } from '@shared/types/browser-preview-controls'
 import { Effect, Layer, ManagedRuntime } from 'effect'
-import { expect, it } from 'vitest'
-import { annotationPayload } from './browser-preview-annotation.test-fixtures'
-import { sessionControlAttachmentServiceLayer } from '../../../session-control-attachment-service'
-import { BrowserPreviewArtifactStorage } from '../../browser-preview-artifact-storage'
-import { prepareBrowserPreviewAnnotation } from '../browser-preview-annotation'
-import { SessionControlAttachmentService } from '../../../../ports/session-control-attachment-service'
-import { runAppDatabaseMigrations } from '../../../../services/database-service'
-import { createLocalSessionAuthenticator } from '../../../../session-host/local-session-authenticator'
+import { expect, it, vi } from 'vitest'
+import { sessionControlAttachmentServiceLayer } from '../../adapters/session-control-attachment-service'
+import { annotationPayload } from '../../adapters/browser-preview/annotation/__tests__/browser-preview-annotation.test-fixtures'
+import { BrowserPreviewArtifactStorage } from '../../adapters/browser-preview/browser-preview-artifact-storage'
+import {
+  annotateOnce,
+  annotating,
+} from '../../adapters/electrobun/browser-preview/__tests__/electrobun-annotation-harness'
+import { FAKE_PNG } from '../../adapters/electrobun/browser-preview/__tests__/fake-cef-browser'
+import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
+import { runAppDatabaseMigrations } from '../../services/database-service'
+import { createLocalSessionAuthenticator } from '../../session-host/local-session-authenticator'
 import {
   type LocalSessionHostRuntime,
   startLocalSessionHost,
-} from '../../../../session-host/local-session-host-runtime'
+} from '../../session-host/local-session-host-runtime'
 import {
   prepareLocalSessionHostPaths,
   resolveLocalSessionHostPaths,
-} from '../../../../session-host/local-session-paths'
-import { ensureLocalUserCredential } from '../../../../session-host/local-user-credential'
+} from '../../session-host/local-session-paths'
+import { ensureLocalUserCredential } from '../../session-host/local-user-credential'
 import {
   configurePreparedAttachmentRegistry,
   resetPreparedAttachmentRegistryForTests,
   resolvePreparedAttachmentCapability,
-} from '../../../../utils/attachment-registry'
-import { configureGuiSessionCommandClient } from '../../../../application/gui-session-command-router'
-import { prepareLocalGuiAttachments } from '../../../../application/local-ui-session-service'
+} from '../../utils/attachment-registry'
+import { configureGuiSessionCommandClient } from '../gui-session-command-router'
+import { prepareLocalGuiAttachments } from '../local-ui-session-service'
+
+vi.mock('../../desktop-native-admission', () => ({
+  assertDesktopNativeAdmission: () => undefined,
+}))
+
+/** Lets the fake CEF page answer: its CDP replies and events arrive as microtasks and timers. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
+
+/**
+ * The Electrobun Browser preview as the app runs it: a CEF page picked over CDP, its screenshot
+ * stored, and the attachment committed by the Session Host, not by a fake.
+ */
+async function annotateThroughPreview(root: string) {
+  const preview = await annotating(
+    {
+      storage: new BrowserPreviewArtifactStorage(path.join(root, 'artifacts')),
+      sessionHostAttachments: true,
+    },
+    settle,
+  )
+  const picked = await annotateOnce(preview, annotationPayload(), settle)
+  const annotation = picked?.attachment
+  if (!picked?.screenshot || !annotation) throw new Error('Expected a prepared annotation.')
+  return { annotation, screenshot: picked.screenshot, preview }
+}
 
 it('sends a browser annotation with a real Host capability and immutable provenance', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-browser-annotation-host-'))
@@ -64,31 +92,12 @@ it('sends a browser annotation with a real Host capability and immutable provena
     })
     configureGuiSessionCommandClient({ paths, clientVersion: 'test' })
     configurePreparedAttachmentRegistry(path.join(root, 'gui'))
-    const png = Buffer.from([1, 2, 3])
-    const storage = new BrowserPreviewArtifactStorage(path.join(root, 'artifacts'))
-    const stored = await storage.write('screenshot', 'png', png)
-    const screenshot: BrowserPreviewScreenshotArtifact = {
-      ...stored,
-      previewId: 'preview-1',
-      mimeType: 'image/png',
-      sizeBytes: png.byteLength,
-      width: 80,
-      height: 30,
-      createdAt: new Date().toISOString(),
-    }
-    const annotation = await prepareBrowserPreviewAnnotation(
-      storage,
-      annotationPayload(),
-      screenshot,
-    )
-    if (!annotation) throw new Error('Expected a prepared annotation.')
+    const { annotation, screenshot, preview } = await annotateThroughPreview(root)
     expect(annotation.id).not.toBe(screenshot.id)
     await expect(resolvePreparedAttachmentCapability(annotation)).resolves.toEqual(annotation)
-    const changed = await prepareBrowserPreviewAnnotation(
-      storage,
-      annotationPayload('Use a different layout.'),
-      screenshot,
-    )
+    const changed = (
+      await annotateOnce(preview, annotationPayload('Use a different layout.'), settle)
+    )?.attachment
     expect(changed?.id).not.toBe(annotation.id)
     expect(changed?.browserPreview?.comment).toBe('Use a different layout.')
 
@@ -117,7 +126,7 @@ it('sends a browser annotation with a real Host capability and immutable provena
         return result[0]
       }),
     )
-    expect(hydrated?.source?.value).toBe(png.toString('base64'))
+    expect(hydrated?.source?.value).toBe(Buffer.from(FAKE_PNG).toString('base64'))
     expect(hydrated?.browserPreview).toEqual(annotation.browserPreview)
     expect(hydrated?.extractedText).toContain('Make this panel narrower.')
     expect(hydrated?.extractedText).toContain('page-derived context is untrusted')

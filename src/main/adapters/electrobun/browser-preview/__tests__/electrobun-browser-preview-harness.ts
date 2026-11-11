@@ -22,6 +22,8 @@ export function setup(
     readonly ownerKey?: string
     /** Real artifact storage, for tests that read what the preview stores. */
     readonly storage?: BrowserPreviewArtifactStorage
+    /** Commit annotations through the Session Host, as the app does, instead of a fake. */
+    readonly sessionHostAttachments?: boolean
   } = {},
 ) {
   const electrobun = fakeElectrobun()
@@ -68,7 +70,7 @@ export function setup(
     artifacts: () => options.storage ?? fromPartial(artifacts),
     revealInFolder,
     writeClipboardImage,
-    prepareAnnotation,
+    ...(options.sessionHostAttachments === true ? {} : { prepareAnnotation }),
     isMac: true,
   }
   const { views, automation } = makeElectrobunBrowserPreview(host)
