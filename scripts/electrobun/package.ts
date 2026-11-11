@@ -5,8 +5,7 @@
  * 1. prepares the Electrobun SDK devkit (`electrobun prepare`), builds the main process with
  *    `bun build` (scripts/build-main.ts, into `out/main`; the renderer comes from `bun run build`),
  *    then stages the app (scripts/electrobun/stage.ts): main, renderer, the pruned production
- *    `node_modules` of the build's externals, the bundled resources. `--stand-in` stages the
- *    packaging stand-in main instead of building it;
+ *    `node_modules` of the build's externals, the bundled resources;
  * 2. runs Hutch (`electrobun build --env=stable`, electrobun.config.ts). Its hooks prepare and
  *    sign the unwrapped app (scripts/electrobun/hooks-steps.ts); on macOS the app is then re-sealed
  *    with Hutch's final `version.json`, notarized and repacked (macos-reseal.ts);
@@ -24,7 +23,7 @@
  *      macOS, where the arm64 and x64 builds run on separate runners and the release workflow
  *      writes one `*-mac.yml` for both.
  *
- *   bun scripts/electrobun/package.ts [--stand-in] [--allow-missing-resources] [--webview2 <exe>]
+ *   bun scripts/electrobun/package.ts [--allow-missing-resources] [--webview2 <exe>]
  *     [--requirement <designated requirement>] [--makensis <path>] [--appimagetool <path>]
  *   bun scripts/electrobun/package.ts metadata <release dir> <mac|windows|linux>
  *
@@ -63,7 +62,6 @@ type ReleasePlatform = keyof typeof TRANSITION_FILE
 export interface PackageOptions {
   readonly root: string
   readonly arch: string
-  readonly standIn: boolean
   readonly allowMissingResources: boolean
   readonly webview2: string | null
   readonly requirement: string | null
@@ -186,7 +184,7 @@ export function writeTransitionMetadata(root: string, release: string, platform:
   return files
 }
 
-/** The devkit the main build and the stand-in bundle the SDK from, then `out/main`. */
+/** The devkit the main build bundles the SDK from, then `out/main`. */
 async function buildMainProcess(options: PackageOptions) {
   const [command = process.execPath, ...prefix] = hutchCommand(options.environment)
   execFileSync(command, [...prefix, 'prepare'], {
@@ -194,7 +192,7 @@ async function buildMainProcess(options: PackageOptions) {
     stdio: 'inherit',
     env: options.environment,
   })
-  if (!options.standIn) await buildMain()
+  await buildMain()
 }
 
 export async function packageElectrobunApp(options: PackageOptions) {
@@ -203,7 +201,6 @@ export async function packageElectrobunApp(options: PackageOptions) {
   await stageElectrobunApp({
     root: options.root,
     target: { platform: process.platform, arch: options.arch },
-    mainSource: options.standIn ? 'stand-in' : 'build',
     webview2: options.webview2,
     allowMissingResources: options.allowMissingResources,
     environment: options.environment,
@@ -241,7 +238,6 @@ function parseCli(argv: readonly string[]): PackageOptions {
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      'stand-in': { type: 'boolean', default: false },
       'allow-missing-resources': { type: 'boolean', default: false },
       arch: { type: 'string', default: process.arch },
       webview2: { type: 'string' },
@@ -253,7 +249,6 @@ function parseCli(argv: readonly string[]): PackageOptions {
   return {
     root: process.cwd(),
     arch: values.arch,
-    standIn: values['stand-in'],
     allowMissingResources: values['allow-missing-resources'],
     webview2: values.webview2 ?? null,
     requirement: values.requirement ?? null,

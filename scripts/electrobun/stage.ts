@@ -2,11 +2,9 @@
  * Stages everything the Electrobun app ships for Hutch's `copy` (scripts/electrobun/app-config.ts),
  * in `out/electrobun/stage/`:
  *
- * - `main/`: the main build (`out/main`, scripts/build-main.ts), or with `--stand-in` (or when
- *   `out/main/boot.js` does not exist and `--require-main` is not given) the packaging stand-in
- *   (scripts/electrobun/stand-in/boot.ts) bundled with the Electrobun SDK from `.hutch/devkit`;
+ * - `main/`: the main build (`out/main`, scripts/build-main.ts);
  * - `preload/`: the Electrobun preload (`out/preload`, scripts/build-electrobun-preload.ts), which
- *   the main window injects; a stand-in main opens no window and needs none;
+ *   the main window injects;
  * - `renderer/`: the Vite renderer build (`out/renderer`), without its build manifest and maps;
  * - `node_modules/`: the production externals for the target (scripts/electrobun/stage-node-modules.ts);
  * - `resources/`: the bundled resources (`stagedResources`: the channel icon, installed
@@ -14,7 +12,7 @@
  *   Evergreen bootstrapper from the native layer build;
  * - `package.json` and, on macOS, `icon.iconset` from the channel's `.icns`.
  *
- *   bun scripts/electrobun/stage.ts [--stand-in | --require-main] [--arch x64|arm64]
+ *   bun scripts/electrobun/stage.ts [--arch x64|arm64]
  *     [--webview2 <MicrosoftEdgeWebview2Setup.exe>] [--allow-missing-resources]
  */
 import { execFileSync } from 'node:child_process'
@@ -23,14 +21,12 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { isRecord } from '../../src/shared/utils/validation'
-import { ELECTROBUN_SDK_ENTRIES } from '../build-main'
 import { resolveBuildIdentity, resolveIconBasePath, resolveMacIconPath } from '../build-identity'
 import { ELECTROBUN_STAGE_DIR, PACKAGED_APP_LAYOUT } from './app-config'
 import { stageNodeModules, type StageTarget } from './stage-node-modules'
 
 const FIRST_CLI_ARGUMENT = 2
 const JSON_INDENT = 2
-const STAND_IN_ENTRY = 'scripts/electrobun/stand-in/boot.ts'
 const MAIN_BUILD = 'out/main'
 const RENDERER_BUILD = 'out/renderer'
 const PRELOAD_BUILD = 'out/preload'
@@ -59,7 +55,6 @@ export function stagedResources(channelIcon: string) {
 export interface StageOptions {
   readonly root: string
   readonly target: StageTarget
-  readonly mainSource: 'build' | 'stand-in' | 'auto'
   readonly webview2: string | null
   readonly allowMissingResources: boolean
   readonly environment: NodeJS.ProcessEnv
@@ -75,56 +70,12 @@ function copyBuildOutput(source: string, destination: string) {
   })
 }
 
-/** Bundles the stand-in with the devkit's SDK source, as the main build bundles it. */
-function buildStandIn(root: string, destination: string) {
-  fs.rmSync(destination, { recursive: true, force: true })
-  fs.mkdirSync(destination, { recursive: true })
-  const paths = Object.fromEntries(
-    Object.entries(ELECTROBUN_SDK_ENTRIES).map(([specifier, file]) => {
-      const absolute = path.join(root, file)
-      if (!fs.existsSync(absolute)) {
-        throw new Error(`${absolute} is missing; run bunx electrobun prepare.`)
-      }
-      return [specifier, [absolute]]
-    }),
-  )
-  const tsconfig = path.join(destination, '..', 'stand-in.tsconfig.json')
-  fs.writeFileSync(tsconfig, JSON.stringify({ compilerOptions: { paths } }))
-  try {
-    execFileSync(
-      process.execPath,
-      [
-        'build',
-        path.join(root, STAND_IN_ENTRY),
-        '--target=bun',
-        '--format=esm',
-        `--tsconfig-override=${tsconfig}`,
-        `--outfile=${path.join(destination, 'boot.js')}`,
-      ],
-      { cwd: root, stdio: 'inherit' },
-    )
-  } finally {
-    fs.rmSync(tsconfig, { force: true })
-  }
-}
-
 function stageMain(options: StageOptions, stage: string) {
-  const destination = path.join(stage, PACKAGED_APP_LAYOUT.main)
-  const built = fs.existsSync(path.join(options.root, MAIN_BUILD, 'boot.js'))
-  if (options.mainSource === 'build' && !built) {
+  if (!fs.existsSync(path.join(options.root, MAIN_BUILD, 'boot.js'))) {
     throw new Error(`${MAIN_BUILD}/boot.js is missing; build the main process first.`)
   }
-  if (options.mainSource === 'stand-in' || !built) {
-    buildStandIn(options.root, destination)
-    // Hutch copies every staged directory; the stand-in opens no window, so its preload is empty.
-    const preload = path.join(stage, PACKAGED_APP_LAYOUT.preload)
-    fs.rmSync(preload, { recursive: true, force: true })
-    fs.mkdirSync(preload, { recursive: true })
-    return 'stand-in'
-  }
-  copyBuildOutput(path.join(options.root, MAIN_BUILD), destination)
+  copyBuildOutput(path.join(options.root, MAIN_BUILD), path.join(stage, PACKAGED_APP_LAYOUT.main))
   stagePreload(options, stage)
-  return 'build'
 }
 
 function stagePreload(options: StageOptions, stage: string) {
@@ -213,7 +164,7 @@ export async function stageElectrobunApp(options: StageOptions) {
   const stage = path.join(options.root, ELECTROBUN_STAGE_DIR)
   fs.mkdirSync(stage, { recursive: true })
   const { channel } = resolveBuildIdentity(options.environment)
-  const main = stageMain(options, stage)
+  stageMain(options, stage)
   const renderer = stageRenderer(options, stage)
   const missingResources = stageResources(options, stage, resolveIconBasePath(channel, 'build'))
   stageMacIconset(options, stage, resolveMacIconPath(channel, 'build'))
@@ -222,7 +173,6 @@ export async function stageElectrobunApp(options: StageOptions) {
   const manifest = {
     channel,
     target: options.target,
-    main,
     renderer,
     missingResources,
     packages: packages.map((entry) => entry.placement).sort(),
@@ -238,25 +188,14 @@ function parseCli(argv: readonly string[]) {
   const { values } = parseArgs({
     args: [...argv],
     options: {
-      'stand-in': { type: 'boolean', default: false },
-      'require-main': { type: 'boolean', default: false },
       arch: { type: 'string', default: process.arch },
       webview2: { type: 'string' },
       'allow-missing-resources': { type: 'boolean', default: false },
     },
   })
-  if (values['stand-in'] && values['require-main']) {
-    throw new Error('--stand-in and --require-main exclude each other.')
-  }
-  const mainSource: StageOptions['mainSource'] = values['stand-in']
-    ? 'stand-in'
-    : values['require-main']
-      ? 'build'
-      : 'auto'
   return {
     root: process.cwd(),
     target: { platform: process.platform, arch: values.arch },
-    mainSource,
     webview2: values.webview2 ?? null,
     allowMissingResources: values['allow-missing-resources'],
     environment: process.env,

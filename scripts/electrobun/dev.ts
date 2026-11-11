@@ -148,7 +148,6 @@ async function main(options: DevOptions) {
   await stageElectrobunApp({
     root: ROOT,
     target: { platform: process.platform, arch: process.arch },
-    mainSource: 'build',
     webview2: null,
     allowMissingResources: false,
     environment: process.env,
