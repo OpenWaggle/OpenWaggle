@@ -66,8 +66,8 @@ function registeredHandler(name: string) {
 function toPcm16(values: number[]) {
   const bytes = new Uint8Array(values.length * 2)
   const view = new DataView(bytes.buffer)
-  for (let index = 0; index < values.length; index += 1) {
-    const sample = Math.max(-1, Math.min(1, values[index]))
+  for (const [index, value] of values.entries()) {
+    const sample = Math.max(-1, Math.min(1, value))
     const int16 = sample < 0 ? Math.round(sample * 32768) : Math.round(sample * 32767)
     view.setInt16(index * 2, int16, true)
   }

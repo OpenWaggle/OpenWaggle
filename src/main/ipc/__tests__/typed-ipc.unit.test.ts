@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ValidationIssuesError } from '../../errors'
+import { required } from '../../test-support/required'
 
 const { invokeConfiguredHostUiRawMock, ipcMainHandleMock, ipcMainOnMock, warnings } = vi.hoisted(
   () => {
@@ -62,7 +63,7 @@ describe('typedOn', () => {
 
     expect(ipcMainOnMock).toHaveBeenCalledOnce()
     expect(ipcMainOnMock).toHaveBeenCalledWith('terminal:ack-output', expect.any(Function))
-    const registeredListener = ipcMainOnMock.mock.calls[0][1]
+    const registeredListener = required(ipcMainOnMock.mock.calls[0], 'ipcMainOnMock call 0')[1]
     const fakeEvent = { sender: {} }
     await registeredListener(fakeEvent, 'owner', 'terminal-id', 1, 42)
 
@@ -88,7 +89,10 @@ describe('typedHandle', () => {
 
     expect(ipcMainHandleMock).toHaveBeenCalledOnce()
     expect(ipcMainHandleMock).toHaveBeenCalledWith('settings:update', expect.any(Function))
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
     const fakeEvent = { sender: {} }
     const result = await registeredHandler(fakeEvent, { thinkingLevel: 'medium' })
 
@@ -106,7 +110,10 @@ describe('typedHandle', () => {
     )
     typedHandle('settings:update', handler)
 
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
     const fakeEvent = { sender: {} }
 
     await expect(registeredHandler(fakeEvent, {})).rejects.toThrow(
@@ -127,7 +134,10 @@ describe('hostHandle', () => {
     hostHandle('settings:update', {
       prepareRemoteArgs: (_event, update) => [{ approved: update }],
     })
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     await expect(registeredHandler({ sender: {} }, { thinkingLevel: 'high' })).resolves.toEqual({
       ok: true,
@@ -140,7 +150,10 @@ describe('hostHandle', () => {
   it('answers nothing itself when the window is not attached to a Session Host (A-F5)', async () => {
     invokeConfiguredHostUiRawMock.mockResolvedValue({ handled: false })
     hostHandle('settings:get')
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     await expect(registeredHandler({ sender: {} })).rejects.toThrow(
       '"settings:get" needs the Session Host',
@@ -153,7 +166,10 @@ describe('hostHandle', () => {
       result: { ok: false, code: 'workspace-bound', message: 'Still bound.' },
     })
     hostHandle('git:worktrees:remove')
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     await expect(
       registeredHandler({ sender: {} }, '/project', { path: '/worktree' }),
@@ -178,7 +194,10 @@ describe('hostHandle follow-up after the Session Host answered', () => {
     hostHandle('settings:update', {
       afterRemote: (result, update) => Effect.sync(() => void followUps.push({ result, update })),
     })
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     await expect(
       registeredHandler({ sender: {} }, { usageStatisticsEnabled: false }),
@@ -191,7 +210,10 @@ describe('hostHandle follow-up after the Session Host answered', () => {
     hostHandle('settings:update', {
       afterRemote: () => Effect.fail(new Error('Session Host went away')),
     })
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     await expect(registeredHandler({ sender: {} }, {})).resolves.toEqual({ ok: true })
     expect(warnings).toEqual([
@@ -208,7 +230,10 @@ describe('hostHandle follow-up after the Session Host answered', () => {
     hostHandle('settings:update', {
       afterRemote: (result) => Effect.sync(() => void followUps.push(result)),
     })
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     await expect(registeredHandler({ sender: {} }, {})).rejects.toThrow('needs the Session Host')
     expect(followUps).toEqual([])

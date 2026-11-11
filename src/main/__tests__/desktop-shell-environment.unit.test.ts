@@ -6,6 +6,7 @@ import {
   readLoginShellEnvironment,
   type ShellEnvironmentCommand,
 } from '../desktop-shell-environment-probes'
+import { required } from '../test-support/required'
 
 function captured(name: string, value: string) {
   return `__OPENWAGGLE_ENV_${name}_START__\n${value}\n__OPENWAGGLE_ENV_${name}_END__\n`
@@ -17,8 +18,9 @@ describe('desktop shell environment inference', () => {
     async () => {
       const environment = await readLoginShellEnvironment('/bin/sh', async (input) => {
         // Reproduce environments that terminate long -c arguments before execution.
-        expect(input.args[1].length).toBeLessThan(512)
-        return execFileSync('/bin/sh', ['-c', input.args[1]], {
+        const script = required(input.args[1], 'the -c script')
+        expect(script.length).toBeLessThan(512)
+        return execFileSync('/bin/sh', ['-c', script], {
           encoding: 'utf8',
           timeout: 5_000,
           env: {

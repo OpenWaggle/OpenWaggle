@@ -5,6 +5,7 @@
 import { EventEmitter } from 'node:events'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { required } from '../../test-support/required'
 
 const { ipcMainHandleMock, ipcMainOnMock } = vi.hoisted(() => ({
   ipcMainHandleMock: vi.fn(),
@@ -47,7 +48,10 @@ describe('requests the backend gate holds while startup runs (A-F2)', () => {
   it('runs a held request once the backend is ready, for the document that sent it', async () => {
     const handler = vi.fn(() => Effect.succeed(okResult()))
     typedHandle('settings:update', handler)
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
 
     const result = registeredHandler({ sender: new FakeSender() }, {})
     await settle()
@@ -60,7 +64,10 @@ describe('requests the backend gate holds while startup runs (A-F2)', () => {
   it('drops a held request whose window reloaded or closed before the backend was ready', async () => {
     const handler = vi.fn(() => Effect.succeed(okResult()))
     typedHandle('settings:update', handler)
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
+    const registeredHandler = required(
+      ipcMainHandleMock.mock.calls[0],
+      'ipcMainHandleMock call 0',
+    )[1]
     const reloaded = new FakeSender()
     const closed = new FakeSender()
 
@@ -79,7 +86,7 @@ describe('requests the backend gate holds while startup runs (A-F2)', () => {
   it('drops a held message whose window reloaded, and keeps one from a window that did not', async () => {
     const handled = vi.fn()
     typedOn('terminal:ack-output', (event) => Effect.sync(() => handled(event.sender)))
-    const listener = ipcMainOnMock.mock.calls[0][1]
+    const listener = required(ipcMainOnMock.mock.calls[0], 'ipcMainOnMock call 0')[1]
     const reloaded = new FakeSender()
     const unchanged = new FakeSender()
 
@@ -95,7 +102,7 @@ describe('requests the backend gate holds while startup runs (A-F2)', () => {
   it('writes the clipboard at once: it needs nothing of the backend', () => {
     const written = vi.fn()
     typedOn('clipboard:write-text', (_event, text) => Effect.sync(() => written(text)))
-    const listener = ipcMainOnMock.mock.calls[0][1]
+    const listener = required(ipcMainOnMock.mock.calls[0], 'ipcMainOnMock call 0')[1]
 
     listener({ sender: new FakeSender() }, 'copied')
 
