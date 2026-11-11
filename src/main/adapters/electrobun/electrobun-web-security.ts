@@ -55,6 +55,7 @@ export function rendererDocumentHeaders(
   }
 }
 
+/** The desktop shell binding takes `createElectrobunWebSecurity()`, on the app's trusted origins. */
 export function createElectrobunWebSecurity(
   origins: Pick<ElectrobunTrustedOrigins, 'clearStorage'> = electrobunTrustedOrigins,
 ): WebSecurityShape {
@@ -67,5 +68,3 @@ export function createElectrobunWebSecurity(
     maintainCaches: () => undefined,
   }
 }
-
-export const electrobunWebSecurity = createElectrobunWebSecurity()

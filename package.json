@@ -36,6 +36,7 @@
     "prototype:composer": "vite prototypes/composer --host 127.0.0.1",
     "prototype:actions": "node prototypes/project-actions/serve.mts",
     "build": "bun run docs:generate && bun run prepare:semantic-model && bun run prepare:native:electron && electron-vite build && bun run check:syntax-bundle && bun run check:main-bundle && bun scripts/record-build-meta.ts",
+    "build:electrobun-preload": "bun scripts/build-electrobun-preload.ts",
     "build:package-dependencies": "bun run --filter @openwaggle/waggle-core build && bun run --filter @openwaggle/extension-sdk build",
     "build:packages": "bun run build:package-dependencies && bun run --filter @openwaggle/pi-waggle build && bun run --filter @openwaggle/extension-react build",
     "package:smoke": "bun scripts/package-smoke.ts",
