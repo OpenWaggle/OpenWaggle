@@ -338,7 +338,6 @@
     "src/shared/types/__tests__/session-status.unit.test.ts": 1
   },
   "typescript/await-thenable": {
-    "src/main/adapters/sqlite-session-delegation-claims.ts": 1,
     "src/main/store/session-details/session-deletion-fence.ts": 1,
     "src/renderer/src/features/chat/hooks/__tests__/transcript-order-continuation.component.test.tsx": 3
   },
@@ -409,7 +408,6 @@
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-viewport-lifecycle.unit.test.ts": 7,
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 3,
-    "src/main/adapters/terminal/__tests__/terminal-history-store.unit.test.ts": 3,
     "src/main/application/__tests__/agent-loop-interaction-broker.unit.test.ts": 1,
     "src/main/utils/__tests__/session-evidence-directory.unit.test.ts": 1,
     "src/renderer/src/features/browser-preview/hooks/useBrowserPreviewAdvancedControls.ts": 2,
@@ -671,9 +669,6 @@
   },
   "typescript/return-await": {
     "src/main/adapters/electron/browser-preview/browser-preview-favicon-capture.ts": 1,
-    "src/main/adapters/extensions/discovery.ts": 1,
-    "src/main/adapters/filesystem-workspace-file-service.ts": 1,
-    "src/main/adapters/project-actions/managed-workspace-preparation.ts": 1,
     "src/main/extension-runtime-protocol.ts": 1,
     "src/main/run-cli.ts": 1,
     "src/main/session-host/profile-credential-destination-support.ts": 1
@@ -704,9 +699,6 @@
     "src/renderer/src/shared/ui/WorkspaceTreePanel.tsx": 1
   },
   "typescript/use-unknown-in-catch-callback-variable": {
-    "src/main/adapters/filesystem-session-resource-store.ts": 1,
-    "src/main/adapters/session-semantic-index-snapshot-cache.ts": 1,
-    "src/main/adapters/settings-waggle-presets-repository.ts": 2,
     "src/main/application/session-host-condition-wait.ts": 1,
     "src/main/auth/index.ts": 2,
     "src/main/ipc/typed-ipc.ts": 1,

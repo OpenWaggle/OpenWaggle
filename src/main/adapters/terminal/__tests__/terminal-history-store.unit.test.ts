@@ -75,20 +75,16 @@ describe('makeTerminalHistoryStore', () => {
     await store.flush()
 
     store.append('session-1::main', 'buffered but about to be dropped')
-    store.truncate('session-1::main')
+    await store.truncate('session-1::main')
 
-    await vi.waitFor(async () => {
-      await expect(store.read('session-1::main')).resolves.toBe('')
-    })
+    await expect(store.read('session-1::main')).resolves.toBe('')
   })
 
   it('accepts appends again after truncate', async () => {
     const store = makeTerminalHistoryStore(logsDir)
     store.append('session-1::main', 'old scrollback')
-    store.truncate('session-1::main')
-    await vi.waitFor(async () => {
-      await expect(store.read('session-1::main')).resolves.toBe('')
-    })
+    await store.truncate('session-1::main')
+    await expect(store.read('session-1::main')).resolves.toBe('')
 
     store.append('session-1::main', 'fresh output')
     await store.flush()
@@ -100,11 +96,9 @@ describe('makeTerminalHistoryStore', () => {
     store.append('session-1::main', 'to be deleted')
     await store.flush()
 
-    store.remove('session-1::main')
+    await store.remove('session-1::main')
 
-    await vi.waitFor(async () => {
-      await expect(fs.stat(logFile('session-1::main'))).rejects.toThrow()
-    })
+    await expect(fs.stat(logFile('session-1::main'))).rejects.toThrow()
     await expect(store.read('session-1::main')).resolves.toBe('')
   })
 

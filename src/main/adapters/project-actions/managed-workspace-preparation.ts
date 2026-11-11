@@ -260,7 +260,7 @@ export class ManagedWorkspacePreparation {
           else this.live.delete(workspace.workspaceId)
         },
       })
-      return this.project(workspace, state)
+      return await this.project(workspace, state)
     } finally {
       cancellation.finish()
     }

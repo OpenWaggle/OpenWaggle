@@ -213,7 +213,7 @@ async function discoverRoot(
 ): Promise<readonly DiscoveredExtensionPackage[]> {
   try {
     const packageDirectoryNames = await listPackageDirectories(root.rootPath)
-    return Promise.all(
+    return await Promise.all(
       packageDirectoryNames.map((packageDirectoryName) =>
         discoverPackage(root, packageDirectoryName, hostSdkVersion),
       ),
