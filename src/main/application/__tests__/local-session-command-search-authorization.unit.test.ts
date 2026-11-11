@@ -109,11 +109,11 @@ describe('Local Session semantic search authorization', () => {
       authorizationCeiling: 'yolo',
       revokedAt: null,
     }
-    const seen: Array<{
+    const seen: {
       readonly authority?: LocalSessionProfileAuthority
       readonly requireFresh?: boolean
       readonly waitTimeoutMs?: number
-    }> = []
+    }[] = []
     const execute: SessionQueryRepositoryShape['execute'] = (input) => {
       const query = input.request.query
       if (query.operation !== 'search') return Effect.die('Expected search query.')

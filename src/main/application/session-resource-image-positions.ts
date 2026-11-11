@@ -11,8 +11,8 @@ type Positions = ReturnType<typeof imageDisplayPositions>
 
 /** One display sequence for generated images and image links; ordinary links do not take a slot. */
 export function imageDisplayPositions(resources: CollectedResources, startOrder: number) {
-  const images: Array<number | null> = Array.from({ length: resources.images.length }, () => null)
-  const links: Array<number | null> = Array.from({ length: resources.links.length }, () => null)
+  const images: (number | null)[] = Array.from({ length: resources.images.length }, () => null)
+  const links: (number | null)[] = Array.from({ length: resources.links.length }, () => null)
   let nextOrder = startOrder
   for (const entry of resources.order) {
     if (entry.kind === 'image') {
@@ -39,8 +39,8 @@ interface PlannedToolResult {
 export function assistantMessageResourcePlan(message: Message) {
   const toolResults: PlannedToolResult[] = []
   const textPositions: {
-    images: Array<number | null>
-    links: Array<number | null>
+    images: (number | null)[]
+    links: (number | null)[]
   } = { images: [], links: [] }
   let nextOrder = 0
   for (const part of message.parts) {

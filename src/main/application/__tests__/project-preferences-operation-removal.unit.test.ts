@@ -63,8 +63,8 @@ async function writeLegacyModelFile(projectPath: string) {
 }
 
 describe('removeProjectModelOperation', () => {
-  let removals: Array<string> | undefined
-  let modelWrites: Array<[string, string | null]> | undefined
+  let removals: string[] | undefined
+  let modelWrites: [string, string | null][] | undefined
 
   beforeEach(() => {
     mocks.setPreferences.mockReset().mockImplementation(fakeStripWrite)
@@ -167,7 +167,7 @@ describe('removeProjectModelOperation', () => {
   it('falls back to direct map updates without the queue-safe writers', async () => {
     const gonePath = await tempProjectPath('openwaggle-legacy-model-')
     await fs.rm(gonePath, { recursive: true, force: true })
-    const updates: Array<Record<string, unknown>> = []
+    const updates: Record<string, unknown>[] = []
 
     await run(gonePath, {
       setProjectModel: undefined,

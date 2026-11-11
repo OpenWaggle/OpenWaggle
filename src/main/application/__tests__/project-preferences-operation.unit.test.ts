@@ -49,9 +49,9 @@ async function writeLegacyModelFile(projectPath: string) {
 
 describe('Host-backed project preferences', () => {
   let storedModels: Record<string, string>
-  let updates: Array<{ selectedModelsByProject?: Record<string, string> }>
-  let projectModelWrites: Array<[string, string | null]> | undefined
-  let projectModelMigrations: Array<[string, string]> | undefined
+  let updates: { selectedModelsByProject?: Record<string, string> }[]
+  let projectModelWrites: [string, string | null][] | undefined
+  let projectModelMigrations: [string, string][] | undefined
   let projectPath: string
 
   function makeService(): SettingsServiceShape {

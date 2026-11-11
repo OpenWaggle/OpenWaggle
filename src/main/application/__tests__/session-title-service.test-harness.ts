@@ -35,7 +35,7 @@ export interface World {
   state: SessionTitleState
   messages: readonly Message[]
   titleModel: SessionTitleModelSetting
-  replies: Array<string | SessionTitleGenerationError>
+  replies: (string | SessionTitleGenerationError)[]
   readonly requests: SessionTitleGenerationRequest[]
   readonly cleared: SessionId[]
   /** Runs while the model "thinks", to simulate a rename landing mid-generation. */

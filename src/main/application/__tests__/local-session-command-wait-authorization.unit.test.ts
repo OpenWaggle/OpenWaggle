@@ -63,11 +63,11 @@ function waitPayload(operation: 'wait' | 'exports-wait'): LocalSessionCommandPay
 
 function testLayer(input: {
   readonly liveProfile: LiveProfile
-  readonly derivedAuthorities: Array<{
+  readonly derivedAuthorities: {
     sessionId: string
     capabilities: LocalSessionProfileAuthority['capabilities']
     authorizationCeiling: LocalSessionProfileAuthority['authorizationCeiling']
-  }>
+  }[]
   readonly beforeObservation: () => void
   readonly observeAuthority?: (authority: LocalSessionProfileAuthority | undefined) => void
 }) {

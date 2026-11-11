@@ -70,7 +70,7 @@ export class HostBackgroundGate {
   private lastSlimAt = Number.NEGATIVE_INFINITY
   private open = false
   private timer: { readonly cancel: () => void } | undefined
-  private waiters: Array<() => void> = []
+  private waiters: (() => void)[] = []
   private readonly slimHooks = new Set<SlimHook>()
   private slimmed = false
   private readonly foregroundCommands = new Set<{ readonly startedAt: number }>()
