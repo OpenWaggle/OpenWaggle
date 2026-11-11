@@ -51,21 +51,33 @@ export const NavigateResultSchema = Schema.Struct({
   loaderId: Schema.optional(Schema.String),
   errorText: Schema.optional(Schema.String),
 })
-export const HistorySchema = Schema.Struct({
-  currentIndex: Schema.Number,
-  entries: Schema.Array(
-    Schema.Struct({ id: Schema.Number, url: Schema.String, title: Schema.optional(Schema.String) }),
-  ),
-})
 export const ScreenshotSchema = Schema.Struct({ data: Schema.String })
-export const BindingCalledSchema = Schema.Struct({ name: Schema.String, payload: Schema.String })
+export const BindingCalledSchema = Schema.Struct({
+  name: Schema.String,
+  payload: Schema.String,
+  executionContextId: Schema.optional(Schema.Number),
+})
 export const ScriptIdentifierSchema = Schema.Struct({ identifier: Schema.String })
 export const ContextCreatedSchema = Schema.Struct({
-  context: Schema.Struct({ id: Schema.Number, name: Schema.String }),
+  context: Schema.Struct({
+    id: Schema.Number,
+    name: Schema.String,
+    auxData: Schema.optional(Schema.Struct({ frameId: Schema.optional(Schema.String) })),
+  }),
+})
+export const EvaluateResultSchema = Schema.Struct({
+  exceptionDetails: Schema.optional(Schema.Struct({ text: Schema.String })),
 })
 export const ContextDestroyedSchema = Schema.Struct({ executionContextId: Schema.Number })
 export const PageMessageSchema = Schema.Union(
   Schema.Struct({ kind: Schema.Literal('title'), title: Schema.String }),
+  /** The element picker's result; `failed` when it threw. Its `result` is decoded by the picker. */
+  Schema.Struct({
+    kind: Schema.Literal('pick'),
+    token: Schema.String,
+    result: Schema.Unknown,
+    failed: Schema.optional(Schema.Boolean),
+  }),
   Schema.Struct({
     kind: Schema.Literal('key'),
     type: Schema.String,
@@ -91,33 +103,5 @@ export function decodeJson<A, I>(schema: Schema.Schema<A, I>, raw: string): A | 
     return decode(schema, parseJsonUnknown(raw))
   } catch {
     return null
-  }
-}
-
-/**
- * The current entry's title, or `null` before the page has one. A page restored from the
- * back-forward cache runs no script, so the history is where its title comes from.
- */
-export function browserPreviewHistoryTitle(
-  history: Schema.Schema.Type<typeof HistorySchema>,
-  marker: string,
-) {
-  const entry = history.entries[history.currentIndex]
-  if (entry?.title === undefined || entry.title === '' || entry.url.includes(marker)) return null
-  return entry.title
-}
-
-/** Whether the history entries around the current one are pages, not the blank marker page. */
-export function browserPreviewHistoryFlags(
-  history: Schema.Schema.Type<typeof HistorySchema>,
-  marker: string,
-) {
-  const isPage = (index: number) => {
-    const entry = history.entries[index]
-    return entry !== undefined && !entry.url.includes(marker)
-  }
-  return {
-    canGoBack: isPage(history.currentIndex - 1),
-    canGoForward: isPage(history.currentIndex + 1),
   }
 }

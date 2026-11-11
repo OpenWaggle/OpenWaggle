@@ -1,3 +1,4 @@
+import { BROWSER_PREVIEW_CAPTURE_LIMITS } from '@shared/types/browser-preview-controls'
 import {
   BindingCalledSchema,
   ContextCreatedSchema,
@@ -14,6 +15,7 @@ import {
   BROWSER_PREVIEW_HOST_BINDING,
   BROWSER_PREVIEW_WORLD_NAME,
 } from './electrobun-preview-page-script'
+import type { CefPicks } from './electrobun-preview-picks'
 import { createLogger } from '../../../logger'
 
 const logger = createLogger('electrobun-browser-preview')
@@ -26,13 +28,27 @@ export interface CdpPageEventSink {
   readonly setMainFrame: (frameId: string) => void
   readonly refreshHistory: () => void
   readonly dismissDialog: () => void
-  /** The page script's isolated worlds, by execution context id. */
-  readonly pageWorlds: Set<number>
+  /** The page script's isolated worlds: execution context id to frame id. */
+  readonly pageWorlds: Map<number, string | null>
+  readonly picks: CefPicks
 }
+
+/**
+ * The largest page message read: an element picker result within its own limit, plus its
+ * envelope. A JSON text's UTF-16 length never exceeds its UTF-8 size, so nothing valid is longer.
+ */
+const MAX_PAGE_MESSAGE_LENGTH = BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_TOTAL_BYTES + 1_024
 
 function receivePageMessage(sink: CdpPageEventSink, params: unknown) {
   const call = decode(BindingCalledSchema, params)
   if (call?.name !== BROWSER_PREVIEW_HOST_BINDING) return
+  if (call.payload.length > MAX_PAGE_MESSAGE_LENGTH) {
+    logger.warn('Ignored an oversized browser preview page message', {
+      length: call.payload.length,
+    })
+    sink.picks.reject(call.executionContextId, 'The annotation is larger than the preview allows.')
+    return
+  }
   const message = decodeJson(PageMessageSchema, call.payload)
   if (message === null) {
     logger.warn('Ignored a malformed browser preview page message', {
@@ -42,6 +58,10 @@ function receivePageMessage(sink: CdpPageEventSink, params: unknown) {
   }
   if (message.kind === 'title') {
     sink.emit({ kind: 'title', title: message.title })
+    return
+  }
+  if (message.kind === 'pick') {
+    sink.picks.receive(call.executionContextId, message)
     return
   }
   const { kind: _kind, ...input } = message
@@ -92,7 +112,7 @@ export function cdpPageEventHandlers(
       (params) => {
         const created = decode(ContextCreatedSchema, params)
         if (created?.context.name === BROWSER_PREVIEW_WORLD_NAME) {
-          sink.pageWorlds.add(created.context.id)
+          sink.pageWorlds.set(created.context.id, created.context.auxData?.frameId ?? null)
         }
       },
     ],
@@ -100,10 +120,18 @@ export function cdpPageEventHandlers(
       'Runtime.executionContextDestroyed',
       (params) => {
         const destroyed = decode(ContextDestroyedSchema, params)
-        if (destroyed) sink.pageWorlds.delete(destroyed.executionContextId)
+        if (destroyed === null) return
+        sink.pageWorlds.delete(destroyed.executionContextId)
+        sink.picks.end(destroyed.executionContextId)
       },
     ],
-    ['Runtime.executionContextsCleared', () => sink.pageWorlds.clear()],
+    [
+      'Runtime.executionContextsCleared',
+      () => {
+        sink.pageWorlds.clear()
+        sink.picks.end(null)
+      },
+    ],
     ['Runtime.bindingCalled', (params) => receivePageMessage(sink, params)],
   ])
 }

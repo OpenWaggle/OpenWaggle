@@ -16,6 +16,7 @@ import { ElectrobunPreviewGuest, type ElectrobunPreviewView } from './electrobun
 import type { ElectrobunOwnerWindow } from './electrobun-owner-windows'
 import type { ElectrobunPreviewOwner, ElectrobunPreviewRecord } from './electrobun-preview-records'
 import type { NativeWebviewFrames } from './electrobun-webview-frames'
+import type { PrepareBrowserPreviewAnnotation } from '../../browser-preview/annotation/browser-preview-annotation'
 import type { BrowserPreviewArtifactStorage } from '../../browser-preview/browser-preview-artifact-storage'
 import { emitBrowserPreviewState } from '../../browser-preview/browser-preview-owner-events'
 import {
@@ -47,6 +48,8 @@ export interface ElectrobunPreviewHost {
   readonly maintenanceWindowId: () => number
   readonly artifacts: () => BrowserPreviewArtifactStorage
   readonly revealInFolder: (artifactPath: string) => void
+  /** Commits an annotation's screenshot as a composer attachment; the Session Host's by default. */
+  readonly prepareAnnotation?: PrepareBrowserPreviewAnnotation
   readonly writeClipboardImage: (png: Uint8Array) => Promise<void>
   readonly isMac: boolean
 }

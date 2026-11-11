@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import { ElectrobunBrowserPreviewManager } from './electrobun-preview-manager'
+import { ElectrobunPreviewAnnotations } from './electrobun-preview-annotations'
 import { ElectrobunPreviewProfiles } from './electrobun-preview-profiles'
 import { electrobunAutomationShell } from './electrobun-preview-automation-shell'
 import type { ElectrobunPreviewHost } from './electrobun-preview-record-factory'
@@ -22,6 +23,7 @@ export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost): {
   const profiles = new ElectrobunPreviewProfiles(host)
   const { controls } = manager
   const preview = manager.requirePreview.bind(manager)
+  const annotations = new ElectrobunPreviewAnnotations(host, controls)
   const automation = electrobunAutomationShell({
     findTab: (ownerKey, tabId) => manager.findOwnedPreview(ownerKey, tabId),
     selectTab: (record, ownerKey) =>
@@ -93,11 +95,8 @@ export function makeElectrobunBrowserPreview(host: ElectrobunPreviewHost): {
       manager.requireOwner(owner)
       throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.recording)
     },
-    pickElement: async (owner, previewId) => {
-      preview(owner, previewId)
-      throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.picker)
-    },
-    cancelPickElement: async (owner, previewId) => void preview(owner, previewId),
+    pickElement: async (owner, previewId) => annotations.pick(preview(owner, previewId)),
+    cancelPickElement: async (owner, previewId) => annotations.cancel(preview(owner, previewId)),
     openPictureInPicture: async (owner, previewId) => {
       preview(owner, previewId)
       throw new Error(ELECTROBUN_PREVIEW_UNSUPPORTED.pictureInPicture)

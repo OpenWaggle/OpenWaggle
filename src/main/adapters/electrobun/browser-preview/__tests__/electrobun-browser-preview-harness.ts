@@ -1,11 +1,13 @@
 import { fromPartial } from '@total-typescript/shoehorn'
 import { vi } from 'vitest'
-import { fakeCefBrowser } from './fake-cef-browser'
+import { FAKE_PNG, fakeCefBrowser } from './fake-cef-browser'
 import { fakeElectrobun } from '../../__tests__/contracts/fake-electrobun'
 import { makeElectrobunBrowserPreview } from '../electrobun-browser-preview-shape'
 import { electrobunOwnerWindow } from '../electrobun-owner-windows'
 import type { ElectrobunPreviewHost } from '../electrobun-preview-record-factory'
 import type { NativeWebviewFrames } from '../electrobun-webview-frames'
+import type { PrepareBrowserPreviewAnnotation } from '../../../browser-preview/annotation/browser-preview-annotation'
+import type { BrowserPreviewArtifactStorage } from '../../../browser-preview/browser-preview-artifact-storage'
 
 /**
  * The Electrobun Browser preview over a fake CEF browser and fake Electrobun windows. Tests that
@@ -14,7 +16,14 @@ import type { NativeWebviewFrames } from '../electrobun-webview-frames'
 export const OWNER_KEY = 'session:s-1'
 export const BOUNDS = { x: 10, y: 20, width: 400, height: 300 }
 
-export function setup(options: { readonly cdp?: boolean; readonly ownerKey?: string } = {}) {
+export function setup(
+  options: {
+    readonly cdp?: boolean
+    readonly ownerKey?: string
+    /** Real artifact storage, for tests that read what the preview stores. */
+    readonly storage?: BrowserPreviewArtifactStorage
+  } = {},
+) {
   const electrobun = fakeElectrobun()
   const cef = fakeCefBrowser()
   const frames = {
@@ -30,6 +39,17 @@ export function setup(options: { readonly cdp?: boolean; readonly ownerKey?: str
   }
   const revealInFolder = vi.fn<(artifactPath: string) => void>()
   const writeClipboardImage = vi.fn(async (_png: Uint8Array) => undefined)
+  const prepareAnnotation = vi.fn<PrepareBrowserPreviewAnnotation>(async (entry) => ({
+    id: 'attachment-1',
+    kind: 'image',
+    origin: 'browser-preview',
+    name: 'shot.png',
+    path: entry.path,
+    mimeType: 'image/png',
+    sizeBytes: FAKE_PNG.byteLength,
+    extractedText: entry.browserAnnotationText,
+    browserPreview: entry.browserPreview,
+  }))
   const host: ElectrobunPreviewHost = {
     createView: cef.createView,
     frames,
@@ -45,9 +65,10 @@ export function setup(options: { readonly cdp?: boolean; readonly ownerKey?: str
         owner.id,
       ),
     maintenanceWindowId: () => new electrobun.module.BrowserWindow({ hidden: true }).id,
-    artifacts: () => fromPartial(artifacts),
+    artifacts: () => options.storage ?? fromPartial(artifacts),
     revealInFolder,
     writeClipboardImage,
+    prepareAnnotation,
     isMac: true,
   }
   const { views, automation } = makeElectrobunBrowserPreview(host)
@@ -65,6 +86,7 @@ export function setup(options: { readonly cdp?: boolean; readonly ownerKey?: str
     artifacts,
     revealInFolder,
     writeClipboardImage,
+    prepareAnnotation,
   }
 }
 

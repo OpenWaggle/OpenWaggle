@@ -16,33 +16,14 @@ import {
   browserPreviewPageChords,
 } from './electrobun-preview-page-script'
 import type { ElectrobunPreviewHost } from './electrobun-preview-record-factory'
+import { type CefViewportRect, pngDimensions } from './electrobun-preview-screenshots'
 import type { ElectrobunPreviewRecord } from './electrobun-preview-records'
 import { emitBrowserPreviewState } from '../../browser-preview/browser-preview-owner-events'
 import { browserPreviewStateError } from '../../browser-preview/browser-preview-page-state'
 import { nextBrowserPreviewZoomFactor } from '../../browser-preview/browser-preview-zoom'
 import { AutomationDesktopUiError, isAutomationMode } from '../../../desktop-automation-policy'
 
-const PNG_SIGNATURE = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
-const PNG_SIGNATURE_BYTES = PNG_SIGNATURE.byteLength
-const PNG_WIDTH_OFFSET = 16
-const PNG_HEIGHT_OFFSET = 20
-const PNG_HEADER_BYTES = 24
 const HIDDEN_FRAME = { x: 0, y: 0, width: 1, height: 1 } as const
-
-/** Width and height from a PNG's IHDR chunk. */
-export function pngDimensions(png: Uint8Array): { width: number; height: number } {
-  if (
-    png.byteLength < PNG_HEADER_BYTES ||
-    PNG_SIGNATURE.some((byte, index) => png[index] !== byte)
-  ) {
-    throw new Error('The browser preview screenshot is not a PNG image.')
-  }
-  const view = new DataView(png.buffer, png.byteOffset + PNG_SIGNATURE_BYTES)
-  return {
-    width: view.getUint32(PNG_WIDTH_OFFSET - PNG_SIGNATURE_BYTES),
-    height: view.getUint32(PNG_HEIGHT_OFFSET - PNG_SIGNATURE_BYTES),
-  }
-}
 
 /**
  * A CEF preview's native frame and its controls: placement, emulation (zoom, viewport,
@@ -160,10 +141,12 @@ export class ElectrobunPreviewControls {
     await record.guest.send('Network.clearBrowserCache')
   }
 
+  /** The visible page, or `rect` of its viewport, stored as a screenshot artifact. */
   async captureScreenshot(
     record: ElectrobunPreviewRecord,
+    rect?: CefViewportRect,
   ): Promise<BrowserPreviewScreenshotArtifact> {
-    const data = await record.guest.captureScreenshot()
+    const data = await record.guest.captureScreenshot(rect)
     if (data.byteLength > BROWSER_PREVIEW_CAPTURE_LIMITS.SCREENSHOT_BYTES) {
       throw new Error(
         `Browser preview screenshot exceeds ${String(BROWSER_PREVIEW_CAPTURE_LIMITS.SCREENSHOT_BYTES)} bytes.`,

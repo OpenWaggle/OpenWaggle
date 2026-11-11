@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events'
-import { Schema } from '@shared/schema'
 import {
   type BrowserPreviewAutomationClip,
   type BrowserPreviewAutomationContents,
@@ -14,8 +13,14 @@ import {
 } from '../../browser-preview/automation/browser-preview-automation-contents'
 
 type DebuggerListener = BrowserPreviewCdpMessageListener | BrowserPreviewCdpDetachListener
-import { pngDimensions } from './electrobun-preview-controls'
-import { decode, ScreenshotSchema } from './electrobun-preview-cdp-protocol'
+import {
+  captureCefPng,
+  type CdpSend,
+  type CefClip,
+  documentClip,
+  pngDimensions,
+  visibleRegion,
+} from './electrobun-preview-screenshots'
 import type { ElectrobunPreviewGuest } from './electrobun-preview-guest'
 import type { ElectrobunPreviewRecord } from './electrobun-preview-records'
 
@@ -28,15 +33,6 @@ import type { ElectrobunPreviewRecord } from './electrobun-preview-records'
 
 /** The domains the automation enables for its diagnostics, turned off when it lets go. */
 const AUTOMATION_DOMAINS = ['Accessibility', 'Network', 'Log'] as const
-
-const LayoutMetricsSchema = Schema.Struct({
-  cssVisualViewport: Schema.Struct({
-    pageX: Schema.Number,
-    pageY: Schema.Number,
-    clientWidth: Schema.Number,
-    clientHeight: Schema.Number,
-  }),
-})
 
 class CefAutomationDebugger implements BrowserPreviewAutomationDebugger {
   private attached = false
@@ -87,45 +83,18 @@ class CefAutomationDebugger implements BrowserPreviewAutomationDebugger {
   }
 }
 
-async function captureCefPng(guest: ElectrobunPreviewGuest, clip?: CefClip): Promise<Uint8Array> {
-  const shot = decode(
-    ScreenshotSchema,
-    await guest.send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip } : {}) }),
-  )
-  if (shot === null) throw new Error('The browser preview screenshot is malformed.')
-  return Buffer.from(shot.data, 'base64')
-}
-
-interface CefClip extends BrowserPreviewAutomationClip {
-  readonly scale: number
-}
-
-/** The visible part of the page, in CSS pixels. */
-async function visibleRegion(guest: ElectrobunPreviewGuest): Promise<CefClip> {
-  const metrics = decode(LayoutMetricsSchema, await guest.send('Page.getLayoutMetrics'))
-  if (metrics === null) throw new Error('The browser preview layout metrics are malformed.')
-  const viewport = metrics.cssVisualViewport
-  return {
-    x: viewport.pageX,
-    y: viewport.pageY,
-    width: viewport.clientWidth,
-    height: viewport.clientHeight,
-    scale: 1,
-  }
-}
-
 /**
  * A PNG of the page. CEF captures at the page's device pixels and the main process has no image
  * library, so a smaller version is captured again at a CDP scale instead of scaled here.
  */
 class CefScreenshot implements BrowserPreviewAutomationImage {
   private readonly png: Uint8Array
-  private readonly guest: ElectrobunPreviewGuest
+  private readonly send: CdpSend
   private readonly clip: CefClip | undefined
 
-  constructor(png: Uint8Array, guest: ElectrobunPreviewGuest, clip?: CefClip) {
+  constructor(png: Uint8Array, send: CdpSend, clip?: CefClip) {
     this.png = png
-    this.guest = guest
+    this.send = send
     this.clip = clip
   }
 
@@ -138,9 +107,9 @@ class CefScreenshot implements BrowserPreviewAutomationImage {
   }
 
   async resize(size: { readonly width: number }): Promise<BrowserPreviewAutomationImage> {
-    const region = this.clip ?? (await visibleRegion(this.guest))
+    const region = this.clip ?? (await visibleRegion(this.send))
     const clip = { ...region, scale: region.scale * (size.width / this.getSize().width) }
-    return new CefScreenshot(await captureCefPng(this.guest, clip), this.guest, clip)
+    return new CefScreenshot(await captureCefPng(this.send, clip), this.send, clip)
   }
 
   toPNG(): Uint8Array {
@@ -200,12 +169,10 @@ class CefAutomationContents implements BrowserPreviewAutomationContents {
   }
 
   async capturePage(clip?: BrowserPreviewAutomationClip): Promise<BrowserPreviewAutomationImage> {
-    const region = clip ? { ...clip, scale: 1 } : undefined
-    return new CefScreenshot(
-      await captureCefPng(this.record.guest, region),
-      this.record.guest,
-      region,
-    )
+    // Electron clips the view's viewport; CDP clips the document.
+    const send: CdpSend = (method, params) => this.record.guest.send(method, params)
+    const region = clip ? await documentClip(send, clip) : undefined
+    return new CefScreenshot(await captureCefPng(send, region), send, region)
   }
 
   on(event: 'before-input-event', listener: BrowserPreviewKeyListener): this

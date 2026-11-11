@@ -8,14 +8,10 @@ import {
 } from './electrobun-preview-device-metrics'
 import { cdpPageEventHandlers } from './electrobun-preview-cdp-events'
 import {
-  browserPreviewHistoryFlags,
-  browserPreviewHistoryTitle,
   decode,
   type ElectrobunPreviewGuestEvent,
   FrameTreeSchema,
-  HistorySchema,
   NavigateResultSchema,
-  ScreenshotSchema,
   ScriptIdentifierSchema,
 } from './electrobun-preview-cdp-protocol'
 import {
@@ -25,6 +21,13 @@ import {
   browserPreviewPageConfigureScript,
   browserPreviewPageScript,
 } from './electrobun-preview-page-script'
+import { historyEvents, stepInHistory } from './electrobun-preview-history'
+import {
+  captureBoundedCefPng,
+  type CdpSend,
+  type CefViewportRect,
+} from './electrobun-preview-screenshots'
+import { CefPicks } from './electrobun-preview-picks'
 import { createLogger } from '../../../logger'
 
 const logger = createLogger('electrobun-browser-preview')
@@ -60,8 +63,9 @@ export class ElectrobunPreviewGuest {
   private attached: Promise<CdpConnection> | null = null
   private mainFrameId: string | null = null
   private pageScriptId: string | null = null
-  /** The page script's isolated worlds, one per frame, by execution context id. */
-  private readonly pageWorlds = new Set<number>()
+  /** The page script's isolated worlds, one per frame: execution context id to frame id. */
+  private readonly pageWorlds = new Map<number, string | null>()
+  private readonly picks = new CefPicks()
   private readonly abort = new AbortController()
   private readonly cdpListeners = new Set<(method: string, params: unknown) => void>()
   private readonly closeListeners = new Set<() => void>()
@@ -86,6 +90,7 @@ export class ElectrobunPreviewGuest {
           .catch(() => undefined)
       },
       pageWorlds: this.pageWorlds,
+      picks: this.picks,
     })
   }
 
@@ -154,20 +159,28 @@ export class ElectrobunPreviewGuest {
     await this.installPageScript(cdp, config)
     const expression = browserPreviewPageConfigureScript(config)
     await Promise.all(
-      [...this.pageWorlds].map((contextId) =>
+      [...this.pageWorlds.keys()].map((contextId) =>
         cdp.send('Runtime.evaluate', { expression, contextId }).catch(() => undefined),
       ),
     )
   }
 
-  /** The visible page as PNG bytes. */
-  async captureScreenshot(): Promise<Uint8Array> {
-    const shot = decode(
-      ScreenshotSchema,
-      await (await this.cdp()).send('Page.captureScreenshot', { format: 'png' }),
-    )
-    if (shot === null) throw new Error('The browser preview screenshot is malformed.')
-    return Buffer.from(shot.data, 'base64')
+  /** The visible page, or `rect` of its viewport, as PNG bytes within the pixel budget. */
+  async captureScreenshot(rect?: CefViewportRect): Promise<Uint8Array> {
+    const cdp = await this.cdp()
+    return captureBoundedCefPng((method, params) => cdp.send(method, params), rect)
+  }
+
+  /** Runs the element picker in the main frame; resolves with its raw, page-derived result. */
+  async runPicker(picker: string): Promise<unknown> {
+    const cdp = await this.cdp()
+    return this.picks.run((method, params) => cdp.send(method, params), this.mainWorld(), picker)
+  }
+
+  /** Runs a picker control script in the main frame. */
+  async runPickerControl(script: string): Promise<void> {
+    const cdp = await this.cdp()
+    await this.picks.control((method, params) => cdp.send(method, params), this.mainWorld(), script)
   }
 
   /** One raw CDP command on this page. */
@@ -200,6 +213,7 @@ export class ElectrobunPreviewGuest {
   close(): void {
     if (this.closed) return
     this.closed = true
+    this.picks.end(null)
     this.abort.abort()
     this.connection?.close()
     this.options.view.remove()
@@ -227,6 +241,7 @@ export class ElectrobunPreviewGuest {
       for (const listener of this.cdpListeners) listener(method, params)
     })
     cdp.onClose(() => {
+      this.picks.end(null)
       for (const listener of this.closeListeners) listener()
       if (!this.closed) this.options.onEvent({ kind: 'detached', reason: 'CDP connection lost' })
     })
@@ -273,24 +288,25 @@ export class ElectrobunPreviewGuest {
     return cdp
   }
 
+  private mainWorld(): number {
+    for (const [contextId, frameId] of this.pageWorlds) {
+      if (frameId !== null && frameId === this.mainFrameId) return contextId
+    }
+    throw new Error('The browser preview page is still loading.')
+  }
+
   private async goInHistory(step: -1 | 1) {
     const cdp = await this.cdp()
-    const history = decode(HistorySchema, await cdp.send('Page.getNavigationHistory'))
-    const entry = history?.entries[history.currentIndex + step]
-    if (entry === undefined || entry.url.includes(this.options.marker)) return
-    await cdp.send('Page.navigateToHistoryEntry', { entryId: entry.id })
+    await stepInHistory((method, params) => cdp.send(method, params), this.options.marker, step)
   }
 
   private refreshHistory() {
     void (async () => {
       const cdp = await this.cdpOrNull()
       if (cdp === null) return
-      const history = decode(HistorySchema, await cdp.send('Page.getNavigationHistory'))
-      if (history === null) return
-      const { marker, onEvent } = this.options
-      onEvent({ kind: 'history', ...browserPreviewHistoryFlags(history, marker) })
-      const title = browserPreviewHistoryTitle(history, marker)
-      if (title !== null) onEvent({ kind: 'title', title })
+      const send: CdpSend = (method, params) => cdp.send(method, params)
+      const events = await historyEvents(send, this.options.marker)
+      for (const event of events) this.options.onEvent(event)
     })().catch(() => undefined)
   }
 }

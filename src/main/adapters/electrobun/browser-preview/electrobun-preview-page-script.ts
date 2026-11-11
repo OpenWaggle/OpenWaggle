@@ -125,3 +125,19 @@ export function browserPreviewPageScript(config: BrowserPreviewPageConfig) {
 export function browserPreviewPageConfigureScript(config: BrowserPreviewPageConfig) {
   return `globalThis.__openwaggleBrowserPreview?.configure(${JSON.stringify(config)})`
 }
+
+/**
+ * Starts the element picker in the page script's world and returns at once: the picker waits for
+ * the user far longer than a CDP command may, so its result comes back through the host binding,
+ * tagged with `token`.
+ */
+export function browserPreviewPickerScript(picker: string, token: string) {
+  return `(() => {
+  const host = globalThis[${JSON.stringify(BROWSER_PREVIEW_HOST_BINDING)}];
+  const token = ${JSON.stringify(token)};
+  if (typeof host !== 'function') return false;
+  const report = (message) => { try { host(JSON.stringify({ kind: 'pick', token, ...message })); } catch { host(JSON.stringify({ kind: 'pick', token, result: null, failed: true })); } };
+  Promise.resolve(${picker}).then((result) => report({ result }), () => report({ result: null, failed: true }));
+  return true;
+})()`
+}
