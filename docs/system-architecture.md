@@ -1,6 +1,6 @@
 # System Architecture
 
-OpenWaggle is an Electron desktop agent with a Pi-native runtime core and a SQLite session projection.
+OpenWaggle is an Electrobun desktop agent (ADR 0064) with a Pi-native runtime core and a SQLite session projection.
 
 ## Main Process
 
@@ -12,7 +12,7 @@ Layering follows the hexagonal model:
 - `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, and `WagglePresetsRepository`.
 - `src/main/adapters/` implements ports. OpenWaggle desktop app Pi SDK imports are confined to `src/main/adapters/pi/`; dedicated Pi packages under `packages/pi-*` may import Pi SDKs internally.
 - `src/main/application/` orchestrates runs through ports.
-- `src/main/ipc/` handles Electron IPC and emits transport events.
+- `src/main/ipc/` handles the desktop shell's IPC (typed Electrobun RPC) and emits transport events.
 - `src/main/store/` contains SQLite implementations behind adapters.
 
 ## Renderer
@@ -56,11 +56,11 @@ OpenWaggle opens its own SQLite files with better-sqlite3 only (#371). That cove
 
 The rule exists because each SQLite library carries its own copy of SQLite. POSIX advisory locks belong to the process, not to a connection, and one copy does not track the other copy's locks. When one copy closes its file descriptor, it drops the other copy's locks on that file, and another process can then write at the same time ([How To Corrupt An SQLite Database File, section 2.2.1](https://www.sqlite.org/howtocorrupt.html#_multiple_copies_of_sqlite_linked_into_the_same_application)). `host-sqlite-database.integration.test.ts` checks that a second connection in the Host's process leaves the Host's write lock held. With a `node:sqlite` reader, that lock was released.
 
-Node and Electron always ship `node:sqlite`, and dependencies such as undici load it for feature detection. That is safe: the hazard needs two copies with the same file open. `bun run check:repository-standards` rejects `node:sqlite` and other SQLite libraries anywhere under `src/`, `scripts/` and `packages/`, Worker source strings included. The only exception is `src/main/browser-import/`, which reads the browsers' own cookie and profile databases and never opens OpenWaggle's files. The pnpm override `@effect/sql-sqlite-node>better-sqlite3` keeps one better-sqlite3 build in the process, and `host-sqlite-database.unit.test.ts` checks it.
+Node always ships `node:sqlite`, and dependencies such as undici load it for feature detection. That is safe: the hazard needs two copies with the same file open. `bun run check:repository-standards` rejects `node:sqlite` and other SQLite libraries anywhere under `src/`, `scripts/` and `packages/`, Worker source strings included. The only exception is `src/main/browser-import/`, which reads the browsers' own cookie and profile databases and never opens OpenWaggle's files. The pnpm override `@effect/sql-sqlite-node>better-sqlite3` keeps one better-sqlite3 build in the process, and `host-sqlite-database.unit.test.ts` checks it.
 
 ## Waggle Presets
 
-Waggle presets are resolved through `WagglePresetsRepository`. Built-in presets are bundled in the adapter, global presets are stored in Electron user data as `waggle-presets.json`, and project presets are stored in `.openwaggle/settings.json`. Project presets override global presets with the same id.
+Waggle presets are resolved through `WagglePresetsRepository`. Built-in presets are bundled in the adapter, global presets are stored in the app's user data directory as `waggle-presets.json`, and project presets are stored in `.openwaggle/settings.json`. Project presets override global presets with the same id.
 
 ## Waggle
 
@@ -86,4 +86,4 @@ Visual desktop contributions follow ADR-0006: manifests model contribution surfa
 
 ## Security
 
-Electron security remains fail-closed: no renderer Node integration, context isolation on, sandbox on, strict CSP, and IPC through the preload bridge only.
+Desktop shell security remains fail-closed: the renderer has no Bun or Node access, loads from a loopback origin with a per-launch token under a strict CSP, COOP and COEP, and reaches main only through the preload bridge's typed RPC.

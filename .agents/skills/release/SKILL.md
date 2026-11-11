@@ -14,7 +14,7 @@ Before changing release, versioning, updater, changelog, GitHub workflow, instal
 1. Read `docs/release-and-versioning.md` and ADR 0040. Read ADR 0032 for Build identity and Build channel.
 2. Use the `CONTEXT.md` terms **Build channel** (the installed artifact's stage), **Update channel** (the user's saved update selection), **Compatibility promise**, **Covered surface**, and **Release blocker**.
 3. Inspect the current `release.yml`, `scripts/app-release-state.ts`, `scripts/app-release-promotion.ts` (the promotion guard's pure decisions), `src/main/update-feed.ts`, `src/main/updater.ts`, `scripts/prepare-update-channel-metadata.ts`, `scripts/install.sh`, and the Settings About/Updates UI before editing.
-4. Preserve `AGENTS.md` rules: no commits without approval, no unknown-work reverts, Electron QA for renderer/preload/IPC changes, and `grill-with-docs` for any new release decision.
+4. Preserve `AGENTS.md` rules: no commits without approval, no unknown-work reverts, desktop QA (`electron-qa`) for renderer/preload/IPC changes, and `grill-with-docs` for any new release decision.
 
 ## Release domains
 
@@ -77,7 +77,7 @@ Meanings:
 
 From `1.0.0`, breaking a Covered surface requires the next major version. Covered: user data (forward migration within a major, no downgrades), the `hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status` and `host` CLIs and their machine output, plus `update --check --json`, which `install.sh` reads (additive fields allowed), CLI error kinds and exit codes (a code keeps its kind), the watch and `run --jsonl` event records except Pi transport bodies (ADR 0063), Session Control over the OpenWaggle MCP server (keep existing contract versions' semantics), the Agent-definition schema, Scheduled tasks (their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start), and supported platforms (macOS 13.4+, Windows 10+ x64, Linux x64 with glibc 2.35+). Not covered: the extension host contract (follows `@openwaggle/extension-sdk` semver), Pi-owned resources, UI layout, copy, defaults, and keybindings. Retire a covered field by shipping its replacement beside it and removing it only in the next major.
 
-Raising a stated platform minimum is breaking unless the OS vendor has ended support for that version or the Electron/Chromium upgrade that drops it is needed to stay on a supported Electron line; such a raise ships in a minor with release notes that name it, announced in the previous release's notes when possible. `LSMinimumSystemVersion` stays 12.0 so auto-updated macOS 12 installs still launch (12 to 13.3 is unsupported; onnxruntime needs 13.4). The thresholds live in `scripts/supported-platform-floor.ts`; `scripts/check-native-platform-floor.ts` fails each release build whose native binaries need a newer OS, and the Linux build stays on `ubuntu-22.04` for glibc 2.35.
+Raising a stated platform minimum is breaking unless the OS vendor has ended support for that version or the Electrobun, CEF or system-webview upgrade that drops it is needed to stay on a supported line; such a raise ships in a minor with release notes that name it, announced in the previous release's notes when possible. `LSMinimumSystemVersion` stays 12.0 so auto-updated macOS 12 installs still launch (12 to 13.3 is unsupported; onnxruntime needs 13.4). The thresholds live in `scripts/supported-platform-floor.ts`; `scripts/check-native-platform-floor.ts` fails each release build whose native binaries need a newer OS, and the Linux build stays on `ubuntu-22.04` for glibc 2.35.
 
 ## Release intent and notes
 
@@ -151,11 +151,11 @@ Alpha  -> alpha, beta, rc, stable
 
 ## Implementation guidance
 
-- Keep pure version parsing, eligibility, and selection logic free of Electron and covered by unit tests.
-- Keep Electron updater integration in main-process code behind typed IPC; renderer components use typed preload APIs.
+- Keep pure version parsing, eligibility, and selection logic free of the desktop shell and covered by unit tests.
+- Keep the Electrobun update engine (`UpdateEngine` port) in main-process code behind typed IPC; renderer components use typed preload APIs.
 - Validate runtime data at boundaries with shared schema helpers.
 - Release workflow changes need their contract tests (`app-release-workflow` tests) updated in the same change.
-- Run Electron QA after renderer, preload, IPC, or updater changes.
+- Run desktop QA (`electron-qa`) after renderer, preload, IPC, or updater changes.
 
 ## Do not do
 

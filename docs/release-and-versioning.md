@@ -189,12 +189,12 @@ PR merges. If a competing PR opens anyway, close it without merging and dispatch
 Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
 receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
 non-downgrade version that already carries the update engine's metadata for this platform (the
-engine names it: `stable-macos-arm64-update-v2.json` for Electrobun, `beta-mac.yml` for
-electron-updater), then points the updater at that release's assets, so RC does not
-depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
-RC build with no saved preference defaults to Beta. Release packaging publishes the matching
-metadata aliases for every eligible automatic channel because electron-builder does not generate
-the cross-channel aliases for its GitHub provider. The app and
+engine names it: `stable-macos-arm64-update-v2.json`), then points the update engine at that
+release's assets (`UpdateEngine.setFeed`), so no channel rule of the engine decides eligibility. An
+RC build with no saved preference defaults to Beta. The transition artifacts an Electron install
+reads (`<channel>-mac.yml`, `latest.yml`, `latest-linux.yml`) are published for every eligible
+automatic channel (`scripts/prepare-update-channel-metadata.ts`; docs/electrobun-transition.md).
+The app and
 CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
 authoritative channel before installing a downloaded release and invalidates a release that is no
 longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
@@ -258,28 +258,27 @@ demand, needs macOS 13.4.
 
 Raising a stated minimum is breaking, with one exception. A raise is not breaking when the OS
 vendor has ended support for that version (Apple no longer ships security updates for it,
-Microsoft's end of support, or the distribution's end of standard support), or when the Electron or
-Chromium upgrade that drops it is needed to stay on a supported Electron line. Such a raise ships in
+Microsoft's end of support, or the distribution's end of standard support), or when the Electrobun, CEF or
+system-webview upgrade that drops it is needed to stay on a supported line. Such a raise ships in
 a minor version, its release notes name it, and the previous release's notes announce it when
 possible.
 
 ### Differential update downloads
 
-Releases publish `.blockmap` files beside the macOS zip and DMG and the Windows installer (the
-AppImage embeds its own), so electron-updater downloads only the blocks that changed. GitHub
-release downloads reject multi-range requests with HTTP 501, so the app's feed sets
-`useMultipleRangeRequest: false` and fetches single ranges, as electron-updater's GitHub provider
-does. A simulated one-line release change downloaded 8.0 MB of a 354.7 MB macOS zip. The macOS and
-Windows updaters diff against the previously downloaded update, so the first in-app update after a
-manual install, or after a release without blockmaps, is a full download; later ones are
-differential. `builder-debug.yml` is a local build dump and is not published.
+Electrobun releases publish a `.tar.zst` archive per platform and, when the previous release is
+reachable while packaging (`OPENWAGGLE_ELECTROBUN_PATCH_BASE_URL`), a Hutch delta patch against it;
+the update engine applies the patch and falls back to the full archive. No `.blockmap` is
+published. The macOS build is re-sealed after signing, so its patches are as large as the archive
+until the signing flow keeps the sealed bytes stable. The one-time move from Electron downloads the
+full transition artifact (docs/electrobun-transition.md).
 
 ### Electrobun packaging
 
-The desktop app moves from Electron to Electrobun (ADR 0064, docs/electrobun-transition.md).
+The desktop app runs on Electrobun (ADR 0064); docs/electrobun-transition.md covers the move from
+Electron installs.
 `bun scripts/electrobun/package.ts` packages it for the host platform: it prepares the Electrobun
-SDK devkit, builds the main process with `bun build` (`scripts/build-main.ts`; the renderer still
-comes from `bun run build`), stages the main and renderer builds, a hoisted production `node_modules` and the bundled resources into
+SDK devkit, builds the main process with `bun build` (`scripts/build-main.ts`) and the renderer with
+Vite (`vite.renderer.config.ts`), stages the main and renderer builds, a hoisted production `node_modules` and the bundled resources into
 `out/electrobun/stage` (`scripts/electrobun/stage.ts`), runs Hutch with `electrobun.config.ts`, and
 writes the release files to `out/electrobun/release`. Every channel builds with Electrobun's
 `stable` build environment and `com.openwaggle.app`, so one install root serves every channel.
@@ -362,7 +361,7 @@ app never installs a downloaded update.
   the launch without a graphical session (SSH, CI, or Linux without `$DISPLAY` or
   `$WAYLAND_DISPLAY`), with `--no-launch`, or with `OPENWAGGLE_NO_LAUNCH=1`. On macOS it quits the
   running desktop window process (the app's only `Foreground` process; the detached Session Host
-  and CLI processes share the bundle id but are `UIElement`) with `SIGTERM`, which Electron handles
+  and CLI processes share the bundle id but are `UIElement`) with `SIGTERM`, which the app handles
   as a normal quit. Then it runs the installed version's `openwaggle host stop --update`, and only
   then replaces the bundle. If the user cancels there, it reopens the app and changes nothing. An
   installed version older than `--update` gets a plain `host stop --wait`, bounded to 20 seconds;
@@ -449,9 +448,9 @@ These packages use the MIT license, independent semver versions, Node.js `>=22.1
 
 `@openwaggle/pi-waggle` follows Pi's package contract for host-provided packages: the Pi SDK packages it imports and `typebox` are peer dependencies with a `"*"` range and are not bundled. Exact package-local dev dependencies pin the versions used for build and test coverage: the Pi SDKs come from the `pi-runtime` catalog, and `typebox` from the `pi-extension-host` catalog the app uses too, which `check:pi-runtime` holds at the version Pi supplies at runtime. This keeps a Pi-installed package on the host's single SDK instance while making compatibility changes visible through package QA; `bun run package:smoke` fails when a host-provided package moves into `dependencies`, which Pi warns about on every start. Before a Waggle package release, run the [Pi Waggle release checklist](pi-waggle-release-checklist.md).
 
-`@openwaggle/waggle-core` must remain runtime-neutral reusable policy. It must not import Pi SDK packages, Electron, Node built-ins, OpenWaggle renderer stores, or app services. Pi-specific bindings, renderers, commands, and extension registration belong in `@openwaggle/pi-waggle`.
+`@openwaggle/waggle-core` must remain runtime-neutral reusable policy. It must not import Pi SDK packages, Electrobun, Node built-ins, OpenWaggle renderer stores, or app services. Pi-specific bindings, renderers, commands, and extension registration belong in `@openwaggle/pi-waggle`.
 
-Package import boundaries must be enforced by repository standards checks that run under `bun run check`. The checks should fail if `packages/extension-sdk/**` imports Electron, Node built-ins, Pi SDK packages, renderer stores, or main-process services; if `packages/waggle-core/**` imports Pi SDK packages, Electron, Node built-ins, renderer stores, or app services; if `packages/extension-react/**` imports OpenWaggle renderer components or app CSS/Tailwind internals; or if `packages/pi-waggle/**` imports Electron, renderer stores, or app services.
+Package import boundaries must be enforced by repository standards checks that run under `bun run check`. The checks should fail if `packages/extension-sdk/**` imports Electrobun, Node built-ins, Pi SDK packages, renderer stores, or main-process services; if `packages/waggle-core/**` imports Pi SDK packages, Electrobun, Node built-ins, renderer stores, or app services; if `packages/extension-react/**` imports OpenWaggle renderer components or app CSS/Tailwind internals; or if `packages/pi-waggle/**` imports Electron, renderer stores, or app services.
 
 All public package source lives under `packages/*`. The first package directories are `packages/extension-sdk`, `packages/extension-react`, `packages/waggle-core`, and `packages/pi-waggle`. Each package owns its `src/` API source, emits built JavaScript and TypeScript declarations to package-local output, and publishes from its package directory. Do not create parallel package copies outside `packages/*`, and do not publish raw TypeScript source as the runtime contract.
 
@@ -461,7 +460,7 @@ Public imports are limited to each package's explicit `package.json` exports. Do
 
 `@openwaggle/extension-sdk` should export public Effect Schema boundary values directly for manifests, contributions, broker payloads, docs discovery, and agent-loop DTOs. It should also provide helper APIs for common workflows such as defining and validating extension manifests so beginner authoring does not require direct Effect Schema usage. Effect Schema is the primary runtime schema contract for `0.1.0`; JSON Schema may be generated later as an additional artifact, but it should not replace the canonical Effect Schema boundary in the first release.
 
-`@openwaggle/extension-sdk` must remain browser-safe. It must not import Electron, Node built-ins, OpenWaggle main-process services, renderer stores, or Pi SDK packages. Runtime helpers should operate on the brokered SDK/context values passed to extension mount code rather than reaching into host internals.
+`@openwaggle/extension-sdk` must remain browser-safe. It must not import Electrobun, Node built-ins, OpenWaggle main-process services, renderer stores, or Pi SDK packages. Runtime helpers should operate on the brokered SDK/context values passed to extension mount code rather than reaching into host internals.
 
 Package manifests should declare side-effect metadata explicitly. `@openwaggle/extension-sdk`, `@openwaggle/waggle-core`, and `@openwaggle/pi-waggle` use `"sideEffects": false`. `@openwaggle/extension-react` uses `"sideEffects": ["./styles.css"]` so bundlers can tree-shake component code without dropping the stylesheet export.
 
