@@ -20,6 +20,8 @@ export interface StepReport {
   readonly exitCode: number | null
   readonly log: string
   readonly commands: readonly string[]
+  /** An advisory step's findings, which fail nothing (`CheckStep.advisory`). */
+  readonly advisories?: readonly string[]
 }
 
 export interface RunReport {
@@ -105,4 +107,24 @@ export function reportDurations(report: unknown) {
     durations.set(id, duration)
   }
   return durations
+}
+
+/** An advisory step's findings: the lines of its log. */
+export async function advisoryFindings(report: StepReport) {
+  const log = await readFile(report.log, 'utf8').catch(() => '')
+  return log
+    .split(/\r?\n/u)
+    .map((line) => line.trimEnd())
+    .filter((line) => line !== '')
+}
+
+/** The advisory header and findings (capped), or nothing when the step had nothing to say. */
+export function advisoryOutput(step: CheckStep, report: StepReport) {
+  const findings = report.advisories ?? []
+  if (findings.length === 0) return []
+  return [
+    `ADVISORY ${step.id} (fails nothing; log ${report.log})`,
+    ...capFindings(findings, report.log),
+    `note: ${step.hint}`,
+  ]
 }

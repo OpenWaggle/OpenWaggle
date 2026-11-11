@@ -95,6 +95,7 @@
     "check:provenance": "bun scripts/check-provenance-downgrade.ts",
     "check:dependency-pins": "bun scripts/check-dependency-pins.ts",
     "check:no-cheating": "bun scripts/check-no-cheating.ts",
+    "check:coverage-uniqueness": "bun scripts/coverage-uniqueness.ts advise",
     "check:usage-statistics-catalog": "bun scripts/generate-usage-statistics-catalog.ts --check",
     "usage-statistics-catalog:generate": "bun scripts/generate-usage-statistics-catalog.ts",
     "syntax-languages:generate": "bun scripts/generate-syntax-language-metadata.ts",

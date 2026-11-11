@@ -95,4 +95,16 @@ describe('nightly packaged canary workflow', () => {
     expect(westPins.length).toBeGreaterThan(0)
     for (const pin of westPins) expect(canaryPins).toContain(pin)
   })
+
+  it('builds the coverage-uniqueness index in shards and publishes it under the name advise reads', () => {
+    const advise = fs.readFileSync(
+      path.join(PROJECT_ROOT, 'scripts/coverage-uniqueness.ts'),
+      'utf8',
+    )
+    expect(WORKFLOW).toContain('shard: [1, 2, 3, 4]')
+    expect(WORKFLOW).toContain('index --shard ${{ matrix.shard }}/4')
+    expect(WORKFLOW).toContain('needs: coverage-uniqueness-shard')
+    expect(WORKFLOW).toContain('name: coverage-uniqueness-index')
+    expect(advise).toContain("const INDEX_ARTIFACT = 'coverage-uniqueness-index'")
+  })
 })

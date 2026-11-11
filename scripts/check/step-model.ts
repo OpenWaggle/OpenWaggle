@@ -55,6 +55,11 @@ export interface CheckStep {
   readonly env?: Readonly<Record<string, string>>
   /** Working directory relative to the repository root (default: the root). */
   readonly cwd?: string
+  /**
+   * The step only advises: its output lines print after the summary even when the gate passes,
+   * and a non-zero exit fails nothing.
+   */
+  readonly advisory?: true
 }
 
 export interface CheckGate {

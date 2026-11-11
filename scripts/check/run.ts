@@ -26,6 +26,8 @@ import { parseRunArguments, type RunOptions } from './arguments'
 import { planAll, planChanged, type PlannedStep, selectSteps } from './plan'
 import { listChangedFiles } from './repository-files'
 import {
+  advisoryFindings,
+  advisoryOutput,
   CHECK_OUTPUT_DIRECTORY,
   failureOutput,
   formatStepList,
@@ -77,12 +79,16 @@ async function outputLines(
   durationMs: number,
 ) {
   const lines: string[] = []
+  const advisories: string[] = []
   for (const report of steps) {
-    if (report.status !== 'failed') continue
     const step = planned.find((entry) => entry.step.id === report.id)?.step
-    if (step !== undefined) lines.push(...(await failureOutput(step, report)))
+    if (step === undefined) continue
+    if (report.status === 'failed') lines.push(...(await failureOutput(step, report)))
+    else advisories.push(...advisoryOutput(step, report))
   }
   lines.push(summaryLine(gateId, steps, durationMs))
+  // On Actions the job summary turns them into annotations, and the green log stays one line.
+  if (process.env['GITHUB_ACTIONS'] !== 'true') lines.push(...advisories)
   return lines
 }
 
@@ -126,7 +132,14 @@ export async function runGate(argv: readonly string[]) {
   process.once('SIGTERM', stopChildren)
   const { reports, interrupted } = await executeSteps(planned, options, started)
   const durationMs = performance.now() - started
-  const steps = planned.flatMap(({ step }) => reports.get(step.id) ?? [])
+  const steps = await Promise.all(
+    planned.flatMap(({ step }): Promise<StepReport>[] => {
+      const report = reports.get(step.id)
+      if (report === undefined) return []
+      if (step.advisory !== true) return [Promise.resolve(report)]
+      return [advisoryFindings(report).then((advisories) => ({ ...report, advisories }))]
+    }),
+  )
   const ok =
     !interrupted &&
     steps.length === planned.length &&

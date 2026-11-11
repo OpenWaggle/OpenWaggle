@@ -150,7 +150,8 @@ export async function executeSteps(
     }
     const result = await runCommands(step, commands)
     if (result.interrupted) run.interrupted = true
-    const status = result.exitCode === 0 ? 'passed' : 'failed'
+    // An advisory step reports; even its crash fails nothing (its log keeps the exit).
+    const status = result.exitCode === 0 || step.advisory === true ? 'passed' : 'failed'
     finish(step.id, { ...base, status, durationMs: elapsed() - startMs, exitCode: result.exitCode })
     if (status === 'passed' && cached !== undefined) cache[step.id] = cached.print
   }

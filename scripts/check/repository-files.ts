@@ -50,6 +50,16 @@ export async function listChangedFiles(base: string, cwd = process.cwd()) {
   return [...new Set([...nulSeparated(changed), ...nulSeparated(untracked)])].sort()
 }
 
+/** Files added since the merge base with `base` (committed, staged, unstaged or untracked). */
+export async function listAddedFiles(base: string, cwd = process.cwd()) {
+  const mergeBase = (await git(['merge-base', 'HEAD', base], cwd)).trim()
+  const [added, untracked] = await Promise.all([
+    git(['diff', '-z', '--name-only', '--diff-filter=A', '--no-renames', mergeBase], cwd),
+    git(['ls-files', '-z', '--others', '--exclude-standard'], cwd),
+  ])
+  return [...new Set([...nulSeparated(added), ...nulSeparated(untracked)])].sort()
+}
+
 /** Reads files with a bounded number of opens in flight; the map keeps the input order. */
 export async function readFiles(files: readonly string[], cwd = process.cwd()) {
   const contents = Array.from({ length: files.length }, () => '')

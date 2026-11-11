@@ -1,7 +1,7 @@
 /**
  * Writes the last check run's step timings (.tmp/check/report.json) and output tokens
  * (.tmp/check/output-tokens.json) as a Markdown table to the GitHub job summary, or to stdout
- * outside Actions.
+ * outside Actions. On Actions each located advisory also becomes a notice annotation.
  *
  *   bun scripts/check/job-summary.ts
  */
@@ -64,20 +64,44 @@ export function renderJobSummary(report: unknown, tokens: unknown) {
         `| ${step.id} | ${step.status} | ${seconds(step.startMs)} | ${seconds(step.durationMs)} |`,
     ),
   ]
+  const advisories = summaryAdvisories(report)
+  if (advisories.length > 0) {
+    lines.push('', '#### Advisories (fail nothing)', '', ...advisories.map((line) => `- ${line}`))
+  }
   return `${lines.join('\n')}\n`
 }
 
+function summaryAdvisories(report: unknown) {
+  const steps = field(report, 'steps')
+  if (!Array.isArray(steps)) return []
+  return steps.flatMap((step: unknown) => {
+    const advisories = field(step, 'advisories')
+    return Array.isArray(advisories) ? advisories.map(String) : []
+  })
+}
+
+const LOCATED_ADVISORY = /^(?<file>[^\s:]+):(?<line>\d+)(?::\d+)?\s+(?<message>.*)$/u
+
+/** GitHub workflow commands that show each located advisory as a notice on its file. */
+export function advisoryAnnotations(report: unknown) {
+  return summaryAdvisories(report).flatMap((line) => {
+    const groups = LOCATED_ADVISORY.exec(line)?.groups
+    if (groups === undefined) return []
+    const message = (groups['message'] ?? '').replaceAll('%', '%25').replaceAll('\n', '%0A')
+    return [`::notice file=${groups['file']},line=${groups['line']}::${message}`]
+  })
+}
+
 async function main() {
-  const markdown = renderJobSummary(
-    await readJsonFile(REPORT_FILE),
-    await readJsonFile(OUTPUT_TOKENS_FILE),
-  )
+  const report = await readJsonFile(REPORT_FILE)
+  const markdown = renderJobSummary(report, await readJsonFile(OUTPUT_TOKENS_FILE))
   const target = process.env['GITHUB_STEP_SUMMARY']
   if (target === undefined || target === '') {
     process.stdout.write(markdown)
     return
   }
   await appendFile(target, markdown)
+  for (const annotation of advisoryAnnotations(report)) console.log(annotation)
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
