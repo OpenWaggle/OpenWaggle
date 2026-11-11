@@ -603,7 +603,6 @@ export default defineConfig({
       files: [
         'scripts/__tests__/app-release-train.integration.test.ts',
         'scripts/__tests__/check-conventional-commits.unit.test.ts',
-        'scripts/__tests__/package-release-lines.unit.test.ts',
         'scripts/benchmark-docker/__tests__/benchmark-proxy.integration.test.ts',
         'scripts/native-binary-formats.ts',
         'scripts/package-release-promote.ts',

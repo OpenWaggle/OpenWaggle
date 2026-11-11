@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { afterAll } from 'vitest'
 
 const execFile = promisify(execFileCallback)
 export const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
@@ -33,8 +34,33 @@ export async function writeAndCommit(
   return git(cwd, ['rev-parse', 'HEAD'])
 }
 
-export async function createRepository() {
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
+function temporaryRepositoryDirectory() {
+  return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
+}
+
+/**
+ * Builds a fixture repository once per test file and gives each caller its own copy. A copied
+ * directory with its `.git` is a whole repository, and copying it spawns no git: building one
+ * spawned a git process per command, which was most of these suites' time.
+ */
+export function repositoryTemplate<T extends { readonly cwd: string }>(build: () => Promise<T>) {
+  let template: Promise<T> | undefined
+  afterAll(async () => {
+    const built = await template?.catch(() => undefined)
+    if (built) await fs.rm(built.cwd, { force: true, recursive: true })
+  })
+  return async (): Promise<T> => {
+    template ??= build()
+    const source = await template
+    const cwd = await temporaryRepositoryDirectory()
+    await fs.cp(source.cwd, cwd, { recursive: true })
+    return { ...source, cwd }
+  }
+}
+
+/** A repository whose history starts the commit policy at `baseline`. */
+export const createRepository = repositoryTemplate(async () => {
+  const cwd = await temporaryRepositoryDirectory()
   await git(cwd, ['init', '-b', 'main'])
   await writeAndCommit(cwd, 'history.txt', 'history\n', 'historical commit')
   const baseline = await writeAndCommit(
@@ -44,7 +70,7 @@ export async function createRepository() {
     'ci: introduce commit policy',
   )
   return { baseline, cwd }
-}
+})
 
 export async function merge(cwd: string, branch: string, message: string) {
   await git(cwd, [...GIT_IDENTITY, 'merge', '--no-ff', branch, '-m', message])
