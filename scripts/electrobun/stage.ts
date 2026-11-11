@@ -10,7 +10,8 @@
  * - `resources/`: the bundled resources (`stagedResources`: the channel icon, installed
  *   docs, the embedding model, install.sh, third-party notices) and, on Windows, the WebView2
  *   Evergreen bootstrapper from the native layer build;
- * - `package.json` and, on macOS, `icon.iconset` from the channel's `.icns`.
+ * - `package.json`; on macOS `icon.iconset` from the channel's `.icns`, on Windows a 256 px
+ *   `icon-windows.png` of the channel icon for channels without an `.ico` (app-config.ts).
  *
  *   bun scripts/electrobun/stage.ts [--arch x64|arm64]
  *     [--webview2 <MicrosoftEdgeWebview2Setup.exe>] [--allow-missing-resources]
@@ -20,9 +21,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
+import sharp from 'sharp'
 import { isRecord } from '../../src/shared/utils/validation'
 import { resolveBuildIdentity, resolveIconBasePath, resolveMacIconPath } from '../build-identity'
-import { ELECTROBUN_STAGE_DIR, PACKAGED_APP_LAYOUT } from './app-config'
+import { ELECTROBUN_STAGE_DIR, PACKAGED_APP_LAYOUT, WINDOWS_ICON_PNG } from './app-config'
 import { stageNodeModules, type StageTarget } from './stage-node-modules'
 
 const FIRST_CLI_ARGUMENT = 2
@@ -140,6 +142,18 @@ function stageMacIconset(options: StageOptions, stage: string, macIcon: string) 
   execFileSync('iconutil', ['-c', 'iconset', path.join(options.root, macIcon), '-o', iconset])
 }
 
+const WINDOWS_ICON_SIZE = 256
+
+async function stageWindowsIcon(options: StageOptions, stage: string, channelIcon: string) {
+  const icon = path.join(stage, WINDOWS_ICON_PNG)
+  fs.rmSync(icon, { force: true })
+  if (options.target.platform !== 'win32') return
+  await sharp(path.join(options.root, channelIcon))
+    .resize(WINDOWS_ICON_SIZE, WINDOWS_ICON_SIZE)
+    .png()
+    .toFile(icon)
+}
+
 function stagePackageJson(options: StageOptions, stage: string) {
   const parsed: unknown = JSON.parse(
     fs.readFileSync(path.join(options.root, 'package.json'), 'utf8'),
@@ -168,6 +182,7 @@ export async function stageElectrobunApp(options: StageOptions) {
   const renderer = stageRenderer(options, stage)
   const missingResources = stageResources(options, stage, resolveIconBasePath(channel, 'build'))
   stageMacIconset(options, stage, resolveMacIconPath(channel, 'build'))
+  await stageWindowsIcon(options, stage, resolveIconBasePath(channel, 'build'))
   stagePackageJson(options, stage)
   const packages = stageNodeModules(options.root, stage, options.target)
   const manifest = {

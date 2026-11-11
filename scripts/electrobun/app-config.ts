@@ -39,6 +39,11 @@ export const ELECTROBUN_ARTIFACT_DIR = `${ELECTROBUN_OUT_DIR}/artifacts`
 /** What scripts/electrobun/stage.ts prepares for Hutch's `copy`. */
 export const ELECTROBUN_STAGE_DIR = `${ELECTROBUN_OUT_DIR}/stage`
 /**
+ * The Windows icon of a channel without an `.ico`, staged at 256 px (stage.ts): Hutch embeds a PNG
+ * icon only up to the largest ICO entry and fails on the 512 px channel icons (`PngTooLarge`).
+ */
+export const WINDOWS_ICON_PNG = 'icon-windows.png'
+/**
  * The unwrapped macOS app the postBuild hook keeps (prepared, signed, stapled), one directory per
  * build: Hutch replaces the build folder's app with its self-extracting wrapper afterwards, and the
  * DMG and the Electron transition zip ship this bundle, the same one the update archive holds.
@@ -152,7 +157,7 @@ export function electrobunAppConfig(input: ElectrobunConfigInput) {
       win: {
         bundleCEF: true,
         defaultRenderer: 'native',
-        icon: identity.channel === 'stable' ? 'build/icon.ico' : channelIconPng(identity),
+        icon: identity.channel === 'stable' ? 'build/icon.ico' : `${stage}/${WINDOWS_ICON_PNG}`,
       },
       linux: {
         bundleCEF: true,

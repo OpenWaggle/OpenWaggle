@@ -48,6 +48,12 @@ describe('electrobunAppConfig', () => {
     })
   })
 
+  it('gives Hutch a Windows icon it can embed on every channel', () => {
+    expect(configFor('stable').build.win.icon).toBe('build/icon.ico')
+    // The channel PNGs are 512 px; Hutch embeds a PNG only up to 256 px (stage.ts resizes it).
+    expect(configFor('beta').build.win.icon).toBe('out/electrobun/stage/icon-windows.png')
+  })
+
   it('copies the staged app into the layout the main process resolves', () => {
     const { copy } = configFor('stable').build
     expect(Object.values(copy)).toEqual([
