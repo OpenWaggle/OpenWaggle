@@ -58,7 +58,7 @@ release targets (docs/release-and-versioning.md), so they are not built.
 5. **linux: build the Wayland screen capture on Ubuntu 22.04.** GLib 2.72 needs
    `<gio/gunixfdlist.h>` and `gio-unix-2.0`; PipeWire 0.3.48 lacks `<spa/param/buffers.h>`, the
    video transform metadata and `SPA_CHUNK_FLAG_EMPTY`, which are defined as their protocol values.
-9. **launcher: forward the launcher's arguments to the main process.** The launcher ran `bun
+6. **launcher: forward the launcher's arguments to the main process.** The launcher ran `bun
    main.js` with nothing after it, so the app never saw a protocol link or file Windows and Linux
    pass as arguments, nor `--use-mock-keychain`. Every argument now follows `main.js` in order,
    except the launcher's private `--automation` and macOS's `-psn_*`. Windows keeps upstream's
