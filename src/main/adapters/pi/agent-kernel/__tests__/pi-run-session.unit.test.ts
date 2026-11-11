@@ -5,7 +5,11 @@ import {
   hostTemporaryDirectory,
 } from '../../../../utils/session-scratch-directory'
 
-type SpawnContext = { command: string; cwd: string; env: NodeJS.ProcessEnv }
+interface SpawnContext {
+  command: string
+  cwd: string
+  env: NodeJS.ProcessEnv
+}
 type SpawnHook = (context: SpawnContext) => SpawnContext
 const mocks = vi.hoisted(() => ({
   hooks: new Map<string, SpawnHook>(),

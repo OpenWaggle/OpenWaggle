@@ -503,11 +503,6 @@
     "src/shared/error-reporting/error-report-scrubbing.ts": 4
   },
   "typescript/consistent-type-definitions": {
-    "src/main/adapters/pi/agent-kernel/__tests__/pi-run-session.unit.test.ts": 1,
-    "src/main/adapters/pi/agent-kernel/message-parts.ts": 1,
-    "src/main/adapters/pi/agent-kernel/user-input-projection.ts": 3,
-    "src/main/adapters/pi/json-schema-object.ts": 2,
-    "src/main/adapters/pi/pi-runtime-input.ts": 1,
     "src/main/adapters/sqlite-session-control-queue-delivery.ts": 1,
     "src/main/application/__tests__/local-session-command-search-authorization.test-support.ts": 1,
     "src/main/application/__tests__/local-session-command-wait-authorization.unit.test.ts": 1,

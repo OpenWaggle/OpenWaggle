@@ -36,18 +36,18 @@ const userInputProjectionSchema = Schema.Struct({
   scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
 })
 
-type ProjectionSession = {
+interface ProjectionSession {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'appendCustomEntry'>
   readonly subscribe: AgentSession['subscribe']
 }
 type SessionEvent = Parameters<Parameters<AgentSession['subscribe']>[0]>[0]
-type PendingProjection = {
+interface PendingProjection {
   readonly payload: PersistedUserMessagePartsPayload
   readonly scheduledTask?: MessageScheduledTaskOrigin
   readonly signal?: AbortSignal
   cancel: () => void
 }
-type ProjectionQueue = {
+interface ProjectionQueue {
   readonly pending: PendingProjection[]
   stop: () => void
 }

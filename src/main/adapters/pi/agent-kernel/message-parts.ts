@@ -222,7 +222,7 @@ export function buildRawNodeContentJson(value: JsonValue) {
   return JSON.stringify(value)
 }
 
-export type PiCustomTextContent = {
+export interface PiCustomTextContent {
   readonly type: 'text'
   readonly text: string
 }
