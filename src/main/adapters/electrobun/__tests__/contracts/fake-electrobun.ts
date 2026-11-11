@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { fakeElectrobunUpdater } from './fake-electrobun-updater'
 import { fakeElectrobunWebview } from './fake-electrobun-webview'
 
 /**
@@ -150,9 +151,18 @@ export function fakeElectrobun() {
     return true
   }
 
-  const module = { Utils, BuildConfig, ...webview.module, ApplicationMenu, ContextMenu }
+  const updater = fakeElectrobunUpdater()
+  const module = {
+    Utils,
+    BuildConfig,
+    ...webview.module,
+    ApplicationMenu,
+    ContextMenu,
+    Updater: updater.Updater,
+  }
   return {
     module,
+    updater,
     events,
     webview,
     emit,

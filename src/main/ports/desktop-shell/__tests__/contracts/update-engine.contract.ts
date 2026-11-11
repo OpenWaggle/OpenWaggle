@@ -71,8 +71,9 @@ export const updateEngineContract = definePortContract<UpdateEngineContractHarne
       subject.configure({ feedChannel: 'beta', allowPrerelease: true })
       subject.cancelInstallOnQuit()
       expect(installsOnQuit()).toBe(false)
-      subject.quitAndInstall({ silent: true, relaunch: false })
-      expect(installs()).toEqual([{ silent: true, relaunch: false }])
+      // What OpenWaggle asks for (src/main/updater.ts); Electrobun can install no other way.
+      subject.quitAndInstall({ silent: true, relaunch: true })
+      expect(installs()).toEqual([{ silent: true, relaunch: true }])
     },
   },
 )

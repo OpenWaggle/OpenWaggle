@@ -30,7 +30,9 @@ export interface UpdateCheck {
  * Downloads and installs app updates (ADR 0047, ADR 0064). OpenWaggle's update policy (channels,
  * eligibility, Restart to update, stopping the Session Host) lives in `updater.ts` and
  * `update-cli.ts`; the engine only fetches, verifies and installs. Electron's is
- * electron-updater on the GitHub release feed.
+ * electron-updater on the GitHub release feed. Electrobun's updater takes over after the
+ * transition release, which existing installs still read from the electron-updater feed; it reads
+ * the same release that OpenWaggle's policy selected (`setFeed`), from that release's assets.
  *
  * The engine never installs on its own: OpenWaggle installs only through `quitAndInstall`.
  */
@@ -46,11 +48,14 @@ export interface UpdateEngineShape {
   /** Whether a check that finds an update starts downloading it. */
   readonly setAutoDownload: (autoDownload: boolean) => void
   readonly setFeed: (feed: UpdateFeed) => void
-  /** Clears any install the engine had scheduled for the next quit. */
+  /** Clears any install the engine had scheduled for the next quit (Electrobun schedules none). */
   readonly cancelInstallOnQuit: () => void
   /** `null` when the feed has nothing newer. */
   readonly checkForUpdates: () => Promise<UpdateCheck | null>
-  /** Quits the app and installs the downloaded update. */
+  /**
+   * Quits the app and installs the downloaded update. OpenWaggle always installs silently and
+   * relaunches; Electrobun's updater can do nothing else.
+   */
   readonly quitAndInstall: (input: { readonly silent: boolean; readonly relaunch: boolean }) => void
   readonly onCheckingForUpdate: (listener: () => void) => Unsubscribe
   readonly onUpdateAvailable: (listener: (version: string) => void) => Unsubscribe
