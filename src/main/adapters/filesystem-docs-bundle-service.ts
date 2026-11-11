@@ -6,6 +6,7 @@ import type { FirstPartyDocTopic } from '@shared/types/docs'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import { DocsBundleError } from '../errors'
 import { DocsBundleService, type LoadedDocsBundle } from '../ports/docs-bundle-service'
 
@@ -14,7 +15,7 @@ const INSTALLED_DOCS_INDEX = 'index.json'
 
 function getBundleRootPath() {
   if (appLifecycle.isPackaged()) {
-    return path.join(process.resourcesPath, INSTALLED_DOCS_DIR)
+    return path.join(appPaths.resources(), INSTALLED_DOCS_DIR)
   }
 
   return path.resolve(process.cwd(), 'build', INSTALLED_DOCS_DIR)

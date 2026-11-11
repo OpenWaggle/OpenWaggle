@@ -1,5 +1,5 @@
-import { electronAppLifecycle } from '../adapters/electron/electron-app-lifecycle'
+import { electrobunAppLifecycle } from '../adapters/electrobun/electrobun-app-lifecycle'
 import type { AppLifecycleShape } from '../ports/desktop-shell/app-lifecycle'
 
-/** The desktop shell's AppLifecycle (ADR 0064), bound to its Electron adapter. */
-export const appLifecycle: AppLifecycleShape = electronAppLifecycle
+/** The desktop shell's AppLifecycle (ADR 0064), bound to its Electrobun adapter. */
+export const appLifecycle: AppLifecycleShape = electrobunAppLifecycle

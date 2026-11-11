@@ -14,6 +14,9 @@ import { Context } from 'effect'
  *   `~/.config` on Linux).
  * - `appRoot`: the directory holding the app's `package.json`: the source checkout when
  *   unpackaged, the packaged app's resources archive otherwise.
+ * - `resources`: where a packaged app keeps its bundled files (the embedding model, the docs, the
+ *   icon, the shell installer): Electron's `process.resourcesPath`, Electrobun's
+ *   `Resources/app/resources`. Read it only when the app is packaged.
  *
  * Never derive a product directory from a shell default; resolve it here.
  */
@@ -27,6 +30,7 @@ export interface AppPathsShape {
   readonly logs: () => string
   readonly appData: () => string
   readonly appRoot: () => string
+  readonly resources: () => string
   /** Moves `userData` for this process; only before anything reads it (startup, before ready). */
   readonly setUserData: (directory: string) => void
   /** Moves `logs` for this process, as a relocated profile keeps its own logs. */

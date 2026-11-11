@@ -35,7 +35,7 @@ describe('FeedbackModal', () => {
     mockCollectDiagnostics.mockResolvedValue({
       os: 'macOS 24.3.0',
       appVersion: '0.1.0',
-      electronVersion: '33.0.0',
+      runtimeVersion: 'Bun 1.4.4',
       nodeVersion: '24.0.0',
       arch: 'arm64',
     })

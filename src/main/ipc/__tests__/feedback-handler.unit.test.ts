@@ -31,7 +31,7 @@ describe('feedback:collect-diagnostics', () => {
     await expect(invoke('feedback:collect-diagnostics')).resolves.toEqual({
       os: `${name} ${os.release()}`,
       appVersion: '0.1.0-test',
-      electronVersion: process.versions.electron,
+      runtimeVersion: `Bun ${process.versions['bun'] ?? 'unknown'}`,
       nodeVersion: process.versions.node,
       arch: process.arch,
     })

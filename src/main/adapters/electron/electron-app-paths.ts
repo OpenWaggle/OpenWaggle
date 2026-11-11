@@ -10,6 +10,7 @@ export const electronAppPaths: AppPathsShape = {
   logs: () => app.getPath('logs'),
   appData: () => app.getPath('appData'),
   appRoot: electronBootShell.appRoot,
+  resources: () => process.resourcesPath,
   setUserData: (directory) => app.setPath('userData', directory),
   setLogs: (directory) => app.setAppLogsPath(directory),
   setWebProfileData: (directory) =>

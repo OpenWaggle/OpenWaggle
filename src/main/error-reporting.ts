@@ -31,12 +31,13 @@ import { describeError } from './error-description'
 import { createLogger } from './logger'
 import type { ErrorReporter, ErrorReportOrigin } from './ports/error-reporter'
 import { type StartupFailureContext, StartupFailureSummary } from './startup-failure-summary'
+import { systemVersion } from './system-version'
 
 const logger = createLogger('error-reporting')
 
 /** Loaded only when this process reports errors, so a process that never does skips the SDK. */
 const importSentryMainErrorReporter = () =>
-  import('./adapters/electron/error-reporting/sentry-main-error-reporter')
+  import('./adapters/electrobun/error-reporting/sentry-bun-error-reporter')
 /** Loaded on start, after Settings: it reads the settings store, which startup loads late. */
 const importUsageStatisticsEnablement = () =>
   import('./usage-statistics/usage-statistics-enablement')
@@ -88,7 +89,7 @@ function fixedOptOutApplies() {
 function operatingSystem() {
   return {
     name: OPERATING_SYSTEM_NAMES[process.platform] ?? process.platform,
-    version: process.getSystemVersion(),
+    version: systemVersion(),
   }
 }
 
@@ -106,6 +107,7 @@ async function startSdk(
     isEnabled: enablement.isUsageStatisticsEnabled,
     operatingSystem: operatingSystem(),
     arch: process.arch,
+    appRoot: appPaths.appRoot(),
   })
 }
 

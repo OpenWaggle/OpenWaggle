@@ -8,6 +8,7 @@ import {
   userDataName,
 } from './electrobun-boot-shell'
 
+const PACKAGED_RESOURCES_DIRECTORY = 'resources'
 const relocated: { logs: string | null } = { logs: null }
 
 /** Electron's log directory: `~/Library/Logs/<name>` on macOS, `<userData>/logs` elsewhere. */
@@ -27,6 +28,8 @@ export const electrobunAppPaths: AppPathsShape = {
   logs,
   appData: () => applicationDataRoot(),
   appRoot: electrobunBootShell.appRoot,
+  // The packaged layout: Resources/app/{package.json, out, node_modules, resources}.
+  resources: () => path.join(electrobunBootShell.appRoot(), PACKAGED_RESOURCES_DIRECTORY),
   setUserData: relocateUserData,
   setLogs: (directory) => void (relocated.logs = directory),
   // The system webviews keep their own profile per app identifier (WKWebView, WebView2,

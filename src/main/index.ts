@@ -78,13 +78,13 @@ registerRendererScheme()
 
 if (appLifecycle.isPackaged()) {
   configureDefaultSessionEmbeddingModelForPackagedRuntime(
-    join(process.resourcesPath, SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY),
+    join(appPaths.resources(), SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY),
   )
 }
 
 const appIconPath = !appLifecycle.isPackaged()
   ? join(__dirname, '../../build/icon-dev.png')
-  : join(process.resourcesPath, 'icon.png')
+  : join(appPaths.resources(), 'icon.png')
 // Unpackaged builds have no bundle icon, so macOS takes their Dock icon at runtime; use the
 // generated rounded-square macOS icon rather than the free-form window icon.
 const devDockIconPath = join(__dirname, '../../build', MAC_DEV_DOCK_ICON_FILE)

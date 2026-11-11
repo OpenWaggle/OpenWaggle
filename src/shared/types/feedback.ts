@@ -26,7 +26,8 @@ export interface GhCliStatus {
 export interface DiagnosticsInfo {
   readonly os: string
   readonly appVersion: string
-  readonly electronVersion: string
+  /** The JavaScript runtime the main process runs on (`Bun 1.4.4`). */
+  readonly runtimeVersion: string
   readonly nodeVersion: string
   readonly arch: string
 }

@@ -21,6 +21,7 @@ export const appPathsContract = definePortContract<AppPathsContractHarness>('App
     expect(subject.userData()).toBe(buildUserData)
     expect(path.relative(subject.appData(), subject.userData()).startsWith('..')).toBe(false)
     expect(path.isAbsolute(subject.appRoot())).toBe(true)
+    expect(path.isAbsolute(subject.resources())).toBe(true)
   },
 
   'relocates userData and logs for this process': async ({ subject }) => {

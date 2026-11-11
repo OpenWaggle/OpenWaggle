@@ -37,7 +37,7 @@ export async function releaseForTag(tag: string) {
 /** Installs an exact release through the bundled shell installer without opening the app. */
 export async function runBundledInstaller(tag: string) {
   const installerPath = appLifecycle.isPackaged()
-    ? path.join(process.resourcesPath, 'openwaggle-install.sh')
+    ? path.join(appPaths.resources(), 'openwaggle-install.sh')
     : path.join(appPaths.appRoot(), 'scripts', 'install.sh')
   // Ctrl-C reaches the installer too, which cancels and restores the app; this process must not
   // quit first with status 0, so the installer's own status is the result.

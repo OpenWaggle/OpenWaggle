@@ -49,7 +49,7 @@ function collectDiagnostics() {
   return {
     os: humanOsName(),
     appVersion: appLifecycle.version(),
-    electronVersion: process.versions.electron,
+    runtimeVersion: `Bun ${process.versions['bun'] ?? 'unknown'}`,
     nodeVersion: process.versions.node,
     arch: process.arch,
   }
@@ -95,7 +95,7 @@ function buildSystemInfoSection(payload: FeedbackPayload) {
     `|-------|-------|`,
     `| OS | ${info.os} |`,
     `| App Version | ${info.appVersion} |`,
-    `| Electron | ${info.electronVersion} |`,
+    `| Runtime | ${info.runtimeVersion} |`,
     `| Node.js | ${info.nodeVersion} |`,
     `| Arch | ${info.arch} |`,
   ].join('\n')
