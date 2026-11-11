@@ -30,7 +30,10 @@ export const worktreeCreatePayloadSchema = Schema.Struct({
 })
 
 export const worktreeRemovePayloadSchema = Schema.Struct({
-  path: Schema.String.pipe(Schema.minLength(1), Schema.filter(path.isAbsolute)),
+  path: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.filter((value) => path.isAbsolute(value)),
+  ),
   force: Schema.optional(Schema.Boolean),
   lockOnly: Schema.optional(Schema.Boolean),
   skipCleanup: Schema.optional(Schema.Boolean),

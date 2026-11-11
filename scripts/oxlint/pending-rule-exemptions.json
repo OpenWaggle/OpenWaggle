@@ -297,7 +297,6 @@
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-viewport-lifecycle.unit.test.ts": 7,
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview.unit.test.ts": 1,
     "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 3,
-    "src/main/application/__tests__/agent-loop-interaction-broker.unit.test.ts": 1,
     "src/renderer/src/features/browser-preview/hooks/useBrowserPreviewAdvancedControls.ts": 2,
     "src/renderer/src/features/chat/components/__tests__/InlineVisualization.health.component.test.tsx": 1,
     "src/renderer/src/features/chat/components/__tests__/InlineVisualization.parking.component.test.tsx": 1,
@@ -493,7 +492,6 @@
     "src/main/adapters/electron/browser-preview/browser-preview-favicon-capture.ts": 1
   },
   "typescript/unbound-method": {
-    "src/main/application/host-ui-worktree-operation.ts": 1,
     "src/renderer/src/features/chat/components/InlineVisualization.tsx": 1,
     "src/renderer/src/features/chat/hooks/use-chat-panel-controller.ts": 11,
     "src/renderer/src/features/chat/hooks/useOptimisticSteeredTurn.ts": 1,
@@ -514,7 +512,6 @@
     "src/renderer/src/shared/ui/WorkspaceTreePanel.tsx": 1
   },
   "typescript/use-unknown-in-catch-callback-variable": {
-    "src/main/application/session-host-condition-wait.ts": 1,
     "src/main/auth/index.ts": 2,
     "src/renderer/src/features/composer/lib/send-result.ts": 1,
     "src/renderer/src/features/git/hooks/useSessionContextRow.ts": 2

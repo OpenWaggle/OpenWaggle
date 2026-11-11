@@ -166,7 +166,7 @@ describe('agent-loop interaction broker', () => {
     ['select', selectInteraction(), 'select-1'],
     ['custom', customInteraction(), 'custom-1'],
   ] as const)('never settles a pending %s with a notify answer', (_kind, interaction, id) => {
-    requestAgentLoopInteraction({ interaction, onEvent: () => undefined })
+    void requestAgentLoopInteraction({ interaction, onEvent: () => undefined })
 
     for (const channel of ['response', 'approval', undefined] as const) {
       expect(
