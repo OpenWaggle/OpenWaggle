@@ -1,82 +1,52 @@
 import type { DesktopNativeRecoveryOutcome } from '@shared/types/openwaggle-desktop-api'
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDesktopNativeAdmissionStore } from '../desktop-native-admission-store'
-import { WorkspaceShell } from '../WorkspaceShell'
-
-type LocationSelection = (state: { location: { pathname: string } }) => unknown
+import { renderWorkspaceShell } from './workspace-shell-render.test-harness'
+import { resetWorkspaceShellStores } from './workspace-shell.test-harness'
 
 const mocks = vi.hoisted(() => ({
-  pathname: '/',
   getIssue: vi.fn<() => Promise<string | null>>(),
   recover: vi.fn<() => Promise<DesktopNativeRecoveryOutcome>>(),
 }))
-const { passThrough, nothing } = vi.hoisted(() => ({
-  passThrough: ({ children }: { readonly children: ReactNode }) => children,
-  nothing: () => null,
-}))
 
-vi.mock('@tanstack/react-router', () => ({
-  useRouterState: ({ select }: { select: LocationSelection }) =>
-    select({ location: { pathname: mocks.pathname } }),
-}))
-vi.mock('@/features/chat/hooks', () => ({
-  useBackgroundRunMonitor: vi.fn(),
-  useSetupActionTerminalReconciliation: vi.fn(),
-}))
-vi.mock('@/features/project-actions', () => ({ ActionPanelLayout: passThrough }))
-vi.mock('@/features/scheduled-tasks', () => ({
-  useScheduledTasksMonitor: vi.fn(),
-  useScheduledTasksPanelTitle: () => ({ label: 'Scheduled' }),
-  useProjectScheduledTasksNeedAttention: () => false,
-}))
-vi.mock('@/features/scheduled-tasks/components', () => ({ ScheduledTasksPanel: () => null }))
-vi.mock('@/features/sidebar/components', () => ({ Sidebar: () => <aside>Sidebar</aside> }))
-vi.mock('@/features/terminal', () => ({ useTerminalActivityMonitor: vi.fn() }))
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getDesktopNativeAdmissionIssue: mocks.getIssue,
     recoverDesktopNativeAdmission: mocks.recover,
-  },
+    listActiveRuns: async () => [],
+  }),
 }))
+// Other features' surfaces, each with its own tests: a marker shows where the header sits.
+vi.mock('@/features/sidebar/components', () => ({ Sidebar: () => <aside>Sidebar</aside> }))
 vi.mock('../Header', () => ({ Header: () => <header>Header</header> }))
-vi.mock('../useShellNotices', () => ({ useShellNotices: vi.fn() }))
-vi.mock('../ToastOverlay', () => ({ ToastOverlay: nothing }))
-vi.mock('../useAutoUpdater', () => ({ useAutoUpdater: vi.fn() }))
-vi.mock('../useWorkspaceLifecycle', () => ({ useWorkspaceLifecycle: vi.fn() }))
-vi.mock('../WorkspaceRightPanel', () => ({ WorkspaceRightPanel: passThrough }))
-vi.mock('../WorkspaceTerminal', () => ({ WorkspaceTerminal: nothing }))
+vi.mock('../right-panel/RightPanelHost', () => ({ RightPanelHost: () => null }))
+// App data loading and shortcuts, covered by useWorkspaceLifecycle*.component.test.tsx.
+vi.mock('../useWorkspaceLifecycle', () => ({ useWorkspaceLifecycle: () => undefined }))
 // Lazily loaded: it rendered only when its import resolved before the assertions ran.
-vi.mock('../WorkspaceBrowserFloatingPreview', () => ({ WorkspaceBrowserFloatingPreview: nothing }))
-vi.mock('../right-panel/RightPanelHost', () => ({ RightPanelHost: nothing }))
-vi.mock('../right-panel/RightPanelMaximizePublisher', () => ({
-  RightPanelMaximizePublisher: nothing,
+vi.mock('../WorkspaceBrowserFloatingPreview', () => ({
+  WorkspaceBrowserFloatingPreview: () => null,
 }))
-vi.mock('../right-panel/RightPanelCommandPalette', () => ({ RightPanelCommandPalette: nothing }))
 
 function follows(node: Node, other: Node) {
   return Boolean(node.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING)
 }
 
-beforeEach(() => {
+function resetStores() {
+  resetWorkspaceShellStores()
   useDesktopNativeAdmissionStore.setState({ loading: 'idle', notice: { kind: 'hidden' } })
+}
+
+beforeEach(() => {
+  resetStores()
   mocks.getIssue.mockReset().mockResolvedValue('Desktop tools are paused.')
   mocks.recover.mockReset()
 })
-
-function renderShell() {
-  return render(
-    <WorkspaceShell>
-      <main>Route content</main>
-    </WorkspaceShell>,
-  )
-}
+afterEach(resetStores)
 
 describe('workspace shell desktop tools notice', () => {
   it('sits below the app header in the workspace', async () => {
-    mocks.pathname = '/'
-    renderShell()
+    await renderWorkspaceShell('/')
     const notice = await screen.findByRole('region', { name: 'Desktop tools status' })
     expect(follows(screen.getByText('Header'), notice)).toBe(true)
     expect(follows(notice, screen.getByText('Route content'))).toBe(true)
@@ -85,8 +55,7 @@ describe('workspace shell desktop tools notice', () => {
   it.each(['/settings', '/settings/actions', '/usage'])(
     'moves below the route at %s, clear of the window controls and the Settings title bar',
     async (pathname) => {
-      mocks.pathname = pathname
-      renderShell()
+      await renderWorkspaceShell(pathname)
       const notice = await screen.findByRole('region', { name: 'Desktop tools status' })
       expect(screen.queryByText('Header')).not.toBeInTheDocument()
       expect(follows(screen.getByText('Route content'), notice)).toBe(true)
@@ -95,17 +64,11 @@ describe('workspace shell desktop tools notice', () => {
   )
 
   it('keeps an in-flight recovery and its result across a Settings round trip', async () => {
-    mocks.pathname = '/'
     const result = Promise.withResolvers<DesktopNativeRecoveryOutcome>()
     mocks.recover.mockReturnValue(result.promise)
-    const view = renderShell()
+    const view = await renderWorkspaceShell('/')
     fireEvent.click(await screen.findByRole('button', { name: 'Recover desktop tools' }))
-    mocks.pathname = '/settings'
-    view.rerender(
-      <WorkspaceShell>
-        <main>Route content</main>
-      </WorkspaceShell>,
-    )
+    await view.navigate('/settings')
     expect(screen.getByRole('button', { name: 'Recovering…' })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -113,16 +76,11 @@ describe('workspace shell desktop tools notice', () => {
     await act(async () =>
       result.resolve({ outcome: 'failed', message: 'Still settling.', retryable: true }),
     )
-    mocks.pathname = '/'
-    view.rerender(
-      <WorkspaceShell>
-        <main>Route content</main>
-      </WorkspaceShell>,
-    )
+    await view.navigate('/')
     expect(screen.getByRole('alert')).toHaveTextContent('Still settling.')
     // A remounted shell reuses the GUI-lifetime status instead of reading it again.
     view.unmount()
-    renderShell()
+    await renderWorkspaceShell('/')
     expect(screen.getByRole('alert')).toHaveTextContent('Still settling.')
     expect(mocks.getIssue).toHaveBeenCalledOnce()
     expect(mocks.recover).toHaveBeenCalledOnce()

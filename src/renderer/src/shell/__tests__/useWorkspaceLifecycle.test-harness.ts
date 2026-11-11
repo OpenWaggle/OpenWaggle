@@ -3,7 +3,6 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { act } from '@testing-library/react'
 import { type Mock, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
@@ -15,10 +14,6 @@ type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
 type SessionHostEventHandler = (event: SessionHostEventEnvelope) => void
 type SessionHostResyncHandler = (payload: { readonly reason: 'slow-consumer' }) => void
-interface HotkeyBinding {
-  readonly hotkey: ShortcutBinding
-  readonly callback: () => void
-}
 
 interface WorkspaceLifecycleMocks {
   projectPath: string
@@ -48,8 +43,6 @@ interface WorkspaceLifecycleMocks {
   readonly useGitRefresh: Mock
   readonly useSessionStatusMonitor: Mock
   readonly titleUnsubscribe: Mock
-  readonly hotkeys: HotkeyBinding[]
-  readonly singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[]
   readonly getTitleUpdatedHandler: () => TitleUpdatedHandler | null
   readonly getSessionHostEventHandler: () => SessionHostEventHandler | null
   readonly getSessionHostResyncHandler: () => SessionHostResyncHandler | null
@@ -65,8 +58,6 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
   let sessionHostEventHandler: SessionHostEventHandler | null = null
   let sessionHostResyncHandler: SessionHostResyncHandler | null = null
   const titleUnsubscribe = vi.fn()
-  const hotkeys: HotkeyBinding[] = []
-  const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
   return {
     projectPath: '/repo',
     sessionProjectPath: '/repo',
@@ -93,8 +84,6 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
     useGitRefresh: vi.fn(),
     useSessionStatusMonitor: vi.fn(),
     titleUnsubscribe,
-    hotkeys,
-    singleHotkeys,
     getTitleUpdatedHandler: () => titleUpdatedHandler,
     getSessionHostEventHandler: () => sessionHostEventHandler,
     getSessionHostResyncHandler: () => sessionHostResyncHandler,
@@ -119,6 +108,13 @@ export function getWorkspaceLifecycleMocks(): WorkspaceLifecycleMocks {
   return lifecycleMocks
 }
 
+/*
+ * The consumers of this harness assert what the lifecycle asks its collaborators for, so each
+ * mock below stays until those files (useWorkspaceLifecycle*.component.test.tsx) are rewritten
+ * against outcomes. Shortcuts already run for real: runWorkspaceHotkey dispatches key events.
+ */
+
+// The consumers render without a QueryClientProvider and assert the invalidations it asks for.
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
   useQueryClient: () => ({ invalidateQueries: lifecycleMocks.invalidateQueries }),
@@ -126,23 +122,13 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
   useQuery: () => ({ data: lifecycleMocks.extensionRegistry ?? undefined }),
 }))
 
-vi.mock('@tanstack/react-hotkeys', () => ({
-  useHotkeys: (bindings: readonly HotkeyBinding[]) => {
-    lifecycleMocks.hotkeys.length = 0
-    lifecycleMocks.singleHotkeys.length = 0
-    lifecycleMocks.hotkeys.push(...bindings)
-  },
-  /* Single registrations stay separate so they cannot clear the workspace binding array. */
-  useHotkey: (hotkey: unknown, callback: () => void) => {
-    lifecycleMocks.singleHotkeys.push({ hotkey, callback })
-  },
-}))
-
+// The consumers assert the New session navigation; they render without a router.
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => lifecycleMocks.navigate,
   useLocation: () => ({ pathname: '/' }),
 }))
 
+// Session loading and refreshes the consumers count per Host event (coalescing, cursors).
 vi.mock('@/features/chat/hooks', () => ({
   invalidateDefaultThinkingLevel: (client: {
     invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>
@@ -166,6 +152,7 @@ vi.mock('@/features/chat/hooks', () => ({
   }),
 }))
 
+// Other features read the active Session from the store; it must be the mocked one above.
 vi.mock('@/features/chat/state', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/features/chat/state')>()
   // Hooks of other features read the active Session from the store; give them the mocked one.
@@ -179,6 +166,7 @@ vi.mock('@/features/chat/state', async (importOriginal) => {
   }
 })
 
+// Router-backed panel toggles; the consumers assert the Mod+D and Session Tree shortcuts.
 vi.mock('@/features/diff-panel/hooks', () => ({
   useDiffRouteNavigation: () => ({
     toggleDiff: lifecycleMocks.toggleDiff,
@@ -186,6 +174,7 @@ vi.mock('@/features/diff-panel/hooks', () => ({
   }),
 }))
 
+// The consumers assert the working tree and repository each git refresh targets (ADR 0018).
 vi.mock('@/features/git/hooks', () => ({
   useGit: () => ({
     refreshStatus: lifecycleMocks.refreshGitStatus,
@@ -196,6 +185,7 @@ vi.mock('@/features/git/hooks', () => ({
   useGitRefresh: lifecycleMocks.useGitRefresh,
 }))
 
+// Catalog and tree refreshes the consumers count per Host event, and the project they bind.
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
   useSessionProjectPath: () => lifecycleMocks.sessionProjectPath,
@@ -209,6 +199,7 @@ vi.mock('@/features/sessions/hooks', () => ({
   useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
 }))
 
+// The consumers assert which project the Project Action shortcuts are bound to.
 vi.mock('@/features/project-actions', () => ({
   useProjectActions: (projectPath: string | null) => {
     lifecycleMocks.projectActionsProject(projectPath)
@@ -220,6 +211,7 @@ vi.mock('@/features/project-actions', () => ({
   },
 }))
 
+// The consumers assert which Session's link a shortcut copies.
 vi.mock('@/features/sessions/commands', () => ({
   copySessionLink: lifecycleMocks.copySessionLink,
 }))
@@ -296,7 +288,6 @@ export function resetWorkspaceLifecycleMocks() {
   lifecycleMocks.onSessionHostResyncRequired.mockClear()
   lifecycleMocks.invalidateQueries.mockClear()
   lifecycleMocks.titleUnsubscribe.mockClear()
-  lifecycleMocks.hotkeys.length = 0
   lifecycleMocks.projectPath = '/repo'
   lifecycleMocks.sessionProjectPath = '/repo'
   lifecycleMocks.projectActionsProject.mockClear()
