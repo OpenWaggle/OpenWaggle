@@ -193,8 +193,9 @@ export async function mapCodexAgent(input: CodexImportInput, content: string) {
   const fields: AgentDefinitionImportFieldPlan[] = []
   const diagnostics = selected.diagnostic ? [selected.diagnostic] : []
   const consumedSources = [{ sourcePath: input.sourcePath, content }, ...selected.additionalSources]
-  if (!selected.selected)
+  if (!selected.selected) {
     return { fields, diagnostics, consumedSources, sourceName: input.sourceName }
+  }
   const mappedIdentity = identity({
     ...(selected.name ? { selectedName: selected.name } : {}),
     sourcePath: input.sourcePath,

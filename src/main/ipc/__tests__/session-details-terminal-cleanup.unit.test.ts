@@ -50,8 +50,9 @@ function testLayer() {
           Effect.gen(function* () {
             closed.push([ownerKey, deleteHistory])
             order.push(deleteHistory ? 'terminal:delete-history' : 'terminal:stop')
-            if (!deleteHistory && stopBarrier !== null)
+            if (!deleteHistory && stopBarrier !== null) {
               yield* Effect.promise(() => stopBarrier ?? Promise.resolve())
+            }
             const failure = deleteHistory ? historyError : terminalError
             if (failure !== null) return yield* Effect.fail(failure)
           }),

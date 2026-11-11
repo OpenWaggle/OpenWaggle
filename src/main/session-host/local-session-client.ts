@@ -36,8 +36,9 @@ function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
   if (payload.contract === 'local-host-v1') {
     return 'The connected Session Host does not support being stopped from the CLI.'
   }
-  if (payload.contract === 'desktop-service-v1')
+  if (payload.contract === 'desktop-service-v1') {
     return 'The connected Session Host does not support desktop services.'
+  }
   if (payload.contract === 'session-control-v2') {
     return payload.request.command.operation === 'queue-adopt'
       ? 'The connected Session Host does not support sending a queued message as yourself.'

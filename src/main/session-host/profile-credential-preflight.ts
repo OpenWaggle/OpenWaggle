@@ -37,8 +37,9 @@ async function matchesInstalledCredential(
     path.dirname(input.targetPath),
     path.basename(input.targetPath),
   )
-  if (!target.content)
+  if (!target.content) {
     throw new CliError('conflict', 'Credential destination changed during preparation.')
+  }
   const targetCredential = decodeCredentialContent(input.destination, target.content)
   if (credentialFingerprint(targetCredential) === credentialFingerprint(input.selectedCredential)) {
     return true

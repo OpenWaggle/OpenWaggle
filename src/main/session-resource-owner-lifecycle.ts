@@ -53,8 +53,9 @@ export function monitorSessionResourceContentOwner(
     if (
       event.url.startsWith(`${SESSION_RESOURCE_PROTOCOL.SCHEME}:`) &&
       isSessionResourceDownloadNavigation(event.url, sender.id, sender.getURL())
-    )
+    ) {
       return
+    }
     invalidateOwner(owner, true)
   }
   const stopMonitoring = () => {

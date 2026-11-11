@@ -23,8 +23,9 @@ export async function withSessionLineageMutation<A>(
 ): Promise<A> {
   const ids = [...new Set(sessionIds)].sort()
   for (const id of ids) {
-    if (deleting.has(id))
+    if (deleting.has(id)) {
       throw new Error('Session deletion is in progress; Hive changes are blocked.')
+    }
   }
   const settled = Promise.withResolvers<void>()
   for (const id of ids) {

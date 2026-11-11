@@ -66,8 +66,9 @@ export function sessionAgentAuthorizationBoundary(sql: SqlClient.SqlClient, sess
       LIMIT 1
     `
     const row = rows[0]
-    if (!row)
+    if (!row) {
       return { authorizationCeiling: ASK, revoked: true } satisfies SessionAuthorizationBoundary
+    }
     const missingWorkerGrant = row.parent_session_id !== null && row.grant_ceiling === null
     const revoked =
       missingWorkerGrant || row.grant_revoked_at !== null || row.profile_revoked_at !== null

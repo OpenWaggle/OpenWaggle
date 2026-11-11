@@ -1,7 +1,6 @@
 import type { Socket } from 'node:net'
 import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
 import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
-import type { LocalSessionServerFrame } from '@shared/types/local-session-protocol'
 import { createLogger } from '../logger'
 import { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import {
@@ -78,7 +77,7 @@ export class LocalSessionConnection {
       caller: () => this.caller,
       negotiatedRevision: () => this.negotiatedRevision,
       closed: () => this.closed,
-      send: (frame) => this.send(frame),
+      send: (frame) => this.outbound.send(frame),
       connectionFailed: () => this.socket.destroy(),
     })
     this.serverAuthenticated = dependencies.authenticateServer === undefined
@@ -165,10 +164,6 @@ export class LocalSessionConnection {
     )
   }
 
-  private send(frame: LocalSessionServerFrame | unknown): Promise<void> {
-    return this.outbound.send(frame)
-  }
-
   private async handleValue(value: unknown): Promise<void> {
     const authenticated = this.caller !== null && this.negotiatedRevision !== null
     // The connection already answered handshake_timeout and is ending.
@@ -187,8 +182,9 @@ export class LocalSessionConnection {
 
   private async handleServerAuthentication(value: unknown): Promise<void> {
     const authenticateServer = this.dependencies.authenticateServer
-    if (!authenticateServer)
+    if (!authenticateServer) {
       throw new Error('Local Session Host identity authority is unavailable.')
+    }
     await this.outbound.sendHandshakeFrame(await authenticateServer(value))
     this.serverAuthenticated = true
   }
@@ -222,8 +218,9 @@ export class LocalSessionConnection {
 
   private async handleClientFrame(frame: LocalSessionClientFrame): Promise<void> {
     if (frame.kind === 'command') return this.handleCommand(frame)
-    if (frame.kind === 'subscribe')
+    if (frame.kind === 'subscribe') {
       return this.subscriptions.subscribe(frame.requestId, frame.after, frame.sessionIds)
+    }
     return this.subscriptions.unsubscribe(frame.requestId, frame.subscriptionId)
   }
 
@@ -268,7 +265,7 @@ export class LocalSessionConnection {
             resolveEventCursor: (cursor) => this.cursorProjection.resolve(caller, cursor),
             exposeEventCursor: (cursor) => this.cursorProjection.expose(caller, cursor),
             signal: controller.signal,
-            send: (response) => this.send(response),
+            send: (response) => this.outbound.send(response),
             ...(!selfCredentialMutation ? { releaseAdmissionReader: releaseAdmissionReader } : {}),
           })
         } finally {

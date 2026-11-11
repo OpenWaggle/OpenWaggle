@@ -32,8 +32,9 @@ interface TargetCounts {
 
 function validateDatabaseIntegrity(database: HostSqliteDatabase) {
   const integrity = queryCutoverRecord(database, 'PRAGMA integrity_check')?.integrity_check
-  if (integrity !== 'ok')
+  if (integrity !== 'ok') {
     throw new Error(`Session Host target integrity check failed: ${String(integrity)}`)
+  }
   if (database.prepare('PRAGMA foreign_key_check').all().length > 0) {
     throw new Error('Session Host target contains foreign-key failures.')
   }
@@ -41,8 +42,9 @@ function validateDatabaseIntegrity(database: HostSqliteDatabase) {
     database,
     'SELECT schema_revision FROM session_host_schema_metadata WHERE singleton = 1',
   )?.schema_revision
-  if (schemaRevision !== SESSION_HOST_SCHEMA_REVISION)
+  if (schemaRevision !== SESSION_HOST_SCHEMA_REVISION) {
     throw new Error('Session Host target metadata is missing or incompatible.')
+  }
 }
 
 function targetCounts(database: HostSqliteDatabase): TargetCounts {
@@ -153,8 +155,9 @@ function validateSemanticVectors(
     semanticModel.revision,
     String(semanticModel.dimensions),
   )?.count
-  if (incompatibleVectors !== 0)
+  if (incompatibleVectors !== 0) {
     throw new Error('Session Host semantic discovery model revision is incompatible.')
+  }
 }
 
 interface TranscriptStorageCounts extends Record<string, unknown> {

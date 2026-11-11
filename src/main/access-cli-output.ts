@@ -165,8 +165,9 @@ export function accessCliResponseText(input: {
           },
         }
       : input.response
-  if (input.json)
+  if (input.json) {
     return sessionsCliResponseText(`access profiles ${input.operation}`, response, true)
+  }
   const destination = input.response.credentialDestination
   return `${[
     humanAccessOutcome(response.outcome),

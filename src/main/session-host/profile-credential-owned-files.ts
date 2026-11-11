@@ -172,12 +172,13 @@ async function runOwnedFileOperation(input: {
       throw error
     }
     const exitCode = await exitCodePromise
-    if (exitCode === OWNED_FILE_MISSING_EXIT_CODE)
+    if (exitCode === OWNED_FILE_MISSING_EXIT_CODE) {
       return {
         result: undefined,
         directoryIdentity: `${stats.dev}:${stats.ino}`,
         durableDirectoryIdentity,
       }
+    }
     if (exitCode !== 0) throw new Error('Protected credential storage changed during access.')
     return {
       result: output.match(/result=([^\n]*)$/)?.[1] ?? '',

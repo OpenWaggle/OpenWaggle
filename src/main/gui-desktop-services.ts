@@ -87,16 +87,18 @@ export async function startAppGuiDesktopServices(input: {
   })
 
   async function recoverPreviousOwner() {
-    if (desktopToolsShutDown)
+    if (desktopToolsShutDown) {
       throw new DesktopNativeRecoveryUnavailableError(RECOVERY_SHUT_DOWN_MESSAGE)
+    }
     // Retryable: a quit that fails leaves the window open, and every attempt re-checks this.
     if (shuttingDown) throw new Error(RECOVERY_QUITTING_MESSAGE)
     if (bridge !== undefined) {
       // An earlier recovery was accepted; its lifecycle keeps reattaching in the background.
       const attachment = bridge.attachment()
       if (attachment === 'attached') return
-      if (attachment === 'stopped')
+      if (attachment === 'stopped') {
         throw new DesktopNativeRecoveryUnavailableError(RECOVERY_STOPPED_MESSAGE)
+      }
       throw new Error(RECOVERY_RECONNECTING_MESSAGE)
     }
     try {

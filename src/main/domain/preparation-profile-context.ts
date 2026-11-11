@@ -14,8 +14,12 @@ export function assertPreparationProfileCanBeDeleted(
   const sharedNeedsProfile =
     storage === 'project' && shared.preparation.some((definition) => definition.profileId === id)
   const fallback = storage === 'local' ? shared : local
-  if (sharedNeedsProfile || (referenced && !fallback.profiles.some((profile) => profile.id === id)))
+  if (
+    sharedNeedsProfile ||
+    (referenced && !fallback.profiles.some((profile) => profile.id === id))
+  ) {
     throw new Error('Remove the profile’s setup and cleanup definitions first.')
+  }
 }
 
 export function sharePreparationProfile(
@@ -23,8 +27,9 @@ export function sharePreparationProfile(
   shared: ActionManifest,
   profileId: string,
 ) {
-  if (profileId === 'default' || shared.profiles.some((profile) => profile.id === profileId))
+  if (profileId === 'default' || shared.profiles.some((profile) => profile.id === profileId)) {
     return shared
+  }
   const profile = local.profiles.find((profile) => profile.id === profileId)
   if (!profile) throw new Error(`Preparation profile ${profileId} is missing.`)
   return { ...shared, profiles: [...shared.profiles, profile] }

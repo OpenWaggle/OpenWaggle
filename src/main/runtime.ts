@@ -325,8 +325,9 @@ export async function startSessionHostOwnedServices(options: HostServiceOptions<
   void getAppRuntime()
     .runPromise(Fiber.await(fiber))
     .then(() => {
-      if (!didStart)
+      if (!didStart) {
         started.reject(new Error('Session Host-owned services stopped during startup.'))
+      }
     })
   await started.promise
 }

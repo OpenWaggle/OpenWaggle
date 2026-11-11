@@ -79,8 +79,9 @@ function createdInputs() {
   return mocks.execute.mock.calls.map((call: readonly unknown[]) => {
     const payload: unknown = Reflect.get(Object(call[0]), 'payload')
     const command: unknown = Reflect.get(Object(Reflect.get(Object(payload), 'request')), 'command')
-    if (Reflect.get(Object(command), 'operation') !== 'create')
+    if (Reflect.get(Object(command), 'operation') !== 'create') {
       throw new Error('Expected a create.')
+    }
     return Reflect.get(Object(command), 'input')
   })
 }

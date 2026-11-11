@@ -186,8 +186,9 @@ export class LocalSessionAuthenticationBudget {
   }
 
   private acquire(signal: AbortSignal): Promise<void> {
-    if (signal.aborted)
+    if (signal.aborted) {
       return Promise.reject(new Error('Local Session authentication was aborted.'))
+    }
     if (this.active < this.maxConcurrent) {
       this.active += 1
       return Promise.resolve()

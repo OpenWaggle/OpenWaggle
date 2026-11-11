@@ -62,8 +62,9 @@ function addBaseOptions(options: Map<string, string[]>, input: SessionToolInputV
     ['parent', input.parentSessionId],
     ['worker', input.workerSessionId],
     ['delegation', input.operation === 'delegations-conflicts' ? input.delegationId : undefined],
-  ] as const)
+  ] as const) {
     add(options, name, value)
+  }
 }
 
 function addCollaborationOptions(options: Map<string, string[]>, input: SessionToolInputV2) {

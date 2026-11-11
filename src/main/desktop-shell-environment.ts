@@ -191,8 +191,9 @@ function applyPosixEnvironment(
   ])
   if (path) options.env.PATH = path
   for (const name of FILLED_ENV_NAMES) {
-    if (!trimNonEmpty(base[name]) && shellEnvironment[name])
+    if (!trimNonEmpty(base[name]) && shellEnvironment[name]) {
       options.env[name] = shellEnvironment[name]
+    }
   }
   for (const name of REPLACED_ENV_NAMES) {
     if (source === 'cache' && trimNonEmpty(base[name])) continue

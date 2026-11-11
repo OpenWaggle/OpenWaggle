@@ -138,8 +138,9 @@ function declarationState(
   }
   const pending: Record<string, SourceControlProviderId> = {}
   for (const [host, provider] of Object.entries(declared)) {
-    if (approvedHosts[host] !== provider && declinedHosts[host] !== provider)
+    if (approvedHosts[host] !== provider && declinedHosts[host] !== provider) {
       pending[host] = provider
+    }
   }
   return { approved, pending: Object.keys(pending).length > 0 ? pending : null }
 }

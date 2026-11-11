@@ -228,10 +228,7 @@ export class RunCliSession {
       if (this.jsonl) this.output.stdout(sessionsCliStreamRecordLine(watchEventRecord(event)))
       else this.presenter.present(payload)
     }
-    if (payload.kind === 'session-transport') {
-      this.handleTransport(payload.event, target)
-      return
-    }
+    if (payload.kind === 'session-transport') return this.handleTransport(payload.event, target)
     const change = classifyStateChange(payload, target)
     if (change === 'reconcile') {
       void this.reconcile()
@@ -244,8 +241,9 @@ export class RunCliSession {
   private belongsToOtherRun(payload: SessionHostEventEnvelope['payload'], target: RunTarget) {
     if (payload.kind !== 'session-transport') return false
     const event = payload.event
-    if (event.type === 'agent_start')
+    if (event.type === 'agent_start') {
       this.otherRunId = event.runId === target.runId ? null : event.runId
+    }
     const other = this.otherRunId !== null
     if (event.type === 'agent_end' && event.runId === this.otherRunId) this.otherRunId = null
     return other
@@ -293,8 +291,9 @@ export class RunCliSession {
         this.dependencies.execute({ ...this.clientInput, payload })
       const lookup = await lookUpRun(execute, target)
       if (lookup.kind === 'settled') this.settle(lookup.settlement)
-      if (lookup.kind === 'unknown')
+      if (lookup.kind === 'unknown') {
         this.status(`could not read the Run's status (${lookup.reason})`)
+      }
     } catch (error) {
       this.status(`could not read the Run's status: ${errorMessage(error)}`)
     }

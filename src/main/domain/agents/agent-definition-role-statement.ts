@@ -150,8 +150,12 @@ function tokenStop(raw: string, following: readonly string[]): 'drop' | 'end' | 
   if (raw.startsWith(QUOTE_MARK) || isPluralPossessive(raw) || ROLE_JOINERS.has(raw)) return 'drop'
   if (DASH.test(raw)) return 'list'
   // "the reviewer of your own diff": a role over the Worker's own work is a self-check, not its role.
-  if (/^of$/iu.test(raw) && /^your\s+own\b/iu.test(following.slice(0, SELF_CHECK_WORDS).join(' ')))
+  if (
+    /^of$/iu.test(raw) &&
+    /^your\s+own\b/iu.test(following.slice(0, SELF_CHECK_WORDS).join(' '))
+  ) {
     return 'drop'
+  }
   // "who's", "it's" end the phrase; "the reviewer's assistant" is another noun's phrase.
   const contraction = /^(.*?)['’]s\b/u.exec(raw.toLowerCase())
   if (!contraction) return undefined
@@ -266,8 +270,9 @@ function readRole(objective: string, quoted: RegExp): readonly string[] {
         EMBEDDED_STATEMENT.test(plain) ||
         ROLE_LABEL.test(match[0].trim().replace(LIST_MARKER, '')) ||
         ROLE_LABEL.test(plain)
-      )
+      ) {
         return []
+      }
       continue
     }
     const rest = opened.slice(opener[0].length)

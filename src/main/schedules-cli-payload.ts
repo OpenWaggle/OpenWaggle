@@ -37,8 +37,9 @@ function sessionArgument(value: string | undefined, label: string) {
 }
 
 function positiveWhole(value: string, label: string) {
-  if (!/^\d+$/.test(value) || Number(value) < 1)
+  if (!/^\d+$/.test(value) || Number(value) < 1) {
     throw new CommandCliUsageError(`${label} must be a whole number.`)
+  }
   return Number(value)
 }
 
@@ -71,12 +72,14 @@ export function scheduleFromOptions(arguments_: ParsedArguments): TaskSchedule |
   const daily = option(arguments_, 'daily')
   const rule = option(arguments_, 'rrule')
   const named = [every, daily, rule].filter((value) => value !== undefined)
-  if (named.length > 1)
+  if (named.length > 1) {
     throw new CommandCliUsageError('Choose one of --every, --daily, or --rrule.')
+  }
   if (every !== undefined) return { kind: 'interval', everyMinutes: everyMinutes(every) }
   if (daily !== undefined) {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(daily))
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(daily)) {
       throw new CommandCliUsageError('--daily takes HH:MM (24-hour).')
+    }
     const days = weekdays(option(arguments_, 'weekdays'))
     return { kind: 'daily', at: daily, ...(days ? { weekdays: days } : {}) }
   }
@@ -90,16 +93,18 @@ function timestamp(value: string | undefined, label: string) {
   if (value === undefined) return undefined
   if (value === 'none') return null
   const parsed = /^\d+$/.test(value) ? Number(value) : Date.parse(value)
-  if (!Number.isFinite(parsed))
+  if (!Number.isFinite(parsed)) {
     throw new CommandCliUsageError(`${label} takes an ISO date or epoch milliseconds.`)
+  }
   return parsed
 }
 
 function thinkingLevel(value: string | undefined): ThinkingLevel | undefined {
   if (value === undefined) return undefined
   const level = THINKING_LEVELS.find((candidate) => candidate === value)
-  if (!level)
+  if (!level) {
     throw new CommandCliUsageError(`--thinking must be one of ${THINKING_LEVELS.join(', ')}.`)
+  }
   return level
 }
 
@@ -122,8 +127,9 @@ async function promptFrom(arguments_: ParsedArguments, words: readonly string[])
   const file = option(arguments_, 'prompt-file')
   const inline = option(arguments_, 'prompt')
   const sources = [file, inline, words.length > 0 ? 'words' : undefined].filter(Boolean)
-  if (sources.length > 1)
+  if (sources.length > 1) {
     throw new CommandCliUsageError('Give the prompt once: --prompt, --prompt-file, or words.')
+  }
   if (file) return (await readFile(file, 'utf8')).trimEnd()
   if (inline) return inline
   return words.length > 0 ? words.join(' ') : undefined
@@ -223,8 +229,9 @@ async function updateCommand(arguments_: ParsedArguments): Promise<ScheduledTask
     ...commonFields(arguments_),
     ...(heartbeat ? { heartbeat } : {}),
   }
-  if (Object.keys(patch).length === 0)
+  if (Object.keys(patch).length === 0) {
     throw new CommandCliUsageError('update needs at least one change.')
+  }
   return { operation: 'update', taskId: required(taskId, 'the task id'), patch }
 }
 
@@ -282,8 +289,9 @@ export async function buildSchedulesCliCommands(
   arguments_: ParsedArguments,
 ): Promise<readonly ScheduledTasksCommand[]> {
   const builder = COMMAND_BUILDERS[command]
-  if (!builder)
+  if (!builder) {
     throw new CommandCliUsageError(`Unsupported OpenWaggle Schedules command: ${command}.`)
+  }
   return builder(arguments_)
 }
 

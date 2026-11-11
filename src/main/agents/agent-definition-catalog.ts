@@ -159,8 +159,9 @@ export async function previewAgentDefinition(input: {
   const source = (await readBoundAgentDefinitionSources(root)).find(
     (candidate) => path.join(root.directory, candidate.name) === item.sourcePath,
   )
-  if (!source)
+  if (!source) {
     throw new Error('Agent definition changed while loading its preview. Refresh the list.')
+  }
   if (
     item.contentDigest &&
     createHash('sha256').update(source.markdown).digest('hex') !== item.contentDigest

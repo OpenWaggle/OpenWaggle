@@ -206,8 +206,9 @@ function readLegacyRows(database: HostSqliteDatabase) {
     FROM session_active_runs ORDER BY run_id
   `)
     .all()
-  if (!Array.isArray(sessionValues) || !Array.isArray(activeRunValues))
+  if (!Array.isArray(sessionValues) || !Array.isArray(activeRunValues)) {
     throw new Error('Legacy Session rows could not be read.')
+  }
   return {
     sessions: sessionValues.map(decodeLegacySession),
     activeRuns: activeRunValues.map(decodeLegacyActiveRun),

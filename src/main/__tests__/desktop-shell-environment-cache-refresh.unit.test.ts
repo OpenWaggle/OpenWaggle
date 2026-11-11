@@ -125,8 +125,9 @@ describe('a Session Host whose app refresh found nothing', () => {
       sleep: async (milliseconds) => {
         clock += milliseconds
         // The app's own login shell times out after 5 s and finds nothing.
-        if (clock - NOW === 5_000)
+        if (clock - NOW === 5_000) {
           fileShellEnvironmentCache(cacheFile).markRefreshFailed(KEY, clock)
+        }
       },
     })
     await started.ready

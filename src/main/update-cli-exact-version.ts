@@ -43,8 +43,9 @@ export async function stopSessionHostBeforeInstall(parsed: ParsedArguments) {
   if (report.state === 'cancelled') {
     throw new CliError('conflict', 'Update cancelled. OpenWaggle was not changed.')
   }
-  if (report.state === 'desktop-open')
+  if (report.state === 'desktop-open') {
     throw new CliError('conflict', DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
+  }
   // The Windows installer closes what is left, and an AppImage is replaced as one file.
   if (report.state === 'timed-out' || report.state === 'refused' || report.state === 'replaced') {
     process.stderr.write(`${formatHostUpdateStopReport(report)}\n`)
@@ -92,8 +93,9 @@ export async function installExactVersion(
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   // Installing over a running app would stop its active agent runs without asking.
-  if (isDesktopAppRunning(systemIntegration))
+  if (isDesktopAppRunning(systemIntegration)) {
     throw new CliError('conflict', DESKTOP_OPEN_EXACT_VERSION_MESSAGE)
+  }
   if (process.platform === 'win32') {
     const installer = await prepareWindowsInstaller(tag)
     await stopSessionHostBeforeInstall(parsed).catch(async (error: unknown) => {

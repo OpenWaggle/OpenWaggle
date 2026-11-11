@@ -110,8 +110,9 @@ async function legacyMacCliLinkStatus(
     const link = await fs.lstat(target)
     if (!link.isSymbolicLink()) return null
     const destination = await fs.readlink(target)
-    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath))
+    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath)) {
       return null
+    }
     if (!(await fs.stat(target)).isFile()) return null
     return {
       management: 'installer',

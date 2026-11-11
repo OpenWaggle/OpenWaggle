@@ -101,8 +101,9 @@ describe('Session discovery native term bulk validation', () => {
       target.exec('BEGIN IMMEDIATE')
       expect(() => {
         for (const statement of SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS) {
-          if (statement.startsWith('INSERT INTO session_discovery_term_validation'))
+          if (statement.startsWith('INSERT INTO session_discovery_term_validation')) {
             target.exec(mutation)
+          }
           target.exec(statement)
         }
       }).toThrow(constraint)

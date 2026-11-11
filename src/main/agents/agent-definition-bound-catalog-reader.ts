@@ -167,8 +167,9 @@ async function readChildOutput(child: ReturnType<typeof spawn>) {
     )
   }
   const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-  if (!Array.isArray(value))
+  if (!Array.isArray(value)) {
     throw new Error('Agent definition catalog reader returned invalid data.')
+  }
   return value.map((entry: unknown) => {
     if (
       typeof entry !== 'object' ||

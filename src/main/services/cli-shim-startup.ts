@@ -54,8 +54,9 @@ export function beginAppCliShimSetupWhen(enabled: boolean): Promise<void> {
   if (!enabled) return Promise.resolve()
   return beginAppCliShimSetup()
     .then((result) => {
-      if (!result.ok)
+      if (!result.ok) {
         logger.warn('Could not make the bundled CLI available', { detail: result.error })
+      }
     })
     .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
 }

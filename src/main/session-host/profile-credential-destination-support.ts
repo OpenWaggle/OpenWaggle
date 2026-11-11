@@ -63,8 +63,9 @@ export function credentialFingerprint(credential: string) {
 
 export function ownerStateRoot(destination: ProfileCredentialDestination, stateRoot?: string) {
   if (destination.kind === 'credential-store') return destination.stateRoot
-  if (!stateRoot)
+  if (!stateRoot) {
     throw new Error('A trusted OpenWaggle state root is required for file credentials.')
+  }
   return stateRoot
 }
 
