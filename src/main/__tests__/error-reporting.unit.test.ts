@@ -58,14 +58,20 @@ vi.mock('../env', () => ({
     return state.env
   },
 }))
-vi.mock('electron', () => ({
-  app: { getVersion: () => '1.0.0-beta.4', getPath: () => 'C:\\Users\\me\\AppData\\OpenWaggle' },
+vi.mock('../desktop-shell/app-lifecycle', async () => ({
+  appLifecycle: (await import('../test-support/fake-desktop-shell')).fakeAppLifecycle({
+    version: () => '1.0.0-beta.4',
+  }),
 }))
+vi.mock('../desktop-shell/app-paths', async () => ({
+  appPaths: (await import('../test-support/fake-desktop-shell')).fakeAppPaths(),
+}))
+vi.mock('../system-version', () => ({ systemVersion: () => '15.2' }))
 vi.mock('../usage-statistics/usage-statistics-last-known-setting', () => ({
   usageStatisticsSettingWithoutSettings: () => state.lastKnownSetting,
   recordLastKnownUsageStatisticsSetting: lastKnown.record,
 }))
-vi.mock('../adapters/electron/error-reporting/sentry-main-error-reporter', () => ({
+vi.mock('../adapters/electrobun/error-reporting/sentry-bun-error-reporter', () => ({
   startSentryMainErrorReporter: adapter.startSentryMainErrorReporter,
 }))
 vi.mock('../usage-statistics/usage-statistics-enablement', () => ({
@@ -100,7 +106,6 @@ describe('main-process error reporting', () => {
     state.listeners.clear()
     state.buildChannel = 'beta'
     state.env = {}
-    process.getSystemVersion = () => '15.2'
   })
 
   afterEach(() => {
@@ -147,6 +152,7 @@ describe('main-process error reporting', () => {
       isEnabled: expect.any(Function),
       operatingSystem: { name: expect.any(String), version: '15.2' },
       arch: process.arch,
+      appRoot: '/tmp/openwaggle-app',
     })
     expect(errorReporting.errorReportingRendererArguments()).toEqual([
       '--openwaggle-error-reporting',

@@ -14,14 +14,13 @@ afterEach(async () => {
 })
 
 describe('descriptor-bound Agent definition catalog reads', () => {
-  it('runs an Electron executable in Node mode without inheriting arbitrary secrets', () => {
+  it('runs the shell script runtime without inheriting arbitrary secrets', () => {
     const environment = agentDefinitionCatalogChildEnvironment()
 
-    expect(environment).toHaveProperty('ELECTRON_RUN_AS_NODE', '1')
+    // Bun runs the reader script as is: no Electron switch reaches the child.
+    expect(environment).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
     expect(environment).not.toHaveProperty('OPENAI_API_KEY')
-    expect(Object.keys(environment)).toEqual(
-      expect.arrayContaining(['PATH', 'HOME', 'ELECTRON_RUN_AS_NODE']),
-    )
+    expect(Object.keys(environment)).toEqual(expect.arrayContaining(['PATH', 'HOME']))
   })
 
   it('reads a confined catalog through the Windows-compatible path', async () => {

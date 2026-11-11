@@ -13,26 +13,16 @@ import {
   type TableRow,
 } from './settings-test-constants'
 
-const state = vi.hoisted(() => ({
-  userDataDir: '',
-  encryptionAvailable: false,
-  encryptThrows: false,
-}))
+const state = vi.hoisted(() => ({ userDataDir: '' }))
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => state.userDataDir,
-  },
-  safeStorage: {
-    isEncryptionAvailable: () => state.encryptionAvailable,
-    encryptString: (value: string) => {
-      if (state.encryptThrows) {
-        throw new Error('encrypt failed')
-      }
-      return Buffer.from(value, 'utf8')
-    },
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
+// The database lives under `userData`; each test gets its own directory.
+vi.mock('../../desktop-shell/app-paths', async () => {
+  const { fakeAppPaths } = await import('../../test-support/fake-desktop-shell')
+  return { appPaths: { ...fakeAppPaths(), userData: () => state.userDataDir } }
+})
+
+vi.mock('../../desktop-shell/secure-storage', async () => ({
+  secureStorage: (await import('../../test-support/fake-desktop-shell')).fakeSecureStorage(),
 }))
 
 async function disposeRuntime() {
@@ -60,8 +50,6 @@ export function installSettingsStoreTestLifecycle() {
     await resetAppRuntimeForTests()
     const { resetSettingsStoreForTests } = await import('../settings')
     await resetSettingsStoreForTests()
-    state.encryptionAvailable = false
-    state.encryptThrows = false
   })
 
   afterEach(async () => {

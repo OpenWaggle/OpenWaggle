@@ -6,9 +6,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const paths = vi.hoisted(() => ({ root: '' }))
 
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: () => true,
+vi.mock('../../../desktop-shell/secure-storage', async () => ({
+  secureStorage: {
+    ...(await import('../../../test-support/fake-desktop-shell')).fakeSecureStorage(),
     encryptString: (value: string) => Buffer.from(`sealed:${value}`),
     decryptString: (value: Buffer) => value.toString().replace(/^sealed:/, ''),
     isAsyncEncryptionAvailable: async () => true,

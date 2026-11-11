@@ -2,22 +2,18 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiscoveredExtensionPackage } from '../types'
 
-const electronNetMocks = vi.hoisted(() => {
-  const fetch = vi.fn((input: string | Request, init?: RequestInit) =>
+const shellNetwork = vi.hoisted(() => ({
+  send: vi.fn((input: string | Request, init?: RequestInit) =>
     Promise.resolve(new Response(JSON.stringify({ input, redirect: init?.redirect ?? null }))),
-  )
-  const request = vi.fn((options: unknown) => ({ options }))
-
-  return {
-    net: { fetch, request },
-    originalFetch: fetch,
-    originalRequest: request,
-  }
-})
-
-vi.mock('electron', () => ({
-  net: electronNetMocks.net,
+  ),
 }))
+
+// The shell's own network stack, over a recorded send, so the guard it installs is the real one.
+vi.mock('../../desktop-shell/network-fetch', async () => {
+  const { createBunNetworkFetch } =
+    await import('../../adapters/electrobun/electrobun-network-fetch')
+  return { networkFetch: createBunNetworkFetch(shellNetwork.send) }
+})
 
 let originalFetch: typeof globalThis.fetch
 
@@ -27,13 +23,6 @@ function installHostFetchMock() {
   )
   globalThis.fetch = fetch
   return fetch
-}
-
-function resetElectronNetMocks() {
-  electronNetMocks.originalFetch.mockClear()
-  electronNetMocks.originalRequest.mockClear()
-  electronNetMocks.net.fetch = electronNetMocks.originalFetch
-  electronNetMocks.net.request = electronNetMocks.originalRequest
 }
 
 function policyPackage() {
@@ -51,12 +40,12 @@ describe('trusted main network egress guard', () => {
   beforeEach(() => {
     vi.resetModules()
     originalFetch = globalThis.fetch
-    resetElectronNetMocks()
+    shellNetwork.send.mockClear()
   })
 
   afterEach(() => {
     globalThis.fetch = originalFetch
-    resetElectronNetMocks()
+    shellNetwork.send.mockClear()
   })
 
   it('only forces fetch redirect errors while a trusted main policy is active', async () => {
@@ -92,36 +81,30 @@ describe('trusted main network egress guard', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('only forces Electron net redirect errors while a trusted main policy is active', async () => {
+  it('only forces shell network redirect errors while a trusted main policy is active', async () => {
     installHostFetchMock()
-    const { net } = electronNetMocks
+    const { networkFetch } = await import('../../desktop-shell/network-fetch')
     const { createTrustedMainNetworkPolicy, runWithTrustedMainNetworkPolicy } =
       await import('../trusted-main-network-egress')
     const policy = createTrustedMainNetworkPolicy(policyPackage())
 
     await runWithTrustedMainNetworkPolicy(policy, () =>
-      net.fetch('https://allowed.example/redirect'),
+      networkFetch.fetch('https://allowed.example/redirect'),
     )
-    expect(electronNetMocks.originalFetch).toHaveBeenLastCalledWith(
-      'https://allowed.example/redirect',
-      { redirect: 'error' },
-    )
-
-    await net.fetch('https://outside.example/redirect', { redirect: 'follow' })
-    expect(electronNetMocks.originalFetch).toHaveBeenLastCalledWith(
-      'https://outside.example/redirect',
-      { redirect: 'follow' },
-    )
-
-    runWithTrustedMainNetworkPolicy(policy, () => net.request('https://allowed.example/redirect'))
-    expect(electronNetMocks.originalRequest).toHaveBeenLastCalledWith({
-      url: 'https://allowed.example/redirect',
+    expect(shellNetwork.send).toHaveBeenLastCalledWith('https://allowed.example/redirect', {
       redirect: 'error',
     })
 
-    net.request('https://outside.example/redirect')
-    expect(electronNetMocks.originalRequest).toHaveBeenLastCalledWith(
-      'https://outside.example/redirect',
-    )
+    await expect(
+      runWithTrustedMainNetworkPolicy(policy, () =>
+        networkFetch.fetch('https://outside.example/redirect'),
+      ),
+    ).rejects.toThrow()
+    expect(shellNetwork.send).toHaveBeenCalledOnce()
+
+    await networkFetch.fetch('https://outside.example/redirect', { redirect: 'follow' })
+    expect(shellNetwork.send).toHaveBeenLastCalledWith('https://outside.example/redirect', {
+      redirect: 'follow',
+    })
   })
 })

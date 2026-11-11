@@ -3,18 +3,18 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TerminalEventSink } from '../../ports/terminal-event-sink'
 
-const webContentsMock = vi.hoisted(() => ({
+const surfacesMock = vi.hoisted(() => ({
   fromId: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  webContents: webContentsMock,
+vi.mock('../../desktop-shell/renderer-surfaces', () => ({
+  rendererSurfaces: surfacesMock,
 }))
 
 const { RendererSurfaceTerminalEventSinkLive } =
   await import('../renderer-surface-terminal-event-sink')
 
-interface FakeWebContents {
+interface FakeSurface {
   readonly send: ReturnType<typeof vi.fn>
   readonly isDestroyed: () => boolean
   destroyed: boolean
@@ -31,10 +31,10 @@ const PAYLOAD: TerminalEventPayload = {
   event: { type: 'exited', exitCode: 0 },
 }
 
-const surfaceRegistry = new Map<number, FakeWebContents>()
+const surfaceRegistry = new Map<number, FakeSurface>()
 
 function makeSurface(id: number) {
-  const surface: FakeWebContents = {
+  const surface: FakeSurface = {
     send: vi.fn(),
     destroyed: false,
     isDestroyed: () => surface.destroyed,
@@ -54,8 +54,10 @@ async function buildSink() {
 describe('RendererSurfaceTerminalEventSinkLive', () => {
   beforeEach(() => {
     surfaceRegistry.clear()
-    webContentsMock.fromId.mockReset()
-    webContentsMock.fromId.mockImplementation((requested: number) => surfaceRegistry.get(requested))
+    surfacesMock.fromId.mockReset()
+    surfacesMock.fromId.mockImplementation(
+      (requested: number) => surfaceRegistry.get(requested) ?? null,
+    )
   })
 
   it('fans one event out to every surface attached to the terminal', async () => {
@@ -84,7 +86,7 @@ describe('RendererSurfaceTerminalEventSinkLive', () => {
 
     expect(dead.send).not.toHaveBeenCalled()
     expect(alive.send).toHaveBeenCalledTimes(2)
-    const deadLookups = webContentsMock.fromId.mock.calls.filter((call) => call[0] === 1)
+    const deadLookups = surfacesMock.fromId.mock.calls.filter((call) => call[0] === 1)
     expect(deadLookups).toHaveLength(1)
   })
 
@@ -166,16 +168,16 @@ describe('RendererSurfaceTerminalEventSinkLive', () => {
 
     await Effect.runPromise(sink.emit(PAYLOAD))
 
-    expect(webContentsMock.fromId).not.toHaveBeenCalled()
+    expect(surfacesMock.fromId).not.toHaveBeenCalled()
   })
 
-  it('drops an attachment whose webContents no longer resolves', async () => {
+  it('drops an attachment whose surface no longer resolves', async () => {
     const sink = await buildSink()
     await Effect.runPromise(sink.attach(TERMINAL_KEY, 7))
 
     await Effect.runPromise(sink.emit(PAYLOAD))
     await Effect.runPromise(sink.emit(PAYLOAD))
 
-    expect(webContentsMock.fromId).toHaveBeenCalledTimes(1)
+    expect(surfacesMock.fromId).toHaveBeenCalledTimes(1)
   })
 })

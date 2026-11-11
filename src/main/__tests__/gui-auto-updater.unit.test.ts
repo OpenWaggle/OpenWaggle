@@ -1,10 +1,10 @@
-import type { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => {
-  const nativeAutoUpdater: { current: EventEmitter | null } = { current: null }
+const mocks = await vi.hoisted(async () => {
+  const { fakeAppLifecycle, fakeAppPaths } = await import('../test-support/fake-desktop-shell')
   return {
-    nativeAutoUpdater,
+    appLifecycle: fakeAppLifecycle({ version: () => '1.2.2' }),
+    appPaths: fakeAppPaths('/tmp/user-data'),
     releaseHost: { value: false },
     markUpdateQuit: vi.fn(),
     initAutoUpdater: vi.fn(),
@@ -12,15 +12,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', async () => {
-  const { EventEmitter: Emitter } = await import('node:events')
-  const nativeAutoUpdater = new Emitter()
-  mocks.nativeAutoUpdater.current = nativeAutoUpdater
-  return {
-    app: { getPath: () => '/tmp/user-data', getVersion: () => '1.2.2' },
-    autoUpdater: nativeAutoUpdater,
-  }
-})
+vi.mock('../desktop-shell/app-lifecycle', () => ({ appLifecycle: mocks.appLifecycle }))
+vi.mock('../desktop-shell/app-paths', () => ({ appPaths: mocks.appPaths }))
 vi.mock('../updater', () => ({
   initAutoUpdater: (...args: unknown[]) => mocks.initAutoUpdater(...args),
   disposeAutoUpdater: () => mocks.disposeAutoUpdater(),
@@ -59,8 +52,8 @@ describe('desktop app updater start-up', () => {
     })
     expect(isGuiInstallingUpdate()).toBe(false)
 
-    // Squirrel.Mac (natively) and electron-updater (for NSIS and AppImage) emit this before quitting.
-    mocks.nativeAutoUpdater.current?.emit('before-quit-for-update')
+    // The shell announces the installer's quit (Electrobun's updater, before it applies one).
+    mocks.appLifecycle.emitBeforeQuitForUpdate()
 
     expect(mocks.markUpdateQuit).toHaveBeenCalledOnce()
     expect(isGuiInstallingUpdate()).toBe(true)
