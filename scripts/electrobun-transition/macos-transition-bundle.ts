@@ -11,11 +11,14 @@
  *   ShipIt` inside the new bundle, which Electrobun has no reason to ship.
  * So the executable becomes `OpenWaggle` (also the path the `openwaggle` CLI shim from install.sh
  * runs), and a minimal `Squirrel.framework` carries build/electrobun-transition/squirrel-relaunch.c.
+ * `Contents/MacOS/launcher` stays as a copy: Electrobun's own updater refuses an update whose bundle
+ * lacks it (`prepare_update.zig` opens `Contents/MacOS/launcher`), and every later release ships the
+ * same prepared bundle.
  *
  *   bun scripts/electrobun-transition/macos-transition-bundle.ts <OpenWaggle.app>
  */
 import { execFile } from 'node:child_process'
-import { chmod, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
@@ -60,14 +63,20 @@ export interface MacosTransitionBundleInput {
   readonly runner?: CommandRunner
 }
 
-/** Renames the bundle executable to `OpenWaggle` and returns the previous name. */
+/**
+ * Makes `OpenWaggle` (a copy of the previous executable, which stays) the bundle executable and
+ * returns the previous name.
+ */
 async function renameExecutable(app: string, runner: CommandRunner) {
   const plist = path.join(app, 'Contents', 'Info.plist')
   const { stdout } = await runner('plutil', ['-extract', 'CFBundleExecutable', 'raw', plist])
   const previous = stdout.trim()
   if (previous !== TRANSITION_EXECUTABLE_NAME) {
     const macos = path.join(app, 'Contents', 'MacOS')
-    await rename(path.join(macos, previous), path.join(macos, TRANSITION_EXECUTABLE_NAME))
+    const source = path.join(macos, previous)
+    const target = path.join(macos, TRANSITION_EXECUTABLE_NAME)
+    await copyFile(source, target)
+    await chmod(target, (await stat(source)).mode)
     await runner('plutil', [
       '-replace',
       'CFBundleExecutable',

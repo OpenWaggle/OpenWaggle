@@ -223,7 +223,7 @@ describe('macOS transition zip', () => {
 })
 
 describe('macOS transition bundle', () => {
-  it('renames the Electrobun launcher and adds the Squirrel.Mac relaunch path', async () => {
+  it('makes OpenWaggle the executable, keeps the launcher and adds the Squirrel.Mac relaunch path', async () => {
     const root = await scratch()
     const app = path.join(root, 'OpenWaggle.app')
     await fs.mkdir(path.join(app, 'Contents', 'MacOS'), { recursive: true })
@@ -239,6 +239,10 @@ describe('macOS transition bundle', () => {
     })
     await expect(
       fs.readFile(path.join(app, 'Contents', 'MacOS', 'OpenWaggle'), 'utf8'),
+    ).resolves.toBe('launcher')
+    // Electrobun's updater stages an update only when its bundle has Contents/MacOS/launcher.
+    await expect(
+      fs.readFile(path.join(app, 'Contents', 'MacOS', 'launcher'), 'utf8'),
     ).resolves.toBe('launcher')
     expect(
       runner.mock.calls.find(
