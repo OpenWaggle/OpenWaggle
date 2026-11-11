@@ -184,7 +184,7 @@ The `no-cheating` check step (`bun run check:no-cheating`) fails a change that g
 
 - Fallow dead-code and duplication findings in changed files are fixed; a false positive gets a config entry with its reason, never a suppression comment. [GATE-02]
 - A lint config change that checks less (a rule turned off or down to a warning, a new ignore or exemption entry, a raised limit) in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts` carries a comment that says why, on the entry or above its group. [GATE-03]
-- Never raise a budget, cap or coverage threshold (bundle, output-token, first-turn prefix, memory and rule-catalogue budgets), or grow an only-shrinks list (`scripts/oxlint/pending-rule-exemptions.json`, the design-token and renderer-test type exemptions, the legacy ADR numbers). Get under the limit instead; `scripts/no-cheating/ratchets.ts` lists what the step watches. [GATE-05]
+- Never raise a budget, cap or coverage threshold (bundle, output-token, first-turn prefix, memory and rule-catalogue budgets), or grow an only-shrinks list (the design-token and renderer-test type exemptions, the legacy ADR numbers). Get under the limit instead; `scripts/no-cheating/ratchets.ts` lists what the step watches. [GATE-05]
 
 ## Docs and memory
 
@@ -228,4 +228,4 @@ Rejected rules stay off, with the reason below. [TOOL-14]
 | `jsx-a11y` `prefer-tag-over-role`, `no-autofocus`, `no-noninteractive-*`, `interactive-supports-focus`; `react/exhaustive-deps` | 1–78 each | Already covered or deliberately off, see the config header. |
 | `eslint-plugin-sonarjs` | 43,222 with everything on | Every rule with findings was a false positive or style here (`publicly-writable-directories` on `/tmp` test paths, `file-permissions` on test `chmod`, `updated-loop-counter` in scanners that skip ahead, `reduce-initial-value` behind an empty check). Nine of its rules added 2–4s locally; all of them doubled CI lint time. |
 
-Pending. [TOOL-13] `scripts/oxlint/pending-rule-exemptions.json` turns an adopted rule off for each file that still breaks it, with its finding count. All 917 entries (1,439 findings) are in `src/`, where other work was in flight when the rules landed; fix a file, then delete its entry. `check:repository-standards` rejects entries for missing files, so the list only shrinks. Also pending: `isolatedDeclarations` for `@openwaggle/extension-sdk` (380 findings).
+Every adopted rule applies to every file it targets, with no per-file exemptions: the 1,439 findings in `src/` that were pending when the rules landed are fixed. [TOOL-13] Still pending: `isolatedDeclarations` for `@openwaggle/extension-sdk` (380 findings).

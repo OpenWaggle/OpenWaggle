@@ -60,7 +60,7 @@
     "TOOL-10": {"rule": "Promise, `this`, stringify, spread and throw bugs fail lint.", "by": ["typescript/no-floating-promises", "typescript/no-misused-promises", "typescript/unbound-method", "typescript/no-base-to-string", "typescript/only-throw-error"]},
     "TOOL-11": {"rule": "One spelling for type definitions, array types, optional chains and multi-line bodies.", "by": ["typescript/consistent-type-definitions", "typescript/array-type", "typescript/prefer-optional-chain", "curly"]},
     "TOOL-12": {"rule": "Components follow the React Compiler rules.", "by": ["react/refs", "react/set-state-in-effect", "react/immutability"]},
-    "TOOL-13": {"rule": "pending-rule-exemptions.json only shrinks: fix a file, then drop its entry.", "by": ["standards:pending-rule-exemptions", "check:no-cheating"]},
+    "TOOL-13": {"rule": "Adopted lint rules apply to every file; no per-file rule exemptions.", "by": ["review"]},
     "TOOL-14": {"rule": "A rejected lint rule stays off with its reason and counts in .agents/standards.md.", "by": ["review"]},
     "DEP-01": {"rule": "Direct dependencies and catalog entries are exact versions; `workspace:` and `catalog:` references pass.", "by": ["standards:exact-dependency-versions"]},
     "DEP-02": {"rule": "Add a dependency only with the user's approval.", "retired": true},

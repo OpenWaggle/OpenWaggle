@@ -133,18 +133,14 @@ describe('budgets and only-shrinks lists', () => {
   })
 
   it('blocks a grown exemption list and passes a shrunk one', () => {
-    const pending = (entries: Record<string, number>) => JSON.stringify({ curly: entries })
-    const file = 'scripts/oxlint/pending-rule-exemptions.json'
+    const tokens = 'scripts/renderer-design-token-exemptions.json'
+    const list = (...files: string[]) => `${JSON.stringify(files, null, 2)}\n`
     expect(
-      ratchetFindings(file, pending({ 'a.ts': 1 }), pending({ 'a.ts': 2, 'b.ts': 1 })).map(
-        formatFinding,
-      ),
+      ratchetFindings(tokens, list('a.tsx'), list('a.tsx', 'b.tsx')).map(formatFinding),
     ).toEqual([
-      'scripts/oxlint/pending-rule-exemptions.json:1 [TOOL-13] pending lint rule exemptions only shrink; new /curly/a.ts, /curly/b.ts; fix the code instead',
+      'scripts/renderer-design-token-exemptions.json:1 [REACT-06] design token exemptions only shrink; new ["b.tsx"]; fix the code instead',
     ])
-    expect(
-      ratchetFindings(file, pending({ 'a.ts': 2, 'b.ts': 1 }), pending({ 'a.ts': 1 })),
-    ).toEqual([])
+    expect(ratchetFindings(tokens, list('a.tsx', 'b.tsx'), list('a.tsx'))).toEqual([])
     const types = 'scripts/renderer-test-type-exemptions.json'
     expect(ratchetFindings(types, '[]', '["src/a.test.tsx"]')).toHaveLength(1)
     const adr = (extra: string) =>

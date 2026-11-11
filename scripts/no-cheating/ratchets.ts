@@ -66,11 +66,6 @@ export const BUDGETS: readonly Budget[] = [
 
 export const SHRINKING_LISTS: readonly ShrinkingList[] = [
   {
-    name: 'pending lint rule exemptions',
-    id: 'TOOL-13',
-    files: /^scripts\/oxlint\/pending-rule-exemptions\.json$/u,
-  },
-  {
     name: 'design token exemptions',
     id: 'REACT-06',
     files: /^scripts\/renderer-design-token-exemptions\.json$/u,

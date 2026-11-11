@@ -29,10 +29,6 @@ import {
   readRendererDesignTokenExemptions,
 } from './standards/renderer-design-token-exemptions'
 import {
-  collectPendingRuleExemptionViolations,
-  readPendingRuleExemptions,
-} from './standards/pending-rule-exemptions'
-import {
   collectSessionBranchConventionViolations,
   containsSessionBranchPrefix,
 } from './standards/session-branch'
@@ -167,7 +163,6 @@ const MEMORY_FILES = ['MEMORY.md', '.agents/memory/**']
 const DESIGN_TOKEN_FILES = ['src/renderer/src/**', 'scripts/renderer-design-token-exemptions.json']
 const SKILLS_LOCK_FILES = ['skills-lock.json', '.agents/skills/**']
 const ADR_FILES = ['docs/adr/**', 'docs/architecture.md']
-const PENDING_RULE_FILES = ['src/**', 'scripts/oxlint/pending-rule-exemptions.json']
 // The rule catalogue, standards.md, the lint plugin and every file that may cite a rule ID.
 const RULE_CATALOGUE_FILES = [
   'AGENTS.md',
@@ -241,11 +236,6 @@ const CROSS_FILE_RULES: readonly CrossFileRule[] = [
   {
     trigger: matches(ADR_FILES),
     collect: () => collectRepositoryAdrNumberingViolations(process.cwd()),
-  },
-  {
-    trigger: matches(PENDING_RULE_FILES),
-    collect: ({ present }) =>
-      collectPendingRuleExemptionViolations(present, readPendingRuleExemptions()),
   },
 ]
 

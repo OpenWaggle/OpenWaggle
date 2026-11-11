@@ -53,27 +53,6 @@ function readRendererDesignTokenExemptions() {
   return parsed
 }
 
-/**
- * Files that still break an adopted rule, by rule, with their finding counts when the rule was
- * adopted (.agents/standards.md, "Lint rule decisions"). Each listed file has that rule off until it
- * is fixed; the list only shrinks. Read as JSON for the same reason as the exemptions above.
- */
-function readPendingRuleExemptions() {
-  const parsed: unknown = JSON.parse(
-    readFileSync(new URL('./scripts/oxlint/pending-rule-exemptions.json', import.meta.url), 'utf8'),
-  )
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('scripts/oxlint/pending-rule-exemptions.json must map rules to files')
-  }
-  return Object.entries(parsed).map(([rule, files]: [string, unknown]) => {
-    if (typeof files !== 'object' || files === null || Array.isArray(files)) {
-      throw new Error(`pending-rule-exemptions.json: ${rule} must map files to counts`)
-    }
-    const rules: DummyRuleMap = { [rule]: 'off' }
-    return { files: Object.keys(files), rules }
-  })
-}
-
 const TYPE_AWARE_FILES = [
   'src/**',
   'packages/**',
@@ -662,6 +641,5 @@ export default defineConfig({
       files: ['packages/pi-waggle/src/esm-import.ts'],
       rules: { 'typescript/no-implied-eval': 'off' },
     },
-    ...readPendingRuleExemptions(),
   ],
 })
