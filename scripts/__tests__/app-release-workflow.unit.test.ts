@@ -263,16 +263,16 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
   })
 
-  it('runs the semantic packaged PTY smoke after every platform build', () => {
+  it('runs the packaged-app smoke after every platform build', () => {
     const buildCommands = [
       'name: Package macOS with Electrobun',
       'name: Package Linux with Electrobun',
       'name: Package Windows with Electrobun',
     ]
     const smokeStepNames = [
-      'Smoke packaged macOS PTY runtime',
-      'Smoke packaged Linux PTY runtime',
-      'Smoke packaged Windows PTY runtimes',
+      'Smoke packaged macOS runtime',
+      'Smoke packaged Linux runtime',
+      'Smoke packaged Windows runtime',
     ]
 
     for (const [index, buildCommand] of buildCommands.entries()) {

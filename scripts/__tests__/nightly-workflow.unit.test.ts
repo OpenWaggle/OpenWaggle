@@ -19,21 +19,25 @@ describe('nightly packaged canary workflow', () => {
       expect(WORKFLOW).toContain(label)
     }
     expect(WORKFLOW).toContain('run: bun run build')
-    expect(WORKFLOW).toContain('bunx electron-builder ${{ matrix.build_flags }}')
+    expect(WORKFLOW).toContain('bun scripts/electrobun/package.ts "${args[@]}"')
     expect(WORKFLOW).toContain('run: bun run packaged-app:smoke')
-    expect(WORKFLOW).toContain('CSC_IDENTITY_AUTO_DISCOVERY: false')
+    expect(WORKFLOW).not.toContain('electron-builder')
+    // Packaged against the native layer the same run built and floor-checked.
+    expect(WORKFLOW).toContain('uses: ./.github/workflows/electrobun-native.yml')
+    expect(WORKFLOW).toMatch(/packaged-canary:\n(?:.*\n)*?\s+needs: native\n/u)
     // Package a real release identity, not the dev fallback.
     expect(WORKFLOW).toContain('OPENWAGGLE_RELEASE_CHANNEL: stable')
   })
 
-  it('installs, exercises, and uninstalls the Windows artifact before release day', () => {
-    expect(WORKFLOW).toContain('- name: Verify Windows installer')
-    expect(WORKFLOW).toContain("if: matrix.label == 'Windows'")
-    expect(WORKFLOW).toContain('bun scripts/verify-windows-installer.ts "$installerPath"')
+  it('installs, launches and updates every fresh-install artifact before release day', () => {
+    const job = WORKFLOW.slice(WORKFLOW.indexOf('  install-canary:'))
+    expect(job).toContain('uses: ./.github/workflows/electrobun-package.yml')
+    expect(job).toContain('devkit-run-id: ${{ github.run_id }}')
+    expect(job).toContain('needs: native')
   })
 
   it('checks the native platform floor after packaging, on the release build hosts', () => {
-    const packaging = WORKFLOW.indexOf('- name: Package installers')
+    const packaging = WORKFLOW.indexOf('- name: Package the app')
     const guard = WORKFLOW.indexOf('- name: Check native platform floor')
     const smoke = WORKFLOW.indexOf('- name: Smoke packaged runtime')
     expect(guard).toBeGreaterThan(packaging)
@@ -53,7 +57,7 @@ describe('nightly packaged canary workflow', () => {
   })
 
   it('checks the syntax budget after packaging and reruns it once before failing', () => {
-    const packaging = WORKFLOW.indexOf('- name: Package installers')
+    const packaging = WORKFLOW.indexOf('- name: Package the app')
     const smoke = WORKFLOW.indexOf('- name: Smoke packaged runtime')
     const benchmark = WORKFLOW.indexOf('- name: Check syntax performance budgets')
     expect(packaging).toBeGreaterThan(0)

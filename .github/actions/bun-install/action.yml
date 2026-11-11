@@ -1,11 +1,7 @@
 name: Install dependencies with Bun
-description: Restores Bun's package cache unless told not to, then runs bun install --frozen-lockfile with bounded retries against transient registry and postinstall network failures, and optionally fetches the Electron binary the same way.
+description: Restores Bun's package cache unless told not to, then runs bun install --frozen-lockfile with bounded retries against transient registry and postinstall network failures.
 
 inputs:
-  electron-binary:
-    description: Fetch the Electron binary up front, with retries, instead of on its first use.
-    required: false
-    default: "false"
   ignore-scripts:
     description: Skip every lifecycle script, including the project's own postinstall.
     required: false
@@ -53,27 +49,6 @@ runs:
             exit 1
           fi
           echo "bun install failed (attempt $attempt); retrying in 15s." >&2
-          attempt=$((attempt + 1))
-          sleep 15
-        done
-
-    # Electron 43 downloads its binary the first time anything requires `electron`, with no
-    # retry. A single 504 from GitHub's release CDN failed a whole job mid-check, and parallel
-    # test workers can each start that download. Fetch it once here, with retries.
-    - name: Fetch the Electron binary
-      if: ${{ inputs.electron-binary == 'true' }}
-      shell: bash
-      run: |
-        attempt=1
-        while true; do
-          if node node_modules/electron/install.js; then
-            exit 0
-          fi
-          if [ "$attempt" -ge 3 ]; then
-            echo "Electron binary download failed after $attempt attempts." >&2
-            exit 1
-          fi
-          echo "Electron binary download failed (attempt $attempt); retrying in 15s." >&2
           attempt=$((attempt + 1))
           sleep 15
         done

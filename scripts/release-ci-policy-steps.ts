@@ -70,7 +70,7 @@ export const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
 const BUN_SETUP_STEP = `      - uses: ${ACTION_SETUP_BUN}
         with:
           bun-version-file: package.json`
-/* Node still runs Electron's tooling and the test tiers; Bun's own cache replaces setup-node's. */
+/* Node still builds native modules and runs the MCP conformance client; Bun's own cache replaces setup-node's. */
 const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
         with:
           node-version: 24.14.0
@@ -81,14 +81,6 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
  * onnxruntime binary downloads) instead of red a whole run on one timeout.
  */
 const INSTALL_COMPOSITE_STEP = '      - uses: ./.github/actions/bun-install'
-/*
- * Jobs that run Electron (the Pi main-bundle smoke and tests that require `electron`) fetch
- * its binary in the install action, with retries. Electron otherwise downloads it lazily on
- * first use with no retry, and one GitHub 504 failed a whole Typecheck & Lint run.
- */
-const INSTALL_COMPOSITE_WITH_ELECTRON_STEP = `${INSTALL_COMPOSITE_STEP}
-        with:
-          electron-binary: 'true'`
 const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
         run: |
           for attempt in 1 2 3; do
@@ -183,7 +175,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       COMMIT_POLICY_CHECKOUT_STEP,
       BUN_SETUP_STEP,
       NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
+      INSTALL_COMPOSITE_STEP,
       NSIS_INSTALL_STEP,
       '      - run: bun scripts/check/output-budget.ts check',
       CHECK_JOB_SUMMARY_STEP,
@@ -196,7 +188,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       CHECKOUT_STEP,
       BUN_SETUP_STEP,
       NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
+      INSTALL_COMPOSITE_STEP,
       '      - run: bun run test:unit',
       NODE_RUNTIME_UNIT_STEP,
     ],
@@ -208,7 +200,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       CHECKOUT_STEP,
       BUN_SETUP_STEP,
       NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
+      INSTALL_COMPOSITE_STEP,
       TERMINAL_SHELLS_INSTALL_STEP,
       '      - run: bun run test:integration && bun run test:component',
       NODE_RUNTIME_INTEGRATION_STEP,

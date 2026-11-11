@@ -125,8 +125,6 @@ jobs:
           package-manager-cache: false
 
       - uses: ./.github/actions/bun-install
-        with:
-          electron-binary: 'true'
 
       - name: Install NSIS for the installer script check
         run: |
@@ -175,8 +173,6 @@ jobs:
           package-manager-cache: false
 
       - uses: ./.github/actions/bun-install
-        with:
-          electron-binary: 'true'
 
       - run: bun run test:unit
 
@@ -213,8 +209,6 @@ jobs:
           package-manager-cache: false
 
       - uses: ./.github/actions/bun-install
-        with:
-          electron-binary: 'true'
 
       - name: Install terminal integration shells
         run: |

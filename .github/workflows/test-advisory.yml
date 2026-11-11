@@ -44,8 +44,6 @@ jobs:
 
       - name: Install dependencies
         uses: ./.github/actions/bun-install
-        with:
-          electron-binary: "true"
 
       - name: Compare new test files with the nightly index
         env:

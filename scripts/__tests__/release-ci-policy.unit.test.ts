@@ -53,12 +53,6 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow.replace(probe, ''))).not.toEqual([])
   })
 
-  it('rejects a Linux test job that stops fetching the Electron binary up front', () => {
-    const electronInput = "        with:\n          electron-binary: 'true'\n"
-    expect(compliantWorkflow.split(electronInput)).toHaveLength(4)
-    expect(validateReleaseCiPolicy(compliantWorkflow.replace(electronInput, ''))).not.toEqual([])
-  })
-
   it.each([
     '            sudo chown root -- "$insecure_path"\n',
     '            sudo chmod go-w -- "$insecure_path"\n',

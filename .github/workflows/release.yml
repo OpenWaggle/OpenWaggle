@@ -751,7 +751,7 @@ jobs:
             fi
           done
 
-      - name: Smoke packaged macOS PTY runtime
+      - name: Smoke packaged macOS runtime
         run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -818,7 +818,7 @@ jobs:
     needs: [version, native]
     if: needs.version.outputs.should_release == 'true'
     # Ubuntu 22.04 (glibc 2.35) is the supported Linux floor (scripts/supported-platform-floor.ts);
-    # ubuntu-latest (24.04) made node-pty need glibc 2.38 in 1.0.0-beta.25.
+    # building on ubuntu-latest (24.04) made a native module need glibc 2.38 in 1.0.0-beta.25.
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -906,7 +906,7 @@ jobs:
       - name: Prepare Linux update channels
         run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
 
-      - name: Smoke packaged Linux PTY runtime
+      - name: Smoke packaged Linux runtime
         run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -991,7 +991,7 @@ jobs:
           echo "Delta patch base: ${base:-none}"
 
       # Authenticode signing (scripts/electrobun/sign-windows.ts) runs when a certificate secret is
-      # configured; Windows builds were unsigned under electron-builder too.
+      # configured; without one the build is unsigned.
       - name: Windows signing certificate
         shell: pwsh
         env:
@@ -1028,7 +1028,7 @@ jobs:
         shell: bash
         run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows
 
-      - name: Smoke packaged Windows PTY runtimes
+      - name: Smoke packaged Windows runtime
         run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

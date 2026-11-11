@@ -4,18 +4,17 @@
 # E2E was removed from CI (ADR 0033): per-PR gating relies on unit + integration
 # + MCP conformance, mirroring pingdotgg/t3code. This scheduled canary is the
 # compensating control for the one thing unit/integration cannot cover - that the
-# real packaged Electron app builds and its native runtime (sqlite, sharp)
+# real packaged Electrobun app builds and its native runtime (sqlite, sharp)
 # loads on each OS. It is non-gating: it never blocks a merge, it surfaces
 # packaging/native regressions between releases as a signal.
 #
-# Scope note: this builds + packages + runs the native platform-floor guard
-# (scripts/check-native-platform-floor.ts) and `packaged-app:smoke` (asar shape,
-# packaged docs, and a native sqlite load probe via ELECTRON_RUN_AS_NODE).
-# It also starts the packaged app hidden and checks that its Session Host starts and
-# answers the CLI (scripts/qa/packaged-session-host-startup-smoke.ts). It shows no
-# window, so it does not cover renderer boot, CSP, visual pixels, or timing budgets -
-# those are local/manual only after E2E removal. The development app (`bun run dev`) gets the
-# same Session Host check (scripts/qa/dev-app-startup-smoke.ts).
+# Scope note: this builds OpenWaggle's Electrobun native layer (electrobun-native.yml), packages the
+# app against it the way release.yml does (scripts/electrobun/package.ts), and runs the native
+# platform-floor guard (scripts/check-native-platform-floor.ts) and `packaged-app:smoke` (app
+# directory shape, packaged docs, and a native load probe run by the app's bundled Bun). The
+# install canary (electrobun-package.yml) then installs, launches and updates a package on every
+# OS, the Windows NSIS installer included. Neither covers renderer boot, CSP, visual pixels, or
+# timing budgets - those are local/manual only after E2E removal.
 name: Nightly
 
 on:
@@ -30,6 +29,10 @@ permissions:
 concurrency:
   group: nightly
   cancel-in-progress: false
+
+env:
+  # The Hutch release the other Electrobun workflows pin.
+  HUTCH_VERSION: "0.29.0"
 
 jobs:
   # Every Vitest config pins the tests to Pacific/Kiritimati (UTC+14), so every pre-push and CI
@@ -63,37 +66,40 @@ jobs:
       - name: Unit tests
         run: bun run test:unit
 
+  native:
+    name: Electrobun native layer
+    uses: ./.github/workflows/electrobun-native.yml
+    with:
+      probes: false
+
   packaged-canary:
     name: Packaged canary ${{ matrix.label }}
+    needs: native
     strategy:
       fail-fast: false
       matrix:
         include:
           - label: macOS
-            runner: macos-latest
-            build_flags: --mac --arm64 --x64 --publish never
+            runner: macos-15
+            target: darwin-arm64
             syntax_budget: true
-            packaged_executable: dist/mac-arm64/OpenWaggle.app/Contents/MacOS/OpenWaggle
-            display: ""
           - label: Linux
             # Matches the release build: Ubuntu 22.04 keeps native modules on glibc 2.35.
             runner: ubuntu-22.04
-            build_flags: --linux --publish never
+            target: linux-x64
             syntax_budget: false
-            packaged_executable: dist/linux-unpacked/openwaggle
-            display: xvfb-run -a
           - label: Windows
-            runner: windows-latest
-            build_flags: --win --publish never
+            runner: windows-2025
+            target: win32-x64
             syntax_budget: false
-            packaged_executable: dist/win-unpacked/OpenWaggle.exe
-            display: ""
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
       # Package a real release identity (icons, appId, productName) rather than the
       # dev fallback, so the canary exercises the same packaging path releases use.
       OPENWAGGLE_RELEASE_CHANNEL: stable
+      ELECTROBUN_TELEMETRY: "0"
+      OPENWAGGLE_HUTCH: hutch electrobun
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -109,6 +115,27 @@ jobs:
           node-version: 24.14.0
           package-manager-cache: false
 
+      - name: Setup Hutch
+        uses: ./.github/actions/install-hutch
+        with:
+          version: ${{ env.HUTCH_VERSION }}
+
+      # OpenWaggle's Electrobun native layer for this target, built and floor-checked by the
+      # native job; Hutch packages against it instead of its own download.
+      - name: Download the Electrobun native layer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: electrobun-native-${{ matrix.target }}
+          path: out
+
+      - name: Unpack the Electrobun native layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/electrobun-native
+          tar -xzf "out/electrobun-native-${{ matrix.target }}.tgz" -C out/electrobun-native
+          echo "HUTCH_ELECTROBUN_DEVKIT_ROOT=$GITHUB_WORKSPACE/out/electrobun-native/${{ matrix.target }}/devkit" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         id: install
         uses: ./.github/actions/bun-install
@@ -116,32 +143,36 @@ jobs:
       - name: Build production bundle
         run: bun run build
 
-      - name: Package installers
-        run: bunx electron-builder ${{ matrix.build_flags }}
+      # Unsigned: macOS signs ad hoc and Windows skips Authenticode without a certificate.
+      - name: Package the app
+        shell: bash
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+        run: |
+          set -euo pipefail
+          args=()
+          case "${{ matrix.target }}" in
+            win32-x64)
+              makensis="/c/Program Files (x86)/NSIS/makensis.exe"
+              [ -x "$makensis" ] || choco install nsis -y --no-progress
+              args+=(--webview2 "$GITHUB_WORKSPACE/out/electrobun-native/win32-x64/webview2/MicrosoftEdgeWebview2Setup.exe" --makensis "$makensis")
+              ;;
+            linux-x64)
+              sudo apt-get install -y -q libfuse2 zstd
+              curl -fsSL --retry 3 -o "$RUNNER_TEMP/appimagetool" "$APPIMAGETOOL_URL"
+              echo "$APPIMAGETOOL_SHA256  $RUNNER_TEMP/appimagetool" | sha256sum -c -
+              chmod +x "$RUNNER_TEMP/appimagetool"
+              args+=(--appimagetool "$RUNNER_TEMP/appimagetool")
+              ;;
+          esac
+          bun scripts/electrobun/package.ts "${args[@]}"
 
       - name: Check native platform floor
         run: bun scripts/check-native-platform-floor.ts
 
       - name: Smoke packaged runtime
         run: bun run packaged-app:smoke
-
-      # Starts the packaged app hidden, waits for its detached Session Host and drives it
-      # through the CLI, on a fresh profile and on a migrated one. This is the path a
-      # security product broke on Windows in issue #446: the hidden Host launch and the
-      # user-only permissions both run Windows PowerShell helpers.
-      - name: Smoke packaged Session Host startup
-        shell: bash
-        run: ${{ matrix.display }} bun run qa:packaged-session-host-startup "${{ matrix.packaged_executable }}"
-
-      - name: Verify Windows installer
-        if: matrix.label == 'Windows'
-        shell: pwsh
-        run: |
-          $version = node -p "require('./package.json').version"
-          $installerPath = Join-Path $PWD "dist/openwaggle-$version-x64.exe"
-          bun scripts/verify-windows-installer.ts "$installerPath"
 
       # The syntax performance budget previously ran only in the deleted macOS E2E
       # job. Kept alive here on the macOS canary as a non-gating regression signal.
@@ -163,25 +194,29 @@ jobs:
         env:
           SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
 
-      # Starts the development app with `bun run dev`, hidden, as a contributor would (through
-      # Bun's shell on Windows), and checks that its Session Host starts and answers the CLI. It
-      # needs only the installed dependencies, so it still reports when packaging failed, and it
-      # runs after the syntax budget so its build does not load the runner during that timing.
-      - name: Smoke development app startup
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        shell: bash
-        run: ${{ matrix.display }} bun run qa:dev-app-startup
-
-      - name: Upload build artifacts on failure
+      - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: nightly-${{ matrix.label }}-dist
+          name: nightly-${{ matrix.label }}-release
           path: |
-            dist/*.yml
-            dist/*.log
+            out/electrobun/release/*.json
+            out/electrobun/**/*.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # Installs every OS's fresh-install artifact the way a user does (the macOS DMG, the Windows NSIS
+  # installer, the Linux AppImage), launches it cold and warm, and updates it to a newer build through
+  # the update engine, against the devkits the native job built.
+  install-canary:
+    name: Install canary
+    needs: native
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/electrobun-package.yml
+    with:
+      devkit-run-id: ${{ github.run_id }}
 
   # Coverage uniqueness: every tier test file alone under v8 coverage, in four shards, folded into the index
   # the check runner's advisory `coverage-uniqueness` step compares a PR's new test files with
@@ -211,8 +246,6 @@ jobs:
 
       - name: Install dependencies
         uses: ./.github/actions/bun-install
-        with:
-          electron-binary: 'true'
 
       - name: Build native modules for Node
         run: bun run prepare:native:node
