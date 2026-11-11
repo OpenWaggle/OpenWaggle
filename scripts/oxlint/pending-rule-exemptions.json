@@ -584,7 +584,6 @@
     "src/main/adapters/electron/browser-preview/__tests__/browser-preview-picture-in-picture.unit.test.ts": 2,
     "src/main/adapters/electron/browser-preview/__tests__/electron-browser-preview-automation-service.unit.test.ts": 2,
     "src/main/adapters/electron/browser-preview/browser-preview-element-picker.ts": 1,
-    "src/main/adapters/pi/__tests__/pi-session-title-virtual-model.integration.test.ts": 1,
     "src/main/ipc/__tests__/attachments-handler.test-harness.ts": 8,
     "src/main/ipc/__tests__/git-handler-stacked-destination-gates.unit.test.ts": 1,
     "src/main/ipc/follow-up-edit-hold-window-leases.ts": 1,
