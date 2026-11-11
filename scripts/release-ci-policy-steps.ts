@@ -164,7 +164,8 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
     'Typecheck & Lint',
     [
       DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
+      // Full history: the no-cheating and dependency-pins steps compare with origin/main.
+      COMMIT_POLICY_CHECKOUT_STEP,
       BUN_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_WITH_ELECTRON_STEP,

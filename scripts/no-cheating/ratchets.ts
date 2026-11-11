@@ -156,7 +156,7 @@ function listEntries(list: ShrinkingList, text: string): Map<string, number> {
 }
 
 function finding(file: string, id: string, message: string): Finding {
-  return { file, rule: 'gate/ratchets', id, message, severity: 'block' }
+  return { file, id, message }
 }
 
 function budgetFindings(file: string, before: string, after: string): Finding[] {

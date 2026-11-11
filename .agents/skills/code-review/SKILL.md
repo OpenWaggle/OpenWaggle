@@ -10,7 +10,7 @@ Review for bugs first. Summaries are secondary.
 ## Workflow
 
 1. Load `AGENTS.md`, the `MEMORY.md` index (then only the `.agents/memory/` topics the diff touches), `.agents/standards.md`, `.agents/rules.json` (the rule catalogue), and `.agents/verification.md`.
-2. Inspect the diff and current dirty tree, then run `bun scripts/agent-gate/check.ts --base <merge base>` once. It prints the mechanical findings for the changed files with their rule IDs; review effort goes to the rules whose `by` list includes `review`.
+2. Inspect the diff and current dirty tree, then run `bun scripts/check-no-cheating.ts --base <merge base>` and `bun run check:changed` once. They print the mechanical findings for the changed files with their rule IDs; review effort goes to the rules whose `by` list includes `review`.
 3. Run the bundled analyzers when useful:
 
 ```bash

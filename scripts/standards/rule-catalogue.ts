@@ -10,18 +10,19 @@ import type { Violation } from './violation'
 /**
  * The rule catalogue (`.agents/rules.json`) is the one list of rule IDs. Agents load it, so it has
  * a token cap like project memory. Every live ID is cited in `.agents/standards.md`, every ID cited
- * in agent instructions, the lint plugin or the agent gate exists, and every OpenWaggle lint rule
+ * in agent instructions, the lint plugin or the no-cheating check exists, every `check:<step>`
+ * enforcer is a check runner step, and every OpenWaggle lint rule
  * names the ID it enforces in some rule's `by` list.
  */
 export const RULE_CATALOGUE_TOKEN_CAP = 3_500
 const STANDARDS_FILE = '.agents/standards.md'
 const LINT_PLUGIN_FILE = 'scripts/oxlint/openwaggle-plugin.ts'
 const CITING_FILES =
-  /^(?:AGENTS\.md|DEPENDENCIES\.md|\.agents\/|scripts\/agent-gate\/|scripts\/oxlint\/)/u
+  /^(?:AGENTS\.md|DEPENDENCIES\.md|\.agents\/|scripts\/no-cheating\/|scripts\/oxlint\/)/u
 const PLUGIN_RULE_KEY = /^\s*'(?<name>[a-z][a-z-]*)': [A-Za-z]+Rule,$/gmu
 const CATALOGUE_KEY = /^\s*"(?<id>[A-Z]+-\d+)":/gmu
 const ENFORCER_KINDS =
-  /^(?:gate|standards|check):[a-z][a-z-]*$|^(?:review|fallow|react-doctor)$|^[@a-z]/u
+  /^(?:standards|check|extension):[a-z][a-z-]*$|^(?:review|fallow|react-doctor)$|^[@a-z]/u
 
 function duplicateIds(text: string) {
   const seen = new Set<string>()
@@ -38,12 +39,11 @@ function citations(text: string) {
   return new Set([...text.matchAll(RULE_CITATION)].flatMap((match) => match.groups?.['id'] ?? []))
 }
 
-function enforcementViolations(rules: readonly CatalogueRule[], gateChecks: ReadonlySet<string>) {
+function enforcementViolations(rules: readonly CatalogueRule[], checkSteps: ReadonlySet<string>) {
   return rules.flatMap((rule) =>
     rule.by.flatMap((enforcer) => {
-      const gateCheck = enforcer.startsWith('gate:') ? enforcer.slice('gate:'.length) : undefined
-      const valid =
-        ENFORCER_KINDS.test(enforcer) && (gateCheck === undefined || gateChecks.has(gateCheck))
+      const step = enforcer.startsWith('check:') ? enforcer.slice('check:'.length) : undefined
+      const valid = ENFORCER_KINDS.test(enforcer) && (step === undefined || checkSteps.has(step))
       return valid
         ? []
         : [
@@ -99,7 +99,7 @@ function citationViolations(
 
 export function collectRuleCatalogueViolations(
   contentsByFile: ReadonlyMap<string, string>,
-  gateChecks: ReadonlySet<string>,
+  checkSteps: ReadonlySet<string>,
 ): Violation[] {
   const text = contentsByFile.get(RULE_CATALOGUE_FILE)
   if (text === undefined) {
@@ -129,7 +129,7 @@ export function collectRuleCatalogueViolations(
           },
         ]
       : []),
-    ...enforcementViolations(parsed.rules, gateChecks),
+    ...enforcementViolations(parsed.rules, checkSteps),
     ...pluginRuleViolations(parsed.rules, contentsByFile.get(LINT_PLUGIN_FILE)),
     ...citationViolations(parsed.rules, contentsByFile),
   ]

@@ -1,15 +1,16 @@
 /**
  * Tests skipped or deleted to get a change through (GATE-03): a new `.skip`, `.only`, `.todo`,
  * `xit` or `fit` in a test file, a `skipIf` or `runIf` with no comment above it saying when it
- * runs, and a deleted test file whose subject still exists. A deleted test whose subject is gone went with its code; one with no recognisable subject
- * passes only when the change also added a test file, as a move or rename does.
+ * runs, and a deleted test file whose subject still exists or cannot be told. A test deleted
+ * with its code (its subject, or code beside it), or one git sees as moved, passes.
  */
+import path from 'node:path'
 import { addedLines } from './added-lines'
 import type { Finding } from './findings'
 
 const TEST_FILE = /(?:^|\/)__tests__\/.*\.[cm]?[jt]sx?$|\.(?:test|spec)\.[cm]?[jt]sx?$/u
 /** Files that name the modifiers on purpose: the checks that look for them and their tests. */
-const EXEMPT_FILE = /^(?:scripts\/oxlint\/|scripts\/agent-gate\/)/u
+const EXEMPT_FILE = /^(?:scripts\/oxlint\/|scripts\/no-cheating\/)/u
 const SKIP =
   /\.(?<modifier>skip|only|todo|skipIf|runIf)\s*\(|\b(?<prefixed>xit|xtest|xdescribe|fit|fdescribe)\s*\(/u
 const TEST_SUFFIX =
@@ -23,6 +24,12 @@ const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/u
 function commentAbove(lines: readonly string[], line: number) {
   const above = lines.slice(0, line - 1).findLast((text) => text.trim() !== '')
   return above !== undefined && COMMENT_LINE.test(above)
+}
+
+/** The directory of the code a test file covers: the parent of its `__tests__` folder. */
+function codeDirectory(file: string) {
+  const directory = path.posix.dirname(file)
+  return `${path.posix.basename(directory) === '__tests__' ? path.posix.dirname(directory) : directory}/`
 }
 
 export function isTestFile(file: string) {
@@ -42,10 +49,8 @@ function finding(file: string, message: string, line?: number): Finding {
   return {
     file,
     ...(line === undefined ? {} : { line }),
-    rule: 'gate/tests',
     id: 'GATE-03',
     message,
-    severity: 'block',
   }
 }
 
@@ -75,18 +80,33 @@ export interface FileState {
   readonly existsNow: boolean
 }
 
+export interface DeletedTestInput {
+  readonly changes: readonly FileState[]
+  /** Test files git sees as moved or renamed to another file; their tests live on. */
+  readonly moved: ReadonlySet<string>
+  /** Whether a file exists now. */
+  readonly exists: (file: string) => Promise<boolean>
+  /** Whether a file existed at the base. */
+  readonly existed: (file: string) => Promise<boolean>
+}
+
 /**
- * Deleted test files whose code is still there. `exists` answers for the current tree, and
- * `existed` for the baseline.
+ * Deleted test files whose code is still there, or whose code cannot be told and that did not
+ * move. A test deleted together with its code, or moved to another file, passes.
  */
-export async function deletedTestFindings(
-  changes: readonly FileState[],
-  exists: (file: string) => Promise<boolean>,
-  existed: (file: string) => Promise<boolean>,
-): Promise<Finding[]> {
-  const tests = changes.filter((change) => isTestFile(change.file))
-  const addedTest = tests.some((change) => change.existsNow && !change.existedBefore)
-  const deleted = tests.filter((change) => change.existedBefore && !change.existsNow)
+export async function deletedTestFindings(input: DeletedTestInput): Promise<Finding[]> {
+  const { exists, existed } = input
+  const deletedCode = input.changes
+    .filter((change) => change.existedBefore && !change.existsNow && !isTestFile(change.file))
+    .map((change) => change.file)
+  const deleted = input.changes.filter(
+    (change) =>
+      // Helpers under __tests__ go with the tests that use them; only test files count.
+      TEST_SUFFIX.test(change.file) &&
+      change.existedBefore &&
+      !change.existsNow &&
+      !input.moved.has(change.file),
+  )
   const found = await Promise.all(
     deleted.map(async ({ file }) => {
       const subjects = testSubjects(file)
@@ -98,8 +118,10 @@ export async function deletedTestFindings(
       if (subject !== undefined) {
         return [finding(file, `deleted while ${subject} still exists; restore the test`)]
       }
-      const known = then.some(Boolean)
-      return known || addedTest
+      // No subject by name: the test went with its code when code beside it was deleted too.
+      const known =
+        then.some(Boolean) || deletedCode.some((code) => code.startsWith(codeDirectory(file)))
+      return known
         ? []
         : [finding(file, 'test file deleted without the code it covers; restore it')]
     }),

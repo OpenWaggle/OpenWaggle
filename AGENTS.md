@@ -27,6 +27,7 @@ bun run lint:fix         # Format with oxfmt and apply lint fixes
 bun run lint:oxlint      # Same lint config through oxlint, the fallback runner
 bun run format           # Format with oxfmt (.oxfmtrc.json)
 bun run check:changed    # Format, lint and standards on files changed vs origin/main: run after each edit
+bun run check:no-cheating # Fails a change since origin/main that checks less (suppressions, tsconfig, budgets, skipped tests)
 bun run check            # Full static verification
 bun run verify           # Pre-push verification: commit policy, typecheck, lint, unit tests
 bun run test             # Unit + integration + component tests

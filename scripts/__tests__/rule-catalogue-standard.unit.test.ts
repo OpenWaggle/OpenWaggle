@@ -3,7 +3,7 @@ import { compactLintOutput } from '../oxlint/compact-output'
 import { collectRuleCatalogueViolations } from '../standards/rule-catalogue'
 import { lintRuleIds } from '../support/rule-catalogue'
 
-const GATE_CHECKS = new Set(['tsconfig'])
+const CHECK_STEPS = new Set(['no-cheating'])
 
 function catalogue(rules: Record<string, unknown>) {
   return JSON.stringify({ rules }, null, 2)
@@ -15,7 +15,7 @@ function files(entries: Record<string, string>) {
 
 describe('rule catalogue standard', () => {
   const rules = catalogue({
-    'TS-01': { rule: 'Stay strict.', by: ['gate:tsconfig'] },
+    'TS-01': { rule: 'Stay strict.', by: ['check:no-cheating'] },
     'TS-02': { rule: 'No casts.', by: ['typescript/consistent-type-assertions'] },
   })
 
@@ -25,7 +25,7 @@ describe('rule catalogue standard', () => {
         '.agents/rules.json': rules,
         '.agents/standards.md': 'Strict. [TS-01]\nNo casts. [TS-02]',
       }),
-      GATE_CHECKS,
+      CHECK_STEPS,
     )
     expect(violations).toEqual([])
   })
@@ -36,25 +36,25 @@ describe('rule catalogue standard', () => {
       files({
         '.agents/rules.json': duplicated,
         '.agents/standards.md': 'Nothing cited.',
-        'scripts/agent-gate/x.ts': "const line = 'oops [TS-99]'",
+        'scripts/no-cheating/x.ts': "const line = 'oops [TS-99]'",
       }),
-      GATE_CHECKS,
+      CHECK_STEPS,
     )
     expect(violations.map((violation) => violation.detail)).toEqual(['TS-01', 'TS-01', 'TS-99'])
   })
 
-  it('rejects unknown gate checks and lint plugin rules no rule names', () => {
+  it('rejects unknown check steps and lint plugin rules no rule names', () => {
     const violations = collectRuleCatalogueViolations(
       files({
-        '.agents/rules.json': catalogue({ 'TS-01': { rule: 'Stay strict.', by: ['gate:nope'] } }),
+        '.agents/rules.json': catalogue({ 'TS-01': { rule: 'Stay strict.', by: ['check:nope'] } }),
         '.agents/standards.md': '[TS-01]',
         'scripts/oxlint/openwaggle-plugin.ts':
           "  rules: {\n    'no-for-each': noForEachRule,\n  },",
       }),
-      GATE_CHECKS,
+      CHECK_STEPS,
     )
     expect(violations.map((violation) => violation.detail)).toEqual([
-      'TS-01: gate:nope',
+      'TS-01: check:nope',
       'openwaggle/no-for-each',
     ])
   })

@@ -20,7 +20,7 @@ import {
   TYPESCRIPT_INPUTS,
 } from './step-helpers'
 import type { CheckGate, CheckStep } from './step-model'
-import { TSCONFIG_STRICTNESS_STEP } from './tsconfig-strictness-step'
+import { NO_CHEATING_STEP } from './no-cheating-step'
 
 export const STEPS: readonly CheckStep[] = [
   {
@@ -79,7 +79,7 @@ export const STEPS: readonly CheckStep[] = [
     findings: 'lines',
     hint: 'bump the pin or add its DEPENDENCIES.md row; bun run check:dependency-pins',
   },
-  TSCONFIG_STRICTNESS_STEP,
+  NO_CHEATING_STEP,
   {
     id: 'usage-statistics-catalog',
     summary: 'the generated usage statistics catalog is current',
@@ -275,7 +275,7 @@ const STATIC_STEPS = [
   'pi-runtime',
   'provenance',
   'dependency-pins',
-  'tsconfig-strictness',
+  'no-cheating',
   'usage-statistics-catalog',
   'format',
   'lint',
@@ -292,11 +292,13 @@ const STATIC_STEPS = [
   'package-smoke',
 ]
 
+const FAST_STEPS = ['typecheck', 'format', 'lint', 'repository-standards', 'no-cheating']
+
 export const GATES: readonly CheckGate[] = [
   { id: 'check', summary: 'full static verification (CI Typecheck & Lint)', steps: STATIC_STEPS },
   {
     id: 'verify',
-    summary: 'pre-push: commit policy, typecheck, format, lint, standards, unit tests',
-    steps: ['commits', 'typecheck', 'format', 'lint', 'repository-standards', 'test-unit'],
+    summary: 'pre-push: commit policy, typecheck, format, lint, standards, no-cheating, unit tests',
+    steps: ['commits', ...FAST_STEPS, 'test-unit'],
   },
 ]

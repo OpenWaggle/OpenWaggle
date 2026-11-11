@@ -3,7 +3,12 @@ import { addedLines } from '../added-lines'
 import { formatFinding } from '../findings'
 import { lintConfigFindings } from '../lint-config'
 import { ratchetFindings } from '../ratchets'
-import { deletedTestFindings, skippedTestFindings, testSubjects } from '../skipped-tests'
+import {
+  type FileState,
+  deletedTestFindings,
+  skippedTestFindings,
+  testSubjects,
+} from '../skipped-tests'
 import { newSuppressions } from '../suppressions'
 
 const lines = (...text: string[]) => `${text.join('\n')}\n`
@@ -39,10 +44,10 @@ describe('lint config loosening (GATE-03)', () => {
       .replace("    'dist/**',", "    'dist/**',\n    'src/legacy/**',")
       .replace('typeAware: true', 'typeAware: false')
     expect(messages(after)).toEqual([
-      'oxlint.config.mts:2:1 gate/lint-config [GATE-03] rule turned off or down to a warning with no comment saying why; fix the code, or add the reason above the entry',
-      'oxlint.config.mts:3:1 gate/lint-config [GATE-03] max raised from 15 to 20 with no comment saying why; fix the code, or add the reason above the entry',
-      'oxlint.config.mts:7:1 gate/lint-config [GATE-03] typeAware set to false with no comment saying why; fix the code, or add the reason above the entry',
-      'oxlint.config.mts:11:1 gate/lint-config [GATE-03] new entry under ignorePatterns with no comment saying why; fix the code, or add the reason above the entry',
+      'oxlint.config.mts:2 [GATE-03] rule turned off or down to a warning with no comment saying why; fix the code, or add the reason above the entry',
+      'oxlint.config.mts:3 [GATE-03] max raised from 15 to 20 with no comment saying why; fix the code, or add the reason above the entry',
+      'oxlint.config.mts:7 [GATE-03] typeAware set to false with no comment saying why; fix the code, or add the reason above the entry',
+      'oxlint.config.mts:11 [GATE-03] new entry under ignorePatterns with no comment saying why; fix the code, or add the reason above the entry',
     ])
   })
 
@@ -76,7 +81,7 @@ describe('lint config loosening (GATE-03)', () => {
     expect(messages(joined, '.fallowrc.jsonc', before)).toEqual([])
     const ungrouped = before.replace('    "a",', '    "z",\n    "a",')
     expect(messages(ungrouped, '.fallowrc.jsonc', before)).toEqual([
-      '.fallowrc.jsonc:3:1 gate/lint-config [GATE-03] new entry under ignoreDependencies with no comment saying why; fix the code, or add the reason above the entry',
+      '.fallowrc.jsonc:3 [GATE-03] new entry under ignoreDependencies with no comment saying why; fix the code, or add the reason above the entry',
     ])
   })
 
@@ -102,7 +107,7 @@ describe('lint config loosening (GATE-03)', () => {
 
   it('blocks a rule set to error that disappears', () => {
     expect(messages(oxlint.replace("  'no-console': 'error',\n", ''))).toEqual([
-      'oxlint.config.mts:1:1 gate/lint-config [GATE-03] no-console no longer set to error; keep it, or set it off with the reason',
+      'oxlint.config.mts:1 [GATE-03] no-console no longer set to error; keep it, or set it off with the reason',
     ])
   })
 })
@@ -115,7 +120,7 @@ describe('budgets and only-shrinks lists', () => {
         formatFinding,
       ),
     ).toEqual([
-      'scripts/check-syntax-bundle.ts:1:1 gate/ratchets [GATE-05] bundle budget MAX_SYNTAX_WORKER_BYTES moved from 320 to 352; get under it instead',
+      'scripts/check-syntax-bundle.ts:1 [GATE-05] bundle budget MAX_SYNTAX_WORKER_BYTES moved from 320 to 352; get under it instead',
     ])
     expect(ratchetFindings('scripts/check-syntax-bundle.ts', budget(352), budget(320))).toEqual([])
     const coverage = (lines: number) => `thresholds: {\n  lines: ${lines},\n  branches: 30,\n}\n`
@@ -135,7 +140,7 @@ describe('budgets and only-shrinks lists', () => {
         formatFinding,
       ),
     ).toEqual([
-      'scripts/oxlint/pending-rule-exemptions.json:1:1 gate/ratchets [TOOL-13] pending lint rule exemptions only shrink; new /curly/a.ts, /curly/b.ts; fix the code instead',
+      'scripts/oxlint/pending-rule-exemptions.json:1 [TOOL-13] pending lint rule exemptions only shrink; new /curly/a.ts, /curly/b.ts; fix the code instead',
     ])
     expect(
       ratchetFindings(file, pending({ 'a.ts': 2, 'b.ts': 1 }), pending({ 'a.ts': 1 })),
@@ -185,24 +190,48 @@ describe('skipped and deleted tests', () => {
   it('blocks a deleted test whose code remains, and passes one deleted with its code', async () => {
     const now = new Set(['src/a.ts'])
     const then = new Set(['src/a.ts', 'src/b.ts'])
-    const check = (files: Parameters<typeof deletedTestFindings>[0]) =>
-      deletedTestFindings(
-        files,
-        (file) => Promise.resolve(now.has(file)),
-        (file) => Promise.resolve(then.has(file)),
-      )
+    const check = (files: readonly FileState[], moved: readonly string[] = []) =>
+      deletedTestFindings({
+        changes: files,
+        moved: new Set(moved),
+        exists: (file) => Promise.resolve(now.has(file)),
+        existed: (file) => Promise.resolve(then.has(file)),
+      })
     const deleted = (file: string) => ({ file, existedBefore: true, existsNow: false })
     expect((await check([deleted('src/__tests__/a.unit.test.ts')])).map(formatFinding)).toEqual([
-      'src/__tests__/a.unit.test.ts:1:1 gate/tests [GATE-03] deleted while src/a.ts still exists; restore the test',
+      'src/__tests__/a.unit.test.ts:1 [GATE-03] deleted while src/a.ts still exists; restore the test',
     ])
     expect(await check([deleted('src/__tests__/b.unit.test.ts')])).toEqual([])
-    expect(await check([deleted('src/__tests__/flows.integration.test.ts')])).toHaveLength(1)
+    const flows = 'src/__tests__/flows.integration.test.ts'
+    expect(await check([deleted(flows)])).toHaveLength(1)
+    expect(await check([deleted(flows)], [flows])).toEqual([])
+    expect(
+      await check([deleted('src/__tests__/a.unit.test.ts')], ['src/__tests__/a.unit.test.ts']),
+    ).toEqual([])
+    expect(await check([deleted('src/__tests__/helpers.ts')])).toEqual([])
     expect(
       await check([
-        deleted('src/__tests__/flows.integration.test.ts'),
-        { file: 'src/__tests__/flow.integration.test.ts', existedBefore: false, existsNow: true },
+        deleted(flows),
+        { file: 'src/flows.ts', existedBefore: true, existsNow: false },
       ]),
     ).toEqual([])
+  })
+})
+
+describe('new suppressions (TS-08)', () => {
+  it('reports only the directives the change added', () => {
+    const before = '// @ts-expect-error old\nconst a = 1\n'
+    const after = `${before}/* eslint-disable no-console */\n// biome-ignore lint: x\n`
+    expect(newSuppressions('src/a.ts', before, after).map(formatFinding)).toEqual([
+      'src/a.ts:3 [TS-08] new eslint-disable comment; fix the code or the shared config instead',
+      'src/a.ts:4 [TS-08] new biome-ignore comment; fix the code or the shared config instead',
+    ])
+  })
+
+  it('skips the checks that name the directives and words outside a comment', () => {
+    expect(newSuppressions('src/b.tsx', undefined, '{/* @ts-nocheck */}')).toHaveLength(1)
+    expect(newSuppressions('scripts/oxlint/rules/x.ts', undefined, '// eslint-disable')).toEqual([])
+    expect(newSuppressions('src/a.ts', '', "const name = 'ts-ignore'\n")).toEqual([])
   })
 })
 

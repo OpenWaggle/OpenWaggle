@@ -9,7 +9,7 @@ import type { Finding } from './findings'
 
 const CODE_FILE = /\.(?:[cm]?[jt]sx?|astro|vue|svelte|css|scss|html)$/u
 /** Files that name the directives on purpose: the rules that ban them and their tests. */
-const EXEMPT_FILE = /^(?:scripts\/oxlint\/|scripts\/agent-gate\/|scripts\/standards\/)/u
+const EXEMPT_FILE = /^(?:scripts\/oxlint\/|scripts\/no-cheating\/|scripts\/standards\/)/u
 const DIRECTIVE =
   /(?:\/\/|\/\*|^\s*\*|<!--|\{\/\*)\s*(?<directive>eslint-disable(?:-next-line|-line)?|eslint-enable|oxlint-disable(?:-next-line|-line)?|oxlint-enable|biome-ignore(?:-all|-start|-end)?|fallow-ignore(?:-next-line|-file)?|@ts-ignore|@ts-expect-error|@ts-nocheck)\b/u
 
@@ -57,11 +57,8 @@ export function newSuppressions(
       {
         file,
         line: suppression.line,
-        column: suppression.column,
-        rule: 'gate/suppressions',
         id: 'TS-08',
         message: `new ${suppression.directive} comment; fix the code or the shared config instead`,
-        severity: 'block' as const,
       },
     ]
   })
@@ -79,11 +76,8 @@ function silencingCasts(file: string, before: string | undefined, after: string)
       {
         file,
         line: added.line,
-        column: match.index + 1,
-        rule: 'gate/suppressions',
         id: 'TS-05',
         message: `new \`as ${cast.replaceAll(/\s+/gu, ' ')}\` cast; type the value instead`,
-        severity: 'block' as const,
       },
     ]
   })

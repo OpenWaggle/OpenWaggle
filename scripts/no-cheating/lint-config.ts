@@ -36,7 +36,8 @@ export const LINT_CONFIGS: Readonly<Record<string, LintConfig>> = {
   },
 }
 
-const LOOSE_SEVERITY = /['"](?:off|warn|allow)['"]|\.\.\.[A-Z][A-Z_]*_OFF\b/u
+/** A rule key set to off or warn: `'rule': 'off'`, `rule: ['warn', ...]`; not `[rule]: 'off'`. */
+const LOOSE_SEVERITY = /(?:['"][\w@/-]+['"]|\b[\w$]+)\s*:\s*\[?\s*['"](?:off|warn|allow)['"]/u
 const OBJECT_END = /^\s*\}/u
 const ERROR_RULE = /['"]?(?<name>[\w@/-]+)['"]?\s*:\s*\[?\s*['"]error['"]/gu
 const KEY = /^\s*['"]?(?<key>[\w$@/-]+)['"]?\s*:/u
@@ -113,24 +114,37 @@ function toNumber(value: string) {
 }
 
 /**
- * Whether a comment explains the entry on `line` (1-based): one on the line, or above it within
- * its entry or its group of siblings, as the configs group entries under one reason. The search
- * ends at a blank line, the end of the previous object entry, or the top level.
+ * Whether a comment explains the entry on `line` (1-based): one on the line, above it within its
+ * entry or its group of siblings, or directly above the key that holds a list of entries that each
+ * have their own reason. The search ends at a blank line or the top level.
  */
+interface ScanState {
+  readonly depth: number
+  /** Past the end of a sibling object: comments above belong to that sibling. */
+  readonly pastSibling: boolean
+}
+
+/** One line further up: a verdict, or the state to carry on with. */
+function scanLine(text: string, previous: string, state: ScanState): boolean | ScanState {
+  if (text.trim() === '') return false
+  if (COMMENT_LINE.test(text)) return state.pastSibling ? state : true
+  const level = indent(text)
+  // The top level ends the search; a parent key past a sibling counts only its own comment.
+  if (level < state.depth && level === 0) return false
+  if (level < state.depth && state.pastSibling) return COMMENT_LINE.test(previous)
+  const depth = Math.min(level, state.depth)
+  return { depth, pastSibling: state.pastSibling || (level === depth && OBJECT_END.test(text)) }
+}
+
 function reasoned(lines: readonly string[], line: number) {
   const own = lines[line - 1] ?? ''
   if (TRAILING_COMMENT.test(own)) return true
-  let depth = indent(own)
-  const first = Math.max(0, line - 1 - ENTRY_WINDOW)
-  for (const text of lines.slice(first, line - 1).toReversed()) {
-    if (text.trim() === '') return false
-    if (COMMENT_LINE.test(text)) return true
-    const level = indent(text)
-    // A line further out is the entry or group that holds this one; the top level ends it.
-    if (level < depth && level === 0) return false
-    if (level < depth) depth = level
-    // The end of a previous object entry at this depth: its reason is not this one's.
-    if (level === depth && OBJECT_END.test(text)) return false
+  const above = lines.slice(Math.max(0, line - 1 - ENTRY_WINDOW), line - 1)
+  let state: ScanState = { depth: indent(own), pastSibling: false }
+  for (let index = above.length - 1; index >= 0; index -= 1) {
+    const next = scanLine(above[index] ?? '', above[index - 1] ?? '', state)
+    if (typeof next === 'boolean') return next
+    state = next
   }
   return false
 }
@@ -139,10 +153,8 @@ function finding(file: string, line: number, message: string): Finding {
   return {
     file,
     line,
-    rule: 'gate/lint-config',
     id: 'GATE-03',
     message,
-    severity: 'block',
   }
 }
 

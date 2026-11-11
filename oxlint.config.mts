@@ -542,6 +542,8 @@ export default defineConfig({
       },
     },
     {
+      // Tests pass untyped fixtures and mocks on purpose, and one describe body holds a whole
+      // scenario, so the unsafe-flow rules and the function length limit stay off there.
       files: TEST_FILES,
       rules: { ...UNSAFE_TYPE_RULES_OFF, ...MAX_LINES, 'max-lines-per-function': 'off' },
     },
@@ -592,6 +594,8 @@ export default defineConfig({
       rules: { 'max-lines': 'off' },
     },
     {
+      // A renderer hook keeps its state, effects and callbacks in one function body, as the
+      // ESLint config before oxlint allowed.
       files: ['src/renderer/src/**/hooks/**/*.{ts,tsx}'],
       rules: { 'max-lines-per-function': 'off' },
     },
@@ -646,6 +650,8 @@ export default defineConfig({
       rules: { 'no-unreachable': 'off' },
     },
     {
+      // The two modules that read process.env: env.ts for the main process (SHELL-01), and
+      // the boot shim, where importing env.ts would compile Effect Schema on every launch.
       files: ['src/main/env.ts', 'src/main/boot.ts'],
       rules: { 'node/no-process-env': 'off' },
     },

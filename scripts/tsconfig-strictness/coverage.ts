@@ -86,9 +86,17 @@ export function weakeningMessages(change: Weakening): string[] {
       : [
           `${change.droppedFiles.length} source file${change.droppedFiles.length === 1 ? '' : 's'} no longer type-checked by any project reachable from tsconfig.json: ${examples(change.droppedFiles)}`,
         ]
-  const flags = change.droppedFlags.map(
-    ({ flag, files: weakened }) =>
-      `${flag} checks less on ${weakened.length} file${weakened.length === 1 ? '' : 's'}: ${examples(weakened)}`,
+  // Flags weakened on the same files share a line: turning `strict` off weakens its whole family.
+  const byFiles = new Map<string, { flags: string[]; files: readonly string[] }>()
+  for (const { flag, files: weakened } of change.droppedFlags) {
+    const key = weakened.join('\0')
+    const group = byFiles.get(key) ?? { flags: [], files: weakened }
+    group.flags.push(flag)
+    byFiles.set(key, group)
+  }
+  const flags = [...byFiles.values()].map(
+    ({ flags: names, files: weakened }) =>
+      `${names.join(', ')} ${names.length === 1 ? 'checks' : 'check'} less on ${weakened.length} file${weakened.length === 1 ? '' : 's'}: ${examples(weakened)}`,
   )
   return [...files, ...flags]
 }

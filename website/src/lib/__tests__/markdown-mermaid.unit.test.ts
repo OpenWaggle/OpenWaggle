@@ -122,6 +122,7 @@ describe('mermaid diagrams', () => {
     '../../../dist/docs/extending/openwaggle-extensions/index.html',
     import.meta.url,
   )
+  // Checks the built site, so it runs after `bun run website:build`, as the website rehearsal does.
   it.skipIf(!existsSync(BUILT_PAGE))(
     'renders the extension docs diagrams in the built site',
     () => {

@@ -41,25 +41,23 @@ bun run check:react-doctor  # react-doctor, fails on warnings and errors
 
 Both are required steps of `check` (the CI Typecheck & Lint job). Fix findings in code. A verified false positive gets a `.fallowrc.jsonc` or `doctor.config.ts` entry scoped to the file and rule, with a comment giving the reason; never a `fallow-ignore` or other suppression comment. `fallow health` is advisory.
 
-`bun scripts/agent-gate/check.ts` (next section) runs both on the files an agent changed.
-
-## End-Of-Turn Agent Gate
+## No-Cheating Check
 
 ```bash
-bun scripts/agent-gate/check.ts [--base <ref>] [files...]   # the same verdict by hand
+bun run check:no-cheating                    # against the merge base with origin/main
+bun scripts/check-no-cheating.ts --base <ref>
 ```
 
-The in-session end-of-turn gate is switched off: it must never prompt the maintainer or post into the conversation. `bun scripts/agent-gate/check.ts` still runs these checks by hand. What follows describes them as that command runs them. It records the files each tool call changed: from the path of `edit` and `write` calls, and from content hashes of the dirty files before and after shell and `codemode` calls, so a change made from the shell counts too. At the boundary it checks the files changed since the last passing gate:
+The `no-cheating` step of `check` and `verify` (so CI and pre-push) compares the working tree, committed or not, with the merge base with `origin/main` and fails a change that checks less. It never prompts, prints nothing when clean, and prints one `file:line [ID] message` line per finding (`scripts/no-cheating/`):
 
-- oxfmt and the type-aware lint config on the changed files, and a type check of each affected project (`tsconfig.node.json`, incremental `tsc -b tsconfig.web.json`). Type errors in changed files block; errors elsewhere block when the Session-start type check did not have them.
-- Checking less, compared with the Session start: new inline suppressions [TS-08] and silencing casts [TS-05]; a weaker tsconfig by effect [TS-01] (a source file no project reachable from `tsconfig.json` checks any more, or a strictness flag weaker for some file; `scripts/tsconfig-strictness/`); a lint rule turned off or downgraded, a new ignore entry or a raised limit in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts` with no comment saying why [GATE-03]; a raised budget, cap or coverage threshold, or a grown only-shrinks list [GATE-05] [TOOL-13] [REACT-06] [DOC-05] (`scripts/agent-gate/ratchets.ts`); a new `.skip`, `.only` or `.todo`, an uncommented `skipIf` or `runIf`, or a deleted test file whose code remains [GATE-03]; generated files changed by anything but their generator [TOOL-07] (`scripts/agent-gate/generated-files.ts`).
-- Fallow and React Doctor findings in the changed files [GATE-02] [REACT-07], so the agent fixes its own breakage.
+- New inline suppressions [TS-08] and silencing casts (`as any`, `as unknown as`, `as never`) [TS-05].
+- A weaker tsconfig, by effect [TS-01]: a source file that no project reachable from `tsconfig.json` checks any more, or a strictness flag that is weaker for some file (`scripts/tsconfig-strictness/`). Moving files to a stricter project, a new reference, a stricter `extends` and excluded build outputs pass.
+- A lint rule turned off or down to a warning, a new ignore or exemption entry, a raised limit or a check option turned off in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts`, with no comment saying why on the entry, above it, or above its group [GATE-03].
+- A raised budget, cap or coverage threshold, or a grown only-shrinks list [GATE-05] [TOOL-13] [REACT-06] [DOC-05] (`scripts/no-cheating/ratchets.ts`).
+- A new `.skip`, `.only` or `.todo`, an uncommented `skipIf` or `runIf`, or a deleted test file that git does not see as moved, whose code still exists or cannot be told [GATE-03].
+- A published JSON Schema or the syntax language metadata that differs from what its generator writes [TOOL-07]. The usage statistics catalog, API snapshots and package docs have their own steps. The route tree and `bun.lock` are not checked: every renderer build rewrites the route tree, and Bun cannot compare a lockfile with a fresh resolution offline.
 
-Dependency pins [DEP-01] [DEP-03] are not gate checks; `check` runs them. The gate does not require a test run or watch docs.
-
-The gate never involves the user: it shows no prompt and posts nothing to the conversation. Each finding is one `file:line:col rule [ID] message` line, and blocking findings go back to the agent in one hidden message while the run continues. The same set at the next stop ends the run silently, and so does any set after three continuations in one run [GATE-01]; the findings are already in the agent's context, and `check` reports them again. A clean gate is silent. A tool that times out or is missing leaves its files pending for the next gate; only the manual check prints that, and advisory findings. `OPENWAGGLE_AGENT_GATE=off` in the app's environment turns the gate off.
-
-Measured on a 14-core machine at load average 20 to 27 (10 agents sharing it): 4.3 to 7.7 s for a 1 to 3 file change without Fallow and React Doctor, 5.2 to 8 s for 10 files, and 10 to 13 s with them. A clean verdict is one line (17 o200k tokens from the manual check); a failing one costs about 35 tokens per finding. Each shell call adds 0.1 to 0.7 s for the two hash snapshots. The tsconfig comparison parses every project reachable from `tsconfig.json` twice through TypeScript 7's config API and caches each side by config and file-list hash (`node_modules/.cache/openwaggle/`): 0.6 to 0.7 s cold and 0.2 to 0.5 s warm for 12 changed configs over 8,255 source files, and nothing when no tsconfig changed. `bun run check:tsconfig-strictness` runs the same comparison against the merge base with `origin/main` as a `check` step.
+In CI a missing `origin/main` fails the step instead of comparing with `HEAD`; the Typecheck & Lint job checks out with `fetch-depth: 0`. Measured at load average 11 to 15 on 14 cores against a merge base 2,114 files back: 1.0 to 1.6 s for the step (0.3 s with nothing changed). The tsconfig comparison parses every reachable project twice through TypeScript 7's config API and caches each side by config and file-list hash in `node_modules/.cache/openwaggle/`, and runs only when a tsconfig changed.
 
 ## CI Gate Tiers
 

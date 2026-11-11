@@ -9,17 +9,17 @@ These decide what to do when a gate or a type stands in the way.
 - **Broken Window.** A change never adds a warning, a suppression, a skipped or disabled check, or a test marked to skip, and a gate never goes back to accepting one. When a gate reports something, fix its cause. If the rule itself is wrong for this repository, change it once in the shared config or the rule catalogue with the reason recorded there, so every file gets the same decision. One tolerated finding makes the next one look normal, and the gate stops meaning anything. [GATE-03]
 - **System Resistance.** When a tool, check or type fights a change, read that as information about the design: the change crosses a boundary, a type is modelled wrong, or the change belongs somewhere else. Do not route around it with a cast, a suppression, a disabled check or a wider exemption list. Find out what the resistance protects, then change the design or ask for a rule decision. A workaround is accepted only when the tool is demonstrably wrong; report that upstream and record it with the rule decision. [GATE-04]
 
-Each rule cites its stable ID from `.agents/rules.json`, the machine-readable catalogue. Lint output, the end-of-turn agent gate (`bun scripts/agent-gate/check.ts`) and the `standards-reviewer` Agent cite the same IDs, so a finding names the rule it breaks. `check:repository-standards` keeps every ID unique, defined and cited here.
+Each rule cites its stable ID from `.agents/rules.json`, the machine-readable catalogue. Lint output, the `no-cheating` check step and the `standards-reviewer` Agent cite the same IDs, so a finding names the rule it breaks. `check:repository-standards` keeps every ID unique, defined and cited here.
 
 ## Type Safety
 
 Type safety is stricter than convenience.
 
-- TypeScript stays `strict` and uses the strongest practical strictness flags. A tsconfig change may only make checking stricter: every source file stays checked by some project reachable from `tsconfig.json`, and no strictness flag gets weaker for any file. Moving files to a stricter project, adding a reference and excluding build outputs are fine. The agent gate and `bun run check:tsconfig-strictness` compare by effect, not by the diff, and nothing approves a weaker change. [TS-01]
+- TypeScript stays `strict` and uses the strongest practical strictness flags. A tsconfig change may only make checking stricter: every source file stays checked by some project reachable from `tsconfig.json`, and no strictness flag gets weaker for any file. Moving files to a stricter project, adding a reference and excluding build outputs are fine. The `no-cheating` check step compares by effect, not by the diff, and nothing approves a weaker change. [TS-01]
 - Raw type assertions are forbidden everywhere except `as const`. [TS-02]
 - Use `satisfies`, explicit annotations, generics, type guards, discriminated unions, and Effect Schema instead of casts. [TS-03]
 - Use `@total-typescript/shoehorn` only in tests, and only when a test needs partial mocks or intentionally invalid inputs. [TS-04]
-- Never use `any`, `as unknown as`, `as never`, handler casts, `Record<string, unknown>` casts, or `// SAFETY:` comments. The agent gate also blocks a new `as any`, `as unknown as` or `as never` in files lint does not cover. [TS-05]
+- Never use `any`, `as unknown as`, `as never`, handler casts, `Record<string, unknown>` casts, or `// SAFETY:` comments. The `no-cheating` step also fails a new `as any`, `as unknown as` or `as never` in files lint does not cover. [TS-05]
 - Runtime inputs must be validated at boundaries with shared Effect Schema helpers from `src/shared/schema.ts` and schemas under `src/shared/schemas/`. [TS-06]
 - Do not use silent parse fallbacks. Log structured context or surface a visible error path. [TS-07]
 
@@ -118,7 +118,7 @@ Mechanical enforcement:
 - Mock setup must avoid hoisting races; dynamically import subject modules after `vi.mock(...)` setup when needed. [TEST-03]
 - A test that spawns many real child processes is an integration test, and a large module graph loads once in `beforeAll` (`.agents/verification.md`). [TEST-04]
 - After changing source, run the relevant tests in the same turn and leave them passing.
-- Never skip, focus or delete a test to get a change through. The agent gate blocks a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, and a deleted test file whose code still exists. [GATE-03]
+- Never skip, focus or delete a test to get a change through. The `no-cheating` step fails a new `.skip`, `.only` or `.todo`, a `skipIf` or `runIf` with no comment saying when it runs, and a deleted test file that did not move and whose code still exists or cannot be told. [GATE-03]
 
 Mechanical enforcement:
 
@@ -134,7 +134,7 @@ Mechanical enforcement:
 - Use `while (true)`, not `for (;;)`. [TOOL-03]
 - Use named `SCREAMING_SNAKE_CASE` constants for numeric literals outside tests. [TOOL-04]
 - Do not add `eslint-disable`, `oxlint-disable`, or `fallow-ignore` comments to bypass architecture/style gates. [TS-08]
-- Change generated files (the route tree, API snapshots, `bun.lock`, generated docs and schemas) only by running their generator; `scripts/agent-gate/generated-files.ts` lists them. [TOOL-07]
+- Change generated files (the route tree, API snapshots, `bun.lock`, generated docs and schemas) only by running their generator. The `no-cheating` step fails a published JSON Schema or the syntax language metadata when it differs from what the generator writes (`scripts/no-cheating/generated-files.ts`), and the catalog, API snapshot and package doc steps check theirs. [TOOL-07]
 - Stay inside the complexity, `max-lines`, `max-lines-per-function` and naming limits in `oxlint.config.mts`. [TOOL-08]
 - A skill copied from another repository is pinned in `skills-lock.json` (upstream repository, path, commit, content hash). Record an edit to it, with the reason, through `bun scripts/skills-lock.ts record <skill> --reason "<why>"`; `bun scripts/skills-lock.ts drift` reports upstream changes on demand and needs the network. [TOOL-09]
 - ADR numbers are unique and contiguous. A new ADR takes the next free number and is listed in the ADR index in `docs/architecture.md`. [DOC-05]
@@ -158,14 +158,13 @@ Mechanical enforcement:
 - Never skip or disable git hooks, and never force push without the maintainer's approval. [GIT-02]
 - Commit, push, reset, clean, checkout, restore or delete branches only when the maintainer approved that exact action, and never overwrite work you did not create. [GIT-03]
 
-## Agent gate
+## No cheating
 
-`bun scripts/agent-gate/check.ts` checks the files a Session changed. It never runs as an in-session hook that prompts the maintainer. `.agents/verification.md` describes its checks.
+The `no-cheating` check step (`bun run check:no-cheating`) fails a change that gets through by checking less, comparing the working tree with the merge base with `origin/main`. It runs in `check`, `verify` (pre-push) and CI, asks nothing, and prints one `file:line [ID] message` line per finding. There is no in-session hook. `.agents/verification.md` lists its checks.
 
-- The gate's job is to keep an agent from getting a change through by checking less, and it never involves the user: it asks nothing, and its findings go only to the agent. Fix them before you stop. When you cannot, say why in the final answer; the same findings at the next stop end the run without a message. [GATE-01]
 - Fallow dead-code and duplication findings in changed files are fixed; a false positive gets a config entry with its reason, never a suppression comment. [GATE-02]
 - A lint config change that checks less (a rule turned off or down to a warning, a new ignore or exemption entry, a raised limit) in `oxlint.config.mts`, `.fallowrc.jsonc` or `doctor.config.ts` carries a comment that says why, on the entry or above its group. [GATE-03]
-- Never raise a budget, cap or coverage threshold (bundle, output-token, first-turn prefix, memory and rule-catalogue budgets), or grow an only-shrinks list (`scripts/oxlint/pending-rule-exemptions.json`, the design-token and renderer-test type exemptions, the legacy ADR numbers). Get under the limit instead; `scripts/agent-gate/ratchets.ts` lists what the gate watches. [GATE-05]
+- Never raise a budget, cap or coverage threshold (bundle, output-token, first-turn prefix, memory and rule-catalogue budgets), or grow an only-shrinks list (`scripts/oxlint/pending-rule-exemptions.json`, the design-token and renderer-test type exemptions, the legacy ADR numbers). Get under the limit instead; `scripts/no-cheating/ratchets.ts` lists what the step watches. [GATE-05]
 
 ## Docs and memory
 

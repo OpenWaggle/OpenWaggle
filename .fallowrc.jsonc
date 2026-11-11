@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
+    // The renderer entry: index.html loads it, so nothing imports it.
     "src/renderer/src/main.tsx",
     // Project Pi extensions: Pi loads every file here by convention; nothing imports them.
     ".pi/extensions/*.ts",

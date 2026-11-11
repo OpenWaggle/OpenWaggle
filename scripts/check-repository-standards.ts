@@ -41,7 +41,7 @@ import {
   packageBoundarySourceGlobs,
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
-import { GATE_CHECKS } from './agent-gate/gate-checks'
+import { STEPS } from './check/steps'
 import { collectRuleCatalogueViolations } from './standards/rule-catalogue'
 import { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
 import { collectRepositorySkillsLockViolations } from './standards/skills-lock'
@@ -173,7 +173,8 @@ const RULE_CATALOGUE_FILES = [
   'AGENTS.md',
   'DEPENDENCIES.md',
   '.agents/**',
-  'scripts/agent-gate/**',
+  'scripts/no-cheating/**',
+  'scripts/check/steps.ts',
   'scripts/oxlint/**',
 ]
 
@@ -231,7 +232,7 @@ const CROSS_FILE_RULES: readonly CrossFileRule[] = [
     trigger: matches(RULE_CATALOGUE_FILES),
     reads: matches(RULE_CATALOGUE_FILES),
     collect: ({ contentsByFile }) =>
-      collectRuleCatalogueViolations(contentsByFile, new Set(GATE_CHECKS)),
+      collectRuleCatalogueViolations(contentsByFile, new Set(STEPS.map((step) => step.id))),
   },
   {
     trigger: matches(SKILLS_LOCK_FILES),

@@ -30,9 +30,9 @@ read-only checks are fine.
 
 1. Get the diff from your task (for example `git diff origin/main...HEAD`, or `gh pr diff <n>`),
    and note the exact head SHA (`git rev-parse HEAD`).
-2. Run the mechanical checks once, read-only: `bun scripts/agent-gate/check.ts --base <merge
-   base>` prints the gate's findings for the changed files, already citing rule IDs. Report what it
-   finds; do not repeat its work by hand.
+2. Run the mechanical checks once, read-only: `bun scripts/check-no-cheating.ts --base <merge
+   base>` and `bun run check:changed` print the findings for the changed files, already citing rule
+   IDs. Report what they find; do not repeat their work by hand.
 3. Spend your attention on the rules whose `by` list includes `review`, and on what no tool can
    see: correctness, regressions, data loss, security, missing or weak tests, architecture drift,
    Pi semantics (PI-02 to PI-07), boundary validation (TS-06, TS-07), and whether docs and memory
