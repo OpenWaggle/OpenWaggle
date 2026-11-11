@@ -85,11 +85,13 @@ export function browserPreviewStateAfter(
   return matchBy(event, 'kind')
     .with('loading', () => ({ ...state, loading: true, error: null }))
     .with('loaded', () => ({ ...state, loading: false }))
-    .with('navigated', ({ url }) =>
-      isBrowserPreviewUrl(url)
-        ? { ...state, url: normalizeBrowserPreviewUrl(url), error: null }
-        : null,
-    )
+    .with('navigated', ({ url, sameDocument }) => {
+      if (!isBrowserPreviewUrl(url)) return null
+      const next = normalizeBrowserPreviewUrl(url)
+      // A new document reports its own title once it loads.
+      const title = sameDocument || next === state.url ? state.title : ''
+      return { ...state, url: next, title, error: null }
+    })
     .with('title', ({ title }) => ({
       ...state,
       title: boundedBrowserPreviewText(title, MAX_TITLE_LENGTH),

@@ -69,7 +69,7 @@ export function cdpPageEventHandlers(
         if (!navigated || navigated.frame.parentId !== undefined) return
         sink.setMainFrame(navigated.frame.id)
         const url = `${navigated.frame.url}${navigated.frame.urlFragment ?? ''}`
-        if (!url.includes(sink.marker)) sink.emit({ kind: 'navigated', url })
+        if (!url.includes(sink.marker)) sink.emit({ kind: 'navigated', url, sameDocument: false })
         sink.refreshHistory()
       },
     ],
@@ -79,7 +79,7 @@ export function cdpPageEventHandlers(
         const navigated = decode(SameDocumentSchema, params)
         if (!navigated || !sink.isMainFrame(navigated.frameId)) return
         if (!navigated.url.includes(sink.marker)) {
-          sink.emit({ kind: 'navigated', url: navigated.url })
+          sink.emit({ kind: 'navigated', url: navigated.url, sameDocument: true })
         }
         sink.refreshHistory()
       },

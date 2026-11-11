@@ -8,6 +8,7 @@ import {
 import { cdpPageEventHandlers } from './electrobun-preview-cdp-events'
 import {
   browserPreviewHistoryFlags,
+  browserPreviewHistoryTitle,
   decode,
   type ElectrobunPreviewGuestEvent,
   FrameTreeSchema,
@@ -267,10 +268,10 @@ export class ElectrobunPreviewGuest {
       if (cdp === null) return
       const history = decode(HistorySchema, await cdp.send('Page.getNavigationHistory'))
       if (history === null) return
-      this.options.onEvent({
-        kind: 'history',
-        ...browserPreviewHistoryFlags(history, this.options.marker),
-      })
+      const { marker, onEvent } = this.options
+      onEvent({ kind: 'history', ...browserPreviewHistoryFlags(history, marker) })
+      const title = browserPreviewHistoryTitle(history, marker)
+      if (title !== null) onEvent({ kind: 'title', title })
     })().catch(() => undefined)
   }
 }

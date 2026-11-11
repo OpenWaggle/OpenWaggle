@@ -18,7 +18,12 @@ export function browserPreviewMarkerUrl(marker: string) {
 export type ElectrobunPreviewGuestEvent =
   | { readonly kind: 'loading' }
   | { readonly kind: 'loaded' }
-  | { readonly kind: 'navigated'; readonly url: string }
+  | {
+      readonly kind: 'navigated'
+      readonly url: string
+      /** A fragment or History API change, which keeps the document and its title. */
+      readonly sameDocument: boolean
+    }
   | { readonly kind: 'title'; readonly title: string }
   | { readonly kind: 'history'; readonly canGoBack: boolean; readonly canGoForward: boolean }
   | {
@@ -45,7 +50,9 @@ export const FrameTreeSchema = Schema.Struct({ frameTree: Schema.Struct({ frame:
 export const NavigateResultSchema = Schema.Struct({ errorText: Schema.optional(Schema.String) })
 export const HistorySchema = Schema.Struct({
   currentIndex: Schema.Number,
-  entries: Schema.Array(Schema.Struct({ id: Schema.Number, url: Schema.String })),
+  entries: Schema.Array(
+    Schema.Struct({ id: Schema.Number, url: Schema.String, title: Schema.optional(Schema.String) }),
+  ),
 })
 export const ScreenshotSchema = Schema.Struct({ data: Schema.String })
 export const BindingCalledSchema = Schema.Struct({ name: Schema.String, payload: Schema.String })
@@ -82,6 +89,19 @@ export function decodeJson<A, I>(schema: Schema.Schema<A, I>, raw: string): A | 
   } catch {
     return null
   }
+}
+
+/**
+ * The current entry's title, or `null` before the page has one. A page restored from the
+ * back-forward cache runs no script, so the history is where its title comes from.
+ */
+export function browserPreviewHistoryTitle(
+  history: Schema.Schema.Type<typeof HistorySchema>,
+  marker: string,
+) {
+  const entry = history.entries[history.currentIndex]
+  if (entry?.title === undefined || entry.title === '' || entry.url.includes(marker)) return null
+  return entry.title
 }
 
 /** Whether the history entries around the current one are pages, not the blank marker page. */

@@ -19,8 +19,8 @@ function setup(options: { readonly cdp?: boolean } = {}) {
   const frames = { setFrame: vi.fn(), setHidden: vi.fn() }
   const artifacts = {
     write: vi.fn(async (_kind: string, _extension: string, _data: Uint8Array) => ({
-      artifactPath: '/artifacts/shot.png',
-      fileName: 'shot.png',
+      id: 'shot',
+      path: '/artifacts/shot.png',
     })),
     resolveOwnedArtifact: vi.fn(async (artifactPath: string) => artifactPath),
   }
@@ -128,9 +128,11 @@ describe('Electrobun Browser preview', () => {
 
     harness.views.goBack(harness.page.surface, 'p-1')
     await settle()
+    // The earlier document reports its own title once it loads.
     expect(lastState(harness.sent)).toMatchObject({
       url: 'https://example.com/',
       canGoBack: false,
+      title: '',
     })
   })
 
