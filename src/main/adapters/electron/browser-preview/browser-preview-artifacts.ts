@@ -14,7 +14,7 @@ import {
   type BrowserPreviewAnnotationAttachmentInput,
   prepareBrowserPreviewAnnotationAttachment,
 } from './browser-preview-annotation-attachment'
-import { BrowserPreviewArtifactStorage } from './browser-preview-artifact-storage'
+import { BrowserPreviewArtifactStorage } from '../../browser-preview/browser-preview-artifact-storage'
 import { captureBrowserPreviewPage } from './browser-preview-capture'
 import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 import { showItemInFolder } from '../../../desktop-ui'

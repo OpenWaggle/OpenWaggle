@@ -2,11 +2,10 @@ import { EventEmitter } from 'node:events'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { PermissionRequest, Session, WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+import { browserPreviewPartition } from '../../../browser-preview/browser-preview-partitions'
 import {
-  browserPreviewPartition,
   browserPreviewSessionForProfile,
   clearBrowserPreviewProfileData,
-  isBrowserPreviewPartition,
 } from '../browser-preview-profile-session'
 
 function fakeSession() {
@@ -31,21 +30,6 @@ function fakeSession() {
 }
 
 describe('browser preview profile sessions', () => {
-  it('preserves the legacy default and separates persistent and ephemeral profiles', () => {
-    expect(browserPreviewPartition('default')).toBe('persist:openwaggle-browser-preview')
-    expect(browserPreviewPartition('incognito')).toBe('openwaggle-browser-preview-incognito')
-    expect(browserPreviewPartition('work')).toMatch(
-      /^persist:openwaggle-browser-preview-profile-[a-f0-9]{20}$/,
-    )
-    expect(browserPreviewPartition('work')).not.toBe(browserPreviewPartition('personal'))
-    expect(isBrowserPreviewPartition(browserPreviewPartition('work'))).toBe(true)
-    expect(isBrowserPreviewPartition('persist:other-app')).toBe(false)
-  })
-
-  it('does not collapse malformed UTF-16 and its replacement character', () => {
-    expect(browserPreviewPartition('p\ud800')).not.toBe(browserPreviewPartition('p\ufffd'))
-  })
-
   it('allows only sanitized clipboard writes in both Electron permission paths', () => {
     const { browserSession } = fakeSession()
     const fromPartition = vi.fn(() => browserSession)

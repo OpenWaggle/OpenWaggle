@@ -7,7 +7,7 @@ import { BROWSER_PREVIEW_CAPTURE_LIMITS } from '@shared/types/browser-preview-co
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import type { NativeImage, WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BrowserPreviewArtifactStorage } from '../browser-preview-artifact-storage'
+import { BrowserPreviewArtifactStorage } from '../../../browser-preview/browser-preview-artifact-storage'
 import { BrowserPreviewCaptureTimeoutError } from '../browser-preview-capture'
 import { quarantineBrowserPreviewContents } from '../browser-preview-quarantine'
 import {

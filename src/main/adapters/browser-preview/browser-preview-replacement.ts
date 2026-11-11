@@ -3,24 +3,36 @@ import type {
   BrowserPreviewReplacementResult,
   BrowserPreviewState,
 } from '@shared/types/browser-preview'
-import type { WebContents } from 'electron'
-import type { BrowserPreviewRecord } from './browser-preview-records'
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 
-interface ReplacementHost {
-  readonly findOwned: (ownerKey: string, previewId: string) => BrowserPreviewRecord | undefined
-  readonly isLive: (record: BrowserPreviewRecord) => boolean
-  readonly dispose: (record: BrowserPreviewRecord) => void
-  readonly open: (sender: WebContents, input: BrowserPreviewOpenInput) => BrowserPreviewState
+/** A preview, as capacity replacement sees it. */
+interface ReplaceablePreview<Surface extends RendererSurface> {
+  readonly owner: { readonly sender: Surface }
+  readonly state: BrowserPreviewState
 }
 
-export class BrowserPreviewReplacement {
-  private readonly host: ReplacementHost
+interface ReplacementHost<Surface extends RendererSurface, Preview> {
+  readonly findOwned: (ownerKey: string, previewId: string) => Preview | undefined
+  readonly isLive: (record: Preview) => boolean
+  readonly dispose: (record: Preview) => void
+  readonly open: (sender: Surface, input: BrowserPreviewOpenInput) => BrowserPreviewState
+}
 
-  constructor(host: ReplacementHost) {
+export class BrowserPreviewReplacement<
+  Surface extends RendererSurface,
+  Preview extends ReplaceablePreview<Surface>,
+> {
+  private readonly host: ReplacementHost<Surface, Preview>
+
+  constructor(host: ReplacementHost<Surface, Preview>) {
     this.host = host
   }
 
-  replace(sender: WebContents, input: BrowserPreviewOpenInput, replacedPreviewId: string) {
+  replace(
+    sender: Surface,
+    input: BrowserPreviewOpenInput,
+    replacedPreviewId: string,
+  ): BrowserPreviewReplacementResult {
     if (input.previewId === replacedPreviewId) {
       throw new Error('A browser preview cannot replace itself for capacity.')
     }

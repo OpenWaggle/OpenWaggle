@@ -24,9 +24,9 @@ import {
   createBrowserPreviewRecordRegistry,
   createBrowserPreviewShutdown,
 } from './browser-preview-registries'
-import { BrowserPreviewReplacement } from './browser-preview-replacement'
 import { assertBrowserPreviewCapacity } from '../../browser-preview/browser-preview-capacity'
 import { BrowserPreviewMutationFences } from '../../browser-preview/browser-preview-mutation-fences'
+import { BrowserPreviewReplacement } from '../../browser-preview/browser-preview-replacement'
 import { emitBrowserPreviewState } from '../../browser-preview/browser-preview-owner-events'
 import { nextBrowserPreviewZoomFactor } from '../../browser-preview/browser-preview-zoom'
 import { assertDesktopNativeAdmission } from '../../../desktop-native-admission'
@@ -39,7 +39,7 @@ export class BrowserPreviewManager {
   private readonly records = createBrowserPreviewRecordRegistry((record) =>
     this.lifecycle.retire(record),
   )
-  private readonly replacement = new BrowserPreviewReplacement({
+  private readonly replacement = new BrowserPreviewReplacement<WebContents, BrowserPreviewRecord>({
     findOwned: (ownerKey, previewId) => this.records.findOwned(ownerKey, previewId),
     isLive: (record) => this.records.isLive(record),
     dispose: (record) => this.lifecycle.dispose(record),
