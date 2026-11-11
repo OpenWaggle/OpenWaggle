@@ -2,19 +2,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Plugin } from 'vite'
 
-/** Written beside the main bundle for `bun run check:main-bundle`; never packaged (electron-builder.ts). */
-export const MAIN_CHUNK_MANIFEST_PATH = '.vite/main-chunks.json'
+import { MAIN_CHUNK_MANIFEST_PATH, type MainChunkManifestEntry } from '../main-bundle-graph'
 
-export interface MainChunkManifestEntry {
-  readonly file: string
-  readonly isEntry: boolean
-  /** Source modules, relative to the repository root, whose code this chunk holds. */
-  readonly modules: readonly string[]
-  /** Chunks this chunk requires when it loads. */
-  readonly imports: readonly string[]
-  /** Chunks this chunk loads with `import()`. */
-  readonly dynamicImports: readonly string[]
-}
+export { MAIN_CHUNK_MANIFEST_PATH }
 
 function sourceModule(root: string, id: string) {
   const withoutQuery = id.replace(/\?.*$/u, '')

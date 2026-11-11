@@ -1,5 +1,18 @@
-import type { MainChunkManifestEntry } from './vite/main-chunk-manifest'
 import { Schema } from '@shared/schema'
+
+/** Written beside the main bundle for `bun run check:main-bundle`; never packaged (scripts/electrobun/stage.ts skips `.vite/`). */
+export const MAIN_CHUNK_MANIFEST_PATH = '.vite/main-chunks.json'
+
+export interface MainChunkManifestEntry {
+  readonly file: string
+  readonly isEntry: boolean
+  /** Source modules, relative to the repository root, whose code this chunk holds. */
+  readonly modules: readonly string[]
+  /** Chunks this chunk requires when it loads. */
+  readonly imports: readonly string[]
+  /** Chunks this chunk loads with `import()`. */
+  readonly dynamicImports: readonly string[]
+}
 
 /**
  * What each kind of OpenWaggle process loads before it does its work, named by source module

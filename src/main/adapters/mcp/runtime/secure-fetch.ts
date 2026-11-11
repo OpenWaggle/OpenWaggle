@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { FetchLike } from '@modelcontextprotocol/client'
 import { Agent, Dispatcher1Wrapper } from 'undici'
+import { fetchThroughDispatcher } from './dispatcher-fetch'
 import {
   assertSecureMcpProtocol,
   isAllowedMcpHostname,
@@ -36,10 +37,6 @@ export type PinnedFetch = (
   init: RequestInit,
   target: ValidatedMcpNetworkTarget,
 ) => Promise<Response>
-
-interface DispatcherRequestInit extends RequestInit {
-  readonly dispatcher: Dispatcher1Wrapper
-}
 
 const resolveHostname: HostnameResolver = (hostname, options) => lookup(hostname, options)
 
@@ -245,12 +242,7 @@ export function createSecureMcpFetch(input: {
   // Closing can end a request, or a body still streaming, that would otherwise wait out a host.
   const pinnedFetch: PinnedFetch = (url, init, target) =>
     requests.send(init, (signal) => {
-      const requestInit: DispatcherRequestInit = {
-        ...init,
-        signal,
-        dispatcher: dispatcherFor(target, dispatchers),
-      }
-      return fetch(url, requestInit)
+      return fetchThroughDispatcher(url, { ...init, signal }, dispatcherFor(target, dispatchers))
     })
 
   return Object.assign(
