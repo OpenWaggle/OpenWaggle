@@ -30,6 +30,16 @@ vi.mock('../ToolCallBlock', () => ({
   ),
 }))
 
+// The extension renderer frame reads the runtime base the preload passes this window.
+vi.mock('@/shared/lib/ipc', () => ({
+  api: {
+    getTrustedOriginBases: () => ({ extensionRuntime: 'openwaggle-extension://runtime' }),
+    onFullscreenChanged: vi.fn(),
+    registerExtensionFrame: vi.fn(async () => ({ registrationId: 'registration-1' })),
+    unregisterExtensionFrame: vi.fn(async () => undefined),
+  },
+}))
+
 // ---------------------------------------------------------------------------
 // Import under test (after mocks)
 // ---------------------------------------------------------------------------
