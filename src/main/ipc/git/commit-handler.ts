@@ -1,15 +1,11 @@
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { SessionId } from '@shared/types/brand'
+import { decodeUnknownOrThrow } from '@shared/schema'
+import { gitCommitPayloadSchema } from '@shared/schemas/git-requests'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { resolveRepositoryRoot } from '../../services/git/repository-root'
 import { typedHandle } from '../typed-ipc'
 import { resolveCommittedHead } from './commit-head-resolution'
-import {
-  encodeSelectedGitPaths,
-  selectedGitPathsSchema,
-  validateSelectedGitPaths,
-} from './commit-path-contract'
+import { encodeSelectedGitPaths, validateSelectedGitPaths } from './commit-path-contract'
 import { resolveSelectedCommitPaths } from './commit-path-selection'
 import { withGitMutationLock } from './mutation-lock'
 import { recordSessionGitOutputsWhereOwned, verifySessionGitContext } from './session-git-host'
@@ -207,24 +203,11 @@ async function stageCommitPaths(projectPath: string, paths: readonly string[]) {
   return addResult.code === 0 ? null : mapCommitFailure(`${addResult.stderr}\n${addResult.stdout}`)
 }
 
-const commitPayloadSchema = Schema.Struct({
-  sessionId: Schema.optional(Schema.String),
-  message: Schema.String,
-  amend: Schema.Boolean,
-  paths: selectedGitPathsSchema,
-  includeUnstaged: Schema.optional(Schema.Boolean),
-})
-
 export function registerGitCommitHandlers(): void {
   typedHandle('git:commit', (_event, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const decodedPayload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
-      const payload = {
-        ...decodedPayload,
-        sessionId:
-          decodedPayload.sessionId === undefined ? undefined : SessionId(decodedPayload.sessionId),
-      } satisfies GitCommitPayload
+      const payload = decodeUnknownOrThrow(gitCommitPayloadSchema, rawPayload)
       return yield* withGitMutationLock(
         projectPath,
         Effect.gen(function* () {
