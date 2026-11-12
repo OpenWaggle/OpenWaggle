@@ -15,7 +15,7 @@ function populateNodeSearchRows(database: HostSqliteDatabase) {
       database,
       "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
       NODE_SEARCH_SESSION_INDEX,
-    )?.['present'] === 1
+    )?.present === 1
   if (hasSessionIndex) database.exec(`DROP INDEX ${NODE_SEARCH_SESSION_INDEX}`)
   try {
     database.exec(`

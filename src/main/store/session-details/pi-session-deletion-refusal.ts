@@ -12,9 +12,9 @@ const MAX_CAUSE_DEPTH = 4
 function brokeConstraint(cause: unknown) {
   let current: unknown = cause
   for (let depth = 0; depth < MAX_CAUSE_DEPTH && current; depth++) {
-    const code = isRecord(current) ? current['code'] : undefined
+    const code = isRecord(current) ? current.code : undefined
     if (typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT')) return true
-    current = isRecord(current) ? current['cause'] : undefined
+    current = isRecord(current) ? current.cause : undefined
   }
   return false
 }

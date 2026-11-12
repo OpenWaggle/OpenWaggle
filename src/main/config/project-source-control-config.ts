@@ -54,13 +54,13 @@ export function parseProjectSourceControlConfig(
   if (!isJsonObject(raw)) return { hosts: {} }
   const hosts: Record<string, SourceControlProviderId> = {}
   const skipped: string[] = []
-  const declared = isJsonObject(raw['hosts']) ? Object.entries(raw['hosts']) : []
+  const declared = isJsonObject(raw.hosts) ? Object.entries(raw.hosts) : []
   for (const [host, provider] of declared.slice(0, MAX_DECLARED_HOSTS)) {
     const key = canonicalHost(host)
     if (key && isProvider(provider)) hosts[key] = provider
     else skipped.push(host)
   }
-  const destination = raw['changeRequestOpenDestination']
+  const destination = raw.changeRequestOpenDestination
   if (destination !== undefined && !isDestination(destination)) {
     skipped.push('changeRequestOpenDestination')
   }

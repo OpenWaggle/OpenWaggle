@@ -112,12 +112,12 @@ export function sessionHostSafeEnvironment(
     ...environment,
     PATH: npmCompatiblePath,
   }
-  delete childEnvironment['ELECTRON_RUN_AS_NODE']
-  delete childEnvironment['OPENWAGGLE_CLI_OUTPUT_FD']
-  delete childEnvironment['OPENWAGGLE_PROFILE']
-  delete childEnvironment['OPENWAGGLE_PROFILE_CREDENTIAL_FILE']
-  delete childEnvironment['OPENWAGGLE_AGENT_RUN']
-  delete childEnvironment['OPENWAGGLE_AUTOMATION_LEASE_TOKEN']
+  delete childEnvironment.ELECTRON_RUN_AS_NODE
+  delete childEnvironment.OPENWAGGLE_CLI_OUTPUT_FD
+  delete childEnvironment.OPENWAGGLE_PROFILE
+  delete childEnvironment.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
+  delete childEnvironment.OPENWAGGLE_AGENT_RUN
+  delete childEnvironment.OPENWAGGLE_AUTOMATION_LEASE_TOKEN
   delete childEnvironment[SHELL_ENVIRONMENT_REFRESHED_SINCE_VARIABLE]
   return childEnvironment
 }

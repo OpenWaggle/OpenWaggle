@@ -68,7 +68,7 @@ function ids(db: Database.Database, sql: string) {
   return db
     .prepare<[], Record<string, unknown>>(sql)
     .all()
-    .map((row) => String(row['id']))
+    .map((row) => String(row.id))
 }
 
 const DOCS_OUTPUT = { actor: 'tool', activity: 'created', label: 'openwaggle_docs' }

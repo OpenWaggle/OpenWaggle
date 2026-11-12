@@ -109,7 +109,7 @@ export function runCredentialHelper(
 
 export function windowsPowerShellExecutable() {
   const environment = getBrowserCredentialChildEnv()
-  const windowsRoot = environment['SystemRoot'] ?? environment['WINDIR']
+  const windowsRoot = environment.SystemRoot ?? environment.WINDIR
   return windowsRoot
     ? path.win32.join(windowsRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
     : 'powershell.exe'

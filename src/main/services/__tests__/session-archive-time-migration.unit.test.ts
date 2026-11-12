@@ -59,8 +59,8 @@ describe('session archive time migration', () => {
         .all()
       // The branch index is created by the migration's run step, which the store's archived
       // items integration test covers through `INDEXED BY idx_session_branches_archived_at`.
-      expect(indexes.map((index) => index['name'])).toEqual(['idx_sessions_archived_at'])
-      expect(indexes.every((index) => String(index['sql']).includes('WHERE'))).toBe(true)
+      expect(indexes.map((index) => index.name)).toEqual(['idx_sessions_archived_at'])
+      expect(indexes.every((index) => String(index.sql).includes('WHERE'))).toBe(true)
     } finally {
       database.close()
     }

@@ -16,13 +16,13 @@ export interface UsageStatisticsMcpServerLaunch {
 
 /** The launch fields of a catalog entry, whatever else it holds. */
 function catalogLaunch(entry: Readonly<Record<string, unknown>>): UsageStatisticsMcpServerLaunch {
-  const args = Array.isArray(entry['args'])
-    ? entry['args'].filter((arg): arg is string => typeof arg === 'string')
+  const args = Array.isArray(entry.args)
+    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
     : undefined
   return {
-    ...(typeof entry['command'] === 'string' ? { command: entry['command'] } : {}),
+    ...(typeof entry.command === 'string' ? { command: entry.command } : {}),
     ...(args ? { args } : {}),
-    ...(typeof entry['url'] === 'string' ? { url: entry['url'] } : {}),
+    ...(typeof entry.url === 'string' ? { url: entry.url } : {}),
   }
 }
 

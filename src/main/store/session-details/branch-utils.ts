@@ -136,14 +136,14 @@ function parseMessageTextPreview(raw: string) {
     return null
   }
 
-  const parts = parsed['parts']
+  const parts = parsed.parts
   if (!Array.isArray(parts)) {
     return null
   }
 
   for (const part of parts) {
-    if (isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string') {
-      const trimmed = part['text'].trim()
+    if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') {
+      const trimmed = part.text.trim()
       if (trimmed) {
         return trimmed
       }

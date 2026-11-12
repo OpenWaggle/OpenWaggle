@@ -38,14 +38,13 @@ async function listChromiumProfiles(
     if (localStateStat.size > BROWSER_IMPORT_LIMITS.LOCAL_STATE_BYTES) return []
     const state: unknown = JSON.parse(await readFile(localStatePath, 'utf8'))
     if (isRecord(state)) {
-      const profile = state['profile']
+      const profile = state.profile
       if (isRecord(profile)) {
-        const cache = profile['info_cache']
+        const cache = profile.info_cache
         if (isRecord(cache)) {
           declared = Object.entries(cache).flatMap(([directory, info]) => {
             if (!isSafeBrowserProfileDirectory(directory)) return []
-            const name =
-              isRecord(info) && typeof info['name'] === 'string' ? info['name'].trim() : ''
+            const name = isRecord(info) && typeof info.name === 'string' ? info.name.trim() : ''
             return [{ directory, name: name || directory }]
           })
         }
@@ -103,7 +102,7 @@ function countProfileCookies(definition: BrowserImportSourceDefinition, database
       definition.engine === 'firefox'
         ? "SELECT count(*) AS count FROM moz_cookies WHERE originAttributes = ''"
         : 'SELECT count(*) AS count FROM cookies'
-    const value = database.prepare(query).get()?.['count']
+    const value = database.prepare(query).get()?.count
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
       ? value
       : undefined

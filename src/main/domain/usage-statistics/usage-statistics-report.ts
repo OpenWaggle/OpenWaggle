@@ -76,9 +76,9 @@ function installActiveProperties(
     if (observations.features.includes(flag)) properties[flag] = true
   }
   if (observations.mcpServers.length > 0) {
-    properties['mcp_servers'] = [...observations.mcpServers].sort()
+    properties.mcp_servers = [...observations.mcpServers].sort()
   }
-  if (observations.skills.length > 0) properties['skills'] = [...observations.skills].sort()
+  if (observations.skills.length > 0) properties.skills = [...observations.skills].sort()
   return properties
 }
 

@@ -43,9 +43,9 @@ function validHighWatermark(revision: unknown, value: unknown) {
   if (revision !== SESSION_HOST_CUTOVER_REVISION) return false
   return (
     Object.keys(highWatermark).sort().join(',') === 'nodes,sessions,sourceSchemaRevision' &&
-    nonNegativeInteger(highWatermark['sessions']) &&
-    nonNegativeInteger(highWatermark['nodes']) &&
-    nonNegativeInteger(highWatermark['sourceSchemaRevision'])
+    nonNegativeInteger(highWatermark.sessions) &&
+    nonNegativeInteger(highWatermark.nodes) &&
+    nonNegativeInteger(highWatermark.sourceSchemaRevision)
   )
 }
 
@@ -82,15 +82,15 @@ export function validateSessionHostCompletionSeal(database: HostSqliteDatabase) 
     WHERE metadata.singleton = 1`,
   )
   const valid =
-    seal?.['schema_revision'] === SESSION_HOST_SCHEMA_REVISION &&
-    (seal['migration_revision'] === SESSION_HOST_FRESH_REVISION ||
-      seal['migration_revision'] === SESSION_HOST_CUTOVER_REVISION) &&
-    validHighWatermark(seal['migration_revision'], seal['source_high_watermark_json']) &&
-    positiveInteger(seal['completed_at']) &&
-    seal['ledger_name'] === SESSION_HOST_BASELINE_MIGRATION_NAME &&
-    typeof seal['ledger_applied_at'] === 'string' &&
-    seal['ledger_applied_at'].length > 0 &&
-    nonNegativeInteger(seal['max_migration_id']) &&
-    seal['max_migration_id'] <= SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID
+    seal?.schema_revision === SESSION_HOST_SCHEMA_REVISION &&
+    (seal.migration_revision === SESSION_HOST_FRESH_REVISION ||
+      seal.migration_revision === SESSION_HOST_CUTOVER_REVISION) &&
+    validHighWatermark(seal.migration_revision, seal.source_high_watermark_json) &&
+    positiveInteger(seal.completed_at) &&
+    seal.ledger_name === SESSION_HOST_BASELINE_MIGRATION_NAME &&
+    typeof seal.ledger_applied_at === 'string' &&
+    seal.ledger_applied_at.length > 0 &&
+    nonNegativeInteger(seal.max_migration_id) &&
+    seal.max_migration_id <= SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID
   if (!valid) throw new Error('Session Host target completion metadata is missing or incompatible.')
 }

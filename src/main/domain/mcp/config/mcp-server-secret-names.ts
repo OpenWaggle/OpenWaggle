@@ -15,8 +15,8 @@ function scopedValues(values: unknown, serverName: string, secrets: Set<string>)
   if (!isRecord(values)) return values
   return Object.fromEntries(
     Object.entries(values).map(([field, value]) => {
-      if (!isRecord(value) || typeof value['secret'] !== 'string') return [field, value]
-      const secret = mcpServerSecretName(serverName, value['secret'])
+      if (!isRecord(value) || typeof value.secret !== 'string') return [field, value]
+      const secret = mcpServerSecretName(serverName, value.secret)
       secrets.add(secret)
       return [field, { secret }]
     }),

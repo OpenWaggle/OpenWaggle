@@ -37,7 +37,7 @@ export interface LoadAgentDefinitionSemanticCatalogInput {
 function piAgentDirFor(input: LoadAgentDefinitionSemanticCatalogInput) {
   if (input.piAgentDir) return input.piAgentDir
   const configured =
-    input.userHome === homedir() ? getEnvWithOverrides({})['PI_CODING_AGENT_DIR'] : undefined
+    input.userHome === homedir() ? getEnvWithOverrides({}).PI_CODING_AGENT_DIR : undefined
   return configured ?? path.join(input.userHome, '.pi', 'agent')
 }
 

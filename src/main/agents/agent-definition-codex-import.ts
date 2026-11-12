@@ -35,7 +35,7 @@ interface CodexImportInput {
 
 async function selectedRecord(input: CodexImportInput, content: string) {
   const root = record(parse(content)) ?? {}
-  const agents = record(root['agents'])
+  const agents = record(root.agents)
   if (!agents) return { selected: root, name: input.sourceName, additionalSources: [] }
   const names = Object.keys(agents).sort()
   const selectedName = input.sourceName ?? (names.length === 1 ? names[0] : undefined)
@@ -54,8 +54,7 @@ async function selectedRecord(input: CodexImportInput, content: string) {
       additionalSources: [],
     }
   }
-  const configFile =
-    typeof selected['config_file'] === 'string' ? selected['config_file'] : undefined
+  const configFile = typeof selected.config_file === 'string' ? selected.config_file : undefined
   if (!configFile) return { selected, name: selectedName, additionalSources: [] }
   const nestedSource = await readBoundedAgentDefinitionSource({
     sourcePath: configFile,
@@ -70,7 +69,7 @@ async function selectedRecord(input: CodexImportInput, content: string) {
 }
 
 function description(source: Readonly<Record<string, unknown>>, name?: string) {
-  const sourceValue = typeof source['description'] === 'string' ? source['description'].trim() : ''
+  const sourceValue = typeof source.description === 'string' ? source.description.trim() : ''
   return {
     sourceValue,
     value: sourceValue || (name ? `Imported Codex Agent ${name}.` : undefined),
@@ -79,13 +78,13 @@ function description(source: Readonly<Record<string, unknown>>, name?: string) {
 
 function instructions(source: Readonly<Record<string, unknown>>) {
   const sourceValue =
-    typeof source['developer_instructions'] === 'string'
-      ? source['developer_instructions']
-      : typeof source['instructions'] === 'string'
-        ? source['instructions']
+    typeof source.developer_instructions === 'string'
+      ? source.developer_instructions
+      : typeof source.instructions === 'string'
+        ? source.instructions
         : undefined
   return {
-    sourceField: source['developer_instructions'] ? 'developer_instructions' : 'instructions',
+    sourceField: source.developer_instructions ? 'developer_instructions' : 'instructions',
     value: sourceValue?.trim(),
   }
 }
@@ -144,7 +143,7 @@ function modelSettings(
   source: Readonly<Record<string, unknown>>,
   fields: AgentDefinitionImportFieldPlan[],
 ) {
-  const modelValue = typeof source['model'] === 'string' ? source['model'] : undefined
+  const modelValue = typeof source.model === 'string' ? source.model : undefined
   const model = modelValue?.includes('/') ? modelValue : undefined
   if (modelValue) {
     fields.push({
@@ -158,9 +157,7 @@ function modelSettings(
     })
   }
   const effort =
-    typeof source['model_reasoning_effort'] === 'string'
-      ? source['model_reasoning_effort']
-      : undefined
+    typeof source.model_reasoning_effort === 'string' ? source.model_reasoning_effort : undefined
   const reasoning = REASONING_LEVELS.find((candidate) => candidate === effort)
   if (effort) {
     fields.push({

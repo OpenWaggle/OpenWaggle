@@ -97,7 +97,7 @@ export function isJsonRecord(value: unknown): value is JsonRecord {
 
 /** Whether an entry overrides a server defined in an earlier file instead of defining one. */
 export function isMcpOverrideEntry(value: JsonRecord) {
-  return value['command'] === undefined && value['url'] === undefined && value['type'] === undefined
+  return value.command === undefined && value.url === undefined && value.type === undefined
 }
 
 /** Namespace of a server's tools: `mcp__<server>` with `-` replaced by `_`, as in Pi. */

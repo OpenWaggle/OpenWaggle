@@ -10,7 +10,7 @@ export function validateSessionHostWorkspaceBindingProjects(database: HostSqlite
       JOIN workspace_resources AS workspaces ON workspaces.id = bindings.workspace_id
       WHERE sessions.project_path IS NOT NULL
         AND sessions.project_path <> workspaces.project_path`,
-  )?.['count']
+  )?.count
   if (mismatched !== 0) {
     throw new Error('Workspace binding project identity does not match its Session.')
   }

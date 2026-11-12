@@ -15,14 +15,14 @@ export function fillLinuxSessionBusAddress(
   env: Record<string, string | undefined>,
   input: LinuxSessionBusEnvironmentInput,
 ) {
-  if (input.platform !== 'linux' || env['DBUS_SESSION_BUS_ADDRESS']?.trim()) return
-  const runtimeDirectories = [env['XDG_RUNTIME_DIR']?.trim()]
+  if (input.platform !== 'linux' || env.DBUS_SESSION_BUS_ADDRESS?.trim()) return
+  const runtimeDirectories = [env.XDG_RUNTIME_DIR?.trim()]
   if (input.uid !== undefined) runtimeDirectories.push(`/run/user/${input.uid}`)
   for (const runtimeDirectory of runtimeDirectories) {
     if (!runtimeDirectory) continue
     const busPath = `${runtimeDirectory.replace(/\/+$/u, '')}/bus`
     if (!input.exists(busPath)) continue
-    env['DBUS_SESSION_BUS_ADDRESS'] = `unix:path=${busPath}`
+    env.DBUS_SESSION_BUS_ADDRESS = `unix:path=${busPath}`
     return
   }
 }
