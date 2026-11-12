@@ -2,9 +2,22 @@
  * Budgets, caps and ratchets that may only tighten (`budget`), and lists that may only shrink
  * (`only-shrinks`). A raised bundle, output-token, first-turn prefix or memory budget, a lowered
  * coverage threshold, or a new entry in an exemption list blocks with no way out but getting under
- * the limit: none of these files takes a reason in place of the fix.
+ * the limit: none of these files takes a reason in place of the fix. The Performance Gate's files
+ * (`PERF_GATE_FILES`) are the exception, accepted on the pull request by a maintainer's label.
  */
 import type { Finding, FindingKind } from './findings'
+
+/**
+ * Files the Performance Gate owns instead (.github/workflows/perf-gate.yml): the budgets file follows
+ * the measurement, so a value may go up with the code, and the timing thresholds may be retuned
+ * from new noise runs. The gate compares both with main's on the pull request and fails a raise
+ * unless a maintainer adds its label, which a local check cannot see. None of `BUDGETS` may match
+ * them, or a raise would fail here with no way to accept it (scripts/no-cheating/__tests__).
+ */
+export const PERF_GATE_FILES: readonly string[] = [
+  'performance/perf-budgets.json',
+  'performance/perf-gate/thresholds.json',
+]
 
 type Direction = 'higher' | 'lower'
 

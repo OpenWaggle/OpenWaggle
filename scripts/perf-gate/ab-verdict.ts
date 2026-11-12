@@ -68,15 +68,18 @@ export function median(values: readonly number[]): number | null {
 
 type Reader = (sample: AbSample) => number | null | undefined
 
+const PHASE_IDS = { idle: 'idle', afterTurn: 'after-turn' } as const
+
 function memoryReaders(samples: readonly AbSample[], phase: 'idle' | 'afterTurn') {
   const roles = [...new Set(samples.flatMap((sample) => Object.keys(sample[phase].byRole)))].sort()
+  const id = PHASE_IDS[phase]
   const readers: [string, MetricKind, Reader][] = [
-    [`${phase}.rss`, 'memory', (sample) => sample[phase].rssBytes],
-    [`${phase}.processes`, 'count', (sample) => sample[phase].processCount],
+    [`${id}.rss`, 'memory', (sample) => sample[phase].rssBytes],
+    [`${id}.processes`, 'count', (sample) => sample[phase].processCount],
   ]
   for (const role of roles) {
     const read = (memory: MemorySample) => memory.byRole[role] ?? 0
-    readers.push([`${phase}.rss.${role}`, 'memory', (sample) => read(sample[phase])])
+    readers.push([`${id}.rss.${role}`, 'memory', (sample) => read(sample[phase])])
   }
   return readers
 }

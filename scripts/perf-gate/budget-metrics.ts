@@ -36,6 +36,9 @@ const PRELOAD_BYTES_QUANTUM = 256
 const EXACT = 1
 
 export const BUILD_SOURCE = 'build'
+const HOST_STARTUP_SOURCE = 'scripts/perf-gate/__tests__/host-startup-processes.integration.test.ts'
+const POWERSHELL_FIX =
+  'Each Windows user-only security call is one powershell.exe (about 0.8 s on hosted Windows); batch the targets into one call (src/main/session-host/local-session-paths.ts).'
 
 export const PERF_BUDGET_METRICS: readonly PerfBudgetMetric[] = [
   {
@@ -125,5 +128,21 @@ export const PERF_BUDGET_METRICS: readonly PerfBudgetMetric[] = [
     quantum: EXACT,
     source: BUILD_SOURCE,
     fix: 'The launch graph or the chat surface split into more chunks; defer the new import with lazy() where its surface opens.',
+  },
+  {
+    id: 'host.startup.windows-powershell.first-launch',
+    title: 'PowerShell runs securing the Host paths, first Windows start',
+    unit: 'count',
+    quantum: EXACT,
+    source: HOST_STARTUP_SOURCE,
+    fix: POWERSHELL_FIX,
+  },
+  {
+    id: 'host.startup.windows-powershell.later-launch',
+    title: 'PowerShell runs securing the Host paths, later Windows start',
+    unit: 'count',
+    quantum: EXACT,
+    source: HOST_STARTUP_SOURCE,
+    fix: POWERSHELL_FIX,
   },
 ]
