@@ -85,8 +85,9 @@ export async function manifestChangeCommit(
     .filter(Boolean)
   for (const sha of shas) {
     const before = await readJsonAt(cwd, `${sha}^`, manifestPath)
-    if ((before === undefined ? undefined : stringField(before, packagePath)) !== version)
+    if ((before === undefined ? undefined : stringField(before, packagePath)) !== version) {
       return sha
+    }
   }
   return undefined
 }
@@ -111,7 +112,7 @@ export async function commitsTouching(cwd: string, range: string, packagePath: s
 
 function lineOrder(line: string): readonly [number, number] {
   const match = DOCS_LINE_PATTERN.exec(line)
-  return [Number(match?.groups?.major), Number(match?.groups?.minor)]
+  return [Number(match?.groups?.['major']), Number(match?.groups?.['minor'])]
 }
 
 /** The published `<major>.<minor>` docs directories at `to`, oldest first by number (0.9 before 0.10). */

@@ -50,13 +50,15 @@ function parseLines(text: string) {
 function toolNamesOf(content: unknown) {
   if (!Array.isArray(content)) return []
   return content.flatMap((block: unknown) => {
-    if (!isRecord(block) || block.type !== 'toolCall' || typeof block.name !== 'string') return []
-    const args = isRecord(block.arguments) ? block.arguments : {}
-    const code = typeof args.code === 'string' ? args.code : ''
+    if (!isRecord(block) || block['type'] !== 'toolCall' || typeof block['name'] !== 'string') {
+      return []
+    }
+    const args = isRecord(block['arguments']) ? block['arguments'] : {}
+    const code = typeof args['code'] === 'string' ? args['code'] : ''
     const nested = [...code.matchAll(CODEMODE_TOOL_PATTERN)].map(
       (match) => `codemode:${match[1] ?? ''}`,
     )
-    return [block.name, ...nested]
+    return [block['name'], ...nested]
   })
 }
 
@@ -64,7 +66,9 @@ function textOf(content: unknown) {
   if (!Array.isArray(content)) return typeof content === 'string' ? content : ''
   return content
     .map((block: unknown) =>
-      isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? block.text : '',
+      isRecord(block) && block['type'] === 'text' && typeof block['text'] === 'string'
+        ? block['text']
+        : '',
     )
     .join('')
 }
@@ -78,7 +82,7 @@ export function addUsage(totals: UsageTotals, usage: Record<string, unknown>) {
   totals.output += numberField(usage, 'output')
   totals.cacheRead += numberField(usage, 'cacheRead')
   totals.cacheWrite += numberField(usage, 'cacheWrite')
-  totals.costUsd += isRecord(usage.cost) ? numberField(usage.cost, 'total') : 0
+  totals.costUsd += isRecord(usage['cost']) ? numberField(usage['cost'], 'total') : 0
 }
 
 export function summarizeSessionFile(file: string, text: string): SessionTranscriptSummary {
@@ -89,20 +93,20 @@ export function summarizeSessionFile(file: string, text: string): SessionTranscr
   let finalText = ''
   let isRoot = true
   for (const entry of parseLines(text)) {
-    if (entry.type === 'compaction') compactions += 1
+    if (entry['type'] === 'compaction') compactions += 1
     if (
-      entry.type === 'custom' &&
-      entry.customType === 'openwaggle-run-identity' &&
+      entry['type'] === 'custom' &&
+      entry['customType'] === 'openwaggle-run-identity' &&
       JSON.stringify(entry).includes('parentSessionTitle')
     ) {
       isRoot = false
     }
-    const message = isRecord(entry.message) ? entry.message : null
-    if (entry.type !== 'message' || !message || message.role !== 'assistant') continue
+    const message = isRecord(entry['message']) ? entry['message'] : null
+    if (entry['type'] !== 'message' || message?.['role'] !== 'assistant') continue
     modelCalls += 1
-    if (isRecord(message.usage)) addUsage(usage, message.usage)
-    toolNames.push(...toolNamesOf(message.content))
-    const text = textOf(message.content).trim()
+    if (isRecord(message['usage'])) addUsage(usage, message['usage'])
+    toolNames.push(...toolNamesOf(message['content']))
+    const text = textOf(message['content']).trim()
     if (text.length > 0) finalText = text
   }
   return { file, isRoot, finalText, toolNames, modelCalls, compactions, usage }

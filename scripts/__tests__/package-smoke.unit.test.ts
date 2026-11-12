@@ -5,7 +5,7 @@ import {
   assertPackedPackageFiles,
   assertPackedWorkspaceDependencyRanges,
   collectManifestPackagePaths,
-  parsePnpmPackTarballPath,
+  parseBunPackTarballPath,
 } from '../package-smoke-assertions'
 import {
   assertBrowserBundleContent,
@@ -79,10 +79,17 @@ describe('package smoke tarball assertions', () => {
   })
 
   it('resolves named catalog versions for external package consumers', () => {
-    const workspace = `catalogs:\n  pi-runtime:\n    "@earendil-works/pi-tui": 0.87.1\n`
+    const catalogs = {
+      'pi-runtime': { '@earendil-works/pi-tui': '0.87.1' },
+      default: { react: '19.3.0' },
+    }
     expect(
-      resolvePackageSmokeCatalogVersion('catalog:pi-runtime', '@earendil-works/pi-tui', workspace),
+      resolvePackageSmokeCatalogVersion('catalog:pi-runtime', '@earendil-works/pi-tui', catalogs),
     ).toBe('0.87.1')
+    expect(resolvePackageSmokeCatalogVersion('catalog:', 'react', catalogs)).toBe('19.3.0')
+    expect(() =>
+      resolvePackageSmokeCatalogVersion('catalog:pi-runtime', 'react', catalogs),
+    ).toThrow('Cannot resolve react from catalog:pi-runtime.')
   })
 
   it('uses portable install arguments for each package manager', () => {
@@ -105,20 +112,14 @@ describe('package smoke tarball assertions', () => {
     )
   })
 
-  it('reads the tarball path from pnpm pack JSON output', () => {
-    expect(
-      parsePnpmPackTarballPath(
-        JSON.stringify({
-          name: '@openwaggle/extension-sdk',
-          version: '0.1.0',
-          filename: '/tmp/openwaggle-extension-sdk-0.1.0.tgz',
-        }),
-      ),
-    ).toBe('/tmp/openwaggle-extension-sdk-0.1.0.tgz')
-
-    expect(() => parsePnpmPackTarballPath('{"filename":17}')).toThrowErrorMatchingInlineSnapshot(
-      `[Error: pnpm pack did not report a tarball filename.]`,
+  it('reads the tarball path from bun pm pack --quiet output', () => {
+    expect(parseBunPackTarballPath('/tmp/openwaggle-extension-sdk-0.1.0.tgz\n')).toBe(
+      '/tmp/openwaggle-extension-sdk-0.1.0.tgz',
     )
+
+    expect(() =>
+      parseBunPackTarballPath('bun pack v1.4.4\npacked 1KB package.json\n'),
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: bun pm pack did not report a tarball filename.]`)
   })
 
   it('requires every exported package file to be present in the tarball', () => {

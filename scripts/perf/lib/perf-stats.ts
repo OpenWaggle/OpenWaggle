@@ -9,7 +9,6 @@ export interface Summary {
 
 const MEDIAN_QUANTILE = 0.5
 const P90_QUANTILE = 0.9
-const TENTHS_PER_UNIT = 10
 
 export function quantile(values: readonly number[], q: number): number | null {
   const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b)
@@ -50,9 +49,4 @@ export function summarizeRuns(runs: readonly object[], keys: readonly string[]) 
       ),
     ]),
   )
-}
-
-/** Rounds to a tenth, which is finer than any timing here can resolve. */
-export function roundTenth(value: number) {
-  return Math.round(value * TENTHS_PER_UNIT) / TENTHS_PER_UNIT
 }

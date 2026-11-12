@@ -11,6 +11,7 @@ import type {
 } from './package-release-artifact-contract'
 import { decodePackageReleasePlan } from './package-release-plan'
 import type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+import { bunExecutable } from './support/node-runtime'
 
 export type {
   PackageReleaseArtifact,
@@ -34,7 +35,7 @@ function run(command: string, args: readonly string[], cwd?: string) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -46,21 +47,26 @@ export async function readPackageReleasePlan(planPath: string) {
   return decodePackageReleasePlan(await readJson(planPath))
 }
 
-function packedFilename(value: unknown) {
-  const candidate: unknown = Array.isArray(value) ? value[0] : value
-  if (!isJsonObject(candidate) || typeof candidate.filename !== 'string') {
-    throw new Error('pnpm pack did not return one artifact filename.')
+/** `bun pm pack --quiet` prints only the tarball path. */
+export function packedFilename(output: string) {
+  const lines = output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const [filename] = lines
+  if (lines.length !== 1 || filename === undefined || !filename.endsWith('.tgz')) {
+    throw new Error('bun pm pack did not report one artifact filename.')
   }
-  return candidate.filename
+  return filename
 }
 
 function packedDependency(
   plannedPackage: PackageReleasePlanItem,
-  packedManifest: { readonly [key: string]: unknown },
+  packedManifest: Readonly<Record<string, unknown>>,
 ) {
   if (plannedPackage.dependency === undefined) return undefined
-  const dependencyRange = isJsonObject(packedManifest.dependencies)
-    ? packedManifest.dependencies[plannedPackage.dependency]
+  const dependencyRange = isJsonObject(packedManifest['dependencies'])
+    ? packedManifest['dependencies'][plannedPackage.dependency]
     : undefined
   if (
     typeof dependencyRange !== 'string' ||
@@ -110,16 +116,14 @@ async function packPlannedPackage(
   plannedPackage: PackageReleasePlanItem,
   artifactRoot: string,
 ): Promise<PackageReleaseArtifact> {
-  const packOutput = await run('pnpm', [
-    '--dir',
+  // Like `pnpm pack` before it, `bun pm pack` rewrites `workspace:` and `catalog:` ranges to the
+  // versions they resolve to, so the tarball's manifest is what npm consumers install.
+  const packOutput = await run(
+    bunExecutable(),
+    ['pm', 'pack', '--destination', path.resolve(artifactRoot), '--quiet'],
     plannedPackage.packagePath,
-    'pack',
-    '--pack-destination',
-    artifactRoot,
-    '--json',
-  ])
-  const rawPackOutput: unknown = JSON.parse(packOutput)
-  const reportedPath = packedFilename(rawPackOutput)
+  )
+  const reportedPath = packedFilename(packOutput)
   const resolvedPath = await realpath(
     path.isAbsolute(reportedPath)
       ? reportedPath

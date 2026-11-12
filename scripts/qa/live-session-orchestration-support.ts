@@ -113,10 +113,10 @@ export async function launchGui(
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let logs = ''
-  child.stdout?.on('data', (chunk) => {
+  child.stdout.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)
   })
-  child.stderr?.on('data', (chunk) => {
+  child.stderr.on('data', (chunk) => {
     logs = appendBoundedLog(logs, chunk)
   })
   await new Promise<void>((resolve, reject) => {
@@ -135,16 +135,16 @@ export async function runJsonCli(
   const result = await runProcess(executable, [...args, '--json'], env, options)
   const parsed: unknown = JSON.parse(result.stdout)
   assertRecord(parsed, 'CLI response was not an object.')
-  if (parsed.type === 'error') throw new Error(`CLI error: ${result.stdout}`)
+  if (parsed['type'] === 'error') throw new Error(`CLI error: ${result.stdout}`)
   return parsed
 }
 
 export function cliOutcome(response: Record<string, unknown>) {
-  const result = response.result
+  const result = response['result']
   assertRecord(result, 'CLI response omitted result.')
-  const contractResponse = result.response
+  const contractResponse = result['response']
   assertRecord(contractResponse, 'CLI response omitted contract response.')
-  const outcome = contractResponse.outcome
+  const outcome = contractResponse['outcome']
   assertRecord(outcome, 'CLI response omitted outcome.')
   return outcome
 }
@@ -190,7 +190,7 @@ export async function waitForIdle(
     '--timeout-ms',
     String(timeoutMs),
   ])
-  if (cliOutcome(response).timedOut === true) {
+  if (cliOutcome(response)['timedOut'] === true) {
     throw new Error(`Timed out waiting for Session ${sessionId}.`)
   }
 }
@@ -209,7 +209,7 @@ export async function readTranscript(
 }
 
 export function findWorker(listResponse: Record<string, unknown>, queenSessionId: string) {
-  const sessions = cliOutcome(listResponse).sessions
+  const sessions = cliOutcome(listResponse)['sessions']
   if (!Array.isArray(sessions)) throw new Error('Session list omitted sessions.')
   const sessionRecords: unknown[] = sessions
   const workers = sessionRecords.filter(
@@ -222,8 +222,8 @@ export function findWorker(listResponse: Record<string, unknown>, queenSessionId
   if (workers.length !== 1) throw new Error(`Expected one Worker, found ${workers.length}.`)
   const worker: unknown = workers[0]
   assertRecord(worker, 'Worker summary was invalid.')
-  if (typeof worker.sessionId !== 'string') throw new Error('Worker summary omitted Session ID.')
-  return worker.sessionId
+  if (typeof worker['sessionId'] !== 'string') throw new Error('Worker summary omitted Session ID.')
+  return worker['sessionId']
 }
 
 async function callSessionTool(client: Client, args: Record<string, unknown>, timeoutMs: number) {
@@ -304,4 +304,4 @@ export async function verifyExternalMcp(input: {
 }
 
 export { runProcess } from './bounded-child-process'
-export { type StoppableChild, stopChild } from './child-process-lifecycle'
+export { stopChild } from './child-process-lifecycle'

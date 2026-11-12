@@ -15,10 +15,13 @@ async function inspectorWebSocketUrl(port: number, deadline: number) {
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${String(port)}/json/list`)
-      const targets: unknown = await response.json()
-      const first: unknown = Array.isArray(targets) ? targets[0] : null
-      const url = isRecord(first) ? first.webSocketDebuggerUrl : null
-      if (typeof url === 'string') return url
+      // An inspector still starting can answer with an error status; poll again.
+      if (response.ok) {
+        const targets: unknown = await response.json()
+        const first: unknown = Array.isArray(targets) ? targets[0] : null
+        const url = isRecord(first) ? first['webSocketDebuggerUrl'] : null
+        if (typeof url === 'string') return url
+      }
     } catch {
       // The inspector is not listening yet.
     }
@@ -39,9 +42,9 @@ export async function connectInspector(port: number, timeoutMs: number): Promise
   const pending = new Map<number, (value: unknown) => void>()
   socket.addEventListener('message', (event) => {
     const message: unknown = JSON.parse(String(event.data))
-    if (!isRecord(message) || typeof message.id !== 'number') return
-    pending.get(message.id)?.(message)
-    pending.delete(message.id)
+    if (!isRecord(message) || typeof message['id'] !== 'number') return
+    pending.get(message['id'])?.(message)
+    pending.delete(message['id'])
   })
   const send = (method: string, params: object = {}) =>
     new Promise<unknown>((resolve) => {
@@ -55,12 +58,14 @@ export async function connectInspector(port: number, timeoutMs: number): Promise
       awaitPromise: true,
       returnByValue: true,
     })
-    const result = isRecord(response) ? response.result : null
-    const remote = isRecord(result) ? result.result : null
-    if (isRecord(result) && result.exceptionDetails) {
-      throw new Error(`Main-process evaluation failed: ${JSON.stringify(result.exceptionDetails)}`)
+    const result = isRecord(response) ? response['result'] : null
+    const remote = isRecord(result) ? result['result'] : null
+    if (isRecord(result) && result['exceptionDetails']) {
+      throw new Error(
+        `Main-process evaluation failed: ${JSON.stringify(result['exceptionDetails'])}`,
+      )
     }
-    return isRecord(remote) ? remote.value : undefined
+    return isRecord(remote) ? remote['value'] : undefined
   }
   return { send, evaluate, close: () => socket.close() }
 }

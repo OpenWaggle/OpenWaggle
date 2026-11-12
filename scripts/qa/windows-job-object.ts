@@ -272,8 +272,9 @@ export async function launchInWindowsJobObject(
       { cause: error },
     )
   }
-  if (assigned.status !== 'assigned')
+  if (assigned.status !== 'assigned') {
     throw new Error('Windows Job Object assignment was not proven.')
+  }
   return jobController({
     child,
     controlRoot,

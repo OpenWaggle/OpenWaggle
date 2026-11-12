@@ -96,7 +96,7 @@ async function installedChannel(
   const script = await channelReadScript(timeoutSeconds)
   const args = ['-c', script, 'installer-installed-channel-test', platform, executable, version]
   const result = await execFileAsync('bash', args, {
-    env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
+    env: { PATH: process.env['PATH'] ?? '', TMPDIR: directory },
   })
   return result.stdout.trim()
 }
@@ -178,7 +178,7 @@ describe('quick installer installed update channel', () => {
     const child = spawn(
       'bash',
       ['-c', script, 'installer-channel-interrupt-test', 'mac', executable, CHANNEL_CHECK_VERSION],
-      { env: { PATH: process.env.PATH ?? '', TMPDIR: directory } },
+      { env: { PATH: process.env['PATH'] ?? '', TMPDIR: directory } },
     )
     const exited = new Promise<number | null>((resolve) => child.once('exit', resolve))
     // Wait until the CLI has started, then press Ctrl-C.

@@ -62,3 +62,9 @@ describe('source maps of the minified bundles (R6 P3-5)', () => {
     expect(config.files).toContain('!out/**/*.map')
   })
 })
+
+describe('TypeScript project configs', () => {
+  it('are left out of the packaged app, including the strict, shared and website projects', () => {
+    expect(config.files).toContain('!tsconfig*.json')
+  })
+})

@@ -1,8 +1,8 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
+import { runWhenInvokedDirectly } from './support/direct-invocation'
 
 const execFileAsync = promisify(execFile)
 
@@ -39,8 +39,8 @@ export function parseBuildMeta(raw: string): BuildMeta | null {
     return null
   }
   if (!isObjectRecord(parsed)) return null
-  const commit = parsed.commit
-  const builtAt = parsed.builtAt
+  const commit = parsed['commit']
+  const builtAt = parsed['builtAt']
   return {
     commit: typeof commit === 'string' && commit.length > 0 ? commit : null,
     builtAt: typeof builtAt === 'string' ? builtAt : '',
@@ -69,9 +69,9 @@ export async function writeBuildMeta(outDirectory = OUT_DIRECTORY): Promise<void
 }
 
 const CLI_USAGE_MESSAGE =
-  'Usage: tsx scripts/record-build-meta.ts [--verify]\n\n' +
+  'Usage: bun scripts/record-build-meta.ts [--verify]\n\n' +
   '  (default)  Record the current HEAD into out/build-meta.json after a build.\n' +
-  '  --verify   Fail when out/ was not built from the current HEAD; run `pnpm build` to rebuild.'
+  '  --verify   Fail when out/ was not built from the current HEAD; run `bun run build` to rebuild.'
 
 const VERIFY_FLAG_ARGUMENT_INDEX = 2
 const VERIFY_FLAG = '--verify'
@@ -89,7 +89,7 @@ async function main() {
     const [meta, headCommit] = [await readBuildMeta(), await resolveHeadCommit()]
     if (meta === null) {
       console.error(
-        'out/ has no build metadata, so a packaged run would test an app of unknown provenance. Run `pnpm build` to rebuild first.',
+        'out/ has no build metadata, so a packaged run would test an app of unknown provenance. Run `bun run build` to rebuild first.',
       )
       process.exitCode = 1
       return
@@ -100,7 +100,7 @@ async function main() {
       const headAt =
         headCommit === null ? 'an unknown commit' : headCommit.slice(0, SHORT_SHA_LENGTH)
       console.error(
-        `out/ was built at ${builtAt} but HEAD is ${headAt}. A packaged run would test a stale build; run \`pnpm build\` to rebuild first.`,
+        `out/ was built at ${builtAt} but HEAD is ${headAt}. A packaged run would test a stale build; run \`bun run build\` to rebuild first.`,
       )
       process.exitCode = 1
       return
@@ -112,12 +112,4 @@ async function main() {
   await writeBuildMeta()
 }
 
-const isDirectInvocation =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
-
-if (isDirectInvocation) {
-  void main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  })
-}
+runWhenInvokedDirectly(import.meta.url, main)

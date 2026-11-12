@@ -9,14 +9,20 @@ import type { TerminalEventPayload } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { makeNodePtyTerminalService } from '../src/main/adapters/node-pty-terminal-service'
 import type { TerminalEventSinkShape } from '../src/main/ports/terminal-event-sink'
-import { runCloseUnderFloodGate, runRestartUnderFloodGate } from './benchmark-terminal-lifecycle'
+import {
+  assertGate,
+  delay,
+  runCloseUnderFloodGate,
+  runRestartUnderFloodGate,
+  waitUntil,
+} from './benchmark-terminal-lifecycle'
 
 /**
  * Terminal throughput benchmark (ADR 0030): drives the real node-pty service
  * against a live shell and measures attach latency, streamed throughput, and
  * IPC coalescing efficiency.
  *
- * Run: pnpm tsx scripts/benchmark-terminal-output.ts
+ * Run: bun scripts/benchmark-terminal-output.ts
  */
 
 const OUTPUT_LINES = 200_000
@@ -25,8 +31,6 @@ const TERMINAL_ID = 'term-bench'
 const OUTPUT_LINE = '0123456789abcdef'
 const OUTPUT_START_MARKER = '__OPENWAGGLE_BENCH_START__'
 const OUTPUT_DONE_MARKER = '__OPENWAGGLE_BENCH_DONE__'
-const OUTPUT_POLL_MS = 25
-const OUTPUT_TIMEOUT_MS = 60_000
 const FINAL_FLUSH_WINDOWS = 2
 let benchmarkCompleted = false
 
@@ -83,24 +87,6 @@ function outputBytesForTerminal(events: readonly TerminalEventPayload[], termina
 
 function outputEventCount(events: readonly TerminalEventPayload[]) {
   return events.filter((payload) => payload.event.type === 'output').length
-}
-
-function assertGate(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(`Terminal benchmark gate failed: ${message}`)
-}
-
-function delay(milliseconds: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
-}
-
-async function waitUntil(description: string, predicate: () => boolean) {
-  const deadline = performance.now() + OUTPUT_TIMEOUT_MS
-  while (!predicate()) {
-    if (performance.now() >= deadline) {
-      throw new Error(`Timed out waiting for ${description}.`)
-    }
-    await delay(OUTPUT_POLL_MS)
-  }
 }
 
 function extractFloodLines(output: string) {

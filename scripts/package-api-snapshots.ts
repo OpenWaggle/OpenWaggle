@@ -3,12 +3,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
 
-interface JsonObject {
-  readonly [key: string]: unknown
-}
+type JsonObject = Readonly<Record<string, unknown>>
 
 interface PackageJson {
-  readonly exports?: JsonObject
+  readonly exports?: JsonObject | undefined
   readonly name: string
 }
 
@@ -32,7 +30,7 @@ export interface CheckPackageApiSnapshotsResult {
 }
 
 interface TypedExport {
-  readonly declarationPath?: string
+  readonly declarationPath?: string | undefined
   readonly subpath: string
 }
 
@@ -56,13 +54,13 @@ function isJsonObject(value: unknown): value is JsonObject {
 }
 
 function toPackageJson(value: unknown, packageJsonPath: string): PackageJson {
-  if (!isJsonObject(value) || typeof value.name !== 'string') {
+  if (!isJsonObject(value) || typeof value['name'] !== 'string') {
     throw new Error(`${packageJsonPath} must contain a package name.`)
   }
 
-  const exportsValue = isJsonObject(value.exports) ? value.exports : undefined
+  const exportsValue = isJsonObject(value['exports']) ? value['exports'] : undefined
 
-  return { exports: exportsValue, name: value.name }
+  return { exports: exportsValue, name: value['name'] }
 }
 
 async function readPackageJson(packageRoot: string) {
@@ -85,11 +83,11 @@ function declarationPathForExportTarget(target: unknown) {
     return undefined
   }
 
-  if (!isJsonObject(target) || typeof target.types !== 'string') {
+  if (!isJsonObject(target) || typeof target['types'] !== 'string') {
     return undefined
   }
 
-  return normalizeExportTargetPath(target.types)
+  return normalizeExportTargetPath(target['types'])
 }
 
 function listTypedExports(packageJson: PackageJson) {
@@ -186,7 +184,7 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
 }
 
 function isMissingFileError(error: unknown) {
-  return isJsonObject(error) && error.code === 'ENOENT'
+  return isJsonObject(error) && error['code'] === 'ENOENT'
 }
 
 export async function createPackageApiSnapshot({
@@ -274,7 +272,7 @@ export async function checkPackageApiSnapshots({
       continue
     }
 
-    violations.push(`${relativeSnapshotFile} is stale. Run pnpm api:snapshot:update.`)
+    violations.push(`${relativeSnapshotFile} is stale. Run bun run api:snapshot:update.`)
   }
 
   return { changedSnapshots, violations, writtenSnapshots }

@@ -7,9 +7,8 @@
  * keeps running for its idle grace period with no client. Its footprint (alone and with its
  * children) and CPU use are sampled at fixed times after the last client left.
  *
- *   pnpm perf:idle-host --app <before.app> --app <after.app> --runs 3
+ *   bun run perf:idle-host --app <before.app> --app <after.app> --runs 3
  */
-import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { sampleAppMemory } from './lib/app-memory'
 import { startCliRun } from './lib/cli-run'
@@ -22,8 +21,8 @@ import {
 import { HEAVY_USER_MCP_ENVIRONMENT, writeHeavyUserMcpConfig } from './lib/mcp-fixtures'
 import { resolvePerfApp, stopProcessGroup } from './lib/perf-app'
 import { profileHostPids, sampleProcesses } from './lib/perf-processes'
-import { log, measurementEnvironment, writeJsonResult, exitWhenFlushed } from './lib/perf-results'
-import { summarizeRuns } from './lib/perf-stats'
+import { compareApps, reportComparison } from './lib/perf-app-comparison'
+import { exitWhenFlushed } from './lib/perf-results'
 import { delay, withRunningApp } from './lib/running-app'
 
 const DEFAULT_RUNS = 3
@@ -37,8 +36,6 @@ const NANOSECONDS_PER_MILLISECOND = 1_000_000
 const BYTES_PER_MEGABYTE = 1_048_576
 const PERCENT = 100
 const DECIMAL = 10
-const ORDERS = 2
-const USAGE_EXIT_CODE = 2
 
 const { values } = parseArgs({
   options: {
@@ -136,49 +133,28 @@ async function measureIdle(appPath: string, label: string | undefined) {
 }
 
 async function main() {
-  const apps = values.app ?? []
-  if (apps.length === 0) {
-    process.stderr.write('Use --app <OpenWaggle.app> (repeatable) (macOS only)\n')
-    process.exit(USAGE_EXIT_CODE)
-  }
   const runs = Number.parseInt(values.runs ?? String(DEFAULT_RUNS), DECIMAL)
-  const indexed = apps.map((appPath, index) => ({
-    appPath,
-    label: values.label?.[index] ?? path.basename(appPath),
-  }))
-  const results: Record<string, object[]> = Object.fromEntries(
-    indexed.map((entry) => [entry.label, []]),
-  )
-  for (let run = 0; run < runs; run += 1) {
-    for (const entry of run % ORDERS === 0 ? indexed : [...indexed].reverse()) {
-      try {
-        const result = await measureIdle(entry.appPath, entry.label)
-        results[entry.label]?.push(result)
-        log(`${entry.label} idle ${String(run + 1)}: ${JSON.stringify(result)}`)
-      } catch (error) {
-        results[entry.label]?.push({ error: String(error) })
-        log(`${entry.label} idle ${String(run + 1)} failed: ${String(error)}`)
-      }
-    }
-  }
   const metrics = [
     'attachedFootprintMb',
     'idleHostFootprintMb',
     'idleHostTreeFootprintMb',
     'idleHostCpuPercent',
   ]
-  const summary = Object.fromEntries(
-    Object.entries(results).map(([label, entries]) => [label, summarizeRuns(entries, metrics)]),
-  )
-  const report = {
-    kind: 'idle-host',
-    environment: measurementEnvironment(),
+  const results = await compareApps({
+    appPaths: values.app,
+    labels: values.label,
     runs,
-    summary,
+    runName: 'idle',
+    measure: measureIdle,
+  })
+  await reportComparison({
     results,
-  }
-  if (values.out) log(`Wrote ${await writeJsonResult(values.out, 'idle-host.json', report)}`)
-  process.stdout.write(`${JSON.stringify(summary, null, ORDERS)}\n`)
+    metrics,
+    kind: 'idle-host',
+    details: { runs },
+    outDirectory: values.out,
+    fileName: 'idle-host.json',
+  })
 }
 
 main().then(

@@ -4,8 +4,6 @@ import { redactBootstrapDiagnostic } from './package-release-bootstrap-commands'
 import { executeBootstrap } from './package-release-bootstrap-execute'
 import { inspectBootstrapPreflight } from './package-release-bootstrap-preflight'
 import type {
-  BootstrapCommandRequest,
-  BootstrapCommandResult,
   BootstrapDependencies,
   PackageReleaseBootstrapInput,
   PackageReleaseBootstrapResult,
@@ -49,7 +47,7 @@ export async function runPackageReleaseBootstrap(
   }
   const nextAction =
     mode === 'preflight' && ok
-      ? 'Run pnpm package-release:bootstrap --execute.'
+      ? 'Run bun run package-release:bootstrap --execute.'
       : 'Resolve every blocker and rerun the preflight.'
   dependencies.writeLine(`Package namespace bootstrap ${mode}: ${ok ? 'ready' : 'blocked'}.`)
   return { ...preflight, mode, nextAction, ok }

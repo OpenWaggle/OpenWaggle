@@ -6,7 +6,7 @@
  * a working one.
  *
  * Run with the app closed, then start it:
- *   pnpm qa:seed-conversations [--messages 400] [--replace-qa]
+ *   bun run qa:seed-conversations [--messages 400] [--replace-qa]
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -26,24 +26,27 @@ const CLI_ARG_OFFSET = 2
 
 /** Electron's userData location for this app, per platform. */
 function resolveUserDataDir() {
-  const override = process.env.OPENWAGGLE_USER_DATA_DIR
+  const override = process.env['OPENWAGGLE_USER_DATA_DIR']
   if (override !== undefined && override.length > 0) return override
   if (process.platform === 'darwin') {
     return path.join(os.homedir(), 'Library', 'Application Support', 'openwaggle')
   }
   if (process.platform === 'win32') {
     return path.join(
-      process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'),
+      process.env['APPDATA'] ?? path.join(os.homedir(), 'AppData', 'Roaming'),
       'openwaggle',
     )
   }
-  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'openwaggle')
+  return path.join(
+    process.env['XDG_CONFIG_HOME'] ?? path.join(os.homedir(), '.config'),
+    'openwaggle',
+  )
 }
 
 const USER_DATA_DIR = resolveUserDataDir()
 /** Where the fixture repositories are created. Never a guess at someone's own project folder. */
 const PROJECT_ROOT =
-  process.env.OPENWAGGLE_QA_FIXTURE_ROOT ?? path.join(os.tmpdir(), 'openwaggle-qa-fixtures')
+  process.env['OPENWAGGLE_QA_FIXTURE_ROOT'] ?? path.join(os.tmpdir(), 'openwaggle-qa-fixtures')
 
 const args = process.argv.slice(CLI_ARG_OFFSET)
 
@@ -213,7 +216,7 @@ function removeSeededSessions() {
     )
     .all(...CONVERSATIONS.map((conversation) => conversation.title))
   for (const row of empty) {
-    const id = String(row.id)
+    const id = String(row['id'])
     for (const table of [
       'session_active_runs',
       'session_tree_ui_state',
@@ -235,7 +238,7 @@ function removeSeededSessions() {
   console.log(`removed ${empty.length} previously seeded session(s)`)
 }
 
-// Wrapped rather than top level: tsx compiles this file to CommonJS, which has no top-level await.
+// Wrapped in main so the catch at the end reports any failure as one line and a non-zero exit.
 async function main() {
   // Read inside main so a bad flag reports one line rather than an uncaught module-scope throw.
   const messageCount = readMessageCount()

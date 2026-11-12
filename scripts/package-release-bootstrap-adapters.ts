@@ -145,11 +145,12 @@ function executePseudoterminalCommand(
 ): Promise<BootstrapCommandResult> {
   return new Promise((resolve) => {
     const child = spawnPseudoterminal(request.command, [...request.args], {
-      cols: process.stdout.columns ?? DEFAULT_TERMINAL_COLUMNS,
-      cwd: request.cwd,
+      // Node types the size as always set; it is only set when stdout is a terminal.
+      cols: process.stdout.isTTY ? process.stdout.columns : DEFAULT_TERMINAL_COLUMNS,
+      ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
       env: pseudoterminalEnvironment(process.env),
       name: 'xterm-color',
-      rows: process.stdout.rows ?? DEFAULT_TERMINAL_ROWS,
+      rows: process.stdout.isTTY ? process.stdout.rows : DEFAULT_TERMINAL_ROWS,
     })
     const untrackChild = interruptions.trackChild({
       kill: (signal) => {

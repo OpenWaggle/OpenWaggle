@@ -18,19 +18,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function parseWindowsProcessRecord(value: unknown): WindowsProcessRecord | null {
   if (
     !isRecord(value) ||
-    typeof value.processId !== 'number' ||
-    !Number.isSafeInteger(value.processId) ||
-    typeof value.parentProcessId !== 'number' ||
-    !Number.isSafeInteger(value.parentProcessId) ||
-    typeof value.creationDate !== 'string' ||
-    value.creationDate.length === 0
+    typeof value['processId'] !== 'number' ||
+    !Number.isSafeInteger(value['processId']) ||
+    typeof value['parentProcessId'] !== 'number' ||
+    !Number.isSafeInteger(value['parentProcessId']) ||
+    typeof value['creationDate'] !== 'string' ||
+    value['creationDate'].length === 0
   ) {
     return null
   }
   return {
-    processId: value.processId,
-    parentProcessId: value.parentProcessId,
-    creationDate: value.creationDate,
+    processId: value['processId'],
+    parentProcessId: value['parentProcessId'],
+    creationDate: value['creationDate'],
   }
 }
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   createNativeRebuildCacheKey,
-  commandInvocationForPlatform,
   electronRuntimeInstallCommandForPlatform,
   ensureNativeProbeRuntime,
   isNativeRebuildForceEnabled,
@@ -9,7 +8,10 @@ import {
   nativeArtifactPackagesForMode,
   nativeLoadProbeCommandForMode,
   parseNativeRebuildMarker,
+  packageRebuildCommandLine,
+  packageRebuildEnvironment,
   parseRebuildOptions,
+  shellInvocationForPlatform,
 } from '../rebuild-native-deps'
 
 type CacheKeyInput = Parameters<typeof createNativeRebuildCacheKey>[0]
@@ -50,17 +52,17 @@ describe('native dependency rebuild cache', () => {
   })
 
   it('parses mode and force options without allowing accidental flags', () => {
-    expect(parseRebuildOptions(['tsx', 'scripts/rebuild-native-deps.ts', 'electron'])).toEqual({
+    expect(parseRebuildOptions(['bun', 'scripts/rebuild-native-deps.ts', 'electron'])).toEqual({
       mode: 'electron',
       force: false,
     })
     expect(
-      parseRebuildOptions(['tsx', 'scripts/rebuild-native-deps.ts', 'node'], {
+      parseRebuildOptions(['bun', 'scripts/rebuild-native-deps.ts', 'node'], {
         OPENWAGGLE_NATIVE_REBUILD_FORCE: '1',
       }),
     ).toEqual({ mode: 'node', force: true })
     expect(() =>
-      parseRebuildOptions(['tsx', 'scripts/rebuild-native-deps.ts', 'electron', '--bad-flag']),
+      parseRebuildOptions(['bun', 'scripts/rebuild-native-deps.ts', 'electron', '--bad-flag']),
     ).toThrow('Unsupported native rebuild flags')
   })
 
@@ -73,25 +75,19 @@ describe('native dependency rebuild cache', () => {
     ])
   })
 
-  it('runs native probes from TypeScript without sending source through a shell', () => {
+  it('runs the bundled native probe in Node and Electron without sending source through a shell', () => {
+    const probe = 'C:\\workspace\\node_modules\\.cache\\openwaggle\\native-load-probe.mjs'
     expect(
       nativeLoadProbeCommandForMode('node', 'C:\\workspace', 'win32', 'C:\\node.exe'),
     ).toMatchObject({
       command: 'C:\\node.exe',
-      args: ['--import', 'tsx', 'C:\\workspace\\scripts\\native-load-probe.ts', 'node'],
+      args: [probe, 'node', 'C:\\workspace'],
     })
     expect(
       nativeLoadProbeCommandForMode('electron', 'C:\\workspace', 'win32', 'C:\\node.exe'),
     ).toMatchObject({
       command: 'C:\\workspace\\node_modules\\electron\\dist\\electron.exe',
-      args: [
-        '--import',
-        'tsx',
-        'C:\\workspace\\scripts\\native-load-probe.ts',
-        'electron',
-        'C:\\workspace',
-        'C:\\node.exe',
-      ],
+      args: [probe, 'electron', 'C:\\workspace', 'C:\\node.exe'],
       environment: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }),
     })
   })
@@ -189,22 +185,58 @@ describe('native dependency rebuild cache', () => {
     ).rejects.toThrow('download failed')
   })
 
-  it('invokes Windows command wrappers explicitly without enabling spawn shell parsing', () => {
+  it('runs a package install step in the platform shell, as package managers run lifecycle scripts', () => {
     expect(
-      commandInvocationForPlatform(
-        'pnpm',
-        ['rebuild', 'better-sqlite3'],
+      shellInvocationForPlatform(
+        'node scripts/prebuild.js || node-gyp rebuild',
         'win32',
         'C:\\Windows\\System32\\cmd.exe',
       ),
     ).toEqual({
       command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/c', 'pnpm', 'rebuild', 'better-sqlite3'],
+      args: ['/d', '/s', '/c', 'node scripts/prebuild.js || node-gyp rebuild'],
     })
-    expect(commandInvocationForPlatform('pnpm', ['rebuild'], 'linux')).toEqual({
-      command: 'pnpm',
-      args: ['rebuild'],
+    expect(shellInvocationForPlatform('node-gyp rebuild', 'linux')).toEqual({
+      command: '/bin/sh',
+      args: ['-c', 'node-gyp rebuild'],
     })
+  })
+
+  it('rebuilds a package the way npm rebuild does: its install script, else node-gyp', () => {
+    expect(
+      packageRebuildCommandLine(
+        { scripts: { install: 'node scripts/prebuild.js || node-gyp rebuild' } },
+        true,
+      ),
+    ).toBe('node scripts/prebuild.js || node-gyp rebuild')
+    expect(
+      packageRebuildCommandLine({ scripts: { 'build-release': 'node-gyp rebuild' } }, true),
+    ).toBe('node-gyp rebuild')
+    expect(packageRebuildCommandLine({ scripts: { install: '  ' } }, false)).toBeNull()
+    expect(packageRebuildCommandLine(null, false)).toBeNull()
+  })
+
+  it('puts the target Node and the project bin directory first on PATH for a forced source build', () => {
+    expect(
+      packageRebuildEnvironment(
+        '/workspace',
+        '/opt/node/bin/node',
+        { PATH: '/usr/bin', NODE_OPTIONS: '' },
+        'linux',
+      ),
+    ).toEqual({
+      PATH: '/opt/node/bin:/workspace/node_modules/.bin:/usr/bin',
+      NODE_OPTIONS: '--no-deprecation',
+      npm_config_build_from_source: 'true',
+    })
+    expect(
+      packageRebuildEnvironment(
+        'C:\\workspace',
+        'C:\\node\\node.exe',
+        { Path: 'C:\\Windows' },
+        'win32',
+      ),
+    ).toMatchObject({ Path: 'C:\\node;C:\\workspace\\node_modules\\.bin;C:\\Windows' })
   })
 
   it('accepts only well-formed cache markers', () => {
@@ -220,7 +252,7 @@ describe('native dependency rebuild cache', () => {
         artifacts: [
           {
             packageName: 'better-sqlite3',
-            path: 'node_modules/.pnpm/better-sqlite3/build/Release/better_sqlite3.node',
+            path: 'node_modules/.bun/better-sqlite3/build/Release/better_sqlite3.node',
             size: 100,
             mtimeMs: 200,
           },
@@ -245,7 +277,7 @@ describe('native dependency rebuild cache', () => {
   it('invalidates markers when artifact signatures change', () => {
     const artifact = {
       packageName: 'better-sqlite3',
-      path: 'node_modules/.pnpm/better-sqlite3/build/Release/better_sqlite3.node',
+      path: 'node_modules/.bun/better-sqlite3/build/Release/better_sqlite3.node',
       size: 100,
       mtimeMs: 200,
     }

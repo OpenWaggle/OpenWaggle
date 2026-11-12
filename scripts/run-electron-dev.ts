@@ -2,12 +2,13 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { nodeRuntime } from './support/node-runtime'
 
 /**
  * Starts the development app (`electron-vite dev`) or Electron itself the same way on every OS.
- * The scripts used `env -u ELECTRON_RUN_AS_NODE …`, which fails on Windows, where pnpm runs
- * scripts with cmd.exe and there is no `env`. ELECTRON_RUN_AS_NODE is removed because an agent
- * shell can inherit it, and it would make Electron run the app as plain Node.
+ * The scripts used `env -u ELECTRON_RUN_AS_NODE …`, which fails on Windows, where Bun runs
+ * package scripts with its own shell and there is no `env`. ELECTRON_RUN_AS_NODE is removed
+ * because an agent shell can inherit it, and it would make Electron run the app as plain Node.
  */
 
 const PROJECT_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -40,7 +41,7 @@ export function withoutRunAsNode(
   return Object.fromEntries(Object.entries(environment).filter(([key]) => !matches(key)))
 }
 
-/** electron-vite's own entry script, run with this Node, so no `.cmd` shim has to be spawned. */
+/** electron-vite's own entry script, run with Node, so no `.cmd` shim has to be spawned. */
 export function electronViteEntryPath(projectRoot: string = PROJECT_ROOT) {
   return path.join(projectRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js')
 }
@@ -67,7 +68,8 @@ export function electronDevInvocation(
   const environment = withoutRunAsNode(options.environment ?? process.env, options.platform)
   if (target === 'vite') {
     return {
-      command: options.nodeExecutable ?? process.execPath,
+      // This script runs on Bun; electron-vite runs on Node, as its bin's shebang asks.
+      command: options.nodeExecutable ?? nodeRuntime().execPath,
       args: [electronViteEntryPath(projectRoot), 'dev', ...args],
       environment: { ...environment, ELECTRON_ENABLE_LOGGING: '1' },
     }

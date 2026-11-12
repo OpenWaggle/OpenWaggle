@@ -33,7 +33,7 @@ function invocationOverlay(pointer: string): JsonSchemaOverlay {
       description:
         'Working folder relative to the workspace root, with forward slashes. "." is the root.',
     },
-    [`${task}`]: {
+    [task]: {
       description:
         'A script the project defines. It stays linked: later runs use the script as it is in the session workspace.',
     },

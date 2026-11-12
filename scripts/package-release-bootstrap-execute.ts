@@ -36,7 +36,7 @@ function failureResult(
     blockers: [message],
     github,
     mode: 'execute',
-    nextAction: 'Rerun pnpm package-release:bootstrap to inspect and resume partial state.',
+    nextAction: 'Rerun bun run package-release:bootstrap to inspect and resume partial state.',
     ok: false,
     packages,
   }
@@ -123,10 +123,10 @@ export async function executeBootstrap(
   let packages: MutablePackageProgress[] = initialPackages.map((item) => ({ ...item }))
   let github = initialGithub
   try {
-    dependencies.writeLine('[validate] pnpm check')
+    dependencies.writeLine('[validate] bun run check')
     await runRequired(dependencies, {
-      args: ['check'],
-      command: 'pnpm',
+      args: ['run', 'check'],
+      command: 'bun',
       cwd: input.projectRoot,
     })
     const preflight = await inspectBootstrapPreflight(input.projectRoot, dependencies)

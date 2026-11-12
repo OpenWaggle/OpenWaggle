@@ -11,12 +11,7 @@ import {
   MCP_SECRET_SERVER,
   writeMcpFixture,
 } from './website-screenshot-mcp-fixture'
-import {
-  type CaptureContext,
-  leaveSettings,
-  UI_TIMEOUT_MS,
-  waitForUi,
-} from './website-screenshot-ui'
+import { type CaptureContext, leaveSettings, UI_TIMEOUT_MS } from './website-screenshot-ui'
 
 const CHECK_TIMEOUT_MS = 60_000
 
@@ -33,8 +28,9 @@ async function openMcpSettings(context: CaptureContext) {
   const { page } = context
   await writeMcpFixture(context.homeDir)
   const back = page.getByRole('button', { name: 'Back to app' })
-  if ((await back.count()) === 0)
+  if ((await back.count()) === 0) {
     await page.getByRole('button', { name: 'Settings' }).first().click()
+  }
   await page.getByRole('button', { name: 'MCP', exact: true }).first().click()
   const allServers = page.getByRole('button', { name: 'All servers' })
   if ((await allServers.count()) > 0) await allServers.click()

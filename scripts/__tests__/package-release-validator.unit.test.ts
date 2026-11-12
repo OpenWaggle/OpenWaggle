@@ -9,7 +9,7 @@ import {
   writeMinimalPackageReleaseProject,
 } from './package-release-validator.fixtures'
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -99,7 +99,7 @@ describe('package release validation', () => {
     }
   })
 
-  it('rejects a root check script that skips package smoke validation', async () => {
+  it('rejects a root check script that bypasses the check runner', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
       await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
@@ -108,13 +108,15 @@ describe('package release validation', () => {
           'release-please': '17.6.1',
         },
         scripts: {
-          check: 'pnpm typecheck && pnpm lint',
+          check: 'bun run typecheck && bun run lint',
         },
       })
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
-      expect(result.violations).toContain('package.json scripts.check must run pnpm package:smoke.')
+      expect(result.violations).toContain(
+        'package.json scripts.check must be bun scripts/check/run.ts check, whose check gate runs the package smoke.',
+      )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }
@@ -129,7 +131,7 @@ describe('package release validation', () => {
       if (!isJsonObject(packageJson)) {
         throw new Error('Expected package fixture to be an object.')
       }
-      const scripts = packageJson.scripts
+      const scripts = packageJson['scripts']
       if (!isJsonObject(scripts)) {
         throw new Error('Expected package fixture scripts to be an object.')
       }
@@ -137,7 +139,7 @@ describe('package release validation', () => {
         ...packageJson,
         scripts: {
           ...scripts,
-          lint: 'oxlint src packages',
+          lint: 'bun scripts/lint.ts src packages',
         },
       })
 

@@ -14,20 +14,20 @@ import { summarize } from '../../lib/perf-stats'
  * timed from the request until its first streamed event and its first text. Only runs with
  *
  *   OPENWAGGLE_PERF_BEDROCK_MODEL=eu.anthropic.claude-sonnet-5 AWS_PROFILE=<sso profile> \
- *     OPENWAGGLE_PERF_OUT=<dir> pnpm perf:bedrock-ttfb
+ *     OPENWAGGLE_PERF_OUT=<dir> bun run perf:bedrock-ttfb
  *
  * The test home has no AWS configuration, so it gets read-only copies of the user's `~/.aws/config`
  * and SSO token cache (never a link to the real `~/.aws`, and never its long-lived keys).
  */
-const modelId = process.env.OPENWAGGLE_PERF_BEDROCK_MODEL
-const outDirectory = process.env.OPENWAGGLE_PERF_OUT
-const CALLS = Number(process.env.OPENWAGGLE_PERF_BEDROCK_CALLS ?? '20')
+const modelId = process.env['OPENWAGGLE_PERF_BEDROCK_MODEL']
+const outDirectory = process.env['OPENWAGGLE_PERF_OUT']
+const CALLS = Number(process.env['OPENWAGGLE_PERF_BEDROCK_CALLS'] ?? '20')
 const MAX_TOKENS = 64
 const TIMEOUT_MS = 300_000
 const JSON_INDENT = 2
 
 vi.mock('electron', () => ({
-  app: { getPath: () => process.env.OPENWAGGLE_USER_DATA_DIR ?? os.tmpdir() },
+  app: { getPath: () => process.env['OPENWAGGLE_USER_DATA_DIR'] ?? os.tmpdir() },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: {},
 }))
@@ -64,7 +64,7 @@ afterAll(async () => {
 })
 
 async function copyUserAwsConfiguration() {
-  await copyAwsSsoConfiguration(os.userInfo().homedir, process.env.HOME ?? os.homedir())
+  await copyAwsSsoConfiguration(os.userInfo().homedir, process.env['HOME'] ?? os.homedir())
 }
 
 describe.skipIf(!modelId)('Bedrock time to first byte', () => {
@@ -96,8 +96,9 @@ describe.skipIf(!modelId)('Bedrock time to first byte', () => {
         for await (const event of stream) {
           firstEventMs ??= performance.now() - startedAt
           if (event.type === 'text_delta') firstTextMs ??= performance.now() - startedAt
-          if (event.type === 'error')
+          if (event.type === 'error') {
             throw new Error(event.error.errorMessage ?? 'Bedrock request failed.')
+          }
         }
         const opened = handshakes.slice(handshakesBefore)
         calls.push({

@@ -149,9 +149,8 @@ describe('usage statistics snapshot job', () => {
     })
     await runUsageStatsSnapshot({ ...options, dryRun: false })
 
-    const posted: unknown = JSON.parse(
-      String(requests.find((request) => request.url === DEFAULT_SNAPSHOT_URL)?.init.body),
-    )
+    const body = requests.find((request) => request.url === DEFAULT_SNAPSHOT_URL)?.init.body
+    const posted: unknown = JSON.parse(typeof body === 'string' ? body : 'null')
     expect(validateUsageStatsSnapshot(posted).ok).toBe(true)
     expect(posted).toMatchObject({
       npm: [],
@@ -221,7 +220,10 @@ describe('usage statistics snapshot job', () => {
     const post = requests.find((request) => request.url === DEFAULT_SNAPSHOT_URL)
     expect(post?.init.method).toBe('POST')
     expect(new Headers(post?.init.headers).get('Authorization')).toBe('Bearer snapshot-token')
-    expect(validateUsageStatsSnapshot(JSON.parse(String(post?.init.body))).ok).toBe(true)
+    const body = post?.init.body
+    expect(
+      validateUsageStatsSnapshot(JSON.parse(typeof body === 'string' ? body : 'null')).ok,
+    ).toBe(true)
     expect(lines).toContain('Snapshot endpoint: {"events":5}')
     const flush = requests.find((request) => request.url === FLUSH_URL)
     expect(new Headers(flush?.init.headers).get('Authorization')).toBe('Bearer snapshot-token')

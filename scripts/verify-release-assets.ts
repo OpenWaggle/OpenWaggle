@@ -68,8 +68,9 @@ export function compareReleaseAssets(
   }
   const localNames = new Set(local.map((asset) => asset.name))
   for (const asset of remote) {
-    if (!localNames.has(asset.name))
+    if (!localNames.has(asset.name)) {
       problems.push(`${asset.name} is on the release but was not built`)
+    }
   }
   return problems
 }
@@ -128,19 +129,19 @@ function gh(args: readonly string[]) {
   })
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function parseAsset(value: unknown): RemoteReleaseAsset {
   if (
     isRecord(value) &&
-    typeof value.id === 'number' &&
-    typeof value.name === 'string' &&
-    typeof value.size === 'number' &&
-    typeof value.state === 'string'
+    typeof value['id'] === 'number' &&
+    typeof value['name'] === 'string' &&
+    typeof value['size'] === 'number' &&
+    typeof value['state'] === 'string'
   ) {
-    return { id: value.id, name: value.name, size: value.size, state: value.state }
+    return { id: value['id'], name: value['name'], size: value['size'], state: value['state'] }
   }
   throw new Error('GitHub returned a release asset in an unexpected shape.')
 }
@@ -154,14 +155,18 @@ async function findRelease(repository: string, tag: string): Promise<RemoteRelea
   )
   if (!Array.isArray(pages)) throw new Error('GitHub returned releases in an unexpected shape.')
   const releases: readonly unknown[] = pages.flat()
-  const matches = releases.filter((release) => isRecord(release) && release.tag_name === tag)
+  const matches = releases.filter((release) => isRecord(release) && release['tag_name'] === tag)
   if (matches.length > 1) throw new Error(`More than one release uses ${tag}.`)
   const release: unknown = matches[0]
   if (release === undefined) return null
-  if (!isRecord(release) || typeof release.draft !== 'boolean' || !Array.isArray(release.assets)) {
+  if (
+    !isRecord(release) ||
+    typeof release['draft'] !== 'boolean' ||
+    !Array.isArray(release['assets'])
+  ) {
     throw new Error('GitHub returned a release in an unexpected shape.')
   }
-  return { draft: release.draft, assets: release.assets.map(parseAsset) }
+  return { draft: release['draft'], assets: release['assets'].map(parseAsset) }
 }
 
 function argumentValue(args: readonly string[], flag: string) {

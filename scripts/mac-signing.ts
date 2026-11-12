@@ -14,7 +14,7 @@ function present(env: NodeJS.ProcessEnv, name: string) {
  * builds without a certificate stay unsigned.
  *
  * This only chooses how to sign. It never fails, because every electron-builder command loads the
- * configuration, including `install-app-deps` during `pnpm install` and the unsigned nightly canary.
+ * configuration, including `install-app-deps` during `bun install` and the unsigned nightly canary.
  * The release workflow enforces that release candidate and Stable builds are signed and notarized
  * before it builds them.
  */

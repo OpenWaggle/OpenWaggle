@@ -26,7 +26,7 @@ describe('package release namespace bootstrap execution', () => {
       ],
     ])
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         `npm view ${packageName}@0.0.0-bootstrap.0 --json`,
         { exitCode: 1, stderr: 'npm error code E404', stdout: '' },
@@ -50,7 +50,7 @@ describe('package release namespace bootstrap execution', () => {
 
   it('executes the complete bootstrap with npm automatic latest and no runtime code', async () => {
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         'npm access list packages maintainer --json',
         successful(

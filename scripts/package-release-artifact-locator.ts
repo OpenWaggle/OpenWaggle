@@ -70,32 +70,32 @@ function runGhApi(endpoint: string) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function decodeCandidates(value: unknown): readonly PackageReleaseArtifactCandidate[] {
-  if (!isJsonObject(value) || !Array.isArray(value.artifacts)) {
+  if (!isJsonObject(value) || !Array.isArray(value['artifacts'])) {
     throw new Error('GitHub returned an invalid artifact list.')
   }
-  return value.artifacts.map((artifact) => {
+  return value['artifacts'].map((artifact) => {
     if (
       !isJsonObject(artifact) ||
-      typeof artifact.name !== 'string' ||
-      typeof artifact.expired !== 'boolean' ||
-      typeof artifact.created_at !== 'string' ||
-      !isJsonObject(artifact.workflow_run) ||
-      typeof artifact.workflow_run.id !== 'number' ||
-      typeof artifact.workflow_run.head_sha !== 'string'
+      typeof artifact['name'] !== 'string' ||
+      typeof artifact['expired'] !== 'boolean' ||
+      typeof artifact['created_at'] !== 'string' ||
+      !isJsonObject(artifact['workflow_run']) ||
+      typeof artifact['workflow_run']['id'] !== 'number' ||
+      typeof artifact['workflow_run']['head_sha'] !== 'string'
     ) {
       throw new Error('GitHub returned an invalid package release artifact.')
     }
     return {
-      createdAt: artifact.created_at,
-      expired: artifact.expired,
-      name: artifact.name,
-      runId: artifact.workflow_run.id,
-      sourceSha: artifact.workflow_run.head_sha,
+      createdAt: artifact['created_at'],
+      expired: artifact['expired'],
+      name: artifact['name'],
+      runId: artifact['workflow_run']['id'],
+      sourceSha: artifact['workflow_run']['head_sha'],
     }
   })
 }
@@ -103,18 +103,18 @@ function decodeCandidates(value: unknown): readonly PackageReleaseArtifactCandid
 function decodeWorkflowRun(value: unknown): PackageReleaseWorkflowRun {
   if (
     !isJsonObject(value) ||
-    typeof value.conclusion !== 'string' ||
-    typeof value.event !== 'string' ||
-    typeof value.head_sha !== 'string' ||
-    typeof value.path !== 'string'
+    typeof value['conclusion'] !== 'string' ||
+    typeof value['event'] !== 'string' ||
+    typeof value['head_sha'] !== 'string' ||
+    typeof value['path'] !== 'string'
   ) {
     throw new Error('GitHub returned an invalid workflow run.')
   }
   return {
-    conclusion: value.conclusion,
-    event: value.event,
-    headSha: value.head_sha,
-    path: value.path,
+    conclusion: value['conclusion'],
+    event: value['event'],
+    headSha: value['head_sha'],
+    path: value['path'],
   }
 }
 
@@ -123,9 +123,9 @@ export async function locatePackageReleaseArtifact(args: readonly string[]) {
     throw new Error('Usage: package-release-artifact-locator.ts <source-tree>.')
   }
   const sourceTree = args[0]
-  const repository = process.env.GITHUB_REPOSITORY
-  const githubEnvironment = process.env.GITHUB_ENV
-  const githubOutput = process.env.GITHUB_OUTPUT
+  const repository = process.env['GITHUB_REPOSITORY']
+  const githubEnvironment = process.env['GITHUB_ENV']
+  const githubOutput = process.env['GITHUB_OUTPUT']
   if (
     sourceTree === undefined ||
     repository === undefined ||

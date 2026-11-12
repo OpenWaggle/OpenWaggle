@@ -30,8 +30,7 @@ export function centerOf(region: Region) {
 export async function drawOutline(image: Buffer, clip: Region, region: Region | undefined) {
   if (!region) return image
   const meta = await sharp(image).metadata()
-  const width = meta.width ?? clip.width
-  const height = meta.height ?? clip.height
+  const { width, height } = meta
   const scale = width / clip.width
   const viewBox = [clip.x, clip.y, width / scale, height / scale].map(String).join(' ')
   const rect = `<rect x="${String(region.x - OUTLINE_PAD_PX)}" y="${String(region.y - OUTLINE_PAD_PX)}" width="${String(region.width + OUTLINE_PAD_PX * HALVES)}" height="${String(region.height + OUTLINE_PAD_PX * HALVES)}" rx="${String(OUTLINE_CORNER_PX)}" fill="none" stroke="${OUTLINE_COLOR}" stroke-width="${String(OUTLINE_STROKE_PX)}"/>`

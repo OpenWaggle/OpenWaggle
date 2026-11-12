@@ -40,7 +40,7 @@ export interface HookPlacement {
 }
 
 const TEMPLATE_GLOB =
-  'node_modules/.pnpm/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
+  'node_modules/.bun/app-builder-lib@*/node_modules/app-builder-lib/templates/nsis'
 const UNINSTALLER_DEFINE = 'BUILD_UNINSTALLER'
 const ALL_PASSES: readonly CompilePassName[] = ['installer', 'uninstaller']
 /** Templates the installer entry point includes only for one pass. */
@@ -73,9 +73,9 @@ const CONTEXT_BY_TEMPLATE: Readonly<Record<string, HookContext>> = {
 /**
  * Resolve the vendored templates directory, or null when the dependency is absent.
  *
- * Resolved through Node rather than by globbing the pnpm store: the store can hold several
- * `app-builder-lib` versions at once, and taking the first glob hit would read templates from a copy
- * electron-builder does not use - which is the opposite of this module's contract that the vendored
+ * Resolved through Node, from the electron-builder the project installs, rather than by globbing
+ * Bun's store: the store can hold several `app-builder-lib` versions at once, and taking the first
+ * glob hit would read templates from a copy electron-builder does not use - which is the opposite of this module's contract that the vendored
  * templates are the authority. The glob remains only as a fallback for an unusual layout.
  */
 export async function findNsisTemplates(repositoryRoot: string): Promise<string | null> {
@@ -92,8 +92,10 @@ export async function findNsisTemplates(repositoryRoot: string): Promise<string 
 
 function resolveTemplatesThroughNode(repositoryRoot: string): string | null {
   try {
-    const require = createRequire(path.join(repositoryRoot, 'package.json'))
-    const manifest = require.resolve('app-builder-lib/package.json')
+    const rootRequire = createRequire(path.join(repositoryRoot, 'package.json'))
+    // app-builder-lib is electron-builder's dependency, not the project's, so resolve it from there.
+    const builderRequire = createRequire(rootRequire.resolve('electron-builder/package.json'))
+    const manifest = builderRequire.resolve('app-builder-lib/package.json')
     return path.join(path.dirname(manifest), 'templates', 'nsis')
   } catch {
     return null
@@ -223,8 +225,7 @@ function findPlacement(
        * An unguarded insertion in a file that is not pass-specific is compiled in both passes, which
        * is how electron-builder treats `installer.nsi` itself.
        */
-      passes:
-        pass === undefined || pass === null ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
+      passes: pass === undefined ? ALL_PASSES : [pass ? 'uninstaller' : 'installer'],
       context:
         withinFile === 'top-level' ? (CONTEXT_BY_TEMPLATE[templateKey] ?? 'top-level') : withinFile,
       source: `${relative}:${String(index + 1)}`,

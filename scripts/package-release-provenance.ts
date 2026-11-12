@@ -13,7 +13,7 @@ interface PackageReleaseProvenanceInput extends PackageReleaseAttestationIdentit
   readonly sourceTree: string
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -39,25 +39,25 @@ function attestationSourceSha(
 ) {
   if (
     !isJsonObject(entry) ||
-    !isJsonObject(entry.verificationResult) ||
-    !isJsonObject(entry.verificationResult.signature) ||
-    !isJsonObject(entry.verificationResult.signature.certificate)
+    !isJsonObject(entry['verificationResult']) ||
+    !isJsonObject(entry['verificationResult']['signature']) ||
+    !isJsonObject(entry['verificationResult']['signature']['certificate'])
   ) {
     return undefined
   }
-  const certificate = entry.verificationResult.signature.certificate
+  const certificate = entry['verificationResult']['signature']['certificate']
   if (
-    typeof certificate.buildConfigURI !== 'string' ||
-    !certificate.buildConfigURI.startsWith(expectedWorkflowPrefix) ||
-    typeof certificate.runInvocationURI !== 'string' ||
-    !certificate.runInvocationURI.startsWith(expectedRunPrefix) ||
-    !/^\d+$/.test(certificate.runInvocationURI.slice(expectedRunPrefix.length)) ||
-    certificate.runnerEnvironment !== 'github-hosted' ||
-    typeof certificate.sourceRepositoryDigest !== 'string'
+    typeof certificate['buildConfigURI'] !== 'string' ||
+    !certificate['buildConfigURI'].startsWith(expectedWorkflowPrefix) ||
+    typeof certificate['runInvocationURI'] !== 'string' ||
+    !certificate['runInvocationURI'].startsWith(expectedRunPrefix) ||
+    !/^\d+$/.test(certificate['runInvocationURI'].slice(expectedRunPrefix.length)) ||
+    certificate['runnerEnvironment'] !== 'github-hosted' ||
+    typeof certificate['sourceRepositoryDigest'] !== 'string'
   ) {
     return undefined
   }
-  return certificate.sourceRepositoryDigest
+  return certificate['sourceRepositoryDigest']
 }
 
 export function assertPackageReleaseAttestationIdentity(
@@ -94,14 +94,16 @@ export function assertPackageReleaseAttestationSourceCommit(
 ) {
   if (
     !isJsonObject(value) ||
-    value.sha !== identity.attestationSourceSha ||
-    !isJsonObject(value.tree) ||
-    value.tree.sha !== identity.sourceTree ||
-    !Array.isArray(value.parents) ||
-    !value.parents.every((parent) => isJsonObject(parent) && typeof parent.sha === 'string') ||
+    value['sha'] !== identity.attestationSourceSha ||
+    !isJsonObject(value['tree']) ||
+    value['tree']['sha'] !== identity.sourceTree ||
+    !Array.isArray(value['parents']) ||
+    !value['parents'].every(
+      (parent) => isJsonObject(parent) && typeof parent['sha'] === 'string',
+    ) ||
     (identity.attestationSourceSha !== identity.candidateSourceSha &&
-      !value.parents.some(
-        (parent) => isJsonObject(parent) && parent.sha === identity.candidateSourceSha,
+      !value['parents'].some(
+        (parent) => isJsonObject(parent) && parent['sha'] === identity.candidateSourceSha,
       ))
   ) {
     throw new Error('Attested source commit does not match the candidate head and source tree.')

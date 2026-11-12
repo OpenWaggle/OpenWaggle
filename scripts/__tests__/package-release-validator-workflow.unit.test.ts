@@ -87,7 +87,7 @@ describe('package release workflow validation', () => {
       'repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches',
       'repos/$GITHUB_REPOSITORY/actions/workflows/other.yml/dispatches',
     ],
-    ['versioned docs synchronization', 'pnpm package-docs:update', 'echo skipped-docs-update'],
+    ['versioned docs synchronization', 'bun run package-docs:update', 'echo skipped-docs-update'],
     ['successful completion wait', 'gh run watch "$RUN_ID" --exit-status', 'echo skipped-wait'],
     [
       'generated head binding',
@@ -176,8 +176,8 @@ describe('package release workflow validation', () => {
   it('rejects artifact preparation that does not smoke the canonical tarball directory before attestation', async () => {
     const invalidCi = replaceRequired(
       validCiWorkflow,
-      'pnpm package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"',
-      'pnpm package:smoke',
+      'bun run package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"',
+      'bun run package:smoke',
     )
     const result = await validatePackageReleaseFiles(
       await temporaryProject(validWorkflow, invalidCi),
@@ -222,7 +222,7 @@ describe('package release workflow validation', () => {
     const invalidCi = validCiWorkflow
       .replace('name: Package Release Gate', 'name: Optional package checks')
       .replace('node-version: 22.19.0', 'node-version: 20')
-      .replace('pnpm website:build', 'echo skipped-website')
+      .replace('bun run website:build', 'echo skipped-website')
       .replace(
         "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'",
         "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'",
@@ -281,14 +281,16 @@ describe('package release workflow validation', () => {
   it('rejects post-merge rebuilding, testing, or docs generation', async () => {
     const invalidWorkflow = validWorkflow.replace(
       '      - name: Install and verify pinned trusted-publishing npm',
-      '      - run: pnpm install --frozen-lockfile\n      - run: pnpm check\n      - run: pnpm build:packages\n      - run: pnpm docs:generate\n\n      - name: Install and verify pinned trusted-publishing npm',
+      '      - run: bun install --frozen-lockfile\n      - run: bun run check\n      - run: bun run build:packages\n      - run: bun run docs:generate\n      - run: bunx tsc\n      - run: bun x vite build\n\n      - name: Install and verify pinned trusted-publishing npm',
     )
     const result = await validatePackageReleaseFiles(await temporaryProject(invalidWorkflow))
 
     expect(result.violations).toEqual(
       expect.arrayContaining([
-        '.github/workflows/package-release.yml post-merge publication must not execute pnpm install.',
-        '.github/workflows/package-release.yml post-merge publication must not execute pnpm check.',
+        '.github/workflows/package-release.yml post-merge publication must not execute bun install.',
+        '.github/workflows/package-release.yml post-merge publication must not execute bun run.',
+        '.github/workflows/package-release.yml post-merge publication must not execute bunx.',
+        '.github/workflows/package-release.yml post-merge publication must not execute bun x.',
         '.github/workflows/package-release.yml post-merge publication must not execute build:packages.',
         '.github/workflows/package-release.yml post-merge publication must not execute docs:generate.',
       ]),
