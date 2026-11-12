@@ -1,3 +1,8 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  browserPreviewAttachmentSchema,
+  preparedAttachmentSchema,
+} from '@shared/schemas/validation'
 import type { MessageId, SessionId } from './brand'
 import type { JsonValue } from './json'
 import type { SupportedModelId } from './llm'
@@ -28,35 +33,10 @@ export type AttachmentOrigin =
   | 'browser-preview'
   | 'session-resource'
 
-export interface BrowserPreviewAttachmentMetadata {
-  readonly pageUrl: string
-  readonly pageTitle: string
-  readonly selector: string
-  readonly tagName: string
-  readonly role: string | null
-  readonly elementText: string
-  readonly comment: string
-  readonly elementCount?: number | undefined
-  readonly regionCount?: number | undefined
-  readonly drawingCount?: number | undefined
-  readonly styleChangeCount?: number | undefined
-  readonly componentName?: string | null | undefined
-  readonly sourceFile?: string | null | undefined
-  readonly sourceLine?: number | null | undefined
-}
+/** The browser preview a picked element or annotation came from, as the attachment schema bounds it. */
+export type BrowserPreviewAttachmentMetadata = SchemaType<typeof browserPreviewAttachmentSchema>
 
-export interface AttachmentRecord {
-  readonly id: string
-  readonly kind: AttachmentKind
-  readonly origin?: AttachmentOrigin | undefined
-  readonly name: string
-  readonly path: string
-  readonly mimeType: string
-  readonly sizeBytes: number
-  readonly contentSha256?: string | undefined
-  readonly extractedText: string
-  readonly browserPreview?: BrowserPreviewAttachmentMetadata | undefined
-}
+export type AttachmentRecord = SchemaType<typeof preparedAttachmentSchema>
 
 export interface AttachmentPart {
   readonly type: 'attachment'
@@ -190,7 +170,7 @@ export interface Message {
   readonly role: MessageRole
   readonly parts: readonly MessagePart[]
   readonly model?: SupportedModelId
-  readonly metadata?: MessageMetadata | undefined
+  readonly metadata?: MessageMetadata
   readonly createdAt: number
 }
 
@@ -231,8 +211,8 @@ export type AgentSendOutcome = 'delivered' | 'refused' | 'cancelled' | 'queued'
 
 export interface AgentSendReport {
   readonly outcome: AgentSendOutcome
-  readonly message?: string | undefined
-  readonly code?: string | undefined
+  readonly message?: string
+  readonly code?: string
   /** The Run a `delivered` send started, when the Host reported it. */
-  readonly runId?: string | undefined
+  readonly runId?: string
 }

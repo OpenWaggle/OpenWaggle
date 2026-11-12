@@ -44,29 +44,29 @@ const gitSessionIdSchema = Schema.String.pipe(Schema.fromBrand(SessionId))
 
 export const gitCommitPayloadSchema = Schema.Struct({
   /** Originating Session, used by main to verify ownership and project the commit into Outputs. */
-  sessionId: Schema.optional(gitSessionIdSchema),
+  sessionId: Schema.optionalWith(gitSessionIdSchema, { exact: true }),
   message: Schema.String,
   amend: Schema.Boolean,
   paths: selectedGitPathsSchema,
   /** False commits the existing index without staging working-tree changes. Defaults to true. */
-  includeUnstaged: Schema.optional(Schema.Boolean),
+  includeUnstaged: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const gitRunStackedActionOptionsSchema = Schema.Struct({
   action: Schema.Literal(...GIT_STACKED_ACTIONS),
   /** Renderer-generated id used to scope progress and cancellation to this invocation. */
-  operationId: Schema.optional(Schema.String),
+  operationId: Schema.optionalWith(Schema.String, { exact: true }),
   /** Session that initiated the action, used only to project created outputs. */
-  sessionId: Schema.optional(gitSessionIdSchema),
-  commitMessage: Schema.optional(Schema.String),
-  createFeatureBranch: Schema.optional(Schema.Boolean),
-  featureBranchName: Schema.optional(Schema.String),
+  sessionId: Schema.optionalWith(gitSessionIdSchema, { exact: true }),
+  commitMessage: Schema.optionalWith(Schema.String, { exact: true }),
+  createFeatureBranch: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  featureBranchName: Schema.optionalWith(Schema.String, { exact: true }),
   /** Preserve a validated user-entered ref verbatim instead of auto-sanitizing or suffixing it. */
-  exactFeatureBranchName: Schema.optional(Schema.Boolean),
-  baseRef: Schema.optional(Schema.String),
-  changeRequestTitle: Schema.optional(Schema.String),
-  changeRequestBody: Schema.optional(Schema.String),
-  draft: Schema.optional(Schema.Boolean),
+  exactFeatureBranchName: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  baseRef: Schema.optionalWith(Schema.String, { exact: true }),
+  changeRequestTitle: Schema.optionalWith(Schema.String, { exact: true }),
+  changeRequestBody: Schema.optionalWith(Schema.String, { exact: true }),
+  draft: Schema.optionalWith(Schema.Boolean, { exact: true }),
   /**
    * Repo-relative paths to stage for the commit phase.
    *
@@ -74,17 +74,17 @@ export const gitRunStackedActionOptionsSchema = Schema.Struct({
    * staging the whole repository. `git add --all` has no pathspec, so the old fallback reached
    * past the opened directory and swept the user's unrelated in-flight work into the commit.
    */
-  paths: Schema.optional(selectedGitPathsSchema),
+  paths: Schema.optionalWith(selectedGitPathsSchema, { exact: true }),
   /** False commits only the existing index and leaves unstaged changes untouched. */
-  includeUnstaged: Schema.optional(Schema.Boolean),
+  includeUnstaged: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const gitBranchCheckoutPayloadSchema = Schema.Struct({ name: Schema.String })
 
 export const gitBranchCreatePayloadSchema = Schema.Struct({
   name: Schema.String,
-  startPoint: Schema.optional(Schema.String),
-  checkout: Schema.optional(Schema.Boolean),
+  startPoint: Schema.optionalWith(Schema.String, { exact: true }),
+  checkout: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const gitWorktreeCreatePayloadSchema = Schema.Struct({
@@ -127,9 +127,9 @@ export const gitWorktreeRemovePayloadSchema = Schema.Struct({
 export const changeRequestPreflightPayloadSchema = Schema.Struct({
   headRef: Schema.String,
   /** Omitted when the provider should use its configured default branch. */
-  baseRef: Schema.optional(Schema.String),
+  baseRef: Schema.optionalWith(Schema.String, { exact: true }),
   title: Schema.String,
-  body: Schema.optional(Schema.String),
-  draft: Schema.optional(Schema.Boolean),
-  createFeatureBranch: Schema.optional(Schema.Boolean),
+  body: Schema.optionalWith(Schema.String, { exact: true }),
+  draft: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  createFeatureBranch: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })

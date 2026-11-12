@@ -74,7 +74,7 @@ function createStackedActionDeps(): StackedActionDeps {
     createBranch: async (projectPath, name, baseRef) => {
       const result = await createGitBranch(projectPath, {
         name,
-        startPoint: baseRef,
+        ...(baseRef === undefined ? {} : { startPoint: baseRef }),
         checkout: true,
       })
       return { ok: result.ok, message: result.message }
@@ -96,7 +96,7 @@ function createStackedActionDeps(): StackedActionDeps {
         message,
         amend: false,
         paths: [...selected],
-        includeUnstaged,
+        ...(includeUnstaged === undefined ? {} : { includeUnstaged }),
       })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),

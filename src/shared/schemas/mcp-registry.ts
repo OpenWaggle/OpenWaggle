@@ -13,13 +13,16 @@ const MAX_RESULT_LIMIT = 100
 const nonEmpty = (maxLength: number) =>
   Schema.String.pipe(Schema.minLength(1), Schema.maxLength(maxLength))
 
-const registryUrl = Schema.optional(nonEmpty(MAX_URL_LENGTH))
+const registryUrl = Schema.optionalWith(nonEmpty(MAX_URL_LENGTH), { exact: true })
 const registryName = nonEmpty(MAX_NAME_LENGTH)
-const version = Schema.optional(nonEmpty(MAX_NAME_LENGTH))
+const version = Schema.optionalWith(nonEmpty(MAX_NAME_LENGTH), { exact: true })
 
 export const mcpRegistrySearchRequestSchema = Schema.Struct({
   query: Schema.String.pipe(Schema.maxLength(MAX_QUERY_LENGTH)),
-  limit: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.between(1, MAX_RESULT_LIMIT))),
+  limit: Schema.optionalWith(
+    Schema.Number.pipe(Schema.int(), Schema.between(1, MAX_RESULT_LIMIT)),
+    { exact: true },
+  ),
   /** Another registry with the same API; HTTPS, or an explicit loopback URL. */
   registryUrl,
 })
@@ -39,8 +42,10 @@ export const mcpRegistryInstallRequestSchema = Schema.Struct({
   registryUrl,
   scope: Schema.Literal('global', 'project'),
   /** Defaults to the hosted URL when there is one, else the first supported package. */
-  method: Schema.optional(Schema.Literal('remote', ...MCP_REGISTRY_PACKAGE_TYPES)),
+  method: Schema.optionalWith(Schema.Literal('remote', ...MCP_REGISTRY_PACKAGE_TYPES), {
+    exact: true,
+  }),
   /** Defaults to the server's `suggestedName`. */
-  serverName: Schema.optional(nonEmpty(MAX_NAME_LENGTH)),
-  exposure: Schema.optional(Schema.Literal(...MCP_EXPOSURE_VALUES)),
+  serverName: Schema.optionalWith(nonEmpty(MAX_NAME_LENGTH), { exact: true }),
+  exposure: Schema.optionalWith(Schema.Literal(...MCP_EXPOSURE_VALUES), { exact: true }),
 })

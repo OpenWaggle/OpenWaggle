@@ -160,7 +160,7 @@ function dedupeProviderModels(
       provider,
       available: model.available,
       availableThinkingLevels: model.availableThinkingLevels,
-      contextWindow: model.contextWindow,
+      ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
       ...(model.virtual ? { virtual: true } : {}),
     })
   }

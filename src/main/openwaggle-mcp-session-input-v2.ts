@@ -89,7 +89,7 @@ function validateResourceFields(input: SessionToolInputV2) {
 function validateExportBranchFields(input: SessionToolInputV2) {
   if (input.operation !== 'export' && input.operation !== 'export-create') return
   assertSessionExportBranchSelection({
-    branchScope: input.branchScope,
+    ...(input.branchScope === undefined ? {} : { branchScope: input.branchScope }),
     ...(input.branchId ? { branchId: input.branchId } : {}),
   })
 }

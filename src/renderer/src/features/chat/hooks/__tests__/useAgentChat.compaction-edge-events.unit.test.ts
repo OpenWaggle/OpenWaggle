@@ -35,7 +35,7 @@ function end(timestamp: number, options: { aborted?: boolean; errorMessage?: str
     result: options.aborted || options.errorMessage ? null : {},
     aborted: options.aborted ?? false,
     willRetry: false,
-    errorMessage: options.errorMessage,
+    ...(options.errorMessage === undefined ? {} : { errorMessage: options.errorMessage }),
     timestamp,
   })
 }

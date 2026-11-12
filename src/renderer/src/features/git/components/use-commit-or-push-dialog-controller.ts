@@ -167,7 +167,7 @@ function buildRunOptions(input: {
   return {
     ...commitOptions,
     createFeatureBranch: input.target === 'new',
-    featureBranchName: input.target === 'new' ? input.branchName.trim() : undefined,
+    ...(input.target === 'new' ? { featureBranchName: input.branchName.trim() } : {}),
     exactFeatureBranchName: input.target === 'new',
     // Main re-resolves live HEAD while holding the mutation lock. Never derive a new branch from
     // this dialog's eventually-consistent status snapshot.

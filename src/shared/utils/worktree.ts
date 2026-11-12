@@ -1,4 +1,5 @@
 import { WorkingPath } from '../types/brand'
+import type { SessionSummary } from '../types/session'
 
 /**
  * Pure display helper for Session worktree paths, shared between the main
@@ -24,10 +25,7 @@ export function formatWorktreePathForDisplay(worktreePath: string): string {
  * repository path is rebranded as the working path — same string, correct role.
  */
 export function resolveSessionWorkingDir(
-  session: {
-    readonly environmentMode?: 'local' | 'worktree' | undefined
-    readonly worktreePath?: string | null | undefined
-  } | null,
+  session: Pick<SessionSummary, 'environmentMode' | 'worktreePath'> | null,
   openedProjectPath: string | null,
 ): WorkingPath | null {
   if (session?.environmentMode === 'worktree' && session.worktreePath) {

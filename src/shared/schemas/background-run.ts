@@ -42,7 +42,7 @@ export const worktreeLaunchStepSchema = Schema.Struct({
   label: Schema.String,
   startedAt: Schema.Number,
   /** Set once the step is known to be done; open steps render as in progress. */
-  completedAt: Schema.optional(Schema.Number),
+  completedAt: Schema.optionalWith(Schema.Number, { exact: true }),
 })
 
 /** A point-in-time update produced by the worktree birth path. */
@@ -50,20 +50,20 @@ export const worktreeLaunchProgressSchema = Schema.Struct({
   stage: worktreeLaunchStageSchema,
   details: Schema.Array(Schema.String),
   /** Headline of the step this stage starts, e.g. "Pulling latest main from origin". */
-  label: Schema.optional(Schema.String),
+  label: Schema.optionalWith(Schema.String, { exact: true }),
   /**
    * The step runs alongside the steps already open instead of following them. Sequential steps
    * close every open step when they start; parallel ones close only through `completesStep`.
    */
-  parallel: Schema.optional(Schema.Boolean),
+  parallel: Schema.optionalWith(Schema.Boolean, { exact: true }),
   /** Closes the open step of this stage without starting a new one. */
-  completesStep: Schema.optional(Schema.Boolean),
-  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
-  progressPercentage: Schema.optional(Schema.Number),
-  worktreePath: Schema.optional(Schema.String),
-  branch: Schema.optional(Schema.String),
-  baseRef: Schema.optional(Schema.String),
-  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
+  completesStep: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  environment: Schema.optionalWith(worktreeLaunchEnvironmentSchema, { exact: true }),
+  progressPercentage: Schema.optionalWith(Schema.Number, { exact: true }),
+  worktreePath: Schema.optionalWith(Schema.String, { exact: true }),
+  branch: Schema.optionalWith(Schema.String, { exact: true }),
+  baseRef: Schema.optionalWith(Schema.String, { exact: true }),
+  setupAction: Schema.optionalWith(worktreeSetupActionTerminalSchema, { exact: true }),
 })
 
 /** Compaction and retry events needed to restore the live chat activity after reconnecting. */
@@ -83,15 +83,15 @@ export const worktreeLaunchSnapshotSchema = Schema.Struct({
   startedAt: Schema.Number,
   updatedAt: Schema.Number,
   details: Schema.Array(Schema.String),
-  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
+  environment: Schema.optionalWith(worktreeLaunchEnvironmentSchema, { exact: true }),
   /** Labelled steps in start order; the last one is active while the launch runs. */
-  steps: Schema.optional(Schema.Array(worktreeLaunchStepSchema)),
-  progressPercentage: Schema.optional(Schema.Number),
-  worktreePath: Schema.optional(Schema.String),
-  branch: Schema.optional(Schema.String),
-  baseRef: Schema.optional(Schema.String),
-  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
-  errorMessage: Schema.optional(Schema.String),
+  steps: Schema.optionalWith(Schema.Array(worktreeLaunchStepSchema), { exact: true }),
+  progressPercentage: Schema.optionalWith(Schema.Number, { exact: true }),
+  worktreePath: Schema.optionalWith(Schema.String, { exact: true }),
+  branch: Schema.optionalWith(Schema.String, { exact: true }),
+  baseRef: Schema.optionalWith(Schema.String, { exact: true }),
+  setupAction: Schema.optionalWith(worktreeSetupActionTerminalSchema, { exact: true }),
+  errorMessage: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 export const worktreeLaunchEventPayloadSchema = Schema.Struct({

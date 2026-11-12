@@ -107,7 +107,7 @@ function useHeaderGit(activeSessionId: SessionId | null) {
     return match
       .promise(
         git.commit(git.workingPath, {
-          sessionId: activeSessionId ?? undefined,
+          ...(activeSessionId === null ? {} : { sessionId: activeSessionId }),
           message,
           amend,
           paths,

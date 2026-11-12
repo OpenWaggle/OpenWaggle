@@ -20,7 +20,10 @@ export function useActiveWorkingPath(): WorkingPath | null {
   const environmentMode = useChatStore((s) => s.activeSession?.environmentMode)
   const worktreePath = useChatStore((s) => s.activeSession?.worktreePath ?? null)
 
-  return resolveSessionWorkingDir({ environmentMode, worktreePath }, projectPath)
+  return resolveSessionWorkingDir(
+    { ...(environmentMode === undefined ? {} : { environmentMode }), worktreePath },
+    projectPath,
+  )
 }
 
 /** The repository a session belongs to. Keys branch lists, worktree lists and remotes. */

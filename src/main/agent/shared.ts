@@ -22,7 +22,7 @@ export function buildPersistedUserMessageParts(
     const persisted: PreparedAttachment = {
       id: attachment.id,
       kind: attachment.kind,
-      origin: attachment.origin,
+      ...(attachment.origin === undefined ? {} : { origin: attachment.origin }),
       name: attachment.name,
       path: attachment.path,
       mimeType: attachment.mimeType,

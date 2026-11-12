@@ -65,7 +65,7 @@ const sessionExportQuerySchema = Schema.Struct({
 }).pipe(
   Schema.filter(
     (query) =>
-      sessionExportBranchSelectionIsValid(query) ||
+      sessionExportBranchSelectionIsValid(query.branchScope, query.branchId) ||
       'A Session branch can be selected only for an active-branch export.',
   ),
 )

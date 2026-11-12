@@ -34,11 +34,11 @@ export const projectActionIconSchema = Schema.Literal(...PROJECT_ACTION_ICONS)
 
 export const projectActionShortcutSchema = Schema.Struct({
   key: trimmedNonEmptyString(PROJECT_ACTION_LIMITS.SHORTCUT_KEY_LENGTH),
-  mod: Schema.optional(Schema.Boolean),
-  ctrl: Schema.optional(Schema.Boolean),
-  shift: Schema.optional(Schema.Boolean),
-  alt: Schema.optional(Schema.Boolean),
-  meta: Schema.optional(Schema.Boolean),
+  mod: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  ctrl: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  shift: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  alt: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  meta: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 const projectActionShortcutWhenSchema = trimmedNonEmptyString(
@@ -90,7 +90,7 @@ export const storedProjectActionSchema = Schema.Struct(
     previewUrl: Schema.optional(projectActionPreviewUrlSchema),
     autoOpenPreview: Schema.optional(Schema.Boolean),
     shortcutRules: Schema.optional(projectActionShortcutRulesSchema),
-    shortcut: Schema.optional(projectActionShortcutSchema),
+    shortcut: Schema.optionalWith(projectActionShortcutSchema, { exact: true }),
   },
   looseRecordSchema,
 )

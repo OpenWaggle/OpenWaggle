@@ -22,7 +22,7 @@ function scheduledMessage(metadata: UIMessage['metadata']): UIMessage {
     role: 'user',
     parts: [{ type: 'text', content: 'Check the overnight CI runs' }],
     createdAt: CREATED_AT,
-    metadata,
+    ...(metadata === undefined ? {} : { metadata }),
   }
 }
 

@@ -10,10 +10,10 @@ export interface UsageStatisticsEnablementInput {
   readonly buildChannel: BuildChannel
   /** Raw environment values of the deciding process. */
   readonly env: {
-    readonly DO_NOT_TRACK?: string | undefined
-    readonly PI_TELEMETRY?: string | undefined
-    readonly CI?: string | undefined
-    readonly OPENWAGGLE_AUTOMATION?: string | undefined
+    readonly DO_NOT_TRACK?: string
+    readonly PI_TELEMETRY?: string
+    readonly CI?: string
+    readonly OPENWAGGLE_AUTOMATION?: string
   }
 }
 
