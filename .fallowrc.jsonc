@@ -93,10 +93,8 @@
     // CLI binaries run by check scripts; nothing imports them.
     "oxfmt",
     "react-doctor",
-    // Per-platform native builds of sharp and Pi's clipboard addon, loaded by
-    // their parent package for the current platform.
+    // Per-platform native builds of sharp, loaded by sharp for the current platform.
     "@img/sharp-*",
-    "@mariozechner/clipboard-*",
     // tools/bun-lint pins the dated Bun canary's per-platform binaries as optional
     // dependencies; scripts/lint.ts runs the one for this platform by path.
     "@oven/bun-*",
