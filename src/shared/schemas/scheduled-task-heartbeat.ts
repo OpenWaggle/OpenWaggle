@@ -47,16 +47,16 @@ export const heartbeatWakeCheckInputSchema = Schema.Struct({
   /** A shell command run in the Heartbeat's Session workspace before each firing. */
   command: heartbeatWakeCheckCommandSchema,
   /** Omitted: `wake`. */
-  onFailure: Schema.optional(failurePolicySchema),
+  onFailure: Schema.optionalWith(failurePolicySchema, { exact: true }),
 })
 
 /** The Heartbeat settings a caller sets; an omitted field keeps its value (or its default). */
 export const heartbeatSettingsInputSchema = Schema.Struct({
-  stopWhen: Schema.optional(Schema.NullOr(heartbeatStopWhenSchema)),
-  indefinite: Schema.optional(Schema.Boolean),
-  idlePauseAfter: Schema.optional(heartbeatIdlePauseAfterSchema),
+  stopWhen: Schema.optionalWith(Schema.NullOr(heartbeatStopWhenSchema), { exact: true }),
+  indefinite: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  idlePauseAfter: Schema.optionalWith(heartbeatIdlePauseAfterSchema, { exact: true }),
   /** null removes the Wake check. */
-  wakeCheck: Schema.optional(Schema.NullOr(heartbeatWakeCheckInputSchema)),
+  wakeCheck: Schema.optionalWith(Schema.NullOr(heartbeatWakeCheckInputSchema), { exact: true }),
 })
 
 export const heartbeatWakeCheckSchema = Schema.Struct({
@@ -93,7 +93,7 @@ export const scheduledTaskRunOutcomeSchema = Schema.Struct({
   /** Whether the outcome was reported by the Run or inferred from the tools it used. */
   source: Schema.Literal('reported', 'inferred'),
   /** Why, in the agent's words, when it reported one. */
-  note: Schema.optional(Schema.String),
+  note: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 /** What the Wake check decided for one firing, recorded on its run. */

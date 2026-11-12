@@ -29,11 +29,12 @@ export const taskScheduleSchema = Schema.Union(
     /** Local wall-clock time `HH:MM` in the task's time zone. */
     at: Schema.String.pipe(Schema.pattern(/^([01]\d|2[0-3]):[0-5]\d$/)),
     /** Omitted means every day. */
-    weekdays: Schema.optional(
+    weekdays: Schema.optionalWith(
       Schema.Array(Schema.Literal(...ISO_WEEKDAYS)).pipe(
         Schema.minItems(1),
         Schema.maxItems(DAYS_PER_WEEK),
       ),
+      { exact: true },
     ),
   }),
   Schema.Struct({
@@ -48,10 +49,11 @@ export const taskScheduleSchema = Schema.Union(
 
 /** A model and thinking level for this task's Runs only; omitted uses the Session's or project's. */
 const modelChoiceFields = {
-  modelId: Schema.optional(
+  modelId: Schema.optionalWith(
     Schema.String.pipe(Schema.minLength(1), Schema.maxLength(MODEL_ID_MAX_LENGTH)),
+    { exact: true },
   ),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  thinkingLevel: Schema.optionalWith(Schema.Literal(...THINKING_LEVELS), { exact: true }),
 }
 
 export const launchScheduleWorkspaceSchema = Schema.Literal('new-worktree', 'local')
@@ -67,8 +69,9 @@ export const scheduledTaskTargetSchema = Schema.Union(
     projectPath: sessionInputPathSchema.pipe(Schema.minLength(1)),
     workspace: launchScheduleWorkspaceSchema,
     ...modelChoiceFields,
-    agentDefinitionName: Schema.optional(
+    agentDefinitionName: Schema.optionalWith(
       Schema.String.pipe(Schema.minLength(1), Schema.maxLength(AGENT_DEFINITION_NAME_MAX_LENGTH)),
+      { exact: true },
     ),
     /** Archive a launched Session once it finished, nothing needs attention, and no one touched it. */
     archiveFinishedSessions: Schema.Boolean,
