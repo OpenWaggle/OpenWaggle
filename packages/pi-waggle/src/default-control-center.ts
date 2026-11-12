@@ -174,7 +174,7 @@ async function runMenuAction(input: DefaultWaggleCommandInput, action: WaggleMen
   return CLOSE_MENU
 }
 
-export async function openWaggleControlCenter(input: DefaultWaggleCommandInput): Promise<void> {
+export async function openWaggleControlCenter(input: DefaultWaggleCommandInput) {
   if (!input.ctx.hasUI) {
     const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(input.ctx.cwd))
     const preset = presets[FIRST_PRESET_INDEX]?.preset

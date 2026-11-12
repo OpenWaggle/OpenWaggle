@@ -28,18 +28,16 @@ export function modelReferenceForModel(model: DefaultPiWaggleModel) {
   return `${model.provider}/${model.id}`
 }
 
-export function effectiveAgentModelReference(
-  agentModel: string,
-  inheritedModelReference: string,
-): string {
-  return isWaggleInheritedModel(agentModel) ? inheritedModelReference : agentModel
+export function effectiveAgentModelReference(agentModel: string, inheritedModelReference: string) {
+  const result: string = isWaggleInheritedModel(agentModel) ? inheritedModelReference : agentModel
+  return result
 }
 
 export function resolveTurnModel(input: {
   readonly ctx: ModelResolutionContext
   readonly turn: WaggleTurn
   readonly inheritedModelReference: string
-}): DefaultPiWaggleModel {
+}) {
   const effectiveModelReference = effectiveAgentModelReference(
     input.turn.agent.model,
     input.inheritedModelReference,
@@ -49,7 +47,8 @@ export function resolveTurnModel(input: {
   if (!model) {
     throw new Error(`Pi model registry could not resolve model ${effectiveModelReference}`)
   }
-  return model
+  const result: DefaultPiWaggleModel = model
+  return result
 }
 
 export async function setTurnModel(input: {
@@ -57,7 +56,7 @@ export async function setTurnModel(input: {
   readonly ctx: ModelResolutionContext
   readonly turn: WaggleTurn
   readonly inheritedModelReference: string
-}): Promise<DefaultPiWaggleModel> {
+}) {
   const model = resolveTurnModel({
     ctx: input.ctx,
     turn: input.turn,

@@ -22,7 +22,7 @@ function messageText(
   return content.map((part) => (part.type === 'text' ? (part.text ?? '') : '')).join('')
 }
 
-export function registerPiWaggleRenderers(pi: MessageRendererRegistrar): void {
+export function registerPiWaggleRenderers(pi: MessageRendererRegistrar) {
   pi.registerMessageRenderer(PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE, (message) =>
     singleLineComponent(`🐝 Waggle request: ${messageText(message.content)}`),
   )

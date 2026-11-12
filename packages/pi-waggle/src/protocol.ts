@@ -65,11 +65,11 @@ function parseAgentColor(value: unknown) {
   return undefined
 }
 
-export function createPiWaggleTurnDetails(input: PiWaggleTurnDetails): PiWaggleTurnDetails {
+export function createPiWaggleTurnDetails(input: PiWaggleTurnDetails) {
   return input
 }
 
-export function parsePiWaggleTurnDetails(value: unknown): PiWaggleTurnDetails | null {
+export function parsePiWaggleTurnDetails(value: unknown) {
   if (!isObjectValue(value)) {
     return null
   }
@@ -93,14 +93,22 @@ export function parsePiWaggleTurnDetails(value: unknown): PiWaggleTurnDetails | 
     return null
   }
 
-  return { runId, turnNumber, agentIndex, agentLabel, agentModel, agentColor }
+  const details: PiWaggleTurnDetails = {
+    runId,
+    turnNumber,
+    agentIndex,
+    agentLabel,
+    agentModel,
+    agentColor,
+  }
+  return details
 }
 
-export function createPiWaggleModeState(input: PiWaggleModeState): PiWaggleModeState {
+export function createPiWaggleModeState(input: PiWaggleModeState) {
   return input
 }
 
-export function parsePiWaggleModeState(value: unknown): PiWaggleModeState | null {
+export function parsePiWaggleModeState(value: unknown) {
   if (!isObjectValue(value)) {
     return null
   }
@@ -121,10 +129,11 @@ export function parsePiWaggleModeState(value: unknown): PiWaggleModeState | null
     return null
   }
 
-  return {
+  const state: PiWaggleModeState = {
     enabled: fields.enabled,
     ...(presetId ? { presetId } : {}),
     ...(configResult?.success ? { config: configResult.value } : {}),
     updatedAt,
   }
+  return state
 }

@@ -184,9 +184,10 @@ export function defineExtensionManifest<const TManifest extends OpenWaggleExtens
   return manifest
 }
 
-export function validateExtensionManifest(value: unknown): ExtensionManifestValidationResult {
+export function validateExtensionManifest(value: unknown) {
   const result = safeDecodeExtensionSchema(openWaggleExtensionManifestSchema, value)
-  return result.success
+  const returned: ExtensionManifestValidationResult = result.success
     ? { success: true, manifest: result.data }
     : { success: false, issues: result.issues }
+  return returned
 }

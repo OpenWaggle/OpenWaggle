@@ -13,7 +13,7 @@ const EMPTY_LENGTH = 0
 
 export function openWaggleExtensionClassName(
   ...parts: readonly OpenWaggleExtensionClassNamePart[]
-): string {
+) {
   const classNames: string[] = []
 
   for (const part of parts) {

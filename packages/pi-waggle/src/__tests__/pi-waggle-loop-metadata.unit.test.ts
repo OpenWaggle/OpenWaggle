@@ -18,13 +18,7 @@ const MAX_TURNS_SAFETY = 4
 const PRIMARY_MODEL = 'openai/gpt-5.5'
 const SECONDARY_MODEL = 'anthropic/claude-sonnet-4'
 
-interface TestMeta {
-  readonly turnNumber: number
-  readonly agentIndex: number
-  readonly label: string
-}
-
-function config(): WaggleConfig {
+function config() {
   return {
     mode: 'sequential',
     agents: [
@@ -42,16 +36,16 @@ function config(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS_SAFETY },
-  }
+  } satisfies WaggleConfig
 }
 
-function metadata(waggleConfig: WaggleConfig, turnNumber: number, agentIndex: number): TestMeta {
+function metadata(waggleConfig: WaggleConfig, turnNumber: number, agentIndex: number) {
   const agent = waggleConfig.agents[agentIndex]
   if (!agent) throw new Error(`Expected Waggle agent ${String(agentIndex)}`)
   return { turnNumber, agentIndex, label: agent.label }
 }
 
-function modelFor(modelReference: string): PiWaggleModel {
+function modelFor(modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
   if (separatorIndex <= FIRST_PROVIDER_CHARACTER_INDEX) {
     throw new Error(`Expected provider/model id, received ${modelReference}`)
@@ -62,8 +56,8 @@ function modelFor(modelReference: string): PiWaggleModel {
   })
 }
 
-function agentEndEvent(messages: AgentEndEvent['messages'] = []): AgentEndEvent {
-  return { type: 'agent_end', messages }
+function agentEndEvent(messages: AgentEndEvent['messages'] = []) {
+  return { type: 'agent_end', messages } satisfies AgentEndEvent
 }
 
 function createHarness(model = modelFor(SECONDARY_MODEL)) {

@@ -40,13 +40,11 @@ function resolvedCssValue(
   return resolved.length > EMPTY_LENGTH ? resolved : fallback
 }
 
-function colorTokens(
-  resolve: ExtensionThemeCssVariableResolver | undefined,
-): OpenWaggleExtensionThemeTokens['color'] {
+function colorTokens(resolve: ExtensionThemeCssVariableResolver | undefined) {
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.color
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.color
 
-  return {
+  const tokens: OpenWaggleExtensionThemeTokens['color'] = {
     background: resolvedCssValue(resolve, source.background, fallback.background),
     surface: resolvedCssValue(resolve, source.surface, fallback.surface),
     surfaceRaised: resolvedCssValue(resolve, source.surfaceRaised, fallback.surfaceRaised),
@@ -71,6 +69,7 @@ function colorTokens(
     progress: resolvedCssValue(resolve, source.progress, fallback.progress),
     neutral: resolvedCssValue(resolve, source.neutral, fallback.neutral),
   }
+  return tokens
 }
 
 function typeScaleEntryTokens(
@@ -86,13 +85,11 @@ function typeScaleEntryTokens(
   }
 }
 
-function typographyTokens(
-  resolve: ExtensionThemeCssVariableResolver | undefined,
-): OpenWaggleExtensionThemeTokens['typography'] {
+function typographyTokens(resolve: ExtensionThemeCssVariableResolver | undefined) {
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.typography
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.typography
 
-  return {
+  const tokens: OpenWaggleExtensionThemeTokens['typography'] = {
     sansFamily: resolvedCssValue(resolve, source.sansFamily, fallback.sansFamily),
     monoFamily: resolvedCssValue(resolve, source.monoFamily, fallback.monoFamily),
     typeScale: {
@@ -104,26 +101,24 @@ function typographyTokens(
       twoXl: typeScaleEntryTokens(resolve, 'twoXl'),
     },
   }
+  return tokens
 }
 
-function spacingTokens(
-  resolve: ExtensionThemeCssVariableResolver | undefined,
-): OpenWaggleExtensionThemeTokens['spacing'] {
+function spacingTokens(resolve: ExtensionThemeCssVariableResolver | undefined) {
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.spacing
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.spacing
 
-  return {
+  const tokens: OpenWaggleExtensionThemeTokens['spacing'] = {
     unit: resolvedCssValue(resolve, source.unit, fallback.unit),
   }
+  return tokens
 }
 
-function radiusTokens(
-  resolve: ExtensionThemeCssVariableResolver | undefined,
-): OpenWaggleExtensionThemeTokens['radius'] {
+function radiusTokens(resolve: ExtensionThemeCssVariableResolver | undefined) {
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.radius
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.radius
 
-  return {
+  const tokens: OpenWaggleExtensionThemeTokens['radius'] = {
     xs: resolvedCssValue(resolve, source.xs, fallback.xs),
     sm: resolvedCssValue(resolve, source.sm, fallback.sm),
     md: resolvedCssValue(resolve, source.md, fallback.md),
@@ -133,15 +128,14 @@ function radiusTokens(
     threeXl: resolvedCssValue(resolve, source.threeXl, fallback.threeXl),
     fourXl: resolvedCssValue(resolve, source.fourXl, fallback.fourXl),
   }
+  return tokens
 }
 
-function shadowTokens(
-  resolve: ExtensionThemeCssVariableResolver | undefined,
-): OpenWaggleExtensionThemeTokens['shadow'] {
+function shadowTokens(resolve: ExtensionThemeCssVariableResolver | undefined) {
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.shadow
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.shadow
 
-  return {
+  const tokens: OpenWaggleExtensionThemeTokens['shadow'] = {
     twoXs: resolvedCssValue(resolve, source.twoXs, fallback.twoXs),
     xs: resolvedCssValue(resolve, source.xs, fallback.xs),
     sm: resolvedCssValue(resolve, source.sm, fallback.sm),
@@ -150,26 +144,26 @@ function shadowTokens(
     xl: resolvedCssValue(resolve, source.xl, fallback.xl),
     twoXl: resolvedCssValue(resolve, source.twoXl, fallback.twoXl),
   }
+  return tokens
 }
 
-function focusTokens(
-  resolve: ExtensionThemeCssVariableResolver | undefined,
-): OpenWaggleExtensionThemeTokens['focus'] {
+function focusTokens(resolve: ExtensionThemeCssVariableResolver | undefined) {
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES.focus
   const fallback = DEFAULT_EXTENSION_THEME_TOKENS.focus
 
-  return {
+  const tokens: OpenWaggleExtensionThemeTokens['focus'] = {
     ring: resolvedCssValue(resolve, source.ring, fallback.ring),
     shadow: resolvedCssValue(resolve, source.shadow, fallback.shadow),
   }
+  return tokens
 }
 
 export function createOpenWaggleExtensionTheme(
   options: CreateOpenWaggleExtensionThemeOptions = {},
-): OpenWaggleExtensionTheme {
+) {
   const resolve = options.resolveCssVariable
 
-  return {
+  const theme: OpenWaggleExtensionTheme = {
     colorScheme: options.colorScheme ?? 'dark',
     tokens: {
       color: colorTokens(resolve),
@@ -181,11 +175,10 @@ export function createOpenWaggleExtensionTheme(
     },
     cssVariables: OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES,
   }
+  return theme
 }
 
-export function extensionThemeCssVariableEntries(
-  theme: OpenWaggleExtensionTheme,
-): readonly OpenWaggleExtensionThemeCssVariableEntry[] {
+export function extensionThemeCssVariableEntries(theme: OpenWaggleExtensionTheme) {
   const typeScaleEntries = EXTENSION_THEME_TYPE_SCALE_KEYS.flatMap((role) => [
     {
       name: theme.cssVariables.typography.typeScale[role].fontSize,
@@ -197,7 +190,7 @@ export function extensionThemeCssVariableEntries(
     },
   ])
 
-  return [
+  const entry: readonly OpenWaggleExtensionThemeCssVariableEntry[] = [
     { name: theme.cssVariables.color.background, value: theme.tokens.color.background },
     { name: theme.cssVariables.color.surface, value: theme.tokens.color.surface },
     { name: theme.cssVariables.color.surfaceRaised, value: theme.tokens.color.surfaceRaised },
@@ -243,4 +236,5 @@ export function extensionThemeCssVariableEntries(
     { name: theme.cssVariables.focus.ring, value: theme.tokens.focus.ring },
     { name: theme.cssVariables.focus.shadow, value: theme.tokens.focus.shadow },
   ]
+  return entry
 }

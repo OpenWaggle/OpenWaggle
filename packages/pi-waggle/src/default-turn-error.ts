@@ -23,7 +23,7 @@ function hasTurnErrorRules(value: unknown): value is TurnErrorRules {
  * CommonJS build's compiled `require()` cannot load it, as pi-ai is ESM-only, so it imports it
  * with a real `import()` instead.
  */
-async function loadPiAi(): Promise<TurnErrorRules> {
+async function loadPiAi() {
   try {
     return await import('@earendil-works/pi-ai')
   } catch (error) {
@@ -45,7 +45,7 @@ async function loadPiAi(): Promise<TurnErrorRules> {
  */
 export function createPiWaggleTurnErrorClassifier(load: () => Promise<TurnErrorRules> = loadPiAi) {
   let classifier: TurnErrorClassifier | undefined
-  return async (): Promise<TurnErrorClassifier | undefined> => {
+  return async () => {
     if (classifier) return classifier
     try {
       const { isContextOverflow, isRetryableAssistantError } = await load()

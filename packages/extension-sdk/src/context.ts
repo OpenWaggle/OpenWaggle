@@ -86,8 +86,8 @@ export interface CreateOpenWaggleExtensionSurfaceContextInput {
   readonly theme?: OpenWaggleExtensionTheme
 }
 
-export function createNoopExtensionSurfaceSdk(): OpenWaggleExtensionSurfaceSdk {
-  return {
+export function createNoopExtensionSurfaceSdk() {
+  const sdk: OpenWaggleExtensionSurfaceSdk = {
     sendAction: async () => undefined,
     respondInteraction: async () => undefined,
     syntax: {
@@ -98,12 +98,13 @@ export function createNoopExtensionSurfaceSdk(): OpenWaggleExtensionSurfaceSdk {
         }),
     },
   }
+  return sdk
 }
 
 export function createOpenWaggleExtensionSharedModules(
   theme: OpenWaggleExtensionTheme = createOpenWaggleExtensionTheme(),
-): OpenWaggleExtensionSharedModules {
-  return {
+) {
+  const modules: OpenWaggleExtensionSharedModules = {
     sdk: {
       openWaggleVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
     },
@@ -119,12 +120,13 @@ export function createOpenWaggleExtensionSharedModules(
       createStylesheet: createOpenWaggleExtensionUiStylesheet,
     },
   }
+  return modules
 }
 
 export function createOpenWaggleExtensionSurfaceContext(
   input: CreateOpenWaggleExtensionSurfaceContextInput,
-): OpenWaggleExtensionSurfaceContext {
-  return {
+) {
+  const context: OpenWaggleExtensionSurfaceContext = {
     extension: {
       id: input.entry.extensionId,
       name: input.entry.extensionName,
@@ -145,4 +147,5 @@ export function createOpenWaggleExtensionSurfaceContext(
     ...(input.entry.sessionId !== undefined ? { sessionId: input.entry.sessionId } : {}),
     theme: input.theme ?? createOpenWaggleExtensionTheme(),
   }
+  return context
 }
