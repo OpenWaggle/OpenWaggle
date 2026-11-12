@@ -167,10 +167,14 @@ describe('Windows user-only security helper', () => {
     expect(script).toContain('VerifyDescriptor(new RawSecurityDescriptor(binary, 0), expectedUser)')
   })
 
-  it('compiles the pipe helper only for a batch with a pipe, after reading the targets', () => {
+  it('imports the Utility module first and compiles the pipe helper only for a batch with a pipe', () => {
     const command = windowsUserOnlySecurityCommandForTests()
     const script = Buffer.from(command.arguments.at(-1) ?? '', 'base64').toString('utf16le')
+    // The module-qualified lookup imports the Utility module before ConvertFrom-Json needs it.
+    const resolve = script.indexOf("Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type'")
     const readInput = script.indexOf("Write-SecurityStage 'read-input'")
+    expect(resolve).toBeGreaterThan(-1)
+    expect(readInput).toBeGreaterThan(resolve)
     const pipeCheck = script.indexOf('if ($pipeTargets -gt 0) {')
     const compile = script.indexOf('& $compiler -TypeDefinition $source -Language CSharp')
     expect(readInput).toBeGreaterThan(-1)

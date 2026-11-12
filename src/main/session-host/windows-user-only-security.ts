@@ -82,6 +82,11 @@ function Write-SecurityStage([string]$stage) {
   [Console]::Error.WriteLine('OW_SECURITY_STAGE:' + $stage)
   [Console]::Error.Flush()
 }
+# Resolving the cmdlet by its module name imports Microsoft.PowerShell.Utility directly. It must
+# come before ConvertFrom-Json: with the helper's minimal environment (no PSModulePath), finding
+# that cmdlet by command discovery instead takes Windows PowerShell 12-15 seconds on every run.
+Write-SecurityStage 'resolve-compiler-command'
+$compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
 Write-SecurityStage 'read-input'
 $targets = $RequestJson | ConvertFrom-Json
 # Only a named pipe needs the compiled helper; compiling it costs this process most of its run.
@@ -90,8 +95,6 @@ foreach ($target in $targets) {
   if ($target.kind -eq 'pipe') { $pipeTargets += 1 }
 }
 if ($pipeTargets -gt 0) {
-  Write-SecurityStage 'resolve-compiler-command'
-  $compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
   Write-SecurityStage 'compile'
   & $compiler -TypeDefinition $source -Language CSharp
 }
