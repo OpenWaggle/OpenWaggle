@@ -92,7 +92,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native AB
 ## Testing
 
 - Unit, integration and component tests live in nearby `__tests__/` folders; route-adjacent TanStack Router test files use the configured ignored filename pattern (`4bd0325e2`, `openwaggle/test-colocation`).
-- Tests verify behaviour through public interfaces, with typed builders, `satisfies` and Shoehorn helpers instead of casts (`4bd0325e2`). A response field gets a decode test through the real schema: an Effect Schema `Struct` drops keys it does not declare, which once lost the approval scope while every test that answered the broker directly stayed green (memory: tooling).
+- Tests verify behaviour through public interfaces, with typed builders, `satisfies` and Shoehorn helpers instead of casts: `fromPartial` for a partial fixture that still matches the shape, `fromAny` only for intentionally invalid input, `fromExact` when the test must supply the full type (`4bd0325e2`). A response field gets a decode test through the real schema: an Effect Schema `Struct` drops keys it does not declare, which once lost the approval scope while every test that answered the broker directly stayed green (memory: tooling).
 - A mocked `@/shared/lib/ipc` answers like the real bridge (memory: testing).
 - Avoid `vi.mock` hoisting races: import the subject dynamically after the mock setup when needed (`4bd0325e2`).
 - A test that spawns many real child processes is an integration test, and a large module graph loads once in `beforeAll` with its own timeout (memory: testing).

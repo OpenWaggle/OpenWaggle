@@ -129,18 +129,6 @@
       ],
       "hash": "sha256-3405655aae282b4bcc5daa28ab3d942c347c4d846fb91a522c7cd122cec9baa3"
     },
-    "migrate-to-shoehorn": {
-      "upstream": [
-        {
-          "repository": "https://github.com/mattpocock/skills",
-          "path": "skills/misc/migrate-to-shoehorn",
-          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
-          "hash": "sha256-8c6c73f599e9cae03c5c2920e4f3e196f39ce2de4c8c43a2e3961740dcf4309c"
-        }
-      ],
-      "hash": "sha256-2bf031e6f0018d11e4ad4662e854e62244321ee61e03871f6eb156be8882a7f2",
-      "localEdits": "Rewritten as standing guidance for test-only partial fixtures under this repository's type-safety rules, not a one-time migration."
-    },
     "prototype": {
       "upstream": [
         {
