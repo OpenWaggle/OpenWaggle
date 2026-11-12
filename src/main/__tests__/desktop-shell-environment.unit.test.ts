@@ -64,10 +64,10 @@ describe('desktop shell environment inference', () => {
 
     await installDesktopShellEnvironment({ env, platform: 'darwin', runCommand })
 
-    expect(env['PATH']).toBe('/Users/test/.volta/bin:/usr/local/bin:/usr/bin:/bin')
-    expect(env['SSH_AUTH_SOCK']).toBe('/private/tmp/agent.sock')
-    expect(env['XDG_CURRENT_DESKTOP']).toBe('Aqua')
-    expect(env['LC_CTYPE']).toBe('en_GB.UTF-8')
+    expect(env.PATH).toBe('/Users/test/.volta/bin:/usr/local/bin:/usr/bin:/bin')
+    expect(env.SSH_AUTH_SOCK).toBe('/private/tmp/agent.sock')
+    expect(env.XDG_CURRENT_DESKTOP).toBe('Aqua')
+    expect(env.LC_CTYPE).toBe('en_GB.UTF-8')
     expect(runCommand).toHaveBeenCalledTimes(1)
   })
 
@@ -84,8 +84,8 @@ describe('desktop shell environment inference', () => {
       runCommand,
     })
 
-    expect(env['PATH']).toBe('/opt/homebrew/bin:/usr/bin')
-    expect(env['LC_CTYPE']).toBe('en_US.UTF-8')
+    expect(env.PATH).toBe('/opt/homebrew/bin:/usr/bin')
+    expect(env.LC_CTYPE).toBe('en_US.UTF-8')
     expect(runCommand.mock.calls.some(([input]) => input.probe === 'launchctl-path')).toBe(true)
   })
 
@@ -103,8 +103,8 @@ describe('desktop shell environment inference', () => {
       runCommand,
     })
 
-    expect(env['XDG_RUNTIME_DIR']).toBe('/run/user/501')
-    expect(env['DBUS_SESSION_BUS_ADDRESS']).toBe('unix:path=/run/user/501/bus')
+    expect(env.XDG_RUNTIME_DIR).toBe('/run/user/501')
+    expect(env.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/run/user/501/bus')
   })
 
   it('merges PowerShell profile and system paths without case-insensitive duplicates', async () => {
@@ -125,13 +125,13 @@ describe('desktop shell environment inference', () => {
 
     await installDesktopShellEnvironment({ env, platform: 'win32', runCommand })
 
-    expect(env['PATH']?.split(';')).toEqual([
+    expect(env.PATH?.split(';')).toEqual([
       'C:\\Profile',
       'C:\\WINDOWS\\SYSTEM32',
       'C:\\Users\\test\\AppData\\Roaming\\npm',
       'C:\\System',
       'C:\\Existing',
     ])
-    expect(env['FNM_DIR']).toBe('C:\\Users\\test\\.fnm')
+    expect(env.FNM_DIR).toBe('C:\\Users\\test\\.fnm')
   })
 })

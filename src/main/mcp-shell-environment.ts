@@ -68,7 +68,7 @@ function defaultShells(platform: NodeJS.Platform) {
   } catch {
     userShell = undefined
   }
-  return [...new Set([getEnvWithOverrides({})['SHELL'], userShell, fallback])].filter(
+  return [...new Set([getEnvWithOverrides({}).SHELL, userShell, fallback])].filter(
     (shell): shell is string => typeof shell === 'string' && shell.trim().length > 0,
   )
 }

@@ -30,8 +30,8 @@ function isLocalUiResponse(
 ): value is Extract<LocalSessionCommandResult, { contract: 'local-ui-v1' }>['response'] {
   return (
     isRecord(value) &&
-    typeof value['requestId'] === 'string' &&
-    typeof value['effect'] === 'string' &&
+    typeof value.requestId === 'string' &&
+    typeof value.effect === 'string' &&
     [
       'pinned',
       'unpinned',
@@ -45,31 +45,31 @@ function isLocalUiResponse(
       'session-deleted',
       'follow-up-edit-hold-renewed',
       'follow-up-edit-hold-lost',
-    ].includes(value['effect']) &&
-    typeof value['sessionId'] === 'string' &&
-    (value['navigation'] === undefined ||
-      (isRecord(value['navigation']) && typeof value['navigation']['cancelled'] === 'boolean'))
+    ].includes(value.effect) &&
+    typeof value.sessionId === 'string' &&
+    (value.navigation === undefined ||
+      (isRecord(value.navigation) && typeof value.navigation.cancelled === 'boolean'))
   )
 }
 
 function isSessionQueryResponse(value: unknown): value is SessionQueryResponse {
   return (
     isRecord(value) &&
-    value['contractVersion'] === SESSION_QUERY_CONTRACT_VERSION &&
-    typeof value['requestId'] === 'string' &&
-    isRecord(value['outcome']) &&
-    typeof value['outcome']['operation'] === 'string'
+    value.contractVersion === SESSION_QUERY_CONTRACT_VERSION &&
+    typeof value.requestId === 'string' &&
+    isRecord(value.outcome) &&
+    typeof value.outcome.operation === 'string'
   )
 }
 
 function isAgentSendReport(value: unknown) {
   return (
     isRecord(value) &&
-    (value['outcome'] === 'delivered' ||
-      value['outcome'] === 'refused' ||
-      value['outcome'] === 'cancelled') &&
-    (value['message'] === undefined || typeof value['message'] === 'string') &&
-    (value['code'] === undefined || typeof value['code'] === 'string')
+    (value.outcome === 'delivered' ||
+      value.outcome === 'refused' ||
+      value.outcome === 'cancelled') &&
+    (value.message === undefined || typeof value.message === 'string') &&
+    (value.code === undefined || typeof value.code === 'string')
   )
 }
 
@@ -78,11 +78,11 @@ function isSessionWaggleResponse(
 ): value is Extract<LocalSessionCommandResult, { contract: 'session-waggle-v1' }>['response'] {
   return (
     isRecord(value) &&
-    value['contractVersion'] === SESSION_WAGGLE_CONTRACT_VERSION &&
-    typeof value['requestId'] === 'string' &&
-    typeof value['idempotencyKey'] === 'string' &&
-    typeof value['replayed'] === 'boolean' &&
-    isAgentSendReport(value['report'])
+    value.contractVersion === SESSION_WAGGLE_CONTRACT_VERSION &&
+    typeof value.requestId === 'string' &&
+    typeof value.idempotencyKey === 'string' &&
+    typeof value.replayed === 'boolean' &&
+    isAgentSendReport(value.report)
   )
 }
 
@@ -94,19 +94,19 @@ function isSessionWaggleCancellationResponse(
 >['response'] {
   return (
     isRecord(value) &&
-    value['contractVersion'] === SESSION_WAGGLE_CONTRACT_VERSION &&
-    typeof value['requestId'] === 'string' &&
-    typeof value['sessionId'] === 'string' &&
-    typeof value['cancelled'] === 'boolean'
+    value.contractVersion === SESSION_WAGGLE_CONTRACT_VERSION &&
+    typeof value.requestId === 'string' &&
+    typeof value.sessionId === 'string' &&
+    typeof value.cancelled === 'boolean'
   )
 }
 
 function isContextCompactionResult(value: unknown) {
   return (
     isRecord(value) &&
-    typeof value['summary'] === 'string' &&
-    typeof value['firstKeptEntryId'] === 'string' &&
-    typeof value['tokensBefore'] === 'number'
+    typeof value.summary === 'string' &&
+    typeof value.firstKeptEntryId === 'string' &&
+    typeof value.tokensBefore === 'number'
   )
 }
 
@@ -115,9 +115,9 @@ function isLocalCompactionResponse(
 ): value is Extract<LocalSessionCommandResult, { contract: 'local-compaction-v1' }>['response'] {
   return (
     isRecord(value) &&
-    typeof value['requestId'] === 'string' &&
-    typeof value['sessionId'] === 'string' &&
-    isContextCompactionResult(value['result'])
+    typeof value.requestId === 'string' &&
+    typeof value.sessionId === 'string' &&
+    isContextCompactionResult(value.result)
   )
 }
 
@@ -129,82 +129,79 @@ function isLocalCompactionCancellationResponse(
 >['response'] {
   return (
     isRecord(value) &&
-    typeof value['requestId'] === 'string' &&
-    typeof value['sessionId'] === 'string' &&
-    typeof value['cancelled'] === 'boolean'
+    typeof value.requestId === 'string' &&
+    typeof value.sessionId === 'string' &&
+    typeof value.cancelled === 'boolean'
   )
 }
 
 function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCommandResult {
-  return match(payload['contract'])
+  return match(payload.contract)
     .with('desktop-service-v1', () => ({
       contract: 'desktop-service-v1' as const,
-      response: decodeDesktopServiceResponse(payload['response']),
+      response: decodeDesktopServiceResponse(payload.response),
     }))
     .with('local-attachments-v1', () => {
-      const response = decodeUnknownExactOrThrow(
-        localAttachmentsResponseSchema,
-        payload['response'],
-      )
+      const response = decodeUnknownExactOrThrow(localAttachmentsResponseSchema, payload.response)
       return { contract: 'local-attachments-v1' as const, response }
     })
     .with('local-ui-v1', () => {
-      if (!isLocalUiResponse(payload['response'])) throw new Error('Invalid Local UI response.')
-      return { contract: 'local-ui-v1' as const, response: payload['response'] }
+      if (!isLocalUiResponse(payload.response)) throw new Error('Invalid Local UI response.')
+      return { contract: 'local-ui-v1' as const, response: payload.response }
     })
     .with('local-access-v1', () => ({
       contract: 'local-access-v1' as const,
-      response: decodeLocalSessionProfileManagementResponse(payload['response']),
+      response: decodeLocalSessionProfileManagementResponse(payload.response),
     }))
     .with('session-control-v2', () => ({
       contract: 'session-control-v2' as const,
-      response: decodeSessionControlMutationResponse(payload['response']),
+      response: decodeSessionControlMutationResponse(payload.response),
     }))
     .with('session-lifecycle-v2', () => ({
       contract: 'session-lifecycle-v2' as const,
-      response: decodeSessionLifecycleResponse(payload['response']),
+      response: decodeSessionLifecycleResponse(payload.response),
     }))
     .with('session-query-v2', () => {
-      if (!isSessionQueryResponse(payload['response'])) throw new Error('Invalid query response.')
-      return { contract: 'session-query-v2' as const, response: payload['response'] }
+      if (!isSessionQueryResponse(payload.response)) throw new Error('Invalid query response.')
+      return { contract: 'session-query-v2' as const, response: payload.response }
     })
     .with('host-ui-v1', () => ({
       contract: 'host-ui-v1' as const,
-      response: decodeHostUiV1Result(payload['response']),
+      response: decodeHostUiV1Result(payload.response),
     }))
     .with('local-update-v1', () => ({
       contract: 'local-update-v1' as const,
-      response: decodeLocalUpdateResponse(payload['response']),
+      response: decodeLocalUpdateResponse(payload.response),
     }))
     .with('local-host-v1', () => ({
       contract: 'local-host-v1' as const,
-      response: decodeLocalHostResponse(payload['response']),
+      response: decodeLocalHostResponse(payload.response),
     }))
     .with('session-waggle-v1', () => {
-      if (!isSessionWaggleResponse(payload['response'])) throw new Error('Invalid Waggle response.')
-      return { contract: 'session-waggle-v1' as const, response: payload['response'] }
+      if (!isSessionWaggleResponse(payload.response)) throw new Error('Invalid Waggle response.')
+      return { contract: 'session-waggle-v1' as const, response: payload.response }
     })
     .with('session-waggle-cancel-v1', () => {
-      if (!isSessionWaggleCancellationResponse(payload['response'])) {
+      if (!isSessionWaggleCancellationResponse(payload.response)) {
         throw new Error('Invalid Waggle cancellation response.')
       }
-      return { contract: 'session-waggle-cancel-v1' as const, response: payload['response'] }
+      return { contract: 'session-waggle-cancel-v1' as const, response: payload.response }
     })
     .with('local-compaction-v1', () => {
-      if (!isLocalCompactionResponse(payload['response'])) {
+      if (!isLocalCompactionResponse(payload.response)) {
         throw new Error('Invalid Local compaction response.')
       }
-      return { contract: 'local-compaction-v1' as const, response: payload['response'] }
+      return { contract: 'local-compaction-v1' as const, response: payload.response }
     })
     .with('local-compaction-cancel-v1', () => {
-      if (!isLocalCompactionCancellationResponse(payload['response'])) {
+      if (!isLocalCompactionCancellationResponse(payload.response)) {
         throw new Error('Invalid Local compaction cancellation response.')
       }
-      return { contract: 'local-compaction-cancel-v1' as const, response: payload['response'] }
+      return { contract: 'local-compaction-cancel-v1' as const, response: payload.response }
     })
     .with('scheduled-tasks-v1', () => ({
       contract: 'scheduled-tasks-v1' as const,
-      response: decodeScheduledTasksResponse(payload['response']),
+      response: decodeScheduledTasksResponse(payload.response),
     }))
     .otherwise(() => {
       throw new Error('Local Session Host returned an invalid command contract.')
@@ -215,17 +212,17 @@ export function decodeLocalSessionCommandResponse(
   frame: unknown,
   requestId: string,
 ): LocalSessionCommandResult {
-  if (!isRecord(frame) || typeof frame['kind'] !== 'string') {
+  if (!isRecord(frame) || typeof frame.kind !== 'string') {
     throw new Error('Local Session Host returned an invalid command frame.')
   }
-  if (frame['kind'] === 'error') {
+  if (frame.kind === 'error') {
     throw localSessionClientProtocolError(frame, 'Local Session command failed.')
   }
-  if (frame['kind'] !== 'response' || frame['requestId'] !== requestId) {
+  if (frame.kind !== 'response' || frame.requestId !== requestId) {
     throw new Error('Local Session Host returned an unexpected command response.')
   }
-  if (!isRecord(frame['payload']) || !('response' in frame['payload'])) {
+  if (!isRecord(frame.payload) || !('response' in frame.payload)) {
     throw new Error('Local Session Host returned an invalid command payload.')
   }
-  return decodeCommandPayload(frame['payload'])
+  return decodeCommandPayload(frame.payload)
 }

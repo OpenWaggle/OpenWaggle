@@ -22,7 +22,7 @@ async function publishedSchema() {
 }
 
 function stringPattern(value: unknown) {
-  const pattern = record(value)['pattern']
+  const pattern = record(value).pattern
   if (typeof pattern !== 'string') throw new Error('Expected a string pattern.')
   return new RegExp(pattern, 'u')
 }
@@ -67,11 +67,11 @@ function resolveLocalReference(
   node: Record<string, unknown>,
   visited: ReadonlySet<string> = new Set(),
 ): Record<string, unknown> {
-  const reference = node['$ref']
+  const reference = node.$ref
   if (typeof reference !== 'string') return node
   if (visited.has(reference)) throw new Error(`${reference} refers to itself.`)
   const name = reference.replace(/^#\/\$defs\//u, '')
-  const definition = record(record(root['$defs'])[name])
+  const definition = record(record(root.$defs)[name])
   const siblings = Object.entries(node).filter(([keyword]) => keyword !== '$ref')
   for (const [keyword, value] of siblings) {
     if (keyword in definition && JSON.stringify(definition[keyword]) !== JSON.stringify(value)) {
@@ -128,16 +128,13 @@ function contractOf(root: Record<string, unknown>, value: unknown): Record<strin
     if (IGNORED_KEYWORDS.has(keyword)) continue
     contract[keyword] = keywordContract(root, keyword, keywordValue)
   }
-  const values = Array.isArray(contract['enum'])
-    ? contract['enum']
+  const values = Array.isArray(contract.enum)
+    ? contract.enum
     : 'const' in contract
-      ? [contract['const']]
+      ? [contract.const]
       : undefined
-  if (
-    values &&
-    (contract['type'] === undefined || typeAgreesWithValues(contract['type'], values))
-  ) {
-    delete contract['type']
+  if (values && (contract.type === undefined || typeAgreesWithValues(contract.type, values))) {
+    delete contract.type
   }
   return contract
 }
@@ -148,7 +145,7 @@ function patternsOf(
   path = '#',
 ): [string, unknown][] {
   const node = resolveLocalReference(root, record(value))
-  const own: [string, unknown][] = node['pattern'] === undefined ? [] : [[path, node['pattern']]]
+  const own: [string, unknown][] = node.pattern === undefined ? [] : [[path, node.pattern]]
   const subschemas = [...SUBSCHEMA_KEYWORDS].flatMap((keyword) => {
     const subschema = node[keyword]
     if (subschema === undefined) return []
@@ -157,7 +154,7 @@ function patternsOf(
       patternsOf(root, entry, `${path}/${keyword}/${index}`),
     )
   })
-  const properties = Object.entries(record(node['properties'] ?? {})).flatMap(([key, property]) =>
+  const properties = Object.entries(record(node.properties ?? {})).flatMap(([key, property]) =>
     patternsOf(root, property, `${path}/properties/${key}`),
   )
   return [...own, ...subschemas, ...properties]
@@ -165,15 +162,15 @@ function patternsOf(
 
 describe('published Agent definition schema', () => {
   it('matches the runtime reasoning levels and portable name policy', async () => {
-    const properties = record((await publishedSchema())['properties'])
-    const reasoning = record(properties['reasoning'])
-    const name = record(properties['name'])
-    if (!Array.isArray(reasoning['enum']) || typeof name['pattern'] !== 'string') {
+    const properties = record((await publishedSchema()).properties)
+    const reasoning = record(properties.reasoning)
+    const name = record(properties.name)
+    if (!Array.isArray(reasoning.enum) || typeof name.pattern !== 'string') {
       throw new Error('The published Agent definition schema is incomplete.')
     }
 
-    expect(reasoning['enum']).toEqual([...THINKING_LEVELS])
-    const publishedNamePattern = new RegExp(name['pattern'], 'u')
+    expect(reasoning.enum).toEqual([...THINKING_LEVELS])
+    const publishedNamePattern = new RegExp(name.pattern, 'u')
     for (const candidate of [
       'reviewer',
       'release.review',
@@ -216,16 +213,16 @@ describe('published Agent definition schema', () => {
 
   it('matches runtime non-whitespace requirements for user-authored strings', async () => {
     const schema = await publishedSchema()
-    const properties = record(schema['properties'])
-    const nameList = record(record(schema['$defs'])['nameList'])
-    const nameListPattern = stringPattern(record(nameList['items']))
+    const properties = record(schema.properties)
+    const nameList = record(record(schema.$defs).nameList)
+    const nameListPattern = stringPattern(record(nameList.items))
     const whitespace = ' \t '
 
-    expect(stringPattern(properties['description']).test(whitespace)).toBe(false)
-    expect(stringPattern(properties['model']).test(whitespace)).toBe(false)
+    expect(stringPattern(properties.description).test(whitespace)).toBe(false)
+    expect(stringPattern(properties.model).test(whitespace)).toBe(false)
     expect(nameListPattern.test(whitespace)).toBe(false)
-    expect(stringPattern(properties['description']).test(' Reviews changes. ')).toBe(true)
-    expect(stringPattern(properties['model']).test(' openai/gpt-5.6 ')).toBe(true)
+    expect(stringPattern(properties.description).test(' Reviews changes. ')).toBe(true)
+    expect(stringPattern(properties.model).test(' openai/gpt-5.6 ')).toBe(true)
     expect(nameListPattern.test(' read ')).toBe(true)
 
     const invalidDocuments = [
@@ -242,11 +239,11 @@ describe('published Agent definition schema', () => {
   })
 
   it('lists every Session capability the parser accepts, and no more', async () => {
-    const properties = record((await publishedSchema())['properties'])
-    const capabilities = record(properties['sessionCapabilities'])
+    const properties = record((await publishedSchema()).properties)
+    const capabilities = record(properties.sessionCapabilities)
 
-    expect(record(capabilities['items'])['enum']).toEqual([...SESSION_CAPABILITIES])
-    expect(capabilities['maxItems']).toBe(SESSION_CAPABILITIES.length)
+    expect(record(capabilities.items).enum).toEqual([...SESSION_CAPABILITIES])
+    expect(capabilities.maxItems).toBe(SESSION_CAPABILITIES.length)
   })
 
   it('matches the parser keyword by keyword: names, required fields, types, enums and limits', async () => {

@@ -102,9 +102,9 @@ describe('walkRunInitiators', () => {
           follows: order.map((branch) => (branch === 'short' ? 'short' : `long${longRuns - 1}`)),
         },
       }
-      const long0 = catalog['long0']
+      const long0 = catalog.long0
       if (!long0) throw new Error('The long branch has a first Run')
-      catalog['long0'] = { ...long0, follows: ['shared1'] }
+      catalog.long0 = { ...long0, follows: ['shared1'] }
 
       expect(decide(catalog, 'top').verdict).toBe(false)
     },
@@ -123,9 +123,9 @@ describe('walkRunInitiators', () => {
       ...line(detourRuns, alternating, 'p'),
       top: { sessionId: 'a', verdict: true, follows: ['x', `p${detourRuns - 1}`] },
     }
-    const p0 = catalog['p0']
+    const p0 = catalog.p0
     if (!p0) throw new Error('The detour has a first Run')
-    catalog['p0'] = { ...p0, follows: ['x'] }
+    catalog.p0 = { ...p0, follows: ['x'] }
     expect(1 + detourRuns + 1 + longRuns).toBeGreaterThan(limit)
 
     expect(decide(catalog, 'top').verdict).toBe(false)

@@ -27,21 +27,20 @@ function decodeStringArray(value: unknown) {
 function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded'] | undefined {
   if (
     !isRecord(value) ||
-    value['reason'] !== 'content-limit' ||
-    typeof value['omittedBytes'] !== 'number'
+    value.reason !== 'content-limit' ||
+    typeof value.omittedBytes !== 'number'
   ) {
     return undefined
   }
-  const toolCallIds =
-    value['toolCallIds'] === undefined ? [] : decodeStringArray(value['toolCallIds'])
+  const toolCallIds = value.toolCallIds === undefined ? [] : decodeStringArray(value.toolCallIds)
   if (!toolCallIds) return undefined
   return {
     reason: 'content-limit',
-    omittedBytes: value['omittedBytes'],
+    omittedBytes: value.omittedBytes,
     ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
     // One that does not say whether the caps cut the streaming message counts as cut: its parts
     // must not pass for the whole message over a longer shown copy.
-    messageCutShort: value['messageCutShort'] !== false,
+    messageCutShort: value.messageCutShort !== false,
   }
 }
 
@@ -119,14 +118,14 @@ function hasActiveRunSnapshotShape(
   candidate: Record<string, unknown>,
 ): candidate is ActiveRunSnapshotCandidate {
   return (
-    candidate['activity'] === 'agent-run' &&
-    typeof candidate['sessionId'] === 'string' &&
-    typeof candidate['model'] === 'string' &&
-    (candidate['mode'] === 'classic' || candidate['mode'] === 'waggle') &&
-    typeof candidate['startedAt'] === 'number' &&
-    Array.isArray(candidate['parts']) &&
-    isOptionalString(candidate['messageId']) &&
-    isOptionalString(candidate['runId'])
+    candidate.activity === 'agent-run' &&
+    typeof candidate.sessionId === 'string' &&
+    typeof candidate.model === 'string' &&
+    (candidate.mode === 'classic' || candidate.mode === 'waggle') &&
+    typeof candidate.startedAt === 'number' &&
+    Array.isArray(candidate.parts) &&
+    isOptionalString(candidate.messageId) &&
+    isOptionalString(candidate.runId)
   )
 }
 
@@ -141,7 +140,7 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
   return value.map((candidate, index) => {
     if (!isRecord(candidate) || !hasActiveRunSnapshotShape(candidate)) {
-      const sessionId = isRecord(candidate) ? candidate['sessionId'] : undefined
+      const sessionId = isRecord(candidate) ? candidate.sessionId : undefined
       throw new Error(
         `Local Session Host returned an invalid active Run snapshot (index ${String(index)}${
           typeof sessionId === 'string' ? `, Session ${sessionId}` : ''
@@ -153,23 +152,23 @@ export function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[
       ...(candidate.runId ? { runId: candidate.runId } : {}),
     }
     const streaming = decodeStreamingParts(candidate, context)
-    const degraded = withUndecodableParts(decodeDegradedSnapshot(candidate['degraded']), streaming)
-    const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate['worktreeLaunch'], context)
+    const degraded = withUndecodableParts(decodeDegradedSnapshot(candidate.degraded), streaming)
+    const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate.worktreeLaunch, context)
     return {
       activity: 'agent-run',
-      activityEvents: decodeActivityEvents(candidate['activityEvents'], context),
+      activityEvents: decodeActivityEvents(candidate.activityEvents, context),
       sessionId: SessionId(candidate.sessionId),
       ...(typeof candidate.runId === 'string' ? { runId: candidate.runId } : {}),
       model: SupportedModelId(candidate.model),
       mode: candidate.mode,
       startedAt: candidate.startedAt,
       ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
-      ...(typeof candidate['messageStartedAt'] === 'number'
-        ? { messageStartedAt: candidate['messageStartedAt'] }
+      ...(typeof candidate.messageStartedAt === 'number'
+        ? { messageStartedAt: candidate.messageStartedAt }
         : {}),
       parts: streaming.parts,
-      ...decodeUserMessageSnapshots(candidate['userMessages'], context),
-      ...decodeAssistantMessageSnapshots(candidate['assistantMessages'], context),
+      ...decodeUserMessageSnapshots(candidate.userMessages, context),
+      ...decodeAssistantMessageSnapshots(candidate.assistantMessages, context),
       ...(degraded ? { degraded } : {}),
       ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }

@@ -21,11 +21,9 @@ const logger = createLogger('session-host/event-client')
 
 /** What the log may say about an event: never its content. */
 function describeEventFrame(event: unknown) {
-  if (!isRecord(event) || !isRecord(event['payload'])) return {}
-  const { kind, sessionId } = event['payload']
-  const transport = isRecord(event['payload']['event'])
-    ? event['payload']['event']['type']
-    : undefined
+  if (!isRecord(event) || !isRecord(event.payload)) return {}
+  const { kind, sessionId } = event.payload
+  const transport = isRecord(event.payload.event) ? event.payload.event.type : undefined
   return {
     ...(typeof kind === 'string' ? { kind } : {}),
     ...(typeof sessionId === 'string' ? { sessionId } : {}),
@@ -66,26 +64,26 @@ async function establishSubscription(
       : {}),
   })
   const first = await reader.next(timeoutMs)
-  if (!isRecord(first) || typeof first['kind'] !== 'string') {
+  if (!isRecord(first) || typeof first.kind !== 'string') {
     throw new Error('Local Session Host returned an invalid subscription frame.')
   }
-  if (first['kind'] === 'resync-required') return decodeResyncRequired(first)
-  if (first['kind'] === 'error') {
+  if (first.kind === 'resync-required') return decodeResyncRequired(first)
+  if (first.kind === 'error') {
     throw localSessionClientProtocolError(first, 'Subscription failed.')
   }
-  if (first['kind'] !== 'subscribed' || first['requestId'] !== requestId) {
+  if (first.kind !== 'subscribed' || first.requestId !== requestId) {
     throw new Error('Local Session Host returned an unexpected subscription response.')
   }
-  if (typeof first['subscriptionId'] !== 'string') {
+  if (typeof first.subscriptionId !== 'string') {
     throw new Error('Local Session Host omitted the subscription identity.')
   }
   return {
     status: 'ready' as const,
-    subscriptionId: first['subscriptionId'],
-    cursor: decodeCursor(first['cursor'], 'subscription cursor'),
-    ...(first['activeRuns'] === undefined
+    subscriptionId: first.subscriptionId,
+    cursor: decodeCursor(first.cursor, 'subscription cursor'),
+    ...(first.activeRuns === undefined
       ? {}
-      : { activeRuns: decodeActiveRunSnapshots(first['activeRuns']) }),
+      : { activeRuns: decodeActiveRunSnapshots(first.activeRuns) }),
   }
 }
 
@@ -107,20 +105,20 @@ async function consumeSubscriptionFrame(
   subscriptionId: string,
   input: LocalSessionWatchInput,
 ): Promise<LocalSessionWatchResult | undefined> {
-  if (!isRecord(frame) || typeof frame['kind'] !== 'string') {
+  if (!isRecord(frame) || typeof frame.kind !== 'string') {
     throw new Error('Local Session Host returned an invalid event frame.')
   }
-  if (frame['kind'] === 'event' && frame['subscriptionId'] === subscriptionId) {
-    await consumeEvent(frame['event'], input)
+  if (frame.kind === 'event' && frame.subscriptionId === subscriptionId) {
+    await consumeEvent(frame.event, input)
     return
   }
-  if (frame['kind'] === 'cursor-advanced' && frame['subscriptionId'] === subscriptionId) {
-    await consumeCursorAdvancement(frame['cursor'], input)
+  if (frame.kind === 'cursor-advanced' && frame.subscriptionId === subscriptionId) {
+    await consumeCursorAdvancement(frame.cursor, input)
     return
   }
-  if (frame['kind'] === 'resync-required') return decodeResyncRequired(frame)
-  if (frame['kind'] === 'subscription-closed') return { status: 'closed' }
-  if (frame['kind'] === 'error') {
+  if (frame.kind === 'resync-required') return decodeResyncRequired(frame)
+  if (frame.kind === 'subscription-closed') return { status: 'closed' }
+  if (frame.kind === 'error') {
     throw localSessionClientProtocolError(frame, 'Subscription failed.')
   }
 }
@@ -154,12 +152,12 @@ async function consumeCursorAdvancement(cursor: unknown, input: LocalSessionWatc
 function decodeCursor(value: unknown, label: string): SessionHostEventCursor {
   if (
     !isRecord(value) ||
-    typeof value['hostInstanceId'] !== 'string' ||
-    typeof value['sequence'] !== 'number'
+    typeof value.hostInstanceId !== 'string' ||
+    typeof value.sequence !== 'number'
   ) {
     throw new Error(`Local Session Host returned an invalid ${label}.`)
   }
-  return { hostInstanceId: value['hostInstanceId'], sequence: value['sequence'] }
+  return { hostInstanceId: value.hostInstanceId, sequence: value.sequence }
 }
 
 export async function watchLocalSessionEvents(
@@ -189,19 +187,19 @@ export async function watchLocalSessionEvents(
 function decodeResyncRequired(frame: Record<string, unknown>): LocalSessionWatchResult {
   const reasons = ['host-restarted', 'cursor-expired', 'cursor-ahead', 'slow-consumer'] as const
   if (
-    typeof frame['reason'] !== 'string' ||
-    !reasons.some((reason) => reason === frame['reason']) ||
-    !isRecord(frame['cursor']) ||
-    typeof frame['cursor']['hostInstanceId'] !== 'string' ||
-    typeof frame['cursor']['sequence'] !== 'number'
+    typeof frame.reason !== 'string' ||
+    !reasons.some((reason) => reason === frame.reason) ||
+    !isRecord(frame.cursor) ||
+    typeof frame.cursor.hostInstanceId !== 'string' ||
+    typeof frame.cursor.sequence !== 'number'
   ) {
     throw new Error('Local Session Host returned an invalid resynchronization frame.')
   }
-  const reason = reasons.find((candidate) => candidate === frame['reason'])
+  const reason = reasons.find((candidate) => candidate === frame.reason)
   if (!reason) throw new Error('Local Session Host returned an invalid resynchronization reason.')
   return {
     status: 'resync-required',
     reason,
-    cursor: decodeCursor(frame['cursor'], 'resynchronization cursor'),
+    cursor: decodeCursor(frame.cursor, 'resynchronization cursor'),
   }
 }

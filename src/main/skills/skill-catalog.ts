@@ -252,8 +252,8 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
   const body = (frontmatterMatch[DOUBLE_FACTOR] ?? '').trim()
   const fields = parseFrontmatterFields(frontmatter)
 
-  const name = fields['name']?.trim()
-  const description = fields['description']?.trim()
+  const name = fields.name?.trim()
+  const description = fields.description?.trim()
   if (!name) {
     throw new Error('SKILL.md frontmatter requires "name"')
   }

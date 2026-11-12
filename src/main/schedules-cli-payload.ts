@@ -46,10 +46,10 @@ function positiveWhole(value: string, label: string) {
 /** `--every 30m`, `--every 2h`, or a plain number of minutes. */
 function everyMinutes(value: string) {
   const match = /^(?<amount>\d+)\s*(?<unit>m|min|h|hr)?$/i.exec(value.trim())
-  const amountText = match?.groups?.['amount']
+  const amountText = match?.groups?.amount
   if (!amountText) throw new CommandCliUsageError('--every takes minutes (30, 30m) or hours (2h).')
   const amount = Number(amountText)
-  const unit = (match?.groups?.['unit'] ?? 'm').toLowerCase()
+  const unit = (match?.groups?.unit ?? 'm').toLowerCase()
   return unit.startsWith('h') ? amount * MINUTES_PER_HOUR : amount
 }
 

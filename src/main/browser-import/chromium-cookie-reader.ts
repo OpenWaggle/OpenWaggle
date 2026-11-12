@@ -129,7 +129,7 @@ function chromiumExpiration(webkitSeconds: number) {
 
 function readSchemaVersion(database: DatabaseSync) {
   const row = database.prepare("SELECT value FROM meta WHERE key = 'version' LIMIT 1").get()
-  const value = row?.['value']
+  const value = row?.value
   const parsed = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value
   if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < 0) {
     throw new BrowserImportError('read-failed', 'The Chromium cookie schema is unsupported.')

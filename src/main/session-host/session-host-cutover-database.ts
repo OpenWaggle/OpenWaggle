@@ -17,7 +17,7 @@ export function queryCutoverRecord(
 }
 
 export function readCutoverCount(database: HostSqliteDatabase, table: string) {
-  const count = queryCutoverRecord(database, `SELECT COUNT(*) AS count FROM ${table}`)?.['count']
+  const count = queryCutoverRecord(database, `SELECT COUNT(*) AS count FROM ${table}`)?.count
   return typeof count === 'number' ? count : 0
 }
 
@@ -30,9 +30,10 @@ export function cutoverTableExists(database: HostSqliteDatabase, table: string) 
 }
 
 export function sourceSchemaRevision(database: HostSqliteDatabase) {
-  const revision = queryCutoverRecord(database, 'SELECT MAX(id) AS revision FROM _migrations')?.[
-    'revision'
-  ]
+  const revision = queryCutoverRecord(
+    database,
+    'SELECT MAX(id) AS revision FROM _migrations',
+  )?.revision
   return typeof revision === 'number' ? revision : 0
 }
 

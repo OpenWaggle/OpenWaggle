@@ -14,9 +14,7 @@ interface ReferenceSource {
 function optionalAgentDefinitionName(profileJson: string) {
   const decoded: unknown = JSON.parse(profileJson)
   const record = cutoverRecord(decoded)
-  return typeof record?.['agentDefinitionName'] === 'string'
-    ? record['agentDefinitionName']
-    : undefined
+  return typeof record?.agentDefinitionName === 'string' ? record.agentDefinitionName : undefined
 }
 
 function referenceSources(database: HostSqliteDatabase): readonly ReferenceSource[] {
@@ -33,16 +31,16 @@ function referenceSources(database: HostSqliteDatabase): readonly ReferenceSourc
   return values.map((value) => {
     const row = cutoverRecord(value)
     if (
-      typeof row?.['session_id'] !== 'string' ||
-      typeof row['title'] !== 'string' ||
-      typeof row['profile_json'] !== 'string'
+      typeof row?.session_id !== 'string' ||
+      typeof row.title !== 'string' ||
+      typeof row.profile_json !== 'string'
     ) {
       throw new Error('Session report reference source is invalid.')
     }
-    const agentDefinitionName = optionalAgentDefinitionName(row['profile_json'])
+    const agentDefinitionName = optionalAgentDefinitionName(row.profile_json)
     return {
-      sessionId: row['session_id'],
-      title: row['title'],
+      sessionId: row.session_id,
+      title: row.title,
       ...(agentDefinitionName ? { agentDefinitionName } : {}),
     }
   })
@@ -93,13 +91,13 @@ export function validateSessionReportReferenceCatalog(database: HostSqliteDataba
   for (const value of actual) {
     const row = cutoverRecord(value)
     if (
-      typeof row?.['session_id'] !== 'string' ||
-      typeof row['kind'] !== 'string' ||
-      typeof row['normalized_reference'] !== 'string'
+      typeof row?.session_id !== 'string' ||
+      typeof row.kind !== 'string' ||
+      typeof row.normalized_reference !== 'string'
     ) {
       throw new Error('Session report reference catalog row is invalid.')
     }
-    actualByKey.set(`${row['session_id']}\0${row['kind']}`, row['normalized_reference'])
+    actualByKey.set(`${row.session_id}\0${row.kind}`, row.normalized_reference)
   }
   for (const reference of expected) {
     if (

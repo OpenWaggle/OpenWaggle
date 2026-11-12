@@ -18,6 +18,6 @@ export function repositoryWebUrl(remoteUrl: string) {
   }
 
   const scp = /^(?:[^@/\s]+@)?(?<host>[^:/\s]+):(?<path>[^/].+)$/u.exec(remoteUrl)
-  if (!scp?.groups?.['host'] || !scp.groups['path']) return null
-  return `https://${scp.groups['host']}/${scp.groups['path'].replace(/\.git$/u, '')}`
+  if (!scp?.groups?.host || !scp.groups.path) return null
+  return `https://${scp.groups.host}/${scp.groups.path.replace(/\.git$/u, '')}`
 }

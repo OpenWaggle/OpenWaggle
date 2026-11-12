@@ -52,7 +52,7 @@ export interface ConvertedEntry {
 
 /** Pi treats an entry without `command`, `url`, or `type` as an override of an earlier file. */
 export function isOverrideOnlyEntry(entry: JsonEntry) {
-  return entry['command'] === undefined && entry['url'] === undefined && entry['type'] === undefined
+  return entry.command === undefined && entry.url === undefined && entry.type === undefined
 }
 
 /** True when an entry defines a server (Pi's "full entry"). */
@@ -79,8 +79,8 @@ function exposureRecord(value: unknown) {
 /** How Pi exposes a live entry's tools, ignoring fields Pi does not read (such as `directTools`). */
 export function liveExposureOf(entry: JsonEntry): LiveExposure {
   return {
-    exposure: resolveExposure(entry['exposure']) ?? 'codemode',
-    toolExposure: exposureRecord(entry['toolExposure']),
+    exposure: resolveExposure(entry.exposure) ?? 'codemode',
+    toolExposure: exposureRecord(entry.toolExposure),
   }
 }
 
@@ -109,40 +109,38 @@ export function directToolsOverride(directTools: unknown, live: LiveExposure): J
 }
 
 function legacyTransportType(entry: JsonEntry) {
-  if (entry['transport'] === 'sse' || entry['transport'] === 'websocket') return entry['transport']
-  if (entry['transport'] !== undefined) return undefined
-  if (entry['compatibility'] === 'legacy-sse') return 'sse'
-  if (entry['compatibility'] === 'legacy-websocket') return 'websocket'
+  if (entry.transport === 'sse' || entry.transport === 'websocket') return entry.transport
+  if (entry.transport !== undefined) return undefined
+  if (entry.compatibility === 'legacy-sse') return 'sse'
+  if (entry.compatibility === 'legacy-websocket') return 'websocket'
   return undefined
 }
 
 function oauthFromLegacyAuth(entry: JsonEntry, notes: string[]) {
-  const auth = entry['auth']
+  const auth = entry.auth
   if (auth === undefined) return undefined
-  if (!isRecord(auth) || auth['type'] !== 'oauth') {
+  if (!isRecord(auth) || auth.type !== 'oauth') {
     notes.push('auth was not an OpenWaggle OAuth setting and was removed.')
     return undefined
   }
-  if (typeof auth['clientMetadataUrl'] === 'string') {
+  if (typeof auth.clientMetadataUrl === 'string') {
     notes.push(
-      `auth.clientMetadataUrl ${auth['clientMetadataUrl']} has no Pi equivalent and was removed.`,
+      `auth.clientMetadataUrl ${auth.clientMetadataUrl} has no Pi equivalent and was removed.`,
     )
   }
-  const scopes = Array.isArray(auth['scopes'])
-    ? auth['scopes'].filter(
-        (scope): scope is string => typeof scope === 'string' && scope.length > 0,
-      )
+  const scopes = Array.isArray(auth.scopes)
+    ? auth.scopes.filter((scope): scope is string => typeof scope === 'string' && scope.length > 0)
     : []
   if (scopes.length === 0) return undefined
-  const existing = isRecord(entry['oauth']) ? entry['oauth'] : {}
+  const existing = isRecord(entry.oauth) ? entry.oauth : {}
   return { ...existing, scope: scopes.join(' ') }
 }
 
 function exposureFields(entry: JsonEntry): JsonEntry {
-  if (entry['directTools'] === true) return { exposure: 'direct' }
-  const names = directToolNames(entry['directTools'])
+  if (entry.directTools === true) return { exposure: 'direct' }
+  const names = directToolNames(entry.directTools)
   if (names.length === 0) return {}
-  return { toolExposure: directToolExposure(names, exposureRecord(entry['toolExposure'])) }
+  return { toolExposure: directToolExposure(names, exposureRecord(entry.toolExposure)) }
 }
 
 /**

@@ -252,8 +252,8 @@ export function sanitizeProjectDisplayNames(raw: unknown) {
 }
 
 export function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
-  if (!isObjectRecord(raw) || typeof raw['key'] !== 'string') return null
-  const key = raw['key'].trim()
+  if (!isObjectRecord(raw) || typeof raw.key !== 'string') return null
+  const key = raw.key.trim()
   if (!key || key.length > SHORTCUT_RULE_LIMITS.KEY_LENGTH) return null
 
   const optionalBooleanKeys = ['mod', 'ctrl', 'shift', 'alt', 'meta'] as const
@@ -263,11 +263,11 @@ export function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
 
   return {
     key,
-    ...(raw['mod'] === true ? { mod: true } : {}),
-    ...(raw['ctrl'] === true ? { ctrl: true } : {}),
-    ...(raw['shift'] === true ? { shift: true } : {}),
-    ...(raw['alt'] === true ? { alt: true } : {}),
-    ...(raw['meta'] === true ? { meta: true } : {}),
+    ...(raw.mod === true ? { mod: true } : {}),
+    ...(raw.ctrl === true ? { ctrl: true } : {}),
+    ...(raw.shift === true ? { shift: true } : {}),
+    ...(raw.alt === true ? { alt: true } : {}),
+    ...(raw.meta === true ? { meta: true } : {}),
   }
 }
 
@@ -278,19 +278,19 @@ export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
   for (const candidate of raw) {
     if (
       !isObjectRecord(candidate) ||
-      typeof candidate['command'] !== 'string' ||
-      !includes(SHORTCUT_COMMANDS, candidate['command'])
+      typeof candidate.command !== 'string' ||
+      !includes(SHORTCUT_COMMANDS, candidate.command)
     ) {
       return null
     }
-    const shortcut = sanitizeShortcutBinding(candidate['shortcut'])
+    const shortcut = sanitizeShortcutBinding(candidate.shortcut)
     if (shortcut === null) return null
-    if (candidate['when'] === undefined) {
-      rules.push({ command: candidate['command'], shortcut })
+    if (candidate.when === undefined) {
+      rules.push({ command: candidate.command, shortcut })
       continue
     }
-    if (typeof candidate['when'] !== 'string') return null
-    const when = candidate['when'].trim()
+    if (typeof candidate.when !== 'string') return null
+    const when = candidate.when.trim()
     if (
       when.length === 0 ||
       when.length > SHORTCUT_RULE_LIMITS.WHEN_LENGTH ||
@@ -298,7 +298,7 @@ export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
     ) {
       return null
     }
-    rules.push({ command: candidate['command'], shortcut, when })
+    rules.push({ command: candidate.command, shortcut, when })
   }
   return rules
 }
