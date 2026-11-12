@@ -1,3 +1,4 @@
+import * as Option from 'effect/Option'
 import * as ParseResult from 'effect/ParseResult'
 import * as Schema from 'effect/Schema'
 
@@ -6,6 +7,18 @@ type AnySchema = Schema.Schema.AnyNoContext
 export { ParseResult, Schema }
 
 export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>
+
+/**
+ * An optional property that is absent from the decoded value both when the input omits it and
+ * when it carries `undefined`, as a structured-clone IPC argument can. The decoded type has an
+ * exact optional field (`?: A`), so consumers never see a present `undefined`.
+ */
+export function optionalExact<A, I, R>(schema: Schema.Schema<A, I, R>) {
+  return Schema.optionalToOptional(Schema.UndefinedOr(schema), Schema.typeSchema(schema), {
+    decode: Option.filter((value: A | undefined): value is A => value !== undefined),
+    encode: (value) => value,
+  })
+}
 
 export interface SafeDecodeSuccess<A> {
   readonly success: true
