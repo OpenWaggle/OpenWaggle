@@ -29,10 +29,6 @@ export const exportResourcesSchema = Schema.Array(exportResourceInputSchema).pip
 
 export const sessionExportBranchScopeSchema = Schema.Literal('active-branch', 'tree')
 
-/**
- * The manifest keeps `Schema.optional` (an explicit undefined is accepted) because the Hive MCP
- * tool's zod input schema decodes it too, and zod's output types an optional key as `T | undefined`.
- */
 export const sessionExportManifestSchema = Schema.Struct({
   schemaVersion: Schema.Literal(SESSION_EXPORT_SCHEMA_VERSION),
   sessionId: sessionInputIdSchema,
@@ -49,12 +45,15 @@ export const sessionExportManifestSchema = Schema.Struct({
      * Monotonic guard against node mutation or deletion during paginated foreground exports.
      * Optional so schema-v1 artifacts written before node-mutation pinning remain readable.
      */
-    nodeMutationRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+    nodeMutationRevision: Schema.optionalWith(
+      Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+      { exact: true },
+    ),
     /**
      * Present for active-branch exports created by snapshot-aware clients. Optional so schema-v1
      * artifacts written before branch-head pinning remain readable.
      */
-    selectedHeadNodeId: Schema.optional(Schema.String),
+    selectedHeadNodeId: Schema.optionalWith(Schema.String, { exact: true }),
   }),
   activeRunId: Schema.NullOr(Schema.String),
   activeTurnIncomplete: Schema.Boolean,
@@ -69,8 +68,11 @@ export const sessionExportManifestSchema = Schema.Struct({
         position: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
         createdAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
         deliveryState: Schema.Literal('pending', 'needs_attention'),
-        attentionReason: Schema.optional(Schema.Literal('profile_revoked', 'authority_changed')),
-        intent: Schema.optional(Schema.Unknown),
+        attentionReason: Schema.optionalWith(
+          Schema.Literal('profile_revoked', 'authority_changed'),
+          { exact: true },
+        ),
+        intent: Schema.optionalWith(Schema.Unknown, { exact: true }),
       }),
     ),
   }),
