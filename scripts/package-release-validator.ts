@@ -353,9 +353,7 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   )
 }
 
-export async function validatePackageReleaseFiles(
-  projectRoot = process.cwd(),
-): Promise<PackageReleaseValidationResult> {
+export async function validatePackageReleaseFiles(projectRoot = process.cwd()) {
   const violations: string[] = []
   const [config, manifest, packageJson] = await Promise.all([
     readJsonFile(projectRoot, CONFIG_PATH, violations),

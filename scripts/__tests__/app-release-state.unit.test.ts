@@ -7,7 +7,7 @@ import {
   type AppReleasePullRequest,
 } from '../app-release-state'
 
-function pullRequest(overrides: Partial<AppReleasePullRequest> = {}): AppReleasePullRequest {
+function pullRequest(overrides: Partial<AppReleasePullRequest> = {}) {
   return {
     baseRefName: 'main',
     headRefName: 'app-release-v0.3.0-alpha.45',
@@ -21,7 +21,7 @@ function pullRequest(overrides: Partial<AppReleasePullRequest> = {}): AppRelease
     title: 'chore(release): v0.3.0-alpha.45',
     url: 'https://github.com/OpenWaggle/OpenWaggle/pull/123',
     ...overrides,
-  }
+  } satisfies AppReleasePullRequest
 }
 
 describe('app release state model', () => {

@@ -33,18 +33,26 @@ function markerAnchors(node: OptionalProperty) {
 }
 
 /** The source range that drops `undefined` and one `|` next to it from the union. */
-function removalRange(text: string, union: ESTree.TSUnionType, index: number): [number, number] {
+function removalRange(text: string, union: ESTree.TSUnionType, index: number) {
   const member = union.types[index]
   const previous = union.types[index - 1]
-  if (member === undefined) return [0, 0]
+  if (member === undefined) {
+    const result: [number, number] = [0, 0]
+    return result
+  }
   if (previous !== undefined) {
     const between = text.slice(previous.range[1], member.range[0])
     const bar = previous.range[1] + between.lastIndexOf('|')
     const start = previous.range[1] + between.slice(0, bar - previous.range[1]).trimEnd().length
-    return [start, member.range[1]]
+    const result: [number, number] = [start, member.range[1]]
+    return result
   }
   const next = union.types[index + 1]
-  return [member.range[0], next === undefined ? member.range[1] : next.range[0]]
+  const result: [number, number] = [
+    member.range[0],
+    next === undefined ? member.range[1] : next.range[0],
+  ]
+  return result
 }
 
 /**

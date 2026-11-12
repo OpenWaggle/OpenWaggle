@@ -77,7 +77,7 @@ function initialConcurrency(environment: NodeJS.ProcessEnv) {
     : defaultConcurrency()
 }
 
-export function parseRunArguments(argv: readonly string[], environment = process.env): RunOptions {
+export function parseRunArguments(argv: readonly string[], environment = process.env) {
   const options: Mutable<RunOptions> = {
     gate: 'check',
     only: [],

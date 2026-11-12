@@ -40,12 +40,16 @@ export function openRecordFindings(
   file: string,
   before: string | undefined,
   after: string | undefined,
-): Finding[] {
+) {
   if (after === undefined || !TYPESCRIPT_FILE.test(file) || file.startsWith(EXEMPT_DIRECTORY)) {
-    return []
+    const result: Finding[] = []
+    return result
   }
   const addedTypes = Math.max(0, typeCount(after) - typeCount(before ?? ''))
-  const finding = (line: number): Finding => ({ file, line, id: 'open-record', message: MESSAGE })
+  const finding = (line: number) => {
+    const finding: Finding = { file, line, id: 'open-record', message: MESSAGE }
+    return finding
+  }
   const types = addedLines(before, after)
     .filter((added) => typeCount(added.text) > 0)
     .slice(0, addedTypes)
@@ -54,5 +58,6 @@ export function openRecordFindings(
   const schemas = schemaOffsets(after)
     .slice(existingSchemas)
     .map((offset) => finding(lineAt(after, offset)))
-  return [...types, ...schemas]
+  const result: Finding[] = [...types, ...schemas]
+  return result
 }

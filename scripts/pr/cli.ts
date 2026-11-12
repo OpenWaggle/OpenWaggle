@@ -78,7 +78,7 @@ export function runInherited(command: string, args: readonly string[]) {
   return result.status === 0
 }
 
-export function parseJson(text: string): unknown {
+export function parseJson(text: string) {
   const value: unknown = JSON.parse(text)
   return value
 }

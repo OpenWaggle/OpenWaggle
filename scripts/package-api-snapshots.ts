@@ -58,7 +58,7 @@ function isJsonObject(value: unknown): value is JsonObject {
 const namedPackageJsonSchema = Schema.Struct({ name: Schema.String, exports: unknownField })
 const typedExportTargetSchema = Schema.Struct({ types: Schema.String })
 
-function toPackageJson(value: unknown, packageJsonPath: string): PackageJson {
+function toPackageJson(value: unknown, packageJsonPath: string) {
   const manifest = objectFields(namedPackageJsonSchema, value)
   if (manifest === undefined) {
     throw new Error(`${packageJsonPath} must contain a package name.`)
@@ -90,7 +90,7 @@ function declarationPathForExportTarget(target: unknown) {
 function listTypedExports(packageJson: PackageJson) {
   const exportsValue = packageJson.exports
   if (!exportsValue) {
-    return [] satisfies readonly TypedExport[]
+    return []
   }
 
   return Object.entries(exportsValue).map(([subpath, target]) => {
@@ -243,7 +243,7 @@ export async function checkPackageApiSnapshots({
   projectRoot,
   snapshotDir,
   update = false,
-}: CheckPackageApiSnapshotsOptions): Promise<CheckPackageApiSnapshotsResult> {
+}: CheckPackageApiSnapshotsOptions) {
   const changedSnapshots: string[] = []
   const violations: string[] = []
   const writtenSnapshots: string[] = []
@@ -280,7 +280,7 @@ interface CliOptions {
   readonly mode: 'check' | 'update'
 }
 
-function parseCliArgs(args: readonly string[]): CliOptions {
+function parseCliArgs(args: readonly string[]) {
   let mode: CliOptions['mode'] = 'check'
   let dryRun = false
 

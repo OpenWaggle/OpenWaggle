@@ -122,7 +122,7 @@ function errorMessage(error: unknown) {
 export function parseRebuildOptions(
   argv: readonly string[] = process.argv,
   environment: NodeJS.ProcessEnv = process.env,
-): RebuildOptions {
+) {
   const mode = argv[MODE_ARG_INDEX]
   const flags = argv.slice(FORCE_FLAG_START_INDEX)
   const unsupportedFlags = flags.filter((flag) => flag !== FORCE_REBUILD_FLAG)
@@ -166,12 +166,12 @@ export function electronRuntimeInstallCommandForPlatform(
   projectRoot: string = PROJECT_ROOT,
   platform: NodeJS.Platform = process.platform,
   nodeExecutable: string = nodeRuntime().execPath,
-): CommandInvocation {
+) {
   const path = platform === 'win32' ? win32 : posix
   return {
     command: nodeExecutable,
     args: [path.join(projectRoot, 'node_modules', 'electron', 'install.js')],
-  }
+  } satisfies CommandInvocation
 }
 
 export async function ensureNativeProbeRuntime(

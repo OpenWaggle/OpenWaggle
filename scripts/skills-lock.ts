@@ -47,7 +47,7 @@ const SHORT_SHA_LENGTH = 12
 const JSON_INDENT = 2
 const GIT_MAX_BUFFER = 256 * 1024 * 1024
 
-function readLock(): SkillsLock {
+function readLock() {
   const decoded = decodeSkillsLock(
     readFileSync(path.join(REPOSITORY_ROOT, SKILLS_LOCK_FILE), 'utf8'),
   )
@@ -98,7 +98,7 @@ function fetchCommit(cache: string, repository: string, ref: string) {
 }
 
 /** Upstream files at `commit`, relative to the upstream path, limited to its `files` list. */
-function upstreamFiles(cache: string, commit: string, upstream: SkillUpstream): SkillFiles {
+function upstreamFiles(cache: string, commit: string, upstream: SkillUpstream) {
   const pathspec = upstream.path === '' ? [] : ['--', upstream.path]
   const entries = git(cache, ['ls-tree', '-r', '-z', commit, ...pathspec])
     .toString()
@@ -189,7 +189,7 @@ function drift(names: readonly string[]) {
   for (const line of lines) console.log(line)
 }
 
-function fetchUpstreamHashes(skill: VendoredSkill): VendoredSkill {
+function fetchUpstreamHashes(skill: VendoredSkill) {
   const [first, ...rest] = skill.upstream.map((upstream) => {
     const cache = upstreamCache(upstream.repository)
     fetchCommit(cache, upstream.repository, upstream.ref)
@@ -200,7 +200,7 @@ function fetchUpstreamHashes(skill: VendoredSkill): VendoredSkill {
     return { ...upstream, hash: hashSkillFiles(files) }
   })
   if (first === undefined) return skill
-  return { ...skill, upstream: [first, ...rest] }
+  return { ...skill, upstream: [first, ...rest] } satisfies VendoredSkill
 }
 
 interface RecordOptions {
@@ -210,7 +210,7 @@ interface RecordOptions {
   readonly fetch: boolean
 }
 
-function parseRecordArguments(args: readonly string[]): RecordOptions {
+function parseRecordArguments(args: readonly string[]) {
   const names: string[] = []
   let reason: string | undefined
   let all = false

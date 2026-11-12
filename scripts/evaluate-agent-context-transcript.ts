@@ -95,8 +95,8 @@ function textOf(content: unknown) {
     .join('')
 }
 
-export function emptyUsage(): UsageTotals {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 }
+export function emptyUsage() {
+  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 } satisfies UsageTotals
 }
 
 export function addUsage(totals: UsageTotals, usage: MessageUsage) {
@@ -107,7 +107,7 @@ export function addUsage(totals: UsageTotals, usage: MessageUsage) {
   totals.costUsd += numberOrZero(objectFields(usageCostSchema, usage.cost)?.total)
 }
 
-export function summarizeSessionFile(file: string, text: string): SessionTranscriptSummary {
+export function summarizeSessionFile(file: string, text: string) {
   const usage = emptyUsage()
   const toolNames: string[] = []
   let modelCalls = 0

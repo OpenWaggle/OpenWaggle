@@ -13,7 +13,7 @@ const RELEASE_VERSION =
   /^\d+\.\d+\.\d+(?:-(?<stage>[0-9A-Za-z-]+)(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z.-]+)?$/u
 
 /** The badge label for a prerelease version, or `undefined` for a Stable one. Throws otherwise. */
-export function releaseStageLabel(version: string): string | undefined {
+export function releaseStageLabel(version: string) {
   const match = RELEASE_VERSION.exec(version)
   if (match === null) throw new Error(`Cannot read a release stage from version "${version}"`)
   const { stage } = match.groups ?? {}

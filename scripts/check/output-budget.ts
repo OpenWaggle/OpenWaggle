@@ -24,7 +24,7 @@ const JSON_INDENT = 2
 /** A budget this far above the measurement should be lowered. */
 const SLACK_TOKENS = 8
 
-async function readBudgets(): Promise<Readonly<Record<string, number>>> {
+async function readBudgets() {
   const parsed: unknown = JSON.parse(await readFile(BUDGET_FILE, 'utf8'))
   if (parsed === null || typeof parsed !== 'object') {
     throw new Error(`${BUDGET_FILE} is not an object`)
@@ -37,8 +37,8 @@ async function readBudgets(): Promise<Readonly<Record<string, number>>> {
 }
 
 /** Runs the gate, echoing its output, and returns the exit code and everything it printed. */
-function runGate(args: readonly string[]): Promise<{ code: number; output: string }> {
-  return new Promise((resolve, reject) => {
+function runGate(args: readonly string[]) {
+  return new Promise<{ code: number; output: string }>((resolve, reject) => {
     const child = spawn(process.execPath, [path.join(import.meta.dirname, 'run.ts'), ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
     })

@@ -28,9 +28,9 @@ async function currentText(root: string, file: string) {
   }
 }
 
-export async function noCheatingFindings(root: string, base: string): Promise<Finding[]> {
+export async function noCheatingFindings(root: string, base: string) {
   const files = await changedSince(root, base)
-  if (files.length === 0) return []
+  if (files.length === 0) return [] satisfies Finding[]
   const [before, afterTexts, listed, moved] = await Promise.all([
     textsAt(root, base, files),
     Promise.all(files.map((file) => currentText(root, file))),
@@ -71,5 +71,5 @@ export async function noCheatingFindings(root: string, base: string): Promise<Fi
     }),
     generatedFileFindings(root, states),
   ])
-  return [...perFile, ...deleted, ...tsconfig, ...generated]
+  return [...perFile, ...deleted, ...tsconfig, ...generated] satisfies Finding[]
 }

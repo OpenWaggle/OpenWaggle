@@ -53,10 +53,7 @@ const attestedManifestSchema = Schema.Struct({
  * Which versions of an abbreviated packument (`Accept: application/vnd.npm.install-v1+json`)
  * carry an npm provenance attestation in `dist.attestations`.
  */
-export function parseAbbreviatedPackument(
-  document: unknown,
-  name: string,
-): Record<string, boolean> {
+export function parseAbbreviatedPackument(document: unknown, name: string) {
   const packumentVersions = objectFields(packumentVersionsSchema, document)?.versions
   const versionEntries = objectEntries(packumentVersions)
   if (versionEntries === undefined) {
@@ -70,16 +67,17 @@ export function parseAbbreviatedPackument(
 }
 
 /** The publish times of the full packument, by version. */
-export function parsePublishTimes(document: unknown, name: string): Record<string, string> {
+export function parsePublishTimes(document: unknown, name: string) {
   const timeEntries = objectEntries(objectFields(packumentTimeSchema, document)?.time)
   if (timeEntries === undefined) {
     throw new Error(`The registry metadata for ${name} has no time object.`)
   }
-  return Object.fromEntries(
+  const record: Record<string, string> = Object.fromEntries(
     timeEntries.filter(
       (entry): entry is [string, string] => VERSION.test(entry[0]) && typeof entry[1] === 'string',
     ),
   )
+  return record
 }
 
 /**
@@ -101,10 +99,7 @@ const PRERELEASE = /^\d+\.\d+\.\d+-/
  * backport published after an attested major is a downgrade by this rule; the time window or a
  * reviewed exception lets it through.
  */
-export function findProvenanceDowngrade(
-  metadata: PackageProvenance,
-  version: string,
-): string | undefined {
+export function findProvenanceDowngrade(metadata: PackageProvenance, version: string) {
   if (metadata.versions[version] !== false) return undefined
   const lockedTime = Date.parse(metadata.published[version] ?? '')
   const stableOnly = !PRERELEASE.test(version)
@@ -132,7 +127,7 @@ export function evaluateProvenanceDowngrades(input: {
   readonly exceptions: readonly ProvenanceDowngradeException[]
   readonly now: Date
   readonly windowDays: number
-}): ProvenanceEvaluation {
+}) {
   const violations: ProvenanceDowngrade[] = []
   const aged: ProvenanceDowngrade[] = []
   const excepted: ProvenanceDowngrade[] = []
@@ -164,11 +159,12 @@ export function evaluateProvenanceDowngrades(input: {
     else violations.push(downgrade)
   }
 
-  return {
+  const evaluation: ProvenanceEvaluation = {
     violations,
     aged,
     excepted,
     staleExceptions: input.exceptions.filter((exception) => !usedExceptions.has(exception)),
     missing,
   }
+  return evaluation
 }

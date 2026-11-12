@@ -9,7 +9,7 @@ export interface ExecFailure {
  * Narrows an `execFile` rejection to the exit code and output it carries. Rejections without a
  * numeric exit code (a missing binary, a signal) are thrown again, since tests expect a real exit.
  */
-export function execFailure(rejection: unknown): ExecFailure {
+export function execFailure(rejection: unknown) {
   const error = rejection
   if (typeof error !== 'object' || error === null) throw rejection
   if (!('code' in error) || typeof error.code !== 'number') throw rejection
@@ -17,5 +17,5 @@ export function execFailure(rejection: unknown): ExecFailure {
     stdout: 'stdout' in error && typeof error.stdout === 'string' ? error.stdout : '',
     stderr: 'stderr' in error && typeof error.stderr === 'string' ? error.stderr : '',
     code: error.code,
-  }
+  } satisfies ExecFailure
 }

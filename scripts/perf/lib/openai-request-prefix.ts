@@ -45,23 +45,28 @@ export function systemSections(system: string) {
   return sections
 }
 
-function toolOf(value: unknown): PrefixTool[] {
+function toolOf(value: unknown) {
   const fn = objectFields(functionToolSchema, value)?.function
-  if (fn === undefined) return []
-  return [
+  if (fn === undefined) {
+    const tool: PrefixTool[] = []
+    return tool
+  }
+  const tool: PrefixTool[] = [
     {
       name: fn.name,
       description: typeof fn.description === 'string' ? fn.description : '',
       parameters: fn.parameters,
     },
   ]
+  return tool
 }
 
-function arrayOf(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? value : []
+function arrayOf(value: unknown) {
+  const result: readonly unknown[] = Array.isArray(value) ? value : []
+  return result
 }
 
-export function prefixContentOfOpenAiRequest(requestBody: unknown, prompt: string): PrefixContent {
+export function prefixContentOfOpenAiRequest(requestBody: unknown, prompt: string) {
   const body = objectFields(requestBodySchema, requestBody)
   const messages = arrayOf(body?.messages).flatMap((message) => {
     const fields = Schema.is(messageSchema)(message) ? message : undefined
@@ -75,9 +80,10 @@ export function prefixContentOfOpenAiRequest(requestBody: unknown, prompt: strin
     .filter((message) => message.role === 'user')
     .map((message) => textOf(message.content))
     .filter((text) => text.length > 0 && text !== prompt)
-  return {
+  const result: PrefixContent = {
     sections: systemSections(system),
     tools: arrayOf(body?.tools).flatMap(toolOf),
     runContext,
   }
+  return result
 }

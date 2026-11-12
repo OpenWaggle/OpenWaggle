@@ -21,7 +21,7 @@ const UUID_SEPARATORS = /-/gu
  * The Workers runtime implementations. `fetch` and `crypto` are wrapped in arrows because the
  * runtime rejects them when they are called detached from `globalThis`.
  */
-export function runtimeDependencies(): StatisticsDependencies {
+export function runtimeDependencies() {
   return {
     fetch: (url, init) => fetch(url, init),
     now: () => Date.now(),
@@ -33,5 +33,5 @@ export function runtimeDependencies(): StatisticsDependencies {
       new Promise((resolve) => {
         setTimeout(resolve, milliseconds)
       }),
-  }
+  } satisfies StatisticsDependencies
 }

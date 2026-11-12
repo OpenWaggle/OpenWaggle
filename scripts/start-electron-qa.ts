@@ -103,7 +103,7 @@ export async function prepareQaHome(
 export function electronEnvironment(
   lease: Pick<QaLease, 'automationIdentity' | 'metadata'>,
   callerEnvironment: NodeJS.ProcessEnv = process.env,
-): NodeJS.ProcessEnv {
+) {
   const home = qaHome(lease)
   const caller = scriptEnv(callerEnvironment)
   return buildSafeElectronEnvironment({
@@ -164,10 +164,7 @@ export function qaPageMatchesAutomationIdentity(url: string, automationIdentity:
   return new URL(url).searchParams.get(AUTOMATION_IDENTITY_QUERY_PARAM) === automationIdentity
 }
 
-async function connectWhenReady(
-  child: ChildProcess,
-  automationIdentity: string,
-): Promise<QaConnection> {
+async function connectWhenReady(child: ChildProcess, automationIdentity: string) {
   const endpoint = `http://${QA_HOST}:${QA_CDP_PORT}`
   const deadline = Date.now() + CDP_TIMEOUT_MS
   let browser: Browser | null = null

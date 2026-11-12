@@ -57,7 +57,7 @@ export interface PublishedTotals {
 }
 
 /** One day's buffered entries added up, keeping for every value the entries behind it. */
-export function addUpEntries(day: string, entries: readonly BufferEntry[]): DayTotals {
+export function addUpEntries(day: string, entries: readonly BufferEntry[]) {
   const values = new Map<string, { -readonly [K in keyof ValueTotal]: ValueTotal[K] }>()
   const sums = new Map<string, { -readonly [K in keyof SumTotal]: SumTotal[K] }>()
   entries.forEach((entry, index) => {
@@ -77,7 +77,7 @@ export function addUpEntries(day: string, entries: readonly BufferEntry[]): DayT
       sums.set(key, total)
     }
   })
-  return { day, values: [...values.values()], sums: [...sums.values()] }
+  return { day, values: [...values.values()], sums: [...sums.values()] } satisfies DayTotals
 }
 
 function unionOf(totals: readonly { readonly contributors: ReadonlySet<number> }[]) {
@@ -104,10 +104,7 @@ function bySize(left: ValueTotal, right: ValueTotal) {
 }
 
 /** The rows one breakdown may publish, following {@link MIN_CONTRIBUTING_ENTRIES}. */
-function publishableBreakdown(
-  group: readonly ValueTotal[],
-  eventEntries: ReadonlySet<number>,
-): CountRow[] {
+function publishableBreakdown(group: readonly ValueTotal[], eventEntries: ReadonlySet<number>) {
   const publishable = (entries: ReadonlySet<number>) => isPublishableGroup(entries, eventEntries)
   const kept = group.filter((total) => publishable(total.contributors))
   const folded = group.filter((total) => !publishable(total.contributors))
@@ -118,7 +115,7 @@ function publishableBreakdown(
     folded.push(smallest)
   }
   const [first] = group
-  if (kept.length === 0 || first === undefined) return []
+  if (kept.length === 0 || first === undefined) return [] satisfies CountRow[]
   const rows: CountRow[] = kept.map((total) => [total.event, total.field, total.value, total.count])
   const other = folded.reduce((sum, total) => sum + total.count, 0)
   if (other > 0) rows.push([first.event, first.field, OTHER_VALUE, other])
@@ -126,7 +123,7 @@ function publishableBreakdown(
 }
 
 /** The rows a day may publish under the small-cell rules. */
-export function publishableTotals(totals: DayTotals): PublishedTotals {
+export function publishableTotals(totals: DayTotals) {
   const counts: CountRow[] = []
   const eventEntries = new Map<string, ReadonlySet<number>>()
   const breakdowns = new Map<string, ValueTotal[]>()
@@ -152,6 +149,7 @@ export function publishableTotals(totals: DayTotals): PublishedTotals {
   }
   const sums = totals.sums
     .filter((total) => isPublishableGroup(total.contributors, entriesOf(total.event, [total])))
-    .map((total): SumRow => [total.event, total.field, total.sum, total.count])
-  return { day: totals.day, counts, sums }
+    .map((total) => [total.event, total.field, total.sum, total.count] satisfies SumRow)
+  const result: PublishedTotals = { day: totals.day, counts, sums }
+  return result
 }

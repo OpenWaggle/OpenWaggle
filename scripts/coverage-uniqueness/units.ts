@@ -53,14 +53,15 @@ const coverageIndexFieldsSchema = Schema.Struct({
   units: Schema.Object,
 })
 
-function location(value: unknown): Location | undefined {
+function location(value: unknown) {
   if (!Schema.is(locationSchema)(value)) return undefined
   const { line, column } = value.start
-  return { line, column }
+  const result: Location | undefined = { line, column }
+  return result
 }
 
 /** The units one file's `coverage-final.json` reached, with paths relative to `root`. */
-export function coveredUnits(coverage: unknown, root: string): string[] {
+export function coveredUnits(coverage: unknown, root: string) {
   const units: string[] = []
   const prefix = root.endsWith('/') ? root : `${root}/`
   for (const [absolute, raw] of objectEntries(coverage) ?? []) {
@@ -132,8 +133,8 @@ export class CoverageIndexBuilder {
     }
   }
 
-  build(commit: string, durationMs: number): CoverageIndex {
-    return {
+  build(commit: string, durationMs: number) {
+    const index: CoverageIndex = {
       version: COVERAGE_INDEX_VERSION,
       commit,
       generatedAt: new Date().toISOString(),
@@ -142,6 +143,7 @@ export class CoverageIndexBuilder {
       units: Object.fromEntries(this.units),
       durationMs,
     }
+    return index
   }
 
   private cover(unit: string, position: number) {

@@ -34,10 +34,11 @@ function parseFrontmatterValue(rawValue: string) {
   return value
 }
 
-export function parseMarkdownFrontmatter(source: string): ParsedMarkdownFile {
+export function parseMarkdownFrontmatter(source: string) {
   const normalizedSource = source.replaceAll('\r\n', '\n')
   if (!normalizedSource.startsWith(FRONTMATTER_OPEN_MARKER)) {
-    return { data: {}, content: normalizedSource }
+    const file: ParsedMarkdownFile = { data: {}, content: normalizedSource }
+    return file
   }
 
   const closingMarkerIndex = normalizedSource.indexOf(
@@ -45,7 +46,8 @@ export function parseMarkdownFrontmatter(source: string): ParsedMarkdownFile {
     FRONTMATTER_OPEN_MARKER.length,
   )
   if (closingMarkerIndex < 0) {
-    return { data: {}, content: normalizedSource }
+    const file: ParsedMarkdownFile = { data: {}, content: normalizedSource }
+    return file
   }
 
   const frontmatter = normalizedSource.slice(FRONTMATTER_OPEN_MARKER.length, closingMarkerIndex)
@@ -66,7 +68,8 @@ export function parseMarkdownFrontmatter(source: string): ParsedMarkdownFile {
     data[key] = parseFrontmatterValue(line.slice(separatorIndex + 1))
   }
 
-  return { data, content }
+  const file: ParsedMarkdownFile = { data, content }
+  return file
 }
 
 export const docsFrontmatterSchema = z.object({

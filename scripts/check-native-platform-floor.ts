@@ -223,7 +223,7 @@ export async function checkNativePlatformFloor(
   root: string,
   platform: FloorPlatform,
   floor: Floor = SUPPORTED_PLATFORM_FLOOR,
-): Promise<FloorReport> {
+) {
   const executable = await mainExecutable(root, platform)
   const foreign: string[] = []
   const violations: string[] = []

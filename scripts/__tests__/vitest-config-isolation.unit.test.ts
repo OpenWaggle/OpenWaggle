@@ -15,12 +15,14 @@ const HOME_ISOLATION = 'scripts/test-support/isolate-user-home.ts'
 const MCP_ISOLATION = 'src/main/test-support/isolate-user-mcp-files.ts'
 const TEMPORARY_ROOT = 'scripts/test-support/vitest-temporary-root.ts'
 
-function field(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+function field(value: unknown, key: string) {
+  const result: unknown =
+    typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+  return result
 }
 
 /** The root config file's `test` options, loaded the way Vitest loads it. */
-async function testOptions(configFile: string): Promise<unknown> {
+async function testOptions(configFile: string) {
   const loaded: unknown = await import(pathToFileURL(path.resolve(configFile)).href)
   return field(field(loaded, 'default'), 'test')
 }

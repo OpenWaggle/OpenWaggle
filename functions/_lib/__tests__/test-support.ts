@@ -9,7 +9,6 @@ import type {
 import type { StatisticsDependencies } from '../dependencies'
 import type { StatisticsEnvironment } from '../environment'
 import { STATISTICS_ROUTE_PATHS } from '../request-log'
-import type { RouteContext } from '../route-context'
 
 /** 2026-10-02 15:30 UTC: the endpoint's clock in every test. */
 export const NOW = Date.parse('2026-10-02T15:30:00.000Z')
@@ -154,7 +153,7 @@ export class MemoryKeyValueStore implements KeyValueStore {
     if (this.options.staleListing === true) this.deletedButListed.add(key)
   }
 
-  async list(options: KeyValueListOptions = {}): Promise<KeyValueListResult> {
+  async list(options: KeyValueListOptions = {}) {
     this.operations += 1
     this.lists.push(options)
     const prefix = options.prefix ?? ''
@@ -162,26 +161,32 @@ export class MemoryKeyValueStore implements KeyValueStore {
       .filter((name) => name.startsWith(prefix))
       .sort()
     if (this.options.emptyFirstPage === true && options.cursor === undefined) {
-      return { keys: [], list_complete: false, cursor: '0' }
+      const result: KeyValueListResult = { keys: [], list_complete: false, cursor: '0' }
+      return result
     }
     const start = Number(options.cursor ?? '0')
     const limit = Math.min(options.limit ?? 1000, this.options.pageSize ?? 1000)
     const end = start + limit
     const keys = names.slice(start, end).map((name) => ({ name }))
-    if (end >= names.length) return { keys, list_complete: true }
-    return { keys, list_complete: false, cursor: String(end) }
+    if (end >= names.length) {
+      const result: KeyValueListResult = { keys, list_complete: true }
+      return result
+    }
+    const result: KeyValueListResult = { keys, list_complete: false, cursor: String(end) }
+    return result
   }
 
   /** Stored values under `prefix`, parsed. */
-  values(prefix: string): unknown[] {
-    return [...this.entries.entries()]
+  values(prefix: string) {
+    const result: unknown[] = [...this.entries.entries()]
       .filter(([key]) => key.startsWith(prefix))
       .map(([, entry]) => JSON.parse(entry.value))
+    return result
   }
 }
 
 /** A KV namespace whose every call fails, as during a KV outage. */
-export function failingStore(): KeyValueStore {
+export function failingStore() {
   const fail = () => Promise.reject(new Error('KV is unavailable'))
   return { get: fail, put: fail, delete: fail, list: fail }
 }
@@ -228,14 +233,14 @@ export function testDependencies(
   return { dependencies, requests, lines, sleeps }
 }
 
-export function environment(overrides: Partial<StatisticsEnvironment> = {}): StatisticsEnvironment {
+export function environment(overrides: Partial<StatisticsEnvironment> = {}) {
   return { POSTHOG_PROJECT_KEY: POSTHOG_KEY, ...overrides }
 }
 
 export function statisticsRequest(
   path: string,
   init: RequestInit & { readonly cf?: unknown; readonly origin?: string } = {},
-): IncomingRequest {
+) {
   const { cf, origin = 'https://openwaggle.ai', ...requestInit } = init
   return Object.assign(new Request(`${origin}${path}`, { method: 'POST', ...requestInit }), { cf })
 }
@@ -245,7 +250,7 @@ export function routeContext(
   request: IncomingRequest,
   env: StatisticsEnvironment,
   dependencies: StatisticsDependencies,
-): RouteContext {
+) {
   const pathname = new URL(request.url).pathname
   const path = Object.values(STATISTICS_ROUTE_PATHS).find((candidate) => candidate === pathname)
   if (path === undefined) throw new Error(`no route serves ${pathname}`)

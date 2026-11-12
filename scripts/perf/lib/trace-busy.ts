@@ -34,9 +34,9 @@ function numberOr(value: unknown, fallback: number) {
   return typeof value === 'number' ? value : fallback
 }
 
-function traceEventOf(value: unknown): TraceEvent | null {
+function traceEventOf(value: unknown) {
   if (!Schema.is(rawTraceEventSchema)(value)) return null
-  return {
+  const event: TraceEvent | null = {
     name: value.name,
     ph: value.ph,
     pid: numberOr(value.pid, -1),
@@ -45,6 +45,7 @@ function traceEventOf(value: unknown): TraceEvent | null {
     dur: numberOr(value.dur, 0),
     threadName: Schema.is(threadNameArgsSchema)(value.args) ? value.args.name : null,
   }
+  return event
 }
 
 /**

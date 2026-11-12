@@ -1,6 +1,5 @@
 import { Schema } from 'effect'
 import { commandOutput, parseJson, writeScratchFile } from './cli'
-import type { IssueComment } from './managed-content'
 
 const PullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -37,7 +36,7 @@ export function viewerLogin() {
   return commandOutput('gh', ['api', 'user', '--jq', '.login'])
 }
 
-export function listIssueComments(prNumber: number): IssueComment[] {
+export function listIssueComments(prNumber: number) {
   const output = commandOutput('gh', [
     'api',
     '--paginate',

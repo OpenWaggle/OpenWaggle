@@ -59,7 +59,7 @@ export const GENERATED_FILES: readonly GeneratedFile[] = [
 export async function generatedFileFindings(
   root: string,
   changed: readonly { readonly file: string; readonly after: string | undefined }[],
-): Promise<Finding[]> {
+) {
   const found = await Promise.all(
     changed.map(async ({ file, after }) => {
       const entry = GENERATED_FILES.find((candidate) => candidate.files.test(file))

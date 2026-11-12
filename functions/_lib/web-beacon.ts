@@ -31,7 +31,7 @@ function isDownloadTarget(value: unknown): value is WebDownloadTarget {
 }
 
 /** Parses an http(s) URL, or returns `undefined`. */
-export function webUrl(value: string): URL | undefined {
+export function webUrl(value: string) {
   try {
     const url = new URL(value)
     return url.protocol === 'https:' || url.protocol === 'http:' ? url : undefined
@@ -69,25 +69,46 @@ function validateUtm(beacon: Readonly<Record<string, unknown>>) {
 }
 
 /** Validates a website beacon. Unknown fields, unknown types and stray targets are rejected. */
-export function validateWebBeacon(value: unknown): UsageStatisticsValidation<WebBeacon> {
-  if (!isRecord(value)) return failure('beacon', 'expected an object')
+export function validateWebBeacon(value: unknown) {
+  if (!isRecord(value)) {
+    return failure('beacon', 'expected an object') satisfies UsageStatisticsValidation<WebBeacon>
+  }
   if (firstUnexpectedKey(value, BEACON_KEYS) !== undefined) {
-    return failure('beacon', 'unknown field')
+    return failure('beacon', 'unknown field') satisfies UsageStatisticsValidation<WebBeacon>
   }
   const { type, path, referrer, target } = value
-  if (!isPagePath(path)) return failure('path', 'expected a page path')
-  if (!isReferrer(referrer)) return failure('referrer', 'expected a page URL')
+  if (!isPagePath(path)) {
+    return failure('path', 'expected a page path') satisfies UsageStatisticsValidation<WebBeacon>
+  }
+  if (!isReferrer(referrer)) {
+    return failure('referrer', 'expected a page URL') satisfies UsageStatisticsValidation<WebBeacon>
+  }
   const utm = validateUtm(value)
   if (!utm.ok) return utm
   const page = { path, referrer, ...utm.value }
   if (type === 'pageview') {
-    return target === undefined
-      ? { ok: true, value: { type, ...page } }
-      : failure('target', 'a page view has no target')
+    return (
+      target === undefined
+        ? { ok: true, value: { type, ...page } }
+        : failure('target', 'a page view has no target')
+    ) satisfies UsageStatisticsValidation<WebBeacon>
   }
-  if (type !== 'download_click') return failure('type', 'value is not in the published list')
-  if (!isDownloadTarget(target)) return failure('target', 'value is not in the published list')
-  return { ok: true, value: { type, target, ...page } }
+  if (type !== 'download_click') {
+    return failure(
+      'type',
+      'value is not in the published list',
+    ) satisfies UsageStatisticsValidation<WebBeacon>
+  }
+  if (!isDownloadTarget(target)) {
+    return failure(
+      'target',
+      'value is not in the published list',
+    ) satisfies UsageStatisticsValidation<WebBeacon>
+  }
+  return {
+    ok: true,
+    value: { type, target, ...page },
+  } satisfies UsageStatisticsValidation<WebBeacon>
 }
 
 export const TRAFFIC_CHANNELS = ['direct', 'search', 'social', 'referral'] as const
@@ -108,18 +129,6 @@ const SEARCH_SOURCES = /^(?:google|bing|duckduckgo|ddg|yahoo|baidu|yandex|ecosia
 const SOCIAL_SOURCES =
   /^(?:twitter|x|bluesky|bsky|mastodon|facebook|instagram|linkedin|reddit|hn|hackernews|youtube|discord|producthunt)$/iu
 
-function hostChannel(host: string): TrafficChannel {
-  if (SEARCH_HOSTS.some((pattern) => pattern.test(host))) return 'search'
-  return SOCIAL_HOSTS.some((pattern) => pattern.test(host)) ? 'social' : 'referral'
-}
-
-function campaignChannel(utm: WebBeaconUtm): TrafficChannel {
-  const source = utm.utm_source
-  if (source === undefined) return 'direct'
-  if (SEARCH_SOURCES.test(source)) return 'search'
-  return SOCIAL_SOURCES.test(source) ? 'social' : 'referral'
-}
-
 export interface ReferrerDetails {
   /** PostHog's `$referrer`: the referring origin only, or `$direct`. */
   readonly referrer: string
@@ -129,18 +138,45 @@ export interface ReferrerDetails {
   readonly channel?: TrafficChannel
 }
 
+function hostChannel(host: string) {
+  if (SEARCH_HOSTS.some((pattern) => pattern.test(host))) return 'search' as const
+  return SOCIAL_HOSTS.some((pattern) => pattern.test(host))
+    ? ('social' as const)
+    : ('referral' as const)
+}
+
+function campaignChannel(utm: WebBeaconUtm) {
+  const source = utm.utm_source
+  if (source === undefined) return 'direct' as const
+  if (SEARCH_SOURCES.test(source)) return 'search' as const
+  return SOCIAL_SOURCES.test(source) ? ('social' as const) : ('referral' as const)
+}
+
 const DIRECT = '$direct'
 
 /**
  * Where a visit came from. The referring page is reduced to its origin, so the address of the
  * page that linked to the site is never stored, only its domain.
  */
-export function referrerDetails(beacon: WebBeacon, siteHost: string): ReferrerDetails {
+export function referrerDetails(beacon: WebBeacon, siteHost: string) {
   const url = beacon.referrer === '' ? undefined : webUrl(beacon.referrer)
   if (url === undefined) {
-    return { referrer: DIRECT, referringDomain: DIRECT, channel: campaignChannel(beacon) }
+    const details: ReferrerDetails = {
+      referrer: DIRECT,
+      referringDomain: DIRECT,
+      channel: campaignChannel(beacon),
+    }
+    return details
   }
   const host = url.hostname.toLowerCase()
-  if (host === siteHost) return { referrer: url.origin, referringDomain: host }
-  return { referrer: url.origin, referringDomain: host, channel: hostChannel(host) }
+  if (host === siteHost) {
+    const details: ReferrerDetails = { referrer: url.origin, referringDomain: host }
+    return details
+  }
+  const details: ReferrerDetails = {
+    referrer: url.origin,
+    referringDomain: host,
+    channel: hostChannel(host),
+  }
+  return details
 }

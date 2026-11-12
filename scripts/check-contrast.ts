@@ -83,7 +83,7 @@ export interface ContrastFailure {
   readonly floor: number
 }
 
-export function parseHexColor(hex: string): RgbColor {
+export function parseHexColor(hex: string) {
   if (!HEX_COLOR_PATTERN.test(hex)) {
     throw new Error(`Invalid six-digit hex color: ${hex}`)
   }
@@ -136,11 +136,7 @@ function colorValue(colors: ColorValues, role: string) {
   return value
 }
 
-function failuresForRoles(
-  colors: ColorValues,
-  roles: readonly string[],
-  floor: number,
-): ContrastFailure[] {
+function failuresForRoles(colors: ColorValues, roles: readonly string[], floor: number) {
   const failures: ContrastFailure[] = []
 
   for (const role of roles) {
@@ -156,11 +152,11 @@ function failuresForRoles(
   return failures
 }
 
-export function findContrastFailures(colors: ColorValues): ContrastFailure[] {
+export function findContrastFailures(colors: ColorValues) {
   return [
     ...failuresForRoles(colors, TEXT_COLOR_ROLES, TEXT_CONTRAST_FLOOR),
     ...failuresForRoles(colors, NON_TEXT_COLOR_ROLES, NON_TEXT_CONTRAST_FLOOR),
-  ]
+  ] satisfies ContrastFailure[]
 }
 
 function compareContractKeys(label: string, values: ColorValues) {

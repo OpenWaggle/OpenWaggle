@@ -90,8 +90,8 @@ function hasWriteProtectedTwoFactorAuthentication(profile: NpmProfile) {
   )
 }
 
-function conflict(name: string, nextAction: string): BootstrapPackageProgress {
-  return { name, nextAction, state: 'conflict' }
+function conflict(name: string, nextAction: string) {
+  return { name, nextAction, state: 'conflict' } satisfies BootstrapPackageProgress
 }
 
 function credentialEnvironmentBlockers(environment: Readonly<Record<string, string | undefined>>) {
@@ -155,7 +155,7 @@ async function inspectPublishedPlaceholder(
   packageName: string,
   dependencies: BootstrapDependencies,
   metadata: unknown,
-): Promise<BootstrapPackageProgress> {
+) {
   const tags = parseJson(
     await runRequired(dependencies, {
       args: ['view', packageName, 'dist-tags', '--json'],
@@ -195,22 +195,26 @@ async function inspectPublishedPlaceholder(
   return pendingPackage(packageName, NEXT_REASSERT_MFA)
 }
 
-function pendingPackage(packageName: string, nextAction: string): BootstrapPackageProgress {
-  return { name: packageName, nextAction, state: 'pending' }
+function pendingPackage(packageName: string, nextAction: string) {
+  return { name: packageName, nextAction, state: 'pending' } satisfies BootstrapPackageProgress
 }
 
 async function inspectPackage(
   projectRoot: string,
   packageName: string,
   dependencies: BootstrapDependencies,
-): Promise<BootstrapPackageProgress> {
+) {
   const packageResult = await runCommand(dependencies, {
     args: ['view', packageName, '--json'],
     command: 'npm',
     cwd: projectRoot,
   })
   if (isNotFound(packageResult)) {
-    return { name: packageName, nextAction: NEXT_PUBLISH, state: 'pending' }
+    return {
+      name: packageName,
+      nextAction: NEXT_PUBLISH,
+      state: 'pending',
+    } satisfies BootstrapPackageProgress
   }
   if (packageResult.exitCode !== 0) {
     throw new Error(

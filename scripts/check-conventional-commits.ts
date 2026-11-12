@@ -270,7 +270,7 @@ export function commitMessageSubject(message: string) {
 }
 
 /** The commit-msg hook's check: the subject must be a Conventional Commit, as the policy requires. */
-export function validateCommitMessage(message: string): string[] {
+export function validateCommitMessage(message: string) {
   const subject = commitMessageSubject(message)
   if (subject.length === 0) {
     return ['The commit message is empty.']

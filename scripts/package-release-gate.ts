@@ -127,7 +127,7 @@ export function validatePackageReleaseGate(
   }
 }
 
-function readGateResults(args: readonly (string | undefined)[]): PackageReleaseGateResults {
+function readGateResults(args: readonly (string | undefined)[]) {
   const [
     commitPolicyResult,
     checkResult,
@@ -149,7 +149,7 @@ function readGateResults(args: readonly (string | undefined)[]): PackageReleaseG
     rehearsalWebsiteResult: rehearsalWebsiteResult ?? '',
     testIntegrationComponentResult: testIntegrationComponentResult ?? '',
     testUnitResult: testUnitResult ?? '',
-  }
+  } satisfies PackageReleaseGateResults
 }
 
 export function runPackageReleaseGateCli(args: readonly string[]) {

@@ -125,8 +125,9 @@ async function loadPlanModule() {
   return loaded
 }
 
-async function readJson(filePath: string): Promise<unknown> {
-  return JSON.parse(await readFile(filePath, 'utf8'))
+async function readJson(filePath: string) {
+  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'))
+  return parsed
 }
 
 export async function readPackageReleasePlan(planPath: string) {

@@ -14,7 +14,7 @@ const JSON_INDENT = 2
 
 export type StepCacheEntries = Record<string, string>
 
-export async function readJsonFile(file: string): Promise<unknown> {
+export async function readJsonFile(file: string) {
   try {
     const parsed: unknown = JSON.parse(await readFile(file, 'utf8'))
     return parsed
@@ -23,7 +23,7 @@ export async function readJsonFile(file: string): Promise<unknown> {
   }
 }
 
-export async function readStepCache(): Promise<StepCacheEntries> {
+export async function readStepCache() {
   const parsed = await readJsonFile(CACHE_FILE)
   if (parsed === null || typeof parsed !== 'object') return {}
   return Object.fromEntries(

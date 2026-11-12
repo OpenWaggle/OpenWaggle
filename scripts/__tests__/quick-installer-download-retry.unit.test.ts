@@ -23,7 +23,7 @@ interface FlakyServer {
   readonly close: () => Promise<void>
 }
 
-async function startServer(failures: number, failureStatus: number): Promise<FlakyServer> {
+async function startServer(failures: number, failureStatus: number) {
   let requests = 0
   const server = http.createServer((_request, response) => {
     requests += 1

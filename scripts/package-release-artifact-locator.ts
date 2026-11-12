@@ -110,24 +110,29 @@ function artifactWorkflowRun(value: unknown) {
   return typeof id === 'number' && typeof headSha === 'string' ? { id, headSha } : undefined
 }
 
-function decodeCandidates(value: unknown): readonly PackageReleaseArtifactCandidate[] {
+function decodeCandidates(value: unknown) {
   const artifacts = artifactsOf(value)
   if (artifacts === undefined) {
     throw new Error('GitHub returned an invalid artifact list.')
   }
-  return artifacts.map((artifact: unknown) => {
-    const run = isArtifactRecord(artifact) ? artifactWorkflowRun(artifact.workflow_run) : undefined
-    if (!isArtifactRecord(artifact) || run === undefined) {
-      throw new Error('GitHub returned an invalid package release artifact.')
-    }
-    return {
-      createdAt: artifact.created_at,
-      expired: artifact.expired,
-      name: artifact.name,
-      runId: run.id,
-      sourceSha: run.headSha,
-    }
-  })
+  const candidate: readonly PackageReleaseArtifactCandidate[] = artifacts.map(
+    (artifact: unknown) => {
+      const run = isArtifactRecord(artifact)
+        ? artifactWorkflowRun(artifact.workflow_run)
+        : undefined
+      if (!isArtifactRecord(artifact) || run === undefined) {
+        throw new Error('GitHub returned an invalid package release artifact.')
+      }
+      return {
+        createdAt: artifact.created_at,
+        expired: artifact.expired,
+        name: artifact.name,
+        runId: run.id,
+        sourceSha: run.headSha,
+      }
+    },
+  )
+  return candidate
 }
 
 interface WorkflowRunRecord {
@@ -151,16 +156,17 @@ function isWorkflowRunRecord(value: unknown): value is WorkflowRunRecord {
   )
 }
 
-function decodeWorkflowRun(value: unknown): PackageReleaseWorkflowRun {
+function decodeWorkflowRun(value: unknown) {
   if (!isWorkflowRunRecord(value)) {
     throw new Error('GitHub returned an invalid workflow run.')
   }
-  return {
+  const run: PackageReleaseWorkflowRun = {
     conclusion: value.conclusion,
     event: value.event,
     headSha: value.head_sha,
     path: value.path,
   }
+  return run
 }
 
 export async function locatePackageReleaseArtifact(args: readonly string[]) {

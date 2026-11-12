@@ -1,6 +1,5 @@
 import { actionManifestSchema } from '@shared/schemas/action-definitions'
 import {
-  type JsonSchemaNode,
   type JsonSchemaOverlay,
   jsonSchemaFromEffect,
   publishedSchemaRoot,
@@ -16,7 +15,7 @@ const NON_BLANK = { pattern: '\\S' }
 const RELATIVE_PATH_PATTERN =
   '^(?:\\.|(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\:\\u0000]+)*)$'
 
-function invocationOverlay(pointer: string): JsonSchemaOverlay {
+function invocationOverlay(pointer: string) {
   const command = `${pointer}/anyOf/0`
   const task = `${pointer}/anyOf/1/properties/task`
   return {
@@ -59,7 +58,7 @@ function invocationOverlay(pointer: string): JsonSchemaOverlay {
       ...NON_BLANK,
       description: 'The Hatch environment of a hatch-script.',
     },
-  }
+  } satisfies JsonSchemaOverlay
 }
 
 const ID_DESCRIPTION =
@@ -139,7 +138,7 @@ const ACTIONS_OVERLAY: JsonSchemaOverlay = {
 export const PROJECT_ACTIONS_SCHEMA_FILE = 'project-actions-v1.schema.json'
 
 /** `.openwaggle/actions.json`, from the schema `readActionManifest` decodes it with. */
-export function projectActionsJsonSchema(): JsonSchemaNode {
+export function projectActionsJsonSchema() {
   return publishedSchemaRoot(
     {
       fileName: PROJECT_ACTIONS_SCHEMA_FILE,

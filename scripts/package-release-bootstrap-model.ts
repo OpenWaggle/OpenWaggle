@@ -60,9 +60,10 @@ function isUnknownArray(value: unknown): value is unknown[] {
   return Array.isArray(value)
 }
 
-export function parseJson(value: string, label: string): unknown {
+export function parseJson(value: string, label: string) {
   try {
-    return JSON.parse(value)
+    const parsed: unknown = JSON.parse(value)
+    return parsed
   } catch (error) {
     throw new Error(`${label} returned invalid JSON: ${String(error)}`, { cause: error })
   }

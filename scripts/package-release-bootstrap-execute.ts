@@ -29,10 +29,10 @@ function failureResult(
   dependencies: BootstrapDependencies,
   packages: readonly BootstrapPackageProgress[],
   github: BootstrapGithubProgress,
-): PackageReleaseBootstrapResult {
+) {
   const message = redactBootstrapDiagnostic(error instanceof Error ? error.message : String(error))
   dependencies.writeLine(`[blocked] ${message}`)
-  return {
+  const result: PackageReleaseBootstrapResult = {
     blockers: [message],
     github,
     mode: 'execute',
@@ -40,6 +40,7 @@ function failureResult(
     ok: false,
     packages,
   }
+  return result
 }
 
 async function securePackages(
@@ -60,7 +61,7 @@ async function recoverPublishingRestriction(
   packageName: string,
   dependencies: BootstrapDependencies,
   cause: unknown,
-): Promise<never> {
+) {
   try {
     await restrictPackagePublishing(projectRoot, packageName, dependencies)
   } catch (recoveryError) {
@@ -119,7 +120,7 @@ export async function executeBootstrap(
   dependencies: BootstrapDependencies,
   initialPackages: readonly BootstrapPackageProgress[],
   initialGithub: BootstrapGithubProgress,
-): Promise<PackageReleaseBootstrapResult> {
+) {
   let packages: MutablePackageProgress[] = initialPackages.map((item) => ({ ...item }))
   let github = initialGithub
   try {
@@ -139,12 +140,13 @@ export async function executeBootstrap(
       github.environment === 'conflict' ||
       github.ruleset === 'conflict'
     ) {
-      return {
+      const result: PackageReleaseBootstrapResult = {
         ...preflight,
         mode: 'execute',
         nextAction: 'Resolve every blocker and rerun the preflight.',
         ok: false,
       }
+      return result
     }
     const username = await runRequired(dependencies, {
       args: ['whoami'],
@@ -166,7 +168,7 @@ export async function executeBootstrap(
       await createAndVerifyRuleset(input.projectRoot, dependencies)
     }
     github = { environment: 'complete', ruleset: 'complete' }
-    return {
+    const result: PackageReleaseBootstrapResult = {
       blockers: [],
       github,
       mode: 'execute',
@@ -174,6 +176,7 @@ export async function executeBootstrap(
       ok: true,
       packages,
     }
+    return result
   } catch (error) {
     return failureResult(error, dependencies, packages, github)
   }

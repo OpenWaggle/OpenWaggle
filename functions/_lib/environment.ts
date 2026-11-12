@@ -22,7 +22,7 @@ export interface StatisticsEnvironment {
 }
 
 /** Returns a trimmed string setting, or `undefined` when it is missing, blank or not a string. */
-export function configuredValue(value: unknown): string | undefined {
+export function configuredValue(value: unknown) {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed === '' ? undefined : trimmed

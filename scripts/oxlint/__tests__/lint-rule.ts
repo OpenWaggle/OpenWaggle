@@ -48,7 +48,7 @@ function locator(text: string) {
   for (let index = 0; index < text.length; index += 1) {
     if (text[index] === '\n') lineStarts.push(index + 1)
   }
-  return (offset: number): LineColumn => {
+  return (offset: number) => {
     let line = lineStarts.length - 1
     while (line > 0 && (lineStarts[line] ?? 0) > offset) line -= 1
     return { line: line + 1, column: offset - (lineStarts[line] ?? 0) }
@@ -84,17 +84,14 @@ function linkParents(program: object) {
   }
 }
 
-function reportedStart(
-  descriptor: ReportDescriptor,
-  locate: (offset: number) => LineColumn,
-): LineColumn {
+function reportedStart(descriptor: ReportDescriptor, locate: (offset: number) => LineColumn) {
   if (descriptor.loc) {
-    return 'start' in descriptor.loc ? descriptor.loc.start : descriptor.loc
+    return ('start' in descriptor.loc ? descriptor.loc.start : descriptor.loc) satisfies LineColumn
   }
   if (descriptor.node) {
     return locate(descriptor.node.range[0])
   }
-  return { line: 0, column: 0 }
+  return { line: 0, column: 0 } satisfies LineColumn
 }
 
 /**
@@ -111,7 +108,7 @@ export function lintWithRule(
   code: string,
   filename: string,
   options: readonly JsonValue[] = [],
-): LintMessage[] {
+) {
   return runRule(plugin, ruleId, code, filename, options).messages
 }
 
@@ -128,7 +125,7 @@ const FIXER = fromPartial<Parameters<FixFunction>[0]>({
   removeRange: (range: [number, number]) => ({ range, text: '' }),
 })
 
-function fixesOf(fix: FixFunction): readonly RuleFix[] {
+function fixesOf(fix: FixFunction) {
   const result = fix(FIXER)
   if (result === null || result === undefined) return []
   if ('range' in result) return [result]
@@ -181,13 +178,14 @@ function runRule(
   }
 
   const locate = locator(code)
-  const comments = parsed.comments.map((comment): Comment =>
-    fromPartial({
+  const comments = parsed.comments.map((comment) => {
+    const lintComment: Comment = fromPartial({
       ...comment,
       range: [comment.start, comment.end],
       loc: { start: locate(comment.start), end: locate(comment.end) },
-    }),
-  )
+    })
+    return lintComment
+  })
   const messages: LintMessage[] = []
   const fixes: FixFunction[] = []
   const context = fromPartial<Context>({

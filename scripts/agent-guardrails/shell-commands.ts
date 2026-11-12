@@ -28,8 +28,9 @@ export interface PendingHeredoc {
 const DIGITS = /^\d+$/
 const DESCRIPTOR = /^(?:\d+-?|-)$/
 
-function newCommand(piped: boolean): RawCommand {
-  return { words: [], writes: [], stdin: undefined, piped }
+function newCommand(piped: boolean) {
+  const command: RawCommand = { words: [], writes: [], stdin: undefined, piped }
+  return command
 }
 
 export class CommandBuilder {

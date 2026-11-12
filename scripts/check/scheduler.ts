@@ -31,19 +31,19 @@ interface CommandResult {
 }
 
 /** The environment every step gets: no colours, and no Vite config-loader notice. */
-function stepEnvironment(step: CheckStep): NodeJS.ProcessEnv {
+function stepEnvironment(step: CheckStep) {
   return {
     ...process.env,
     FORCE_COLOR: '0',
     NO_COLOR: '1',
     VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true',
     ...step.env,
-  }
+  } satisfies NodeJS.ProcessEnv
 }
 
-function runCommand(command: StepCommand, step: CheckStep, logFd: number): Promise<CommandResult> {
+function runCommand(command: StepCommand, step: CheckStep, logFd: number) {
   const [executable, ...args] = command
-  return new Promise((resolve) => {
+  return new Promise<CommandResult>((resolve) => {
     const child = spawn(executable, args, {
       cwd: step.cwd === undefined ? process.cwd() : path.resolve(step.cwd),
       env: stepEnvironment(step),
@@ -108,7 +108,7 @@ export async function executeSteps(
   planned: readonly PlannedStep[],
   options: Pick<RunOptions, 'cache' | 'concurrency'>,
   started: number,
-): Promise<Execution> {
+) {
   const reports = new Map<string, StepReport>()
   const plannedIds = new Set(planned.map(({ step }) => step.id))
   const priority = criticalPaths(planned, reportDurations(await readJsonFile(REPORT_FILE)))
@@ -206,5 +206,6 @@ export async function executeSteps(
   }
   await Promise.allSettled(active.values())
   if (options.cache) await writeStepCache(cache)
-  return { reports, interrupted: run.interrupted }
+  const execution: Execution = { reports, interrupted: run.interrupted }
+  return execution
 }

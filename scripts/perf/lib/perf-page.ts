@@ -165,10 +165,7 @@ export async function waitForMilestones(page: Page, names: readonly string[], ti
   )
 }
 
-export async function readRendererBoot(
-  page: Page,
-  instrumentedFromStart: boolean,
-): Promise<RendererBoot> {
+export async function readRendererBoot(page: Page, instrumentedFromStart: boolean) {
   const boot = await page.evaluate(() => {
     const holder: object = globalThis
     const probe: unknown = '__owPerf' in holder ? holder.__owPerf : null
@@ -189,5 +186,6 @@ export async function readRendererBoot(
       longTaskMs: state?.longTaskMs ?? 0,
     }
   })
-  return { ...boot, instrumentedFromStart }
+  const result: RendererBoot = { ...boot, instrumentedFromStart }
+  return result
 }

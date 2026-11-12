@@ -65,14 +65,17 @@ function isEuHost(host: string) {
   }
 }
 
-export function postHogSetting(environment: StatisticsEnvironment): PostHogSetting {
+export function postHogSetting(environment: StatisticsEnvironment) {
   const apiKey = configuredValue(environment.POSTHOG_PROJECT_KEY)
-  if (apiKey === undefined) return { status: 'unset' }
+  if (apiKey === undefined) return { status: 'unset' } satisfies PostHogSetting
   const host = configuredValue(environment.POSTHOG_HOST)
   if (host !== undefined && !isEuHost(host)) {
-    return { status: 'refused', reason: `POSTHOG_HOST must be ${POSTHOG_EU_HOST}` }
+    return {
+      status: 'refused',
+      reason: `POSTHOG_HOST must be ${POSTHOG_EU_HOST}`,
+    } satisfies PostHogSetting
   }
-  return { status: 'ready', target: { apiKey, batchUrl: BATCH_URL } }
+  return { status: 'ready', target: { apiKey, batchUrl: BATCH_URL } } satisfies PostHogSetting
 }
 
 export type ForwardResult = { readonly ok: true } | { readonly ok: false; readonly reason: string }
@@ -85,11 +88,11 @@ export async function sendPostHogEvents(
   events: readonly PostHogEvent[],
   target: PostHogTarget,
   fetcher: OutboundFetch,
-): Promise<ForwardResult> {
-  if (events.length === 0) return { ok: true }
+) {
+  if (events.length === 0) return { ok: true } satisfies ForwardResult
   const body = JSON.stringify({ api_key: target.apiKey, batch: events })
   if (encodeUtf8(body).byteLength > MAX_BATCH_BYTES) {
-    return { ok: false, reason: 'the PostHog batch is too large' }
+    return { ok: false, reason: 'the PostHog batch is too large' } satisfies ForwardResult
   }
   try {
     const response = await fetcher(target.batchUrl, {
@@ -99,10 +102,13 @@ export async function sendPostHogEvents(
       signal: AbortSignal.timeout(FORWARD_TIMEOUT_MS),
     })
     await discardBody(response)
-    if (response.ok) return { ok: true }
-    return { ok: false, reason: `PostHog answered ${String(response.status)}` }
+    if (response.ok) return { ok: true } satisfies ForwardResult
+    return {
+      ok: false,
+      reason: `PostHog answered ${String(response.status)}`,
+    } satisfies ForwardResult
   } catch {
-    return { ok: false, reason: 'PostHog is unreachable' }
+    return { ok: false, reason: 'PostHog is unreachable' } satisfies ForwardResult
   }
 }
 

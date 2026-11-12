@@ -54,8 +54,11 @@ const packageManifestSchema = Schema.Struct({
 
 export type PackageManifest = SchemaType<typeof packageManifestSchema>
 
-export function packageManifest(value: unknown): PackageManifest {
-  return isJsonObject(value) ? Schema.decodeUnknownSync(packageManifestSchema)(value) : {}
+export function packageManifest(value: unknown) {
+  const manifest: PackageManifest = isJsonObject(value)
+    ? Schema.decodeUnknownSync(packageManifestSchema)(value)
+    : {}
+  return manifest
 }
 
 export function packageManifestDocumentationViolations(

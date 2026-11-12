@@ -21,8 +21,10 @@ interface SummaryStep {
   readonly durationMs: number
 }
 
-function field(record: unknown, key: string): unknown {
-  return record !== null && typeof record === 'object' ? Reflect.get(record, key) : undefined
+function field(record: unknown, key: string) {
+  const result: unknown =
+    record !== null && typeof record === 'object' ? Reflect.get(record, key) : undefined
+  return result
 }
 
 function numberField(record: unknown, key: string) {
@@ -30,15 +32,15 @@ function numberField(record: unknown, key: string) {
   return typeof value === 'number' ? value : 0
 }
 
-function summarySteps(report: unknown): SummaryStep[] {
+function summarySteps(report: unknown) {
   const steps = field(report, 'steps')
-  if (!Array.isArray(steps)) return []
+  if (!Array.isArray(steps)) return [] satisfies SummaryStep[]
   return steps.map((step: unknown) => ({
     id: String(field(step, 'id')),
     status: String(field(step, 'status')),
     startMs: numberField(step, 'startMs'),
     durationMs: numberField(step, 'durationMs'),
-  }))
+  })) satisfies SummaryStep[]
 }
 
 export function renderJobSummary(report: unknown, tokens: unknown) {

@@ -28,7 +28,7 @@ export function lockedPackage(name: string, lockedVersion: string) {
   return { key: name, name, version: lockedVersion, integrity: undefined }
 }
 
-export function alignedInput(): PiRuntimeAlignmentInput {
+export function alignedInput() {
   const packageRef = (name: string) => `@earendil-works/${name}`
   const piAiPatch = `@earendil-works__pi-ai@${version}.patch`
   const piCodingAgentPatch = `@earendil-works__pi-coding-agent@${version}.patch`
@@ -78,5 +78,5 @@ ${installedPackages.map((name) => `  "${packageRef(name)}@${version}",`).join('\
       [packageRef('pi-tui')]: 'catalog:pi-runtime',
       typebox: 'catalog:pi-extension-host',
     },
-  }
+  } satisfies PiRuntimeAlignmentInput
 }

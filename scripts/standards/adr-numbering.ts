@@ -110,7 +110,7 @@ function sameFiles(left: readonly string[], right: readonly string[]) {
   return [...left].sort().join('\n') === [...right].sort().join('\n')
 }
 
-function numberingViolations(names: readonly string[]): Violation[] {
+function numberingViolations(names: readonly string[]) {
   const violations: Violation[] = []
   const byNumber = new Map<string, string[]>()
   for (const name of names) {
@@ -192,14 +192,14 @@ function indexViolations(names: readonly string[], indexes: ReadonlyMap<string, 
 export function collectAdrNumberingViolations(
   names: readonly string[],
   indexes: ReadonlyMap<string, string>,
-): Violation[] {
+) {
   const adrs = names.filter((name) => !INDEX_FILE_NAMES.has(name)).sort()
   const numbered = adrs.filter((name) => ADR_FILE.test(name))
-  return [...numberingViolations(adrs), ...indexViolations(numbered, indexes)]
+  return [...numberingViolations(adrs), ...indexViolations(numbered, indexes)] satisfies Violation[]
 }
 
 /** The repository-standards entry point: the ADR directory and its indexes, read from disk. */
-export function collectRepositoryAdrNumberingViolations(repositoryRoot: string): Violation[] {
+export function collectRepositoryAdrNumberingViolations(repositoryRoot: string) {
   const names = readdirSync(path.join(repositoryRoot, ADR_DIRECTORY)).filter((name) =>
     name.endsWith('.md'),
   )

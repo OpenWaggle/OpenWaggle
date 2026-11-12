@@ -23,7 +23,7 @@ function isFixtureExtensionId(fixtureId: string): fixtureId is FixtureExtensionI
   return FIXTURE_EXTENSION_IDS.some((knownFixtureId) => knownFixtureId === fixtureId)
 }
 
-function fixtureIdsFromArgs(args: readonly string[]): readonly FixtureExtensionId[] {
+function fixtureIdsFromArgs(args: readonly string[]) {
   if (args.length === 0) {
     return DEFAULT_FIXTURE_EXTENSION_IDS
   }

@@ -35,16 +35,24 @@ export function selectSteps(
   return withDependencies(steps, requested).filter((step) => !skipped.has(step.id))
 }
 
-function scopedStep(step: CheckStep, changedFiles: readonly string[]): PlannedStep | undefined {
+function scopedStep(step: CheckStep, changedFiles: readonly string[]) {
   const scope = step.changedFiles
   if (scope === undefined) return undefined
   if (changedFiles.some((file) => matchesAny(file, scope.fullRunOn ?? []))) {
-    return { step, commands: step.commands }
+    const result: PlannedStep | undefined = { step, commands: step.commands }
+    return result
   }
   const files = changedFiles.filter((file) => matchesAny(file, scope.files))
-  if (files.length === 0) return { step, commands: [], unchanged: true }
-  if (files.length > MAX_SCOPED_FILES) return { step, commands: step.commands }
-  return { step, commands: [scope.command(files)] }
+  if (files.length === 0) {
+    const result: PlannedStep | undefined = { step, commands: [], unchanged: true }
+    return result
+  }
+  if (files.length > MAX_SCOPED_FILES) {
+    const result: PlannedStep | undefined = { step, commands: step.commands }
+    return result
+  }
+  const result: PlannedStep | undefined = { step, commands: [scope.command(files)] }
+  return result
 }
 
 /**
@@ -74,6 +82,6 @@ export function planChanged(
   return steps.flatMap((step) => planned.get(step.id) ?? [])
 }
 
-export function planAll(selected: readonly CheckStep[]): PlannedStep[] {
+export function planAll(selected: readonly CheckStep[]) {
   return selected.map((step) => ({ step, commands: step.commands }))
 }

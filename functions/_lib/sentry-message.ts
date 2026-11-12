@@ -52,9 +52,11 @@ export function errorCode(text: unknown) {
   return leadingNodeErrorCode(text) ?? UNKNOWN_ERROR_CODE
 }
 
-function withCodeValue(exception: JsonRecord): JsonRecord {
+function withCodeValue(exception: JsonRecord) {
   const { value } = exception
-  return 'value' in exception ? { ...exception, value: errorCode(value) } : exception
+  const record: JsonRecord =
+    'value' in exception ? { ...exception, value: errorCode(value) } : exception
+  return record
 }
 
 function messageCode(message: unknown) {
@@ -69,7 +71,7 @@ function logentryMessage(logentry: JsonRecord) {
 }
 
 /** The event with only error types and codes left of its message text. */
-export function withoutMessageText(event: JsonRecord): JsonRecord {
+export function withoutMessageText(event: JsonRecord) {
   const coded = updateRecord(event, 'exception', (exception) =>
     updateList(exception, 'values', withCodeValue),
   )
@@ -78,5 +80,10 @@ export function withoutMessageText(event: JsonRecord): JsonRecord {
   const logentry = isRecord(eventLogentry)
     ? { logentry: { message: messageCode(logentryMessage(eventLogentry) ?? eventMessage) } }
     : {}
-  return { ...withoutKeys(coded, DROPPED_WITH_MESSAGES), ...message, ...logentry }
+  const record: JsonRecord = {
+    ...withoutKeys(coded, DROPPED_WITH_MESSAGES),
+    ...message,
+    ...logentry,
+  }
+  return record
 }

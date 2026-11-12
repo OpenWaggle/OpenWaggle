@@ -57,7 +57,7 @@ const CodexStateSchema = Schema.parseJson(
   }),
 )
 
-function parseCodexState(comment: IssueComment): CodexState | undefined {
+function parseCodexState(comment: IssueComment) {
   const json = CODEX_STATE_PATTERN.exec(comment.body)?.[1]
   if (json === undefined) {
     return undefined
@@ -90,9 +90,9 @@ function hasCodexReaction(state: PullRequestState, content: string) {
 }
 
 /** How a finished Codex review attempt ended, whichever commit it covered. */
-function attemptOutcome(attempt: CodexState, codexComments: readonly IssueComment[]): CodexStatus {
+function attemptOutcome(attempt: CodexState, codexComments: readonly IssueComment[]) {
   if (attempt.status === 'completed') {
-    return attempt.hasUnresolvedFindings ? 'findings' : 'clean'
+    return attempt.hasUnresolvedFindings ? ('findings' as const) : ('clean' as const)
   }
   const updatedAt = Date.parse(attempt.updatedAt)
   const limited = codexComments.some(
@@ -100,42 +100,46 @@ function attemptOutcome(attempt: CodexState, codexComments: readonly IssueCommen
       CODEX_USAGE_LIMIT_PATTERN.test(comment.body) &&
       Math.abs(Date.parse(comment.createdAt) - updatedAt) <= USAGE_LIMIT_PAIRING_MS,
   )
-  return limited ? 'usage_limited' : 'failed'
+  return limited ? ('usage_limited' as const) : ('failed' as const)
 }
 
-function codexReview(state: PullRequestState, now: number): BotReviews['codex'] {
+function codexReview(state: PullRequestState, now: number) {
   const codexComments = state.comments.filter((comment) => comment.author.login === CODEX_LOGIN)
   const attempt = codexComments.map(parseCodexState).findLast((parsed) => parsed !== undefined)
   const forHead = attempt?.commitSha === state.headSha ? attempt : undefined
   const busy = forHead !== undefined && !CODEX_FINISHED_STATUSES.has(forHead.status ?? '')
   if (busy || hasCodexReaction(state, 'EYES')) {
     const since = forHead === undefined ? now : Date.parse(forHead.updatedAt)
-    return { status: now - since > STALLED_REVIEW_MS ? 'stalled' : 'running' }
+    return {
+      status: now - since > STALLED_REVIEW_MS ? 'stalled' : 'running',
+    } satisfies BotReviews['codex']
   }
   if (forHead !== undefined) {
-    return { status: attemptOutcome(forHead, codexComments) }
+    return { status: attemptOutcome(forHead, codexComments) } satisfies BotReviews['codex']
   }
   if (attempt?.commitSha === undefined) {
     // 👍 on the PR is how Codex says a review found nothing; it names no commit.
-    return { status: hasCodexReaction(state, 'THUMBS_UP') ? 'clean' : 'none' }
+    return {
+      status: hasCodexReaction(state, 'THUMBS_UP') ? 'clean' : 'none',
+    } satisfies BotReviews['codex']
   }
   return {
     lastAttempt: { outcome: attemptOutcome(attempt, codexComments), sha: attempt.commitSha },
     status: 'none',
-  }
+  } satisfies BotReviews['codex']
 }
 
-function copilotStatus(state: PullRequestState): BotReviews['copilot'] {
+function copilotStatus(state: PullRequestState) {
   if (state.reviewRequests.some((reviewer) => COPILOT_LOGIN_PATTERN.test(reviewer.login))) {
-    return 'requested'
+    return 'requested' as const
   }
   const reviews = state.reviews.filter(
     (review) => review.author.isBot && COPILOT_LOGIN_PATTERN.test(review.author.login),
   )
   if (reviews.some((review) => review.commitSha === state.headSha)) {
-    return 'reviewed'
+    return 'reviewed' as const
   }
-  return reviews.length > 0 ? 'reviewed_older_commit' : 'none'
+  return reviews.length > 0 ? ('reviewed_older_commit' as const) : ('none' as const)
 }
 
 const CODEX_WARNINGS: Partial<Record<CodexStatus, string>> = {
@@ -158,10 +162,10 @@ function codexWarnings(codex: BotReviews['codex']) {
   return []
 }
 
-export function botReviews(state: PullRequestState, now: number): BotReviews {
+export function botReviews(state: PullRequestState, now: number) {
   const codex = codexReview(state, now)
   const copilot = copilotStatus(state)
-  return {
+  const reviews: BotReviews = {
     codex,
     copilot,
     inProgress: [
@@ -170,4 +174,5 @@ export function botReviews(state: PullRequestState, now: number): BotReviews {
     ],
     warnings: codexWarnings(codex),
   }
+  return reviews
 }

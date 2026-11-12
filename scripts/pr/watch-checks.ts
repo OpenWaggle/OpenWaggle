@@ -49,7 +49,7 @@ function summarizeRuns(runs: readonly CheckRun[]) {
       latest.set(key, run)
     }
   }
-  return [...latest.entries()].map(([key, run]): CheckSummary => {
+  return [...latest.entries()].map(([key, run]) => {
     const count = attempts.get(key) ?? 1
     return {
       attempts: count,
@@ -68,7 +68,7 @@ function summarizeRuns(runs: readonly CheckRun[]) {
   })
 }
 
-function summarizeStatus(context: StatusContext): CheckSummary {
+function summarizeStatus(context: StatusContext) {
   return {
     attempts: 1,
     conclusion: context.state,
@@ -79,7 +79,7 @@ function summarizeStatus(context: StatusContext): CheckSummary {
     retriesLeft: 0,
     status: RUNNING_STATES.has(context.state) ? 'PENDING' : 'COMPLETED',
     url: context.url,
-  }
+  } satisfies CheckSummary
 }
 
 function isFailed(check: CheckSummary) {
@@ -90,15 +90,12 @@ function isFailed(check: CheckSummary) {
   )
 }
 
-export function summarizeChecks(
-  runs: readonly CheckRun[],
-  contexts: readonly StatusContext[],
-): ChecksSummary {
+export function summarizeChecks(runs: readonly CheckRun[], contexts: readonly StatusContext[]) {
   const checks = [...summarizeRuns(runs), ...contexts.map(summarizeStatus)]
   const anyRequired = checks.some((check) => check.isRequired)
   const failed = checks.filter(isFailed)
   const blocks = (check: CheckSummary) => !anyRequired || check.isRequired
-  return {
+  const summary: ChecksSummary = {
     failed: failed.filter(blocks),
     optionalFailed: failed.filter((check) => !blocks(check)),
     needsApproval: checks.filter(
@@ -107,4 +104,5 @@ export function summarizeChecks(
     running: checks.filter((check) => RUNNING_STATUSES.has(check.status)),
     total: checks.length,
   }
+  return summary
 }

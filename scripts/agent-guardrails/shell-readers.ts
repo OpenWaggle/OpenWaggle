@@ -26,13 +26,13 @@ export function indexOrEnd(text: string, search: string, from: number) {
 }
 
 /** `'...'` starting at its opening quote: the text is literal. */
-export function singleQuoted(text: string, index: number): Read {
+export function singleQuoted(text: string, index: number) {
   const end = indexOrEnd(text, "'", index + 1)
   return { text: text.slice(index + 1, end), end: end + 1 }
 }
 
 /** `$'...'` starting at its `$`: backslash escapes are decoded. */
-export function ansiQuoted(text: string, index: number): Read {
+export function ansiQuoted(text: string, index: number) {
   let cursor = index + PAIR
   let value = ''
   while (cursor < text.length && text[cursor] !== "'") {
@@ -50,7 +50,7 @@ export function ansiQuoted(text: string, index: number): Read {
 }
 
 /** The script between backticks, starting at the opening backtick. */
-export function backtickScript(text: string, index: number): Read {
+export function backtickScript(text: string, index: number) {
   let cursor = index + 1
   let script = ''
   while (cursor < text.length && text[cursor] !== '`') {
@@ -77,12 +77,7 @@ export function redirectionOperator(rest: string) {
 }
 
 /** A here-document body from `index` up to its delimiter line. */
-export function heredocBody(
-  text: string,
-  index: number,
-  delimiter: string,
-  stripTabs: boolean,
-): Read {
+export function heredocBody(text: string, index: number, delimiter: string, stripTabs: boolean) {
   const lines: string[] = []
   let cursor = index
   while (cursor < text.length) {

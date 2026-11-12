@@ -3,7 +3,6 @@ import { cachedLatest, latestDistTag } from '../check-dependency-pins'
 import type { RegistryClient } from '../check-provenance-downgrade'
 import {
   changedPins,
-  type DependencyLine,
   type ManifestPin,
   manifestPins,
   parseDependencyLines,
@@ -14,11 +13,17 @@ function dependencies(...lines: string[]) {
   return ['# Dependencies', '', 'Intro.', '', '## Held', '', ...lines, '', 'After.'].join('\n')
 }
 
-function pin(name: string, spec: string, overrides: Partial<ManifestPin> = {}): ManifestPin {
-  return { package: name, spec, manifest: 'package.json', section: 'dependencies', ...overrides }
+function pin(name: string, spec: string, overrides: Partial<ManifestPin> = {}) {
+  return {
+    package: name,
+    spec,
+    manifest: 'package.json',
+    section: 'dependencies',
+    ...overrides,
+  } satisfies ManifestPin
 }
 
-function line(name: string, version: string, at = 1): DependencyLine {
+function line(name: string, version: string, at = 1) {
   return { package: name, pin: version, held: 'Held', unblockedBy: 'Later', line: at }
 }
 

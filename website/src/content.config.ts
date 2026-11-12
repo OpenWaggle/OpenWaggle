@@ -52,7 +52,7 @@ async function collectMarkdownEntries(
   return entryGroups.flat()
 }
 
-function docsMarkdownLoader(): Loader {
+function docsMarkdownLoader() {
   return {
     name: 'openwaggle-docs-markdown-loader',
     load: async (context) => {
@@ -104,7 +104,7 @@ function docsMarkdownLoader(): Loader {
         store.set(isMdx ? { ...entry, rendered: undefined, deferredRender: true } : entry)
       }
     },
-  }
+  } satisfies Loader
 }
 
 const docs = defineCollection({

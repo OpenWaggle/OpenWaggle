@@ -20,7 +20,7 @@ export interface TsconfigCheckInput {
   readonly after: (file: string) => Promise<string | undefined>
 }
 
-export async function tsconfigFindings(input: TsconfigCheckInput): Promise<Finding[]> {
+export async function tsconfigFindings(input: TsconfigCheckInput) {
   const configs = input.files.filter((file) => TSCONFIG_FILE.test(file)).sort()
   const location = configs[0]
   if (location === undefined) return []
@@ -32,7 +32,7 @@ export async function tsconfigFindings(input: TsconfigCheckInput): Promise<Findi
     after: input.after,
   })
   if (!isWeaker(weakening)) return []
-  return weakeningMessages(weakening).map((message) => ({
+  return weakeningMessages(weakening).map<Finding>((message) => ({
     file: location,
     id: 'tsconfig',
     message: `${message}; a tsconfig change may only check more`,

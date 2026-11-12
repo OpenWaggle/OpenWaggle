@@ -144,7 +144,7 @@ const startupProbeOutputSchema = Schema.Struct({
 export function probeStartupExternals(
   bundlePath: string,
   argumentVectors: readonly (readonly string[])[] = STARTUP_PROBE_ARGUMENTS,
-): StartupProbeResult[] {
+) {
   const home = mkdtempSync(path.join(tmpdir(), 'main-bundle-startup-'))
   try {
     return argumentVectors.map((argv) => {

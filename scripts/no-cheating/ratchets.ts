@@ -92,7 +92,7 @@ const LIST_END = /^\]/mu
 const STRING_LITERAL = /'(?<value>[^'\n]+)'|"(?<double>[^"\n]+)"/gu
 
 /** Numeric leaves by key; a repeated key gets `#n` so each occurrence compares with its own. */
-function numericEntries(file: string, text: string): Map<string, number> {
+function numericEntries(file: string, text: string) {
   const entries = new Map<string, number>()
   if (file.endsWith('.json')) {
     const visit = (prefix: string, value: unknown) => {
@@ -117,9 +117,10 @@ function numericEntries(file: string, text: string): Map<string, number> {
   return entries
 }
 
-function parseJson(text: string): unknown {
+function parseJson(text: string) {
   try {
-    return JSON.parse(text)
+    const result: unknown = JSON.parse(text)
+    return result
   } catch {
     return undefined
   }
@@ -130,7 +131,7 @@ function parseJson(text: string): unknown {
  * when the file does not declare the list: a list new since the base is left to review, like a
  * new file.
  */
-function listEntries(list: ShrinkingList, text: string): Map<string, number> | undefined {
+function listEntries(list: ShrinkingList, text: string) {
   const entries = new Map<string, number>()
   if (list.declaration !== undefined) {
     // The declaration itself (`NAME =` or `NAME:`), not a mention of it in a comment.
@@ -143,7 +144,8 @@ function listEntries(list: ShrinkingList, text: string): Map<string, number> | u
       .matchAll(STRING_LITERAL)) {
       entries.set(match.groups?.value ?? match.groups?.double ?? '', 1)
     }
-    return entries
+    const map: Map<string, number> | undefined = entries
+    return map
   }
   const visit = (prefix: string, value: unknown) => {
     if (Array.isArray(value)) {
@@ -157,51 +159,59 @@ function listEntries(list: ShrinkingList, text: string): Map<string, number> | u
     entries.set(prefix, typeof value === 'number' ? value : 1)
   }
   visit('', parseJson(text))
-  return entries
+  const map: Map<string, number> | undefined = entries
+  return map
 }
 
-function finding(file: string, id: FindingKind, message: string): Finding {
-  return { file, id, message }
+function finding(file: string, id: FindingKind, message: string) {
+  const result: Finding = { file, id, message }
+  return result
 }
 
-function budgetFindings(file: string, before: string, after: string): Finding[] {
-  return BUDGETS.filter((budget) => budget.files.test(file)).flatMap((budget) => {
-    const old = numericEntries(file, before)
-    return [...numericEntries(file, after)].flatMap(([key, value]) => {
-      const previous = old.get(key)
-      if (!budget.keys.test(key) || previous === undefined || previous === value) return []
-      const looser = budget.looser === 'higher' ? value > previous : value < previous
-      return looser
-        ? [
-            finding(
-              file,
-              'budget',
-              `${budget.name} ${key} moved from ${previous} to ${value}; get under it instead`,
-            ),
-          ]
-        : []
-    })
-  })
+function budgetFindings(file: string, before: string, after: string) {
+  const result: Finding[] = BUDGETS.filter((budget) => budget.files.test(file)).flatMap(
+    (budget) => {
+      const old = numericEntries(file, before)
+      return [...numericEntries(file, after)].flatMap(([key, value]) => {
+        const previous = old.get(key)
+        if (!budget.keys.test(key) || previous === undefined || previous === value) return []
+        const looser = budget.looser === 'higher' ? value > previous : value < previous
+        return looser
+          ? [
+              finding(
+                file,
+                'budget',
+                `${budget.name} ${key} moved from ${previous} to ${value}; get under it instead`,
+              ),
+            ]
+          : []
+      })
+    },
+  )
+  return result
 }
 
-function listFindings(file: string, before: string, after: string): Finding[] {
-  return SHRINKING_LISTS.filter((list) => list.files.test(file)).flatMap((list) => {
-    const old = listEntries(list, before)
-    if (old === undefined) return []
-    const grown = [...(listEntries(list, after) ?? [])]
-      .filter(([key, value]) => value > (old.get(key) ?? 0))
-      .map(([key]) => key)
-    if (grown.length === 0) return []
-    const shown = grown.slice(0, SHOWN_ENTRIES).join(', ')
-    const more = grown.length > SHOWN_ENTRIES ? ` and ${grown.length - SHOWN_ENTRIES} more` : ''
-    return [
-      finding(
-        file,
-        'only-shrinks',
-        `${list.name} only shrink; new ${shown}${more}; fix the code instead`,
-      ),
-    ]
-  })
+function listFindings(file: string, before: string, after: string) {
+  const result: Finding[] = SHRINKING_LISTS.filter((list) => list.files.test(file)).flatMap(
+    (list) => {
+      const old = listEntries(list, before)
+      if (old === undefined) return []
+      const grown = [...(listEntries(list, after) ?? [])]
+        .filter(([key, value]) => value > (old.get(key) ?? 0))
+        .map(([key]) => key)
+      if (grown.length === 0) return []
+      const shown = grown.slice(0, SHOWN_ENTRIES).join(', ')
+      const more = grown.length > SHOWN_ENTRIES ? ` and ${grown.length - SHOWN_ENTRIES} more` : ''
+      return [
+        finding(
+          file,
+          'only-shrinks',
+          `${list.name} only shrink; new ${shown}${more}; fix the code instead`,
+        ),
+      ]
+    },
+  )
+  return result
 }
 
 /** Raised budgets and grown lists in one changed file; a new or deleted file is left to review. */
@@ -209,7 +219,14 @@ export function ratchetFindings(
   file: string,
   before: string | undefined,
   after: string | undefined,
-): Finding[] {
-  if (before === undefined || after === undefined) return []
-  return [...budgetFindings(file, before, after), ...listFindings(file, before, after)]
+) {
+  if (before === undefined || after === undefined) {
+    const finding: Finding[] = []
+    return finding
+  }
+  const finding: Finding[] = [
+    ...budgetFindings(file, before, after),
+    ...listFindings(file, before, after),
+  ]
+  return finding
 }

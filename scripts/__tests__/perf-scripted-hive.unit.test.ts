@@ -4,7 +4,7 @@ import { createScriptedHive } from '../perf/lib/scripted-hive'
 
 const WORKERS = 5
 
-function request(system: string, user: string): FakeProviderRequest {
+function request(system: string, user: string) {
   return {
     body: {
       messages: [
@@ -14,7 +14,7 @@ function request(system: string, user: string): FakeProviderRequest {
     },
     rawLength: 0,
     receivedAt: 0,
-  }
+  } satisfies FakeProviderRequest
 }
 
 function recorder() {

@@ -68,7 +68,7 @@ class Scanner {
   }
 
   /** Reads one token; true when it read the `)` that closes a nested scan. */
-  private step(): boolean {
+  private step() {
     const char = this.text[this.index] ?? ''
     const next = this.text[this.index + 1]
     if (char === '\\') {
@@ -123,7 +123,7 @@ class Scanner {
     return false
   }
 
-  private readOperator(char: string, next: string | undefined): boolean {
+  private readOperator(char: string, next: string | undefined) {
     if ((char === '<' || char === '>') && next === '(') {
       this.builder.endWord()
       this.readNested(this.index + PAIR)
@@ -161,7 +161,7 @@ class Scanner {
     return this.closesOnParen
   }
 
-  private readSubstitution(): boolean {
+  private readSubstitution() {
     const char = this.text[this.index]
     const next = this.text[this.index + 1]
     if (char === '$' && next === '(' && this.text[this.index + PAIR] === '(') {
@@ -248,7 +248,7 @@ class Scanner {
 }
 
 /** The commands in the `$(...)` and backticks of an unquoted here-document body. */
-function substitutionsIn(body: string, depth: number): RawCommand[] {
+function substitutionsIn(body: string, depth: number) {
   const commands: RawCommand[] = []
   let index = 0
   while (index < body.length) {
@@ -269,6 +269,6 @@ function substitutionsIn(body: string, depth: number): RawCommand[] {
 }
 
 /** Every command bash would run for `script`, nested scripts included, in no particular order. */
-export function scanShell(script: string): readonly RawCommand[] {
+export function scanShell(script: string) {
   return new Scanner(script, 0, false, 0).scan().builder.commands
 }

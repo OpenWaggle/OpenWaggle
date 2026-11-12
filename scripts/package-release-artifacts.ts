@@ -4,13 +4,13 @@ import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { verifyReleaseArtifactBundle } from './package-release-artifact-contract'
 import type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
-import { decodePackageReleasePlan } from './package-release-plan'
+import { verifyReleaseArtifactBundle } from './package-release-artifact-contract'
 import type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+import { decodePackageReleasePlan } from './package-release-plan'
 import { bunExecutable } from './support/node-runtime'
 
 export type {
@@ -41,8 +41,9 @@ function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-async function readJson(filePath: string): Promise<unknown> {
-  return JSON.parse(await readFile(filePath, 'utf8'))
+async function readJson(filePath: string) {
+  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'))
+  return parsed
 }
 
 export async function readPackageReleasePlan(planPath: string) {
@@ -118,10 +119,7 @@ async function packageReleaseNotes(plannedPackage: PackageReleasePlanItem) {
   return releaseNotes
 }
 
-async function packPlannedPackage(
-  plannedPackage: PackageReleasePlanItem,
-  artifactRoot: string,
-): Promise<PackageReleaseArtifact> {
+async function packPlannedPackage(plannedPackage: PackageReleasePlanItem, artifactRoot: string) {
   // Like `pnpm pack` before it, `bun pm pack` rewrites `workspace:` and `catalog:` ranges to the
   // versions they resolve to, so the tarball's manifest is what npm consumers install.
   const packOutput = await run(

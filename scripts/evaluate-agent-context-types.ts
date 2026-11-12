@@ -75,11 +75,11 @@ export const EMPTY_OUTCOME: EvalOutcome = {
   verifications: {},
 }
 
-export function outcomeWith(partial: Partial<EvalOutcome>): EvalOutcome {
+export function outcomeWith(partial: Partial<EvalOutcome>) {
   return { ...EMPTY_OUTCOME, ...partial }
 }
 
-export function grade(pass: boolean, reason: string): EvalGrade {
+export function grade(pass: boolean, reason: string) {
   return { pass, reason }
 }
 

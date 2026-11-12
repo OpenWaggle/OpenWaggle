@@ -18,13 +18,16 @@ export function objectFields<A, I>(schema: Schema.Schema<A, I>, value: unknown) 
  * A JSON object read as a map keyed by runtime names (a lockfile's packages, a packument's
  * versions): its entries, each value checked where it is used. `undefined` for anything else.
  */
-export function objectEntries(value: unknown): readonly (readonly [string, unknown])[] | undefined {
+export function objectEntries(value: unknown) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
-  return Object.entries(value)
+  const result: readonly (readonly [string, unknown])[] | undefined = Object.entries(value)
+  return result
 }
 
 /** {@link objectEntries} as a map, for a lookup by a runtime key. */
-export function objectMap(value: unknown): ReadonlyMap<string, unknown> | undefined {
+export function objectMap(value: unknown) {
   const entries = objectEntries(value)
-  return entries === undefined ? undefined : new Map(entries)
+  const map: ReadonlyMap<string, unknown> | undefined =
+    entries === undefined ? undefined : new Map(entries)
+  return map
 }

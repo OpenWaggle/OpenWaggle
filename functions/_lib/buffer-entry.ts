@@ -97,8 +97,12 @@ export class BufferEntryBuilder {
     row[COUNT_INDEX] += times
   }
 
-  build(day: string): BufferEntry {
-    return { day, counts: [...this.countRows.values()], sums: [...this.sumRows.values()] }
+  build(day: string) {
+    return {
+      day,
+      counts: [...this.countRows.values()],
+      sums: [...this.sumRows.values()],
+    } satisfies BufferEntry
   }
 }
 
@@ -189,27 +193,27 @@ function isPositiveCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 }
 
-function rowItems(value: unknown): readonly unknown[] | undefined {
+function rowItems(value: unknown) {
   if (!Array.isArray(value)) return undefined
   const items: readonly unknown[] = value
   return items.length === ROW_LENGTH ? items : undefined
 }
 
-function countRow(value: unknown): CountRow | undefined {
+function countRow(value: unknown) {
   const items = rowItems(value)
   if (items === undefined) return undefined
   const [event, field, text, count] = items
   if (!isText(event) || !isText(field) || !isText(text) || !isPositiveCount(count)) return undefined
-  return [event, field, text, count]
+  return [event, field, text, count] satisfies CountRow
 }
 
-function sumRow(value: unknown): SumRow | undefined {
+function sumRow(value: unknown) {
   const items = rowItems(value)
   if (items === undefined) return undefined
   const [event, field, sum, count] = items
   const isSum = typeof sum === 'number' && Number.isSafeInteger(sum) && sum >= 0
   if (!isText(event) || !isText(field) || !isSum || !isPositiveCount(count)) return undefined
-  return [event, field, sum, count]
+  return [event, field, sum, count] satisfies SumRow
 }
 
 function rows<T>(value: unknown, parse: (row: unknown) => T | undefined) {
@@ -225,7 +229,7 @@ function rows<T>(value: unknown, parse: (row: unknown) => T | undefined) {
 }
 
 /** Reads a stored entry, or returns `undefined` when it is not one this version wrote. */
-export function parseBufferEntry(text: string, day: string): BufferEntry | undefined {
+export function parseBufferEntry(text: string, day: string) {
   const parsed = parseJsonText(text)
   if (!parsed.ok || !isRecord(parsed.value)) return undefined
   const { v, c, s, day: entryDay } = parsed.value
@@ -233,5 +237,7 @@ export function parseBufferEntry(text: string, day: string): BufferEntry | undef
   if (usageStatisticsEpochDay(day) === undefined) return undefined
   const counts = rows(c, countRow)
   const sums = rows(s, sumRow)
-  return counts === undefined || sums === undefined ? undefined : { day, counts, sums }
+  const entry: BufferEntry | undefined =
+    counts === undefined || sums === undefined ? undefined : { day, counts, sums }
+  return entry
 }

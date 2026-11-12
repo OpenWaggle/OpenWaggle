@@ -1,13 +1,5 @@
 import { Schema } from 'effect'
 import { commandOutput, parseJson } from './cli'
-import type {
-  Actor,
-  IssueComment,
-  PullRequestState,
-  Reaction,
-  Review,
-  ReviewThread,
-} from './watch-model'
 import { COMMENT_NODE, pageQuery, REVIEW_NODE, SNAPSHOT_QUERY, THREAD_NODE } from './watch-query'
 import {
   CommentSchema,
@@ -36,14 +28,14 @@ function graphql(query: string, variables: Variables) {
   return Schema.decodeUnknownSync(GraphqlResponseSchema)(parseJson(output)).data
 }
 
-function actor(node: ActorNode): Actor {
+function actor(node: ActorNode) {
   return {
     isBot: node?.__typename === 'Bot',
     login: (node?.login ?? 'ghost').replace(BOT_SUFFIX_PATTERN, ''),
   }
 }
 
-function reactions(groups: ReactionGroups): Reaction[] {
+function reactions(groups: ReactionGroups) {
   return (groups ?? [])
     .map((group) => ({
       content: group.content,
@@ -54,7 +46,7 @@ function reactions(groups: ReactionGroups): Reaction[] {
     .filter((group) => group.logins.length > 0)
 }
 
-function toThread(node: typeof ThreadSchema.Type): ReviewThread {
+function toThread(node: typeof ThreadSchema.Type) {
   return {
     comments: node.comments.nodes.map((comment) => ({
       author: actor(comment.author),
@@ -71,7 +63,7 @@ function toThread(node: typeof ThreadSchema.Type): ReviewThread {
   }
 }
 
-function toComment(node: typeof CommentSchema.Type): IssueComment {
+function toComment(node: typeof CommentSchema.Type) {
   return {
     author: actor(node.author),
     body: node.body,
@@ -83,7 +75,7 @@ function toComment(node: typeof CommentSchema.Type): IssueComment {
   }
 }
 
-function toReview(node: typeof ReviewSchema.Type): Review {
+function toReview(node: typeof ReviewSchema.Type) {
   return {
     author: actor(node.author),
     body: node.body,
@@ -149,7 +141,7 @@ function allNodes<A, I>(input: {
 }
 
 /** Reads the PR state `pr:watch` needs: one query per poll, plus extra pages on long PRs. */
-export function fetchPullRequestState(prNumber: number): PullRequestState {
+export function fetchPullRequestState(prNumber: number) {
   const variables = { name: '{repo}', number: String(prNumber), owner: '{owner}' }
   const data = Schema.decodeUnknownSync(SnapshotSchema)(graphql(SNAPSHOT_QUERY, variables))
   const pr = data.repository.pullRequest

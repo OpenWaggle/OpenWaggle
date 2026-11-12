@@ -51,7 +51,7 @@ const prepared = new WeakMap<Page, Promise<EssentialsState>>()
  * the other captures: a second project with its own Sessions, so the first project's images do
  * not change, and settings that make the composer show Ask for approval and the fixture model.
  */
-async function prepare(context: CaptureContext): Promise<EssentialsState> {
+async function prepare(context: CaptureContext) {
   const { userDataDir, homeDir } = context
   const project = await createEssentialsProject({
     scratchRoot: path.dirname(userDataDir),
@@ -87,7 +87,7 @@ async function prepare(context: CaptureContext): Promise<EssentialsState> {
   ).toBeVisible({
     timeout: UI_TIMEOUT_MS,
   })
-  return { project }
+  return { project } satisfies EssentialsState
 }
 
 export function prepareEssentials(context: CaptureContext) {

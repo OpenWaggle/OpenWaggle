@@ -66,7 +66,7 @@ export function channelPillSvg(input: {
   ].join('')
 }
 
-async function generate(buildDir: string): Promise<void> {
+async function generate(buildDir: string) {
   const source = path.join(buildDir, 'icon.png')
   const { width, height } = await sharp(source).metadata()
   if (!width || !height) throw new Error(`Could not read dimensions of ${source}`)

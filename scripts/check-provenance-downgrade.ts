@@ -57,11 +57,8 @@ export function packumentUrl(name: string, registry = REGISTRY) {
   return `${registry}/${name.replace('/', '%2f')}`
 }
 
-export function createRegistryClient(
-  fetchImpl: typeof fetch = fetch,
-  registry = REGISTRY,
-): RegistryClient {
-  return {
+export function createRegistryClient(fetchImpl: typeof fetch = fetch, registry = REGISTRY) {
+  const client: RegistryClient = {
     async fetchPackument(name, abbreviated) {
       let lastError: unknown
       for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
@@ -89,12 +86,13 @@ export function createRegistryClient(
       throw new Error(`Could not read the registry metadata for ${name}: ${reason}`)
     },
   }
+  return client
 }
 
 const provenanceCacheSchema = Schema.Struct({ packages: unknownField })
 const cachedPackageSchema = Schema.Struct({ versions: unknownField, published: unknownField })
 
-export function parseProvenanceCache(text: string): ProvenanceCache {
+export function parseProvenanceCache(text: string) {
   const cached = objectFields(provenanceCacheSchema, JSON.parse(text))?.packages
   const packages: Record<string, PackageProvenance> = {}
   for (const [name, value] of objectEntries(cached) ?? []) {
@@ -110,14 +108,16 @@ export function parseProvenanceCache(text: string): ProvenanceCache {
     )
     packages[name] = { versions, published }
   }
-  return { packages }
+  const cache: ProvenanceCache = { packages }
+  return cache
 }
 
-async function readCache(file: string): Promise<ProvenanceCache> {
+async function readCache(file: string) {
   try {
     return parseProvenanceCache(await readFile(file, 'utf8'))
   } catch {
-    return { packages: {} }
+    const cache: ProvenanceCache = { packages: {} }
+    return cache
   }
 }
 
@@ -126,10 +126,7 @@ async function readCache(file: string): Promise<ProvenanceCache> {
  * are compared against, and the locked versions themselves. A newly locked version is absent, so
  * its package is fetched again.
  */
-export function compactProvenanceCache(
-  cache: ProvenanceCache,
-  locked: readonly LockedVersion[],
-): ProvenanceCache {
+export function compactProvenanceCache(cache: ProvenanceCache, locked: readonly LockedVersion[]) {
   const lockedByName = new Map<string, Set<string>>()
   for (const entry of locked) {
     lockedByName.set(entry.name, (lockedByName.get(entry.name) ?? new Set()).add(entry.version))
@@ -152,7 +149,8 @@ export function compactProvenanceCache(
       ),
     }
   }
-  return { packages }
+  const result: ProvenanceCache = { packages }
+  return result
 }
 
 async function writeCache(file: string, cache: ProvenanceCache) {
@@ -175,14 +173,15 @@ async function mapConcurrently<T>(items: readonly T[], work: (item: T) => Promis
 }
 
 /** Unique registry `name@version` pairs of a `bun.lock`, sorted for stable output. */
-export function lockedRegistryVersions(lockfileText: string): LockedVersion[] {
+export function lockedRegistryVersions(lockfileText: string) {
   const unique = new Map<string, LockedVersion>()
   for (const entry of parseBunLockfile(lockfileText).packages) {
     unique.set(`${entry.name}@${entry.version}`, { name: entry.name, version: entry.version })
   }
-  return [...unique.entries()]
+  const result: LockedVersion[] = [...unique.entries()]
     .sort(([left], [right]) => (left < right ? -1 : 1))
     .map(([, entry]) => entry)
+  return result
 }
 
 export interface ProvenanceCheckResult extends ProvenanceEvaluation {
@@ -201,7 +200,7 @@ export async function checkProvenanceDowngrades(input: {
   readonly exceptions: readonly ProvenanceDowngradeException[]
   readonly now: Date
   readonly windowDays: number
-}): Promise<ProvenanceCheckResult> {
+}) {
   const versionsByName = new Map<string, string[]>()
   for (const entry of input.locked) {
     versionsByName.set(entry.name, [...(versionsByName.get(entry.name) ?? []), entry.version])
@@ -254,7 +253,8 @@ export async function checkProvenanceDowngrades(input: {
     now: input.now,
     windowDays: input.windowDays,
   })
-  return { ...evaluation, checked: input.locked.length, fetched }
+  const result: ProvenanceCheckResult = { ...evaluation, checked: input.locked.length, fetched }
+  return result
 }
 
 /** The failure lines, empty when the check passes. */

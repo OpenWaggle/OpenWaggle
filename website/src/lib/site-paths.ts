@@ -5,7 +5,7 @@ const ASSET_EXTENSION =
 const SUFFIX_START = /[?#]/u
 
 /** Adds the trailing slash to a site-relative page URL, keeping any query or fragment. */
-export function withTrailingSlash(href: string): string {
+export function withTrailingSlash(href: string) {
   if (!href.startsWith('/') || href.startsWith('//')) return href
   const suffixIndex = href.search(SUFFIX_START)
   const path = suffixIndex === -1 ? href : href.slice(0, suffixIndex)
@@ -15,7 +15,7 @@ export function withTrailingSlash(href: string): string {
 }
 
 /** URL of a docs page from its content slug, e.g. `getting-started/first-run`. */
-export function docsPath(slug: string): string {
+export function docsPath(slug: string) {
   return withTrailingSlash(`/docs/${slug}`)
 }
 

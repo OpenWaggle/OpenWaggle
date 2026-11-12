@@ -28,11 +28,12 @@ const STRING_OR_COMMENT = /"(?:[^"\\]|\\.)*"|\/\/[^\n]*|\/\*[\s\S]*?\*\//gu
 const STRING_OR_TRAILING_COMMA = /"(?:[^"\\]|\\.)*"|,(?=\s*[}\]])/gu
 
 /** JSON with comments and trailing commas, as tsconfig files allow. */
-export function parseJsonc(text: string): unknown {
+export function parseJsonc(text: string) {
   const keepStrings = (match: string) => (match.startsWith('"') ? match : '')
-  return JSON.parse(
+  const result: unknown = JSON.parse(
     text.replace(STRING_OR_COMMENT, keepStrings).replace(STRING_OR_TRAILING_COMMA, keepStrings),
   )
+  return result
 }
 
 function toRelative(root: string, file: string) {
@@ -43,16 +44,20 @@ const referencesSchema = Schema.Struct({ references: unknownField })
 const referenceSchema = Schema.Struct({ path: unknownField })
 
 /** The configs a config's `references` name, repository-relative. */
-export function referencedConfigs(config: string, text: string): string[] {
+export function referencedConfigs(config: string, text: string) {
   const parsed = parseJsonc(text)
   const references = objectFields(referencesSchema, parsed)?.references
-  if (!Array.isArray(references)) return []
-  return references.flatMap((reference: unknown) => {
+  if (!Array.isArray(references)) {
+    const result: string[] = []
+    return result
+  }
+  const result: string[] = references.flatMap((reference: unknown) => {
     const target = objectFields(referenceSchema, reference)?.path
     if (typeof target !== 'string') return []
     const joined = path.posix.normalize(path.posix.join(path.posix.dirname(config), target))
     return [joined.endsWith('.json') ? joined : path.posix.join(joined, ROOT_CONFIG)]
   })
+  return result
 }
 
 function cacheKey(configs: ConfigTexts, listing: string) {
@@ -75,13 +80,15 @@ const cacheEntrySchema = Schema.Struct({
   projects: Schema.Array(Schema.Unknown),
 })
 
-async function readCache(root: string): Promise<CacheEntry[]> {
+async function readCache(root: string) {
   try {
     const parsed: unknown = JSON.parse(await readFile(path.join(root, CACHE_FILE), 'utf8'))
     const entries = objectFields(cacheFileSchema, parsed)?.entries
-    return Array.isArray(entries) ? entries.filter(isCacheEntry) : []
+    const entry: CacheEntry[] = Array.isArray(entries) ? entries.filter(isCacheEntry) : []
+    return entry
   } catch {
-    return []
+    const entry: CacheEntry[] = []
+    return entry
   }
 }
 
@@ -97,7 +104,7 @@ async function writeCache(root: string, entries: readonly CacheEntry[]) {
   await rename(temporary, file)
 }
 
-async function withTimeout<T>(work: Promise<T>, milliseconds: number): Promise<T> {
+async function withTimeout<T>(work: Promise<T>, milliseconds: number) {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error(`timed out after ${milliseconds} ms`)), milliseconds)
@@ -153,11 +160,7 @@ const memory = new Map<string, readonly ProjectCoverage[]>()
  * The projects reachable from tsconfig.json under `configs`. `listing` is the repository's file
  * list (any stable text); a new or removed file changes the cache key.
  */
-export async function loadProjects(
-  root: string,
-  configs: ConfigTexts,
-  listing: string,
-): Promise<readonly ProjectCoverage[]> {
+export async function loadProjects(root: string, configs: ConfigTexts, listing: string) {
   const key = cacheKey(configs, listing)
   const remembered = memory.get(key)
   if (remembered !== undefined) return remembered
@@ -172,5 +175,6 @@ export async function loadProjects(
   await writeCache(root, [{ key, projects }, ...cached.filter((entry) => entry.key !== key)]).catch(
     () => undefined,
   )
-  return projects
+  const coverage: readonly ProjectCoverage[] = projects
+  return coverage
 }

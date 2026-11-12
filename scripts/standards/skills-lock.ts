@@ -60,13 +60,18 @@ export type SkillsLockDecodeResult =
   | { readonly ok: true; readonly lock: SkillsLock }
   | { readonly ok: false; readonly issues: readonly string[] }
 
-export function decodeSkillsLock(raw: string): SkillsLockDecodeResult {
+export function decodeSkillsLock(raw: string) {
   try {
-    return { ok: true, lock: decodeUnknownExactOrThrow(SkillsLockSchema, parseJsonUnknown(raw)) }
+    return {
+      ok: true,
+      lock: decodeUnknownExactOrThrow(SkillsLockSchema, parseJsonUnknown(raw)),
+    } satisfies SkillsLockDecodeResult
   } catch (error) {
     const issues = getParseIssues(error)
-    if (issues !== null) return { ok: false, issues }
-    if (error instanceof SyntaxError) return { ok: false, issues: [error.message] }
+    if (issues !== null) return { ok: false, issues } satisfies SkillsLockDecodeResult
+    if (error instanceof SyntaxError) {
+      return { ok: false, issues: [error.message] } satisfies SkillsLockDecodeResult
+    }
     throw error
   }
 }
@@ -117,13 +122,13 @@ export function isPristineSkill(skill: VendoredSkill, files: SkillFiles) {
   )
 }
 
-function lockViolation(message: string, detail?: string): Violation {
+function lockViolation(message: string, detail?: string) {
   return detail === undefined
     ? { file: SKILLS_LOCK_FILE, message }
     : { file: SKILLS_LOCK_FILE, message, detail }
 }
 
-function upstreamShapeViolations(name: string, skill: VendoredSkill): Violation[] {
+function upstreamShapeViolations(name: string, skill: VendoredSkill) {
   const violations: Violation[] = []
   if (skill.upstream.filter((upstream) => upstream.files === undefined).length > 1) {
     violations.push(lockViolation('At most one upstream of a skill may omit its files list.', name))
@@ -184,7 +189,7 @@ function vendoredSkillViolations(name: string, skill: VendoredSkill, files: Skil
   return violations
 }
 
-function listedNameViolations(lock: SkillsLock, directories: ReadonlySet<string>): Violation[] {
+function listedNameViolations(lock: SkillsLock, directories: ReadonlySet<string>) {
   const violations: Violation[] = []
   const vendored = new Set(Object.keys(lock.skills))
   const sorted = [...lock.firstParty].sort()
@@ -220,7 +225,7 @@ function listedNameViolations(lock: SkillsLock, directories: ReadonlySet<string>
 export function collectSkillsLockViolations(
   lock: SkillsLock,
   skills: ReadonlyMap<string, SkillFiles>,
-): Violation[] {
+) {
   const violations = listedNameViolations(lock, new Set(skills.keys()))
   for (const [name, skill] of Object.entries(lock.skills)) {
     const files = skills.get(name)
@@ -241,7 +246,7 @@ function readDirectoryFiles(root: string, relative: string, files: Map<string, s
   }
 }
 
-export function readSkillFiles(skillDirectory: string): SkillFiles {
+export function readSkillFiles(skillDirectory: string) {
   const files = new Map<string, string>()
   readDirectoryFiles(skillDirectory, '', files)
   return files
@@ -259,12 +264,14 @@ export function readSkillDirectories(repositoryRoot: string) {
 }
 
 /** The repository-standards entry point: the lock and every skill directory, read from disk. */
-export function collectRepositorySkillsLockViolations(repositoryRoot: string): Violation[] {
+export function collectRepositorySkillsLockViolations(repositoryRoot: string) {
   const decoded = decodeSkillsLock(
     readFileSync(path.join(repositoryRoot, SKILLS_LOCK_FILE), 'utf8'),
   )
   if (!decoded.ok) {
-    return decoded.issues.map((issue) => lockViolation('The skills lock is malformed.', issue))
+    return decoded.issues.map((issue) =>
+      lockViolation('The skills lock is malformed.', issue),
+    ) satisfies Violation[]
   }
   return collectSkillsLockViolations(decoded.lock, readSkillDirectories(repositoryRoot))
 }

@@ -121,13 +121,13 @@ export const developerDocsNav: NavSection[] = [
   },
 ]
 
-export function isDeveloperDoc(slug: string): boolean {
+export function isDeveloperDoc(slug: string) {
   return developerDocsNav.some((section) =>
     section.items.some((item) => slug === item.slug || slug.startsWith(`${item.slug}/`)),
   )
 }
 
-export function flatNavItems(): NavItem[] {
+export function flatNavItems() {
   return [...docsNav, ...developerDocsNav].flatMap((section) => section.items)
 }
 

@@ -27,9 +27,7 @@ export const RENDERER_TEST_EXEMPTIONS_FILE = 'scripts/renderer-test-type-exempti
 
 const ERROR_LINE = /^(?<file>[^(]+)\((?<line>\d+),\d+\): error TS\d+:/u
 
-type ErrorCounts = Readonly<Record<string, number>>
-
-export function countErrorsByFile(output: string): ErrorCounts {
+export function countErrorsByFile(output: string) {
   const counts: Record<string, number> = {}
   for (const rawLine of output.split('\n')) {
     const match = ERROR_LINE.exec(rawLine.trim())
@@ -149,30 +147,35 @@ function countRendererTestFiles(rootFiles: readonly string[]) {
  * exempt file that is clean fails as stale, and a run that could not have checked the renderer
  * tests fails even when it reports nothing.
  */
-export function evaluateRendererTestTypes(input: RendererTestTypeInput): RendererTestTypeVerdict {
+export function evaluateRendererTestTypes(input: RendererTestTypeInput) {
   const optionFailure = compilerOptionFailure(input.compilerOptions)
-  if (optionFailure !== undefined) return failure([optionFailure])
+  if (optionFailure !== undefined) {
+    const verdict: RendererTestTypeVerdict = failure([optionFailure])
+    return verdict
+  }
 
   const counts = countErrorsByFile(input.output)
   const failingFiles = Object.keys(counts).sort()
   if (input.failed && failingFiles.length === 0) {
-    return failure([
+    const verdict: RendererTestTypeVerdict = failure([
       'The typechecker failed but reported no file-scoped type errors, so this run checked nothing. Raw output:',
       input.output.trim() || '(no output)',
     ])
+    return verdict
   }
 
   const testFileCount = countRendererTestFiles(input.rootFiles)
   if (testFileCount < MINIMUM_RENDERER_TEST_FILES) {
-    return failure([
+    const verdict: RendererTestTypeVerdict = failure([
       `${RENDERER_TEST_PROJECT} includes only ${String(testFileCount)} renderer test file(s), below the floor of ${String(MINIMUM_RENDERER_TEST_FILES)}. Its include has stopped matching the renderer tests, so this guard is checking almost nothing.`,
     ])
+    return verdict
   }
 
   const reported = errorsOutsideExemptions(input.output, new Set(input.exemptions))
   if (reported.size > 0) {
     const rendererTestErrors = [...reported.values()].some((file) => isRendererTestFile(`/${file}`))
-    return {
+    const verdict: RendererTestTypeVerdict = {
       ok: false,
       failingFiles,
       reportedErrors: [...reported.keys()],
@@ -182,11 +185,12 @@ export function evaluateRendererTestTypes(input: RendererTestTypeInput): Rendere
           ]
         : [],
     }
+    return verdict
   }
 
   const stale = input.exemptions.filter((file) => counts[file] === undefined)
   if (stale.length > 0) {
-    return failure(
+    const verdict: RendererTestTypeVerdict = failure(
       [
         ...stale.map(
           (file) =>
@@ -196,6 +200,13 @@ export function evaluateRendererTestTypes(input: RendererTestTypeInput): Rendere
       ],
       failingFiles,
     )
+    return verdict
   }
-  return { ok: true, messages: [], failingFiles, reportedErrors: [] }
+  const verdict: RendererTestTypeVerdict = {
+    ok: true,
+    messages: [],
+    failingFiles,
+    reportedErrors: [],
+  }
+  return verdict
 }

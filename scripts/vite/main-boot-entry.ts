@@ -13,7 +13,7 @@ const MAIN_BUNDLE_FILE_NAME = 'index.js'
  * (Build identity) and `@shared` alias. Builds that do not emit the app's `index.js`, such as the
  * Pi main bundle smoke, get no shim.
  */
-export function mainBootEntryPlugin(): Plugin {
+export function mainBootEntryPlugin() {
   let outDir = ''
   let define: NonNullable<UserConfig['define']> = {}
   let alias: NonNullable<NonNullable<UserConfig['resolve']>['alias']> = []
@@ -50,5 +50,5 @@ export function mainBootEntryPlugin(): Plugin {
         },
       })
     },
-  }
+  } satisfies Plugin
 }

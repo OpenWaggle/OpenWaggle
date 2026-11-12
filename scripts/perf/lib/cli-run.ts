@@ -1,4 +1,4 @@
-import { launchApp, type LaunchedApp, type PerfApp } from './perf-app'
+import { launchApp, type PerfApp, type LaunchedApp } from './perf-app'
 import { type PerfProfile, profileEnvironment } from './perf-profile'
 
 export interface CliRunOptions {
@@ -21,7 +21,7 @@ export interface CliRun {
  * `openwaggle run` against the profile's Session Host (it starts one when none runs): a new
  * Session with one Run, as a user starts it from a terminal.
  */
-export function startCliRun(app: PerfApp, profile: PerfProfile, options: CliRunOptions): CliRun {
+export function startCliRun(app: PerfApp, profile: PerfProfile, options: CliRunOptions) {
   const launched = launchApp(app, profileEnvironment(profile, options.environment), [
     '--use-mock-keychain',
     'run',
@@ -36,5 +36,6 @@ export function startCliRun(app: PerfApp, profile: PerfProfile, options: CliRunO
     options.prompt,
   ])
   const exited = new Promise<number | null>((resolve) => launched.child.once('exit', resolve))
-  return { launched, exited }
+  const run: CliRun = { launched, exited }
+  return run
 }

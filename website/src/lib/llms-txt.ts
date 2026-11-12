@@ -6,7 +6,7 @@ export interface LlmsTxtSection {
 }
 
 /** Renders an llms.txt index (https://llmstxt.org) so AI assistants can find the right docs page. */
-export function buildLlmsTxt(sections: readonly LlmsTxtSection[]): string {
+export function buildLlmsTxt(sections: readonly LlmsTxtSection[]) {
   const lines = [
     '# OpenWaggle',
     '',

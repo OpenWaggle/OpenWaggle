@@ -19,7 +19,7 @@ function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
 }
 
-function splitTopLevelTerms(projection: string): readonly string[] {
+function splitTopLevelTerms(projection: string) {
   const terms: string[] = []
   let depth = 0
   let current = ''

@@ -37,7 +37,7 @@ export function isSourceFile(file: string) {
   return !NOT_SOURCE.test(file) && !file.startsWith('../')
 }
 
-export function coverageOf(projects: readonly ProjectCoverage[]): Coverage {
+export function coverageOf(projects: readonly ProjectCoverage[]) {
   const coverage = new Map<string, StrictnessRanks>()
   for (const project of projects) {
     const ranks = strictnessRanks(project.options)
@@ -50,7 +50,7 @@ export function coverageOf(projects: readonly ProjectCoverage[]): Coverage {
   return coverage
 }
 
-export function weakening(before: Coverage, after: Coverage): Weakening {
+export function weakening(before: Coverage, after: Coverage) {
   const droppedFiles: string[] = []
   const droppedFlags = new Map<string, string[]>()
   for (const [file, was] of before) {
@@ -85,7 +85,7 @@ function examples(files: readonly string[]) {
 }
 
 /** One message per dropped flag, and one for the files no project checks any more. */
-export function weakeningMessages(change: Weakening): string[] {
+export function weakeningMessages(change: Weakening) {
   const files =
     change.droppedFiles.length === 0
       ? []

@@ -14,7 +14,7 @@ function mapValue(node: unknown, key: string) {
   return undefined
 }
 
-function scalarString(node: unknown): string | undefined {
+function scalarString(node: unknown) {
   return isScalar(node) && typeof node.value === 'string' ? node.value : undefined
 }
 

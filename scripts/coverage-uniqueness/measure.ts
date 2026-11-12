@@ -49,11 +49,16 @@ function run(command: string, args: readonly string[], cwd: string) {
   })
 }
 
-export async function measureFile(root: string, file: string): Promise<Measurement> {
+export async function measureFile(root: string, file: string) {
   const started = performance.now()
   const config = tierConfig(file)
   if (config === undefined) {
-    return { file, units: undefined, durationMs: 0, error: 'no tier runs this file' }
+    return {
+      file,
+      units: undefined,
+      durationMs: 0,
+      error: 'no tier runs this file',
+    } satisfies Measurement
   }
   const reports = await mkdtemp(path.join(os.tmpdir(), 'coverage-uniqueness-'))
   try {
@@ -76,11 +81,13 @@ export async function measureFile(root: string, file: string): Promise<Measureme
       root,
     )
     const durationMs = performance.now() - started
-    if (code !== 0) return { file, units: undefined, durationMs, error: stderr.trim() }
+    if (code !== 0) {
+      return { file, units: undefined, durationMs, error: stderr.trim() } satisfies Measurement
+    }
     const coverage: unknown = JSON.parse(
       await readFile(path.join(reports, 'coverage-final.json'), 'utf8'),
     )
-    return { file, units: coveredUnits(coverage, root), durationMs }
+    return { file, units: coveredUnits(coverage, root), durationMs } satisfies Measurement
   } finally {
     await rm(reports, { recursive: true, force: true })
   }

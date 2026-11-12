@@ -52,7 +52,7 @@ export class OperationBudget {
 }
 
 /** `store`, with every operation counted against `budget`. */
-export function budgetedStore(store: KeyValueStore, budget: OperationBudget): KeyValueStore {
+export function budgetedStore(store: KeyValueStore, budget: OperationBudget) {
   return {
     get: (key) => {
       budget.spend(1)
@@ -70,7 +70,7 @@ export function budgetedStore(store: KeyValueStore, budget: OperationBudget): Ke
       budget.spend(1)
       return store.list(options)
     },
-  }
+  } satisfies KeyValueStore
 }
 
 /** Runs `run` over `items`, at most `KV_CONCURRENCY` at a time. */

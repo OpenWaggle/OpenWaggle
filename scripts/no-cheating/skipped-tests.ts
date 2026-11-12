@@ -54,13 +54,14 @@ export function testSubjects(file: string) {
   return SUBJECT_EXTENSIONS.map((extension) => `${base}${extension}`)
 }
 
-function finding(file: string, message: string, line?: number): Finding {
-  return {
+function finding(file: string, message: string, line?: number) {
+  const result: Finding = {
     file,
     ...(line === undefined ? {} : { line }),
     id: 'test',
     message,
   }
+  return result
 }
 
 /** New skip and focus modifiers in one changed test file. */
@@ -68,10 +69,13 @@ export function skippedTestFindings(
   file: string,
   before: string | undefined,
   after: string | undefined,
-): Finding[] {
-  if (after === undefined || !isTestFile(file) || EXEMPT_FILE.test(file)) return []
+) {
+  if (after === undefined || !isTestFile(file) || EXEMPT_FILE.test(file)) {
+    const result: Finding[] = []
+    return result
+  }
   const lines = after.split('\n')
-  return addedLines(before, after).flatMap((added) => {
+  const result: Finding[] = addedLines(before, after).flatMap((added) => {
     const groups = namedGroups(SKIP.exec(added.text), ['modifier', 'prefixed'])
     const modifier = groups?.modifier ?? groups?.prefixed
     if (modifier === undefined) return []
@@ -81,6 +85,7 @@ export function skippedTestFindings(
       : 'run it and fix what fails'
     return [finding(file, `new ${modifier} on a test; ${how}`, added.line)]
   })
+  return result
 }
 
 export interface FileState {
@@ -136,7 +141,7 @@ async function receivingTestFile(input: DeletedTestInput, subject: string) {
  * move. A test deleted together with its code, moved to another file, or merged into a test file
  * the same change edits and that imports the code, passes.
  */
-export async function deletedTestFindings(input: DeletedTestInput): Promise<Finding[]> {
+export async function deletedTestFindings(input: DeletedTestInput) {
   const { exists, existed } = input
   const deletedCode = input.changes
     .filter((change) => change.existedBefore && !change.existsNow && !isTestFile(change.file))

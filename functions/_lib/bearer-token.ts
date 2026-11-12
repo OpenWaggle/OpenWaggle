@@ -10,15 +10,13 @@ async function sha256(text: string) {
  * Whether an `Authorization` header carries `Bearer <expected>`. Both tokens are hashed first,
  * so the comparison takes the same time whatever the tokens' lengths or contents.
  */
-export async function bearerTokenMatches(
-  authorization: string | null,
-  expected: string,
-): Promise<boolean> {
+export async function bearerTokenMatches(authorization: string | null, expected: string) {
   const { token } = (authorization === null ? undefined : BEARER.exec(authorization)?.groups) ?? {}
   const [provided, wanted] = await Promise.all([sha256(token ?? ''), sha256(expected)])
   let difference = 0
   for (let index = 0; index < wanted.length; index += 1) {
     difference |= (provided[index] ?? 0) ^ (wanted[index] ?? 0)
   }
-  return difference === 0 && token !== undefined && expected !== ''
+  const result: boolean = difference === 0 && token !== undefined && expected !== ''
+  return result
 }
