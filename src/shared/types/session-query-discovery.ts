@@ -23,8 +23,23 @@ export interface SessionDiscoveryEvidence {
   }
 }
 
+/**
+ * The Session embedding model when it cannot embed yet: the app fetches it on first use, so until
+ * its files arrive semantic discovery is not usable and search matches words only.
+ */
+export interface SemanticDiscoveryModelAvailability {
+  readonly state: 'missing' | 'downloading' | 'offline' | 'failed'
+  readonly receivedBytes?: number
+  readonly totalBytes?: number
+  readonly reason?: string
+  /** Epoch ms after which the next use tries the download again. */
+  readonly retryAt?: number
+}
+
 export interface SemanticDiscoveryReadiness {
   readonly status: 'ready' | 'partial' | 'preparing' | 'unavailable' | 'failed'
+  /** Present while the embedding model is not on disk yet. */
+  readonly model?: SemanticDiscoveryModelAvailability
   readonly modelId?: string
   readonly modelRevision?: string
   readonly snapshotRevision?: number

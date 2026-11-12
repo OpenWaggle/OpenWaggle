@@ -1,0 +1,76 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
+import * as Effect from 'effect/Effect'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
+import { SqliteSessionSemanticProjection } from '../sqlite-session-semantic-projection'
+import {
+  executeSessionQuery as executeQuery,
+  makeSessionQueryRuntime as makeRuntime,
+} from './sqlite-session-query-test-layer'
+
+const fakeModel: SessionEmbeddingModel = {
+  metadata: { id: 'test/embedding', revision: 'test-1', dimensions: 2, dtype: 'test' },
+  embedQueries: async (texts) => texts.map(() => new Float32Array([1, 0])),
+  embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0])),
+}
+
+/** The model is fetched on first use (session-embedding-model-files.ts); search waits for no download. */
+describe('Session discovery before the embedding model arrives', () => {
+  let root = ''
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
+
+  beforeEach(async () => {
+    root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-semantic-model-'))
+  })
+
+  afterEach(async () => {
+    await Promise.all(runtimes.splice(0).map((runtime) => runtime.dispose()))
+    await fs.rm(root, { recursive: true, force: true })
+  })
+
+  it('degrades to lexical search, with the reason, while the model is still downloading', async () => {
+    const queries: string[] = []
+    const downloading: SessionEmbeddingModel = {
+      ...fakeModel,
+      embedQueries: async (texts) => {
+        queries.push(...texts)
+        return texts.map(() => new Float32Array([1, 0]))
+      },
+      availability: async () => ({
+        state: 'downloading',
+        receivedBytes: 27_000_000,
+        totalBytes: 135_000_000,
+      }),
+    }
+    const runtime = makeRuntime(path.join(root, 'semantic-downloading.sqlite'), downloading)
+    runtimes.push(runtime)
+    // Embeddings an earlier build made with its bundled copy of the model.
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* new SqliteSessionSemanticProjection(sql, fakeModel).prepareNextBatch(10)
+      }),
+    )
+
+    const result = await executeQuery(runtime, {
+      operation: 'search',
+      query: 'Validate migration',
+      mode: 'hybrid',
+      limit: 3,
+    })
+
+    expect(result.outcome).toMatchObject({
+      operation: 'search',
+      searchBackend: 'lexical',
+      semanticReadiness: {
+        model: { state: 'downloading', receivedBytes: 27_000_000 },
+        reason: expect.stringMatching(/Downloading the Session search model \(20% of 135 MB\)/),
+      },
+      sessions: [{ sessionId: 'worker' }],
+    })
+    expect(queries).toEqual([])
+  })
+})
