@@ -31,30 +31,35 @@ import { AssistantMessageBubble, type WaggleInfo } from '../AssistantMessageBubb
  * each case asserts what the transcript shows for an assistant message.
  */
 
-function textPart(content: string): ChatTextPart {
-  return { type: 'text', content }
+function textPart(content: string) {
+  return { type: 'text', content } satisfies ChatTextPart
 }
 
-function toolCallPart(path: string, id = 'tc-1'): ChatToolCallPart {
+function toolCallPart(path: string, id = 'tc-1') {
   return {
     type: 'tool-call',
     id,
     name: 'read',
     arguments: JSON.stringify({ path }),
     state: 'output-available',
-  }
+  } satisfies ChatToolCallPart
 }
 
-function toolResultPart(toolCallId: string, content: unknown = 'ok'): ChatToolResultPart {
-  return { type: 'tool-result', toolCallId, content, state: 'output-available' }
+function toolResultPart(toolCallId: string, content: unknown = 'ok') {
+  return {
+    type: 'tool-result',
+    toolCallId,
+    content,
+    state: 'output-available',
+  } satisfies ChatToolResultPart
 }
 
-function thinkingPart(content = 'internal reasoning'): ChatThinkingPart {
-  return { type: 'thinking', content }
+function thinkingPart(content = 'internal reasoning') {
+  return { type: 'thinking', content } satisfies ChatThinkingPart
 }
 
-function createMessage(parts: UIMessagePart[]): UIMessage {
-  return { id: 'm1', role: 'assistant', parts }
+function createMessage(parts: UIMessagePart[]) {
+  return { id: 'm1', role: 'assistant', parts } satisfies UIMessage
 }
 
 const ARCHITECT: WaggleInfo = { agentLabel: 'Architect', agentColor: 'blue' }

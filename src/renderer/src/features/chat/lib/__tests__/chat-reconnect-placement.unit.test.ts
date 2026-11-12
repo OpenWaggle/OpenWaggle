@@ -7,19 +7,14 @@ import { mergeBackgroundReconnectMessages } from '../chat-reconnect-merge'
  * (`earlierMessageIds`) and which answer each retained user message followed (`userMessageAnchors`).
  */
 
-function message(
-  id: string,
-  role: UIMessage['role'],
-  createdAt: number,
-  order?: number,
-): UIMessage {
+function message(id: string, role: UIMessage['role'], createdAt: number, order?: number) {
   return {
     id,
     role,
     parts: [{ type: 'text', content: id }],
     createdAt: new Date(createdAt),
     ...(order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: order } }),
-  }
+  } satisfies UIMessage
 }
 
 const ids = (messages: readonly UIMessage[]) => messages.map((entry) => entry.id)

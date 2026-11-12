@@ -28,7 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-function pendingConfirmInteraction(): AgentLoopInteraction {
+function pendingConfirmInteraction() {
   return {
     interactionId: 'interaction-1',
     sessionId: SessionId('session-1'),
@@ -39,17 +39,15 @@ function pendingConfirmInteraction(): AgentLoopInteraction {
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
     purpose: 'user-input',
-  }
+  } satisfies AgentLoopInteraction
 }
 
-function interactionRequestEvent(
-  interaction: AgentLoopInteraction,
-): AgentTransportInteractionRequestEvent {
+function interactionRequestEvent(interaction: AgentLoopInteraction) {
   return {
     type: 'agent_interaction_request',
     timestamp: 1,
     interaction,
-  }
+  } satisfies AgentTransportInteractionRequestEvent
 }
 
 function extensionEntry(input: {
@@ -57,8 +55,8 @@ function extensionEntry(input: {
   readonly contributionId: string
   readonly title: string
   readonly entryPath: string
-}): ExtensionContributionRegistryEntry {
-  return {
+}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -90,9 +88,10 @@ function extensionEntry(input: {
     },
     diagnostics: [],
   }
+  return entry
 }
 
-function multiSurfaceInteractionRegistry(): ExtensionContributionRegistryView {
+function multiSurfaceInteractionRegistry() {
   return {
     projectPaths: [PROJECT_PATH],
     entries: [
@@ -121,7 +120,7 @@ function multiSurfaceInteractionRegistry(): ExtensionContributionRegistryView {
         entryPath: 'dist/status.js',
       }),
     ],
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 function AgentLoopExtensionSurfaceHarness({

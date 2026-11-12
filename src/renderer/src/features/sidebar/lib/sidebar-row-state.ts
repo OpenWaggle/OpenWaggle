@@ -144,8 +144,9 @@ export function sidebarRowStateIcon(state: SidebarRowState) {
 export function resolveSidebarRowState(input: {
   readonly status: SessionStatus
   readonly hasInterruptedRun: boolean
-}): SidebarRowState {
-  return input.hasInterruptedRun ? 'interrupted' : input.status
+}) {
+  const state: SidebarRowState = input.hasInterruptedRun ? 'interrupted' : input.status
+  return state
 }
 
 /** True when any of a session's conversation branches holds an interrupted run. */
@@ -186,10 +187,11 @@ export function mergeExactTerminalCounts(
 export function buildSidebarStateCounts(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
-): readonly SidebarStateCount[] {
-  return buildSidebarStateCountsFromStates(
+) {
+  const count: readonly SidebarStateCount[] = buildSidebarStateCountsFromStates(
     sessions.flatMap((session) => (session.archived === true ? [] : [stateOf(session)])),
   )
+  return count
 }
 
 export function buildSidebarStateCountsFromStates(states: Iterable<SidebarRowState>) {
@@ -213,10 +215,11 @@ export function buildSidebarStateCountsFromStates(states: Iterable<SidebarRowSta
 export function buildProjectRollUp(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
-): readonly SidebarStateCount[] {
-  return buildSidebarStateCounts(sessions, stateOf).filter(
+) {
+  const count: readonly SidebarStateCount[] = buildSidebarStateCounts(sessions, stateOf).filter(
     ({ state }) => ROW_STATE_META[state].tier !== 'quiet',
   )
+  return count
 }
 
 /**
@@ -235,7 +238,7 @@ export function resolveVisibleSessionStatus(input: {
   readonly lastVisitedAt: number | undefined
   /** A parent's Workers, from its Host summary (ADR 0065); absent for a Session without any. */
   readonly lineage?: SessionLineageSummary
-}): SessionStatus {
+}) {
   const seen =
     TERMINAL_STATUSES.has(input.status) &&
     input.completedAt !== undefined &&
@@ -256,12 +259,16 @@ function resolveParentStatus(
   own: SessionStatus,
   lineage: SessionLineageSummary | undefined,
   lastVisitedAt: number | undefined,
-): SessionStatus {
+) {
   if (lineage === undefined || ROW_STATE_META[own].tier !== 'quiet') return own
-  if (runningWorkerCount(lineage) > 0) return 'working'
+  if (runningWorkerCount(lineage) > 0) {
+    const status: SessionStatus = 'working'
+    return status
+  }
   const endedAt = lineage.workersLastRunEndedAt
   if (endedAt !== undefined && endedAt > (lastVisitedAt ?? Number.NEGATIVE_INFINITY)) {
-    return 'completed'
+    const status: SessionStatus = 'completed'
+    return status
   }
   return own
 }

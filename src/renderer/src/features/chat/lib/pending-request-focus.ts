@@ -31,7 +31,7 @@ let returnTarget: HTMLElement | null = null
  * Returns whether anything was focused, so a caller can leave the keystroke to other handlers when
  * no request is waiting rather than swallowing it.
  */
-export function focusPendingRequest(): boolean {
+export function focusPendingRequest() {
   const ribbon = document.querySelector(RIBBON_SELECTOR)
   if (!ribbon) return false
 
@@ -50,7 +50,7 @@ export function focusPendingRequest(): boolean {
  * Falls back to the composer input when nothing was remembered, so answering a request always lands
  * the caret somewhere the user can keep typing.
  */
-export function restoreFocusBeforeRequest(): void {
+export function restoreFocusBeforeRequest() {
   const target = returnTarget
   returnTarget = null
   if (target?.isConnected) {
@@ -63,6 +63,6 @@ export function restoreFocusBeforeRequest(): void {
 }
 
 /** Clears the remembered caret position, for tests. */
-export function clearPendingRequestFocusMemoryForTests(): void {
+export function clearPendingRequestFocusMemoryForTests() {
   returnTarget = null
 }

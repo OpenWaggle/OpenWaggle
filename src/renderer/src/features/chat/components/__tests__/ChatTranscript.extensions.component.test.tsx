@@ -41,11 +41,11 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-function createTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
-  return { id, role, parts: [{ type: 'text', content }] }
+function createTextMessage(id: string, role: UIMessage['role'], content: string) {
+  return { id, role, parts: [{ type: 'text', content }] } satisfies UIMessage
 }
 
-function transcriptRendererRegistry(): ExtensionContributionRegistryView {
+function transcriptRendererRegistry() {
   const entry = {
     extensionId: 'transcript-extension',
     extensionName: 'Transcript Extension',
@@ -79,12 +79,16 @@ function transcriptRendererRegistry(): ExtensionContributionRegistryView {
     diagnostics: [],
   } satisfies ExtensionContributionRegistryEntry
 
-  return { projectPaths: [PROJECT_PATH], entries: [entry] }
+  const view: ExtensionContributionRegistryView = {
+    projectPaths: [PROJECT_PATH],
+    entries: [entry],
+  }
+  return view
 }
 
-function createSection(): ChatTranscriptSectionState {
+function createSection() {
   const defaultMessage = createTextMessage('msg-1', 'user', 'hello')
-  return {
+  const state: ChatTranscriptSectionState = {
     messages: [defaultMessage],
     isLoading: false,
     projectPath: PROJECT_PATH,
@@ -122,6 +126,7 @@ function createSection(): ChatTranscriptSectionState {
     onViewTurnDiff: vi.fn(),
     turnAnchorMessageIds: new Set<string>(),
   }
+  return state
 }
 
 describe('ChatTranscript extension surfaces', () => {

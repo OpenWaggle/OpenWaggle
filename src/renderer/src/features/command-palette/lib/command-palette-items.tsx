@@ -62,7 +62,7 @@ function builtInCommandMatchesQuery(entry: BuiltInComposerCommand, lowerQuery: s
 export function createBuiltInCommandItems(
   lowerQuery: string,
   insertCommand: (command: string) => void,
-): CommandPaletteItem[] {
+) {
   return BUILT_IN_COMPOSER_COMMANDS.filter((entry) =>
     builtInCommandMatchesQuery(entry, lowerQuery),
   ).map((entry) => ({

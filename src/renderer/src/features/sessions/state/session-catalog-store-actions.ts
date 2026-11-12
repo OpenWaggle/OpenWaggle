@@ -175,10 +175,10 @@ async function refreshCatalogSessions(
   }
 }
 
-export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): SessionCatalogState {
+export function createSessionCatalogState(set: CatalogSet, get: CatalogGet) {
   // The chat and sidebar stores both load the catalog at startup; one load serves both.
   const loadSessions = coalescedRead(() => loadCatalog(set))
-  return {
+  const result: SessionCatalogState = {
     sessions: [],
     archivedSessions: [],
     hiveSessions: [],
@@ -249,4 +249,5 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       }
     },
   }
+  return result
 }

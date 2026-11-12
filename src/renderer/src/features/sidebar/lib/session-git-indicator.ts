@@ -31,9 +31,7 @@ const EMPTY_INDICATOR: SessionGitIndicator = {
  * unknown: a session whose status has not been fetched must not look clean, because
  * "no badge" and "confirmed clean" would otherwise be indistinguishable.
  */
-export function buildSessionGitIndicator(
-  status: GitStatusSummary | null | undefined,
-): SessionGitIndicator {
+export function buildSessionGitIndicator(status: GitStatusSummary | null | undefined) {
   if (!status) return EMPTY_INDICATOR
 
   const ahead = Math.max(0, status.ahead)

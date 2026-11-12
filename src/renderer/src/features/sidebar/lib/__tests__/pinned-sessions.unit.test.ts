@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { PinnedSession, SessionSummary } from '@shared/types/session'
+import type { SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import {
   buildPinnedSessionRows,
@@ -8,7 +8,7 @@ import {
 } from '../pinned-sessions'
 import { buildSidebarProjectGroups } from '../sidebar-project-groups'
 
-function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
+function session(id: string, overrides: Partial<SessionSummary> = {}) {
   return {
     id: SessionId(id),
     title: id,
@@ -16,10 +16,10 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
-  }
+  } satisfies SessionSummary
 }
 
-function pin(id: string, sortKey: string, pinnedAt = 1): PinnedSession {
+function pin(id: string, sortKey: string, pinnedAt = 1) {
   return { sessionId: SessionId(id), pinnedAt, sortKey }
 }
 

@@ -4,8 +4,10 @@ import type { OpenWaggleAppearanceName } from '@/shared/lib/appearance'
 import type { McpAppLayout } from './mcp-app-bridge'
 
 /** MCP Apps know two themes; the high-contrast and debug appearances map to their base. */
-function appTheme(appearance: OpenWaggleAppearanceName): McpAppLayout['theme'] {
-  return appearance === 'light' || appearance === 'high-contrast-light' ? 'light' : 'dark'
+function appTheme(appearance: OpenWaggleAppearanceName) {
+  return appearance === 'light' || appearance === 'high-contrast-light'
+    ? ('light' as const)
+    : ('dark' as const)
 }
 
 /**
@@ -13,7 +15,7 @@ function appTheme(appearance: OpenWaggleAppearanceName): McpAppLayout['theme'] {
  * frame is shown, so a running App can lay its data out again when the chat panel is resized or
  * the theme changes.
  */
-export function useMcpAppFrameLayout(container: HTMLElement | null): McpAppLayout {
+export function useMcpAppFrameLayout(container: HTMLElement | null) {
   const [width, setWidth] = useState<number | null>(null)
   const theme = appTheme(useAppearanceName())
 
@@ -30,5 +32,5 @@ export function useMcpAppFrameLayout(container: HTMLElement | null): McpAppLayou
     return () => observer.disconnect()
   }, [container])
 
-  return { width, theme }
+  return { width, theme } satisfies McpAppLayout
 }

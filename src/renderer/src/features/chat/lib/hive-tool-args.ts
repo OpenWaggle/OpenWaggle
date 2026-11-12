@@ -27,7 +27,7 @@ export function hiveToolTargetFields(args: unknown) {
   return uncheckedFields<HiveToolReportTarget>(hiveToolArgFields(args).target)
 }
 
-export function hiveToolCreatedSessionId(body: unknown): unknown {
+export function hiveToolCreatedSessionId(body: unknown) {
   const { response } = uncheckedFields<HiveToolCreatedResult>(body)
   const { outcome } = uncheckedFields<HiveToolCreatedResult['response']>(response)
   return uncheckedFields<HiveToolCreatedResult['response']['outcome']>(outcome).sessionId

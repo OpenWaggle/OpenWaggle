@@ -28,28 +28,25 @@ vi.mock('../WelcomeScreen', () => ({ WelcomeScreen: () => <div>welcome</div> }))
 vi.mock('@/shared/lib/ipc', () => ({ api: {} }))
 vi.mock('@/features/extensions', () => ({ ExtensionAgentLoopSurface: () => null }))
 
-function message(id: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content: id }] }
+function message(id: string) {
+  return { id, role: 'user', parts: [{ type: 'text', content: id }] } satisfies UIMessage
 }
 
-function row(id: string): ChatRow {
+function row(id: string) {
   return {
     type: 'message',
     message: message(id),
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
+  } satisfies ChatRow
 }
 
 const rowsOf = (count: number, prefix = 'msg') =>
   Array.from({ length: count }, (_, index) => row(`${prefix}-${String(index)}`))
 
-function createSection(
-  rows: ChatRow[],
-  overrides: Partial<ChatTranscriptSectionState> = {},
-): ChatTranscriptSectionState {
-  return {
+function createSection(rows: ChatRow[], overrides: Partial<ChatTranscriptSectionState> = {}) {
+  const state: ChatTranscriptSectionState = {
     transcriptState: 'ready',
     messages: rows.flatMap((r) => (r.type === 'message' ? [r.message] : [])),
     isLoading: false,
@@ -82,6 +79,7 @@ function createSection(
     turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
+  return state
 }
 
 const mountedRows = () =>

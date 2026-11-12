@@ -57,11 +57,13 @@ export function sessionSettingsLock(input: {
   readonly canChange: boolean
   readonly draftMaterializing: boolean
   readonly queue: QueueState
-}): SessionSettingsLock {
+}) {
   if (!input.hasSession) {
-    return input.draftMaterializing
-      ? { locked: true, reason: SESSION_SETTINGS_MATERIALIZING_REASON }
-      : UNLOCKED
+    return (
+      input.draftMaterializing
+        ? { locked: true, reason: SESSION_SETTINGS_MATERIALIZING_REASON }
+        : UNLOCKED
+    ) satisfies SessionSettingsLock
   }
   if (input.canChange) return UNLOCKED
   return {
@@ -71,5 +73,5 @@ export function sessionSettingsLock(input: {
       : ownMessageContinues(input.queue)
         ? SESSION_SETTINGS_LOCKED_BY_OWN_QUEUE_REASON
         : SESSION_SETTINGS_LOCKED_REASON,
-  }
+  } satisfies SessionSettingsLock
 }

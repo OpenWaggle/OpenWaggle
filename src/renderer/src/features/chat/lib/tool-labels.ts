@@ -22,7 +22,7 @@ function mcpResourcesLabel(noun: string) {
     label({ running: `Listing ${noun}`, done: `Listed ${noun}` }, stringArg(args, 'server'), noun)
 }
 
-function mcpLabel(name: string): ToolLabel | null {
+function mcpLabel(name: string) {
   const title = mcpToolTitle(name)
   return title ? { running: `${title}...`, done: title, requested: `Requested ${title}` } : null
 }
@@ -39,7 +39,7 @@ const PROJECT_ACTION_VERBS: ReadonlyMap<string, Verbs> = new Map(
   }),
 )
 
-function projectActionsLabel(args: JsonObject): ToolLabel {
+function projectActionsLabel(args: JsonObject) {
   const action = stringArg(args, 'action') ?? ''
   const verbs = PROJECT_ACTION_VERBS.get(action)
   return label(
@@ -49,7 +49,7 @@ function projectActionsLabel(args: JsonObject): ToolLabel {
   )
 }
 
-function sourceControlLabel(args: JsonObject): ToolLabel {
+function sourceControlLabel(args: JsonObject) {
   const verbs =
     stringArg(args, 'action') === 'configure'
       ? { running: 'Configuring source control', done: 'Configured source control' }
@@ -65,7 +65,7 @@ const DOCS_VERBS: ReadonlyMap<string, Verbs> = new Map(
   }),
 )
 
-function openWaggleDocsLabel(args: JsonObject): ToolLabel {
+function openWaggleDocsLabel(args: JsonObject) {
   const verbs = DOCS_VERBS.get(stringArg(args, 'action') ?? '')
   return label(
     verbs ?? { running: 'OpenWaggle docs', done: 'OpenWaggle docs' },
@@ -74,24 +74,21 @@ function openWaggleDocsLabel(args: JsonObject): ToolLabel {
   )
 }
 
-function shellLabel(args: JsonObject): ToolLabel {
+function shellLabel(args: JsonObject) {
   const command = stringArg(args, 'command')
   const quoted = command ? `\`${command}\`` : null
   return {
     running: quoted ? `Running ${quoted}` : 'Running...',
     done: withDetail('Ran', quoted, ' '),
     requested: withDetail('Requested powershell', quoted, ' '),
-  }
+  } satisfies ToolLabel
 }
 
 type LabelBuilder = (args: JsonObject) => ToolLabel
 
 /** The goal tools of the pi-goal-x extension. */
-function goalLabels(): [string, LabelBuilder][] {
-  const goal =
-    (running: string, done: string): LabelBuilder =>
-    () =>
-      label({ running, done }, null, 'goal')
+function goalLabels() {
+  const goal = (running: string, done: string) => () => label({ running, done }, null, 'goal')
   return [
     ['create_goal', goal('Creating goal', 'Created goal')],
     ['get_goal', goal('Reading goal', 'Read goal')],
@@ -101,7 +98,7 @@ function goalLabels(): [string, LabelBuilder][] {
     ['goal_question', goal('Asking about the goal', 'Asked about the goal')],
     ['goal_questionnaire', goal('Asking goal questions', 'Asked goal questions')],
     ['propose_goal_draft', goal('Proposing a goal', 'Proposed a goal')],
-  ]
+  ] satisfies [string, LabelBuilder][]
 }
 
 const LABELS_BY_TOOL: ReadonlyMap<string, LabelBuilder> = new Map<string, LabelBuilder>([
@@ -150,7 +147,7 @@ export function openWaggleToolLabel(
   name: string,
   args: JsonObject,
   sessionTarget: SessionsToolTarget | null = null,
-): ToolLabel | null {
+) {
   if (name === HIVE_TOOL_NAME) return sessionsLabel(args, sessionTarget)
   const builder = LABELS_BY_TOOL.get(name)
   if (builder) return builder(args)

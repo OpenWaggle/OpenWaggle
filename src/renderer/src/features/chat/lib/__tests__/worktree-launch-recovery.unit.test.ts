@@ -12,20 +12,29 @@ import { useOptimisticUserMessageStore } from '../../state/optimistic-user-messa
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     cancelAgent: vi.fn(async () => undefined),
-    sendMessage: vi.fn(
-      async (
+    sendMessage: vi.fn<
+      (
         _sessionId: SessionId,
         _payload: AgentSendPayload,
         _model: SupportedModelId,
-      ): Promise<AgentSendReport> => ({ outcome: 'delivered' }),
-    ),
-    sendWaggleMessage: vi.fn(
+      ) => Promise<AgentSendReport>
+    >(async (_sessionId: SessionId, _payload: AgentSendPayload, _model: SupportedModelId) => ({
+      outcome: 'delivered',
+    })),
+    sendWaggleMessage: vi.fn<
+      (
+        _sessionId: SessionId,
+        _payload: AgentSendPayload,
+        _model: SupportedModelId,
+        _config: WaggleConfig,
+      ) => Promise<AgentSendReport>
+    >(
       async (
         _sessionId: SessionId,
         _payload: AgentSendPayload,
         _model: SupportedModelId,
         _config: WaggleConfig,
-      ): Promise<AgentSendReport> => ({ outcome: 'delivered' }),
+      ) => ({ outcome: 'delivered' }),
     ),
     mutateSessionControl: vi.fn(async (request: SessionControlMutationRequest) => ({
       contractVersion: 2 as const,

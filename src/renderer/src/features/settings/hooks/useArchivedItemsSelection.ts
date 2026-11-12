@@ -36,10 +36,12 @@ interface ScopedSelection {
   readonly selectAllError: string | null
 }
 
-function scoped(current: ScopedSelection, scope: string): ScopedSelection {
-  return current.scope === scope
-    ? current
-    : { scope, items: EMPTY_SELECTION, anchorKey: null, selectAllError: null }
+function scoped(current: ScopedSelection, scope: string) {
+  return (
+    current.scope === scope
+      ? current
+      : { scope, items: EMPTY_SELECTION, anchorKey: null, selectAllError: null }
+  ) satisfies ScopedSelection
 }
 
 function describeError(error: unknown) {

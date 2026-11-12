@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { useSessionFollowUpQueue, useSessionSettingsChangeable } from '@/features/chat/hooks'
 import { useChatStore } from '@/features/chat/state'
-import { type SessionSettingsLock, sessionSettingsLock } from '../lib/session-settings-lock'
+import { sessionSettingsLock } from '../lib/session-settings-lock'
 import { useComposerStore } from '../state/composer-store'
 
 /**
@@ -12,7 +12,7 @@ import { useComposerStore } from '../state/composer-store'
  * finishing. `sessionId` is null for a new Session draft, locked only while its first message
  * creates the Session.
  */
-export function useSessionSettingsLock(sessionId: SessionId | null): SessionSettingsLock {
+export function useSessionSettingsLock(sessionId: SessionId | null) {
   const canChange = useSessionSettingsChangeable(sessionId)
   const queue = useSessionFollowUpQueue(sessionId).snapshot
   const draftMaterializing = useChatStore((state) => state.draftSession?.isMaterializing === true)

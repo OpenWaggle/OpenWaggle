@@ -15,9 +15,7 @@ function isLanguageRegistration(value: unknown): value is LanguageRegistration {
   )
 }
 
-export function importedLanguageRegistration(
-  resource: SyntaxLanguageResource,
-): LanguageRegistration {
+export function importedLanguageRegistration(resource: SyntaxLanguageResource) {
   const candidate: unknown = {
     ...resource.registration.grammar,
     name: resource.registration.name,
@@ -36,8 +34,8 @@ export function importedLanguageRegistration(
   return candidate
 }
 
-function mutableScope(scope: string | readonly string[]): string | string[] {
-  return typeof scope === 'string' ? scope : [...scope]
+function mutableScope(scope: string | readonly string[]) {
+  return (typeof scope === 'string' ? scope : [...scope]) satisfies string | string[]
 }
 
 export async function loadImportedTheme(

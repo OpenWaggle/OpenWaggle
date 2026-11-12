@@ -2,7 +2,6 @@ import type { BrowserPreviewKeyEvent } from '@shared/types/browser-preview'
 import type { ProjectAction } from '@shared/types/project-actions'
 import type { ExtensionRightPanelSurfaceId } from '@shared/types/right-panel-surface-id'
 import {
-  type ShortcutBinding,
   type ShortcutCommand,
   type ShortcutRules,
   shortcutBindingKey,
@@ -97,7 +96,7 @@ export function browserPreviewShortcutBindings(
   actions: readonly ProjectAction[],
   terminalOpen: boolean,
   extensionPanels: readonly ExtensionPanelShortcut[] = NO_EXTENSION_PANELS,
-): readonly ShortcutBinding[] {
+) {
   const context = browserPreviewShortcutContext(terminalOpen)
   const rules = [
     ...builtInRules,

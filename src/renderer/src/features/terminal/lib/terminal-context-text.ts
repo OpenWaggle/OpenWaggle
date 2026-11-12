@@ -34,7 +34,7 @@ function utf8Width(character: string) {
   return UTF8_FOUR_BYTE_WIDTH
 }
 
-export function textMetrics(text: string): TextMetrics {
+export function textMetrics(text: string) {
   let characters = 0
   let bytes = 0
   for (const character of text) {
@@ -44,7 +44,7 @@ export function textMetrics(text: string): TextMetrics {
   return { characters, bytes }
 }
 
-export function limitText(text: string, maxCharacters: number, maxBytes: number): LimitedText {
+export function limitText(text: string, maxCharacters: number, maxBytes: number) {
   let characters = 0
   let bytes = 0
   let endIndex = 0
@@ -55,12 +55,13 @@ export function limitText(text: string, maxCharacters: number, maxBytes: number)
     bytes = nextBytes
     endIndex += character.length
   }
-  return {
+  const result: LimitedText = {
     text: text.slice(0, endIndex),
     characters,
     bytes,
     truncated: endIndex < text.length,
   }
+  return result
 }
 
 function validXmlCodePoint(codePoint: number) {

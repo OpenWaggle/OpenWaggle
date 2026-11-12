@@ -37,9 +37,7 @@ async function refreshProviderModelsAfterExtensionMutation() {
   }
 }
 
-export function useExtensionsSectionController(
-  projectPaths: readonly string[],
-): ExtensionsSectionController {
+export function useExtensionsSectionController(projectPaths: readonly string[]) {
   const extensionsQuery: UseQueryResult<ExtensionManagerView> = useQuery(
     extensionPackagesQueryOptions(projectPaths),
   )
@@ -222,7 +220,7 @@ export function useExtensionsSectionController(
     })
   }
 
-  return {
+  const controller: ExtensionsSectionController = {
     view,
     contributionRegistry,
     loading: extensionsQuery.isFetching || contributionsQuery.isFetching || mutationState.pending,
@@ -237,4 +235,5 @@ export function useExtensionsSectionController(
     reload,
     remove,
   }
+  return controller
 }

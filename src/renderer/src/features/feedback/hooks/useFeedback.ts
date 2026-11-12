@@ -1,6 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import type { AgentErrorInfo } from '@shared/types/errors'
-import type { FeedbackCategory, FeedbackPayload, GhCliStatus } from '@shared/types/feedback'
+import type { FeedbackCategory, GhCliStatus } from '@shared/types/feedback'
 import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { ipcFailureMessage } from '@/shared/lib/ipc-error-message'
@@ -46,7 +46,7 @@ export function useFeedback(
   lastUserMessage: string | null,
   activeModel: string | null,
   activeProvider: string | null,
-): UseFeedbackReturn {
+) {
   const showPersistentToast = useUIStore((s) => s.showPersistentToast)
   const showToast = useUIStore((s) => s.showToast)
   const closeFeedbackModal = useUIStore((s) => s.closeFeedbackModal)
@@ -82,7 +82,7 @@ export function useFeedback(
     })
   }, [])
 
-  function buildPayload(): FeedbackPayload {
+  function buildPayload() {
     return {
       title,
       description,

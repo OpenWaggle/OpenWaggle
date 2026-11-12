@@ -12,7 +12,7 @@ interface LeaseState {
 
 type DetachSurface = (ownerKey: string, terminalId: string) => Promise<void>
 
-function activeLease(lease: LeaseState): LeaseState {
+function activeLease(lease: LeaseState) {
   let active = lease
   while (active.redirect !== null) active = active.redirect
   return active

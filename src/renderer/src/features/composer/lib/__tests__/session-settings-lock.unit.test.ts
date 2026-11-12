@@ -6,8 +6,8 @@ import {
   sessionSettingsLock,
 } from '../session-settings-lock'
 
-function item(id: string, editable: boolean, held = false): SessionFollowUpQueueItem {
-  return {
+function item(id: string, editable: boolean, held = false) {
+  const result: SessionFollowUpQueueItem = {
     id,
     text: id,
     attachmentCount: 0,
@@ -17,6 +17,7 @@ function item(id: string, editable: boolean, held = false): SessionFollowUpQueue
     editable,
     ...(held ? { editHold: { heldByCurrentUser: false, acquiredAt: 1, leaseExpiresAt: 2 } } : {}),
   }
+  return result
 }
 
 function reason(items: readonly SessionFollowUpQueueItem[]) {

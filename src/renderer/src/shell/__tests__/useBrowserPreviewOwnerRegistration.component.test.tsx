@@ -8,11 +8,12 @@ import { useBackgroundRunStore } from '@/features/chat/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 
-const listeners = vi.hoisted(
-  (): { open: ((request: BrowserPreviewOpenRequest) => void) | null } => ({
+const listeners = vi.hoisted(() => {
+  const result: { open: ((request: BrowserPreviewOpenRequest) => void) | null } = {
     open: null,
-  }),
-)
+  }
+  return result
+})
 
 const api = vi.hoisted(() => ({
   acknowledgeBrowserPreviewOpenRequest: vi.fn(),

@@ -25,7 +25,7 @@ function toastMessage(notices: readonly ScheduledTaskNotice[]) {
  * Scheduled task runs in the app toast: failures and attention always, started runs only for a
  * task whose notification policy is "Every run", and each Heartbeat Auto-pause once, with Resume.
  */
-export function useScheduledTasksMonitor(): void {
+export function useScheduledTasksMonitor() {
   const { data: tasks } = useQuery(scheduledTasksListQueryOptions())
   const index = useScheduledTaskIndexStore((state) => state.index)
   const openTask = useOpenScheduledTask()

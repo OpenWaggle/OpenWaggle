@@ -39,7 +39,7 @@ function resetStore() {
   })
 }
 
-function makeSession(id: string, title = 'Session'): SessionSummary {
+function makeSession(id: string, title = 'Session') {
   return {
     id: SessionId(id),
     title,
@@ -48,12 +48,12 @@ function makeSession(id: string, title = 'Session'): SessionSummary {
     updatedAt: 2,
     lastActiveNodeId: null,
     lastActiveBranchId: null,
-  }
+  } satisfies SessionSummary
 }
 
-function makeTree(id: string): SessionTree {
+function makeTree(id: string) {
   const session = makeSession(id)
-  return {
+  const tree: SessionTree = {
     session,
     nodes: [],
     branches: [
@@ -78,22 +78,24 @@ function makeTree(id: string): SessionTree {
     ],
     uiState: null,
   }
+  return tree
 }
 
-function makeWorkspace(id: string): SessionWorkspace {
+function makeWorkspace(id: string) {
   const tree = makeTree(id)
   const activeBranchState = tree.branchStates[0]
   if (!activeBranchState) {
     throw new Error('Expected test tree to include an active branch state')
   }
 
-  return {
+  const workspace: SessionWorkspace = {
     tree,
     activeBranchId: tree.branches[0]?.id ?? null,
     activeNodeId: null,
     activeBranchState,
     transcriptPath: [],
   }
+  return workspace
 }
 
 describe('useSessionStore unit', () => {

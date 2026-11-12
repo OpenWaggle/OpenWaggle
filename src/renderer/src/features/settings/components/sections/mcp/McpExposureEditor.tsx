@@ -14,10 +14,7 @@ import { McpInlineError } from './McpLabels'
 
 const SAME_AS_SERVER = 'server'
 
-function exposureValue(
-  value: string,
-  choices: readonly McpRuntimeExposure[],
-): McpRuntimeExposure | null {
+function exposureValue(value: string, choices: readonly McpRuntimeExposure[]) {
   return choices.find((exposure) => exposure === value) ?? null
 }
 

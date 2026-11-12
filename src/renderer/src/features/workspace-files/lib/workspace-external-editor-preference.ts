@@ -6,9 +6,7 @@ import {
 
 export const WORKSPACE_EXTERNAL_EDITOR_STORAGE_KEY = 'openwaggle:preferred-external-editor'
 
-export function readPreferredWorkspaceExternalEditor(
-  storage: Storage,
-): WorkspaceExternalEditorId | null {
+export function readPreferredWorkspaceExternalEditor(storage: Storage) {
   try {
     const value = storage.getItem(WORKSPACE_EXTERNAL_EDITOR_STORAGE_KEY)
     return value !== null && isWorkspaceExternalEditorId(value) ? value : null
@@ -20,7 +18,7 @@ export function readPreferredWorkspaceExternalEditor(
 export function writePreferredWorkspaceExternalEditor(
   storage: Storage,
   editorId: WorkspaceExternalEditorId,
-): void {
+) {
   try {
     storage.setItem(WORKSPACE_EXTERNAL_EDITOR_STORAGE_KEY, editorId)
   } catch {
@@ -31,7 +29,7 @@ export function writePreferredWorkspaceExternalEditor(
 export function resolveAndPersistPreferredWorkspaceExternalEditor(
   storage: Storage,
   availableEditors: readonly WorkspaceExternalEditor[],
-): WorkspaceExternalEditorId | null {
+) {
   const stored = readPreferredWorkspaceExternalEditor(storage)
   if (stored && availableEditors.some((editor) => editor.id === stored)) return stored
   const fallback = availableEditors[0]?.id ?? null
@@ -53,7 +51,7 @@ export async function openAbsoluteFileInPreferredWorkspaceEditor(input: {
   readonly path: string
   readonly line: number | null
   readonly column: number | null
-}): Promise<void> {
+}) {
   const availableEditors = await input.api.listWorkspaceExternalEditors()
   const editor = resolveAndPersistPreferredWorkspaceExternalEditor(input.storage, availableEditors)
   if (!editor) throw new Error(`No supported editor is available to open ${input.path}.`)

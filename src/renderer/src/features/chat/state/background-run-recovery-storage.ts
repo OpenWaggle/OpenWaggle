@@ -55,7 +55,7 @@ function storage() {
   }
 }
 
-function compactRecoveryPayload(recovery: FirstSendRecovery): FirstSendRecovery {
+function compactRecoveryPayload(recovery: FirstSendRecovery) {
   return {
     ...recovery,
     payload: {
@@ -70,8 +70,8 @@ function compactRecoveryPayload(recovery: FirstSendRecovery): FirstSendRecovery 
   }
 }
 
-export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
-  const empty = {
+export function loadRecoverableBackgroundRuns() {
+  const empty: RecoverableBackgroundRuns = {
     launches: new Map<SessionId, WorktreeLaunchSnapshot>(),
     recoveries: new Map<SessionId, FirstSendRecovery>(),
   }
@@ -108,7 +108,7 @@ export function loadRecoverableBackgroundRuns(): RecoverableBackgroundRuns {
           ],
         ),
       ),
-    }
+    } satisfies RecoverableBackgroundRuns
   } catch {
     target.removeItem(key)
     return empty

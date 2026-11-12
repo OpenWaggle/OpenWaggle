@@ -15,13 +15,19 @@ import { renderWithQueryClient } from '@/test-utils/query-test-utils'
  * definitions queries and the preference, chat and session stores are the real ones. The fake
  * Host keeps each project's definitions, so a toggle shows up as the re-read the panel displays.
  */
-const host = vi.hoisted(() => ({
-  disabled: new Set<string>(),
-  olderProjects: ((): string[] => [])(),
-  selectedFolder: ((): string | null => null)(),
-  listSessionProjectPage: vi.fn(),
-  updateSettings: vi.fn(),
-}))
+const host = vi.hoisted(() => {
+  // Declared property types are not narrowed, so a test can set projects and a folder.
+  const initial: { readonly olderProjects: string[]; readonly selectedFolder: string | null } = {
+    olderProjects: [],
+    selectedFolder: null,
+  }
+  return {
+    disabled: new Set<string>(),
+    ...initial,
+    listSessionProjectPage: vi.fn(),
+    updateSettings: vi.fn(),
+  }
+})
 
 /** One definition per project: `reviewer` in the active project, `explorer` elsewhere. */
 function definitionName(projectPath: string) {
@@ -30,11 +36,9 @@ function definitionName(projectPath: string) {
 
 vi.mock('@/shared/lib/ipc', async () => ({
   api: (await import('@/test-utils/preload-api')).preloadApi({
-    listAgentDefinitionDisplay: async (
-      projectPath: string,
-    ): Promise<AgentDefinitionDisplayItem[]> => {
+    listAgentDefinitionDisplay: async (projectPath: string) => {
       const name = definitionName(projectPath)
-      return [
+      const item: AgentDefinitionDisplayItem[] = [
         {
           name,
           description: 'Reviews changes',
@@ -43,6 +47,7 @@ vi.mock('@/shared/lib/ipc', async () => ({
           enabled: !host.disabled.has(`${projectPath}:${name}`),
         },
       ]
+      return item
     },
     getAgentDefinitionPreview: async (_projectPath: string, name: string) => ({
       markdown: `---\nname: ${name}\ndescription: Reviews changes\n---\n\n# Review instructions`,

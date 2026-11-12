@@ -14,7 +14,7 @@ import { isUnnamedRunSeed } from './background-run-seed'
  * (`settledMessageIds`) even while that Run's settlement has not arrived, so hydration leaves them
  * to their saved copies once the persisted transcript holds them.
  */
-export function withStartedRun(existing: RunRenderSnapshot, runId: string): RunRenderSnapshot {
+export function withStartedRun(existing: RunRenderSnapshot, runId: string) {
   const started = existing.startedRun
   // An auto-retry, or the real id of a Run whose start named none: the same Run.
   if (started?.runId === runId) return existing
@@ -60,7 +60,7 @@ export function withSettledEarlierMessages(
 export function startedRunOf(
   existing: RunRenderSnapshot | undefined,
   messages: readonly UIMessage[],
-): RunRenderSnapshot['startedRun'] {
+) {
   if (existing?.startedRun) return existing.startedRun
   const seed = existing?.seededByRunId
   if (seed === undefined) return undefined
@@ -80,7 +80,7 @@ export function startedRunOf(
  * A Run ended: one the snapshot holds unnamed (its start was the bridge's) is named by its end, so
  * the next start tells another Run (another id) from Pi continuing this one (the same id).
  */
-export function withEndedRunNamed(existing: RunRenderSnapshot, runId: string): RunRenderSnapshot {
+export function withEndedRunNamed(existing: RunRenderSnapshot, runId: string) {
   if (existing.seededByRunId !== undefined) {
     return isUnnamedRunSeed(existing.seededByRunId)
       ? { ...existing, seededByRunId: runId }
@@ -95,8 +95,8 @@ export function seedRunRenderSnapshot(
   runId: string,
   settledMessageIds?: ReadonlySet<string>,
   startedAt?: number,
-): RunRenderSnapshot {
-  return {
+) {
+  const snapshot: RunRenderSnapshot = {
     messages: [],
     compactionStatus: null,
     updatedAt: Date.now(),
@@ -104,13 +104,14 @@ export function seedRunRenderSnapshot(
     ...(startedAt === undefined || isUnnamedRunSeed(runId) ? {} : { seededAt: startedAt }),
     ...(settledMessageIds ? { settledMessageIds } : {}),
   }
+  return snapshot
 }
 
 export function seededSnapshotForRunStart(
   existing: RunRenderSnapshot | undefined,
   runId: string,
   startedAt: number,
-): RunRenderSnapshot {
+) {
   if (existing === undefined) return seedRunRenderSnapshot(runId, undefined, startedAt)
   // The snapshot holds a settled Run, persisted before this one started.
   if (existing.settledRunId !== undefined) {

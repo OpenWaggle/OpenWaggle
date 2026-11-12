@@ -44,10 +44,7 @@ interface TurnDiffRead {
 }
 
 /** Fetch and shape the Turn diff for the selected turn into renderable files. */
-export function useTurnDiffFiles(
-  sessionId: SessionId | null,
-  selection: DiffScopeSelection,
-): TurnDiffFiles {
+export function useTurnDiffFiles(sessionId: SessionId | null, selection: DiffScopeSelection) {
   const [read, setRead] = useState<TurnDiffRead | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const turnId = selection.kind === 'turn' ? selection.turnId : null
@@ -82,10 +79,12 @@ export function useTurnDiffFiles(
   }, [sessionId, turnId, retryToken, requestKey])
 
   const retry = () => setRetryToken((token) => token + 1)
-  if (requestKey === null) return { files: EMPTY_FILES, error: null, isLoading: false, retry }
+  if (requestKey === null) {
+    return { files: EMPTY_FILES, error: null, isLoading: false, retry } satisfies TurnDiffFiles
+  }
   // Only this read's files show: the previous turn's must not stand in for the one now selected.
   if (read === null || read.requestKey !== requestKey) {
-    return { files: EMPTY_FILES, error: null, isLoading: true, retry }
+    return { files: EMPTY_FILES, error: null, isLoading: true, retry } satisfies TurnDiffFiles
   }
-  return { files: read.files, error: read.error, isLoading: false, retry }
+  return { files: read.files, error: read.error, isLoading: false, retry } satisfies TurnDiffFiles
 }

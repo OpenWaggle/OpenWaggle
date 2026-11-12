@@ -122,7 +122,7 @@ export function buildSidebarProjectGroups({
   pinnedSessionIds = [],
   allSessions,
   excludeUnpinnedWorkers = false,
-}: BuildSidebarProjectGroupsInput): SidebarProjectGroups {
+}: BuildSidebarProjectGroupsInput) {
   const sessionsByProject = new Map<string, SessionSummary[]>()
 
   for (const session of sessions) {

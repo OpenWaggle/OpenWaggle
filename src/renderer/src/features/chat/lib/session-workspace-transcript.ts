@@ -229,14 +229,12 @@ export function resolveTranscriptMessages({
   activeWorkspace,
   messages,
   draftBranchSourceNodeId,
-}: ResolveTranscriptMessagesInput): UIMessage[] {
+}: ResolveTranscriptMessagesInput) {
   if (!activeSessionId || !activeWorkspace) {
     return messages
   }
 
-  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) {
-    return messages
-  }
+  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) return messages
 
   const workspaceMessages = workspacePathToMessages(activeWorkspace, messages)
   if (workspaceMessages.length === 0) {

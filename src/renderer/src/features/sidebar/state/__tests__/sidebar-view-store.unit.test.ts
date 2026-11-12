@@ -19,7 +19,7 @@ const PROJECT_A = '/Users/dev/alpha'
 const PROJECT_B = '/Users/dev/beta'
 
 /** Field names the store actually wrote, read without asserting the payload's shape. */
-function persistedStateKeys(): readonly string[] {
+function persistedStateKeys() {
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (raw === null) return []
   const parsed: unknown = JSON.parse(raw)

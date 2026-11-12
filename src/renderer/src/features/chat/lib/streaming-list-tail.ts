@@ -68,7 +68,7 @@ function continuesItem(line: string, isStreamingEnd: boolean, contentIndent: num
 }
 
 /** Where the last item starts, when the text is a list whose items cannot affect each other. */
-export function splitListTail(text: string): ListTailSplit | null {
+export function splitListTail(text: string) {
   if (REFERENCE_OR_FOOTNOTE.test(text)) return null
   let marker: string | null = null
   let contentIndent = 0
@@ -93,7 +93,11 @@ export function splitListTail(text: string): ListTailSplit | null {
     if (!continuesItem(line, lineOffset + line.length === text.length, contentIndent)) return null
   }
   if (items < MIN_SPLIT_ITEMS) return null
-  return { head: text.slice(0, lastItemOffset), last: text.slice(lastItemOffset) }
+  const result: ListTailSplit | null = {
+    head: text.slice(0, lastItemOffset),
+    last: text.slice(lastItemOffset),
+  }
+  return result
 }
 
 function isNode(value: unknown): value is MarkdownNode {

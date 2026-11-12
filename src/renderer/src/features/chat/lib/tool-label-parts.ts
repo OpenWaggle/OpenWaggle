@@ -24,7 +24,7 @@ export function numberArg(args: JsonObject, key: string) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-export function objectArg(args: JsonObject, key: string): JsonObject | null {
+export function objectArg(args: JsonObject, key: string) {
   const value: JsonValue | undefined = args[key]
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
 }
@@ -38,12 +38,7 @@ export function withDetail(text: string, detail: string | null, separator = DETA
   return detail ? `${text}${separator}${detail}` : text
 }
 
-export function label(
-  verbs: Verbs,
-  detail: string | null,
-  title: string,
-  separator?: string,
-): ToolLabel {
+export function label(verbs: Verbs, detail: string | null, title: string, separator?: string) {
   return {
     running: `${withDetail(verbs.running, detail, separator)}...`,
     done: withDetail(verbs.done, detail, separator),

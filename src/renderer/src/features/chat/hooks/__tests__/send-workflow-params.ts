@@ -1,17 +1,15 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { vi } from 'vitest'
-import type { useChatSendWorkflow } from '../useChatSendWorkflow'
+import type { ChatSendWorkflowParams } from '../useChatSendWorkflow'
 
 export const SEND_WORKFLOW_SESSION_ID = SessionId('session-1')
 export const SEND_WORKFLOW_MODEL = SupportedModelId('openai/gpt-5.5')
 
-export type SendWorkflowParams = Parameters<typeof useChatSendWorkflow>[0]
+export type SendWorkflowParams = ChatSendWorkflowParams
 
 /** Send-workflow dependencies with inert defaults; tests override the ones they observe. */
-export function sendWorkflowParams(
-  overrides: Partial<SendWorkflowParams> = {},
-): SendWorkflowParams {
-  return {
+export function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}) {
+  const params: SendWorkflowParams = {
     activeSessionId: SEND_WORKFLOW_SESSION_ID,
     branchSummary: {
       materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
@@ -51,5 +49,6 @@ export function sendWorkflowParams(
     stopWaggleCollaboration: vi.fn(),
     waggleStatus: 'idle',
     ...overrides,
-  } satisfies SendWorkflowParams
+  }
+  return params
 }

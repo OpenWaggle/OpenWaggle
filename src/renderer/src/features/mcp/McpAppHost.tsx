@@ -20,7 +20,7 @@ interface FrameLoad {
 
 function nextFrameLoad(url: string, frame: HTMLIFrameElement) {
   const { contentWindow } = frame
-  return (load: FrameLoad | null): FrameLoad => ({
+  return (load: FrameLoad | null) => ({
     url,
     count: (load?.count ?? 0) + 1,
     contentWindow,

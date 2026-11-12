@@ -52,11 +52,13 @@ function paneCloseTarget(
   group: TerminalGroupState | undefined,
   activity: Record<string, string | null>,
   terminalId: string,
-): TerminalCloseTarget {
+) {
   const targetTab = group?.tabs.find((tab) =>
     tab.panes.some((pane) => pane.terminalId === terminalId),
   )
-  if (targetTab === undefined) return { terminalId, label: 'terminal' }
+  if (targetTab === undefined) {
+    return { terminalId, label: 'terminal' } satisfies TerminalCloseTarget
+  }
   const paneIndex = targetTab.panes.findIndex((pane) => pane.terminalId === terminalId)
   const title = terminalTabTitle(
     runtimeOwnerKey,
@@ -67,7 +69,7 @@ function paneCloseTarget(
   return {
     terminalId,
     label: targetTab.panes.length === 1 ? title : `${title} pane ${paneIndex + 1}`,
-  }
+  } satisfies TerminalCloseTarget
 }
 
 function tabCloseTargets(

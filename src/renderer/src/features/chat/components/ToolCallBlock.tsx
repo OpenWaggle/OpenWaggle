@@ -106,7 +106,7 @@ function buildToolCallViewModel({
   isStreaming,
   expanded,
   sessionTarget,
-}: ToolCallViewModelInput): ToolCallViewModel {
+}: ToolCallViewModelInput) {
   const hasConcreteResult = result
     ? result.state !== 'partial' || hasConcreteToolOutput(result.content)
     : false
@@ -139,7 +139,7 @@ function buildToolCallViewModel({
     resultError,
     resultText,
     liveOutputPreview: previewText(isRunning, resultText),
-  }
+  } satisfies ToolCallViewModel
 }
 
 export function ToolCallBlock({

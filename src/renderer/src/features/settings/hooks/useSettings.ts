@@ -35,7 +35,7 @@ async function hydrateProviderCatalog(loaders: ProviderCatalogLoaders) {
 /**
  * Load settings and provider models on mount. Call once at the app root.
  */
-export function useSettingsSetup(): () => void {
+export function useSettingsSetup() {
   const loadSettings = usePreferencesStore((s) => s.loadSettings)
   const loadSyntaxThemeCatalog = useSyntaxThemeCatalogStore((s) => s.load)
   const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
@@ -99,7 +99,7 @@ export function useSettingsSetup(): () => void {
  * startup: the catalog for the current settings, then the sign-in accounts it lists. Resolves to
  * whether the catalog loaded.
  */
-export function useProviderCatalogRetry(): () => Promise<boolean> {
+export function useProviderCatalogRetry() {
   const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
   const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
 

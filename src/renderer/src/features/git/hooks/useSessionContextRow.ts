@@ -30,7 +30,7 @@ export interface SessionContextRowState extends SessionContextRowCoreState {
 function mergePlanOverrides(
   projectless: WorktreePlanOverride | undefined,
   scoped: WorktreePlanOverride | undefined,
-): WorktreePlanOverride | undefined {
+) {
   return projectless ? { ...scoped, ...projectless } : scoped
 }
 
@@ -40,7 +40,7 @@ function mergePlanOverrides(
  * props-into-state sync), and persisted to the backend so worktree birth uses
  * them.
  */
-export function useSessionContextRow(input: UseSessionContextRowInput): SessionContextRowState {
+export function useSessionContextRow(input: UseSessionContextRowInput) {
   const { sessionId, projectPath, isFirstMessage, session, defaultEnvironmentMode } = input
   const hasWorktree = Boolean(session?.worktreePath?.trim())
   // Sessions are created lazily on first send, so before that key the plan on a
@@ -281,5 +281,5 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     checkoutChangeRequest,
     recreateWorktree,
     switchToLocalMode,
-  }
+  } satisfies SessionContextRowState
 }

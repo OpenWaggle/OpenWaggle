@@ -14,7 +14,7 @@ function notice(input: {
   readonly level: AgentLoopNotifyLevel
   readonly message?: string
   readonly timestamp?: number
-}): AgentInteractionEvent {
+}) {
   return {
     type: 'agent_interaction_request',
     interaction: {
@@ -28,7 +28,7 @@ function notice(input: {
       level: input.level,
     },
     timestamp: input.timestamp ?? 1,
-  }
+  } satisfies AgentInteractionEvent
 }
 
 function focusWindow(focused: boolean) {

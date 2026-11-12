@@ -33,15 +33,6 @@ interface UseAutoTextAttachmentOptions {
   onToast?: (message: string) => void
 }
 
-interface UseAutoTextAttachmentResult {
-  pendingTextAttachmentChips: PendingTextAttachmentChip[]
-  hasPreparingTextAttachment: boolean
-  preparingPendingCount: number
-  /** Called by PastePlugin. Returns true if the paste was auto-converted to an attachment. */
-  checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
-  removePendingTextAttachment: (operationId: string, attachmentId: string) => void
-}
-
 export function useAutoTextAttachment({
   disabled = false,
   attachments,
@@ -49,7 +40,7 @@ export function useAutoTextAttachment({
   removeAttachment,
   setAttachmentError,
   onToast,
-}: UseAutoTextAttachmentOptions): UseAutoTextAttachmentResult {
+}: UseAutoTextAttachmentOptions) {
   const captureInputGuard = useComposerInputGuard(disabled)
   const nextAutoPasteAttachmentIndexRef = useRef(1)
   const pendingAttachmentTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())

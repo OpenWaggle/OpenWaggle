@@ -81,14 +81,11 @@ function toolHeaderLabel(
 }
 
 /** Running wins over a failure a streaming call already reported, as the old spinner did. */
-function toolRowStatus(
-  view: ToolCallViewModel,
-  result: ToolCallResultPayload | undefined,
-): ToolRowStatus {
-  if (view.isRunning) return 'running'
-  if (result && view.isError) return 'failed'
-  if (view.hasConcreteResult && result) return 'done'
-  return 'requested'
+function toolRowStatus(view: ToolCallViewModel, result: ToolCallResultPayload | undefined) {
+  if (view.isRunning) return 'running' as const
+  if (result && view.isError) return 'failed' as const
+  if (view.hasConcreteResult && result) return 'done' as const
+  return 'requested' as const
 }
 
 function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {

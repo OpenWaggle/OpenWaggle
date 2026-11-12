@@ -164,7 +164,7 @@ export function useChangeRequestPreflight(
   expectedProvider: SourceControlProviderId | null | undefined,
   payload: ChangeRequestPreflightPayload,
   blockedReason: string | null = null,
-): ChangeRequestPreflightView {
+) {
   const provider = expectedProvider ?? null
   const settled = useSettledPreflightInput(sessionId, workingPath, provider, payload)
   const currentPath = String(workingPath)
@@ -178,47 +178,52 @@ export function useChangeRequestPreflight(
   const expected = getChangeRequestTerminology(expectedProvider)
 
   if (blockedReason) {
-    return {
+    const view: ChangeRequestPreflightView = {
       status: 'blocked',
       message: blockedReason,
       nativeCreationBlocked: true,
       browserUrl: null,
       plannedHeadRef: null,
     }
+    return view
   }
 
   if (!currentInputIsSettled || preflight.isPending) {
-    return {
+    const view: ChangeRequestPreflightView = {
       status: 'checking',
       message: `Checking ${expected.providerName} CLI…`,
       nativeCreationBlocked: true,
       browserUrl: null,
       plannedHeadRef: null,
     }
+    return view
   }
   if (preflight.isError || !preflight.data) {
-    return {
+    const view: ChangeRequestPreflightView = {
       status: 'blocked',
       message: `Could not check ${expected.providerName} CLI readiness.`,
       nativeCreationBlocked: true,
       browserUrl: null,
       plannedHeadRef: null,
     }
+    return view
   }
   if (!preflight.data.readiness.ok || !preflight.data.readiness.status.authenticated) {
-    return {
+    const view: ChangeRequestPreflightView = {
       status: 'blocked',
       message: blockedMessage(preflight.data),
       nativeCreationBlocked: true,
       browserUrl: browserUrlForCurrentPayload(preflight.data, payload),
       plannedHeadRef: preflight.data.plannedHeadRef,
     }
+    return view
   }
-  return {
+  const view: ChangeRequestPreflightView = {
     status: 'ready',
     message: readyMessage(preflight.data),
     nativeCreationBlocked: false,
     browserUrl: browserUrlForCurrentPayload(preflight.data, payload),
     plannedHeadRef: preflight.data.plannedHeadRef,
   }
+  return view
 }

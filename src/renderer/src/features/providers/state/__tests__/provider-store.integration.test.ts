@@ -37,7 +37,7 @@ function resetProviderStore() {
   })
 }
 
-function openAiProviderModels(): ProviderInfo[] {
+function openAiProviderModels() {
   return [
     {
       provider: 'openai',
@@ -62,10 +62,10 @@ function openAiProviderModels(): ProviderInfo[] {
         },
       ],
     },
-  ]
+  ] satisfies ProviderInfo[]
 }
 
-function ollamaProviderModels(): ProviderInfo[] {
+function ollamaProviderModels() {
   return [
     {
       provider: 'ollama',
@@ -90,7 +90,7 @@ function ollamaProviderModels(): ProviderInfo[] {
         },
       ],
     },
-  ]
+  ] satisfies ProviderInfo[]
 }
 
 describe('provider-store integration', () => {

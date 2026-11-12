@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AgentCompactionStatus } from '../compaction-lifecycle'
 import { areCopiesBlocked } from '../copies-blocked'
 
-function compaction(phase: 'running' | 'completed'): AgentCompactionStatus {
+function compaction(phase: 'running' | 'completed') {
   return {
     type: phase === 'running' ? 'compacting' : 'completed',
     reason: 'manual',
@@ -10,7 +10,7 @@ function compaction(phase: 'running' | 'completed'): AgentCompactionStatus {
     timeline: [
       { id: 'c1', phase, reason: 'manual', summaryCountAtStart: 0, messageCountAtStart: 2 },
     ],
-  }
+  } satisfies AgentCompactionStatus
 }
 
 describe('areCopiesBlocked', () => {

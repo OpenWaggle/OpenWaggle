@@ -9,7 +9,7 @@ export function useClickOutside(
   ref: RefObject<HTMLElement | null>,
   onClose: () => void,
   enabled = true,
-): void {
+) {
   const close = useEffectEvent(onClose)
 
   useEffect(() => {

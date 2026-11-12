@@ -282,7 +282,7 @@ function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: Cha
   refreshSessionStoreForSession(id, get().activeSessionId)
 }
 
-export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
+export function createChatActions(set: ChatSet, get: ChatGet) {
   return {
     loadSessions: () => loadSessions(set, get),
     createSession: (projectPath, worktreePlan, thinkingLevel) =>
@@ -312,5 +312,5 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     applySessionTitle: (id, title) => applySessionTitle(id, title, set),
     updateSessionTitle: (id, title) => updateSessionTitle(id, title, set, get),
     clearError: () => set({ error: null }),
-  }
+  } satisfies ChatActions
 }

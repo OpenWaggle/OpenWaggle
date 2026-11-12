@@ -15,7 +15,7 @@ function worker(
   parent: string,
   createdAt: number,
   options: { readonly state?: HiveDelegationState; readonly archived?: boolean } = {},
-): HiveSession {
+) {
   return {
     id: SessionId(id),
     title: id,
@@ -29,7 +29,7 @@ function worker(
       activeDirectWorkerCount: 0,
       delegationState: options.state ?? 'working',
     },
-  }
+  } satisfies HiveSession
 }
 
 /** Queen → a, b; a → a1 (needs attention), a2 (archived); b → b1, b2 (ready for review). */

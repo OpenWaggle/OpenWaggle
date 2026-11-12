@@ -19,8 +19,9 @@ export const WORKSPACE_PANEL_STORAGE_KEY = 'openwaggle:workspace-panel:v1'
 const memoryStorage = new Map<string, string>()
 
 /** The fields of a persisted value, each checked on its own so one bad field drops only itself. */
-function persistedFields<T>(value: unknown): UncheckedFields<T> | null {
-  return isObjectValue(value) ? value : null
+function persistedFields<T>(value: unknown) {
+  const fields: UncheckedFields<T> | null = isObjectValue(value) ? value : null
+  return fields
 }
 
 /** The fields any persisted active surface may carry. */
@@ -31,9 +32,12 @@ interface PersistedActiveSurface {
   readonly previewId: string
 }
 
-export function resolveWorkspacePanelStorage(): StateStorage {
-  if (typeof window !== 'undefined') return window.localStorage
-  return {
+export function resolveWorkspacePanelStorage() {
+  if (typeof window !== 'undefined') {
+    const storage: StateStorage = window.localStorage
+    return storage
+  }
+  const storage: StateStorage = {
     getItem: (key) => memoryStorage.get(key) ?? null,
     setItem: (key, value) => {
       memoryStorage.set(key, value)
@@ -42,9 +46,10 @@ export function resolveWorkspacePanelStorage(): StateStorage {
       memoryStorage.delete(key)
     },
   }
+  return storage
 }
 
-function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState | null {
+function sanitizeTab(value: unknown, ownerKey: string) {
   const fields = persistedFields<BrowserPreviewTabState>(value)
   if (fields === null) return null
   const { id, url, title } = fields
@@ -52,7 +57,7 @@ function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState |
   const decodedProfile = safeDecodeUnknown(browserProfileIdSchema, fields.profileId)
   const profileId = decodedProfile.success ? decodedProfile.data : DEFAULT_BROWSER_PROFILE_ID
   if (fields.kind === 'launcher') {
-    return {
+    const state: BrowserPreviewTabState | null = {
       id,
       ownerKey,
       kind: 'launcher',
@@ -68,11 +73,12 @@ function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState |
       favicon: null,
       controller: { kind: 'human' },
     }
+    return state
   }
   if (typeof url !== 'string') return null
   const normalizedUrl = normalizeBrowserPreviewUrl(url)
   if (normalizedUrl === null) return null
-  return {
+  const state: BrowserPreviewTabState | null = {
     id,
     ownerKey,
     kind: 'preview',
@@ -89,49 +95,73 @@ function sanitizeTab(value: unknown, ownerKey: string): BrowserPreviewTabState |
     favicon: null,
     controller: { kind: 'human' },
   }
+  return state
 }
 
-function sanitizeTabs(value: unknown, ownerKey: string): readonly BrowserPreviewTabState[] {
-  if (!Array.isArray(value)) return []
-  return value
+function sanitizeTabs(value: unknown, ownerKey: string) {
+  if (!Array.isArray(value)) {
+    const state: readonly BrowserPreviewTabState[] = []
+    return state
+  }
+  const state: readonly BrowserPreviewTabState[] = value
     .flatMap((entry) => {
       const tab = sanitizeTab(entry, ownerKey)
       return tab === null ? [] : [tab]
     })
     .slice(-MAX_BROWSER_TABS)
+  return state
 }
 
 function browserSurface(
   rawActive: UncheckedFields<PersistedActiveSurface>,
   browserTabs: readonly BrowserPreviewTabState[],
-): WorkspacePanelSurface {
+) {
   if (rawActive.kind !== 'browser') return null
   const { previewId } = rawActive
   if (typeof previewId !== 'string') return null
-  return browserTabs.some((tab) => tab.id === previewId) ? { kind: 'browser', previewId } : null
+  const surface: WorkspacePanelSurface = browserTabs.some((tab) => tab.id === previewId)
+    ? { kind: 'browser', previewId }
+    : null
+  return surface
 }
 
-function sanitizeActiveSurface(
-  value: unknown,
-  browserTabs: readonly BrowserPreviewTabState[],
-): WorkspacePanelSurface {
+function sanitizeActiveSurface(value: unknown, browserTabs: readonly BrowserPreviewTabState[]) {
   const surface = persistedFields<PersistedActiveSurface>(value)
   if (surface !== null) {
     const { kind, projectPath, runId } = surface
     if (kind === 'action' && typeof projectPath === 'string' && typeof runId === 'string') {
-      if (runId.length > 0) return { kind: 'action', projectPath, runId }
+      if (runId.length > 0) {
+        const result: WorkspacePanelSurface = { kind: 'action', projectPath, runId }
+        return result
+      }
     }
-    if (kind === 'terminal') return { kind: 'terminal' }
-    if (kind === 'project-actions') return { kind: 'project-actions' }
-    if (kind === 'scheduled-tasks') return { kind: 'scheduled-tasks' }
-    if (kind === 'all-panels') return { kind: 'all-panels' }
+    if (kind === 'terminal') {
+      const result: WorkspacePanelSurface = { kind: 'terminal' }
+      return result
+    }
+    if (kind === 'project-actions') {
+      const result: WorkspacePanelSurface = { kind: 'project-actions' }
+      return result
+    }
+    if (kind === 'scheduled-tasks') {
+      const result: WorkspacePanelSurface = { kind: 'scheduled-tasks' }
+      return result
+    }
+    if (kind === 'all-panels') {
+      const result: WorkspacePanelSurface = { kind: 'all-panels' }
+      return result
+    }
     const activeBrowser = browserSurface(surface, browserTabs)
-    if (activeBrowser !== null) return activeBrowser
+    if (activeBrowser !== null) {
+      const result: WorkspacePanelSurface = activeBrowser
+      return result
+    }
   }
-  return lastBrowserSurface(browserTabs)
+  const result: WorkspacePanelSurface = lastBrowserSurface(browserTabs)
+  return result
 }
 
-function sanitizeGroup(value: unknown, ownerKey: string): WorkspacePanelGroupState | null {
+function sanitizeGroup(value: unknown, ownerKey: string) {
   const fields = persistedFields<WorkspacePanelGroupState>(value)
   if (fields === null) return null
   const browserTabs = sanitizeTabs(fields.browserTabs, ownerKey)
@@ -140,18 +170,20 @@ function sanitizeGroup(value: unknown, ownerKey: string): WorkspacePanelGroupSta
   // A group may exist only to remember that the Session's Right panel is maximized.
   if (browserTabs.length === 0 && activeSurface === null && !maximized) return null
   const rawPanelOpen = fields.panelOpen
-  return {
+  const state: WorkspacePanelGroupState | null = {
     browserTabs,
     activeSurface,
     maximized,
     panelOpen: typeof rawPanelOpen === 'boolean' ? rawPanelOpen : activeSurface !== null,
   }
+  return state
 }
 
-export function sanitizeWorkspacePanelGroups(
-  value: unknown,
-): Record<string, WorkspacePanelGroupState> {
-  if (!isObjectValue(value)) return {}
+export function sanitizeWorkspacePanelGroups(value: unknown) {
+  if (!isObjectValue(value)) {
+    const record: Record<string, WorkspacePanelGroupState> = {}
+    return record
+  }
   const groups: Record<string, WorkspacePanelGroupState> = {}
   for (const [ownerKey, valueAtOwner] of Object.entries(value)) {
     if (ownerKey.length === 0) continue

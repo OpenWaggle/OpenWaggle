@@ -29,7 +29,7 @@ export const useForegroundSendStore = create<ForegroundSendState>((set) => ({
 }))
 
 /** Runs `send` with the Session marked as starting a Run until the send settles. */
-export async function withForegroundSend<T>(id: SessionId, send: () => Promise<T>): Promise<T> {
+export async function withForegroundSend<T>(id: SessionId, send: () => Promise<T>) {
   useForegroundSendStore.getState().begin(id)
   try {
     return await send()

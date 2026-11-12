@@ -47,10 +47,7 @@ import { uncheckedFields } from '@shared/utils/object-shape'
 
 const SESSION = 'session-1'
 
-function entry(
-  id: RightPanelSurfaceId,
-  overrides: Partial<RightPanelSurfaceEntry> = {},
-): RightPanelSurfaceEntry {
+function entry(id: RightPanelSurfaceId, overrides: Partial<RightPanelSurfaceEntry> = {}) {
   return {
     id,
     title: id,
@@ -66,10 +63,10 @@ function entry(
     running: false,
     attention: false,
     ...overrides,
-  }
+  } satisfies RightPanelSurfaceEntry
 }
 
-function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
+function model(overrides: Partial<RightPanelModel> = {}) {
   const surfaces = [
     entry('all-panels', { group: null }),
     entry('changes', { glyph: { kind: 'lucide', icon: GitCompare } }),
@@ -77,7 +74,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     entry('files', { glyph: { kind: 'lucide', icon: FileText } }),
     entry('session-tree', { group: 'Session' }),
   ]
-  return {
+  const result: RightPanelModel = {
     ownerKey: SESSION,
     sessionKey: SESSION,
     projectPath: '/repo',
@@ -91,6 +88,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     extensionRegistrySettled: true,
     ...overrides,
   }
+  return result
 }
 
 function deferred<T>() {

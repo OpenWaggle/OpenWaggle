@@ -41,8 +41,14 @@ import { Sidebar } from '../Sidebar'
  */
 const PROJECT = '/repo/alpha'
 
-function session(id: string, title: string, updatedAt: number): SessionSummary {
-  return { id: SessionId(id), title, projectPath: PROJECT, createdAt: 1, updatedAt }
+function session(id: string, title: string, updatedAt: number) {
+  return {
+    id: SessionId(id),
+    title,
+    projectPath: PROJECT,
+    createdAt: 1,
+    updatedAt,
+  } satisfies SessionSummary
 }
 
 const FIRST_PAGE = [session('session-new', 'Newest session', 20)]

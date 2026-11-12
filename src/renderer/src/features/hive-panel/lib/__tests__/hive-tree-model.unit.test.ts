@@ -12,7 +12,7 @@ function member(
     readonly lineage?: Partial<NonNullable<HiveSession['lineage']>>
     readonly pendingInteractionKind?: 'approval' | 'question'
   } = {},
-): HiveSession {
+) {
   return {
     id: SessionId(id),
     title: id,
@@ -29,7 +29,7 @@ function member(
     ...(overrides.pendingInteractionKind
       ? { pendingInteractionKind: overrides.pendingInteractionKind }
       : {}),
-  }
+  } satisfies HiveSession
 }
 
 const ids = (rows: readonly { readonly session: HiveSession }[]) =>

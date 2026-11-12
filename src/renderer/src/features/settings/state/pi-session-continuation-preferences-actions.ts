@@ -20,9 +20,9 @@ async function setProjectPiSessionContinuation(
 export function createPiSessionContinuationPreferencesActions(
   set: PreferencesSet,
   get: PreferencesGet,
-): Pick<PreferencesActions, 'setProjectPiSessionContinuation'> {
+) {
   return {
     setProjectPiSessionContinuation: (projectPath, choice) =>
       setProjectPiSessionContinuation(projectPath, choice, set, get),
-  }
+  } satisfies Pick<PreferencesActions, 'setProjectPiSessionContinuation'>
 }

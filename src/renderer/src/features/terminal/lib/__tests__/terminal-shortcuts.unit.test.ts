@@ -7,7 +7,7 @@ import {
   type TerminalShortcutEvent,
 } from '../terminal-shortcuts'
 
-function event(overrides: Partial<TerminalShortcutEvent> = {}): TerminalShortcutEvent {
+function event(overrides: Partial<TerminalShortcutEvent> = {}) {
   return {
     key: 'd',
     code: 'KeyD',
@@ -16,7 +16,7 @@ function event(overrides: Partial<TerminalShortcutEvent> = {}): TerminalShortcut
     metaKey: true,
     shiftKey: false,
     ...overrides,
-  }
+  } satisfies TerminalShortcutEvent
 }
 
 describe('terminal shortcuts', () => {

@@ -19,7 +19,7 @@ export function runStartOrderOf(snapshot: BackgroundRunSnapshot) {
  * The span of the buffer's Run: from its first user message or, when the buffer retains none (an
  * older Host, a message over its size cap), from its start by Host time.
  */
-export function runScopeOf(snapshot: BackgroundRunSnapshot): SavedAnswerScope {
+export function runScopeOf(snapshot: BackgroundRunSnapshot) {
   const fromOrder = runStartOrderOf(snapshot)
   return fromOrder === undefined ? { fromTime: snapshot.startedAt } : { fromOrder }
 }
@@ -42,21 +42,21 @@ export function reconnectedRunScope(input: {
   readonly settledBuffer?: BackgroundRunSnapshot
   readonly persistedMessages: readonly UIMessage[] | null
   readonly currentMessages: readonly UIMessage[]
-}): SavedAnswerScope {
+}) {
   const buffered = input.settledBuffer ?? input.snapshot
-  if (!buffered) return transcriptRunScope(input)
+  if (!buffered) return transcriptRunScope(input) satisfies SavedAnswerScope
   // A Run before it the transcript still shows live (a stall hid its end) is in scope too.
   const scope = runScopeOf(buffered)
   if (scope.fromOrder === undefined) return scope
   const transcriptFrom = transcriptRunScope(input).fromOrder ?? Number.POSITIVE_INFINITY
-  return { fromOrder: Math.min(scope.fromOrder, transcriptFrom) }
+  return { fromOrder: Math.min(scope.fromOrder, transcriptFrom) } satisfies SavedAnswerScope
 }
 
 /** The span of a reconnected Run without a buffer: see `reconnectedRunScope`. */
 function transcriptRunScope(input: {
   readonly persistedMessages: readonly UIMessage[] | null
   readonly currentMessages: readonly UIMessage[]
-}): SavedAnswerScope {
+}) {
   const persistedIds = new Set<string>()
   const persistedUserOrders = new Set<number>()
   for (const message of input.persistedMessages ?? []) {

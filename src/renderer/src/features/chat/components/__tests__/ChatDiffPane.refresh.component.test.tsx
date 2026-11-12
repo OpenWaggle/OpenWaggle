@@ -1,7 +1,6 @@
 import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChatDiffSectionState } from '@/features/chat/model'
 import { useUIStore } from '@/shell/ui-store'
 import { ChatDiffPane } from '../ChatDiffPane'
 
@@ -20,7 +19,7 @@ vi.mock('@/features/diff-panel/components', () => ({
   ),
 }))
 
-function diffSection(): ChatDiffSectionState {
+function diffSection() {
   return {
     session: null,
     workingPath: WorkingPath('/repo'),

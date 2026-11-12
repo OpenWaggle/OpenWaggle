@@ -1,8 +1,4 @@
-import type {
-  ActionDefinition,
-  DiscoveredProjectTask,
-  ProjectTaskReference,
-} from '@shared/types/action-definitions'
+import type { DiscoveredProjectTask, ProjectTaskReference } from '@shared/types/action-definitions'
 import type { ProjectActionIcon } from '@shared/types/project-actions'
 import { projectTaskArguments } from '@shared/utils/project-task-command'
 import { resolvedActionCommand } from './native-action-display'
@@ -112,10 +108,10 @@ export function suggestActionName(reference: ProjectTaskReference) {
   return label ? `${base} (${label})` : base
 }
 
-export function suggestActionIcon(task: string): ProjectActionIcon {
-  return ICON_RULES.find(([rule]) => rule.test(task))?.[1] ?? 'play'
+export function suggestActionIcon(task: string) {
+  return (ICON_RULES.find(([rule]) => rule.test(task))?.[1] ?? 'play') satisfies ProjectActionIcon
 }
 
-export function suggestActionKind(task: string): ActionDefinition['kind'] {
-  return LONG_RUNNING_SCRIPT.test(task) ? 'service' : 'task'
+export function suggestActionKind(task: string) {
+  return LONG_RUNNING_SCRIPT.test(task) ? ('service' as const) : ('task' as const)
 }

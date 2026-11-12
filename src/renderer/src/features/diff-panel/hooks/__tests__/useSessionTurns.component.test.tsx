@@ -31,8 +31,8 @@ const PATCH = [
   '',
 ].join('\n')
 
-function turn(turnId: string): DiffScopeSelection {
-  return { kind: 'turn', turnId, filePath: null, revealRequestId: 0 }
+function turn(turnId: string) {
+  return { kind: 'turn', turnId, filePath: null, revealRequestId: 0 } satisfies DiffScopeSelection
 }
 
 function deferred<T>() {
@@ -43,7 +43,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function branches(...names: readonly string[]): GitBranchListResult {
+function branches(...names: readonly string[]) {
   return {
     currentBranch: names[0] ?? null,
     branches: names.map((name, index) => ({
@@ -65,8 +65,14 @@ beforeEach(() => {
   listTurnCheckpointsMock.mockReset()
 })
 
-function checkpoint(turnId: string): TurnCheckpointSummary {
-  return { turnId, turnIndex: 0, createdAt: 1, insertions: 1, deletions: 0 }
+function checkpoint(turnId: string) {
+  return {
+    turnId,
+    turnIndex: 0,
+    createdAt: 1,
+    insertions: 1,
+    deletions: 0,
+  } satisfies TurnCheckpointSummary
 }
 
 describe('useSessionTurns', () => {

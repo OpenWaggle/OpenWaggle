@@ -34,8 +34,8 @@ import { useGlobalExtensionActions } from '../useGlobalExtensionActions'
 
 const PROJECT_PATH = '/tmp/project'
 
-function commandEntry(): ExtensionContributionRegistryEntry {
-  return {
+function commandEntry() {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -63,6 +63,7 @@ function commandEntry(): ExtensionContributionRegistryEntry {
     diagnostics: [],
     invocationBinding: 'host-issued-binding',
   }
+  return entry
 }
 
 describe('useGlobalExtensionActions', () => {

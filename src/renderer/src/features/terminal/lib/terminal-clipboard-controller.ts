@@ -45,7 +45,7 @@ export function createTerminalClipboardController(options: TerminalClipboardCont
     })
   }
 
-  const handleKey = (event: KeyboardEvent): boolean | null => {
+  const handleKey = (event: KeyboardEvent) => {
     const action = terminalClipboardShortcutAction(event, platform)
     if (action === null) return null
     if (action === 'copy') {

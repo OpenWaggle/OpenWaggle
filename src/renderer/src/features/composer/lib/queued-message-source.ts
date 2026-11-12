@@ -81,11 +81,12 @@ export function queuedMessageSourceLabel(
   source: SessionFollowUpSource | undefined,
   sessionTitle: string | undefined,
   deliveringCallerId?: string,
-): QueuedMessageSourceLabel | null {
+) {
   if (!source || source.callerId === DESKTOP_USER_CALLER_ID) return null
   const sentAsYou = deliveringCallerId === DESKTOP_USER_CALLER_ID
-  return {
+  const result: QueuedMessageSourceLabel | null = {
     label: labelText(source, sessionTitle),
     detail: detailText(source, sessionTitle, sentAsYou),
   }
+  return result
 }

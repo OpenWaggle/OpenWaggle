@@ -12,7 +12,7 @@ const record: NestedToolCalls = {
   complete: false,
 }
 
-function fullRecord(extra: Partial<NestedToolCalls> = {}): NestedToolCalls {
+function fullRecord(extra: Partial<NestedToolCalls> = {}) {
   return {
     calls: Array.from({ length: NESTED_TOOL_CALL_LIMITS.maxCalls }, (_, index) => ({
       id: `code-1/${String(index + 1)}`,
@@ -22,7 +22,7 @@ function fullRecord(extra: Partial<NestedToolCalls> = {}): NestedToolCalls {
     })),
     complete: false,
     ...extra,
-  }
+  } satisfies NestedToolCalls
 }
 
 describe('nestedToolCallsView', () => {

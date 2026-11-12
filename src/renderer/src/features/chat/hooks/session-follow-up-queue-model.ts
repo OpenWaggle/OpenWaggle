@@ -132,22 +132,20 @@ export const EMPTY_SNAPSHOT: SessionFollowUpQueueSnapshot = {
 }
 
 /** The open edit of a Follow-up this user holds, from the latest snapshot (see `resumeEdit`). */
-export function heldEdit(
-  snapshot: SessionFollowUpQueueSnapshot,
-  followUpId: string,
-): SessionFollowUpEdit | null {
+export function heldEdit(snapshot: SessionFollowUpQueueSnapshot, followUpId: string) {
   const item = snapshot.items.find((candidate) => candidate.id === followUpId)
   const hold = item?.editHold
   if (!item || !hold?.heldByCurrentUser || !hold.holdId || hold.baseQueueRevision === undefined) {
     return null
   }
-  return {
+  const edit: SessionFollowUpEdit | null = {
     followUpId,
     holdId: hold.holdId,
     queueRevision: hold.baseQueueRevision,
     leaseExpiresAt: hold.leaseExpiresAt,
     item,
   }
+  return edit
 }
 
 type SessionFollowUpQueueIntent = Pick<
@@ -182,17 +180,19 @@ interface QueuedIntentFields {
   readonly visualizationContext: InlineVisualizationContext
 }
 
-function uncheckedFields<T>(value: unknown): UncheckedFields<T> | null {
-  return isObjectValue(value) ? value : null
+function uncheckedFields<T>(value: unknown) {
+  const fields: UncheckedFields<T> | null = isObjectValue(value) ? value : null
+  return fields
 }
 
-function queueIntent(value: unknown): SessionFollowUpQueueIntent {
+function queueIntent(value: unknown) {
   const intent = uncheckedFields<QueuedIntentFields>(value)
   if (intent === null) {
-    return { text: '', attachmentCount: 0 }
+    const result: SessionFollowUpQueueIntent = { text: '', attachmentCount: 0 }
+    return result
   }
   const waggle = uncheckedFields<QueuedIntentFields['waggle']>(intent.waggle)
-  return {
+  const result: SessionFollowUpQueueIntent = {
     text: typeof intent.text === 'string' ? intent.text : '',
     attachmentCount: Array.isArray(intent.attachmentIds) ? intent.attachmentIds.length : 0,
     ...(typeof waggle?.presetName === 'string' ? { wagglePresetName: waggle.presetName } : {}),
@@ -203,15 +203,16 @@ function queueIntent(value: unknown): SessionFollowUpQueueIntent {
     ...queuedWaggle(intent.waggle),
     ...queuedVisualizationContext(intent.visualizationContext),
   }
+  return result
 }
 
-export function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueueSnapshot {
+export function queueSnapshot(outcome: SessionQueryOutcome) {
   if (outcome.operation !== 'queue-list') {
     throw new Error('Session Host returned the wrong response for a Follow-up queue query.')
   }
   if ('error' in outcome) throw new Error(outcome.error.message)
   const items = outcome.items.map(queueItem)
-  return {
+  const snapshot: SessionFollowUpQueueSnapshot = {
     state: outcome.queueState,
     ...(outcome.queuePauseReason ? { pauseReason: outcome.queuePauseReason } : {}),
     revision: outcome.queueRevision,
@@ -219,6 +220,7 @@ export function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueu
     items,
     waitingOnEdit: items.some((item) => item.editHold !== undefined),
   }
+  return snapshot
 }
 
 type QueueListItem = Extract<
@@ -226,8 +228,8 @@ type QueueListItem = Extract<
   { operation: 'queue-list'; items: unknown }
 >['items'][number]
 
-function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
-  return {
+function queueItem(item: QueueListItem) {
+  const result: SessionFollowUpQueueItem = {
     id: item.followUpId,
     ...queueIntent(item.intent),
     createdAt: item.createdAt,
@@ -250,4 +252,5 @@ function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
         }
       : {}),
   }
+  return result
 }

@@ -13,9 +13,9 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function makeTree(id: string): SessionTree {
+function makeTree(id: string) {
   const sessionId = SessionId(id)
-  return {
+  const tree: SessionTree = {
     session: { id: sessionId, title: 'S', projectPath: null, createdAt: 1, updatedAt: 2 },
     nodes: [],
     branches: [
@@ -33,11 +33,18 @@ function makeTree(id: string): SessionTree {
     branchStates: [],
     uiState: null,
   }
+  return tree
 }
 
-function makeWorkspace(id: string): SessionWorkspace {
+function makeWorkspace(id: string) {
   const tree = makeTree(id)
-  return { tree, activeBranchId: null, activeNodeId: null, transcriptPath: [] }
+  const workspace: SessionWorkspace = {
+    tree,
+    activeBranchId: null,
+    activeNodeId: null,
+    transcriptPath: [],
+  }
+  return workspace
 }
 
 function deferred<T>() {

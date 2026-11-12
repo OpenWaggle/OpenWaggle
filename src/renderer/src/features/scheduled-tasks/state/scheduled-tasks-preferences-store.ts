@@ -8,7 +8,7 @@ interface ScheduledTasksPreferencesState {
 }
 
 /** Memory-backed storage so the store is safe to construct without a DOM (tests). */
-function resolveStorage(): StateStorage {
+function resolveStorage() {
   if (typeof window !== 'undefined') return window.localStorage
   const memory = new Map<string, string>()
   return {
@@ -19,7 +19,7 @@ function resolveStorage(): StateStorage {
     removeItem: (key) => {
       memory.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
 export const useScheduledTasksPreferencesStore = create<ScheduledTasksPreferencesState>()(

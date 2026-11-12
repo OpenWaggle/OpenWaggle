@@ -3,7 +3,6 @@ import type {
   SessionResource,
   SessionResourceCatalogPage,
   SessionResourceCatalogView,
-  SessionResourceImageLocation,
   SessionResourceRouteSelection,
 } from '@shared/types/session-resource'
 import { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
@@ -63,8 +62,8 @@ export const sessionResourceCatalogQueryKey = (
   activeBranchId: string | null,
   pageSize = SESSION_RESOURCE_CATALOG_PAGE_SIZE,
   selection: SessionResourceRouteSelection | null = routeSelection(activeBranchId, NO_NODE_IDS),
-): SessionResourceCatalogQueryKey =>
-  [
+) => {
+  const key: SessionResourceCatalogQueryKey = [
     'session-resource-catalog',
     sessionId,
     view,
@@ -72,11 +71,10 @@ export const sessionResourceCatalogQueryKey = (
     selection,
     pageSize,
   ] as const
+  return key
+}
 
-function routeSelection(
-  activeBranchId: string | null,
-  pathNodeIds: readonly string[],
-): SessionResourceRouteSelection | null {
+function routeSelection(activeBranchId: string | null, pathNodeIds: readonly string[]) {
   if (!activeBranchId && pathNodeIds.length === 0) return null
   const boundedNodeIds = [...new Set(pathNodeIds)].slice(-SESSION_RESOURCE_ROUTE_NODE_LIMIT)
   return { branchId: activeBranchId, pathNodeIds: boundedNodeIds }
@@ -106,12 +104,12 @@ function catalogInfiniteOptions(
     initialPageParam: INITIAL_CATALOG_CURSOR,
     queryFn: ({ pageParam }) => {
       if (!sessionId) {
-        return Promise.resolve({
+        return Promise.resolve<SessionResourceCatalogPage>({
           resources: [],
           total: 0,
           nextCursor: null,
           orderRevision: 'none',
-        } satisfies SessionResourceCatalogPage)
+        })
       }
       return api.listSessionResourcePage(
         SessionId(sessionId),
@@ -150,7 +148,7 @@ export function useSessionResourceCatalog(
   sessionId: string | null,
   view: SessionResourceCatalogView,
   options: SessionResourceCatalogOptions = {},
-): SessionResourceCatalogQueryResult {
+) {
   const activeBranchId = options.activeBranchId ?? null
   const pathNodeIds = options.pathNodeIds ?? NO_NODE_IDS
   const pageSize = options.pageSize ?? SESSION_RESOURCE_CATALOG_PAGE_SIZE
@@ -194,7 +192,7 @@ export function useSessionResourceCatalog(
     resources: consistentPages.flatMap((page) => page.resources),
     total: consistentPages[0]?.total ?? 0,
     loadNextPage,
-  }
+  } satisfies SessionResourceCatalogQueryResult
 }
 
 export function useSessionResource(
@@ -242,7 +240,7 @@ export function useSessionImageLocation(
         activeBranchId ?? 'none',
         selection,
       ] as const,
-      queryFn: async (): Promise<SessionResourceImageLocation | null> => {
+      queryFn: async () => {
         if (!sessionId || !resourceId) return null
         return selection
           ? api.locateSessionResourceImage(SessionId(sessionId), resourceId, selection)

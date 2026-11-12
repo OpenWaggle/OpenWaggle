@@ -43,11 +43,11 @@ function InteractionHeader({ interaction }: { readonly interaction: AgentLoopInt
   )
 }
 
-function interactionSurfaceInput(interaction: AgentLoopInteraction): InteractionSurfaceInput {
+function interactionSurfaceInput(interaction: AgentLoopInteraction) {
   return {
     surface: 'interaction',
     interaction: toExtensionInteractionView(interaction),
-  }
+  } satisfies InteractionSurfaceInput
 }
 
 function InteractionExtensionSurfaces({

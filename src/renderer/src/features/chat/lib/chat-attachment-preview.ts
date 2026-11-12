@@ -26,17 +26,16 @@ export function formatAttachmentPreview(
   return `${ATTACHMENT_TEXT_PREFIX}${attachment.name}\n${clipped}`
 }
 
-function buildClientUserMessageParts(
-  payload: AgentSendPayload,
-): Extract<UIMessage['parts'][number], { type: 'text' }>[] {
+function buildClientUserMessageParts(payload: AgentSendPayload) {
   const text = payload.text.trim()
-  return [
+  const extract: Extract<UIMessage['parts'][number], { type: 'text' }>[] = [
     ...(text ? [{ type: 'text' as const, content: text }] : []),
     ...payload.attachments.map((attachment) => ({
       type: 'text' as const,
       content: formatAttachmentPreview(attachment),
     })),
   ]
+  return extract
 }
 
 export function buildClientUserMessage(payload: AgentSendPayload) {
@@ -45,7 +44,7 @@ export function buildClientUserMessage(payload: AgentSendPayload) {
     .join('\n\n')
 }
 
-export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessage {
+export function createOptimisticUserMessage(payload: AgentSendPayload) {
   optimisticUserMessageCounter += 1
   const imageParts: UIMessage['parts'] = payload.attachments.flatMap((attachment, index) => {
     const previewUrl = takeAttachmentPreviewUrl(attachment.id)
@@ -77,5 +76,5 @@ export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessag
           },
         }
       : {}),
-  }
+  } satisfies UIMessage
 }

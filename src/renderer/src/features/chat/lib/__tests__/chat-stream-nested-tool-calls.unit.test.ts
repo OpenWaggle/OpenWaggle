@@ -15,7 +15,7 @@ function applyEvents(events: readonly AgentTransportEvent[]) {
 describe('applyAgentTransportEvent nested tool calls', () => {
   const readResult = { content: [{ type: 'text', text: 'file a' }], details: null }
 
-  function codemodeStart(): AgentTransportEvent[] {
+  function codemodeStart() {
     return [
       { type: 'message_start', messageId: 'assistant-1', role: 'assistant', timestamp: 1 },
       {
@@ -26,7 +26,7 @@ describe('applyAgentTransportEvent nested tool calls', () => {
         parentMessageId: 'assistant-1',
         timestamp: 2,
       },
-    ]
+    ] satisfies AgentTransportEvent[]
   }
 
   it('attaches nested calls to their parent tool call instead of creating tool cards', () => {

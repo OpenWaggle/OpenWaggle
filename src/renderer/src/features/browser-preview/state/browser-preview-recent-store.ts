@@ -22,7 +22,7 @@ interface BrowserPreviewRecentState {
 
 const memoryStorage = new Map<string, string>()
 
-function fallbackStorage(): StateStorage {
+function fallbackStorage() {
   return {
     getItem: (key) => memoryStorage.get(key) ?? null,
     setItem: (key, value) => {
@@ -31,14 +31,14 @@ function fallbackStorage(): StateStorage {
     removeItem: (key) => {
       memoryStorage.delete(key)
     },
-  }
+  } satisfies StateStorage
 }
 
-function resolveStorage(): StateStorage {
+function resolveStorage() {
   return typeof window === 'undefined' ? fallbackStorage() : window.localStorage
 }
 
-function sanitizeEntry(value: unknown): BrowserPreviewRecentUrl | null {
+function sanitizeEntry(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
   const urlValue = 'url' in value ? value.url : undefined
   const titleValue = 'title' in value ? value.title : undefined
@@ -57,10 +57,8 @@ function sanitizeEntry(value: unknown): BrowserPreviewRecentUrl | null {
   return { url, title, visitedAt }
 }
 
-export function sanitizeBrowserPreviewRecentUrls(
-  value: unknown,
-): readonly BrowserPreviewRecentUrl[] {
-  if (!Array.isArray(value)) return []
+export function sanitizeBrowserPreviewRecentUrls(value: unknown) {
+  if (!Array.isArray(value)) return [] satisfies readonly BrowserPreviewRecentUrl[]
   const seen = new Set<string>()
   const entries: BrowserPreviewRecentUrl[] = []
   for (const candidate of value) {

@@ -47,15 +47,12 @@ function persistExpanded(sessionId: string, expanded: boolean) {
   }
 }
 
-function createPanelState(
-  sessionId: string,
-  context: SessionSummaryPanelContext,
-): SessionSummaryPanelState {
+function createPanelState(sessionId: string, context: SessionSummaryPanelContext) {
   return {
     ...context,
     expanded: readExpanded(sessionId),
     forcedOpen: false,
-  }
+  } satisfies SessionSummaryPanelState
 }
 
 function sameContext(current: SessionSummaryPanelState, context: SessionSummaryPanelContext) {

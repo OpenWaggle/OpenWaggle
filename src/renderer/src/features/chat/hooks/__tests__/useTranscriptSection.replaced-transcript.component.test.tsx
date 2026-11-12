@@ -8,7 +8,7 @@ import {
   SupportedModelId,
 } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionDetail, SessionNode, SessionWorkspace } from '@shared/types/session'
+import type { SessionDetail, SessionNode } from '@shared/types/session'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
@@ -24,13 +24,13 @@ const SESSION_ID = SessionId('session-1')
 const CONVERSATION_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
 
-function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
+function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
   return {
     id,
     role,
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
 function sessionNode(
@@ -39,7 +39,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-): SessionNode {
+) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -60,13 +60,10 @@ function sessionNode(
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
-function transcriptPathForActiveNode(
-  nodes: readonly SessionNode[],
-  activeNodeId: SessionNodeId,
-): SessionWorkspace['transcriptPath'] {
+function transcriptPathForActiveNode(nodes: readonly SessionNode[], activeNodeId: SessionNodeId) {
   const nodesById = new Map(nodes.map((node) => [String(node.id), node]))
   const path: SessionNode[] = []
   const seen = new Set<string>()
@@ -130,10 +127,8 @@ const phase = {
   reset: vi.fn(),
 }
 
-function transcriptParams(
-  overrides: Partial<TranscriptSectionParams> = {},
-): TranscriptSectionParams {
-  return {
+function transcriptParams(overrides: Partial<TranscriptSectionParams> = {}) {
+  const params: TranscriptSectionParams = {
     messages: [],
     customMessages: [],
     interactionEvents: [],
@@ -166,9 +161,10 @@ function transcriptParams(
     compactionStatus: null,
     ...overrides,
   }
+  return params
 }
 
-function detail(updatedAt: number, nodes: readonly SessionNode[]): SessionDetail {
+function detail(updatedAt: number, nodes: readonly SessionNode[]) {
   return {
     id: SESSION_ID,
     title: 'Branch test',
@@ -176,7 +172,7 @@ function detail(updatedAt: number, nodes: readonly SessionNode[]): SessionDetail
     createdAt: 1,
     updatedAt,
     messages: nodes.flatMap((node) => (node.message ? [node.message] : [])),
-  }
+  } satisfies SessionDetail
 }
 
 /*

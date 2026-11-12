@@ -2,7 +2,7 @@
 export async function refreshAfterCommittedSessionMutation(
   cleanup: () => Promise<void>,
   refresh: () => Promise<unknown>,
-): Promise<void> {
+) {
   try {
     await cleanup()
   } catch (cleanupError) {

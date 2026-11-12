@@ -131,7 +131,7 @@ function applyAppearancePreferences(preferences: AppearancePreferences) {
  */
 export const APPEARANCE_PREFERENCES_CACHE_KEY = 'openwaggle.last-appearance-preferences.v1'
 
-function appearanceCacheStorage(): Storage | null {
+function appearanceCacheStorage() {
   try {
     return typeof window !== 'undefined' ? window.localStorage : null
   } catch {
@@ -148,7 +148,7 @@ function cacheAppearancePreferences(preferences: AppearancePreferences) {
 }
 
 /** Applies the cached appearance, if there is a valid one; a damaged cache is dropped. */
-export function restoreCachedAppearancePreferences(): boolean {
+export function restoreCachedAppearancePreferences() {
   const storage = appearanceCacheStorage()
   let raw: string | null
   try {
@@ -167,7 +167,7 @@ export function restoreCachedAppearancePreferences(): boolean {
   return true
 }
 
-function decodeCachedAppearancePreferences(raw: string): AppearancePreferences | null {
+function decodeCachedAppearancePreferences(raw: string) {
   try {
     const decoded = safeDecodeUnknown(appearancePreferencesSchema, parseJsonUnknown(raw))
     return decoded.success ? decoded.data : null

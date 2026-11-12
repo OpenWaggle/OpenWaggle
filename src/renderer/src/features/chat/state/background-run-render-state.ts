@@ -69,7 +69,7 @@ const SETTLED_UNNAMED_RUN = 'settled-unnamed-run'
 export function runRenderSnapshotForEvent(
   existing: RunRenderSnapshot | undefined,
   event: AgentTransportEvent,
-): RunRenderSnapshot | null {
+) {
   if (event.type === 'agent_start') {
     return seededSnapshotForRunStart(existing, event.runId, event.timestamp)
   }
@@ -151,10 +151,7 @@ function settledIdsStillShown(
   return shown.size > 0 ? shown : undefined
 }
 
-function rebaseRestoredCompaction(
-  status: AgentCompactionStatus | null,
-  messageCount: number,
-): AgentCompactionStatus | null {
+function rebaseRestoredCompaction(status: AgentCompactionStatus | null, messageCount: number) {
   if (!status || messageCount === 0) return status
   const timelineStatus = getTimelineCompactionStatus(status)
   if (!timelineStatus?.timeline.some((item) => item.messageCountAtStart === 0)) {

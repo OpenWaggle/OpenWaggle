@@ -53,7 +53,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 const SESSION_ID = SessionId('session-1')
 const OTHER_SESSION_ID = SessionId('session-2')
 
-function waggleMeta(): WaggleStreamMetadata {
+function waggleMeta() {
   return {
     agentIndex: 1,
     agentLabel: 'Reviewer',
@@ -62,7 +62,7 @@ function waggleMeta(): WaggleStreamMetadata {
     turnNumber: 2,
     collaborationMode: 'sequential',
     sessionId: String(SESSION_ID),
-  }
+  } satisfies WaggleStreamMetadata
 }
 
 function requireTurnHandler() {

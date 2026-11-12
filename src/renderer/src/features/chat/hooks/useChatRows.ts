@@ -5,7 +5,6 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionInterruptedRun } from '@shared/types/session'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
-import type { ChatRow } from '../lib/types-chat-row'
 import type { AgentCompactionStatus } from './useAgentChat.types'
 import { buildChatRows } from './useBuildChatRows'
 
@@ -30,7 +29,7 @@ export function useChatRows(inputs: {
   turnDurationsByAnchorMessageId: ReadonlyMap<string, number> | undefined
   expandedTurnKeys?: ReadonlySet<string>
   extensionStatus?: Parameters<typeof buildChatRows>[0]['extensionStatus']
-}): ChatRow[] {
+}) {
   return buildChatRows({
     messages: inputs.messages,
     customMessages: inputs.customMessages ?? [],

@@ -53,8 +53,8 @@ export function resource(
   id: string,
   input: Pick<SessionResource, 'kind' | 'title' | 'isSource' | 'isOutput' | 'locator'> &
     Partial<Pick<SessionResource, 'available' | 'occurrences'>>,
-): SessionResource {
-  return {
+) {
+  const result: SessionResource = {
     id,
     sessionId: SessionId('session-one'),
     canonicalKey: `resource:${id}`,
@@ -66,6 +66,7 @@ export function resource(
     updatedAt: 1,
     ...input,
   }
+  return result
 }
 
 export const IMAGE = resource('image', {

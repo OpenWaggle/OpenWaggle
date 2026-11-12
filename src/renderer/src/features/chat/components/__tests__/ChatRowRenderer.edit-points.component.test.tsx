@@ -12,10 +12,13 @@ const ipc = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
   listTurnDiffFiles: vi.fn(async (_sessionId: string, turnIds: readonly string[]) =>
     Object.fromEntries(
-      turnIds.map((turnId): [string, readonly TurnDiffFileSummary[]] => [
-        turnId,
-        [{ path: 'src/app.ts', additions: 3, deletions: 1 }],
-      ]),
+      turnIds.map(
+        (turnId) =>
+          [turnId, [{ path: 'src/app.ts', additions: 3, deletions: 1 }]] satisfies [
+            string,
+            readonly TurnDiffFileSummary[],
+          ],
+      ),
     ),
   ),
 }))
@@ -47,9 +50,7 @@ const SETTLED_TURN: TurnCheckpointSummary = {
   deletions: 1,
 }
 
-function context(
-  options: { readonly withTurn?: boolean; readonly copiesBlocked?: boolean } = {},
-): ChatRowRenderContext {
+function context(options: { readonly withTurn?: boolean; readonly copiesBlocked?: boolean } = {}) {
   const extensions = { registry: null, projectPaths: [] }
   const turns = new Map(options.withTurn ? [['assistant-1', SETTLED_TURN]] : [])
   return {
@@ -62,13 +63,13 @@ function context(
       ...(options.copiesBlocked ? { copiesBlocked: true } : {}),
     },
     onDismissError: vi.fn(),
-  }
+  } satisfies ChatRowRenderContext
 }
 
 function messageRow(
   role: UIMessage['role'],
   options: Partial<Pick<MessageChatRow, 'replyActions' | 'isRunActive'>> = {},
-): MessageChatRow {
+) {
   return {
     type: 'message',
     message: {
@@ -81,7 +82,7 @@ function messageRow(
     isRunActive: options.isRunActive ?? false,
     showTurnDivider: false,
     ...(options.replyActions ? { replyActions: options.replyActions } : {}),
-  }
+  } satisfies MessageChatRow
 }
 
 function replyBar(container: HTMLElement) {

@@ -16,16 +16,10 @@ interface TerminalActivityStoreState {
   readonly reset: () => void
 }
 
-interface TerminalActivityProjection {
-  readonly truncated: boolean
-  readonly summariesByKey: ReadonlyMap<string, TerminalActivitySummary>
-  readonly runningCountByOwner: ReadonlyMap<string, number>
-}
-
 const EMPTY_SUMMARIES = new Map<string, TerminalActivitySummary>()
 const EMPTY_COUNTS = new Map<string, number>()
 
-function projectSnapshot(snapshot: TerminalActivitySnapshot): TerminalActivityProjection {
+function projectSnapshot(snapshot: TerminalActivitySnapshot) {
   const summariesByKey = new Map<string, TerminalActivitySummary>()
   for (const summary of snapshot.summaries) {
     summariesByKey.set(terminalKeyOf(summary.ownerKey, summary.terminalId), summary)
@@ -70,14 +64,11 @@ export const useTerminalActivityStore = create<TerminalActivityStoreState>((set)
 }))
 
 /** Synchronous conservative state for Project Action terminal selection. */
-export function getTerminalActivityStatus(
-  ownerKey: string,
-  terminalId: string,
-): TerminalActivityStatus {
-  return (
-    useTerminalActivityStore.getState().summariesByKey.get(terminalKeyOf(ownerKey, terminalId))
-      ?.activityStatus ?? 'unknown'
-  )
+export function getTerminalActivityStatus(ownerKey: string, terminalId: string) {
+  return (useTerminalActivityStore
+    .getState()
+    .summariesByKey.get(terminalKeyOf(ownerKey, terminalId))?.activityStatus ??
+    'unknown') satisfies TerminalActivityStatus
 }
 
 export function getTerminalProjectActionPending(ownerKey: string, terminalId: string) {

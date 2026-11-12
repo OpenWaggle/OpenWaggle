@@ -35,8 +35,8 @@ function callState(record: NestedToolCallRecord, parentFinished: boolean) {
   return parentFinished ? 'unfinished' : 'executing'
 }
 
-function callView(record: NestedToolCallRecord, parentFinished: boolean): NestedToolCallView {
-  return {
+function callView(record: NestedToolCallRecord, parentFinished: boolean) {
+  const view: NestedToolCallView = {
     id: record.id,
     name: record.name,
     ...(record.args !== undefined ? { arguments: JSON.stringify(record.args) } : {}),
@@ -44,6 +44,7 @@ function callView(record: NestedToolCallRecord, parentFinished: boolean): Nested
     state: callState(record, parentFinished),
     ...(record.error !== undefined ? { error: record.error } : {}),
   }
+  return view
 }
 
 /**
@@ -70,27 +71,30 @@ export function nestedToolCallsView(
   live: NestedToolCalls | undefined,
   persisted: NestedToolCalls | undefined,
   parentFinished: boolean,
-): NestedToolCallsView {
+) {
   const record = live ?? persisted
   if (!record) return NO_NESTED_CALLS
   // A Worker wait gets no row here either, so the list, its count and its frame agree.
   const shown = record.calls.filter((call) => !isHiddenSessionsToolCall(call.name, call.args ?? {}))
-  return {
+  const view: NestedToolCallsView = {
     calls: shown.map((call) => callView(call, parentFinished)),
     omittedCalls: omittedCallsNote(record),
   }
+  return view
 }
 
 /** The tool card result of a nested call: Pi's recorded error, or bare completion. */
-function nestedToolCallResult(call: NestedToolCallView): ToolCallResultPayload | undefined {
+function nestedToolCallResult(call: NestedToolCallView) {
   if (call.state === 'error') {
     return {
       content: call.error ?? '',
       state: 'error',
       ...(call.error !== undefined ? { error: call.error } : {}),
-    }
+    } satisfies ToolCallResultPayload
   }
-  return call.state === 'complete' ? { content: '', state: 'complete' } : undefined
+  return (call.state === 'complete' ? { content: '', state: 'complete' } : undefined) satisfies
+    | ToolCallResultPayload
+    | undefined
 }
 
 export function nestedToolCallCard(call: NestedToolCallView) {

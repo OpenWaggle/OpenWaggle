@@ -6,7 +6,7 @@ import { required } from '@/test-utils/required'
 
 const SESSION_ID = SessionId('session-1')
 
-function node(id: string, role: 'user' | 'assistant', text: string): SessionNode {
+function node(id: string, role: 'user' | 'assistant', text: string) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -25,7 +25,7 @@ function node(id: string, role: 'user' | 'assistant', text: string): SessionNode
     },
     contentJson: '{}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function workspace(nodes: readonly SessionNode[]) {

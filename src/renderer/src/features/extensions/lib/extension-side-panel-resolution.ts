@@ -73,7 +73,7 @@ export function resolveExtensionSidePanelContribution({
   readonly registry: ExtensionContributionRegistryView
   readonly target: ExtensionSidePanelTarget
   readonly requestedProjectPaths: readonly string[]
-}): ExtensionSidePanelResolution {
+}) {
   const extensionId = target.extensionId.trim()
   const sidePanelId = normalizeSidePanelId(target.sidePanelId)
   const packagePath = target.packagePath?.trim()
@@ -85,7 +85,7 @@ export function resolveExtensionSidePanelContribution({
       title: 'Invalid extension side panel',
       message:
         'Extension side panel URLs must include both an extension id and a side panel contribution id.',
-    }
+    } satisfies ExtensionSidePanelResolution
   }
 
   const extensionSidePanelEntries = sidePanelEntriesForTarget(registry, {
@@ -99,7 +99,7 @@ export function resolveExtensionSidePanelContribution({
       title: 'Extension side panel not available',
       message:
         'No registered side panel contributions match this extension in the active extension registry.',
-    }
+    } satisfies ExtensionSidePanelResolution
   }
 
   const entry = extensionSidePanelEntries.find(
@@ -111,7 +111,7 @@ export function resolveExtensionSidePanelContribution({
       title: 'Side panel contribution not available',
       message:
         'The requested side panel id is not registered for this extension in the active extension registry.',
-    }
+    } satisfies ExtensionSidePanelResolution
   }
 
   if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
@@ -120,7 +120,7 @@ export function resolveExtensionSidePanelContribution({
       title: 'Extension side panel blocked',
       message:
         'This side panel is disabled, untrusted, SDK-incompatible, pending update approval, or outside the active project scope.',
-    }
+    } satisfies ExtensionSidePanelResolution
   }
 
   if (!entry.runtime || !entry.execution || !entry.entryPath) {
@@ -129,7 +129,7 @@ export function resolveExtensionSidePanelContribution({
       title: 'Side panel contribution incomplete',
       message:
         'The side panel contribution is missing its renderer runtime, execution placement, or entry path.',
-    }
+    } satisfies ExtensionSidePanelResolution
   }
 
   return {
@@ -140,5 +140,5 @@ export function resolveExtensionSidePanelContribution({
       execution: entry.execution,
       entryPath: entry.entryPath,
     },
-  }
+  } satisfies ExtensionSidePanelResolution
 }

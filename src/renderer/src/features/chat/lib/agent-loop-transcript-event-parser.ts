@@ -58,14 +58,13 @@ const decodeAgentLoopEvent = Schema.decodeUnknownOption(
   ),
 )
 
-export function parseAgentLoopEvent(
-  event: unknown,
-):
-  | AgentTransportCustomEvent
-  | AgentTransportInteractionRequestEvent
-  | AgentTransportInteractionResolvedEvent
-  | null {
-  return Option.getOrNull(decodeAgentLoopEvent(event))
+export function parseAgentLoopEvent(event: unknown) {
+  const result:
+    | AgentTransportCustomEvent
+    | AgentTransportInteractionRequestEvent
+    | AgentTransportInteractionResolvedEvent
+    | null = Option.getOrNull(decodeAgentLoopEvent(event))
+  return result
 }
 
 const decodeAgentLoopSessionEventContent = Schema.decodeUnknownOption(

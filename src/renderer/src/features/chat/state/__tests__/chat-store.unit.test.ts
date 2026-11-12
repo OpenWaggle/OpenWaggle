@@ -9,11 +9,13 @@ import { useChatStore } from '../chat-store'
 // ── Mocks ────────────────────────────────────────────────────
 
 const mockApi = {
-  listSessionCatalogPage: vi.fn(
-    async (..._args: [boolean, number, string?]): Promise<SessionCatalogPage> => ({ sessions: [] }),
-  ),
+  listSessionCatalogPage: vi.fn<
+    (..._args: [boolean, number, string?]) => Promise<SessionCatalogPage>
+  >(async (..._args: [boolean, number, string?]) => ({ sessions: [] })),
   listPinnedSessions: vi.fn(async () => []),
-  listSessionsByIds: vi.fn(async (_ids: readonly SessionId[]): Promise<SessionSummary[]> => []),
+  listSessionsByIds: vi.fn<(_ids: readonly SessionId[]) => Promise<SessionSummary[]>>(
+    async (_ids: readonly SessionId[]) => [],
+  ),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),

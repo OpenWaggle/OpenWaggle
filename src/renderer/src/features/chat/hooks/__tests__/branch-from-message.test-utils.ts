@@ -2,7 +2,7 @@ import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@sh
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 import { vi } from 'vitest'
-import type { useBranchSummaryWorkflow } from '../useBranchSummaryWorkflow'
+import type { BranchSummaryWorkflowParams } from '../useBranchSummaryWorkflow'
 
 export const SESSION_ID = SessionId('session-1')
 export const SOURCE_ID = SessionNodeId('root-assistant')
@@ -12,8 +12,8 @@ export const MESSAGE: UIMessage = {
   parts: [{ type: 'text', content: 'Branch from this user node' }],
 }
 
-function node(id: string, parentId: string | null): SessionNode {
-  return {
+function node(id: string, parentId: string | null) {
+  const result: SessionNode = {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
     parentId: parentId === null ? null : SessionNodeId(parentId),
@@ -26,15 +26,16 @@ function node(id: string, parentId: string | null): SessionNode {
     contentJson: '{}',
     metadataJson: '{}',
   }
+  return result
 }
 
-export function workspace(sessionId = SESSION_ID): SessionWorkspace {
+export function workspace(sessionId = SESSION_ID) {
   const nodes = [
     node('root-assistant', null),
     node('branch-point', 'root-assistant'),
     node('main-continuation', 'branch-point'),
   ].map((entry) => ({ ...entry, sessionId }))
-  return {
+  const result: SessionWorkspace = {
     tree: {
       session: {
         id: sessionId,
@@ -55,12 +56,11 @@ export function workspace(sessionId = SESSION_ID): SessionWorkspace {
       isActive: entry.id === 'main-continuation',
     })),
   }
+  return result
 }
 
-export function workflowParams(
-  activeWorkspace: SessionWorkspace | null = null,
-): Parameters<typeof useBranchSummaryWorkflow>[0] {
-  return {
+export function workflowParams(activeWorkspace: SessionWorkspace | null = null) {
+  const parameters: BranchSummaryWorkflowParams = {
     activeSessionId: SESSION_ID,
     activeWorkspace,
     clearDraftBranchForSession: vi.fn(),
@@ -71,7 +71,8 @@ export function workflowParams(
     refreshSession: vi.fn().mockResolvedValue(undefined),
     refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
     showToast: vi.fn(),
-  } satisfies Parameters<typeof useBranchSummaryWorkflow>[0]
+  }
+  return parameters
 }
 
 export function deferredWorkspace() {

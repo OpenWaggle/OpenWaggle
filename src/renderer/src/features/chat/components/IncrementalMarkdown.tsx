@@ -103,11 +103,11 @@ const FENCE_LANGUAGE_PATTERN = /^[\w#+.-]+$/u
  * An open fence as Markdown renders it, built without parsing: a `pre` holding a `code` whose
  * text is the fenced lines, without their last line ending, plus the one Markdown adds.
  */
-function openFenceHast(language: string | null, code: string): Root {
+function openFenceHast(language: string | null, code: string) {
   const value = code.replace(/\r?\n$/u, '')
   const className =
     language && FENCE_LANGUAGE_PATTERN.test(language) ? [`language-${language}`] : []
-  return {
+  const root: Root = {
     type: 'root',
     children: [
       {
@@ -125,6 +125,7 @@ function openFenceHast(language: string | null, code: string): Root {
       },
     ],
   }
+  return root
 }
 
 /**

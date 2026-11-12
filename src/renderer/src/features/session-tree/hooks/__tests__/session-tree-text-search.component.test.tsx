@@ -16,10 +16,8 @@ import { useSessionTreeTextSearch } from '../useSessionTreeTextSearch'
 const SESSION_ID = SessionId('session-search')
 const QUERY = 'secret deploy token'
 
-function tree(
-  input: { readonly updatedAt?: number; readonly nodeCount?: number } = {},
-): SessionTree {
-  return {
+function tree(input: { readonly updatedAt?: number; readonly nodeCount?: number } = {}) {
+  const result: SessionTree = {
     session: {
       id: SESSION_ID,
       title: 'Search',
@@ -34,6 +32,7 @@ function tree(
     branchStates: [],
     uiState: treeUiState({ expandedNodeIds: [], expandedNodeIdsTouched: false }),
   }
+  return result
 }
 
 /*

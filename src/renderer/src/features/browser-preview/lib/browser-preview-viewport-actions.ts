@@ -74,7 +74,7 @@ function resizeAtAspectRatio(
   desired: number,
   aspectRatio: number,
   primaryAxis: 'width' | 'height',
-): BrowserPreviewViewportSize {
+) {
   if (primaryAxis === 'width') {
     const minimum = Math.ceil(
       Math.max(
@@ -135,14 +135,14 @@ function primaryAxisForResize(
   direction: BrowserPreviewViewportResizeDirection,
   horizontalDelta: number,
   verticalDelta: number,
-): 'width' | 'height' {
+) {
   const controlsWidth = horizontalDelta !== 0 || direction === 'east' || direction === 'west'
   const controlsHeight = verticalDelta !== 0 || direction === 'south'
-  if (controlsWidth && !controlsHeight) return 'width'
-  if (controlsHeight && !controlsWidth) return 'height'
+  if (controlsWidth && !controlsHeight) return 'width' as const
+  if (controlsHeight && !controlsWidth) return 'height' as const
   const widthChange = Math.abs(desired.width - start.width) / start.width
   const heightChange = Math.abs(desired.height - start.height) / start.height
-  return widthChange >= heightChange ? 'width' : 'height'
+  return widthChange >= heightChange ? ('width' as const) : ('height' as const)
 }
 
 function fitViewportArea(
@@ -150,7 +150,7 @@ function fitViewportArea(
   height: number,
   horizontalDelta: number,
   verticalDelta: number,
-): BrowserPreviewViewportSize {
+) {
   if (width * height <= BROWSER_PREVIEW_VIEWPORT_MAX_AREA) return { width, height }
   if (Math.abs(horizontalDelta) >= Math.abs(verticalDelta)) {
     return {
@@ -176,7 +176,7 @@ export function resizeBrowserPreviewViewport(
   scale = 1,
   direction: BrowserPreviewViewportResizeDirection = 'southeast',
   aspectRatio: number | null = null,
-): BrowserPreviewViewportSize {
+) {
   const resolvedScale = normalizedScale(scale)
   const horizontalDelta = horizontalDeltaForDirection(direction, delta.x)
   const verticalDelta = direction.includes('south') ? delta.y : 0
@@ -230,7 +230,7 @@ export function resizeBrowserPreviewViewportFromRail(
   scale = 1,
   direction: BrowserPreviewViewportResizeDirection = 'southeast',
   aspectRatio: number | null = null,
-): BrowserPreviewViewportSize {
+) {
   const resolvedScale = normalizedScale(scale)
   const startWidth = start.width * resolvedScale
   const startHeight = start.height * resolvedScale
@@ -274,7 +274,7 @@ export function commitBrowserPreviewViewportChange(
   previewId: string,
   viewport: BrowserPreviewFixedViewport,
   commit: ViewportCommit,
-): Promise<void> {
+) {
   const previous = commitTails.get(previewId) ?? Promise.resolve()
   const started = previous
     .catch(() => undefined)

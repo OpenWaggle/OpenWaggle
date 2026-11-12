@@ -12,12 +12,6 @@ export interface TerminalFileReference {
   readonly column: number | null
 }
 
-interface ReferencePosition {
-  readonly pathEnd: number
-  readonly line: number | null
-  readonly column: number | null
-}
-
 type PathFlavor = 'posix' | 'windows'
 
 const WINDOWS_DRIVE_ABSOLUTE_PATTERN = /^[A-Za-z]:[\\/]/u
@@ -47,13 +41,13 @@ function isAbsolutePath(value: string) {
   return value.startsWith('/') || isWindowsAbsolutePath(value)
 }
 
-function absolutePathFlavor(value: string): PathFlavor | null {
-  if (isWindowsAbsolutePath(value)) return 'windows'
-  return value.startsWith('/') ? 'posix' : null
+function absolutePathFlavor(value: string) {
+  if (isWindowsAbsolutePath(value)) return 'windows' as const
+  return value.startsWith('/') ? ('posix' as const) : null
 }
 
-function pathFlavor(value: string, fallback: string): PathFlavor {
-  return absolutePathFlavor(value) ?? absolutePathFlavor(fallback) ?? 'posix'
+function pathFlavor(value: string, fallback: string) {
+  return (absolutePathFlavor(value) ?? absolutePathFlavor(fallback) ?? 'posix') satisfies PathFlavor
 }
 
 function separatorFor(flavor: PathFlavor) {
@@ -164,7 +158,7 @@ function positiveSafeInteger(value: string | undefined) {
   return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null
 }
 
-function referencePosition(value: string): ReferencePosition | null {
+function referencePosition(value: string) {
   const match = PAREN_POSITION_PATTERN.exec(value) ?? COLON_POSITION_PATTERN.exec(value)
   if (match === null) return { pathEnd: value.length, line: null, column: null }
   const line = positiveSafeInteger(match[1])
@@ -179,7 +173,7 @@ function invalidReferencePath(path: string) {
   )
 }
 
-export function parseTerminalFileReference(rawValue: string): TerminalFileReference | null {
+export function parseTerminalFileReference(rawValue: string) {
   const value = rawValue.trim()
   if (value.length === 0 || hasControlCharacter(value)) return null
   if (SCHEME_PATTERN.test(value) && !WINDOWS_DRIVE_ABSOLUTE_PATTERN.test(value)) return null
@@ -219,7 +213,7 @@ export function resolveTerminalFileTarget(
   rawValue: string,
   source: TerminalLinkSource,
   context: TerminalLinkResolutionContext,
-): TerminalFileActivationTarget | null {
+) {
   const reference = parseTerminalFileReference(rawValue)
   if (reference === null) return null
   if (source === 'plain' && !/[\p{L}\p{M}_]/u.test(reference.path)) return null
@@ -239,13 +233,10 @@ export function resolveTerminalFileTarget(
     projectRelativePath: relative,
     route: relative === null ? 'external-editor' : 'workspace-preview',
     resolution: resolved.resolution,
-  }
+  } satisfies TerminalFileActivationTarget
 }
 
-export function resolveTerminalUrlTarget(
-  rawValue: string,
-  source: TerminalLinkSource,
-): TerminalUrlActivationTarget | null {
+export function resolveTerminalUrlTarget(rawValue: string, source: TerminalLinkSource) {
   if (hasControlCharacter(rawValue)) return null
   let parsed: URL
   try {
@@ -257,7 +248,12 @@ export function resolveTerminalUrlTarget(
   if (parsed.hostname.length === 0 || parsed.username.length > 0 || parsed.password.length > 0) {
     return null
   }
-  return { kind: 'url', source, url: parsed.href, route: 'url-preview' }
+  return {
+    kind: 'url',
+    source,
+    url: parsed.href,
+    route: 'url-preview',
+  } satisfies TerminalUrlActivationTarget
 }
 
 function fileUriPath(parsed: URL) {
@@ -281,10 +277,7 @@ function fileUriPath(parsed: URL) {
 }
 
 /** Validates a URI delivered by xterm's OSC 8 linkHandler. */
-export function resolveTerminalOsc8Target(
-  uri: string,
-  context: TerminalLinkResolutionContext,
-): TerminalLinkActivationTarget | null {
+export function resolveTerminalOsc8Target(uri: string, context: TerminalLinkResolutionContext) {
   const value = uri.trim()
   const urlTarget = resolveTerminalUrlTarget(value, 'osc8')
   if (urlTarget !== null) return urlTarget
@@ -296,5 +289,7 @@ export function resolveTerminalOsc8Target(
   }
   if (parsed.protocol !== 'file:') return null
   const path = fileUriPath(parsed)
-  return path === null ? null : resolveTerminalFileTarget(path, 'osc8', context)
+  return (
+    path === null ? null : resolveTerminalFileTarget(path, 'osc8', context)
+  ) satisfies TerminalLinkActivationTarget | null
 }

@@ -17,10 +17,8 @@ import {
 const lifecycleMocks = getWorkspaceLifecycleMocks()
 const NOTES = extensionRightPanelSurfaceId({ extensionId: 'acme.notes', sidePanelId: 'notes' })
 
-function sidePanelEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function sidePanelEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'acme.notes',
     extensionName: 'Acme Notes',
     extensionVersion: '1.0.0',
@@ -48,6 +46,7 @@ function sidePanelEntry(
     diagnostics: [],
     ...overrides,
   }
+  return entry
 }
 
 function bindNotesPanel() {

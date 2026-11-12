@@ -4,7 +4,6 @@ import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, type RenderResult, render, screen } from '@testing-library/react'
-import type { ReactElement } from 'react'
 import { beforeAll, type Mock, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
@@ -57,8 +56,9 @@ class TestResizeObserver {
   disconnect() {
     resizeObservers.delete(this)
   }
-  takeRecords(): ResizeObserverEntry[] {
-    return []
+  takeRecords() {
+    const entry: ResizeObserverEntry[] = []
+    return entry
   }
 }
 
@@ -106,16 +106,17 @@ export const SESSION: SessionDetail = {
 export function renderPanel(
   overrides: Partial<ChatPanelSections['transcript']> = {},
   composerOverrides: Partial<ChatPanelSections['composer']> = {},
-): RenderResult {
+) {
   useChatPanelSectionsMock.mockReturnValue(createSections(overrides, composerOverrides))
-  return render(chatPanelElement())
+  const result: RenderResult = render(chatPanelElement())
+  return result
 }
 
 /** Renders, then lets the lazy Summary overlay resolve and mount before the test asserts. */
 export async function renderPanelSettled(
   overrides: Partial<ChatPanelSections['transcript']> = {},
   composerOverrides: Partial<ChatPanelSections['composer']> = {},
-): Promise<RenderResult> {
+) {
   const result = renderPanel(overrides, composerOverrides)
   await act(async () => {})
   return result
@@ -133,7 +134,7 @@ export function preloadSessionSummaryOverlay() {
   }, COLD_IMPORT_TIMEOUT_MS)
 }
 
-export function chatPanelElement(): ReactElement {
+export function chatPanelElement() {
   return (
     <QueryClientProvider client={new QueryClient()}>
       <ChatPanel />

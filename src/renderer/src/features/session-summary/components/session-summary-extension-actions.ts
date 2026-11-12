@@ -114,11 +114,11 @@ export function resolveSessionSummaryAction(input: {
   readonly row: ExtensionSessionSummaryRowView
   readonly projectPath: string | null
   readonly sessionId: string
-}): SessionSummaryActionResolution | null {
+}) {
   const entry = matchingSessionSummaryAction(input)
   if (!entry || !input.row.action) return null
   if (input.row.action.family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS) {
-    return { kind: 'surface', entry }
+    return { kind: 'surface', entry } satisfies SessionSummaryActionResolution
   }
   if (
     !isInvokableExtensionContributionCommand(
@@ -133,20 +133,22 @@ export function resolveSessionSummaryAction(input: {
         entry.capability && entry.method
           ? 'This extension command is disabled for the current project.'
           : 'This extension command has no executable capability binding.',
-    }
+    } satisfies SessionSummaryActionResolution
   }
   const scope = resolveExtensionCommandInvocationScope({
     entry,
     projectPath: input.projectPath,
     sessionId: input.sessionId,
   })
-  return scope
-    ? { kind: 'command', entry, scope }
-    : {
-        kind: 'disabled-command',
-        entry,
-        disabledReason: 'This extension command is unavailable in the current Session.',
-      }
+  return (
+    scope
+      ? { kind: 'command', entry, scope }
+      : {
+          kind: 'disabled-command',
+          entry,
+          disabledReason: 'This extension command is unavailable in the current Session.',
+        }
+  ) satisfies SessionSummaryActionResolution | null
 }
 
 async function activateExtensionResourceRow(input: {

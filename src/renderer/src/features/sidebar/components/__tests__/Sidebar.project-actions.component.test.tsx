@@ -55,12 +55,12 @@ vi.mock('@/shared/lib/ipc', async () => ({
 const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')
 const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
-function makeSession(): SessionSummary {
+function makeSession() {
   const title = 'Existing project session'
   return { id: SESSION_ID, title, projectPath: PROJECT_PATH, createdAt: 10, updatedAt: 20 }
 }
 
-function makeArchivedSession(): SessionSummary {
+function makeArchivedSession() {
   return { ...makeSession(), id: ARCHIVED_SESSION_ID, archived: true }
 }
 

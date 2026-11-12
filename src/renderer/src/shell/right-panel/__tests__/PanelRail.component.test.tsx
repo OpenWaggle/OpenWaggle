@@ -9,7 +9,7 @@ function entry(
   id: RightPanelSurfaceId,
   icon: typeof LayoutGrid,
   overrides: Partial<RightPanelSurfaceEntry> = {},
-): RightPanelSurfaceEntry {
+) {
   return {
     id,
     title: id,
@@ -25,10 +25,10 @@ function entry(
     running: false,
     attention: false,
     ...overrides,
-  }
+  } satisfies RightPanelSurfaceEntry
 }
 
-function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
+function model(overrides: Partial<RightPanelModel> = {}) {
   const allPanels = entry('all-panels', LayoutGrid, { title: 'All panels', group: null })
   const changes = entry('changes', GitCompare, { title: 'Changes', shortcutLabel: '⌘D' })
   const actions = entry('project-actions', Play, { title: 'Project Actions', running: true })
@@ -36,7 +36,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     title: 'Browser',
     disabledReason: 'Open a project first',
   })
-  return {
+  const result: RightPanelModel = {
     ownerKey: 'session-1',
     sessionKey: 'session-1',
     projectPath: '/repo',
@@ -50,6 +50,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     extensionRegistrySettled: true,
     ...overrides,
   }
+  return result
 }
 
 function renderRail(input: Partial<RightPanelModel> = {}) {

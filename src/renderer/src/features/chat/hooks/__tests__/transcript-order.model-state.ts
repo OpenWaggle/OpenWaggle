@@ -25,8 +25,8 @@ export interface ModelAction {
   readonly run: (harness: TranscriptOrderHarness, state: ModelState) => unknown
 }
 
-export function initialModelState(viewing: ModelState['viewing']): ModelState {
-  return {
+export function initialModelState(viewing: ModelState['viewing']) {
+  const state: ModelState = {
     running: false,
     settling: false,
     viewing,
@@ -38,6 +38,7 @@ export function initialModelState(viewing: ModelState['viewing']): ModelState {
     texts: 0,
     promotions: [],
   }
+  return state
 }
 
 export function awaitingPromotion(state: ModelState) {

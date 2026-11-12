@@ -20,7 +20,7 @@ interface RecorderFixture {
   readonly trackStop: ReturnType<typeof vi.fn>
 }
 
-function makeRecorder(): RecorderFixture {
+function makeRecorder() {
   const eventTarget = new EventTarget()
   let state: RecordingState = 'inactive'
   let activatesOnStart = true
@@ -69,7 +69,7 @@ function makeRecorder(): RecorderFixture {
     start,
     stop,
     trackStop,
-  }
+  } satisfies RecorderFixture
 }
 
 function makeFixture(

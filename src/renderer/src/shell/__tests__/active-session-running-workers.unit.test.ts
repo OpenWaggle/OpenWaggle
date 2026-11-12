@@ -3,7 +3,7 @@ import type { SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { activeSessionRunningWorkerCount } from '../active-session-running-workers'
 
-function queen(runningWorkerCount: number): SessionSummary {
+function queen(runningWorkerCount: number) {
   return {
     id: SessionId('queen'),
     title: 'Queen',
@@ -16,7 +16,7 @@ function queen(runningWorkerCount: number): SessionSummary {
       activeDirectWorkerCount: 2,
       runningWorkerCount,
     },
-  }
+  } satisfies SessionSummary
 }
 
 describe('activeSessionRunningWorkerCount (ADR 0065)', () => {

@@ -8,7 +8,7 @@ export function isRenderableTextPart(
   return part.type === 'text' && part.content.trim().length > 0
 }
 
-export function getLastRenderableTextPartIndex(parts: UIMessage['parts']): number {
+export function getLastRenderableTextPartIndex(parts: UIMessage['parts']) {
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const part = parts[index]
     if (part !== undefined && isRenderableTextPart(part)) {
@@ -18,7 +18,7 @@ export function getLastRenderableTextPartIndex(parts: UIMessage['parts']): numbe
   return -1
 }
 
-export function countToolCallParts(parts: UIMessage['parts']): number {
+export function countToolCallParts(parts: UIMessage['parts']) {
   let toolCallCount = 0
   for (const part of parts) {
     if (part.type === 'tool-call') {
@@ -28,9 +28,6 @@ export function countToolCallParts(parts: UIMessage['parts']): number {
   return toolCallCount
 }
 
-export function hasRenderableTextPartBeforeIndex(
-  parts: UIMessage['parts'],
-  index: number,
-): boolean {
+export function hasRenderableTextPartBeforeIndex(parts: UIMessage['parts'], index: number) {
   return parts.slice(0, Math.max(0, index)).some(isRenderableTextPart)
 }

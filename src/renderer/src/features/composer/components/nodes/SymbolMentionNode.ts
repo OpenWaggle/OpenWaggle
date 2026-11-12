@@ -1,7 +1,6 @@
 import {
   $applyNodeReplacement,
   DecoratorNode,
-  type DOMExportOutput,
   type EditorConfig,
   type NodeKey,
   type SerializedLexicalNode,
@@ -48,7 +47,7 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
     return false
   }
 
-  override exportDOM(): DOMExportOutput {
+  override exportDOM() {
     const element = document.createElement('span')
     element.textContent = `@#${this.__symbolName}`
     return { element }
@@ -85,18 +84,15 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
     return true
   }
 
-  override decorate(): ReactNode {
-    return createElement(SymbolMentionChip, {
+  override decorate() {
+    const node: ReactNode = createElement(SymbolMentionChip, {
       symbolName: this.__symbolName,
       kind: this.__kind,
     })
+    return node
   }
 }
 
-export function $createSymbolMentionNode(
-  symbolName: string,
-  filePath: string,
-  kind: SymbolKind,
-): SymbolMentionNode {
+export function $createSymbolMentionNode(symbolName: string, filePath: string, kind: SymbolKind) {
   return $applyNodeReplacement(new SymbolMentionNode(symbolName, filePath, kind))
 }

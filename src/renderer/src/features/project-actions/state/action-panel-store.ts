@@ -67,7 +67,7 @@ interface ActionPanelState {
   discardDraft: (projectPath: string) => void
 }
 
-function sanitizeDrafts(value: unknown): Record<string, ActionPanelDraft> {
+function sanitizeDrafts(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const drafts: Record<string, ActionPanelDraft> = {}
   for (const [projectPath, candidate] of Object.entries(value)) {

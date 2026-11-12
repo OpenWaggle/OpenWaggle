@@ -44,7 +44,7 @@ export function chatRowKey(row: ChatRow) {
  * custom events in the same millisecond, say) would make the second unreachable. Repeats are
  * suffixed by occurrence, which is stable because rows only append or fold in place.
  */
-export function chatRowKeys(rows: readonly ChatRow[]): string[] {
+export function chatRowKeys(rows: readonly ChatRow[]) {
   const seen = new Map<string, number>()
   return rows.map((row) => {
     const key = chatRowKey(row)

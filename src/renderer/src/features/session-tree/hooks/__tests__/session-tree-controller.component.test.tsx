@@ -43,8 +43,8 @@ const SESSION_MODEL = SupportedModelId('anthropic/claude-opus-4')
 const ROOT_NODE = node({ id: 'root', depth: 0, order: 1 })
 const CHILD_NODE = node({ id: 'child', parentId: 'root', depth: 1, order: 2 })
 
-function tree(): SessionTree {
-  return {
+function tree() {
+  const result: SessionTree = {
     session: {
       id: SESSION_ID,
       title: 'Session tree',
@@ -68,9 +68,10 @@ function tree(): SessionTree {
     branchStates: [],
     uiState: treeUiState({ expandedNodeIds: ['root'], expandedNodeIdsTouched: true }),
   }
+  return result
 }
 
-function workspace(): SessionWorkspace {
+function workspace() {
   return {
     tree: tree(),
     activeBranchId: SessionBranchId('main'),
@@ -79,7 +80,7 @@ function workspace(): SessionWorkspace {
       { node: ROOT_NODE, isActive: true },
       { node: CHILD_NODE, isActive: true },
     ],
-  }
+  } satisfies SessionWorkspace
 }
 
 function rootRow(controller: ReturnType<typeof useSessionTreePanelController>) {

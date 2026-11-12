@@ -34,15 +34,20 @@ export function sessionsToolTargetId(
   args: JsonObject,
   resultContent: unknown,
   callerSessionId: string | null,
-): string | null {
+) {
   const fields = hiveToolArgFields(args)
   const action = stringField(fields.action)
   if (action !== null && CREATING_ACTIONS.has(action)) return createdSessionId(resultContent)
   if (action === 'report') {
     const target = hiveToolTargetFields(args)
-    return target.type === 'session' ? sessionIdField(target.sessionId) : null
+    const result: string | null =
+      target.type === 'session' ? sessionIdField(target.sessionId) : null
+    return result
   }
-  if (action === 'fork') return sessionIdField(fields.sessionId) ?? callerSessionId
+  if (action === 'fork') {
+    const result: string | null = sessionIdField(fields.sessionId) ?? callerSessionId
+    return result
+  }
   return sessionIdField(fields.sessionId)
 }
 
@@ -52,11 +57,12 @@ export function findHiveSession(id: string | null, sessions: readonly HiveSessio
 }
 
 /** The Session as the Hive panel shows it. */
-export function sessionsToolTarget(session: HiveSession | null): SessionsToolTarget | null {
+export function sessionsToolTarget(session: HiveSession | null) {
   if (!session) return null
-  return {
+  const target: SessionsToolTarget | null = {
     title: session.title,
     agentName: session.lineage?.agentDefinitionName ?? null,
     isWorker: session.lineage?.role === 'worker',
   }
+  return target
 }

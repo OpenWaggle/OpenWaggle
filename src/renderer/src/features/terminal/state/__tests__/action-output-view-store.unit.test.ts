@@ -25,12 +25,7 @@ function shown() {
   return shownActionOutputView(useActionOutputViewStore.getState(), OWNER, activeTabId)
 }
 
-function run(
-  id: string,
-  status: ActionRun['status'],
-  startedAt: number,
-  actionId = 'dev',
-): Pick<ActionRun, 'id' | 'action' | 'startedAt' | 'status'> {
+function run(id: string, status: ActionRun['status'], startedAt: number, actionId = 'dev') {
   return {
     id,
     status,
@@ -44,7 +39,7 @@ function run(
       allowConcurrent: false,
       autoOpenPreview: false,
     },
-  }
+  } satisfies Pick<ActionRun, 'id' | 'action' | 'startedAt' | 'status'>
 }
 
 function open(runId: string, actionId = 'dev') {

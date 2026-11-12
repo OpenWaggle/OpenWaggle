@@ -204,13 +204,13 @@ function highlightSyntax(
 function mountContext(input: {
   readonly config: ExtensionFrameConfig
   readonly root: HTMLElement
-}): OpenWaggleExtensionMountContext {
+}) {
   return {
     ...input.config.context,
     root: input.root,
     sdk: createFrameExtensionSdk({ invokeBroker: invoke, highlightSyntax, post }),
     modules: createOpenWaggleExtensionSharedModules(input.config.context.theme),
-  }
+  } satisfies OpenWaggleExtensionMountContext
 }
 
 function applyExtensionTheme(config: ExtensionFrameConfig) {

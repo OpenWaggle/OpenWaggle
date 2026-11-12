@@ -19,7 +19,7 @@ function applyCompactionStart(
   status: AgentCompactionStatus | null,
   event: CompactionStartEvent,
   messages: readonly UIMessage[],
-): AgentCompactionStatus {
+) {
   const summaryCountAtStart = durableSummaryCount(messages)
   const priorTimeline = getTimelineCompactionStatus(status)?.timeline ?? []
   const expectedSummaryCount = Math.max(
@@ -41,7 +41,7 @@ function applyCompactionStart(
         messageCountAtStart: messages.length,
       },
     ],
-  }
+  } satisfies AgentCompactionStatus
 }
 
 function completedTimeline(input: {
@@ -50,7 +50,7 @@ function completedTimeline(input: {
   readonly messages: readonly UIMessage[]
   readonly summaryCountAtStart: number
   readonly expectedSummaryCount: number
-}): readonly AgentCompactionTimelineItem[] {
+}) {
   const timelineStatus = getTimelineCompactionStatus(input.status)
   const latestIsRunning = timelineStatus?.timeline.at(-1)?.phase === 'running'
   const expectedSummaryId = compactionResultEntryId(input.event.result)
@@ -63,7 +63,7 @@ function completedTimeline(input: {
             ...(expectedSummaryId ? { expectedSummaryId } : {}),
           }
         : item,
-    )
+    ) satisfies readonly AgentCompactionTimelineItem[]
   }
   return [
     ...(timelineStatus?.timeline ?? []),
@@ -76,15 +76,17 @@ function completedTimeline(input: {
       ...(expectedSummaryId ? { expectedSummaryId } : {}),
       messageCountAtStart: input.messages.length,
     },
-  ]
+  ] satisfies readonly AgentCompactionTimelineItem[]
 }
 
 function applyCompactionEnd(
   status: AgentCompactionStatus | null,
   event: CompactionEndEvent,
   messages: readonly UIMessage[],
-): AgentCompactionStatus | null {
-  if (event.aborted || event.errorMessage) return withoutLatestRunningCompaction(status)
+) {
+  if (event.aborted || event.errorMessage) {
+    return withoutLatestRunningCompaction(status) satisfies AgentCompactionStatus | null
+  }
   const timelineStatus = getTimelineCompactionStatus(status)
   const latestIsRunning = timelineStatus?.timeline.at(-1)?.phase === 'running'
   const summaryCountAtStart = latestIsRunning
@@ -105,16 +107,16 @@ function applyCompactionEnd(
       summaryCountAtStart,
       expectedSummaryCount,
     }),
-  }
+  } satisfies AgentCompactionStatus
 }
 
 export function applyCompactionSnapshotEvent(
   status: AgentCompactionStatus | null,
   event: AgentTransportEvent,
   messages: readonly UIMessage[],
-): AgentCompactionStatus | null {
+) {
   if (event.type === 'compaction_start') {
-    return applyCompactionStart(status, event, messages)
+    return applyCompactionStart(status, event, messages) satisfies AgentCompactionStatus | null
   }
   if (event.type === 'auto_retry_start') {
     return {
@@ -124,15 +126,17 @@ export function applyCompactionSnapshotEvent(
       delayMs: event.delayMs,
       errorMessage: event.errorMessage,
       previousCompactionStatus: getTimelineCompactionStatus(status),
-    }
+    } satisfies AgentCompactionStatus
   }
   // Pi reports a retry's success only when the retried response ends; its start ends the wait.
   if (
     event.type === 'auto_retry_end' ||
     (event.type === 'message_start' && event.role === 'assistant')
   ) {
-    return status?.type === 'retrying' ? status.previousCompactionStatus : status
+    return (
+      status?.type === 'retrying' ? status.previousCompactionStatus : status
+    ) satisfies AgentCompactionStatus | null
   }
   if (event.type !== 'compaction_end') return status
-  return applyCompactionEnd(status, event, messages)
+  return applyCompactionEnd(status, event, messages) satisfies AgentCompactionStatus | null
 }

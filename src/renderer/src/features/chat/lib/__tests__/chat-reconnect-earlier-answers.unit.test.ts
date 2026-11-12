@@ -5,14 +5,14 @@ import { describe, expect, it } from 'vitest'
 import { placeReconnectedRunMessages } from '../chat-stream-user-messages'
 import { earlierAnswersOf, partialAssistantOf } from '../reconnect-buffer-anchors'
 
-function user(messageId: string, order: number, after?: string): BackgroundRunUserMessage {
+function user(messageId: string, order: number, after?: string) {
   return {
     messageId,
     parts: [{ type: 'text', text: messageId }],
     sessionNodeCreatedOrder: order,
     timestamp: order * 10,
     ...(after ? { afterAssistantMessageId: after } : {}),
-  }
+  } satisfies BackgroundRunUserMessage
 }
 
 function answer(messageId: string, timestamp: number) {

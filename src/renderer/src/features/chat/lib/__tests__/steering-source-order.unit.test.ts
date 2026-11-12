@@ -6,14 +6,14 @@ import { sessionToUIMessages } from '../chat-message-conversion'
 import { reconcileSnapshotUserMessages } from '../chat-message-reconciliation'
 import { mergeBackgroundReconnectMessages } from '../chat-reconnect-merge'
 
-function userMessage(id: string, order?: number): UIMessage {
+function userMessage(id: string, order?: number) {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content: 'continue' }],
     createdAt: new Date(1),
     ...(order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: order } }),
-  }
+  } satisfies UIMessage
 }
 
 describe('steering source order across renderer snapshots', () => {

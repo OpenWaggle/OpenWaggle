@@ -21,13 +21,14 @@ const logger = createRendererLogger('diff-panel-diffs')
 const DIFF_TRANSPORT_FAILURE_MESSAGE = 'The diff could not be loaded from the main process.'
 
 /** Carry main's report of what Automatic resolved to, so the UI can show it. */
-function loadSuccessAction(result: GitDiffSuccess): DiffPanelAction {
-  return {
+function loadSuccessAction(result: GitDiffSuccess) {
+  const action: DiffPanelAction = {
     type: 'load-success',
     fileDiffs: result.files,
     resolvedBaseRef: result.resolvedBaseRef ?? null,
     automaticFellBackToWorkingTree: result.automaticFellBackToWorkingTree === true,
   }
+  return action
 }
 
 type DiffPanelAction =

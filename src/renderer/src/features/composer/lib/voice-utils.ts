@@ -8,12 +8,6 @@ const PCM16_POSITIVE_SCALE = 32767
 
 export const WHISPER_TARGET_SAMPLE_RATE = 16_000
 
-interface DecodedAudioBuffer {
-  durationSeconds: number
-  sampleRate: number
-  samples: Float32Array
-}
-
 function toMono(buffer: AudioBuffer) {
   if (buffer.numberOfChannels === 1) return new Float32Array(buffer.getChannelData(0))
   const mono = new Float32Array(buffer.length)
@@ -26,11 +20,7 @@ function toMono(buffer: AudioBuffer) {
   return mono
 }
 
-export function downsampleAudio(
-  samples: Float32Array,
-  sourceRate: number,
-  targetRate: number,
-): Float32Array {
+export function downsampleAudio(samples: Float32Array, sourceRate: number, targetRate: number) {
   if (sourceRate === targetRate) return new Float32Array(samples)
   const ratio = sourceRate / targetRate
   const length = Math.max(1, Math.round(samples.length / ratio))
@@ -45,7 +35,7 @@ export function downsampleAudio(
   return downsampled
 }
 
-export async function decodeAudioBlob(blob: Blob): Promise<DecodedAudioBuffer> {
+export async function decodeAudioBlob(blob: Blob) {
   const audioContext = new AudioContext()
   try {
     const decoded = await audioContext.decodeAudioData(await blob.arrayBuffer())
@@ -64,7 +54,7 @@ export function trimSilence(
   sampleRate: number,
   threshold = DEFAULT_SILENCE_THRESHOLD,
   paddingMs = DEFAULT_SILENCE_PADDING_MS,
-): Float32Array {
+) {
   if (samples.length === 0) return samples
   let startIndex = 0
   while (startIndex < samples.length && Math.abs(samples[startIndex] ?? 0) < threshold) {
@@ -80,7 +70,7 @@ export function trimSilence(
   )
 }
 
-export function toPcm16(samples: Float32Array): Uint8Array {
+export function toPcm16(samples: Float32Array) {
   const bytes = new Uint8Array(samples.length * DOUBLE_FACTOR)
   const view = new DataView(bytes.buffer)
   for (const [index, value] of samples.entries()) {

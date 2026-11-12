@@ -133,7 +133,7 @@ function builtInDisabledReason(
 }
 
 /** The Right panel's surfaces, rail and current state for the active chat context (ADR 0043). */
-export function useRightPanelModel(enabled = true): RightPanelModel {
+export function useRightPanelModel(enabled = true) {
   const { activeSession, activeSessionId: chatActiveSessionId, sessions: chatSessions } = useChat()
   const { projectPath } = useProject()
   const { activeSessionTree } = useSessions()
@@ -234,7 +234,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const order = visibleRailOrder(railOrder, knownRailIds, hidden)
   const railSurfaces = order.flatMap((id) => surfaces.find((surface) => surface.id === id) ?? [])
 
-  return {
+  const model: RightPanelModel = {
     ownerKey: owner.ownerKey,
     sessionKey: owner.ownerKey.length > 0 ? owner.ownerKey : null,
     projectPath: projectPath ?? null,
@@ -247,4 +247,5 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     extensionRegistryLoaded: sidePanels.registry !== null,
     extensionRegistrySettled: sidePanels.registry !== null || !sidePanels.loading,
   }
+  return model
 }

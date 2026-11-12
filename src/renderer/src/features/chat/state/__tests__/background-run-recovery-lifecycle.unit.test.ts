@@ -11,7 +11,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listActiveRuns: vi.fn(async () => []),
     getBackgroundRun: vi.fn(async () => null),
-    getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+    getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(async () => null),
   },
 }))
 
@@ -32,8 +32,8 @@ function resetStore() {
 function sessionDetail(
   messages: SessionDetail['messages'] = [],
   environmentMode: SessionDetail['environmentMode'] = 'worktree',
-): SessionDetail {
-  return {
+) {
+  const detail: SessionDetail = {
     id: SESSION_ID,
     title: 'Session A',
     projectPath: '/repo',
@@ -43,6 +43,7 @@ function sessionDetail(
     environmentMode,
     worktreePath: '/repo-worktree',
   }
+  return detail
 }
 
 function deliveredSession() {

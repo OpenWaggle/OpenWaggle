@@ -3,8 +3,8 @@ import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { toSummary } from '../chat-store-helpers'
 
-function detail(extra: Partial<SessionDetail>): SessionDetail {
-  return {
+function detail(extra: Partial<SessionDetail>) {
+  const result: SessionDetail = {
     id: SessionId('session-1'),
     title: 'Long Session',
     projectPath: null,
@@ -13,6 +13,7 @@ function detail(extra: Partial<SessionDetail>): SessionDetail {
     updatedAt: 2,
     ...extra,
   }
+  return result
 }
 
 describe('toSummary', () => {

@@ -73,8 +73,8 @@ function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
   })
 }
 
-function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
-  return {
+function toTurnFoldInput(params: BuildChatRowsParams) {
+  const input: TurnFoldInput = {
     isLoading: params.isLoading,
     // A reset phase timer (0 on session load) is "unknown", not a zero-second run.
     settledRunDurationMs:
@@ -83,6 +83,7 @@ function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
     interrupted: !params.isLoading && params.interruptedRun !== undefined,
     expandedTurnKeys: params.expandedTurnKeys ?? new Set(),
   }
+  return input
 }
 
 function placeCards(params: BuildChatRowsParams) {
@@ -96,7 +97,7 @@ function placeCards(params: BuildChatRowsParams) {
   })
 }
 
-export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
+export function buildChatRows(params: BuildChatRowsParams) {
   const rows: ChatRow[] = []
   const compactionRows = createCompactionStatusRows(
     params.compactionStatus,

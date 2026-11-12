@@ -12,7 +12,7 @@ const logger = createRendererLogger('queued-run-start-reconcile')
  * and a lost event must never leave the Session's pickers locked. Call after the resync
  * invalidated the queue queries, so each read is fresh.
  */
-export async function reconcileQueuedRunStarts(queryClient: QueryClient): Promise<void> {
+export async function reconcileQueuedRunStarts(queryClient: QueryClient) {
   const marks = [...useQueuedRunStartStore.getState().runIdBySessionId]
   await Promise.all(
     marks.map(async ([sessionId, runId]) => {

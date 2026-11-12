@@ -1,9 +1,5 @@
 import { RepositoryPath } from '@shared/types/brand'
-import type {
-  WorktreeInventory,
-  WorktreeInventoryEntry,
-  WorktreeReclaimableSpace,
-} from '@shared/types/worktree-inventory'
+import type { WorktreeInventoryEntry } from '@shared/types/worktree-inventory'
 import { queryOptions, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 
@@ -38,7 +34,7 @@ export function useAutomaticWorktreeRemovalLog() {
  */
 let measurementQueue: Promise<unknown> = Promise.resolve()
 
-function measureInTurn(projectPath: string, path: string): Promise<WorktreeReclaimableSpace> {
+function measureInTurn(projectPath: string, path: string) {
   const task = () => api.measureWorktree(RepositoryPath(projectPath), path)
   const turn = measurementQueue.then(task, task)
   measurementQueue = turn.catch(() => undefined)
@@ -60,7 +56,7 @@ function spaceQueryOptions(entry: MeasuredWorktree) {
 /** Reclaimable space by worktree path: a number, `undefined` while measuring, null on failure. */
 export type WorktreeSpaceByPath = ReadonlyMap<string, number | null | undefined>
 
-export function useWorktreeSpace(entries: readonly WorktreeInventoryEntry[]): WorktreeSpaceByPath {
+export function useWorktreeSpace(entries: readonly WorktreeInventoryEntry[]) {
   return useQueries({
     queries: entries.map(spaceQueryOptions),
     combine: (results) =>
@@ -80,9 +76,7 @@ export function useWorktreeInventory() {
 /** Reads the list and the removal record again after something changed them. */
 export function useRefreshWorktreeInventory() {
   const queryClient = useQueryClient()
-  return async (
-    removed: readonly MeasuredWorktree[] = [],
-  ): Promise<WorktreeInventory | undefined> => {
+  return async (removed: readonly MeasuredWorktree[] = []) => {
     for (const worktree of removed) queryClient.removeQueries(spaceQueryOptions(worktree))
     await queryClient.invalidateQueries(automaticWorktreeRemovalLogQueryOptions())
     await queryClient.invalidateQueries(worktreeInventoryQueryOptions())

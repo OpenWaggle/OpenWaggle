@@ -18,27 +18,27 @@ function runningWorkersDescription(session: SessionSummary) {
   return count === 0 ? '' : ` · ${runningWorkersLabel(count)}`
 }
 
-export function sessionLineagePresentation(
-  session: SessionSummary,
-): SessionLineagePresentation | null {
+export function sessionLineagePresentation(session: SessionSummary) {
   const lineage = session.lineage
   if (lineage?.role === 'queen') {
     const agent = lineage.agentDefinitionName ? ` · Agent: ${lineage.agentDefinitionName}` : ''
-    return {
+    const presentation: SessionLineagePresentation | null = {
       role: lineage.role,
       title: `Queen Session${agent}${directWorkerDescription(lineage.directWorkerCount)}${runningWorkersDescription(session)}`,
       workerCount: lineage.directWorkerCount,
     }
+    return presentation
   }
   if (lineage?.role === 'worker') {
     // The parent in the words every Hive surface uses (#377).
     const parent = lineage.parentTitle ? ` · Spawned by ${lineage.parentTitle}` : ''
     const agent = lineage.agentDefinitionName ? ` · Agent: ${lineage.agentDefinitionName}` : ''
-    return {
+    const presentation: SessionLineagePresentation | null = {
       role: lineage.role,
       title: `Worker Session${parent}${agent}${directWorkerDescription(lineage.directWorkerCount)}${runningWorkersDescription(session)}`,
       workerCount: lineage.directWorkerCount,
     }
+    return presentation
   }
   return null
 }

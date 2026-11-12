@@ -25,8 +25,11 @@ export interface TranscriptViewportElements {
   readonly endSpace: () => HTMLElement | null
 }
 
-function rowElements(content: HTMLElement | null): ArrayLike<HTMLElement> {
-  return content ? content.querySelectorAll<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}]`) : []
+function rowElements(content: HTMLElement | null) {
+  const like: ArrayLike<HTMLElement> = content
+    ? content.querySelectorAll<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}]`)
+    : []
+  return like
 }
 
 /**
@@ -133,7 +136,7 @@ export function createRowElementLookup(
 }
 
 /** The browser-backed geometry the viewport controller reads and writes. */
-export function createDomViewportGeometry(elements: TranscriptViewportElements): ViewportGeometry {
+export function createDomViewportGeometry(elements: TranscriptViewportElements) {
   const rowLookup = createRowElementLookup()
   const rowElement = (content: HTMLElement | null, key: string) => rowLookup.find(content, key)
   function viewportTop() {
@@ -172,5 +175,5 @@ export function createDomViewportGeometry(elements: TranscriptViewportElements):
       const key = row?.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
       return row && key ? { key, top: row.getBoundingClientRect().top - top } : null
     },
-  }
+  } satisfies ViewportGeometry
 }

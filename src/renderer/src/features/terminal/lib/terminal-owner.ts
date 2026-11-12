@@ -24,8 +24,8 @@ const SIDE_PANEL_LAYOUT_PREFIX = 'side-panel:'
  * Runtime ownership stays on the underlying Session/draft owner so migration,
  * cleanup, history, and remote transport boundaries remain atomic.
  */
-export function terminalSidePanelLayoutKey(ownerKey: TerminalOwnerKey): TerminalOwnerKey {
-  return ownerKey.length === 0 ? '' : `${SIDE_PANEL_LAYOUT_PREFIX}${ownerKey}`
+export function terminalSidePanelLayoutKey(ownerKey: TerminalOwnerKey) {
+  return ownerKey.length === 0 ? ('' as const) : `${SIDE_PANEL_LAYOUT_PREFIX}${ownerKey}`
 }
 
 export function terminalOwnerContext(
@@ -34,7 +34,7 @@ export function terminalOwnerContext(
     'id' | 'environmentMode' | 'worktreePath' | 'projectPath'
   > | null,
   projectPath: string | null,
-): TerminalOwnerContext {
+) {
   if (activeSession !== null) {
     const openedCheckout = activeSession.projectPath ?? projectPath
     const workingPath = resolveSessionWorkingDir(activeSession, openedCheckout)
@@ -43,16 +43,20 @@ export function terminalOwnerContext(
       defaultCwd: workingPath,
       defaultProvenance:
         activeSession.environmentMode === 'worktree' ? 'session-worktree' : 'opened-checkout',
-    }
+    } satisfies TerminalOwnerContext
   }
   if (projectPath === null) {
-    return { ownerKey: '', defaultCwd: null, defaultProvenance: 'draft-checkout' }
+    return {
+      ownerKey: '',
+      defaultCwd: null,
+      defaultProvenance: 'draft-checkout',
+    } satisfies TerminalOwnerContext
   }
   return {
     ownerKey: `${DRAFT_OWNER_PREFIX}${projectPath}`,
     defaultCwd: projectPath,
     defaultProvenance: 'draft-checkout',
-  }
+  } satisfies TerminalOwnerContext
 }
 
 /** Stable transient key for runtime chips (activity, ports, exits). */

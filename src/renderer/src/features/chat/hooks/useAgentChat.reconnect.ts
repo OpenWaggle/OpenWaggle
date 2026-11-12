@@ -210,7 +210,7 @@ async function readAroundDetail(sessionId: SessionId, shownMessages: () => reado
 async function reconnectToBackgroundRun(
   { sessionId, session, optimisticUserMessages }: SessionHydrationInput,
   shownMessages: () => readonly UIMessage[],
-): Promise<ReconnectedRun> {
+) {
   const { fetchedSession, snapshot, sameRunBuffered, streamingBaseline, settledBuffer } =
     await readAroundDetail(sessionId, shownMessages)
   const latestSession = fetchedSession ?? session
@@ -251,11 +251,11 @@ function bufferOnly(
   sessionId: SessionId,
   snapshot: BackgroundRunSnapshot | null,
   shownMessages: () => readonly UIMessage[],
-): ReconnectedRun | null {
+) {
   if (!snapshot) return null
   noteRetainedUserMessages(sessionId, snapshot)
   const streamingBaseline = streamingBaselineOf(snapshot, shownMessages)
-  return {
+  const run: ReconnectedRun = {
     messages: placeReconnectedRunMessages(
       [],
       snapshot,
@@ -267,6 +267,7 @@ function bufferOnly(
     snapshot,
     ...(streamingBaseline ? { streamingBaseline } : {}),
   }
+  return run
 }
 
 /**

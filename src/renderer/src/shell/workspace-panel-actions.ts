@@ -53,7 +53,7 @@ export function openWorkspacePreviewWithResult(
   return { previewId, evictedPreviewId }
 }
 
-export function openWorkspacePreview(ownerKey: string, rawUrl: string): void {
+export function openWorkspacePreview(ownerKey: string, rawUrl: string) {
   openWorkspacePreviewWithResult(ownerKey, rawUrl)
 }
 
@@ -114,7 +114,7 @@ function rightPanelIsSheet() {
 }
 
 /** Why the Right panel cannot be maximized right now, or null when it can. */
-export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | null {
+export function rightPanelMaximizeUnavailableReason(ownerKey: string) {
   if (ownerKey.length === 0) return OPEN_A_PANEL_FIRST
   const claim = useRightSidebarCoordinator.getState().activeClaim
   if (claim?.kind === 'action-panel') return GUIDED_PANEL_KEEPS_WIDTH

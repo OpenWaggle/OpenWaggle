@@ -3,11 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { SessionFollowUpQueueItem } from '@/features/chat/hooks'
 import { sendAsMeStartsNow } from '../send-as-me'
 
-function item(
-  id: string,
-  deliveryState: SessionFollowUpQueueItem['deliveryState'],
-): SessionFollowUpQueueItem {
-  return {
+function item(id: string, deliveryState: SessionFollowUpQueueItem['deliveryState']) {
+  const result: SessionFollowUpQueueItem = {
     id,
     text: id,
     attachmentCount: 0,
@@ -16,6 +13,7 @@ function item(
     attachments: [],
     editable: false,
   }
+  return result
 }
 
 function startsNow(input: {

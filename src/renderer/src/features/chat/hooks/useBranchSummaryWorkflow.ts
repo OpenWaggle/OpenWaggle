@@ -19,7 +19,7 @@ import { type BranchSummaryPromptState, useBranchSummaryStore } from '../state/b
 
 type Navigate = ReturnType<typeof useNavigate>
 
-interface BranchSummaryWorkflowParams {
+export interface BranchSummaryWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
   readonly model: SupportedModelId | undefined

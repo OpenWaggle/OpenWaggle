@@ -8,10 +8,7 @@ const logger = createRendererLogger('diff-panel-turns')
 const EMPTY_TURNS: readonly TurnCheckpointSummary[] = []
 
 /** List the session's Turn checkpoints (WS6b/WS7), oldest first (ascending turn index). */
-export function useSessionTurns(
-  sessionId: SessionId | null,
-  refreshToken = 0,
-): readonly TurnCheckpointSummary[] {
+export function useSessionTurns(sessionId: SessionId | null, refreshToken = 0) {
   // Kept with its session: a refresh keeps the list on screen, another session never shows it.
   const [loaded, setLoaded] = useState<{
     readonly sessionId: SessionId

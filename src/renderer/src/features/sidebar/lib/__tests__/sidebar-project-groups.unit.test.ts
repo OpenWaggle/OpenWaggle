@@ -15,7 +15,7 @@ function makeSession(
   projectPath: string | null,
   updatedAt: number,
   createdAt = CREATED_AT,
-): SessionSummary {
+) {
   return {
     id: SessionId(id),
     title,
@@ -27,7 +27,7 @@ function makeSession(
   }
 }
 
-function makeWorker(id: string, updatedAt: number): SessionSummary {
+function makeWorker(id: string, updatedAt: number) {
   return {
     ...makeSession(id, `Worker ${id}`, '/repo/current', updatedAt),
     lineage: {
@@ -37,7 +37,7 @@ function makeWorker(id: string, updatedAt: number): SessionSummary {
       directWorkerCount: 0,
       activeDirectWorkerCount: 0,
     },
-  }
+  } satisfies SessionSummary
 }
 
 describe('buildSidebarProjectGroups Worker exclusion (ADR 0051)', () => {

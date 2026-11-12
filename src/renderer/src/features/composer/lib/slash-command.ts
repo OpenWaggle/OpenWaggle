@@ -7,10 +7,7 @@ export interface SlashCommandMatch {
 const SLASH_QUERY_PATTERN = /(?:^|\s)\/([a-z0-9._-]*)$/i
 const SLASH_QUERY_CHARACTER_PATTERN = /^[a-z0-9._-]/i
 
-export function findSlashCommandMatch(
-  text: string,
-  cursorOffset: number,
-): SlashCommandMatch | null {
+export function findSlashCommandMatch(text: string, cursorOffset: number) {
   const safeCursorOffset = Math.max(0, Math.min(cursorOffset, text.length))
   const beforeCursor = text.slice(0, safeCursorOffset)
   const match = SLASH_QUERY_PATTERN.exec(beforeCursor)
@@ -35,17 +32,12 @@ export function findSlashCommandMatch(
   }
 }
 
-interface SlashCommandReplacement {
-  readonly text: string
-  readonly cursorOffset: number
-}
-
 export function replaceSlashCommandMatch(
   text: string,
   match: SlashCommandMatch,
   replacement: string,
   ensureTrailingSpace: boolean,
-): SlashCommandReplacement {
+) {
   const before = text.slice(0, match.startOffset)
   let after = text.slice(match.endOffset)
 

@@ -36,7 +36,7 @@ interface ChatRowRendererProps {
   onToggleTurnFold?: (turnKey: string) => void
 }
 
-function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
+function fallbackContext(props: ChatRowRendererProps) {
   const extensions = {
     registry: props.extensionRegistry ?? null,
     projectPaths: props.extensionProjectPaths ?? [],

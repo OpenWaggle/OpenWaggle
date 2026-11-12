@@ -28,7 +28,7 @@ export function actionOutputViewTitle(view: Pick<ActionOutputView, 'label'>) {
   return `${view.label} · action output`
 }
 
-export function withFollowedRun(runIds: readonly string[], runId: string): readonly string[] {
+export function withFollowedRun(runIds: readonly string[], runId: string) {
   if (runIds.includes(runId)) return runIds
   return [...runIds, runId].slice(-MAX_FOLLOWED_ACTION_RUNS)
 }
@@ -41,7 +41,7 @@ export function withFollowedRun(runIds: readonly string[], runId: string): reado
 export function followReplacementRuns(
   view: Pick<ActionOutputView, 'actionId' | 'runIds'>,
   runs: readonly ActionOutputRunSummary[],
-): readonly string[] {
+) {
   let runIds = view.runIds
   let current = runs.find((run) => run.id === runIds.at(-1))
   while (current !== undefined && !isActiveActionRun(current)) {

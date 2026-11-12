@@ -12,8 +12,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 const SESSION = SessionId('session-a')
 const WORKING = WorkingPath('/repo')
 
-function turnScope(turnId: string): DiffScopeSelection {
-  return { kind: 'turn', turnId, filePath: null, revealRequestId: 0 }
+function turnScope(turnId: string) {
+  return { kind: 'turn', turnId, filePath: null, revealRequestId: 0 } satisfies DiffScopeSelection
 }
 
 function turnDiff(filePath: string) {

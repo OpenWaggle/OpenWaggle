@@ -18,7 +18,7 @@ function absentMember(name: string) {
  *   api: (await import('@/test-utils/preload-api')).preloadApi(apiMocks),
  * }))`
  */
-export function preloadApi<Members extends object>(members: Members): Members {
+export function preloadApi<Members extends object>(members: Members) {
   return new Proxy(members, {
     get(target, name, receiver) {
       const value: unknown = Reflect.get(target, name, receiver)

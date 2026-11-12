@@ -3,12 +3,7 @@ import { api } from '@/shared/lib/ipc'
 
 const FEEDBACK_DURATION_MS = 2000
 
-interface UseCopyToClipboardResult {
-  copied: boolean
-  copy: (text: string) => void
-}
-
-export function useCopyToClipboard(): UseCopyToClipboardResult {
+export function useCopyToClipboard() {
   const [copied, setCopied] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 

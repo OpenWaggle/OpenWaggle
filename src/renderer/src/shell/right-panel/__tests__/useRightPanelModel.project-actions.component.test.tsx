@@ -31,7 +31,7 @@ const SESSION_B = SessionId('session-b')
 const initialChat = useChatStore.getState()
 const initialPreferences = usePreferencesStore.getState()
 
-function runningRun(projectPath: string): ActionRun {
+function runningRun(projectPath: string) {
   return fromPartial<ActionRun>({ id: `run-${projectPath}`, projectPath, status: 'running' })
 }
 

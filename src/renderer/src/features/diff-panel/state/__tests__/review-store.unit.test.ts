@@ -10,7 +10,7 @@ import {
 /** Every pending review belongs to a tree and scope; these tests use one key throughout. */
 const KEY = reviewKeyFor('thread', { kind: 'unstaged' })
 
-function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCommentWithSnippet {
+function makeComment(id: string, filePath = 'src/index.ts', line = 10) {
   return {
     id,
     filePath,
@@ -19,7 +19,7 @@ function makeComment(id: string, filePath = 'src/index.ts', line = 10): ReviewCo
     content: `comment-${id}`,
     createdAt: Date.now(),
     diff: '',
-  }
+  } satisfies ReviewCommentWithSnippet
 }
 
 describe('review-store', () => {

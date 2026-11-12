@@ -3,17 +3,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { KeyEditor } from '../KeyEditor'
 
-function providerInfo(auth: ProviderInfo['auth']): ProviderInfo {
-  return {
+function providerInfo(auth: ProviderInfo['auth']) {
+  const info: ProviderInfo = {
     provider: 'openai',
     displayName: 'OpenAI',
     apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
     auth,
     models: [],
   }
+  return info
 }
 
-function apiKeyAuth(source: ProviderInfo['auth']['apiKeySource']): ProviderInfo['auth'] {
+function apiKeyAuth(source: ProviderInfo['auth']['apiKeySource']) {
   return {
     configured: source !== 'none',
     source,
@@ -22,7 +23,7 @@ function apiKeyAuth(source: ProviderInfo['auth']['apiKeySource']): ProviderInfo[
     oauthConnected: false,
     supportsApiKey: true,
     supportsOAuth: false,
-  }
+  } satisfies ProviderInfo['auth']
 }
 
 describe('KeyEditor', () => {

@@ -24,7 +24,7 @@ type LayoutActions = Pick<
   | 'setPaneLaunchEnv'
 >
 
-function createLayoutActions(set: TerminalStateSetter): LayoutActions {
+function createLayoutActions(set: TerminalStateSetter) {
   return {
     setSplitDirection: (ownerKey, tabId, direction) => {
       set((state) => ({
@@ -96,7 +96,7 @@ function createLayoutActions(set: TerminalStateSetter): LayoutActions {
         })),
       }))
     },
-  }
+  } satisfies LayoutActions
 }
 
 type OwnerActions = Pick<
@@ -110,7 +110,7 @@ type OwnerActions = Pick<
   | 'setPanelHeight'
 >
 
-function createOwnerActions(set: TerminalStateSetter): OwnerActions {
+function createOwnerActions(set: TerminalStateSetter) {
   return {
     setPanelOpen: (ownerKey, open) => {
       if (ownerKey.length === 0) return
@@ -169,7 +169,7 @@ function createOwnerActions(set: TerminalStateSetter): OwnerActions {
         groups: withGroup(state.groups, ownerKey, (group) => ({ ...group, panelHeight })),
       }))
     },
-  }
+  } satisfies OwnerActions
 }
 
 type RuntimeActions = Pick<
@@ -177,7 +177,7 @@ type RuntimeActions = Pick<
   'applyRuntimeEvent' | 'applyRuntimeSnapshot' | 'clearExit'
 >
 
-function createRuntimeActions(set: TerminalStateSetter): RuntimeActions {
+function createRuntimeActions(set: TerminalStateSetter) {
   return {
     applyRuntimeEvent: (ownerKey, terminalId, event) => {
       const runtime = runtimeKeyOf(ownerKey, terminalId)
@@ -214,13 +214,10 @@ function createRuntimeActions(set: TerminalStateSetter): RuntimeActions {
     clearExit: (ownerKey, terminalId) => {
       set((state) => ({ exits: omitRuntimeKeys(state, ownerKey, [terminalId]).exits }))
     },
-  }
+  } satisfies RuntimeActions
 }
 
-export function createTerminalState(
-  set: TerminalStateSetter,
-  get: TerminalStateGetter,
-): TerminalState {
+export function createTerminalState(set: TerminalStateSetter, get: TerminalStateGetter) {
   return {
     groups: {},
     activity: {},

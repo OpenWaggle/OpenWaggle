@@ -90,7 +90,7 @@ interface EditToolResultDetails {
   readonly firstChangedLine: number
 }
 
-export function getEditDiff(content: unknown, name: string): EditDiffData | null {
+export function getEditDiff(content: unknown, name: string) {
   if (name !== 'edit') {
     return null
   }
@@ -102,13 +102,14 @@ export function getEditDiff(content: unknown, name: string): EditDiffData | null
     return null
   }
 
-  return {
+  const data: EditDiffData | null = {
     patch,
     text,
     ...countChangedLines(text, patch !== null),
     firstChangedLine:
       positiveLine(details.firstChangedLine) ?? (patch ? firstChangedLineInPatch(patch) : null),
   }
+  return data
 }
 
 const PI_EDIT_RESULT_OPENING = /^Successfully replaced \d+ block\(s\) in /u
@@ -122,7 +123,7 @@ const SENTENCE_BREAK = '. '
  * `text` does not start with it. Compared literally: the path is untrusted and can be
  * long enough that a pattern built from it would not compile.
  */
-function afterExactPiSentence(text: string, path: string): string | null {
+function afterExactPiSentence(text: string, path: string) {
   const opening = PI_EDIT_RESULT_OPENING.exec(text)
   if (!opening) return null
   const sentence = `${path}.`
@@ -130,7 +131,8 @@ function afterExactPiSentence(text: string, path: string): string | null {
   if (!rest.startsWith(sentence)) return null
   const tail = rest.slice(sentence.length)
   if (tail !== '' && !STARTS_WITH_WHITESPACE.test(tail)) return null
-  return tail.replace(LEADING_LINE_SPACE, '')
+  const result: string | null = tail.replace(LEADING_LINE_SPACE, '')
+  return result
 }
 
 /**
@@ -146,10 +148,7 @@ function isWholePiSentence(line: string) {
 }
 
 /** Applies `replace` to the first line, in block order, it accepts; null when none does. */
-function replaceFirstLine(
-  blocks: readonly string[],
-  replace: (line: string) => string | null,
-): string[] | null {
+function replaceFirstLine(blocks: readonly string[], replace: (line: string) => string | null) {
   for (const [blockIndex, block] of blocks.entries()) {
     const lines = block.split(LINE_SPLIT_SEPARATOR)
     const lineIndex = lines.findIndex((line) => replace(line) !== null)
@@ -157,7 +156,10 @@ function replaceFirstLine(
     const replacement = replace(lines[lineIndex] ?? '') ?? ''
     const kept = replacement.trim() === '' ? [] : [replacement]
     const updated = [...lines.slice(0, lineIndex), ...kept, ...lines.slice(lineIndex + 1)]
-    return blocks.map((text, index) => (index === blockIndex ? updated.join('\n') : text))
+    const result: string[] | null = blocks.map((text, index) =>
+      index === blockIndex ? updated.join('\n') : text,
+    )
+    return result
   }
   return null
 }
@@ -186,7 +188,7 @@ function withoutPiEditResultLine(blocks: readonly string[], path: string | null)
  * blocks and structured payloads are not output a reader needs next to the diff, so
  * this never falls back to serializing them.
  */
-export function getEditExtraOutput(content: unknown, path: string | null): string {
+export function getEditExtraOutput(content: unknown, path: string | null) {
   const parsed = parseResultPayload(content)
   const blocks = match(parsed)
     .with(P.string, (text) => [text])

@@ -7,7 +7,7 @@ import { useComposerSection } from '../useComposerSection'
 
 const SESSION_ID = SessionId('session-1')
 
-function wagglePreset(): WagglePreset {
+function wagglePreset() {
   return {
     id: WagglePresetId('review'),
     name: 'Review',
@@ -33,11 +33,11 @@ function wagglePreset(): WagglePreset {
     isBuiltIn: false,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies WagglePreset
 }
 
-function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
-  return {
+function composerSectionParams() {
+  const parameters: Parameters<typeof useComposerSection>[0] = {
     isLoading: false,
     isSteering: false,
     status: 'ready',
@@ -75,6 +75,7 @@ function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
     handleSelectProjectPath: vi.fn(),
     handleSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),
   }
+  return parameters
 }
 
 describe('useComposerSection', () => {

@@ -6,7 +6,7 @@ import { api } from '@/shared/lib/ipc'
 import { PROJECT_ACTIONS_QUERY_ROOT } from '../hooks/useNativeActions'
 
 /** Runs are polled only while one is active (B7/D9): read them after changing one. */
-async function thenReadRuns<T>(operation: Promise<T>): Promise<T> {
+async function thenReadRuns<T>(operation: Promise<T>) {
   try {
     return await operation
   } finally {

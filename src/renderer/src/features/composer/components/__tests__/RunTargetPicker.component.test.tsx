@@ -20,8 +20,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function stripState(overrides: Partial<SessionContextRowState> = {}): SessionContextRowState {
-  return {
+function stripState(overrides: Partial<SessionContextRowState> = {}) {
+  const state: SessionContextRowState = {
     visible: true,
     editable: true,
     envMode: 'worktree',
@@ -41,6 +41,7 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     checkoutChangeRequest: vi.fn(async () => true),
     ...overrides,
   }
+  return state
 }
 
 function ProjectAwareRunTargetPicker() {
