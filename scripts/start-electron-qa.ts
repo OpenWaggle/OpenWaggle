@@ -20,6 +20,7 @@ import {
   completeElectronQaShutdown,
   stopElectronQaSessionHost,
 } from './electron-qa-shutdown'
+import { electronDevInvocation } from './run-electron-dev'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
 const QA_HOST = '127.0.0.1'
@@ -125,16 +126,13 @@ export function electronEnvironment(
 }
 
 /**
- * `pnpm` arguments that start the dev app. Chromium's mock keychain (and Linux's basic password
- * store) keeps the app, and the Session Host it forwards the switches to, off the user's real
- * credential store: with the profile's HOME, macOS `safeStorage` otherwise blocks looking for a
- * login keychain there.
+ * Electron switches for the dev app. Chromium's mock keychain (and Linux's basic password store)
+ * keeps the app, and the Session Host it forwards the switches to, off the user's real credential
+ * store: with the profile's HOME, macOS `safeStorage` otherwise blocks looking for a login
+ * keychain there.
  */
 export function electronQaLaunchArguments(platform: NodeJS.Platform = process.platform) {
   return [
-    'exec',
-    'electron-vite',
-    'dev',
     '--',
     '--use-mock-keychain',
     ...(platform === 'linux' ? ['--password-store=basic'] : []),
@@ -143,16 +141,18 @@ export function electronQaLaunchArguments(platform: NodeJS.Platform = process.pl
 }
 
 function startElectron(lease: QaLease) {
-  return spawn(
-    'pnpm',
-    electronQaLaunchArguments(),
-    {
-      cwd: lease.metadata.projectPath,
-      detached: process.platform !== 'win32',
-      env: electronEnvironment(lease),
-      stdio: 'inherit',
-    },
-  )
+  // electron-vite's entry script runs with this Node: spawning `pnpm` fails on Windows, where it
+  // is a `.cmd` shim that Node does not start without a shell.
+  const invocation = electronDevInvocation('vite', electronQaLaunchArguments(), {
+    environment: electronEnvironment(lease),
+    projectRoot: lease.metadata.projectPath,
+  })
+  return spawn(invocation.command, [...invocation.args], {
+    cwd: lease.metadata.projectPath,
+    detached: process.platform !== 'win32',
+    env: invocation.environment,
+    stdio: 'inherit',
+  })
 }
 
 function delay(milliseconds: number) {

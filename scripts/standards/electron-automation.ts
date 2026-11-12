@@ -12,6 +12,8 @@ const DETACHED_PROCESS_API = 'detached external application'
 const PLAYWRIGHT_ELECTRON_LAUNCH_OWNER = 'scripts/playwright-electron-launcher.ts'
 const ELECTRON_VITE_LAUNCH_OWNERS = [
   'scripts/measure-main-startup.ts',
+  // `pnpm dev` itself: a person runs it to open the visible development app.
+  'scripts/run-electron-dev.ts',
   'scripts/start-electron-qa.ts',
 ]
 const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
