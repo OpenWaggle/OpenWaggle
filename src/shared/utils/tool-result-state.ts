@@ -29,8 +29,8 @@ export function hasConcreteToolOutput(value: unknown): boolean {
   return !(
     normalized === undefined ||
     (isRecord(normalized) &&
-      Array.isArray(normalized['content']) &&
-      normalized['content'].length === 0 &&
+      Array.isArray(normalized.content) &&
+      normalized.content.length === 0 &&
       'details' in normalized)
   )
 }

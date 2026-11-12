@@ -282,5 +282,5 @@ const LEADING_NODE_ERROR_CODE_PATTERN = /^(?<code>E[A-Z0-9]{2,31}|ERR_[A-Z0-9_]{
 
 /** The Node.js error code a message starts with, as in `ENOENT: no such file or directory`. */
 export function leadingNodeErrorCode(text: string): string | undefined {
-  return LEADING_NODE_ERROR_CODE_PATTERN.exec(text)?.groups?.['code']
+  return LEADING_NODE_ERROR_CODE_PATTERN.exec(text)?.groups?.code
 }
