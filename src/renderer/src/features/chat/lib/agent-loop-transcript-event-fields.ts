@@ -1,8 +1,7 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { JsonValue } from '@shared/types/json'
-
-export type UnknownObject = Readonly<Record<string, unknown>>
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export interface AgentLoopBaseEventFields {
   readonly timestamp: number
@@ -10,18 +9,12 @@ export interface AgentLoopBaseEventFields {
   readonly rawEvent?: JsonValue
 }
 
-export function isObject(value: unknown): value is UnknownObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+export function stringOrNull(value: unknown) {
+  return typeof value === 'string' ? value : null
 }
 
-export function stringField(value: UnknownObject, key: string) {
-  const field = value[key]
-  return typeof field === 'string' ? field : null
-}
-
-export function numberField(value: UnknownObject, key: string) {
-  const field = value[key]
-  return typeof field === 'number' ? field : null
+export function numberOrNull(value: unknown) {
+  return typeof value === 'number' ? value : null
 }
 
 export function optionalJsonValue(value: unknown): JsonValue | undefined {
@@ -33,23 +26,23 @@ export function optionalJsonValue(value: unknown): JsonValue | undefined {
   return decoded.success ? decoded.data : undefined
 }
 
-export function parseJsonObject(raw: string): UnknownObject | null {
+export function parseJsonUnknownOrNull(raw: string): unknown {
   try {
-    const parsed: unknown = JSON.parse(raw)
-    return isObject(parsed) ? parsed : null
+    return JSON.parse(raw)
   } catch {
     return null
   }
 }
 
-export function baseEventFields(event: UnknownObject): AgentLoopBaseEventFields | null {
-  const timestamp = numberField(event, 'timestamp')
+export function baseEventFields(event: unknown): AgentLoopBaseEventFields | null {
+  const fields = uncheckedFields<AgentLoopBaseEventFields>(event)
+  const timestamp = numberOrNull(fields.timestamp)
   if (timestamp === null) {
     return null
   }
 
-  const model = stringField(event, 'model')
-  const rawEvent = optionalJsonValue(event.rawEvent)
+  const model = stringOrNull(fields.model)
+  const rawEvent = optionalJsonValue(fields.rawEvent)
   return {
     timestamp,
     ...(model !== null ? { model } : {}),

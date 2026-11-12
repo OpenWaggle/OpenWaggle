@@ -152,7 +152,7 @@ export function useInlineVisualizationFrame(input: {
   })
 
   const postToFrame = useCallback(
-    (message: Record<string, unknown>) => {
+    (message: object) => {
       if (!input.frameUrl) return
       frameRef.current?.contentWindow?.postMessage(message, customProtocolOrigin(input.frameUrl))
     },

@@ -2,6 +2,11 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import { describe, expect, it } from 'vitest'
 import { sanitizeStoredGroups } from '../terminal-store-persistence'
 
+/** Owner keys of the stored terminal groups these cases build. */
+const PANES_OWNER = 'panes'
+const VALID_OWNER = 'valid'
+const OWNER = 'owner'
+
 describe('sanitizeStoredGroups resource bounds', () => {
   it('keeps each terminal id in only one restored tab', () => {
     const input = {
@@ -56,7 +61,7 @@ describe('sanitizeStoredGroups resource bounds', () => {
         ],
       },
     })
-    expect(paneHeavy.panes?.tabs[0]?.panes).toHaveLength(TERMINAL.MAX_PANES_PER_TAB)
+    expect(paneHeavy[PANES_OWNER]?.tabs[0]?.panes).toHaveLength(TERMINAL.MAX_PANES_PER_TAB)
 
     const malformed = sanitizeStoredGroups({
       ['o'.repeat(TERMINAL.OWNER_KEY_MAX_LENGTH + 1)]: { tabs },
@@ -82,12 +87,12 @@ describe('sanitizeStoredGroups resource bounds', () => {
         ],
       },
     })
-    expect(Object.keys(malformed)).toEqual(['valid'])
-    expect(malformed.valid?.tabs[0]).toMatchObject({
+    expect(Object.keys(malformed)).toEqual([VALID_OWNER])
+    expect(malformed[VALID_OWNER]?.tabs[0]).toMatchObject({
       customName: null,
       panes: [{ terminalId: 'terminal', cwd: '/repo' }],
     })
-    expect(malformed.valid?.tabs[0]?.panes[0]).not.toHaveProperty('launchEnv')
+    expect(malformed[VALID_OWNER]?.tabs[0]?.panes[0]).not.toHaveProperty('launchEnv')
   })
 
   it('caps restored terminal identities per owner', () => {
@@ -96,7 +101,7 @@ describe('sanitizeStoredGroups resource bounds', () => {
       panes: [{ terminalId: `terminal-${String(index)}`, cwd: '/repo' }],
     }))
 
-    const restored = sanitizeStoredGroups({ owner: { tabs } }).owner
+    const restored = sanitizeStoredGroups({ owner: { tabs } })[OWNER]
 
     expect(restored?.tabs).toHaveLength(TERMINAL.MAX_TERMINALS_PER_OWNER)
     expect(restored?.tabs.at(-1)?.panes[0]?.terminalId).toBe(

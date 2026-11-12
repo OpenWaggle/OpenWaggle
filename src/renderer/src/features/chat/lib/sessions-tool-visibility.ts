@@ -3,6 +3,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { JsonObject } from '@shared/types/json'
 import { parseToolArgs } from './tool-args'
 import { isWholeSessionsAction } from './tool-labels-sessions'
+import { hiveToolArgFields } from './hive-tool-args'
 
 type MessagePart = UIMessage['parts'][number]
 
@@ -20,7 +21,8 @@ const WAIT_PREVIEW = /^\{\s*"sessionIds"\s*:/
  */
 export function isHiddenSessionsToolCall(name: string, args: JsonObject, state?: string) {
   if (name !== HIVE_TOOL_NAME) return false
-  const action = typeof args.action === 'string' ? args.action : null
+  const { action: argAction } = hiveToolArgFields(args)
+  const action = typeof argAction === 'string' ? argAction : null
   if (action === 'wait') return true
   return state === 'input-streaming' && (action === null || !isWholeSessionsAction(action))
 }
@@ -37,7 +39,9 @@ export function isHiddenSessionsToolCallJson(
 ) {
   if (name !== HIVE_TOOL_NAME) return false
   const args = parseToolArgs(argsJson)
-  if (typeof args.action === 'string') return isHiddenSessionsToolCall(name, args, state)
+  if (typeof hiveToolArgFields(args).action === 'string') {
+    return isHiddenSessionsToolCall(name, args, state)
+  }
   const previewed = PREVIEW_ACTION.exec(argsJson)?.[1]
   if (previewed) return isHiddenSessionsToolCall(name, { action: previewed }, state)
   // A preview cut inside a long `sessionIds` list, before its action: only a wait takes that list.

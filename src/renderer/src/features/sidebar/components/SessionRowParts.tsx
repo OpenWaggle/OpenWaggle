@@ -92,7 +92,7 @@ const TITLE_TEXT_QA = 'sidebar-row-title'
 const RENAME_KEY = 'F2'
 
 function isTitleText(target: EventTarget) {
-  return target instanceof HTMLElement && target.dataset.qa === TITLE_TEXT_QA
+  return target instanceof HTMLElement && target.getAttribute('data-qa') === TITLE_TEXT_QA
 }
 
 /** Line one: the title owns the full width. Nothing shares it, nothing hides on hover. */

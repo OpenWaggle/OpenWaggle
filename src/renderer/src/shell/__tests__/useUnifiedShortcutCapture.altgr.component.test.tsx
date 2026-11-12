@@ -110,7 +110,7 @@ describe('useUnifiedShortcutCapture with AltGr', () => {
     const commandHandlers = render()
     const field = document.body.appendChild(document.createElement('textarea'))
     const pane = document.body.appendChild(document.createElement('div'))
-    pane.dataset.terminalPane = 'term-1'
+    pane.setAttribute('data-terminal-pane', 'term-1')
     const terminalInput = pane.appendChild(document.createElement('textarea'))
 
     // AltGr+L types "ł" on a Polish keyboard.

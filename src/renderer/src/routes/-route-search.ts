@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
@@ -16,6 +17,9 @@ export interface ChatExtensionSidePanelTarget {
   readonly packagePath?: string | undefined
   readonly contentHash?: string | undefined
 }
+
+/** The router's raw search values, by the names ChatRouteSearch declares, each still unchecked. */
+type RawChatSearch = UncheckedFields<ChatRouteSearch>
 
 export interface ChatRouteSearch {
   readonly branch?: string | undefined
@@ -75,7 +79,7 @@ function parseResourceView(value: unknown) {
   return isMatching(P.union('sources', 'outputs'), value) ? value : undefined
 }
 
-function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
+function parseBaseChatSearch(search: RawChatSearch): ChatRouteSearch {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
   return {
@@ -85,10 +89,7 @@ function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
   }
 }
 
-function parseExtensionPanelSearch(
-  search: Record<string, unknown>,
-  base: ChatRouteSearch,
-): ChatRouteSearch {
+function parseExtensionPanelSearch(search: RawChatSearch, base: ChatRouteSearch): ChatRouteSearch {
   const sidePanelExtensionId = parseSearchToken(search.sidePanelExtensionId)
   const sidePanelId = parseSearchToken(search.sidePanelId)
   if (!sidePanelExtensionId || !sidePanelId) return base
@@ -105,7 +106,9 @@ function parseExtensionPanelSearch(
   }
 }
 
-export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
+/** The router hands over every search key it parsed; only ChatRouteSearch's keys are read. */
+export function parseChatRouteSearch(rawSearch: object): ChatRouteSearch {
+  const search: RawChatSearch = rawSearch
   const panel = parseRightPanel(search.panel)
   const base = parseBaseChatSearch(search)
 

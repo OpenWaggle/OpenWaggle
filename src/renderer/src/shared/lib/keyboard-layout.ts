@@ -1,3 +1,5 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
+
 /**
  * The character each physical key types on the current keyboard layout, from Chromium's
  * Keyboard API (`navigator.keyboard.getLayoutMap()`), or nothing where it is unavailable. It
@@ -13,14 +15,19 @@ let layout: ReadonlyMap<string, string> = new Map()
 let tracking = false
 let reading = false
 
+/** Chromium's Keyboard API, which the DOM types do not declare. */
+interface KeyboardApi {
+  readonly getLayoutMap: () => Promise<unknown>
+}
+
 function keyboardApi(): object | null {
-  const keyboard: unknown = Reflect.get(navigator, 'keyboard')
+  const keyboard = 'keyboard' in navigator ? navigator.keyboard : null
   return typeof keyboard === 'object' && keyboard !== null ? keyboard : null
 }
 
 function layoutEntries(map: object) {
   const entries = new Map<string, string>()
-  const forEach: unknown = Reflect.get(map, 'forEach')
+  const { forEach } = uncheckedFields<Pick<ReadonlyMap<string, string>, 'forEach'>>(map)
   if (typeof forEach !== 'function') return entries
   Reflect.apply(forEach, map, [
     (value: unknown, code: unknown) => {
@@ -32,7 +39,7 @@ function layoutEntries(map: object) {
 
 function readLayout() {
   const keyboard = keyboardApi()
-  const getLayoutMap: unknown = keyboard === null ? null : Reflect.get(keyboard, 'getLayoutMap')
+  const { getLayoutMap } = uncheckedFields<KeyboardApi>(keyboard)
   if (keyboard === null || typeof getLayoutMap !== 'function' || reading) return
   reading = true
   void Promise.resolve(Reflect.apply(getLayoutMap, keyboard, []))

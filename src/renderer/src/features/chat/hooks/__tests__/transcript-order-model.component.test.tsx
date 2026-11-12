@@ -39,6 +39,7 @@ import {
 } from './transcript-order.replays'
 import { assertTranscriptOrder, createScenarioHarness } from './transcript-order.scenario'
 import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-order.test-harness'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 
 /*
  * Model-based exploration of the transcript-order invariant (`transcript-order.scenario.ts`):
@@ -49,9 +50,18 @@ import { cleanupTranscriptOrder, resetTranscriptOrderState } from './transcript-
  * its trace.
  */
 
-const SEEDS = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_SEEDS ?? 40)
-const FIRST_SEED = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_FIRST_SEED ?? 1)
-const STEPS = Number(import.meta.env.VITE_TRANSCRIPT_ORDER_STEPS ?? 26)
+/** Optional overrides for a longer local run of the model. */
+const transcriptOrderEnv = decodeUnknownOrThrow(
+  Schema.Struct({
+    VITE_TRANSCRIPT_ORDER_SEEDS: Schema.optional(Schema.NumberFromString),
+    VITE_TRANSCRIPT_ORDER_FIRST_SEED: Schema.optional(Schema.NumberFromString),
+    VITE_TRANSCRIPT_ORDER_STEPS: Schema.optional(Schema.NumberFromString),
+  }),
+  import.meta.env,
+)
+const SEEDS = transcriptOrderEnv.VITE_TRANSCRIPT_ORDER_SEEDS ?? 40
+const FIRST_SEED = transcriptOrderEnv.VITE_TRANSCRIPT_ORDER_FIRST_SEED ?? 1
+const STEPS = transcriptOrderEnv.VITE_TRANSCRIPT_ORDER_STEPS ?? 26
 
 type ModelAction = (typeof MODEL_ACTIONS)[number]
 

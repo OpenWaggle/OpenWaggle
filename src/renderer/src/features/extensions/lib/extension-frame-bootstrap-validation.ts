@@ -1,12 +1,11 @@
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import type { OpenWaggleExtensionSyntaxHighlightResult } from '@shared/extension-sdk'
-import { isOpenWaggleExtensionTheme } from '@shared/extension-theme'
+import { safeDecodeUnknown, Schema } from '@shared/schema'
+import { extensionInvokeResultSchema } from '@shared/schemas/extension-broker'
+import { extensionFrameConfigSchema } from '@shared/schemas/extension-frame'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
-import { isRecord } from '@shared/utils/validation'
 import type { OpenWaggleFederatedModule } from './extension-federated-module'
-import { isOptionalJsonValue, stringArray } from './extension-frame-bootstrap-json'
-import { isInvokeResult } from './extension-frame-bootstrap-results'
 
 export type ExtensionFrameParentMessage =
   | { readonly type: 'configure'; readonly config: ExtensionFrameConfig }
@@ -32,117 +31,60 @@ export function isFederatedModule(value: unknown): value is OpenWaggleFederatedM
   )
 }
 
-function isExtensionMetadata(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.version === 'string'
-  )
+const optionalString = Schema.optionalWith(Schema.String, { exact: true })
+
+const syntaxHighlightResultSchema: Schema.Schema<OpenWaggleExtensionSyntaxHighlightResult> =
+  Schema.Struct({
+    status: Schema.Literal('highlighted', 'plain-text'),
+    language: Schema.String,
+    foreground: optionalString,
+    background: optionalString,
+    diagnostic: optionalString,
+    lines: Schema.Array(
+      Schema.Array(
+        Schema.Struct({
+          content: Schema.String,
+          color: optionalString,
+          backgroundColor: optionalString,
+          fontStyle: Schema.optionalWith(Schema.Number, { exact: true }),
+        }),
+      ),
+    ),
+  })
+
+const parentEnvelope = {
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
 }
 
-function isContributionMetadata(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.family === 'string'
-  )
-}
+const parentMessageSchema = Schema.Union(
+  Schema.Struct({ ...parentEnvelope, type: Schema.Literal('dispose') }),
+  Schema.Struct({
+    ...parentEnvelope,
+    type: Schema.Literal('configure'),
+    config: extensionFrameConfigSchema,
+  }),
+  Schema.Struct({
+    ...parentEnvelope,
+    type: Schema.Literal('invoke-result'),
+    requestId: Schema.String,
+    result: extensionInvokeResultSchema,
+  }),
+  Schema.Struct({
+    ...parentEnvelope,
+    type: Schema.Literal('syntax-highlight-result'),
+    requestId: Schema.String,
+    result: syntaxHighlightResultSchema,
+  }),
+)
 
-function isSurfaceMetadata(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.family === 'string' &&
-    typeof value.execution === 'string' &&
-    isOptionalJsonValue(value.payload)
-  )
-}
-
-function isFrameContext(value: unknown) {
-  return (
-    isRecord(value) &&
-    isExtensionMetadata(value.extension) &&
-    isContributionMetadata(value.contribution) &&
-    isSurfaceMetadata(value.surface) &&
-    typeof value.packagePath === 'string' &&
-    stringArray(value.projectPaths) &&
-    isOpenWaggleExtensionTheme(value.theme)
-  )
-}
-
-function isExtensionFrameConfig(value: unknown): value is ExtensionFrameConfig {
-  return isRecord(value) && typeof value.moduleUrl === 'string' && isFrameContext(value.context)
-}
-
-function isOptionalString(value: unknown) {
-  return value === undefined || typeof value === 'string'
-}
-
-function isSyntaxToken(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.content === 'string' &&
-    isOptionalString(value.color) &&
-    isOptionalString(value.backgroundColor) &&
-    (value.fontStyle === undefined || typeof value.fontStyle === 'number')
-  )
-}
-
-function isSyntaxHighlightResult(
-  value: unknown,
-): value is OpenWaggleExtensionSyntaxHighlightResult {
-  return (
-    isRecord(value) &&
-    (value.status === 'highlighted' || value.status === 'plain-text') &&
-    typeof value.language === 'string' &&
-    isOptionalString(value.foreground) &&
-    isOptionalString(value.background) &&
-    isOptionalString(value.diagnostic) &&
-    Array.isArray(value.lines) &&
-    value.lines.every((line) => Array.isArray(line) && line.every(isSyntaxToken))
-  )
-}
-
+/** A message from the parent window for this frame, or `null` for anything else. */
 export function decodedParentMessage(
   value: unknown,
   frameId: string,
 ): ExtensionFrameParentMessage | null {
-  if (
-    !isRecord(value) ||
-    value.channel !== EXTENSION_FRAME_MESSAGE_CHANNEL ||
-    value.frameId !== frameId
-  ) {
-    return null
-  }
-
-  if (value.type === 'dispose') {
-    return { type: 'dispose' }
-  }
-
-  if (value.type === 'configure' && isExtensionFrameConfig(value.config)) {
-    return { type: 'configure', config: value.config }
-  }
-
-  if (
-    value.type === 'invoke-result' &&
-    typeof value.requestId === 'string' &&
-    isInvokeResult(value.result)
-  ) {
-    return { type: 'invoke-result', requestId: value.requestId, result: value.result }
-  }
-
-  if (
-    value.type === 'syntax-highlight-result' &&
-    typeof value.requestId === 'string' &&
-    isSyntaxHighlightResult(value.result)
-  ) {
-    return {
-      type: 'syntax-highlight-result',
-      requestId: value.requestId,
-      result: value.result,
-    }
-  }
-
-  return null
+  const decoded = safeDecodeUnknown(parentMessageSchema, value)
+  if (!decoded.success || decoded.data.frameId !== frameId) return null
+  const { channel: _channel, frameId: _frameId, ...message } = decoded.data
+  return message
 }

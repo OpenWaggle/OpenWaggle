@@ -43,6 +43,7 @@ import { terminalSidePanelLayoutKey, useTerminalStore } from '@/features/termina
 import { useWorkspacePanelStore } from '../../workspace-panel-store'
 import { useRightPanelRailStore } from '../right-panel-rail-store'
 import { useRightPanelController } from '../useRightPanelController'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 const SESSION = 'session-1'
 
@@ -105,7 +106,9 @@ function remember(surface: RightPanelSurfaceId, open = true) {
 }
 
 function routeOpenPanels() {
-  return mocks.route.open.mock.calls.map(([search]) => Reflect.get(search, 'panel'))
+  return mocks.route.open.mock.calls.map(
+    ([search]) => uncheckedFields<{ readonly panel: string }>(search).panel,
+  )
 }
 
 describe('useRightPanelController', () => {

@@ -2,6 +2,7 @@ import type { JsonObject } from '@shared/types/json'
 import { sessionsToolScheduleAction } from './sessions-tool-schedule'
 import { arrayLength, plural, stringArg, type ToolLabel, withDetail } from './tool-label-parts'
 import { SCHEDULE_ACTION_NAMES, scheduleLabel } from './tool-labels-schedule'
+import { hiveToolTargetFields } from './hive-tool-args'
 
 /** How much of a title or objective a row shows; the full text is in the expanded arguments. */
 const DETAIL_MAX_CHARS = 80
@@ -156,8 +157,7 @@ function requestedTarget(action: string, args: JsonObject): SessionsToolTarget |
 
 /** Who an unresolved report went to; a reported Session the Hive does not know is a Worker. */
 function reportTargetPhrase(args: JsonObject) {
-  const target = args.target
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) return 'Worker'
+  const target = hiveToolTargetFields(args)
   if (target.type === 'queen') return 'the Queen'
   if (target.type === 'upstream') return 'its parent'
   if (target.type === 'sessions' && Array.isArray(target.sessionIds)) {

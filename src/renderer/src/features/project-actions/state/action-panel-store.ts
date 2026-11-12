@@ -11,6 +11,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { type ActionPanelDraft, actionPanelDraftSchema } from '../lib/action-panel-drafts'
 import { resolveActionPanelStorage } from './action-panel-storage'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const ACTION_PANEL_STORAGE_KEY = 'openwaggle:action-panel:v1'
 const RECENTLY_SAVED_MS = 2_500
@@ -111,11 +112,7 @@ export const useActionPanelStore = create<ActionPanelState>()(
       partialize: (state) => ({ drafts: state.drafts }),
       merge: (persisted, current) => ({
         ...current,
-        drafts: sanitizeDrafts(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'drafts')
-            : undefined,
-        ),
+        drafts: sanitizeDrafts(uncheckedFields<{ readonly drafts: unknown }>(persisted).drafts),
       }),
     },
   ),

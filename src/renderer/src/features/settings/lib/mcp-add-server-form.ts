@@ -79,6 +79,24 @@ function isHttpUrl(value: string) {
   }
 }
 
+function transportEntry(draft: McpAddServerDraft, values: McpConfigObject | null): McpDraftResult {
+  if (draft.kind === 'url') {
+    const url = draft.url.trim()
+    if (!isHttpUrl(url)) return { ok: false, error: 'Enter an http or https URL.' }
+    return { ok: true, entry: { url, ...(values ? { headers: values } : {}) } }
+  }
+  const command = draft.command.trim()
+  if (!command) return { ok: false, error: 'Enter the command that starts the server.' }
+  const args = draft.args
+    .split('\n')
+    .map((arg) => arg.trim())
+    .filter((arg) => arg.length > 0)
+  return {
+    ok: true,
+    entry: { command, ...(args.length > 0 ? { args } : {}), ...(values ? { env: values } : {}) },
+  }
+}
+
 export function buildMcpServerEntry(draft: McpAddServerDraft): McpDraftResult {
   if (!SERVER_NAME.test(draft.name.trim())) {
     return { ok: false, error: 'Name the server with letters, digits, - or _.' }
@@ -86,24 +104,8 @@ export function buildMcpServerEntry(draft: McpAddServerDraft): McpDraftResult {
   const variables = variablesRecord(draft)
   if (!variables.ok) return variables
   const hasValues = Object.keys(variables.values).length > 0
-  const entry: McpConfigObject = {}
-  if (draft.kind === 'url') {
-    const url = draft.url.trim()
-    if (!isHttpUrl(url)) return { ok: false, error: 'Enter an http or https URL.' }
-    entry.url = url
-    if (hasValues) entry.headers = variables.values
-  } else {
-    const command = draft.command.trim()
-    if (!command) return { ok: false, error: 'Enter the command that starts the server.' }
-    const args = draft.args
-      .split('\n')
-      .map((arg) => arg.trim())
-      .filter((arg) => arg.length > 0)
-    entry.command = command
-    if (args.length > 0) entry.args = args
-    if (hasValues) entry.env = variables.values
-  }
+  const transport = transportEntry(draft, hasValues ? variables.values : null)
+  if (!transport.ok) return transport
   const description = draft.description.trim()
-  if (description) entry.description = description
-  return { ok: true, entry }
+  return { ok: true, entry: { ...transport.entry, ...(description ? { description } : {}) } }
 }

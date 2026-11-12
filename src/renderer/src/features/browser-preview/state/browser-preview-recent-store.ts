@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { StateStorage } from 'zustand/middleware'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { normalizeBrowserPreviewUrl } from '../lib/browser-preview-url'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const BROWSER_PREVIEW_RECENT_URL_LIMIT = 10
 export const BROWSER_PREVIEW_RECENT_STORAGE_KEY = 'openwaggle:browser-preview-recents:v1'
@@ -95,9 +96,7 @@ export const useBrowserPreviewRecentStore = create<BrowserPreviewRecentState>()(
       merge: (persisted, current) => ({
         ...current,
         entries: sanitizeBrowserPreviewRecentUrls(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'entries')
-            : undefined,
+          uncheckedFields<{ readonly entries: unknown }>(persisted).entries,
         ),
       }),
     },

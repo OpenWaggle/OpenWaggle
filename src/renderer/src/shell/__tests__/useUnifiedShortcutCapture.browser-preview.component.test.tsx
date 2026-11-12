@@ -173,7 +173,7 @@ describe('useUnifiedShortcutCapture native browser preview events', () => {
   it('suppresses repeats and never treats an open terminal as terminal focus', () => {
     const commandHandlers = handlers()
     const terminal = document.createElement('div')
-    terminal.dataset.terminalPane = ''
+    terminal.setAttribute('data-terminal-pane', '')
     document.body.append(terminal)
     renderHook(() =>
       useUnifiedShortcutCapture({

@@ -28,6 +28,7 @@ vi.mock('@/shared/lib/ipc', async () => ({
 }))
 
 import { useTerminalCommands } from '../useTerminalCommands'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 
 /*
  * Only the preload is replaced: the project, chat, terminal, Right panel and toast stores and the
@@ -38,13 +39,29 @@ const SIDE_OWNER = terminalSidePanelLayoutKey(OWNER)
 
 const terminals = () => useTerminalStore.getState().groups
 
+/** The part of the persisted Workspace panel layout these cases read. */
+const persistedWorkspacePanelSchema = Schema.parseJson(
+  Schema.Struct({
+    state: Schema.optional(
+      Schema.Struct({
+        groups: Schema.optional(
+          Schema.Record({
+            key: Schema.String,
+            value: Schema.Struct({ maximized: Schema.optional(Schema.Boolean) }),
+          }),
+        ),
+      }),
+    ),
+  }),
+)
+
 /** Whether the Session's Right panel is maximized in the layout the app persists for relaunch. */
 function persistedMaximized() {
-  const stored: unknown = JSON.parse(localStorage.getItem('openwaggle:workspace-panel:v1') ?? '{}')
-  const state: unknown = Reflect.get(Object(stored), 'state')
-  const groups: unknown = Reflect.get(Object(state), 'groups')
-  const group: unknown = Reflect.get(Object(groups), OWNER)
-  return Reflect.get(Object(group), 'maximized') === true
+  const stored = decodeUnknownOrThrow(
+    persistedWorkspacePanelSchema,
+    localStorage.getItem('openwaggle:workspace-panel:v1') ?? '{}',
+  )
+  return stored.state?.groups?.[OWNER]?.maximized === true
 }
 
 /** The commands, and whether the Right panel shows the Session's terminal. */
