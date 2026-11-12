@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import { EnvironmentGroupedSequencer } from './environment-grouped-sequencer'
+
 /**
  * Options the Vitest tier configs share, so `vitest.coverage.config.ts`, which runs the same tests
  * under instrumentation, takes them from the tiers instead of a copy that drifts. It had none of
@@ -6,6 +10,19 @@
 
 /** Removes the run's temporary root, under which `isolate-user-home.ts` gives each file its own. */
 export const TEST_TEMPORARY_ROOT_SETUP = 'scripts/test-support/vitest-temporary-root.ts'
+
+/**
+ * The unit and component tiers keep each worker for many files instead of starting one per file,
+ * which made loading the externals again ~60% of the unit tier and jsdom ~50% of the component tier.
+ * `REUSED_WORKER_SETUP` must be the first setup file: it gives every file the modules, mocks,
+ * globals and patched builtins of a fresh worker (see that file for what it cannot reset).
+ */
+export const REUSED_WORKERS = {
+  isolate: false,
+  sequence: { sequencer: EnvironmentGroupedSequencer },
+} as const
+
+export const REUSED_WORKER_SETUP = 'scripts/test-support/reused-worker-isolation.ts'
 
 const NODE_TIER_TIMEOUT_MS = 60_000
 
@@ -45,8 +62,46 @@ export const COMPONENT_TIER_TIMEOUTS = {} as const
 export const DEFAULT_TEST_TIME_ZONE = 'Pacific/Kiritimati'
 
 export function testTimeZone(environment: NodeJS.ProcessEnv = process.env) {
-  return environment.OPENWAGGLE_TEST_TIME_ZONE || DEFAULT_TEST_TIME_ZONE
+  return environment['OPENWAGGLE_TEST_TIME_ZONE'] || DEFAULT_TEST_TIME_ZONE
 }
 
 /** The `test.env` entry that pins it; the machine's own `TZ` does not reach the tests. */
 export const TEST_TIME_ZONE_ENV = { TZ: testTimeZone() } as const
+
+/**
+ * The test tiers' reporters: the compact reporter (one line when green, `file:line:col` per
+ * failure), plus GitHub annotations in Actions. `--reporter=default` restores Vitest's own output.
+ */
+export const TEST_REPORTERS = [
+  './scripts/test-support/vitest-compact-reporter.ts',
+  ...(process.env['GITHUB_ACTIONS'] === 'true' ? ['github-actions'] : []),
+]
+
+/*
+ * The tiers run on the Bun runtime (`bun --bun vitest`, ADR 0064). The tier configs absorb three
+ * Bun differences that would otherwise break tests rather than the code they test:
+ *
+ * - Bun reports `'__esModule' in namespace` as true for every ES module namespace. Vitest's
+ *   interop for an external module then treats a package whose default export is a namespace
+ *   (zod's `export { z, z as default }`) as transpiled CommonJS and returns that namespace in
+ *   place of the module, so `import { z } from 'zod'` is undefined. Inlining zod sends it through
+ *   Vite's own transform, which has no such interop.
+ * - Bun resolves a bare `undici` to a partial builtin without `MockAgent` or
+ *   `Dispatcher1Wrapper`. The alias loads the npm package the app depends on.
+ * - Bun's `os.homedir()` ignores a HOME set after start; `node-os.ts` reads it at call time.
+ */
+// Through `package.json`: Bun's `require.resolve('undici')` answers with the builtin's name.
+const UNDICI_PACKAGE_ENTRY = path.join(
+  path.dirname(createRequire(import.meta.url).resolve('undici/package.json')),
+  'index.js',
+)
+
+const NODE_OS_MODULE = path.join(import.meta.dirname, 'node-os.ts')
+
+export const BUN_RUNTIME_ALIASES = {
+  undici: UNDICI_PACKAGE_ENTRY,
+  'node:os': NODE_OS_MODULE,
+  os: NODE_OS_MODULE,
+} as const
+
+export const BUN_RUNTIME_SERVER = { deps: { inline: ['zod'] } }

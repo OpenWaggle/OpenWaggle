@@ -10,6 +10,7 @@
   "sourceFiles": [
     "package.json",
     "src/github-api.js",
+    "src/issue-summary-card.js",
     "src/settings.js",
     "src/side-panel.js",
     "src/transcript.js",
@@ -24,6 +25,7 @@
   "builtArtifacts": [
     "package.json",
     "modules/github-api.js",
+    "modules/issue-summary-card.js",
     "modules/settings.js",
     "modules/side-panel.js",
     "modules/transcript.js",

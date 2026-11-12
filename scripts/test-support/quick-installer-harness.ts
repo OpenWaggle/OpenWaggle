@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect } from 'vitest'
+import { execFailure } from './exec-failure'
 
 const execFileAsync = promisify(execFile)
 export const INSTALLED_VERSION = '1.0.0-rc.1'
@@ -139,7 +140,7 @@ async function reportSavedChannel(paths: HarnessPaths, savedChannel: string) {
 async function runInstaller(paths: HarnessPaths, env: Readonly<Record<string, string>>) {
   const result = await execFileAsync('bash', ['scripts/install.sh', '--no-launch'], {
     env: {
-      PATH: `${paths.stubs}:${process.env.PATH ?? ''}`,
+      PATH: `${paths.stubs}:${process.env['PATH'] ?? ''}`,
       HOME: paths.home,
       TMPDIR: path.join(paths.directory, 'tmp'),
       FAKE_CALLS: path.join(paths.directory, 'calls'),
@@ -149,7 +150,7 @@ async function runInstaller(paths: HarnessPaths, env: Readonly<Record<string, st
       OPENWAGGLE_RELEASES_API_URL: RELEASES_API_URL,
       ...env,
     },
-  }).catch((error: { stdout: string; stderr: string; code: number }) => error)
+  }).catch(execFailure)
   return { ...result, exitCode: 'code' in result ? result.code : 0 }
 }
 

@@ -1,0 +1,16 @@
+{
+  "name": "@openwaggle/bun-lint",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins the dated Bun canary whose `bun lint` scripts/lint.ts runs. Each platform's binary is an optional dependency, so bun.lock locks it and minimumReleaseAge and check:provenance cover it like any other package, without a second `bun` in node_modules/.bin.",
+  "optionalDependencies": {
+    "@oven/bun-darwin-aarch64": "1.4.4-canary.20261103.1",
+    "@oven/bun-darwin-x64": "1.4.4-canary.20261103.1",
+    "@oven/bun-linux-aarch64": "1.4.4-canary.20261103.1",
+    "@oven/bun-linux-aarch64-musl": "1.4.4-canary.20261103.1",
+    "@oven/bun-linux-x64": "1.4.4-canary.20261103.1",
+    "@oven/bun-linux-x64-musl": "1.4.4-canary.20261103.1",
+    "@oven/bun-windows-aarch64": "1.4.4-canary.20261103.1",
+    "@oven/bun-windows-x64": "1.4.4-canary.20261103.1"
+  }
+}

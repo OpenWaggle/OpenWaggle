@@ -1,0 +1,31 @@
+# Bun install settings. Workspaces, catalogs, overrides, patches, package extensions and the
+# build-script allowlist (`trustedDependencies`) live in package.json; docs/dependency-updates.md
+# explains each of them.
+
+[install]
+# Strict layout like pnpm's: a package resolves only what it declares (plus the store fallback).
+linker = "isolated"
+# `bun add` writes exact versions; check:repository-standards rejects ranges
+# (docs/dependency-updates.md).
+exact = true
+# Never resolve a missing package from Bun's global cache at run time. Without a node_modules
+# directory (a scratch repository in a test, a script run outside the checkout) Bun would
+# otherwise load whatever version it has cached instead of failing.
+auto = "disable"
+
+# Supply-chain hardening: refuse releases younger than seven days, so a hijacked publish has time
+# to be noticed and unpublished before it reaches this repository. Bun has no equivalent of pnpm's
+# `trustPolicy: no-downgrade`; `bun run check:provenance` (scripts/check-provenance-downgrade.ts)
+# fails a locked version that lost the npm provenance earlier versions had.
+minimumReleaseAge = 604800
+
+# Each exception is one exact `name@version` with its reason, @diegogbrisa/ts-match included.
+# Remove an entry once that version is seven days old; it exempts nothing after that. Pi entries
+# are dated by a `pi-runtime-release-age-exclusions-expire` marker line, which check:pi-runtime
+# enforces (docs/pi-runtime-upgrades.md).
+minimumReleaseAgeExcludes = []
+
+[run]
+# `bun run <script>` does not echo `$ <command>`: agents read this output, and the script name
+# already says what runs.
+silent = true
