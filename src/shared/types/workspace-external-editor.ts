@@ -1,3 +1,9 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  workspaceAbsoluteFileExternalOpenInputSchema,
+  workspaceFileExternalOpenInputSchema,
+} from '@shared/schemas/workspace-files-requests'
+
 /**
  * External editors that OpenWaggle can launch without delegating to the
  * operating system's (often surprising) default application.
@@ -49,17 +55,8 @@ export function workspaceExternalEditorLabel(editorId: WorkspaceExternalEditorId
   )
 }
 
-export interface WorkspaceFileExternalOpenInput {
-  readonly projectPath: string
-  readonly path: string
-  readonly editor: WorkspaceExternalEditorId
-  readonly line?: number | undefined
-  readonly column?: number | undefined
-}
+export type WorkspaceFileExternalOpenInput = SchemaType<typeof workspaceFileExternalOpenInputSchema>
 
-export interface WorkspaceAbsoluteFileExternalOpenInput {
-  readonly path: string
-  readonly editor: WorkspaceExternalEditorId
-  readonly line?: number | undefined
-  readonly column?: number | undefined
-}
+export type WorkspaceAbsoluteFileExternalOpenInput = SchemaType<
+  typeof workspaceAbsoluteFileExternalOpenInputSchema
+>
