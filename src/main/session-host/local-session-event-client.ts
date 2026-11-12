@@ -23,12 +23,12 @@ const logger = createLogger('session-host/event-client')
 /** The frame fields this client reads; each one's value is decoded where it is used. */
 const serverFrameFieldsSchema = Schema.Struct({
   kind: Schema.String,
-  requestId: Schema.optional(Schema.Unknown),
-  subscriptionId: Schema.optional(Schema.Unknown),
-  cursor: Schema.optional(Schema.Unknown),
-  activeRuns: Schema.optional(Schema.Unknown),
-  event: Schema.optional(Schema.Unknown),
-  reason: Schema.optional(Schema.Unknown),
+  requestId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  subscriptionId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  cursor: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  activeRuns: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  event: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  reason: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 type ServerFrameFields = SchemaType<typeof serverFrameFieldsSchema>
@@ -40,13 +40,15 @@ const resyncRequiredFrameSchema = Schema.Struct({
 
 const describedEventSchema = Schema.Struct({
   payload: Schema.Struct({
-    kind: Schema.optional(Schema.Unknown),
-    sessionId: Schema.optional(Schema.Unknown),
-    event: Schema.optional(Schema.Unknown),
+    kind: Schema.optionalWith(Schema.Unknown, { exact: true }),
+    sessionId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+    event: Schema.optionalWith(Schema.Unknown, { exact: true }),
   }),
 })
 
-const describedTransportEventSchema = Schema.Struct({ type: Schema.optional(Schema.Unknown) })
+const describedTransportEventSchema = Schema.Struct({
+  type: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 /** What the log may say about an event: never its content. */
 function describeEventFrame(event: unknown) {

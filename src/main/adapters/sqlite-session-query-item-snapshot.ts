@@ -1,5 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { SessionItemsQuery } from '@shared/types/session-query-items'
+import type { SessionQuery } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { resolveSelectedBranchSnapshotHead } from './sqlite-session-branch-snapshot'
 
@@ -10,7 +10,7 @@ interface ItemSnapshotRow {
 }
 
 type ItemSnapshotQuery = Pick<
-  SessionItemsQuery,
+  Extract<SessionQuery, { readonly operation: 'items' }>,
   'sessionId' | 'branchScope' | 'branchId' | 'snapshotHeadNodeId' | 'throughCreatedOrder'
 >
 

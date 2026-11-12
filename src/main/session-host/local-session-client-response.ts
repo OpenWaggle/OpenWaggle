@@ -32,8 +32,8 @@ type LocalSessionCommandResponsePayload = SchemaType<
 
 const commandFrameSchema = Schema.Struct({
   kind: Schema.String,
-  requestId: Schema.optional(Schema.Unknown),
-  payload: Schema.optional(Schema.Unknown),
+  requestId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  payload: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 
 /** Decodes one contract's response, naming the fields that did not match. */
