@@ -89,7 +89,7 @@ export function useChatPanelSections(): ChatPanelSections {
     model,
     projectPath,
     createSession,
-    defaultThinkingLevel,
+    ...(defaultThinkingLevel === undefined ? {} : { defaultThinkingLevel }),
     readDefaultThinkingLevel: () =>
       queryClient.getQueryData(defaultThinkingLevelQueryOptions().queryKey),
     sendMessage,

@@ -13,13 +13,17 @@ export function fencedCodeLanguage(children: ReactNode) {
 
 export function createSyntaxMarkdownComponents(
   overrides: Components = {},
-  options: { readonly theme?: string | undefined } = {},
+  options: { readonly theme?: string } = {},
 ): Components {
   return {
     ...safeMarkdownComponents,
     pre({ children }: { children?: ReactNode }) {
+      const language = fencedCodeLanguage(children)
       return (
-        <MarkdownCodeBlock language={fencedCodeLanguage(children)} theme={options.theme}>
+        <MarkdownCodeBlock
+          {...(language === undefined ? {} : { language })}
+          {...(options.theme === undefined ? {} : { theme: options.theme })}
+        >
           {children}
         </MarkdownCodeBlock>
       )

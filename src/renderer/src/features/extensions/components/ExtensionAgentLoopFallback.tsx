@@ -21,7 +21,7 @@ function renderToolFallback({
   toolResult,
 }: {
   readonly toolCall: ChatToolCallPart
-  readonly toolResult?: ExtensionToolResultView | undefined
+  readonly toolResult?: ExtensionToolResultView
 }) {
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3">
@@ -93,7 +93,7 @@ function renderInteractionFallback({
   onAction,
 }: {
   readonly interaction: ExtensionInteractionView
-  readonly onAction?: ((interactionId: string, actionId: string) => void) | undefined
+  readonly onAction?: (interactionId: string, actionId: string) => void
 }) {
   if (interaction.kind === 'custom') {
     // Only a pending interaction is urgent. Announcing a historical, already-resolved card
@@ -203,11 +203,17 @@ function renderTranscriptFallback(transcript: ExtensionTranscriptView) {
 function fallbackFor(input: ExtensionAgentLoopSurfaceInput): ReactNode {
   return matchBy(input, 'surface')
     .with('tool', (value) =>
-      renderToolFallback({ toolCall: value.toolCall, toolResult: value.toolResult }),
+      renderToolFallback({
+        toolCall: value.toolCall,
+        ...(value.toolResult === undefined ? {} : { toolResult: value.toolResult }),
+      }),
     )
     .with('custom-message', (value) => renderCustomMessageFallback(value.message))
     .with('interaction', (value) =>
-      renderInteractionFallback({ interaction: value.interaction, onAction: value.onAction }),
+      renderInteractionFallback({
+        interaction: value.interaction,
+        ...(value.onAction === undefined ? {} : { onAction: value.onAction }),
+      }),
     )
     .with('transcript', (value) => renderTranscriptFallback(value.transcript))
     .with('status', (value) => renderStatusFallback(value.status))

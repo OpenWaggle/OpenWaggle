@@ -106,7 +106,7 @@ export function ScheduledTasksSettings() {
   const groups = groupTasksByProject(visible).map((group) => ({
     id: group.projectPath ?? 'none',
     label: group.label,
-    title: group.projectPath ?? undefined,
+    ...(group.projectPath === null ? {} : { title: group.projectPath }),
     tasks: group.tasks,
   }))
 

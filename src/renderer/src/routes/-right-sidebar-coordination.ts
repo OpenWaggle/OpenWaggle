@@ -13,13 +13,13 @@ import type { RightSidebarPanel } from '@/shell'
 interface ExtensionPanelIdentity {
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string | undefined
-  readonly contentHash?: string | undefined
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 interface WorkspaceFileIdentity {
   readonly path: string
-  readonly line?: number | null | undefined
+  readonly line?: number | null
 }
 
 function coordinateRoutePanel(open: boolean, requestKey: string | null) {

@@ -44,7 +44,7 @@ export function withIncorporatedPreview(
           ...preview,
           incorporatedAt,
           incorporatedRowId: userRow.id,
-          incorporatedOrder: createdOrder,
+          ...(createdOrder === undefined ? {} : { incorporatedOrder: createdOrder }),
         }
       : preview,
   )

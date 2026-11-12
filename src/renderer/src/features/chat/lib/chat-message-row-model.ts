@@ -1,6 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
-import type { ChatRow, MessageChatRow } from './types-chat-row'
+import type { ChatRow, MessageChatRow, TurnDividerProps } from './types-chat-row'
 
 /*
  * The transcript row of one message. Rows are rebuilt for the whole branch on every render, a
@@ -42,7 +42,7 @@ function summaryRowFor(message: UIMessage): SummaryRow | null {
       id: message.id,
       summary: compactionSummary.summary,
       tokensBefore: compactionSummary.tokensBefore,
-      reason: compactionSummary.reason,
+      ...(compactionSummary.reason === undefined ? {} : { reason: compactionSummary.reason }),
     }
   }
   return null
@@ -133,17 +133,23 @@ function messageRowFor({
     isStreaming,
     isRunActive: isLoading,
     showTurnDivider,
-    turnDividerProps: showTurnDivider
-      ? {
-          turnNumber: meta.turnNumber,
-          agentLabel: meta.agentLabel,
-          agentColor: meta.agentColor,
-          agentModel: meta.agentModel,
-        }
-      : undefined,
-    assistantModel: message.role === 'assistant' ? meta?.agentModel : undefined,
-    waggle: meta ? { agentLabel: meta.agentLabel, agentColor: meta.agentColor } : undefined,
-    waggleMeta: meta,
+    ...(showTurnDivider ? { turnDividerProps: waggleTurnDividerProps(meta) } : {}),
+    ...(message.role === 'assistant' && meta?.agentModel !== undefined
+      ? { assistantModel: meta.agentModel }
+      : {}),
+    ...(meta
+      ? { waggle: { agentLabel: meta.agentLabel, agentColor: meta.agentColor }, waggleMeta: meta }
+      : {}),
+  }
+}
+
+/** The turn pill a Waggle agent's turn opens with. */
+export function waggleTurnDividerProps(meta: WaggleMessageMetadata): TurnDividerProps {
+  return {
+    turnNumber: meta.turnNumber,
+    agentLabel: meta.agentLabel,
+    agentColor: meta.agentColor,
+    ...(meta.agentModel === undefined ? {} : { agentModel: meta.agentModel }),
   }
 }
 

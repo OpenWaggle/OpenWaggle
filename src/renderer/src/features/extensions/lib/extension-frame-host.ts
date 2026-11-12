@@ -56,6 +56,7 @@ const extensionFrameSurfaceActionMessageSchema = Schema.Struct({
   frameId: Schema.String,
   type: Schema.Literal('surface-action'),
   actionId: Schema.String,
+  // explicit undefined: respondInteraction posts the extension's own value, which may be undefined
   payload: Schema.optional(jsonValueSchema),
 })
 const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
@@ -65,6 +66,7 @@ const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
   requestId: Schema.String,
   input: Schema.Struct({
     source: Schema.String.pipe(Schema.maxLength(MAX_SYNTAX_SOURCE_CODE_UNITS)),
+    // explicit undefined: the extension builds this input, and the SDK type allows undefined keys
     language: Schema.optional(Schema.String),
     path: Schema.optional(Schema.String),
     priority: Schema.optional(Schema.Literal('visible', 'near-viewport', 'background')),
@@ -91,14 +93,14 @@ const extensionMountInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,
   method: extensionContributionIdSchema,
   scope: extensionInvokeScopeSchema,
-  payload: Schema.optional(Schema.Unknown),
+  payload: Schema.optionalWith(Schema.Unknown, { exact: true }),
 })
 export type ExtensionFrameInvokeMessage = SchemaType<typeof extensionFrameInvokeMessageSchema>
 
 export function extensionFrameConfig(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly moduleUrl: string
-  readonly surfacePayload?: JsonValue | undefined
+  readonly surfacePayload?: JsonValue
 }) {
   return {
     moduleUrl: input.moduleUrl,

@@ -37,10 +37,10 @@ interface MountExtensionFrameInput {
   readonly getCurrentFrameWindow: () => Window | null | undefined
   readonly moduleUrl: string | null
   readonly mountKey: string
-  readonly onSurfaceAction?: ((actionId: string, payload?: JsonValue) => void) | undefined
-  readonly reportHeight?: ((height: number) => void) | undefined
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly reportHeight?: (height: number) => void
   readonly reportStatus: (status: ReportedMountStatus) => void
-  readonly surfacePayloadJson?: string | undefined
+  readonly surfacePayloadJson?: string
 }
 
 export function missingEntryPathStatus(): MountStatus {
@@ -288,10 +288,11 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
     }
   }
   const mountModuleUrl = resolvedModuleUrl
+  const surfacePayload = surfacePayloadFromJson(input.surfacePayloadJson)
   const frameConfig = extensionFrameConfig({
     entry: input.entry,
     moduleUrl: mountModuleUrl,
-    surfacePayload: surfacePayloadFromJson(input.surfacePayloadJson),
+    ...(surfacePayload === undefined ? {} : { surfacePayload }),
   })
 
   if (!frame.contentWindow) {

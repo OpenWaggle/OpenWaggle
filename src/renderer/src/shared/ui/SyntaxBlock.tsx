@@ -10,14 +10,14 @@ import { SourceView } from './SourceView'
 
 export interface SyntaxBlockProps {
   readonly source: string
-  readonly language?: string | undefined
-  readonly path?: string | undefined
-  readonly className?: string | undefined
-  readonly wrap?: boolean | undefined
-  readonly showLineNumbers?: boolean | undefined
-  readonly ariaLabel?: string | undefined
-  readonly theme?: string | undefined
-  readonly priority?: SyntaxPriority | undefined
+  readonly language?: string
+  readonly path?: string
+  readonly className?: string
+  readonly wrap?: boolean
+  readonly showLineNumbers?: boolean
+  readonly ariaLabel?: string
+  readonly theme?: string
+  readonly priority?: SyntaxPriority
 }
 
 function LineNumber({ value }: { readonly value: number }) {
@@ -167,11 +167,11 @@ export function SyntaxBlock({
     return (
       <SourceView
         source={source}
-        language={language}
-        path={path}
+        {...(language === undefined ? {} : { language })}
+        {...(path === undefined ? {} : { path })}
         className={cn('syntax-typography', className)}
-        ariaLabel={ariaLabel}
-        theme={theme}
+        {...(ariaLabel === undefined ? {} : { ariaLabel })}
+        {...(theme === undefined ? {} : { theme })}
         showLineNumbers={showLineNumbers}
         style={{ height: 'min(60vh, 32rem)' }}
       />

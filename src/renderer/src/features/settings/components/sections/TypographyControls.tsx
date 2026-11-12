@@ -51,7 +51,7 @@ function NumberSetting({
         value={value}
         minimum={minimum}
         maximum={maximum}
-        step={step}
+        {...(step === undefined ? {} : { step })}
         suffix={suffix}
         onValueChange={onChange}
       />

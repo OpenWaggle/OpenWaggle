@@ -206,7 +206,7 @@ function buildPatchByPath(files: readonly GitFileDiff[]) {
 function useDiffAnnotationRenderer(review: DiffCodeViewReview) {
   return useCallback(
     (
-      annotation: { metadata?: ReviewAnnotationMetadata | undefined },
+      annotation: { metadata?: ReviewAnnotationMetadata },
       item: CodeViewItem<ReviewAnnotationMetadata>,
     ) => {
       const metadata = annotation.metadata

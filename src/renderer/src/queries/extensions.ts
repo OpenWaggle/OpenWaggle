@@ -62,7 +62,7 @@ function listExtensionContributions(
 
 function extensionContributionsInput(input: {
   readonly projectPaths: readonly string[]
-  readonly sessionId?: string | undefined
+  readonly sessionId?: string
 }): ExtensionListContributionsInput {
   return {
     projectPaths: input.projectPaths,
@@ -137,7 +137,7 @@ export function extensionPackagesQueryOptions(
 
 export function extensionContributionsQueryOptions(
   projectPaths: readonly string[],
-  options: { readonly sessionId?: string | null | undefined } = {},
+  options: { readonly sessionId?: string | null } = {},
 ): OpenWaggleQueryOptions<
   ExtensionContributionRegistryView,
   Error,
@@ -150,7 +150,12 @@ export function extensionContributionsQueryOptions(
   return queryOptions({
     queryKey,
     queryFn: () =>
-      listExtensionContributions(extensionContributionsInput({ projectPaths, sessionId })),
+      listExtensionContributions(
+        extensionContributionsInput({
+          projectPaths,
+          ...(sessionId === undefined ? {} : { sessionId }),
+        }),
+      ),
   })
 }
 

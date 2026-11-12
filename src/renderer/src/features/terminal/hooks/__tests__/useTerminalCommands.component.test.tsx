@@ -42,15 +42,19 @@ const terminals = () => useTerminalStore.getState().groups
 /** The part of the persisted Workspace panel layout these cases read. */
 const persistedWorkspacePanelSchema = Schema.parseJson(
   Schema.Struct({
-    state: Schema.optional(
+    state: Schema.optionalWith(
       Schema.Struct({
-        groups: Schema.optional(
+        groups: Schema.optionalWith(
           Schema.Record({
             key: Schema.String,
-            value: Schema.Struct({ maximized: Schema.optional(Schema.Boolean) }),
+            value: Schema.Struct({
+              maximized: Schema.optionalWith(Schema.Boolean, { exact: true }),
+            }),
           }),
+          { exact: true },
         ),
       }),
+      { exact: true },
     ),
   }),
 )

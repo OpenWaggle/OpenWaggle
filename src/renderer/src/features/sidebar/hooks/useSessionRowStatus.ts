@@ -42,7 +42,7 @@ function useVisibleStatus(sessionId: SessionId, session: SessionSummary) {
     status,
     completedAt,
     lastVisitedAt,
-    lineage: session.lineage,
+    ...(session.lineage === undefined ? {} : { lineage: session.lineage }),
   })
 }
 

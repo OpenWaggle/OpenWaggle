@@ -201,7 +201,7 @@ async function activateExtensionResourceRow(input: {
 function activateResolvedExtensionSurface(input: {
   readonly resolution: SessionSummaryActionResolution
   readonly family: string
-  readonly onOpenSidePanel?: ((target: SessionSummaryExtensionSidePanelTarget) => void) | undefined
+  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly setDialogEntry: (entry: ExtensionContributionRegistryEntry) => void
 }) {
   const { entry } = input.resolution
@@ -228,7 +228,7 @@ export function useSessionSummaryExtensionActions(input: {
   readonly messageCount: number
   readonly resources: readonly SessionResource[]
   readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
-  readonly onOpenSidePanel?: ((target: SessionSummaryExtensionSidePanelTarget) => void) | undefined
+  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
 }) {
   const openResourceViewer = useUIStore((state) => state.openResourceViewer)
   const showToast = useUIStore((state) => state.showToast)
@@ -282,7 +282,7 @@ export function useSessionSummaryExtensionActions(input: {
       activateResolvedExtensionSurface({
         resolution,
         family: row.action.family,
-        onOpenSidePanel: input.onOpenSidePanel,
+        ...(input.onOpenSidePanel === undefined ? {} : { onOpenSidePanel: input.onOpenSidePanel }),
         setDialogEntry,
       })
     ) {

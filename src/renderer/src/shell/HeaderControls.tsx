@@ -34,14 +34,12 @@ interface HeaderLeftProps {
   /** The selected Session, null for a new-session draft whose title cannot be renamed yet. */
   readonly sessionId: SessionId | null
   readonly title: string
-  readonly sessionIdentity?:
-    | {
-        readonly role?: 'queen' | 'worker' | undefined
-        readonly agentDefinitionName?: string | undefined
-        /** Workers below this Session with a live Run (ADR 0065); absent or zero hides the line. */
-        readonly runningWorkerCount?: number | undefined
-      }
-    | undefined
+  readonly sessionIdentity?: {
+    readonly role?: 'queen' | 'worker'
+    readonly agentDefinitionName?: string
+    /** Workers below this Session with a live Run (ADR 0065); absent or zero hides the line. */
+    readonly runningWorkerCount?: number
+  }
   readonly onToggleSidebar: () => void
 }
 

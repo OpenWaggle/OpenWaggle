@@ -46,7 +46,7 @@ export function worktreeLaunchFromCustomEvent(
 
 export function createWorktreeLaunchRows(input: {
   readonly sessionId: string | null
-  readonly liveLaunch?: WorktreeLaunchSnapshot | null | undefined
+  readonly liveLaunch?: WorktreeLaunchSnapshot | null
   readonly customMessages: readonly AgentTransportCustomEvent[]
 }): ChatRow[] {
   const sessionId = input.sessionId

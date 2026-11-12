@@ -202,8 +202,8 @@ function UserMessageContent({
 
 interface UserMessageBubbleProps {
   message: UIMessage
-  onBranchFromMessage?: ((messageId: string) => void) | undefined
-  onForkFromMessage?: ((messageId: string) => void) | undefined
+  onBranchFromMessage?: (messageId: string) => void
+  onForkFromMessage?: (messageId: string) => void
 }
 
 export function UserMessageBubble({

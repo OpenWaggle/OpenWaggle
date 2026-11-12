@@ -155,6 +155,7 @@ function OversizedSourcePreview({
     }
   }, [file.path, projectPath])
 
+  const language = page?.language ?? file.language
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PagedSourceToolbar
@@ -169,7 +170,7 @@ function OversizedSourcePreview({
       {page ? (
         <SourceView
           source={page.content}
-          language={page.language ?? file.language}
+          {...(language === undefined ? {} : { language })}
           path={file.path}
           className="min-h-0 flex-1"
           ariaLabel={`Paged source for ${file.path}`}

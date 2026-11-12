@@ -26,7 +26,7 @@ export function workspaceFileRightSidebarRequest(path: string, line: number | nu
 interface RouteClaim {
   readonly kind: 'route'
   readonly requestKey: string
-  readonly scopeKey?: string | null | undefined
+  readonly scopeKey?: string | null
 }
 interface WorkspaceClaim {
   readonly kind: 'workspace'

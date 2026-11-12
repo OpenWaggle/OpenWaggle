@@ -19,12 +19,12 @@ export function SessionSummarySection({
 }: {
   readonly id: string
   readonly title: string
-  readonly count?: number | undefined
+  readonly count?: number
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
-  readonly actions?: ReactNode | undefined
-  readonly sectionRef?: Ref<HTMLElement> | undefined
-  readonly triggerRef?: Ref<HTMLButtonElement> | undefined
+  readonly actions?: ReactNode
+  readonly sectionRef?: Ref<HTMLElement>
+  readonly triggerRef?: Ref<HTMLButtonElement>
   readonly children: ReactNode
 }) {
   const contentId = `session-summary-section-${id}`
@@ -32,7 +32,7 @@ export function SessionSummarySection({
     <section ref={sectionRef} className="border-t border-border first:border-t-0">
       <div className="sticky top-0 z-10 flex h-10 items-center bg-bg-secondary/95 backdrop-blur">
         <Button
-          ref={triggerRef}
+          {...(triggerRef === undefined ? {} : { ref: triggerRef })}
           variant="unstyled"
           className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
           aria-label={count === undefined ? title : `${title} ${count}`}
@@ -80,12 +80,12 @@ export function SessionSummaryRow({
   disabledReason,
   ariaLabel,
 }: {
-  readonly icon?: ReactNode | undefined
+  readonly icon?: ReactNode
   readonly label: string
-  readonly value?: ReactNode | undefined
-  readonly onClick?: (() => void) | undefined
-  readonly disabledReason?: string | undefined
-  readonly ariaLabel?: string | undefined
+  readonly value?: ReactNode
+  readonly onClick?: () => void
+  readonly disabledReason?: string
+  readonly ariaLabel?: string
 }) {
   const descriptionId = useId()
   const content = (
@@ -165,8 +165,8 @@ export function SessionSummaryLinkSection({
   readonly label: string
   readonly icon: ReactNode
   readonly title: string
-  readonly details?: ReactNode | undefined
-  readonly target?: SessionSummaryLinkTarget | undefined
+  readonly details?: ReactNode
+  readonly target?: SessionSummaryLinkTarget
 }) {
   const content = (
     <>
@@ -221,7 +221,7 @@ export function SessionSummaryFacts({
   readonly items: readonly {
     readonly key: string
     readonly text: string
-    readonly className?: string | undefined
+    readonly className?: string
   }[]
 }) {
   if (items.length === 0) return null

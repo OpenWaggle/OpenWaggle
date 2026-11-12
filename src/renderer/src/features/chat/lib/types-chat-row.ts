@@ -14,7 +14,7 @@ export type AgentInteractionEvent =
 
 export interface AgentInteractionTranscriptItem {
   readonly request: AgentTransportInteractionRequestEvent
-  readonly resolution?: AgentTransportInteractionResolvedEvent | undefined
+  readonly resolution?: AgentTransportInteractionResolvedEvent
 }
 
 // ─── Turn Divider Props ──────────────────────────────────────
@@ -23,7 +23,7 @@ export interface TurnDividerProps {
   turnNumber: number
   agentLabel: string
   agentColor: WaggleAgentColor
-  agentModel?: SupportedModelId | undefined
+  agentModel?: SupportedModelId
 }
 
 // ─── Waggle Info ──────────────────────────────────────────────
@@ -39,17 +39,17 @@ export interface MessageChatRow {
   isStreaming: boolean
   isRunActive: boolean
   showTurnDivider: boolean
-  turnDividerProps?: TurnDividerProps | undefined
-  assistantModel?: SupportedModelId | undefined
-  waggle?: WaggleInfo | undefined
-  waggleMeta?: WaggleMessageMetadata | undefined
+  turnDividerProps?: TurnDividerProps
+  assistantModel?: SupportedModelId
+  waggle?: WaggleInfo
+  waggleMeta?: WaggleMessageMetadata
   /** Terminal message of a folded turn: render only its final text part. */
-  turnPresentation?: 'folded' | undefined
+  turnPresentation?: 'folded'
   /**
    * The settled turn's reply, which can be continued from, forked after, or copied
    * (`markTurnReplies`); `latest` is the transcript's last one.
    */
-  replyActions?: 'reply' | 'latest' | undefined
+  replyActions?: 'reply' | 'latest'
 }
 
 /** The quiet row standing in for one settled turn's work (ADR 0034). */
@@ -61,7 +61,7 @@ export interface TurnFoldChatRow {
   label: string
   durationMs: number | null
   interrupted: boolean
-  agentColor?: WaggleAgentColor | undefined
+  agentColor?: WaggleAgentColor
 }
 
 export interface WaggleTurnChatRow {
@@ -71,14 +71,14 @@ export interface WaggleTurnChatRow {
   agentColor: WaggleAgentColor
   messages: MessageChatRow[]
   /** ADR 0034: the whole agent turn collapsed behind `foldRow`. */
-  folded?: boolean | undefined
+  folded?: boolean
   /** Rendered inside the section, between the turn pill and the terminal message. */
-  foldRow?: TurnFoldChatRow | undefined
+  foldRow?: TurnFoldChatRow
   /**
    * The error the turn's last response failed with. Absent when a later response answered the
    * turn, and on the Run's last failed turn while the Run error row shows the same failure.
    */
-  failure?: string | undefined
+  failure?: string
 }
 
 // ─── ChatRow Discriminated Union ──────────────────────────
@@ -104,7 +104,7 @@ export type ChatRow =
       id: string
       summary: string
       tokensBefore: number
-      reason?: 'manual' | 'threshold' | 'overflow' | undefined
+      reason?: 'manual' | 'threshold' | 'overflow'
     }
   | {
       type: 'compaction-status'
@@ -123,7 +123,7 @@ export type ChatRow =
       label: string
       elapsedMs: number
       /** Pi extension status lines (`ctx.ui.setStatus`) for the Run, under the label. */
-      details?: readonly { readonly key: string; readonly text: string }[] | undefined
+      details?: readonly { readonly key: string; readonly text: string }[]
     }
   | { type: 'retry-status'; attempt: number; maxAttempts: number; delayMs: number }
   | {

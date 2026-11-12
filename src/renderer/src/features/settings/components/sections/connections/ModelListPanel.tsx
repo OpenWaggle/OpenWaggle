@@ -128,16 +128,19 @@ export function ModelListPanel({ group, state, actions }: ModelListPanelProps) {
           )
         ) : (
           <div ref={listRef} className="space-y-px">
-            {rows.map((model) => (
-              <ModelCheckboxRow
-                key={model.id}
-                model={model}
-                checked={state.enabledSet.has(model.id)}
-                search={state.search}
-                providerLabel={group ? undefined : state.providerLabels.get(model.provider)}
-                onToggle={actions.onToggleModel}
-              />
-            ))}
+            {rows.map((model) => {
+              const providerLabel = group ? undefined : state.providerLabels.get(model.provider)
+              return (
+                <ModelCheckboxRow
+                  key={model.id}
+                  model={model}
+                  checked={state.enabledSet.has(model.id)}
+                  search={state.search}
+                  {...(providerLabel === undefined ? {} : { providerLabel })}
+                  onToggle={actions.onToggleModel}
+                />
+              )
+            })}
             {hiddenRows > 0 && (
               <Button
                 variant="link"

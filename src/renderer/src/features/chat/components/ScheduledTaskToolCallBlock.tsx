@@ -17,7 +17,7 @@ interface ScheduledTaskToolCallBlockProps {
   readonly name: string
   readonly args: string
   readonly state: string
-  readonly result?: ToolCallResultPayload | undefined
+  readonly result?: ToolCallResultPayload
   readonly isStreaming?: boolean
   readonly resultNotRecorded?: boolean
   readonly scheduled: SessionsToolScheduledTask

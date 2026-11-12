@@ -72,7 +72,7 @@ function InteractionExtensionSurfaces({
         const response = responseFromExtensionAction({
           interaction,
           actionId,
-          payload,
+          ...(payload === undefined ? {} : { payload }),
         })
         if (response !== null) {
           submit(interaction, response)
@@ -102,7 +102,7 @@ function InteractionExtensionSurfaces({
       />
       <ExtensionAgentLoopStatusWidgets
         input={extensionInput}
-        onSurfaceAction={handleSurfaceAction}
+        {...(handleSurfaceAction === undefined ? {} : { onSurfaceAction: handleSurfaceAction })}
         projectPaths={extensionProjectPaths}
         registry={extensionRegistry}
       />

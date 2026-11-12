@@ -69,13 +69,14 @@ async function querySidebarList(query: {
   if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
     throw new Error('Sidebar Session search returned an unexpected response.')
   }
+  const { nextCursor } = response.outcome
   return {
     ids: response.outcome.sessions.map((session) => SessionId(session.sessionId)),
-    nextCursor: response.outcome.nextCursor,
+    ...(nextCursor === undefined ? {} : { nextCursor }),
   }
 }
 
-function nextSearchSourceCursor(page: { readonly nextCursor?: string | undefined }) {
+function nextSearchSourceCursor(page: { readonly nextCursor?: string }) {
   return {
     exhausted: page.nextCursor === undefined,
     ...(page.nextCursor ? { cursor: page.nextCursor } : {}),

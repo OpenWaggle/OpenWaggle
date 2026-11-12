@@ -172,7 +172,10 @@ export function ProjectContentSearch() {
       </div>
       <div className="max-h-(--workspace-results-height) overflow-y-auto p-1.5 [--workspace-results-height:52vh]">
         {notice ? (
-          <ContentEmptyState text={notice.text} error={notice.error} />
+          <ContentEmptyState
+            text={notice.text}
+            {...(notice.error === undefined ? {} : { error: notice.error })}
+          />
         ) : (
           matches.map((match, index) => (
             <ContentMatchRow
@@ -198,7 +201,7 @@ function ContentEmptyState({
   error = false,
 }: {
   readonly text: string
-  readonly error?: boolean | undefined
+  readonly error?: boolean
 }) {
   return (
     <output

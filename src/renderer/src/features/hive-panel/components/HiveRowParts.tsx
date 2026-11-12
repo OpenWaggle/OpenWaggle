@@ -67,9 +67,7 @@ export function useRowMenu() {
 export type HiveRowMenuState = ReturnType<typeof useRowMenu>
 
 /** The row's role glyph and label, from the lineage role. */
-function hiveRolePresentation(session: {
-  readonly lineage?: { readonly role?: string | undefined } | null | undefined
-}) {
+function hiveRolePresentation(session: Pick<HiveSession, 'lineage'>) {
   const isQueen = session.lineage?.role === 'queen'
   return { Icon: isQueen ? ChessQueen : Pickaxe, label: isQueen ? 'Queen' : 'Worker' }
 }

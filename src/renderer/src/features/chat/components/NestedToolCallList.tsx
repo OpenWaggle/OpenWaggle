@@ -33,7 +33,7 @@ export function NestedToolCallList({
                 name={card.name}
                 args={card.args}
                 state={card.state}
-                result={card.result}
+                {...(card.result === undefined ? {} : { result: card.result })}
                 isStreaming={isStreaming}
                 resultNotRecorded={card.state === 'complete'}
               />

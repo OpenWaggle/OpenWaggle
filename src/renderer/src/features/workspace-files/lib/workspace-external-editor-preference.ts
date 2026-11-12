@@ -45,7 +45,7 @@ export async function openAbsoluteFileInPreferredWorkspaceEditor(input: {
     openAbsoluteFileExternal(options: {
       readonly path: string
       readonly editor: WorkspaceExternalEditorId
-      readonly line?: number | undefined
+      readonly line?: number
       readonly column?: number
     }): Promise<void>
   }

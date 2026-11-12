@@ -12,8 +12,8 @@ export interface ExtensionRightSidebarPanel {
   readonly kind: 'extension-side-panel'
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string | undefined
-  readonly contentHash?: string | undefined
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 export type RightSidebarPanel =
@@ -35,11 +35,11 @@ export interface ChatCommandRequest {
 export interface ToastData {
   message: string
   /** Visual variant — defaults to 'neutral'. */
-  variant?: 'neutral' | 'success' | 'error' | undefined
+  variant?: 'neutral' | 'success' | 'error'
   /** When set, the toast persists until manually dismissed. */
-  persistent?: boolean | undefined
+  persistent?: boolean
   /** Optional action shown as a clickable label. Supports a URL or an onClick callback. */
-  action?: { label: string; url?: string; onClick?: () => void } | undefined
+  action?: { label: string; url?: string; onClick?: () => void }
 }
 
 export const SETTINGS_TABS = [
@@ -81,10 +81,10 @@ interface UIState {
   resourceViewer: {
     readonly sessionId: string
     readonly resourceId: string
-    readonly galleryResourceIds?: readonly string[] | undefined
+    readonly galleryResourceIds?: readonly string[]
     /** Position is needed when one message uses the same deduplicated image more than once. */
-    readonly galleryIndex?: number | undefined
-    readonly galleryTitles?: readonly string[] | undefined
+    readonly galleryIndex?: number
+    readonly galleryTitles?: readonly string[]
   } | null
   workspaceTreeOpen: boolean
 

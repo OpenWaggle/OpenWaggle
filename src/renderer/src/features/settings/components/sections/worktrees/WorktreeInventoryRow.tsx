@@ -297,8 +297,7 @@ export function WorktreeInventoryRow(props: WorktreeRowProps) {
         <WorkspaceCleanupFailure
           projectPath={entry.cleanupFailure.projectPath}
           initial={entry.cleanupFailure.preparation}
-          generationMismatch={entry.cleanupFailure.generationMismatch}
-          generationMismatchMessage={entry.cleanupFailure.generationMismatchMessage}
+          mismatch={entry.cleanupFailure}
           busy={props.busy || blockers.length > 0}
           onRetry={() => props.onConfirm(request(entry))}
           onDeleteAnyway={() => props.onConfirm(request(entry, { skipCleanup: true }))}

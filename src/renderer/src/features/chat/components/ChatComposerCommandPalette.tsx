@@ -7,7 +7,7 @@ interface ChatComposerCommandPaletteProps {
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
   readonly onStartWaggle: (preset: WagglePreset) => void
-  readonly onOpenSessionTree?: (() => void) | undefined
+  readonly onOpenSessionTree?: () => void
   readonly onForkToNewSession: () => void
   readonly onCloneToNewSession: () => void
 }
@@ -21,7 +21,9 @@ export function ChatComposerCommandPalette(props: ChatComposerCommandPaletteProp
         slashSkills={props.slashSkills}
         onSelectSkill={props.onSelectSkill}
         onStartWaggle={props.onStartWaggle}
-        onOpenSessionTree={props.onOpenSessionTree}
+        {...(props.onOpenSessionTree === undefined
+          ? {}
+          : { onOpenSessionTree: props.onOpenSessionTree })}
         onForkToNewSession={props.onForkToNewSession}
         onCloneToNewSession={props.onCloneToNewSession}
       />

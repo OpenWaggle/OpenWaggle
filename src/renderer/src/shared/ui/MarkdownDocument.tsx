@@ -12,9 +12,12 @@ export function MarkdownDocument({
 }: {
   readonly children: string
   readonly className?: string
-  readonly theme?: string | undefined
+  readonly theme?: string
 }) {
-  const components = useMemo(() => createSyntaxMarkdownComponents({}, { theme }), [theme])
+  const components = useMemo(
+    () => createSyntaxMarkdownComponents({}, { ...(theme === undefined ? {} : { theme }) }),
+    [theme],
+  )
   return (
     <div className={cn('prose prose-invert text-sm text-text-secondary', className)}>
       <ReactMarkdown

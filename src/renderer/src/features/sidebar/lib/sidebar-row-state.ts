@@ -234,7 +234,7 @@ export function resolveVisibleSessionStatus(input: {
   readonly completedAt: number | undefined
   readonly lastVisitedAt: number | undefined
   /** A parent's Workers, from its Host summary (ADR 0065); absent for a Session without any. */
-  readonly lineage?: SessionLineageSummary | undefined
+  readonly lineage?: SessionLineageSummary
 }): SessionStatus {
   const seen =
     TERMINAL_STATUSES.has(input.status) &&

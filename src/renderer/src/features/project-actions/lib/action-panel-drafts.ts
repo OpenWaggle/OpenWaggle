@@ -41,7 +41,9 @@ const draftActionDefinitionSchema = Schema.Struct({
   kind: Schema.Literal('task', 'service'),
   allowConcurrent: Schema.Boolean,
   autoOpenPreview: Schema.Boolean,
+  // explicit undefined: an edit clears previewUrl by patching it to undefined (ActionOptionalRows)
   previewUrl: Schema.optional(Schema.String),
+  // explicit undefined: a draft copies the saved ActionDefinition, whose shortcutRules may be undefined
   shortcutRules: Schema.optional(Schema.Array(projectActionShortcutRuleSchema)),
 })
 const draftPreparationDefinitionSchema = Schema.Struct({

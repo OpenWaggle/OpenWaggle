@@ -84,7 +84,7 @@ export function ContentMatchRow({
 }) {
   return (
     <Button
-      ref={rowRef}
+      {...(rowRef === undefined ? {} : { ref: rowRef })}
       variant="unstyled"
       onMouseMove={onHover}
       onClick={onChoose}

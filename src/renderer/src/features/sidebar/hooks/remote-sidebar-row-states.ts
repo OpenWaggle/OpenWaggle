@@ -45,7 +45,7 @@ export function useRemoteSidebarRowStates(input: {
         status: statuses.get(id) ?? 'idle',
         completedAt: completedAt.get(id),
         lastVisitedAt: lastVisitedAt.get(id),
-        lineage: session.lineage,
+        ...(session.lineage === undefined ? {} : { lineage: session.lineage }),
       })
       states.set(
         String(session.id),

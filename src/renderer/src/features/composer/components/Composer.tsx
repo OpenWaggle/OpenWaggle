@@ -30,25 +30,23 @@ interface ComposerProps {
    * The agent ended the Run and it is finishing: a message is queued. Stop shows only while the
    * agent still works on (`stoppable`), not while the Host merely saves the Run (`settling`).
    */
-  finishing?: ComposerRunFinishing | undefined
-  mode?:
-    | {
-        readonly disabled?: boolean | undefined
-        readonly placeholder?: string | undefined
-        readonly sendTitle?: string | undefined
-        readonly requiresText?: boolean | undefined
-        readonly clearOnSubmit?: boolean | undefined
-        readonly recordHistory?: boolean | undefined
-        readonly allowEnqueue?: boolean | undefined
-        readonly onSendFailure?: ((cause: unknown) => SendFailureDisposition) | undefined
-        /**
-         * The Session whose queued messages this composer can edit. While one of them is being
-         * edited, the composer is in edit mode: it shows the edit bar, and Enter saves the edit.
-         */
-        readonly queuedMessagesSessionId?: SessionId | null | undefined
-      }
-    | undefined
-  onToast?: ((message: string) => void) | undefined
+  finishing?: ComposerRunFinishing
+  mode?: {
+    readonly disabled?: boolean
+    readonly placeholder?: string
+    readonly sendTitle?: string
+    readonly requiresText?: boolean
+    readonly clearOnSubmit?: boolean
+    readonly recordHistory?: boolean
+    readonly allowEnqueue?: boolean
+    readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
+    /**
+     * The Session whose queued messages this composer can edit. While one of them is being
+     * edited, the composer is in edit mode: it shows the edit bar, and Enter saves the edit.
+     */
+    readonly queuedMessagesSessionId?: SessionId | null
+  }
+  onToast?: (message: string) => void
 }
 
 function noToast() {}
@@ -56,7 +54,7 @@ function noToast() {}
 /** The composer's mode with its defaults. */
 function resolveComposerMode(mode: ComposerProps['mode']) {
   return {
-    disabled: mode?.disabled,
+    disabled: mode?.disabled ?? false,
     placeholder: mode?.placeholder,
     sendTitle: mode?.sendTitle,
     requiresText: mode?.requiresText ?? false,
@@ -96,12 +94,9 @@ export function Composer({
   isLoading,
   finishing,
   mode,
-  onToast,
+  onToast = noToast,
 }: ComposerProps) {
-  const queuedEdit = useComposerQueuedEditMode(
-    mode?.queuedMessagesSessionId ?? null,
-    onToast ?? noToast,
-  )
+  const queuedEdit = useComposerQueuedEditMode(mode?.queuedMessagesSessionId ?? null, onToast)
   const editHere = queuedEdit.here
   const {
     disabled,
@@ -121,7 +116,7 @@ export function Composer({
   const submission = useComposerSubmission({
     onSend,
     onEnqueue,
-    onSendFailure,
+    ...(onSendFailure === undefined ? {} : { onSendFailure }),
     isLoading,
     disabled,
     requiresText,
@@ -180,9 +175,9 @@ export function Composer({
         />
         <ComposerEditorArea
           onSubmit={submit}
-          onEscape={editHere ? queuedEdit.onEscape : undefined}
+          {...(editHere ? { onEscape: queuedEdit.onEscape } : {})}
           disabled={disabled}
-          placeholder={placeholder}
+          {...(placeholder === undefined ? {} : { placeholder })}
           isLoading={isLoading}
           editorRef={editorRef}
           checkAndConvertPaste={attachments.checkAndConvertPaste}
@@ -196,9 +191,9 @@ export function Composer({
             onSend: submit,
             onCancel,
             isLoading,
-            finishing,
+            ...(finishing === undefined ? {} : { finishing }),
             canSend: editHere ? queuedEdit.canSave : submission.canSend,
-            sendTitle,
+            ...(sendTitle === undefined ? {} : { sendTitle }),
             savesEdit: editHere !== null,
           }}
         />

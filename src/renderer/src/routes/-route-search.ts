@@ -14,27 +14,41 @@ export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
-  readonly packagePath?: string | undefined
-  readonly contentHash?: string | undefined
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 /** The router's raw search values, by the names ChatRouteSearch declares, each still unchecked. */
 type RawChatSearch = UncheckedFields<ChatRouteSearch>
 
 export interface ChatRouteSearch {
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly branch?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly node?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly diff?: 1 | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly panel?: ChatRightPanel | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly filePath?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly fileLine?: number | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly resourceView?: 'sources' | 'outputs' | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly resourceId?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly sidePanelExtensionId?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly sidePanelId?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly sidePanelPackagePath?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly sidePanelContentHash?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly changeRequestUrl?: string | undefined
+  // explicit undefined: a TanStack Router search update clears this param with undefined
   readonly changeRequestSessionId?: string | undefined
 }
 

@@ -22,7 +22,7 @@ function rowsFor(input: {
     sessionId: 'session-a',
     waggleMetadataLookup: {},
     phase: IDLE_PHASE,
-    extensionStatus: input.extensionStatus,
+    ...(input.extensionStatus === undefined ? {} : { extensionStatus: input.extensionStatus }),
   })
 }
 

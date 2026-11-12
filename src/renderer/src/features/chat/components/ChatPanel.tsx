@@ -38,14 +38,12 @@ const LazySessionResourceViewer = lazy(() =>
 
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
-  readonly onOpenSessionTree?: (() => void) | undefined
-  readonly onOpenDiff?: (() => void) | undefined
-  readonly onOpenChangeRequest?: ((url: string) => void) | undefined
-  readonly onOpenResources?: ((target: SessionResourceBrowserTarget) => void) | undefined
-  readonly onOpenExtensionSidePanel?:
-    | ((target: SessionSummaryExtensionSidePanelTarget) => void)
-    | undefined
-  readonly rightSidebarOpen?: boolean | undefined
+  readonly onOpenSessionTree?: () => void
+  readonly onOpenDiff?: () => void
+  readonly onOpenChangeRequest?: (url: string) => void
+  readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
+  readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
+  readonly rightSidebarOpen?: boolean
 }
 
 function SessionNotificationStack({
@@ -117,12 +115,12 @@ function useHiveAvailable(activeSessionId: string | null) {
 
 export function ChatPanelContent({
   sections,
-  onOpenSessionTree,
   onOpenDiff = () => {},
   onOpenChangeRequest = () => {},
   onOpenResources = () => {},
   onOpenExtensionSidePanel = () => {},
   rightSidebarOpen = false,
+  ...sessionTree
 }: ChatPanelContentProps) {
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
@@ -223,7 +221,7 @@ export function ChatPanelContent({
               extensionRegistry={sections.extensionRegistry}
               onRespondAgentInteraction={sections.onRespondAgentInteraction}
               section={sections.composer}
-              onOpenSessionTree={onOpenSessionTree}
+              {...sessionTree}
             />
           </PanelErrorBoundary>
         </ChatDisplayPathProvider>

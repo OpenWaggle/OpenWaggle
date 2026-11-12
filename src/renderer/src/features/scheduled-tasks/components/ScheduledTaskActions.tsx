@@ -18,7 +18,7 @@ function DeleteTaskControl({
   onDeleted,
 }: {
   readonly task: ScheduledTask
-  readonly onDeleted?: (() => void) | undefined
+  readonly onDeleted?: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
   const remove = useDeleteScheduledTask()
@@ -67,7 +67,7 @@ export function ScheduledTaskActions({
 }: {
   readonly task: ScheduledTask
   readonly onEdit: (task: ScheduledTask) => void
-  readonly onDeleted?: (() => void) | undefined
+  readonly onDeleted?: () => void
   readonly align?: 'start' | 'end'
 }) {
   const enabled = useSetScheduledTaskEnabled()
@@ -110,7 +110,7 @@ export function ScheduledTaskActions({
         >
           <Pencil className="size-3.5" />
         </Button>
-        <DeleteTaskControl task={task} onDeleted={onDeleted} />
+        <DeleteTaskControl task={task} {...(onDeleted === undefined ? {} : { onDeleted })} />
       </div>
       {error ? (
         <p
