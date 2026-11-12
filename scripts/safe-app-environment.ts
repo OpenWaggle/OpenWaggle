@@ -1,4 +1,17 @@
 const SAFE_APP_ENVIRONMENT_KEYS = [
+  // Windows' own directories. Without them an Electrobun app finds neither its install under
+  // LOCALAPPDATA nor the WebView2 runtime under Program Files (scripts/electrobun/hutch-entry.ts),
+  // and child processes lose the shell and executable suffixes. Names are case-insensitive there.
+  'APPDATA',
+  'COMSPEC',
+  'LOCALAPPDATA',
+  'PATHEXT',
+  'PROGRAMDATA',
+  'PROGRAMFILES',
+  'PROGRAMFILES(X86)',
+  'SYSTEMDRIVE',
+  'TEMP',
+  'WINDIR',
   'CI',
   'COLORTERM',
   'DISPLAY',
