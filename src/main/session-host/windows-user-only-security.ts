@@ -82,12 +82,19 @@ function Write-SecurityStage([string]$stage) {
   [Console]::Error.WriteLine('OW_SECURITY_STAGE:' + $stage)
   [Console]::Error.Flush()
 }
-Write-SecurityStage 'resolve-compiler-command'
-$compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
-Write-SecurityStage 'compile'
-& $compiler -TypeDefinition $source -Language CSharp
 Write-SecurityStage 'read-input'
 $targets = $RequestJson | ConvertFrom-Json
+# Only a named pipe needs the compiled helper; compiling it costs this process most of its run.
+$pipeTargets = 0
+foreach ($target in $targets) {
+  if ($target.kind -eq 'pipe') { $pipeTargets += 1 }
+}
+if ($pipeTargets -gt 0) {
+  Write-SecurityStage 'resolve-compiler-command'
+  $compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
+  Write-SecurityStage 'compile'
+  & $compiler -TypeDefinition $source -Language CSharp
+}
 Write-SecurityStage 'identity'
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $owner = $identity.User
