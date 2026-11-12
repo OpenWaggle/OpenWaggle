@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { temporaryTestDirectory } from '../../test-support/temporary-test-directory'
-import { type CommandRunner, createOsKeySources } from '../os-key-sources'
+import { type CommandRunner, createOsKeySources, DPAPI_UNPROTECT_SCRIPT } from '../os-key-sources'
 
 const ok = (stdout: string) => ({ exitCode: 0, stdout, stderr: '' })
 
@@ -75,5 +75,12 @@ describe('OS key sources for the Electron safeStorage reader', () => {
     )
     expect(runCommand.mock.calls[0]?.[0]).toBe('pwsh.exe')
     expect(runCommand.mock.calls[0]?.[2]).toBe(Buffer.from('sealed').toString('base64'))
+    expect(runCommand.mock.calls[0]?.[1].at(-1)).toBe(DPAPI_UNPROTECT_SCRIPT)
+  })
+
+  it('unprotects without running a cmdlet, which would start PowerShell module analysis', () => {
+    // A cmdlet is Verb-Noun outside a .NET type reference; the script only calls .NET.
+    const withoutTypes = DPAPI_UNPROTECT_SCRIPT.replaceAll(/\[[^\]]*\]/gu, '')
+    expect(withoutTypes).not.toMatch(/\b[A-Z][a-z]+-[A-Z][A-Za-z]+\b/u)
   })
 })

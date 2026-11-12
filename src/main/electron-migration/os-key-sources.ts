@@ -43,8 +43,14 @@ export interface OsKeySourceOptions {
   readonly powershellPath?: string
 }
 
-const DPAPI_UNPROTECT_SCRIPT =
-  'Add-Type -AssemblyName System.Security;' +
+/**
+ * Unwraps the Local State key with DPAPI. It calls .NET directly and runs no cmdlet: the first
+ * cmdlet makes PowerShell analyse every module on PSModulePath, which takes 11 to 16 s when the
+ * app's helper environment hides the analysis cache (CI run 43170695608) and then outlasts the
+ * helper's timeout on a busy first launch.
+ */
+export const DPAPI_UNPROTECT_SCRIPT =
+  "[void][Reflection.Assembly]::LoadWithPartialName('System.Security');" +
   '$value=[Console]::In.ReadToEnd();' +
   '$encrypted=[Convert]::FromBase64String($value);' +
   '$plain=[Security.Cryptography.ProtectedData]::Unprotect($encrypted,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);' +
