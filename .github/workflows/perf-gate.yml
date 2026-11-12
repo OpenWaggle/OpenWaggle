@@ -1,0 +1,299 @@
+# Performance Gate: fails a pull request that makes OpenWaggle slower or heavier
+# (.agents/memory/performance.md, "The Performance Gate").
+#
+# - decide: the merge base and head, and whether the timing job runs (a change to nothing but docs,
+#   the website or .agents skips it; scripts/perf-gate/changed-paths.ts).
+# - timings: builds the merge base and the head on one runner and launches each built app
+#   unpackaged under Xvfb, interleaved A/B/A/B (scripts/perf-gate/ab-run.ts): window, backend and
+#   chat ready cold and warm, idle and after-turn memory by process, IPC calls until chat ready.
+# - Performance Gate (the required check): performance/perf-budgets.json against main's, the timing
+#   verdict against main's thresholds, the full table in the job summary and a report artifact that
+#   perf-report.yml turns into one pull request comment. It passes when timings were skipped.
+#
+# The measuring and judging scripts are main's whenever main has them, never the pull request's.
+# Only a maintainer accepts a regression: perf-budget-increase for a budget, perf-regression-accepted
+# for a timing. Add the label, then re-run the failed Performance Gate job; it reads labels live.
+#
+# A push to a throwaway bench/perf-gate-* branch runs the same jobs; performance/perf-gate/bench.json
+# on that branch (never on main) may name the base and head refs and the pair count, for example
+# base-vs-base noise runs.
+name: Performance Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - "bench/perf-gate-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  decide:
+    name: Decide what to measure
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      base_sha: ${{ steps.refs.outputs.base_sha }}
+      head_sha: ${{ steps.refs.outputs.head_sha }}
+      main_sha: ${{ steps.refs.outputs.main_sha }}
+      pairs: ${{ steps.refs.outputs.pairs }}
+      run: ${{ steps.decide.outputs.run }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Resolve the merge base and the head
+        id: refs
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_TIP: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          if [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            main="$BASE_TIP"
+            base=$(git merge-base "$BASE_TIP" "$head")
+            pairs=""
+          else
+            git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+            main=$(git rev-parse origin/main)
+            base=$(git merge-base origin/main "$head")
+            pairs=""
+            if [ -f performance/perf-gate/bench.json ]; then
+              base=$(git rev-parse "$(jq -r '.base // "origin/main"' performance/perf-gate/bench.json)^{commit}")
+              head=$(git rev-parse "$(jq -r '.head // "HEAD"' performance/perf-gate/bench.json)^{commit}")
+              pairs=$(jq -r '.pairs // empty' performance/perf-gate/bench.json)
+            fi
+          fi
+          { echo "base_sha=$base"; echo "head_sha=$head"; echo "main_sha=$main"; echo "pairs=$pairs"; } >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether shipped code changed
+        id: decide
+        env:
+          BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$BASE_SHA" = "$HEAD_SHA" ]; then
+            # A bench run of one commit against itself measures the noise.
+            { echo "run=true"; echo "reason=base and head are one commit"; } >> "$GITHUB_OUTPUT"
+          else
+            bun scripts/perf-gate/gate.ts decide --base "$BASE_SHA" --head "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  timings:
+    name: Performance timings (Linux A/B)
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      DISPLAY: ":99"
+      OPENWAGGLE_RELEASE_CHANNEL: beta
+    steps:
+      - name: Check out the head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.decide.outputs.head_sha }}
+          path: head
+          persist-credentials: false
+
+      - name: Check out the merge base
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.decide.outputs.base_sha }}
+          path: base
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: head/package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      # This job ships nothing and signs nothing, so it may restore caches (release-and-ci.md).
+      - name: Restore the Bun package cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.bun/install/cache
+          key: perf-gate-bun-${{ runner.os }}-${{ hashFiles('base/bun.lock', 'head/bun.lock') }}
+          restore-keys: |
+            perf-gate-bun-${{ runner.os }}-
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Restore the Electron download cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/electron
+          key: perf-gate-electron-${{ runner.os }}-${{ hashFiles('base/bun.lock', 'head/bun.lock') }}
+          restore-keys: perf-gate-electron-${{ runner.os }}-
+
+      - name: Install both checkouts
+        run: |
+          set -euo pipefail
+          for side in base head; do
+            start=$(date +%s)
+            (cd "$side" && bun install --frozen-lockfile && node node_modules/electron/install.js)
+            echo "::notice::install $side took $(( $(date +%s) - start )) s"
+          done
+
+      - name: Linux display
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q || true
+          sudo apt-get install -y -q xvfb openbox dbus-x11 libnss3 libxss1 libasound2t64 libgtk-3-0t64
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          Xvfb "$DISPLAY" -screen 0 1440x900x24 >/dev/null 2>&1 &
+          sleep 1
+          eval "$(dbus-launch --sh-syntax)"
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
+          openbox >/dev/null 2>&1 &
+
+      - name: Build both checkouts
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          (cd base && bun run build > ../build-base.log 2>&1) & base_pid=$!
+          (cd head && bun run build > ../build-head.log 2>&1) & head_pid=$!
+          status=0
+          wait "$base_pid" || { status=1; tail -50 build-base.log; }
+          wait "$head_pid" || { status=1; tail -50 build-head.log; }
+          echo "::notice::builds took $(( $(date +%s) - start )) s"
+          exit "$status"
+
+      - name: Measure base and head, interleaved
+        env:
+          PAIRS_OVERRIDE: ${{ needs.decide.outputs.pairs }}
+        run: |
+          set -euo pipefail
+          # main's harness and thresholds when main has them; the head's before the gate landed.
+          trusted=base
+          [ -f base/scripts/perf-gate/ab-run.ts ] || trusted=head
+          thresholds="$trusted/performance/perf-gate/thresholds.json"
+          pairs=${PAIRS_OVERRIDE:-$(jq -r .pairs "$thresholds")}
+          idle=$(jq -r .idleMs "$thresholds")
+          mkdir -p results
+          start=$(date +%s)
+          (cd "$trusted" && bun scripts/perf-gate/ab-run.ts --base ../base --head ../head \
+            --pairs "$pairs" --idle-ms "$idle" --work "$RUNNER_TEMP/ab" --out ../results/ab.json)
+          echo "::notice::measurement took $(( $(date +%s) - start )) s for $pairs pairs"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: perf-gate-ab
+          path: |
+            results
+            build-*.log
+          retention-days: 14
+
+  gate:
+    name: Performance Gate
+    needs: [decide, timings]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Check out main's gate
+        env:
+          MAIN_SHA: ${{ needs.decide.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          git worktree add --detach trusted "$MAIN_SHA"
+          if [ -f trusted/scripts/perf-gate/gate.ts ]; then
+            echo "GATE=trusted/scripts/perf-gate/gate.ts" >> "$GITHUB_ENV"
+            echo "THRESHOLDS=trusted/performance/perf-gate/thresholds.json" >> "$GITHUB_ENV"
+          else
+            echo "::notice::main has no Performance Gate yet; this run uses the pull request's own."
+            echo "GATE=scripts/perf-gate/gate.ts" >> "$GITHUB_ENV"
+            echo "THRESHOLDS=performance/perf-gate/thresholds.json" >> "$GITHUB_ENV"
+          fi
+
+      - name: Read the maintainer labels
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: bun "$GATE" labels --repo "$GITHUB_REPOSITORY" --pr "$PR" | tee -a "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: needs.timings.result == 'success'
+        with:
+          name: perf-gate-ab
+          path: ab
+
+      - name: Judge budgets and timings
+        env:
+          TIMINGS_RESULT: ${{ needs.timings.result }}
+          DECIDE_RESULT: ${{ needs.decide.result }}
+          RUN_TIMINGS: ${{ needs.decide.outputs.run }}
+          REASON: ${{ needs.decide.outputs.reason }}
+          BASE_SHA: ${{ needs.decide.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.decide.outputs.head_sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          mkdir -p report
+          status=0
+          [ "$DECIDE_RESULT" = "success" ] || { echo "::error::The decide job did not succeed."; exit 1; }
+          bun "$GATE" budgets --base trusted/performance/perf-budgets.json \
+            --head performance/perf-budgets.json --labels "${labels:-}" --out report/budgets.json || status=1
+          report_args=(--budgets report/budgets.json)
+          if [ "$RUN_TIMINGS" = "true" ]; then
+            if [ "$TIMINGS_RESULT" != "success" ]; then
+              echo "::error::The timing job ended $TIMINGS_RESULT."
+              status=1
+            else
+              bun "$GATE" verdict --results ab/results/ab.json --thresholds "$THRESHOLDS" \
+                --head-thresholds performance/perf-gate/thresholds.json --labels "${labels:-}" \
+                --out report/verdict.json || status=1
+              report_args+=(--verdict report/verdict.json --results ab/results/ab.json)
+            fi
+          else
+            report_args+=(--skipped "no shipped code changed")
+          fi
+          bun "$GATE" report --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" ${PR:+--pr "$PR"} \
+            --labels "${labels:-}" "${report_args[@]}" --out report/report.json --markdown report/report.md
+          cat report/report.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: perf-gate-report
+          path: report
+          retention-days: 14
