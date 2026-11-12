@@ -38,7 +38,7 @@ export const scheduledTaskAttentionSchema = Schema.Struct({
 export const scheduledTaskCreatorSchema = Schema.Struct({
   kind: Schema.Literal('local-user', 'profile', 'session-agent'),
   label: Schema.String,
-  sessionId: Schema.optional(Schema.String),
+  sessionId: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 export const scheduledTaskRunTriggerSchema = Schema.Literal('schedule', 'catch-up', 'run-now')
@@ -54,15 +54,15 @@ export const scheduledTaskRunSchema = Schema.Struct({
   /** Firings missed while the Host was down or the machine slept, covered by this one run. */
   missedCount: countSchema,
   status: Schema.Literal(...SCHEDULED_TASK_RUN_STATUSES),
-  reason: Schema.optional(Schema.Literal(...SCHEDULED_TASK_RUN_REASONS)),
-  message: Schema.optional(Schema.String),
+  reason: Schema.optionalWith(Schema.Literal(...SCHEDULED_TASK_RUN_REASONS), { exact: true }),
+  message: Schema.optionalWith(Schema.String, { exact: true }),
   /** The Session the run delivered into (Heartbeat) or launched (Launch schedule). */
-  sessionId: Schema.optional(Schema.String),
-  runId: Schema.optional(Schema.String),
+  sessionId: Schema.optionalWith(Schema.String, { exact: true }),
+  runId: Schema.optionalWith(Schema.String, { exact: true }),
   /** What a Heartbeat's Wake check decided for this firing. */
-  wakeCheck: Schema.optional(scheduledTaskRunWakeCheckSchema),
+  wakeCheck: Schema.optionalWith(scheduledTaskRunWakeCheckSchema, { exact: true }),
   /** A Heartbeat Run's Run outcome, once reported or inferred. */
-  outcome: Schema.optional(scheduledTaskRunOutcomeSchema),
+  outcome: Schema.optionalWith(scheduledTaskRunOutcomeSchema, { exact: true }),
 })
 
 export const scheduledTaskSchema = Schema.Struct({

@@ -158,7 +158,11 @@ describe('a Scheduled task a Session agent created', () => {
         maxRuns: null,
         target: { kind: 'heartbeat', sessionId: target },
         notificationPolicy: 'failures-only',
-        heartbeat: { stopWhen: input.heartbeat.stopWhen, indefinite: false, idlePauseAfter: 3 },
+        heartbeat: {
+          ...(input.heartbeat.stopWhen === undefined ? {} : { stopWhen: input.heartbeat.stopWhen }),
+          indefinite: false,
+          idlePauseAfter: 3,
+        },
       },
     })
     expect(saved).toMatchObject({ effect: 'updated' })

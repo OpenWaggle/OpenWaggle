@@ -31,25 +31,37 @@ describe('host UI extension inputs', () => {
     expect(message).toContain('projectPaths.0: ')
   })
 
-  it('leaves optional fields sent as undefined absent from the decoded request', async () => {
+  it('decodes a package removal whose optional fields are omitted', async () => {
     const decoded = await Effect.runPromise(
-      normalizeHostUiExtensionApplyPackageRemoveInput({
-        extensionId: 'example-extension',
-        scope: { kind: 'global' },
-        viewProjectPaths: undefined,
-        actor: { kind: 'user', userId: undefined },
-        userApproval: {
-          approved: true,
-          approvedProposalHash: PROPOSAL_HASH,
-          approvedBy: 'user',
-          approvedAt: 1,
-        },
-        globalConfirmation: undefined,
-      }),
+      normalizeHostUiExtensionApplyPackageRemoveInput(packageRemoval({ kind: 'user' })),
     )
 
     expect(decoded.actor).toStrictEqual({ kind: 'user' })
     expect('globalConfirmation' in decoded).toBe(false)
     expect(decoded.viewProjectPaths).toStrictEqual([])
   })
+
+  it('refuses an optional field set to undefined, naming it', async () => {
+    const message = await failureMessage(
+      normalizeHostUiExtensionApplyPackageRemoveInput(
+        packageRemoval({ kind: 'user', userId: undefined }),
+      ),
+    )
+
+    expect(message).toContain('actor.userId: ')
+  })
 })
+
+function packageRemoval(actor: object) {
+  return {
+    extensionId: 'example-extension',
+    scope: { kind: 'global' },
+    actor,
+    userApproval: {
+      approved: true,
+      approvedProposalHash: PROPOSAL_HASH,
+      approvedBy: 'user',
+      approvedAt: 1,
+    },
+  }
+}
