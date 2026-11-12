@@ -1,11 +1,11 @@
 import { match, P } from '@diegogbrisa/ts-match'
-import { isRecord } from '@shared/utils/validation'
 import {
   getToolResultDetails,
   isTextContentBlock,
   LINE_SPLIT_SEPARATOR,
   parseResultPayload,
 } from './tool-call-block'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /** What an edit changed, read from Pi's edit tool result details (ADR 0050). */
 export interface EditDiffData {
@@ -83,15 +83,19 @@ function positiveLine(value: unknown) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
 }
 
+/** The details Pi's edit tool reports: a patch or a diff, and the first line it changed. */
+interface EditToolResultDetails {
+  readonly patch: string
+  readonly diff: string
+  readonly firstChangedLine: number
+}
+
 export function getEditDiff(content: unknown, name: string): EditDiffData | null {
   if (name !== 'edit') {
     return null
   }
 
-  const details = getToolResultDetails(content)
-  if (!isRecord(details)) {
-    return null
-  }
+  const details = uncheckedFields<EditToolResultDetails>(getToolResultDetails(content))
   const patch = renderablePatch(details.patch)
   const text = patch ?? nonEmptyString(details.diff) ?? nonEmptyString(details.patch)
   if (text === null) {

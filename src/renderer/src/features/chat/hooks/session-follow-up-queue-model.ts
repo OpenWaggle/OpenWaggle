@@ -8,8 +8,9 @@ import type {
   SessionFollowUpSource,
 } from '@shared/types/session-control-queue'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import type { WaggleInvocation } from '@shared/types/waggle'
-import { isRecord } from '@shared/utils/validation'
+import { isObjectValue } from '@shared/utils/object-shape'
 
 export interface SessionFollowUpQueueItem {
   readonly id: string
@@ -172,24 +173,35 @@ function queuedVisualizationContext(value: unknown) {
   return decoded.success ? { visualizationContext: decoded.data } : {}
 }
 
+/** A queued Follow-up's send intent, as far as the queue rows read it. */
+interface QueuedIntentFields {
+  readonly text: string
+  readonly attachmentIds: readonly string[]
+  readonly waggle: { readonly presetName: string; readonly source: 'user' | 'agent' }
+  readonly callerId: string
+  readonly visualizationContext: InlineVisualizationContext
+}
+
+function uncheckedFields<T>(value: unknown): UncheckedFields<T> | null {
+  return isObjectValue(value) ? value : null
+}
+
 function queueIntent(value: unknown): SessionFollowUpQueueIntent {
-  if (!isRecord(value)) {
+  const intent = uncheckedFields<QueuedIntentFields>(value)
+  if (intent === null) {
     return { text: '', attachmentCount: 0 }
   }
-  const record = value
-  const waggle = isRecord(record.waggle) ? record.waggle : undefined
+  const waggle = uncheckedFields<QueuedIntentFields['waggle']>(intent.waggle)
   return {
-    text: typeof record.text === 'string' ? record.text : '',
-    attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
-    ...(waggle && typeof waggle.presetName === 'string'
-      ? { wagglePresetName: waggle.presetName }
-      : {}),
-    ...(waggle && (waggle.source === 'user' || waggle.source === 'agent')
+    text: typeof intent.text === 'string' ? intent.text : '',
+    attachmentCount: Array.isArray(intent.attachmentIds) ? intent.attachmentIds.length : 0,
+    ...(typeof waggle?.presetName === 'string' ? { wagglePresetName: waggle.presetName } : {}),
+    ...(waggle?.source === 'user' || waggle?.source === 'agent'
       ? { waggleSource: waggle.source }
       : {}),
-    ...(typeof record.callerId === 'string' ? { callerId: record.callerId } : {}),
-    ...queuedWaggle(record.waggle),
-    ...queuedVisualizationContext(record.visualizationContext),
+    ...(typeof intent.callerId === 'string' ? { callerId: intent.callerId } : {}),
+    ...queuedWaggle(intent.waggle),
+    ...queuedVisualizationContext(intent.visualizationContext),
   }
 }
 

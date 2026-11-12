@@ -4,6 +4,7 @@ import { normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
 import { lenientJsonStringify } from '@/shared/lib/lenient-json'
 import { languageFromPath } from '@/shared/lib/syntax/language-registry'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const JSON_STRINGIFY_SPACES = 2
 export const LONG_ARGUMENT_PREVIEW_CHARS = 120
@@ -61,6 +62,7 @@ function textFromContentBlocks(content: readonly unknown[]) {
 }
 
 function textFromResultRecord(parsed: Readonly<Record<string, unknown>>) {
+  const fields = uncheckedFields<ToolResultTextFields>(parsed)
   const contentText = match(parsed)
     .with({ content: P.select('content', P.array(P._)) }, ({ content }) =>
       textFromContentBlocks(content),
@@ -71,21 +73,28 @@ function textFromResultRecord(parsed: Readonly<Record<string, unknown>>) {
     return contentText
   }
 
-  const message = match(parsed.message)
+  const message = match(fields.message)
     .with(P.string, (value) => value)
     .otherwise(() => null)
   if (message) {
     return message
   }
 
-  const error = match(parsed.error)
+  const error = match(fields.error)
     .with(P.string, (value) => value)
     .otherwise(() => null)
   if (error) {
     return error
   }
 
-  return Array.isArray(parsed.content) && parsed.content.length === 0 ? '' : null
+  return Array.isArray(fields.content) && fields.content.length === 0 ? '' : null
+}
+
+/** The fields a tool result's text can come from, in order. */
+interface ToolResultTextFields {
+  readonly content: readonly unknown[]
+  readonly message: string
+  readonly error: string
 }
 
 export function getToolResultText(content: unknown, serialized?: string | null) {
@@ -148,10 +157,8 @@ export function getResultError(result: ToolCallResultPayload | undefined) {
   }
 
   const parsed = parseResultPayload(result.content)
-  if (isRecord(parsed) && typeof parsed.error === 'string') {
-    return parsed.error
-  }
-  return null
+  const { error } = uncheckedFields<ToolResultTextFields>(parsed)
+  return typeof error === 'string' ? error : null
 }
 
 export function buildTailPreview(text: string) {

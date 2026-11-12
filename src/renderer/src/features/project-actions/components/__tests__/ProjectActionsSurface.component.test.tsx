@@ -54,6 +54,9 @@ vi.mock('@/features/terminal', async (importOriginal) => {
 
 import { ProjectActionsSurface } from '../ProjectActionsSurface'
 
+/** The terminal owner key of the Session these cases use. */
+const TERMINAL_OWNER = 'session'
+
 const SESSION_ID = SessionId('session')
 
 const DEV = {
@@ -208,7 +211,7 @@ describe('ProjectActionsSurface', () => {
       runId: 'run-1',
       label: 'dev',
     })
-    expect(useTerminalStore.getState().groups.session?.panelOpen).toBe(true)
+    expect(useTerminalStore.getState().groups[TERMINAL_OWNER]?.panelOpen).toBe(true)
 
     fireEvent.click(stop)
     await waitFor(() =>

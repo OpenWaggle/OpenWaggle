@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import type { McpJsonValue } from '@shared/types/mcp'
 import { replaceMcpBinaryPayloads } from '@shared/utils/mcp-binary-payload'
 
@@ -8,16 +9,10 @@ export function mcpAppDraftJson(value: unknown) {
   return JSON.stringify(replaceMcpBinaryPayloads(value), null, JSON_INDENT_SPACES)
 }
 
+const isTextBlock = Schema.is(Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }))
+
 function draftTextBlock(entry: McpJsonValue) {
-  if (
-    typeof entry !== 'object' ||
-    entry === null ||
-    Array.isArray(entry) ||
-    entry.type !== 'text' ||
-    typeof entry.text !== 'string'
-  ) {
-    return []
-  }
+  if (!isTextBlock(entry)) return []
   const text = replaceMcpBinaryPayloads(entry.text)
   return typeof text === 'string' ? [text] : []
 }

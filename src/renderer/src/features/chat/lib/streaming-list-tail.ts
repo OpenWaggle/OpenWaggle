@@ -1,4 +1,5 @@
 import type { Processor } from 'unified'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * Bounded re-parse of a streaming list (B9, ADR 0026).
@@ -51,8 +52,9 @@ const MIN_SPLIT_ITEMS = 2
 function itemMarker(line: string) {
   const match = MARKER_LINE.exec(line)
   if (!match || THEMATIC_BREAK.test(line)) return null
+  const groups = namedGroups(match, ['bullet', 'delimiter'])
   return {
-    style: match.groups?.bullet ?? match.groups?.delimiter ?? null,
+    style: groups?.bullet ?? groups?.delimiter ?? null,
     contentIndent: match[0].length,
   }
 }
@@ -96,7 +98,7 @@ export function splitListTail(text: string): ListTailSplit | null {
 
 function isNode(value: unknown): value is MarkdownNode {
   return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
   )
 }
 

@@ -7,6 +7,7 @@ import {
   type ToolLabel,
   type Verbs,
 } from './tool-label-parts'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 const BROWSER_TITLE = 'browser preview'
 
@@ -36,7 +37,7 @@ function previewUrl(args: JsonObject) {
 function previewKey(args: JsonObject) {
   const key = stringArg(args, 'key')
   if (!key) return null
-  const modifiers = args.modifiers
+  const { modifiers } = uncheckedFields<{ readonly modifiers: readonly string[] }>(args)
   const held = Array.isArray(modifiers)
     ? modifiers.filter((modifier): modifier is string => typeof modifier === 'string')
     : []

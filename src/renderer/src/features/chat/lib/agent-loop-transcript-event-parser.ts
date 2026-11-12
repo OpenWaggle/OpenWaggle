@@ -6,13 +6,12 @@ import type {
   AgentTransportInteractionRequestEvent,
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 import {
   baseEventFields,
-  isObject,
   optionalJsonValue,
-  parseJsonObject,
-  stringField,
-  type UnknownObject,
+  parseJsonUnknownOrNull,
+  stringOrNull,
 } from './agent-loop-transcript-event-fields'
 import {
   parseErrorInfo,
@@ -31,18 +30,25 @@ export interface AgentLoopTranscriptNode {
   readonly contentJson?: string
 }
 
-function parseCustomEvent(event: UnknownObject): AgentTransportCustomEvent | null {
-  if (event.type !== 'custom') {
+/** A persisted Agent loop session event's content, as an audit node stores it. */
+interface AgentLoopSessionEventContent {
+  readonly customType: string
+  readonly event: unknown
+}
+
+function parseCustomEvent(event: object): AgentTransportCustomEvent | null {
+  const fields = uncheckedFields<AgentTransportCustomEvent>(event)
+  if (fields.type !== 'custom') {
     return null
   }
 
   const base = baseEventFields(event)
-  const name = stringField(event, 'name')
+  const name = stringOrNull(fields.name)
   if (base === null || name === null) {
     return null
   }
 
-  const value = optionalJsonValue(event.value)
+  const value = optionalJsonValue(fields.value)
   return {
     type: 'custom',
     name,
@@ -51,32 +57,32 @@ function parseCustomEvent(event: UnknownObject): AgentTransportCustomEvent | nul
   }
 }
 
-function parseInteractionRequestEvent(
-  event: UnknownObject,
-): AgentTransportInteractionRequestEvent | null {
-  if (event.type !== 'agent_interaction_request') {
+function parseInteractionRequestEvent(event: object): AgentTransportInteractionRequestEvent | null {
+  const fields = uncheckedFields<AgentTransportInteractionRequestEvent>(event)
+  if (fields.type !== 'agent_interaction_request') {
     return null
   }
 
   const base = baseEventFields(event)
-  const interaction = parseInteraction(event.interaction)
+  const interaction = parseInteraction(fields.interaction)
   return base !== null && interaction !== null
     ? { type: 'agent_interaction_request', ...base, interaction }
     : null
 }
 
 function parseInteractionResolvedEvent(
-  event: UnknownObject,
+  event: object,
 ): AgentTransportInteractionResolvedEvent | null {
-  if (event.type !== 'agent_interaction_resolved') {
+  const fields = uncheckedFields<AgentTransportInteractionResolvedEvent>(event)
+  if (fields.type !== 'agent_interaction_resolved') {
     return null
   }
 
   const base = baseEventFields(event)
-  const runId = stringField(event, 'runId')
-  const interactionId = stringField(event, 'interactionId')
-  const kind = parseInteractionKind(stringField(event, 'kind'))
-  const status = parseInteractionStatus(stringField(event, 'status'))
+  const runId = stringOrNull(fields.runId)
+  const interactionId = stringOrNull(fields.interactionId)
+  const kind = parseInteractionKind(stringOrNull(fields.kind))
+  const status = parseInteractionStatus(stringOrNull(fields.status))
 
   if (
     base === null ||
@@ -88,8 +94,8 @@ function parseInteractionResolvedEvent(
     return null
   }
 
-  const response = safeDecodeUnknown(agentLoopResponseSchema, event.response)
-  const error = parseErrorInfo(event.error)
+  const response = safeDecodeUnknown(agentLoopResponseSchema, fields.response)
+  const error = parseErrorInfo(fields.error)
 
   return {
     type: 'agent_interaction_resolved',
@@ -110,7 +116,7 @@ export function parseAgentLoopEvent(
   | AgentTransportInteractionRequestEvent
   | AgentTransportInteractionResolvedEvent
   | null {
-  if (!isObject(event)) {
+  if (!isObjectValue(event)) {
     return null
   }
 
@@ -126,8 +132,10 @@ export function isAgentLoopTranscriptNode(node: AgentLoopTranscriptNode) {
     return false
   }
 
-  const content = parseJsonObject(node.contentJson)
-  return content?.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  const content = uncheckedFields<AgentLoopSessionEventContent>(
+    parseJsonUnknownOrNull(node.contentJson),
+  )
+  return content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
 }
 
 export function readAgentLoopEventFromNode(node: AgentLoopTranscriptNode) {
@@ -135,6 +143,9 @@ export function readAgentLoopEventFromNode(node: AgentLoopTranscriptNode) {
     return null
   }
 
-  const content = node.contentJson ? parseJsonObject(node.contentJson) : null
-  return content ? parseAgentLoopEvent(content.event) : null
+  if (!node.contentJson) return null
+  const content = uncheckedFields<AgentLoopSessionEventContent>(
+    parseJsonUnknownOrNull(node.contentJson),
+  )
+  return parseAgentLoopEvent(content.event)
 }

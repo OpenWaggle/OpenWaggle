@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../auth-store'
 import { useProviderStore } from '../provider-store'
 
+/** The provider id these cases key the store's per-provider maps by. */
+const OPENAI = 'openai'
+
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getSettings: vi.fn(),
@@ -261,18 +264,18 @@ describe('provider-store integration', () => {
     const success = await useProviderStore.getState().testApiKey('openai', 'sk-test')
 
     expect(success).toBe(true)
-    expect(useProviderStore.getState().testResults.openai).toEqual({ success: true })
+    expect(useProviderStore.getState().testResults[OPENAI]).toEqual({ success: true })
     expect(apiMock.testApiKey).toHaveBeenNthCalledWith(1, 'openai', 'sk-test', null)
 
     apiMock.testApiKey.mockRejectedValueOnce(new Error('network'))
     const failure = await useProviderStore.getState().testApiKey('openai', 'sk-test')
 
     expect(failure).toBe(false)
-    expect(useProviderStore.getState().testResults.openai).toEqual({
+    expect(useProviderStore.getState().testResults[OPENAI]).toEqual({
       success: false,
       error: 'Unexpected error — check the console',
     })
-    expect(useProviderStore.getState().testingProviders.openai).toBe(false)
+    expect(useProviderStore.getState().testingProviders[OPENAI]).toBe(false)
     expect(apiMock.testApiKey).toHaveBeenNthCalledWith(2, 'openai', 'sk-test', null)
   })
 
@@ -282,7 +285,7 @@ describe('provider-store integration', () => {
     })
 
     useProviderStore.getState().clearTestResult('openai')
-    expect(useProviderStore.getState().testResults.openai).toBeNull()
+    expect(useProviderStore.getState().testResults[OPENAI]).toBeNull()
   })
 })
 

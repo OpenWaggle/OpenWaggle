@@ -9,6 +9,7 @@ import {
   MAX_FOLLOWED_ACTION_RUNS,
 } from '../lib/action-output-view-model'
 import { resolveTerminalStorage } from './terminal-store-persistence'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const ACTION_OUTPUT_VIEW_STORAGE_KEY = 'openwaggle:terminal-action-output-views:v1'
 const ACTION_OUTPUT_VIEW_PERSISTENCE_VERSION = 1
@@ -203,11 +204,7 @@ export const useActionOutputViewStore = create<ActionOutputViewState>()(
       partialize: (state) => ({ views: state.views }),
       merge: (persisted, current) => ({
         ...current,
-        views: sanitizeStoredViews(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'views')
-            : undefined,
-        ),
+        views: sanitizeStoredViews(uncheckedFields<{ readonly views: unknown }>(persisted).views),
       }),
     },
   ),

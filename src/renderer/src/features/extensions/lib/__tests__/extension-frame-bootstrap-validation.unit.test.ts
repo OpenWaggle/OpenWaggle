@@ -91,4 +91,45 @@ describe('extension frame bootstrap validation', () => {
       ),
     ).toBeNull()
   })
+
+  // The parent message is decoded with the broker's invoke result schema; the earlier guard took
+  // any string as an audit outcome and any object as a success value.
+  it('accepts a broker invoke result and refuses one the broker schema does not declare', () => {
+    const audit = {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.settings',
+      capability: 'openwaggle.storage',
+      method: 'list',
+      scope: { kind: 'app' },
+      outcome: 'succeeded',
+      timestamp: 1,
+    }
+    const message = {
+      channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+      frameId: 'frame-1',
+      type: 'invoke-result',
+      requestId: 'invoke-1',
+      result: {
+        ok: true,
+        value: {
+          extensionId: 'sample-extension',
+          contributionId: 'sample.settings',
+          capability: 'openwaggle.storage',
+          method: 'list',
+          storageKind: 'state',
+          storageScope: { kind: 'global' },
+          keys: ['draft'],
+        },
+        audit,
+      },
+    }
+    expect(decodedParentMessage(message, 'frame-1')).toMatchObject({ requestId: 'invoke-1' })
+    expect(decodedParentMessage(message, 'frame-2')).toBeNull()
+    expect(
+      decodedParentMessage(
+        { ...message, result: { ...message.result, audit: { ...audit, outcome: 'maybe' } } },
+        'frame-1',
+      ),
+    ).toBeNull()
+  })
 })

@@ -278,7 +278,7 @@ describe('useWorkspaceLifecycle', () => {
   it('does not route application shortcuts while terminal input owns focus', async () => {
     renderHook(() => useWorkspaceLifecycle())
     const pane = document.createElement('div')
-    pane.dataset.terminalPane = 'term-1'
+    pane.setAttribute('data-terminal-pane', 'term-1')
     const textarea = document.createElement('textarea')
     pane.append(textarea)
 
@@ -292,7 +292,7 @@ describe('useWorkspaceLifecycle', () => {
   it('captures global chords before xterm and suppresses the paired key release', async () => {
     renderHook(() => useWorkspaceLifecycle())
     const pane = document.createElement('div')
-    pane.dataset.terminalPane = 'term-1'
+    pane.setAttribute('data-terminal-pane', 'term-1')
     const textarea = document.createElement('textarea')
     pane.append(textarea)
     document.body.append(pane)

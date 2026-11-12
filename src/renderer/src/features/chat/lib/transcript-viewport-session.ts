@@ -280,9 +280,11 @@ export class TranscriptViewportSession {
     // Mirrors the mode for tests and diagnosis; written directly, so it costs no render.
     const mode = this.controller.mode
     if (this.scroller) {
-      this.scroller.dataset.transcriptMode =
-        mode.kind === 'following' ? mode.kind : `${mode.kind}:${mode.key}`
-      this.scroller.dataset.transcriptSentTurn = this.controller.sentTurnKey ?? ''
+      this.scroller.setAttribute(
+        'data-transcript-mode',
+        mode.kind === 'following' ? mode.kind : `${mode.kind}:${mode.key}`,
+      )
+      this.scroller.setAttribute('data-transcript-sent-turn', this.controller.sentTurnKey ?? '')
     }
     this.view.setShowScrollToBottom(
       !this.controller.isFollowing && this.controller.distanceToBottom() > NEAR_BOTTOM_PX,

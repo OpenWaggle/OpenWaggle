@@ -1,5 +1,7 @@
 import type { McpJsonValue, McpResourceResult } from '@shared/types/mcp'
 import type { McpAppCsp } from '@shared/types/mcp-app-frame'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { isObjectValue } from '@shared/utils/object-shape'
 import { sanitizedMcpAppCsp } from '@shared/utils/mcp-app-csp'
 
 export type { McpAppCsp } from '@shared/types/mcp-app-frame'
@@ -12,23 +14,47 @@ export interface ParsedMcpAppResource {
   readonly requestedPermissions: readonly string[]
 }
 
-function isObject(value: McpJsonValue | undefined): value is Record<string, McpJsonValue> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** The `_meta.ui` an MCP App resource declares, under its current or its older key names. */
+interface McpAppUiMetadata {
+  readonly ui: McpJsonValue
+  readonly csp: McpJsonValue
+  readonly 'ui/csp': McpJsonValue
+  readonly permissions: McpJsonValue
+  readonly 'ui/permissions': McpJsonValue
 }
 
-function list(value: McpJsonValue | undefined) {
-  return Array.isArray(value) ? value : []
+interface McpAppCspDeclaration {
+  readonly connectDomains: McpJsonValue
+  readonly resourceDomains: McpJsonValue
+  readonly frameDomains: McpJsonValue
+  readonly baseUriDomains: McpJsonValue
 }
 
-function uiMetadata(content: Record<string, McpJsonValue>) {
-  if (!isObject(content._meta)) return {}
-  if (isObject(content._meta.ui)) return content._meta.ui
-  return content._meta
+interface McpAppResourceContent {
+  readonly text: McpJsonValue
+  readonly _meta: McpJsonValue
 }
 
-function permissionNames(value: McpJsonValue | undefined) {
-  if (!isObject(value)) return []
-  return Object.keys(value).filter((key) => isObject(value[key]))
+/** The fields of `T` an object holds, unchecked; nothing for a value that is not an object. */
+function fieldsOf<T>(value: unknown): UncheckedFields<T> {
+  return isObjectValue(value) ? value : {}
+}
+
+function strings(value: unknown) {
+  return Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : []
+}
+
+function uiMetadata(content: UncheckedFields<McpAppResourceContent>) {
+  if (!isObjectValue(content._meta)) return {}
+  const meta: UncheckedFields<McpAppUiMetadata> = content._meta
+  return isObjectValue(meta.ui) ? fieldsOf<McpAppUiMetadata>(meta.ui) : meta
+}
+
+function permissionNames(value: unknown) {
+  if (!isObjectValue(value)) return []
+  return Object.entries(value).flatMap(([name, permission]) =>
+    isObjectValue(permission) ? [name] : [],
+  )
 }
 
 /**
@@ -39,25 +65,25 @@ function permissionNames(value: McpJsonValue | undefined) {
  */
 export function parseMcpAppResource(result: McpResourceResult): ParsedMcpAppResource {
   if (!Array.isArray(result.contents)) throw new Error('MCP App resource has no content list.')
-  const content = result.contents.find((entry) => isObject(entry) && typeof entry.text === 'string')
-  if (!isObject(content) || typeof content.text !== 'string') {
+  const content = result.contents.find(
+    (entry) => typeof fieldsOf<McpAppResourceContent>(entry).text === 'string',
+  )
+  const fields = fieldsOf<McpAppResourceContent>(content)
+  if (typeof fields.text !== 'string') {
     throw new Error('MCP App resource must contain an HTML text document.')
   }
-  const metadata = uiMetadata(content)
-  const cspValue = isObject(metadata.csp)
-    ? metadata.csp
-    : isObject(metadata['ui/csp'])
-      ? metadata['ui/csp']
-      : {}
-  const permissions = metadata.permissions ?? metadata['ui/permissions']
+  const metadata = uiMetadata(fields)
+  const csp = fieldsOf<McpAppCspDeclaration>(
+    isObjectValue(metadata.csp) ? metadata.csp : metadata['ui/csp'],
+  )
   return {
-    html: content.text,
+    html: fields.text,
     csp: sanitizedMcpAppCsp({
-      connectDomains: list(cspValue.connectDomains).filter((v) => typeof v === 'string'),
-      resourceDomains: list(cspValue.resourceDomains).filter((v) => typeof v === 'string'),
-      frameDomains: list(cspValue.frameDomains).filter((v) => typeof v === 'string'),
-      baseUriDomains: list(cspValue.baseUriDomains).filter((v) => typeof v === 'string'),
+      connectDomains: strings(csp.connectDomains),
+      resourceDomains: strings(csp.resourceDomains),
+      frameDomains: strings(csp.frameDomains),
+      baseUriDomains: strings(csp.baseUriDomains),
     }),
-    requestedPermissions: permissionNames(permissions),
+    requestedPermissions: permissionNames(metadata.permissions ?? metadata['ui/permissions']),
   }
 }

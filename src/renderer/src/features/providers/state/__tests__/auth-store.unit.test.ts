@@ -56,6 +56,10 @@ vi.mock('../provider-store', () => ({
 
 import { useAuthStore } from '../auth-store'
 
+/** Provider ids, the keys of the auth store's per-provider maps. */
+const OPENROUTER = 'openrouter'
+const OPENAI = 'openai'
+
 // ─── Tests ──────────────────────────────────────────────────
 
 describe('auth-store', () => {
@@ -115,7 +119,7 @@ describe('auth-store', () => {
       await useAuthStore.getState().startOAuth('openrouter')
 
       expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openrouter')
-      expect(useAuthStore.getState().authAccounts.openrouter).toEqual({
+      expect(useAuthStore.getState().authAccounts[OPENROUTER]).toEqual({
         provider: 'openrouter',
         connected: true,
         label: 'user@example.com',
@@ -173,7 +177,7 @@ describe('auth-store', () => {
         listener(statusEvent)
       }
 
-      expect(useAuthStore.getState().oauthStatuses.openai).toBe(statusEvent)
+      expect(useAuthStore.getState().oauthStatuses[OPENAI]).toBe(statusEvent)
 
       // Resolve to complete the flow
       resolveOAuth()
@@ -199,7 +203,7 @@ describe('auth-store', () => {
 
       // The local listener should NOT have updated the status because it has a provider field
       // (it should be in-progress from the initial set)
-      expect(useAuthStore.getState().oauthStatuses.openai).toEqual({
+      expect(useAuthStore.getState().oauthStatuses[OPENAI]).toEqual({
         type: 'in-progress',
         provider: 'openai',
       })
@@ -272,7 +276,7 @@ describe('auth-store', () => {
       apiMock.getAuthAccountInfo.mockResolvedValueOnce(accountInfo)
 
       await useAuthStore.getState().loadAuthAccount('openai')
-      expect(useAuthStore.getState().authAccounts.openai).toBe(accountInfo)
+      expect(useAuthStore.getState().authAccounts[OPENAI]).toBe(accountInfo)
     })
 
     it('does not throw when getAuthAccountInfo rejects', async () => {
@@ -298,8 +302,8 @@ describe('auth-store', () => {
       apiMock.getAuthAccountInfo.mockResolvedValueOnce(newInfo)
 
       await useAuthStore.getState().loadAuthAccount('openai')
-      expect(useAuthStore.getState().authAccounts.openrouter).toBe(existingInfo)
-      expect(useAuthStore.getState().authAccounts.openai).toBe(newInfo)
+      expect(useAuthStore.getState().authAccounts[OPENROUTER]).toBe(existingInfo)
+      expect(useAuthStore.getState().authAccounts[OPENAI]).toBe(newInfo)
     })
   })
 

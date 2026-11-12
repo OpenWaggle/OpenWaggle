@@ -37,7 +37,7 @@ describe('tool call block view helpers', () => {
   // A bigint or a cycle survives structured clone but makes JSON.stringify throw; the fallback
   // printed `[object Object]` (fix(renderer): show tool data JSON cannot encode).
   it('shows a result JSON cannot encode as JSON text, not [object Object]', () => {
-    const result: Record<string, unknown> = { count: 2n }
+    const result: { count: bigint; self?: unknown } = { count: 2n }
     result.self = result
     expect(getToolResultText(result)).toBe('{\n  "count": "2",\n  "self": "[Circular]"\n}')
     expect(stringifyToolInput({ id: 7n })).toBe('{"id":"7"}')

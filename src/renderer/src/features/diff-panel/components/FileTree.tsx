@@ -24,6 +24,7 @@ import {
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { FileChangeBadges } from './FileChangeBadges'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 interface FileTreeProps {
   readonly files: readonly GitFileDiff[]
@@ -181,8 +182,11 @@ function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
     if (focusedItem !== undefined) visibleRows.push({ item: focusedItem, index: focusedIndex })
   }
   const containerProps = tree.getContainerProps()
-  const treeContainerRef = isContainerRefCallback(containerProps.ref)
-    ? containerProps.ref
+  const { ref: libraryContainerRef } = uncheckedFields<{ readonly ref: ContainerRefCallback }>(
+    containerProps,
+  )
+  const treeContainerRef = isContainerRefCallback(libraryContainerRef)
+    ? libraryContainerRef
     : undefined
   const handleContainerRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -241,7 +245,10 @@ export function FileTree({ files, onFileClick }: FileTreeProps) {
             const isFolder = !data.isFile
             const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
             const itemProps = item.getProps()
-            const libraryOnClick = isClickHandler(itemProps.onClick) ? itemProps.onClick : undefined
+            const { onClick: itemOnClick } = uncheckedFields<{
+              readonly onClick: ButtonClickHandler
+            }>(itemProps)
+            const libraryOnClick = isClickHandler(itemOnClick) ? itemOnClick : undefined
             return (
               <Button
                 variant="unstyled"

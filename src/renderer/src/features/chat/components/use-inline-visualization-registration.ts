@@ -49,7 +49,7 @@ export function useInlineVisualizationRegistration(input: {
     void api
       .registerInlineVisualizationFrame({
         frameId,
-        reducedMotion: document.documentElement.dataset.motion === 'reduced',
+        reducedMotion: document.documentElement.getAttribute('data-motion') === 'reduced',
         sessionId: input.sessionId,
         sourcePath: input.sourcePath,
         // A parked or remounted frame reloads from its document; restore what the user last chose.

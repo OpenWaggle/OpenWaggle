@@ -23,6 +23,7 @@ import {
   scheduleFromDraft,
 } from './schedule-presets'
 import { defaultNotificationPolicy } from './task-format'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /** Everything the Create/Edit editor holds, as the user typed it. */
 export interface TaskEditorDraft extends HeartbeatDraftFields {
@@ -173,10 +174,11 @@ export function endsAtFromDraft(endDate: string, timeZone: string): TaskDraftRes
   if (endDate === '') return { ok: true, value: null }
   const match = DATE_PATTERN.exec(endDate)
   if (!match || !isValidTimeZone(timeZone)) return { ok: false, error: 'Choose a valid end date.' }
+  const groups = namedGroups(match, ['year', 'month', 'day'])
   const day = {
-    year: Number(match.groups?.year),
-    month: Number(match.groups?.month),
-    day: Number(match.groups?.day),
+    year: Number(groups?.year),
+    month: Number(groups?.month),
+    day: Number(groups?.day),
   }
   const nextMidnight = zonedEpoch(addDays(day, 1), 0, 0, timeZone)
   if (Number.isNaN(nextMidnight)) return { ok: false, error: 'Choose a valid end date.' }

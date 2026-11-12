@@ -73,7 +73,7 @@ describe('useSessionSummarySpace', () => {
       if (!callback) throw new Error('The panel is not observed.')
       act(() => callback([], { observe() {}, unobserve() {}, disconnect() {} }))
       return {
-        hasSpace: panel.dataset.hasSpace === 'true',
+        hasSpace: panel.getAttribute('data-has-space') === 'true',
         reserve: panel.style.getPropertyValue('--session-summary-reserve'),
       }
     }
