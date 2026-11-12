@@ -14,6 +14,7 @@ import { decodeScheduledTasksResponse } from '@shared/schemas/scheduled-task'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
 import {
+  localAttachmentsResponseSchema,
   localCompactionCancellationResponseSchema,
   localCompactionResponseSchema,
   localSessionCommandResponsePayloadSchema,
@@ -22,14 +23,8 @@ import {
   sessionWaggleCancellationResponseSchema,
   sessionWaggleResponseSchema,
 } from '@shared/schemas/local-session-command-response'
-import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import { localSessionClientProtocolError } from './local-session-client-protocol-error'
-
-const localAttachmentsResponseSchema = Schema.Struct({
-  requestId: Schema.String,
-  attachments: Schema.Array(preparedAttachmentSchema),
-})
 
 type LocalSessionCommandResponsePayload = SchemaType<
   typeof localSessionCommandResponsePayloadSchema

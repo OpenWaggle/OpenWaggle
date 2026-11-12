@@ -1,3 +1,9 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  localSessionAuthorityScopeSchema,
+  localSessionProfileAuthoritySchema,
+  localSessionProfileManagementEnvelopeSchema,
+} from '@shared/schemas/local-session-profile'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type { SessionCapability } from './session-capability'
 
@@ -10,33 +16,12 @@ export function isLocalSessionProfileCredential(value: string) {
   return LOCAL_SESSION_PROFILE_CREDENTIAL_PATTERN.test(value)
 }
 
-export interface LocalSessionProfileScope {
-  readonly all?: boolean | undefined
-  /** Canonical directory roots used only by machine-authenticated transient authorities. */
-  readonly workspaceRoots?: readonly string[] | undefined
-  /** Explicit roots within which Session exports may read resources and create artifacts. */
-  readonly exportRoots?: readonly string[] | undefined
-  /** Explicit roots from which Session commands may snapshot attachment files. */
-  readonly attachmentRoots?: readonly string[] | undefined
-  readonly projectPaths?: readonly string[] | undefined
-  readonly sessionIds?: readonly string[] | undefined
-  readonly hiveRootSessionIds?: readonly string[] | undefined
-}
-
-export interface LocalSessionProfileAuthority {
-  readonly profileId: string
-  readonly profileName: string
-  readonly capabilities: readonly SessionCapability[]
-  readonly scope: LocalSessionProfileScope
-  readonly authorizationCeiling: AgentAuthorizationMode
-  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope | undefined
-}
-
-export interface LocalSessionProfileManagementEnvelope {
-  readonly capabilities: readonly SessionCapability[]
-  readonly scope: LocalSessionProfileScope
-  readonly authorizationCeiling: AgentAuthorizationMode
-}
+/** Every root and id a caller is scoped to; only a transient authority holds `workspaceRoots`. */
+export type LocalSessionProfileScope = SchemaType<typeof localSessionAuthorityScopeSchema>
+export type LocalSessionProfileAuthority = SchemaType<typeof localSessionProfileAuthoritySchema>
+export type LocalSessionProfileManagementEnvelope = SchemaType<
+  typeof localSessionProfileManagementEnvelopeSchema
+>
 
 export interface LocalSessionCallerIdentity {
   readonly callerId: string

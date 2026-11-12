@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { type AgentSendReport, getMessageText, type Message } from '@shared/types/agent'
+import { getMessageText, type Message } from '@shared/types/agent'
+import type { WaggleSendReport } from '@shared/types/local-session-waggle'
 import type { SessionId } from '@shared/types/brand'
 import { classifyAgentError } from '../agent/error-classifier'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
@@ -67,7 +68,7 @@ export function explicitWaggleTerminalResult(result: ExplicitWaggleCommandResult
 
 export function describeExplicitWaggleOutcome(
   result: ExplicitWaggleCommandResult,
-): AgentSendReport {
+): WaggleSendReport {
   return matchBy(result, 'outcome')
     .with('success', () => ({ outcome: 'delivered' as const }))
     .with('aborted', () => ({ outcome: 'cancelled' as const }))

@@ -1,3 +1,9 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  hostUiV1RequestSchema,
+  hostUiV1ResultSchema,
+  hostUiWireValueSchema,
+} from '@shared/schemas/host-ui-protocol'
 import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
@@ -264,21 +270,6 @@ export const HOST_BACKED_GUI_CHANNELS = [
 export type HostBackedGuiChannel = (typeof HOST_BACKED_GUI_CHANNELS)[number]
 export type HostBackedMcpGuiChannel = (typeof HOST_BACKED_MCP_GUI_CHANNELS)[number]
 
-export type HostUiWireValue =
-  | { readonly kind: 'undefined' }
-  /** Value is validated as JSON-compatible before crossing the framed transport. */
-  | { readonly kind: 'value'; readonly value: unknown }
-
-export interface HostUiV1Request {
-  readonly contractVersion: typeof HOST_UI_CONTRACT_VERSION
-  readonly requestId: string
-  readonly channel: HostBackedGuiChannel
-  readonly args: readonly HostUiWireValue[]
-}
-
-export interface HostUiV1Result {
-  readonly contractVersion: typeof HOST_UI_CONTRACT_VERSION
-  readonly requestId: string
-  readonly channel: HostBackedGuiChannel
-  readonly result: HostUiWireValue
-}
+export type HostUiWireValue = SchemaType<typeof hostUiWireValueSchema>
+export type HostUiV1Request = SchemaType<typeof hostUiV1RequestSchema>
+export type HostUiV1Result = SchemaType<typeof hostUiV1ResultSchema>
