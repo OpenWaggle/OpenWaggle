@@ -15,7 +15,7 @@ describe('the test time zone', () => {
 
   it('is the zone this test file runs in, whatever the machine zone is', () => {
     expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(testTimeZone())
-    expect(process.env['TZ']).toBe(testTimeZone())
+    expect(process.env.TZ).toBe(testTimeZone())
   })
 
   it('lets one test choose its own zone', () => {
@@ -26,6 +26,6 @@ describe('the test time zone', () => {
     } finally {
       vi.unstubAllEnvs()
     }
-    expect(process.env['TZ']).toBe(testTimeZone())
+    expect(process.env.TZ).toBe(testTimeZone())
   })
 })

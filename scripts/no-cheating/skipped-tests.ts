@@ -72,7 +72,7 @@ export function skippedTestFindings(
   const lines = after.split('\n')
   return addedLines(before, after).flatMap((added) => {
     const groups = SKIP.exec(added.text)?.groups
-    const modifier = groups?.['modifier'] ?? groups?.['prefixed']
+    const modifier = groups?.modifier ?? groups?.prefixed
     if (modifier === undefined) return []
     if (CONDITIONAL.has(modifier) && commentAbove(lines, added.line)) return []
     const how = CONDITIONAL.has(modifier)
@@ -111,7 +111,7 @@ function resolvedModule(file: string, specifier: string) {
 function importsModule(file: string, text: string, subject: string) {
   const target = subject.replace(MODULE_EXTENSION, '')
   for (const match of text.matchAll(SPECIFIER)) {
-    const specifier = match.groups?.['specifier']
+    const specifier = match.groups?.specifier
     const resolved = specifier === undefined ? undefined : resolvedModule(file, specifier)
     if (resolved?.replace(MODULE_EXTENSION, '') === target) return true
   }

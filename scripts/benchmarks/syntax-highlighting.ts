@@ -128,7 +128,7 @@ function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
 }
 
 function benchmarkProfilePath() {
-  const configuredPath = process.env['SYNTAX_BENCHMARK_PROFILE']
+  const configuredPath = process.env.SYNTAX_BENCHMARK_PROFILE
   return configuredPath ? path.resolve(configuredPath) : DEFAULT_PROFILE_PATH
 }
 

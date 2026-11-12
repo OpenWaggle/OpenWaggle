@@ -17,7 +17,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function messagesOf(request: FakeProviderRequest) {
-  const messages = request.body['messages']
+  const messages = request.body.messages
   return Array.isArray(messages) ? messages.filter(isRecord) : []
 }
 
@@ -25,14 +25,14 @@ function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
-    .map((part) => (isRecord(part) && typeof part['text'] === 'string' ? part['text'] : ''))
+    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
     .join('\n')
 }
 
 export function systemPromptOf(request: FakeProviderRequest) {
   return messagesOf(request)
-    .filter((message) => message['role'] === 'system' || message['role'] === 'developer')
-    .map((message) => textOf(message['content']))
+    .filter((message) => message.role === 'system' || message.role === 'developer')
+    .map((message) => textOf(message.content))
     .join('\n')
 }
 
@@ -86,12 +86,12 @@ export function createScriptedHive(input: {
     const system = systemPromptOf(request)
     const sessionId = SESSION_ID_PATTERN.exec(system)?.[1] ?? 'unknown'
     const messages = messagesOf(request)
-    const answered = messages.filter((message) => message['role'] === 'assistant').length
+    const answered = messages.filter((message) => message.role === 'assistant').length
     if (!PARENT_SESSION_PATTERN.test(system)) {
       return script(stream, sessionId, answered, spawnCalls(1, direct, input.model))
     }
     const isFirstWorker = messages.some((message) =>
-      FIRST_WORKER_PATTERN.test(textOf(message['content'])),
+      FIRST_WORKER_PATTERN.test(textOf(message.content)),
     )
     return script(
       stream,

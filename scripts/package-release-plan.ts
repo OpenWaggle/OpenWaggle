@@ -136,34 +136,34 @@ function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>
 
 function decodePlanPackage(value: unknown): PackageReleasePlanItem {
   if (!isJsonObject(value)) throw new Error('Package release plan contains a non-object package.')
-  const definition = PACKAGE_RELEASE_DEFINITIONS.find(({ key }) => key === value['key'])
+  const definition = PACKAGE_RELEASE_DEFINITIONS.find(({ key }) => key === value.key)
   const dependency =
     definition !== undefined && 'dependency' in definition ? definition.dependency : undefined
   if (
     definition === undefined ||
-    value['name'] !== definition.name ||
-    value['packagePath'] !== definition.packagePath ||
-    typeof value['version'] !== 'string' ||
-    value['tag'] !== `${definition.key}-v${value['version']}` ||
-    value['dependency'] !== dependency
+    value.name !== definition.name ||
+    value.packagePath !== definition.packagePath ||
+    typeof value.version !== 'string' ||
+    value.tag !== `${definition.key}-v${value.version}` ||
+    value.dependency !== dependency
   ) {
     throw new Error('Package release plan contains an invalid package contract.')
   }
-  stableSemverParts(value['version'])
-  return { ...definition, tag: value['tag'], version: value['version'] }
+  stableSemverParts(value.version)
+  return { ...definition, tag: value.tag, version: value.version }
 }
 
 export function decodePackageReleasePlan(value: unknown): PackageReleasePlan {
   if (
     !isJsonObject(value) ||
-    value['schemaVersion'] !== 1 ||
-    typeof value['sourceSha'] !== 'string' ||
-    typeof value['sourceTree'] !== 'string' ||
-    !Array.isArray(value['packages'])
+    value.schemaVersion !== 1 ||
+    typeof value.sourceSha !== 'string' ||
+    typeof value.sourceTree !== 'string' ||
+    !Array.isArray(value.packages)
   ) {
     throw new Error('Package release plan is invalid.')
   }
-  const packages = value['packages'].map(decodePlanPackage)
+  const packages = value.packages.map(decodePlanPackage)
   const keys = new Set(packages.map(({ key }) => key))
   if (keys.size !== packages.length) {
     throw new Error('Package release plan contains duplicate packages.')
@@ -172,18 +172,18 @@ export function decodePackageReleasePlan(value: unknown): PackageReleasePlan {
   return {
     packages,
     schemaVersion: 1,
-    sourceSha: value['sourceSha'],
-    sourceTree: value['sourceTree'],
+    sourceSha: value.sourceSha,
+    sourceTree: value.sourceTree,
   }
 }
 
 async function readPackageVersionAtRevision(revision: string, packagePath: string) {
   const manifestText = await run('git', ['show', `${revision}:${packagePath}/package.json`])
   const manifest: unknown = JSON.parse(manifestText)
-  if (!isJsonObject(manifest) || typeof manifest['version'] !== 'string') {
+  if (!isJsonObject(manifest) || typeof manifest.version !== 'string') {
     throw new Error(`${packagePath}/package.json at ${revision} has no string version.`)
   }
-  return manifest['version']
+  return manifest.version
 }
 
 export async function createPackageReleasePlan(args: readonly string[]) {
@@ -200,7 +200,7 @@ export async function createPackageReleasePlan(args: readonly string[]) {
     readPackageVersionAtRevision,
   )
   await writeFile(outputPath, `${JSON.stringify(plan, null, JSON_INDENT_SPACES)}\n`)
-  const githubOutput = process.env['GITHUB_OUTPUT']
+  const githubOutput = process.env.GITHUB_OUTPUT
   if (githubOutput !== undefined) {
     await appendFile(githubOutput, `has_release=${String(plan.packages.length > 0)}\n`)
     await appendFile(githubOutput, `source_tree=${sourceTree}\n`)

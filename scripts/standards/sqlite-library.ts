@@ -49,7 +49,7 @@ const OTHER_SQLITE_LOAD = moduleLoadPattern(OTHER_SQLITE_LIBRARIES)
 const HOST_SQLITE_LOAD = moduleLoadPattern(HOST_SQLITE_LIBRARIES)
 
 function loadedLibraries(source: string, pattern: RegExp) {
-  return [...source.matchAll(pattern)].flatMap((match) => match.groups?.['library'] ?? [])
+  return [...source.matchAll(pattern)].flatMap((match) => match.groups?.library ?? [])
 }
 
 function isOwner(file: string) {

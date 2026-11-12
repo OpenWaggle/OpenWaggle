@@ -54,13 +54,13 @@ function isJsonObject(value: unknown): value is JsonObject {
 }
 
 function toPackageJson(value: unknown, packageJsonPath: string): PackageJson {
-  if (!isJsonObject(value) || typeof value['name'] !== 'string') {
+  if (!isJsonObject(value) || typeof value.name !== 'string') {
     throw new Error(`${packageJsonPath} must contain a package name.`)
   }
 
-  const exportsValue = isJsonObject(value['exports']) ? value['exports'] : undefined
+  const exportsValue = isJsonObject(value.exports) ? value.exports : undefined
 
-  return { exports: exportsValue, name: value['name'] }
+  return { exports: exportsValue, name: value.name }
 }
 
 async function readPackageJson(packageRoot: string) {
@@ -83,11 +83,11 @@ function declarationPathForExportTarget(target: unknown) {
     return undefined
   }
 
-  if (!isJsonObject(target) || typeof target['types'] !== 'string') {
+  if (!isJsonObject(target) || typeof target.types !== 'string') {
     return undefined
   }
 
-  return normalizeExportTargetPath(target['types'])
+  return normalizeExportTargetPath(target.types)
 }
 
 function listTypedExports(packageJson: PackageJson) {
@@ -184,7 +184,7 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
 }
 
 function isMissingFileError(error: unknown) {
-  return isJsonObject(error) && error['code'] === 'ENOENT'
+  return isJsonObject(error) && error.code === 'ENOENT'
 }
 
 export async function createPackageApiSnapshot({

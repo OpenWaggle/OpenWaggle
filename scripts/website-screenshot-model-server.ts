@@ -83,16 +83,16 @@ function partsOf(content: unknown): readonly unknown[] {
 function textOf(content: unknown) {
   if (typeof content === 'string') return content
   return partsOf(content)
-    .map((part) => (isRecord(part) && typeof part['text'] === 'string' ? part['text'] : ''))
+    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
     .join('\n')
 }
 
 function modelOf(body: unknown) {
-  return isRecord(body) && typeof body['model'] === 'string' ? body['model'] : ''
+  return isRecord(body) && typeof body.model === 'string' ? body.model : ''
 }
 
 function bodyMessages(body: unknown) {
-  return isRecord(body) ? partsOf(body['messages']).filter(isRecord) : []
+  return isRecord(body) ? partsOf(body.messages).filter(isRecord) : []
 }
 
 /** A Chat Completions body: system and developer messages make up the system text. */
@@ -102,12 +102,12 @@ export function parseOpenAiRequest(body: unknown): ModelRequest {
   return {
     model: modelOf(body),
     system: messages
-      .filter((message) => isSystem(message['role']))
-      .map((message) => textOf(message['content']))
+      .filter((message) => isSystem(message.role))
+      .map((message) => textOf(message.content))
       .join('\n'),
     messages: messages.flatMap((message) =>
-      message['role'] === 'user' || message['role'] === 'assistant' || message['role'] === 'tool'
-        ? [{ role: message['role'], text: textOf(message['content']) }]
+      message.role === 'user' || message.role === 'assistant' || message.role === 'tool'
+        ? [{ role: message.role, text: textOf(message.content) }]
         : [],
     ),
   }
@@ -115,18 +115,18 @@ export function parseOpenAiRequest(body: unknown): ModelRequest {
 
 /** An Anthropic Messages body: a user message made only of tool results counts as a tool turn. */
 export function parseAnthropicRequest(body: unknown): ModelRequest {
-  const isToolResult = (part: unknown) => isRecord(part) && part['type'] === 'tool_result'
+  const isToolResult = (part: unknown) => isRecord(part) && part.type === 'tool_result'
   return {
     model: modelOf(body),
-    system: isRecord(body) ? textOf(body['system']) : '',
+    system: isRecord(body) ? textOf(body.system) : '',
     messages: bodyMessages(body).flatMap((message): ModelMessage[] => {
-      if (message['role'] === 'assistant') {
-        return [{ role: 'assistant', text: textOf(message['content']) }]
+      if (message.role === 'assistant') {
+        return [{ role: 'assistant', text: textOf(message.content) }]
       }
-      if (message['role'] !== 'user') return []
-      const parts = partsOf(message['content'])
+      if (message.role !== 'user') return []
+      const parts = partsOf(message.content)
       const toolTurn = parts.length > 0 && parts.every(isToolResult)
-      return [{ role: toolTurn ? 'tool' : 'user', text: textOf(message['content']) }]
+      return [{ role: toolTurn ? 'tool' : 'user', text: textOf(message.content) }]
     }),
   }
 }

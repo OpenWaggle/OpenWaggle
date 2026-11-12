@@ -82,7 +82,7 @@ function parseBatch(output: Buffer, files: readonly string[]) {
     const end = output.indexOf(NEWLINE, offset)
     const header = output.subarray(offset, end).toString('utf8')
     offset = end + 1
-    const size = /^\S+ blob (?<size>\d+)$/u.exec(header)?.groups?.['size']
+    const size = /^\S+ blob (?<size>\d+)$/u.exec(header)?.groups?.size
     if (size === undefined) {
       texts.set(file, undefined)
       continue

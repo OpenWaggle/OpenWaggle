@@ -92,13 +92,13 @@ function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
   return (
     isJsonObject(value) &&
-    typeof value['decodePackageReleaseArtifactManifest'] === 'function' &&
-    typeof value['verifyReleaseArtifactFile'] === 'function'
+    typeof value.decodePackageReleaseArtifactManifest === 'function' &&
+    typeof value.verifyReleaseArtifactFile === 'function'
   )
 }
 
 function isPlanModule(value: unknown): value is PlanModule {
-  return isJsonObject(value) && typeof value['decodePackageReleasePlan'] === 'function'
+  return isJsonObject(value) && typeof value.decodePackageReleasePlan === 'function'
 }
 
 async function loadArtifactContractModule() {

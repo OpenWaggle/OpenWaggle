@@ -41,7 +41,7 @@ describe('published JSON Schemas', () => {
   })
 
   it('describe every top-level settings key the runtime reads, with open objects open', async () => {
-    const properties = record(record(await readPublishedSchema(SETTINGS))['properties'])
+    const properties = record(record(await readPublishedSchema(SETTINGS)).properties)
     expect(Object.keys(properties).sort()).toEqual(
       ['$schema', ...Object.keys(projectSettingsFileSchema.fields)].sort(),
     )
@@ -250,10 +250,10 @@ describe('the settings.json schema agrees with the runtime reader', () => {
   })
 
   it('lists exactly the source-control values the runtime keeps', async () => {
-    const settings = record(record(await readPublishedSchema(SETTINGS))['properties'])
-    const properties = record(record(settings['sourceControl'])['properties'])
-    const providers = record(record(properties['hosts'])['additionalProperties'])['enum']
-    const destinations = record(properties['changeRequestOpenDestination'])['enum']
+    const settings = record(record(await readPublishedSchema(SETTINGS)).properties)
+    const properties = record(record(settings.sourceControl).properties)
+    const providers = record(record(properties.hosts).additionalProperties).enum
+    const destinations = record(properties.changeRequestOpenDestination).enum
     if (!Array.isArray(providers) || !Array.isArray(destinations)) {
       throw new Error('The sourceControl enums are missing.')
     }

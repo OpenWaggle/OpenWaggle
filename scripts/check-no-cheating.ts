@@ -15,7 +15,7 @@ export async function main(argv: readonly string[]) {
   const root = (await gitOrUndefined(process.cwd(), ['rev-parse', '--show-toplevel'])) ?? '.'
   const requested = parseBaseArgument(argv)
   const base = await resolveBase(root, requested, 'no-cheating')
-  if (base === 'HEAD' && requested === undefined && process.env['CI'] !== undefined) {
+  if (base === 'HEAD' && requested === undefined && process.env.CI !== undefined) {
     console.log('no-cheating: origin/main is missing; fetch it (actions/checkout fetch-depth: 0)')
     return 1
   }

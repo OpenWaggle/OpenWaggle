@@ -57,11 +57,11 @@ function isObject(value: unknown): value is UnknownObject {
 }
 
 function dependencyNamesFromPackageJson(value: unknown) {
-  if (!isObject(value) || !isObject(value['dependencies'])) {
+  if (!isObject(value) || !isObject(value.dependencies)) {
     return []
   }
 
-  return Object.keys(value['dependencies'])
+  return Object.keys(value.dependencies)
 }
 
 /**

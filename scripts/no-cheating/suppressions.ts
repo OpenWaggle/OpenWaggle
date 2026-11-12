@@ -30,7 +30,7 @@ export function isSuppressionCandidate(file: string) {
 export function suppressions(text: string): Suppression[] {
   return text.split('\n').flatMap((line, index) => {
     const match = DIRECTIVE.exec(line)
-    const directive = match?.groups?.['directive']
+    const directive = match?.groups?.directive
     if (match === null || directive === undefined) return []
     return [{ line: index + 1, column: match.index + 1, directive, text: line.trim() }]
   })
@@ -70,7 +70,7 @@ function silencingCasts(file: string, before: string | undefined, after: string)
   if (!TYPESCRIPT_FILE.test(file)) return []
   return addedLines(before, after).flatMap((added) => {
     const match = SILENCING_CAST.exec(added.text)
-    const cast = match?.groups?.['cast']
+    const cast = match?.groups?.cast
     if (match === null || cast === undefined) return []
     return [
       {

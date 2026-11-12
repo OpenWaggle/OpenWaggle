@@ -92,9 +92,9 @@ function splitSpec(spec: string) {
 
 function parseLine(text: string, line: number): DependencyLine | LineFinding {
   const groups = PIN_LINE.exec(text)?.groups
-  const spec = splitSpec(groups?.['spec'] ?? '')
-  const held = groups?.['held']?.trim() ?? ''
-  const unblockedBy = groups?.['unblockedBy']?.trim() ?? ''
+  const spec = splitSpec(groups?.spec ?? '')
+  const held = groups?.held?.trim() ?? ''
+  const unblockedBy = groups?.unblockedBy?.trim() ?? ''
   if (spec === undefined || !held || !unblockedBy) {
     return { line, kind: 'bad-line', message: `a pin line reads ${code(LINE_FORMAT)}` }
   }
@@ -149,9 +149,9 @@ export function manifestPins(manifestPath: string, manifestText: string): readon
   )
   const { workspaces } = manifest
   if (!isRecord(workspaces)) return pins
-  pins.push(...sectionPins(manifestPath, 'catalog:default', workspaces['catalog']))
-  if (isRecord(workspaces['catalogs'])) {
-    for (const [name, catalog] of Object.entries(workspaces['catalogs'])) {
+  pins.push(...sectionPins(manifestPath, 'catalog:default', workspaces.catalog))
+  if (isRecord(workspaces.catalogs)) {
+    for (const [name, catalog] of Object.entries(workspaces.catalogs)) {
       pins.push(...sectionPins(manifestPath, `catalog:${name}`, catalog))
     }
   }

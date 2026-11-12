@@ -5,7 +5,7 @@
 const scope: Record<PropertyKey, unknown> = globalThis
 
 function persistentDomTargets(): unknown[] {
-  const document = scope['document']
+  const document = scope.document
   if (typeof document !== 'object' || document === null) return []
   return [
     document,
@@ -96,7 +96,7 @@ export function trackDomListeners() {
   const listeners = new Map<string, DomListener>()
   const targets = persistentDomTargets()
   if (targets.length === 0) return () => undefined
-  const eventTarget = scope['EventTarget']
+  const eventTarget = scope.EventTarget
   const prototype: unknown =
     typeof eventTarget === 'function' ? Reflect.get(eventTarget, 'prototype') : undefined
   if (typeof prototype === 'object' && prototype !== null) {

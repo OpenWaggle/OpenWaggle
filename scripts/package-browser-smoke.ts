@@ -113,7 +113,7 @@ export async function runPackageBrowserSmoke(projectRoot: string, executablePath
         await page.waitForFunction(
           () =>
             ['passed', 'failed'].includes(
-              document.documentElement.dataset['openwagglePackageSmoke'] ?? '',
+              document.documentElement.dataset.openwagglePackageSmoke ?? '',
             ),
           undefined,
           { timeout: BROWSER_SMOKE_TIMEOUT_MS },

@@ -137,7 +137,7 @@ function validateExactPackagePaths(
 
 function pluginType(plugin: unknown) {
   if (typeof plugin === 'string') return plugin
-  return isJsonObject(plugin) && typeof plugin['type'] === 'string' ? plugin['type'] : undefined
+  return isJsonObject(plugin) && typeof plugin.type === 'string' ? plugin.type : undefined
 }
 
 function validateReleasePleaseConfig(config: JsonObject | undefined, violations: string[]) {
@@ -177,7 +177,7 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
     ],
   ]
   for (const [condition, message] of requirements) addViolation(condition, message, violations)
-  const plugins = Array.isArray(config['plugins']) ? config['plugins'].map(pluginType) : []
+  const plugins = Array.isArray(config.plugins) ? config.plugins.map(pluginType) : []
   addViolation(
     !plugins.includes('node-workspace'),
     `${CONFIG_PATH} must enable the node-workspace plugin for dependent bumps.`,
@@ -203,7 +203,7 @@ function validateReleasePleaseConfig(config: JsonObject | undefined, violations:
       violations,
     )
     addViolation(
-      packageConfig['component'] !== expected.component,
+      packageConfig.component !== expected.component,
       `${CONFIG_PATH} ${expected.path} must set short component.`,
       violations,
     )
@@ -238,10 +238,10 @@ async function validatePackageMetadata(
     const packageJsonPath = `${expected.path}/package.json`
     const packageJson = await readJsonFile(projectRoot, packageJsonPath, violations)
     if (packageJson === undefined) continue
-    const version = packageJson['version']
+    const version = packageJson.version
     const manifestVersion = manifest?.[expected.path]
     addViolation(
-      packageJson['name'] !== expected.name,
+      packageJson.name !== expected.name,
       `${packageJsonPath} must use package name ${expected.name}.`,
       violations,
     )
@@ -261,12 +261,12 @@ async function validatePackageMetadata(
       violations,
     )
     addViolation(
-      getObject(packageJson, 'publishConfig')?.['access'] !== 'public',
+      getObject(packageJson, 'publishConfig')?.access !== 'public',
       `${packageJsonPath} must declare publishConfig.access public.`,
       violations,
     )
     addViolation(
-      getObject(packageJson, 'engines')?.['node'] !== '>=22.19.0',
+      getObject(packageJson, 'engines')?.node !== '>=22.19.0',
       `${packageJsonPath} must require Node.js >=22.19.0.`,
       violations,
     )
@@ -295,7 +295,7 @@ function validateRootPackageScripts(packageJson: JsonObject | undefined, violati
   const scripts = packageJson === undefined ? undefined : getObject(packageJson, 'scripts')
   const devDependencies =
     packageJson === undefined ? undefined : getObject(packageJson, 'devDependencies')
-  const checkScript = scripts?.['check']
+  const checkScript = scripts?.check
   if (typeof checkScript !== 'string') {
     violations.push(`${ROOT_PACKAGE_PATH} scripts.check must exist.`)
     return

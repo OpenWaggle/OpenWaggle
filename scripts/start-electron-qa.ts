@@ -114,17 +114,17 @@ export function electronEnvironment(
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: lease.metadata.projectPath,
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: lease.metadata.profilePath,
-    ...(callerEnvironment['OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS'] === '1'
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
       : {}),
-    ...(callerEnvironment['OPENWAGGLE_AUTOMATION_PROJECT_MCP'] === '1'
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
       ? { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }
       : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
-    ...(callerEnvironment['OPENWAGGLE_AUTOMATION_PI_EXTENSIONS']
+    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
       ? {
           OPENWAGGLE_AUTOMATION_PI_EXTENSIONS:
-            callerEnvironment['OPENWAGGLE_AUTOMATION_PI_EXTENSIONS'],
+            callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS,
         }
       : {}),
   })

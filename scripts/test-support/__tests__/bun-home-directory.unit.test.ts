@@ -25,6 +25,6 @@ describe('followHomeEnvironmentOnBun', () => {
   })
 
   it('is what the tiers resolve node:os to, so the per-file HOME reaches code under test', () => {
-    expect(os.homedir()).toBe(process.env['HOME'])
+    expect(os.homedir()).toBe(process.env.HOME)
   })
 })

@@ -12,10 +12,10 @@ const SOURCE_ATTRIBUTE = /\ssrc\s*=/iu
 /** The CSP source of every inline script in `html`, in order. */
 export function inlineScriptHashes(html: string) {
   return [...html.matchAll(SCRIPT_ELEMENT)]
-    .filter((match) => !SOURCE_ATTRIBUTE.test(match.groups?.['attributes'] ?? ''))
+    .filter((match) => !SOURCE_ATTRIBUTE.test(match.groups?.attributes ?? ''))
     .map((match) => {
       const digest = createHash('sha256')
-        .update(match.groups?.['body'] ?? '')
+        .update(match.groups?.body ?? '')
         .digest('base64')
       return `'sha256-${digest}'`
     })

@@ -84,7 +84,7 @@ const vscodeSchemaAssociation: ExampleKind = {
 /** A `$schema` an example names must be the published schema for that file. */
 function expectSchemaKey(value: unknown, fileName: string) {
   if (!isRecord(value) || !('$schema' in record(value))) return
-  expect(record(value)['$schema']).toBe(`https://openwaggle.ai/schemas/${fileName}`)
+  expect(record(value).$schema).toBe(`https://openwaggle.ai/schemas/${fileName}`)
 }
 
 const actionsFile: ExampleKind = {
@@ -162,10 +162,10 @@ const piModelsFile: ExampleKind = {
       refreshOnCreate: false,
     })
     expect(runtime.getError()).toBeUndefined()
-    for (const [provider, config] of Object.entries(record(record(value)['providers']))) {
-      const models = record(config)['models']
+    for (const [provider, config] of Object.entries(record(record(value).providers))) {
+      const models = record(config).models
       for (const model of Array.isArray(models) ? models : []) {
-        const id = record(model)['id']
+        const id = record(model).id
         expect(
           runtime.getModelsOfType('chat', provider).some((candidate) => candidate.id === id),
           `${provider}/${String(id)}`,
@@ -178,7 +178,7 @@ const piModelsFile: ExampleKind = {
 /** What `openwaggle schedules export` prints, and what `import` reads back (ADR 0063). */
 const scheduledTasksExport: ExampleKind = {
   name: 'openwaggle schedules export',
-  matches: (value) => record(value)['type'] === 'scheduled-tasks',
+  matches: (value) => record(value).type === 'scheduled-tasks',
   check: async (value) => {
     const filePath = path.join(scratchDirectory('ow-schedules-example-'), 'tasks.json')
     writeFileSync(filePath, JSON.stringify(value))
@@ -265,7 +265,7 @@ describe('the codemode docs example', () => {
     const tools = {
       // Pi's read tool takes one object; `path` is its only required argument.
       read: async (args: unknown) => {
-        const filePath = record(args)['path']
+        const filePath = record(args).path
         if (typeof filePath !== 'string') throw new Error('read needs { path }.')
         reads.push(filePath)
         return `import x from 'y'\nthrow new Error('${filePath}')\nreturn 1\n`

@@ -148,20 +148,20 @@ export function probeStartupExternals(
         ['-e', PROBE_SOURCE, path.resolve(bundlePath), JSON.stringify(ELECTRON_EXPORTS), ...argv],
         {
           encoding: 'utf8',
-          env: { PATH: process.env['PATH'] ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
+          env: { PATH: process.env.PATH ?? '', HOME: home, USERPROFILE: home, TMPDIR: home },
           timeout: PROBE_TIMEOUT_MS,
           maxBuffer: PROBE_MAX_BUFFER_BYTES,
         },
       )
       const line = output.trim().split('\n').at(-1) ?? ''
       const parsed: unknown = JSON.parse(line)
-      if (!isRecord(parsed) || !Array.isArray(parsed['loaded'])) {
+      if (!isRecord(parsed) || !Array.isArray(parsed.loaded)) {
         throw new Error(`The startup probe printed ${line}.`)
       }
       return {
         argv,
-        loaded: parsed['loaded'].filter((entry): entry is string => typeof entry === 'string'),
-        error: typeof parsed['error'] === 'string' ? parsed['error'] : null,
+        loaded: parsed.loaded.filter((entry): entry is string => typeof entry === 'string'),
+        error: typeof parsed.error === 'string' ? parsed.error : null,
       }
     })
   } finally {

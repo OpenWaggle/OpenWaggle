@@ -62,7 +62,7 @@ export const COMPONENT_TIER_TIMEOUTS = {} as const
 export const DEFAULT_TEST_TIME_ZONE = 'Pacific/Kiritimati'
 
 export function testTimeZone(environment: NodeJS.ProcessEnv = process.env) {
-  return environment['OPENWAGGLE_TEST_TIME_ZONE'] || DEFAULT_TEST_TIME_ZONE
+  return environment.OPENWAGGLE_TEST_TIME_ZONE || DEFAULT_TEST_TIME_ZONE
 }
 
 /** The `test.env` entry that pins it; the machine's own `TZ` does not reach the tests. */
@@ -74,7 +74,7 @@ export const TEST_TIME_ZONE_ENV = { TZ: testTimeZone() } as const
  */
 export const TEST_REPORTERS = [
   './scripts/test-support/vitest-compact-reporter.ts',
-  ...(process.env['GITHUB_ACTIONS'] === 'true' ? ['github-actions'] : []),
+  ...(process.env.GITHUB_ACTIONS === 'true' ? ['github-actions'] : []),
 ]
 
 /*
