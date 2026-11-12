@@ -8,7 +8,7 @@ import { objectFields, unknownField } from './support/object-fields'
 type JsonObject = Readonly<Record<string, unknown>>
 
 interface PackageJson {
-  readonly exports?: JsonObject | undefined
+  readonly exports?: JsonObject
   readonly name: string
 }
 
@@ -32,7 +32,7 @@ export interface CheckPackageApiSnapshotsResult {
 }
 
 interface TypedExport {
-  readonly declarationPath?: string | undefined
+  readonly declarationPath?: string
   readonly subpath: string
 }
 
@@ -64,7 +64,7 @@ function toPackageJson(value: unknown, packageJsonPath: string): PackageJson {
     throw new Error(`${packageJsonPath} must contain a package name.`)
   }
   const exportsValue = isJsonObject(manifest.exports) ? manifest.exports : undefined
-  return { exports: exportsValue, name: manifest.name }
+  return { ...(exportsValue === undefined ? {} : { exports: exportsValue }), name: manifest.name }
 }
 
 async function readPackageJson(packageRoot: string) {
@@ -93,10 +93,10 @@ function listTypedExports(packageJson: PackageJson) {
     return [] satisfies readonly TypedExport[]
   }
 
-  return Object.entries(exportsValue).map(([subpath, target]) => ({
-    declarationPath: declarationPathForExportTarget(target),
-    subpath,
-  })) satisfies readonly TypedExport[]
+  return Object.entries(exportsValue).map(([subpath, target]) => {
+    const declarationPath = declarationPathForExportTarget(target)
+    return { ...(declarationPath === undefined ? {} : { declarationPath }), subpath }
+  }) satisfies readonly TypedExport[]
 }
 
 function normalizeDeclarationContents(contents: string) {

@@ -14,7 +14,7 @@ const EXECUTABLE_MODE_MASK = 0o111
 
 interface NativePackageMetadata {
   readonly name: string
-  readonly version?: string | undefined
+  readonly version?: string
 }
 
 export interface NativeArtifactSignature {
@@ -177,10 +177,9 @@ async function readPackageMetadata(packageRoot: string): Promise<NativePackageMe
 
   return {
     name: packageJson.name,
-    version:
-      'version' in packageJson && typeof packageJson.version === 'string'
-        ? packageJson.version
-        : undefined,
+    ...('version' in packageJson && typeof packageJson.version === 'string'
+      ? { version: packageJson.version }
+      : {}),
   }
 }
 

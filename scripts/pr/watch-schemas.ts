@@ -2,7 +2,8 @@ import { Schema } from 'effect'
 
 /** Shapes of the `gh api graphql` responses `pr:watch` reads; extra fields are ignored. */
 
-const Nullish = <A, I>(schema: Schema.Schema<A, I>) => Schema.optional(Schema.NullOr(schema))
+const Nullish = <A, I>(schema: Schema.Schema<A, I>) =>
+  Schema.optionalWith(Schema.NullOr(schema), { exact: true })
 
 const ActorSchema = Schema.Struct({ __typename: Schema.String, login: Schema.String })
 export const PageInfoSchema = Schema.Struct({
@@ -12,7 +13,9 @@ export const PageInfoSchema = Schema.Struct({
 const ReactionGroupSchema = Schema.Struct({
   content: Schema.String,
   reactors: Schema.Struct({
-    nodes: Schema.Array(Schema.NullOr(Schema.Struct({ login: Schema.optional(Schema.String) }))),
+    nodes: Schema.Array(
+      Schema.NullOr(Schema.Struct({ login: Schema.optionalWith(Schema.String, { exact: true }) })),
+    ),
   }),
 })
 export const ThreadSchema = Schema.Struct({
@@ -97,7 +100,10 @@ export const SnapshotSchema = Schema.Struct({
         nodes: Schema.Array(
           Schema.Struct({
             requestedReviewer: Nullish(
-              Schema.Struct({ __typename: Schema.String, login: Schema.optional(Schema.String) }),
+              Schema.Struct({
+                __typename: Schema.String,
+                login: Schema.optionalWith(Schema.String, { exact: true }),
+              }),
             ),
           }),
         ),

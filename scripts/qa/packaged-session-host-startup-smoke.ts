@@ -228,7 +228,7 @@ export async function runPackagedSessionHostStartupScenario(
   await runLiveQaProfileLifecycle({
     userDataRoot: input.userDataRoot,
     state,
-    cleanup: dependencies.cleanup,
+    ...(dependencies.cleanup === undefined ? {} : { cleanup: dependencies.cleanup }),
     run: async () => {
       const paths = resolveLocalSessionHostPaths({ userDataRoot: input.userDataRoot })
       if (input.scenario === 'legacy') {

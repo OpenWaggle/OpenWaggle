@@ -58,8 +58,8 @@ function packageRef(packageName: string) {
 
 const dependencyMapSchema = Schema.Record({ key: Schema.String, value: Schema.String })
 const packageManifestSchema = Schema.Struct({
-  dependencies: Schema.optional(dependencyMapSchema),
-  devDependencies: Schema.optional(dependencyMapSchema),
+  dependencies: Schema.optionalWith(dependencyMapSchema, { exact: true }),
+  devDependencies: Schema.optionalWith(dependencyMapSchema, { exact: true }),
 })
 
 function manifestDependencies(manifestText: string, field: 'dependencies' | 'devDependencies') {

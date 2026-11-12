@@ -34,14 +34,14 @@ const SkillUpstreamSchema = Schema.Struct({
   repository: Schema.String,
   path: Schema.String,
   ref: Schema.String,
-  files: Schema.optional(Schema.Array(Schema.String)),
+  files: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
   hash: Schema.String,
 })
 
 const VendoredSkillSchema = Schema.Struct({
   upstream: Schema.NonEmptyArray(SkillUpstreamSchema),
   hash: Schema.String,
-  localEdits: Schema.optional(Schema.String),
+  localEdits: Schema.optionalWith(Schema.String, { exact: true }),
 })
 
 const SkillsLockSchema = Schema.Struct({

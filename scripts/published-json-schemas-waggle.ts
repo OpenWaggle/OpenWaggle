@@ -32,8 +32,11 @@ function agentSlotOverlay(index: number): JsonSchemaOverlay {
 /** The file around the presets, as `@openwaggle/pi-waggle` reads and writes it. */
 function wagglePresetsFileSchema() {
   return Schema.Struct({
-    wagglePresets: Schema.optional(Schema.Array(wagglePresetSchema)),
-    hiddenBuiltInPresetIds: Schema.optional(Schema.Array(Schema.String.pipe(Schema.minLength(1)))),
+    wagglePresets: Schema.optionalWith(Schema.Array(wagglePresetSchema), { exact: true }),
+    hiddenBuiltInPresetIds: Schema.optionalWith(
+      Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+      { exact: true },
+    ),
   })
 }
 

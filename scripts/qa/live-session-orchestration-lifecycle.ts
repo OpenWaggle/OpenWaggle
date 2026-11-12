@@ -75,7 +75,7 @@ export async function runLiveQaProfileLifecycle(input: {
   readonly userDataRoot: string
   readonly state: LiveQaLifecycleState
   readonly run: () => Promise<void>
-  readonly cleanup?: ((input: CompleteLiveQaCleanupInput) => Promise<void>) | undefined
+  readonly cleanup?: (input: CompleteLiveQaCleanupInput) => Promise<void>
 }) {
   let primaryFailure: { readonly error: unknown } | null = null
   try {
