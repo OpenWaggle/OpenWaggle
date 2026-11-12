@@ -2,8 +2,8 @@ import { Context } from 'effect'
 import type { DesktopWindow } from './desktop-windows'
 
 /**
- * Menu actions the shell performs itself. Both Electron and Electrobun implement these roles
- * natively, with the platform's own label and accelerator unless the item sets one.
+ * Menu actions the shell performs itself, natively, with the platform's own label and accelerator
+ * unless the item sets one.
  */
 export type ShellMenuRole =
   | 'about'
