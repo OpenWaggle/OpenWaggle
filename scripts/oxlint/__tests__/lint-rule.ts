@@ -112,6 +112,56 @@ export function lintWithRule(
   filename: string,
   options: readonly JsonValue[] = [],
 ): LintMessage[] {
+  return runRule(plugin, ruleId, code, filename, options).messages
+}
+
+type FixFunction = NonNullable<ReportDescriptor['fix']>
+interface RuleFix {
+  readonly range: [number, number]
+  readonly text: string
+}
+
+const FIXER = fromPartial<Parameters<FixFunction>[0]>({
+  replaceTextRange: (range: [number, number], text: string) => ({ range, text }),
+  replaceText: (node: { range: [number, number] }, text: string) => ({ range: node.range, text }),
+  remove: (node: { range: [number, number] }) => ({ range: node.range, text: '' }),
+  removeRange: (range: [number, number]) => ({ range, text: '' }),
+})
+
+function fixesOf(fix: FixFunction): readonly RuleFix[] {
+  const result = fix(FIXER)
+  if (result === null || result === undefined) return []
+  if ('range' in result) return [result]
+  return [...result].filter((item): item is RuleFix => item !== null && item !== undefined)
+}
+
+/**
+ * Lints `code` with one rule like `lintWithRule` and returns the text after applying every fix
+ * the rule reported, as `oxlint --fix` would in one pass.
+ */
+export function fixWithRule(
+  plugin: Plugin,
+  ruleId: string,
+  code: string,
+  filename: string,
+  options: readonly JsonValue[] = [],
+) {
+  const fixes = runRule(plugin, ruleId, code, filename, options)
+    .fixes.flatMap(fixesOf)
+    .toSorted((left, right) => right.range[0] - left.range[0])
+  return fixes.reduce(
+    (text, fix) => text.slice(0, fix.range[0]) + fix.text + text.slice(fix.range[1]),
+    code,
+  )
+}
+
+function runRule(
+  plugin: Plugin,
+  ruleId: string,
+  code: string,
+  filename: string,
+  options: readonly JsonValue[],
+) {
   const ruleName = ruleId.slice(ruleId.indexOf('/') + 1)
   const rule = plugin.rules[ruleName]
   const create = rule && 'create' in rule ? rule.create : undefined
@@ -139,6 +189,7 @@ export function lintWithRule(
     }),
   )
   const messages: LintMessage[] = []
+  const fixes: FixFunction[] = []
   const context = fromPartial<Context>({
     id: ruleId,
     filename,
@@ -150,6 +201,7 @@ export function lintWithRule(
       getLocFromIndex: locate,
     }),
     report: (descriptor: ReportDescriptor) => {
+      if (descriptor.fix) fixes.push(descriptor.fix)
       const start = reportedStart(descriptor, locate)
       messages.push({
         ruleId,
@@ -177,5 +229,10 @@ export function lintWithRule(
   linkParents(parsed.program)
   new Visitor(handlers).visit(parsed.program)
 
-  return messages.toSorted((left, right) => left.line - right.line || left.column - right.column)
+  return {
+    messages: messages.toSorted(
+      (left, right) => left.line - right.line || left.column - right.column,
+    ),
+    fixes,
+  }
 }
