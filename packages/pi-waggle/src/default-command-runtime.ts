@@ -19,8 +19,8 @@ import {
 } from './mode-state.js'
 import {
   loadPiWagglePresetLayers,
-  type PiWaggleResolvedPreset,
   resolvedPresetsForUi,
+  type PiWaggleResolvedPreset,
 } from './presets.js'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
@@ -49,11 +49,11 @@ export function notify(
   ctx: ExtensionContext,
   message: string,
   type: 'info' | 'warning' | 'error' = 'info',
-): void {
+) {
   if (ctx.hasUI) ctx.ui.notify(message, type)
 }
 
-export function setWaggleStatus(ctx: ExtensionContext, text: string | undefined): void {
+export function setWaggleStatus(ctx: ExtensionContext, text: string | undefined) {
   if (ctx.hasUI) ctx.ui.setStatus('pi-waggle', text)
 }
 
@@ -72,13 +72,14 @@ function appendModeState(
   )
 }
 
-export function latestActiveState(ctx: ExtensionCommandContext): ActiveWaggleState | null {
+export function latestActiveState(ctx: ExtensionCommandContext) {
   const state = latestPiWaggleModeStateFromBranch(ctx.sessionManager)
   if (!state?.enabled || !state.config) return null
-  return {
+  const result: ActiveWaggleState = {
     config: state.config,
     ...(state.presetId ? { presetId: state.presetId } : {}),
   }
+  return result
 }
 
 function effectiveAgentModelReference(ctx: ExtensionContext, model: string) {
@@ -111,7 +112,7 @@ export async function activateConfig(
     readonly presetId?: string
     readonly presetName?: string
   },
-): Promise<void> {
+) {
   if (configRequiresInheritedModel(input.config) && !modelReferenceForCurrentModel(input.ctx)) {
     notify(input.ctx, 'Select a Pi model before enabling inherited Waggle models.', 'error')
     return
@@ -146,7 +147,7 @@ export async function activatePreset(
     readonly preset: WagglePreset
     readonly prompt?: string
   },
-): Promise<void> {
+) {
   await activateConfig({
     ...input,
     config: input.preset.config,
@@ -155,34 +156,30 @@ export async function activatePreset(
   })
 }
 
-export async function resolvePresetById(
-  cwd: string,
-  presetId: string,
-): Promise<PiWaggleResolvedPreset | null> {
+export async function resolvePresetById(cwd: string, presetId: string) {
   const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(cwd))
-  return presets.find((candidate) => candidate.preset.id === presetId) ?? null
+  const result: PiWaggleResolvedPreset | null =
+    presets.find((candidate) => candidate.preset.id === presetId) ?? null
+  return result
 }
 
-export async function resolvePresetByReference(
-  cwd: string,
-  reference: string,
-): Promise<PiWaggleResolvedPreset | null> {
+export async function resolvePresetByReference(cwd: string, reference: string) {
   const normalizedReference = reference.trim().toLowerCase()
   const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(cwd))
-  return (
+  const result: PiWaggleResolvedPreset | null =
     presets.find(
       (candidate) =>
         candidate.preset.id.toLowerCase() === normalizedReference ||
         candidate.preset.name.toLowerCase() === normalizedReference,
     ) ?? null
-  )
+  return result
 }
 
 export function disableWaggle(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext
   readonly setActiveRun: (run: null) => void
-}): void {
+}) {
   appendModeState(input.pi, disabledPiWaggleModeState())
   input.setActiveRun(null)
   setWaggleStatus(input.ctx, undefined)

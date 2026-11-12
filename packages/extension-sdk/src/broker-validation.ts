@@ -11,8 +11,8 @@ export function invalidOperationResult(input: {
   readonly audit: ExtensionCapabilityAuditEntry
   readonly issues: readonly string[]
   readonly message: string
-}): ExtensionInvokeFailure {
-  return {
+}) {
+  const failure: ExtensionInvokeFailure = {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
@@ -21,6 +21,7 @@ export function invalidOperationResult(input: {
     },
     audit: input.audit,
   }
+  return failure
 }
 
 /**
@@ -31,15 +32,17 @@ export function toDecodedOperationResult<TValue, TEncoded>(
   result: ExtensionInvokeResult,
   schema: Schema.Schema<TValue, TEncoded>,
   message: string,
-): ExtensionInvokeResult<TValue> {
+) {
   if (!result.ok) {
-    return result
+    const returned: ExtensionInvokeResult<TValue> = result
+    return returned
   }
 
   const decoded = safeDecodeExtensionSchema(schema, result.value)
-  return decoded.success
+  const returned: ExtensionInvokeResult<TValue> = decoded.success
     ? { ok: true, value: decoded.data, audit: result.audit }
     : invalidOperationResult({ audit: result.audit, issues: decoded.issues, message })
+  return returned
 }
 
 export {

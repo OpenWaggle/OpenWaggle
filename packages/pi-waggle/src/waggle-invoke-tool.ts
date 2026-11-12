@@ -35,7 +35,7 @@ function isInsideWaggleRun(ctx: ExtensionContext) {
 export function registerWaggleInvokeTool(
   pi: ExtensionAPI,
   input: { readonly getActiveRun: () => DefaultPiWaggleRunState | null },
-): void {
+) {
   pi.registerTool({
     name: WAGGLE_INVOKE_TOOL_NAME,
     label: 'Invoke Waggle',

@@ -65,7 +65,7 @@ function activePreset(
 export function menuTitle(
   ctx: ExtensionCommandContext,
   presets: readonly PiWaggleResolvedPreset[],
-): string {
+) {
   const activeState = latestActiveState(ctx)
   if (!activeState) return 'Waggle control center — off'
   const preset = activePreset(activeState, presets)
@@ -73,8 +73,9 @@ export function menuTitle(
   return `Waggle control center — enabled · ${name} · ${configRowSummary(ctx, activeState.config)}`
 }
 
-function buildActionRow(label: string, action: WaggleMenuAction): WaggleControlCenterRow {
-  return { label, details: [label], primaryAction: action }
+function buildActionRow(label: string, action: WaggleMenuAction) {
+  const row: WaggleControlCenterRow = { label, details: [label], primaryAction: action }
+  return row
 }
 
 function buildPresetRow(input: {
@@ -82,10 +83,10 @@ function buildPresetRow(input: {
   readonly entry: PiWaggleResolvedPreset
   readonly active: boolean
   readonly activeConfig?: WaggleConfig
-}): WaggleControlCenterRow {
+}) {
   const displayConfig = input.activeConfig ?? input.entry.preset.config
   const activePrefix = input.active ? '● ' : ''
-  return {
+  const row: WaggleControlCenterRow = {
     label: `${activePrefix}${input.entry.preset.name} — ${presetScopeLabel(input.entry.scope)} · ${configRowSummary(input.ctx, displayConfig)}`,
     details: configDetails(input.ctx, displayConfig, input.entry.preset.description),
     primaryAction: input.active
@@ -93,24 +94,23 @@ function buildPresetRow(input: {
       : { type: 'activate-preset', preset: input.entry.preset },
     secondaryAction: { type: 'preset-actions', preset: input.entry.preset, active: input.active },
   }
+  return row
 }
 
-function buildActiveCustomRow(
-  ctx: ExtensionCommandContext,
-  activeState: ActiveWaggleState,
-): WaggleControlCenterRow {
-  return {
+function buildActiveCustomRow(ctx: ExtensionCommandContext, activeState: ActiveWaggleState) {
+  const row: WaggleControlCenterRow = {
     label: `● Active custom configuration — ${configRowSummary(ctx, activeState.config)}`,
     details: configDetails(ctx, activeState.config, 'Branch-scoped Waggle configuration.'),
     primaryAction: { type: 'active-config-actions', config: activeState.config },
     secondaryAction: { type: 'active-config-actions', config: activeState.config },
   }
+  return row
 }
 
 export function buildWaggleMenuRows(
   ctx: ExtensionCommandContext,
   presets: readonly PiWaggleResolvedPreset[],
-): readonly WaggleControlCenterRow[] {
+) {
   const activeState = latestActiveState(ctx)
   const activePresetId = activeState?.presetId
   const rows: WaggleControlCenterRow[] = []

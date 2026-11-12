@@ -43,7 +43,7 @@ function config() {
   } as const
 }
 
-function modelFor(modelReference: string): PiWaggleModel {
+function modelFor(modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
   if (separatorIndex <= FIRST_PROVIDER_CHARACTER_INDEX) {
     throw new Error(`Expected provider/model id, received ${modelReference}`)

@@ -325,7 +325,7 @@ Convenience entry point that re-exports the complete browser-safe extension auth
 | `openWaggleToolCallSurfaceInputSchema` | const |
 | `OpenWaggleTranscriptSurfaceInput` | interface |
 | `openWaggleTranscriptSurfaceInputSchema` | const |
-| `toInvokeInput` | function |
+| `toInvokeInput` | const |
 | `validateExtensionManifest` | function |
 
 ## `@openwaggle/extension-sdk/agent-loop`
@@ -407,7 +407,7 @@ Capability-broker request, response, scope, audit, and SDK helpers.
 | `ExtensionStorageListOperationResult` | type |
 | `ExtensionStorageScopeSdk` | interface |
 | `ExtensionStorageSetOperationResult` | type |
-| `toInvokeInput` | function |
+| `toInvokeInput` | const |
 
 ## `@openwaggle/extension-sdk/constants`
 

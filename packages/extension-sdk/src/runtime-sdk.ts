@@ -9,10 +9,8 @@ import type { ExtensionRuntimeContributionSdk, ExtensionSdkInvoke } from './sdk-
 const RUNTIME_CONTRIBUTION_RESULT_ERROR =
   'Extension broker returned an invalid runtime contribution result.'
 
-export function createRuntimeContributionSdk(
-  invoke: ExtensionSdkInvoke,
-): ExtensionRuntimeContributionSdk {
-  return {
+export function createRuntimeContributionSdk(invoke: ExtensionSdkInvoke) {
+  const sdk: ExtensionRuntimeContributionSdk = {
     registerContribution: async (scope, registration) =>
       toDecodedOperationResult(
         await invoke({
@@ -36,4 +34,5 @@ export function createRuntimeContributionSdk(
         RUNTIME_CONTRIBUTION_RESULT_ERROR,
       ),
   }
+  return sdk
 }

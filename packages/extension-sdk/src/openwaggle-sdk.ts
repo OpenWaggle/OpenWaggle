@@ -51,8 +51,8 @@ const unsupportedOpenExternal = async () => {
   throw new Error('OpenWaggle external URL action is not available in this extension host context.')
 }
 
-function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleStateSdk {
-  return {
+function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke) {
+  const sdk: ExtensionOpenWaggleStateSdk = {
     get: async (scope) =>
       toDecodedOperationResult(
         await invoke({
@@ -120,10 +120,11 @@ function createOpenWaggleStateSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWagg
         STATE_RESULT_ERROR,
       ),
   }
+  return sdk
 }
 
-function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleSettingsSdk {
-  return {
+function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke) {
+  const sdk: ExtensionOpenWaggleSettingsSdk = {
     get: async (scope) =>
       toDecodedOperationResult(
         await invoke({
@@ -198,13 +199,14 @@ function createOpenWaggleSettingsSdk(invoke: ExtensionSdkInvoke): ExtensionOpenW
         SETTINGS_RESULT_ERROR,
       ),
   }
+  return sdk
 }
 
 export function createOpenWaggleSdk(
   invoke: ExtensionSdkInvoke,
   options: CreateOpenWaggleSdkOptions = {},
-): ExtensionOpenWaggleSdk {
-  return {
+) {
+  const sdk: ExtensionOpenWaggleSdk = {
     state: createOpenWaggleStateSdk(invoke),
     actions: {
       openExternal: options.openExternal ?? unsupportedOpenExternal,
@@ -270,4 +272,5 @@ export function createOpenWaggleSdk(
         ),
     },
   }
+  return sdk
 }

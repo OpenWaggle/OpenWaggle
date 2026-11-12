@@ -19,7 +19,7 @@ export function enabledPiWaggleModeState(input: {
   readonly config: WaggleConfig
   readonly presetId?: string
   readonly updatedAt?: number
-}): PiWaggleModeState {
+}) {
   return createPiWaggleModeState({
     enabled: true,
     ...(input.presetId ? { presetId: input.presetId } : {}),
@@ -28,16 +28,14 @@ export function enabledPiWaggleModeState(input: {
   })
 }
 
-export function disabledPiWaggleModeState(
-  input: { readonly updatedAt?: number } = {},
-): PiWaggleModeState {
-  return createPiWaggleModeState({ enabled: false, updatedAt: input.updatedAt ?? Date.now() })
+export function disabledPiWaggleModeState(input: { readonly updatedAt?: number } = {}) {
+  return createPiWaggleModeState({
+    enabled: false,
+    updatedAt: input.updatedAt ?? Date.now(),
+  })
 }
 
-export function appendPiWaggleModeState(
-  writer: PiWaggleModeStateWriter,
-  state: PiWaggleModeState,
-): string | undefined {
+export function appendPiWaggleModeState(writer: PiWaggleModeStateWriter, state: PiWaggleModeState) {
   return writer.appendCustomEntry(PI_WAGGLE_MODE_STATE_CUSTOM_TYPE, state)
 }
 
@@ -49,9 +47,7 @@ function customEntryModeState(entry: SessionEntry) {
   return parsePiWaggleModeState(entry.data)
 }
 
-export function latestPiWaggleModeStateFromEntries(
-  entries: readonly SessionEntry[],
-): PiWaggleModeState | null {
+export function latestPiWaggleModeStateFromEntries(entries: readonly SessionEntry[]) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
     if (!entry) {
@@ -60,15 +56,14 @@ export function latestPiWaggleModeStateFromEntries(
 
     const state = customEntryModeState(entry)
     if (state) {
-      return state
+      const result: PiWaggleModeState | null = state
+      return result
     }
   }
 
   return null
 }
 
-export function latestPiWaggleModeStateFromBranch(
-  sessionManager: PiWaggleModeStateReader,
-): PiWaggleModeState | null {
+export function latestPiWaggleModeStateFromBranch(sessionManager: PiWaggleModeStateReader) {
   return latestPiWaggleModeStateFromEntries(sessionManager.getBranch())
 }

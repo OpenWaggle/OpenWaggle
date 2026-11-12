@@ -57,8 +57,8 @@ function appendModeState(
   )
 }
 
-export function blankConfig(): WaggleConfig {
-  return {
+export function blankConfig() {
+  const config: WaggleConfig = {
     mode: 'sequential',
     agents: [
       {
@@ -76,6 +76,7 @@ export function blankConfig(): WaggleConfig {
     ],
     stop: { primary: DEFAULT_STOP_CONDITION, maxTurnsSafety: DEFAULT_MAX_TURNS_SAFETY },
   }
+  return config
 }
 
 function stringifyConfigJson(config: WaggleConfig) {
@@ -130,7 +131,7 @@ async function promptStopCondition(
 export async function promptFullWaggleConfig(input: {
   readonly ctx: ExtensionCommandContext
   readonly initialConfig: WaggleConfig
-}): Promise<WaggleConfig | null> {
+}) {
   const [firstAgent, secondAgent] = input.initialConfig.agents
   const nextFirstAgent = await promptAgentSlot({ ctx: input.ctx, agent: firstAgent })
   if (!nextFirstAgent) return null
@@ -149,11 +150,12 @@ export async function promptFullWaggleConfig(input: {
   if (rawMaxTurns === null) return null
 
   const maxTurnsSafety = parseMaxTurns(rawMaxTurns)
-  return {
+  const config: WaggleConfig | null = {
     ...input.initialConfig,
     agents: [nextFirstAgent, nextSecondAgent],
     stop: { primary: stopCondition, maxTurnsSafety },
-  } satisfies WaggleConfig
+  }
+  return config
 }
 
 type GuidedConfigEditResult =
@@ -182,20 +184,29 @@ async function editSelectedConfigField(input: {
   readonly ctx: ExtensionCommandContext
   readonly config: WaggleConfig
   readonly selected: string | undefined
-}): Promise<GuidedConfigEditResult> {
+}) {
   if (!input.selected || input.selected === DONE_LABEL) {
-    return { action: 'done', config: input.config }
+    const result: GuidedConfigEditResult = { action: 'done', config: input.config }
+    return result
   }
 
   const [firstAgent, secondAgent] = input.config.agents
   if (input.selected.startsWith(`Edit ${firstAgent.label}`)) {
     const nextAgent = await editAgentSlot({ ctx: input.ctx, agent: firstAgent })
-    return { action: 'continue', config: { ...input.config, agents: [nextAgent, secondAgent] } }
+    const result: GuidedConfigEditResult = {
+      action: 'continue',
+      config: { ...input.config, agents: [nextAgent, secondAgent] },
+    }
+    return result
   }
 
   if (input.selected.startsWith(`Edit ${secondAgent.label}`)) {
     const nextAgent = await editAgentSlot({ ctx: input.ctx, agent: secondAgent })
-    return { action: 'continue', config: { ...input.config, agents: [firstAgent, nextAgent] } }
+    const result: GuidedConfigEditResult = {
+      action: 'continue',
+      config: { ...input.config, agents: [firstAgent, nextAgent] },
+    }
+    return result
   }
 
   if (input.selected.startsWith('Set stop condition')) {
@@ -203,20 +214,24 @@ async function editSelectedConfigField(input: {
     const config = primary
       ? { ...input.config, stop: { ...input.config.stop, primary } }
       : input.config
-    return { action: 'continue', config }
+    const result: GuidedConfigEditResult = { action: 'continue', config }
+    return result
   }
 
   if (input.selected.startsWith('Set max turns')) {
     const config = await editMaxTurnsConfig(input.ctx, input.config)
-    return { action: 'continue', config }
+    const result: GuidedConfigEditResult = { action: 'continue', config }
+    return result
   }
 
   if (input.selected !== ADVANCED_JSON_LABEL) {
-    return { action: 'continue', config: input.config }
+    const result: GuidedConfigEditResult = { action: 'continue', config: input.config }
+    return result
   }
 
   const config = await editAdvancedJsonConfig(input.ctx, input.config)
-  return { action: 'continue', config }
+  const result: GuidedConfigEditResult = { action: 'continue', config }
+  return result
 }
 
 async function editMaxTurnsConfig(ctx: ExtensionCommandContext, config: WaggleConfig) {
@@ -239,7 +254,7 @@ export async function editWaggleConfigGuided(input: {
   readonly ctx: ExtensionCommandContext
   readonly initialConfig: WaggleConfig
   readonly title: string
-}): Promise<WaggleConfig> {
+}) {
   if (!input.ctx.hasUI) return input.initialConfig
 
   let config = input.initialConfig
@@ -254,7 +269,7 @@ export async function editWaggleConfigGuided(input: {
 export async function editActiveConfig(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext
-}): Promise<void> {
+}) {
   const config = editableActiveConfig(input.ctx)
   if (!config) return
 
@@ -279,7 +294,7 @@ export async function editActiveMaxTurns(input: {
   readonly pi: Pick<ExtensionAPI, 'appendEntry'>
   readonly ctx: ExtensionCommandContext
   readonly maxTurns?: string
-}): Promise<void> {
+}) {
   const config = editableActiveConfig(input.ctx)
   if (!config) return
 

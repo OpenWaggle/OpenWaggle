@@ -77,7 +77,7 @@ export function customPreset(id: string, name: string) {
   } as const
 }
 
-function modelFor(modelReference: string): PiWaggleModel {
+function modelFor(modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
   if (separatorIndex <= FIRST_PROVIDER_CHARACTER_INDEX) {
     throw new Error(`Expected provider/model id, received ${modelReference}`)
@@ -117,8 +117,8 @@ export function configEditorJson(maxTurnsSafety: number) {
   )
 }
 
-export function activeModeStateEntry(configJson: string): BranchEntry {
-  return {
+export function activeModeStateEntry(configJson: string) {
+  const entry: BranchEntry = {
     id: 'mode-state',
     parentId: null,
     timestamp: '2026-05-25T00:00:00.000Z',
@@ -131,6 +131,7 @@ export function activeModeStateEntry(configJson: string): BranchEntry {
       updatedAt: CREATED_AT,
     },
   }
+  return entry
 }
 
 async function removeTestDirectory(path: string) {
@@ -159,7 +160,7 @@ export function createHarness(
     readonly branchEntries?: readonly BranchEntry[]
     readonly hasUI?: boolean
   } = {},
-): CommandHarness {
+) {
   vi.stubEnv('HOME', userHomeDir)
   const commands = new Map<string, RegisteredCommandOptions>()
   const appendedEntries: { readonly customType: string; readonly data: unknown }[] = []
@@ -222,7 +223,7 @@ export function createHarness(
     throw new Error('Expected Waggle commands to be registered')
   }
 
-  return {
+  const harness: CommandHarness = {
     appendedEntries,
     ctx,
     sendMessage,
@@ -230,4 +231,5 @@ export function createHarness(
     standardCommand,
     waggleCommand,
   }
+  return harness
 }

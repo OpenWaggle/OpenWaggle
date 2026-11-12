@@ -132,7 +132,7 @@ export function SyntaxBlock({
   wrap = false,
   showLineNumbers = false,
   ariaLabel,
-}: SyntaxBlockProps): JSX.Element {
+}: SyntaxBlockProps) {
   const result =
     useExtensionSyntaxResult({
       syntax,
@@ -142,7 +142,7 @@ export function SyntaxBlock({
     }) ??
     createPlainExtensionSyntaxResult({ source, ...(language === undefined ? {} : { language }) })
 
-  return (
+  const value: JSX.Element = (
     <section aria-label={ariaLabel}>
       <pre
         className={openWaggleExtensionClassName(
@@ -184,6 +184,7 @@ export function SyntaxBlock({
       </pre>
     </section>
   )
+  return value
 }
 
 export type SourceViewProps = SyntaxBlockProps
@@ -227,7 +228,7 @@ export function SourceView({
   className,
   showLineNumbers = true,
   ariaLabel,
-}: SourceViewProps): JSX.Element {
+}: SourceViewProps) {
   const sourceLineStarts = useMemo(() => indexSourceLines(source), [source])
   const sourceLineCount = sourceLineStarts.length
   const highlightEnabled =
@@ -255,7 +256,7 @@ export function SourceView({
       materializePlainSourceLines(source, sourceLineStarts, start, end),
     [end, result, source, sourceLineStarts, start],
   )
-  return (
+  const value: JSX.Element = (
     <section aria-label={ariaLabel}>
       <pre
         className={openWaggleExtensionClassName(
@@ -317,6 +318,7 @@ export function SourceView({
       </pre>
     </section>
   )
+  return value
 }
 
 export interface StackProps {
@@ -327,8 +329,8 @@ export interface StackProps {
   readonly style?: CSSProperties
 }
 
-export function Stack({ children, className, gap, ref, style }: StackProps): JSX.Element {
-  return (
+export function Stack({ children, className, gap, ref, style }: StackProps) {
+  const result: JSX.Element = (
     <div
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.stack, className)}
@@ -337,6 +339,7 @@ export function Stack({ children, className, gap, ref, style }: StackProps): JSX
       {children}
     </div>
   )
+  return result
 }
 
 export interface PanelProps {
@@ -346,8 +349,8 @@ export interface PanelProps {
   readonly style?: CSSProperties
 }
 
-export function Panel({ children, className, ref, style }: PanelProps): JSX.Element {
-  return (
+export function Panel({ children, className, ref, style }: PanelProps) {
+  const result: JSX.Element = (
     <section
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.panel, className)}
@@ -356,6 +359,7 @@ export function Panel({ children, className, ref, style }: PanelProps): JSX.Elem
       {children}
     </section>
   )
+  return result
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -363,14 +367,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly variant?: OpenWaggleExtensionUiButtonVariant
 }
 
-export function Button({
-  children,
-  className,
-  ref,
-  variant = 'secondary',
-  ...props
-}: ButtonProps): JSX.Element {
-  return (
+export function Button({ children, className, ref, variant = 'secondary', ...props }: ButtonProps) {
+  const result: JSX.Element = (
     <button
       {...props}
       ref={ref}
@@ -383,28 +381,30 @@ export function Button({
       {children}
     </button>
   )
+  return result
 }
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   readonly ref?: Ref<HTMLInputElement>
 }
 
-export function Input({ className, ref, ...props }: InputProps): JSX.Element {
-  return (
+export function Input({ className, ref, ...props }: InputProps) {
+  const result: JSX.Element = (
     <input
       {...props}
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.input, className)}
     />
   )
+  return result
 }
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   readonly ref?: Ref<HTMLTextAreaElement>
 }
 
-export function Textarea({ className, ref, ...props }: TextareaProps): JSX.Element {
-  return (
+export function Textarea({ className, ref, ...props }: TextareaProps) {
+  const result: JSX.Element = (
     <textarea
       {...props}
       ref={ref}
@@ -414,14 +414,15 @@ export function Textarea({ className, ref, ...props }: TextareaProps): JSX.Eleme
       )}
     />
   )
+  return result
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   readonly ref?: Ref<HTMLSelectElement>
 }
 
-export function Select({ children, className, ref, ...props }: SelectProps): JSX.Element {
-  return (
+export function Select({ children, className, ref, ...props }: SelectProps) {
+  const result: JSX.Element = (
     <select
       {...props}
       ref={ref}
@@ -433,14 +434,15 @@ export function Select({ children, className, ref, ...props }: SelectProps): JSX
       {children}
     </select>
   )
+  return result
 }
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   readonly ref?: Ref<HTMLInputElement>
 }
 
-export function Checkbox({ className, ref, ...props }: CheckboxProps): JSX.Element {
-  return (
+export function Checkbox({ className, ref, ...props }: CheckboxProps) {
+  const result: JSX.Element = (
     <input
       {...props}
       ref={ref}
@@ -451,6 +453,7 @@ export function Checkbox({ className, ref, ...props }: CheckboxProps): JSX.Eleme
       )}
     />
   )
+  return result
 }
 
 export interface BadgeProps {
@@ -460,8 +463,8 @@ export interface BadgeProps {
   readonly tone?: OpenWaggleExtensionUiTone
 }
 
-export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps): JSX.Element {
-  return (
+export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps) {
+  const result: JSX.Element = (
     <span
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.badge, className)}
@@ -470,6 +473,7 @@ export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps
       {children}
     </span>
   )
+  return result
 }
 
 export interface AlertProps {
@@ -480,14 +484,8 @@ export interface AlertProps {
   readonly tone?: OpenWaggleExtensionUiTone
 }
 
-export function Alert({
-  children,
-  className,
-  ref,
-  role = 'status',
-  tone = 'neutral',
-}: AlertProps): JSX.Element {
-  return (
+export function Alert({ children, className, ref, role = 'status', tone = 'neutral' }: AlertProps) {
+  const result: JSX.Element = (
     <div
       ref={ref}
       role={role}
@@ -497,6 +495,7 @@ export function Alert({
       {children}
     </div>
   )
+  return result
 }
 
 export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
@@ -516,8 +515,8 @@ export function Field({
   label,
   ref,
   ...props
-}: FieldProps): JSX.Element {
-  return (
+}: FieldProps) {
+  const result: JSX.Element = (
     <div
       {...props}
       ref={ref}
@@ -537,6 +536,7 @@ export function Field({
       {error ? <span data-ow-tone="danger">{error}</span> : null}
     </div>
   )
+  return result
 }
 
 export type { OpenWaggleExtensionUiButtonVariant, OpenWaggleExtensionUiTone }

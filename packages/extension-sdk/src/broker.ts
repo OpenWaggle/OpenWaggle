@@ -15,25 +15,25 @@ import type { ExtensionInvokeInput } from './types.js'
 export type * from './core-types.js'
 export type * from './sdk-types.js'
 
-export function toInvokeInput(
+// Typed as a value: inferred, the declarations would spell out the schema type that
+// `ExtensionInvokeInput` names.
+export const toInvokeInput: (
   identity: ExtensionSdkIdentity,
   request: ExtensionSdkInvokeRequest,
-): ExtensionInvokeInput {
-  return {
-    extensionId: identity.extensionId,
-    contributionId: identity.contributionId,
-    capability: request.capability,
-    method: request.method,
-    scope: request.scope,
-    ...(request.payload !== undefined ? { payload: request.payload } : {}),
-  }
-}
+) => ExtensionInvokeInput = (identity, request) => ({
+  extensionId: identity.extensionId,
+  contributionId: identity.contributionId,
+  capability: request.capability,
+  method: request.method,
+  scope: request.scope,
+  ...(request.payload !== undefined ? { payload: request.payload } : {}),
+})
 
 export function createExtensionBrokerSdkFromInvoke(
   invoke: ExtensionSdkInvoke,
   options: CreateOpenWaggleSdkOptions = {},
-): ExtensionBrokerSdk {
-  return {
+) {
+  const sdk: ExtensionBrokerSdk = {
     invoke,
     hostContext: {
       getScope: (scope) =>
@@ -48,13 +48,14 @@ export function createExtensionBrokerSdkFromInvoke(
     openWaggle: createOpenWaggleSdk(invoke, options),
     runtime: createRuntimeContributionSdk(invoke),
   }
+  return sdk
 }
 
 export function createExtensionBrokerSdk(
   transport: ExtensionBrokerTransport,
   identity: ExtensionSdkIdentity,
   options: CreateOpenWaggleSdkOptions = {},
-): ExtensionBrokerSdk {
+) {
   const invoke: ExtensionSdkInvoke = (request) => transport(toInvokeInput(identity, request))
 
   return createExtensionBrokerSdkFromInvoke(invoke, options)
