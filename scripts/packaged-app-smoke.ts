@@ -6,7 +6,9 @@ import { promisify } from 'node:util'
 import { missingPackagedPiAssets } from './electron-builder-pi-assets'
 import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
 import { nodeRuntime } from './support/node-runtime'
-import { prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { unshippedPackageIssues, prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { packagedRuntimePackages } from './packaged-runtime-packages'
+import { mainExternalPackages } from './vite/main-externals'
 import { Schema } from '@shared/schema'
 import { objectFields, unknownField } from './support/object-fields'
 
@@ -210,7 +212,9 @@ function assertPiPackageAssets(header: AsarNode) {
 }
 
 function assertRuntimeTrim(header: AsarNode) {
-  const issues = prunedRuntimeIssues(collectAsarEntries(header))
+  const entries = collectAsarEntries(header)
+  const { unshipped } = packagedRuntimePackages(process.cwd(), [...mainExternalPackages()])
+  const issues = [...prunedRuntimeIssues(entries), ...unshippedPackageIssues(entries, unshipped)]
   if (issues.length > 0) {
     throw new Error(`Packaged app asar runtime trim is wrong: ${issues.join('; ')}.`)
   }
