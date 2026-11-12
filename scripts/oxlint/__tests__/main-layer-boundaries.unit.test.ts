@@ -1,0 +1,94 @@
+import { describe, expect, it } from 'vitest'
+import { openwagglePlugin } from '../openwaggle-plugin.ts'
+import { type JsonValue, lintWithRule } from './lint-rule.ts'
+
+function lint(
+  code: string,
+  ruleName: string,
+  filename: string,
+  options: readonly JsonValue[] = [],
+) {
+  return lintWithRule(openwagglePlugin, ruleName, code, filename, options)
+}
+
+describe('main-process layer boundaries', () => {
+  it('reports an adapter importing from the IPC layer', () => {
+    /*
+     * The rule was documented in prose - a Pi adapter even says so in a comment - but unenforced, and
+     * an adapter did import an IPC module that contained no handler at all. Adding it immediately
+     * caught a second violation in a Pi adapter test.
+     */
+    const messages = lint(
+      "import { runGit } from '../../ipc/git/shared'\nexport const value = runGit\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/main/adapters/git/example.ts',
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('Adapters must not depend on IPC handlers')
+  })
+
+  it('allows an adapter importing from services, which is the intended direction', () => {
+    const messages = lint(
+      "import { helper } from '../../services/git/example'\nexport const value = helper\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/main/adapters/git/example.ts',
+    )
+
+    expect(messages).toHaveLength(0)
+  })
+
+  it('allows an IPC handler importing from adapters', () => {
+    const messages = lint(
+      "import { runGit } from '../../adapters/git/run-git'\nexport const value = runGit\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/main/ipc/git/example.ts',
+    )
+
+    expect(messages).toHaveLength(0)
+  })
+
+  it('reports application, IPC and store code importing the Usage statistics recorder directly', () => {
+    const importer =
+      "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
+
+    for (const filename of [
+      'src/main/application/example.ts',
+      'src/main/ipc/example.ts',
+      'src/main/store/example.ts',
+    ]) {
+      const messages = lint(importer, 'openwaggle/main-architecture-boundaries', filename)
+      expect(messages.map((message) => message.message)).toEqual([
+        expect.stringContaining('through the UsageStatisticsRecorder port'),
+      ])
+    }
+  })
+
+  it('keeps Usage statistics infrastructure out of IPC handlers and application services', () => {
+    const messages = lint(
+      "import { coordinate } from '../application/example'\nexport const value = coordinate\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/main/usage-statistics/example.ts',
+    )
+
+    expect(messages.map((message) => message.message)).toEqual([
+      expect.stringContaining('src/main/usage-statistics/ is infrastructure'),
+    ])
+  })
+
+  it('allows adapters and tests to use Usage statistics infrastructure', () => {
+    const importer =
+      "import { recordUsageStatistics } from '../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n"
+
+    expect(
+      lint(importer, 'openwaggle/main-architecture-boundaries', 'src/main/adapters/example.ts'),
+    ).toHaveLength(0)
+    expect(
+      lint(
+        "import { recordUsageStatistics } from '../../usage-statistics/usage-statistics-recorder'\nexport const value = recordUsageStatistics\n",
+        'openwaggle/main-architecture-boundaries',
+        'src/main/application/__tests__/example.unit.test.ts',
+      ),
+    ).toHaveLength(0)
+  })
+})
