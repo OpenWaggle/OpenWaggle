@@ -35,11 +35,13 @@ export function makeTerminalLifecycleHarness() {
   }
 
   const install = (pty: IPty) => {
-    Reflect.set(pty, 'onProcessTreeExit', (listener: (event: ExitEvent) => void) => {
-      treeExitListeners.push(listener)
-      return { dispose: () => undefined }
+    Object.assign(pty, {
+      onProcessTreeExit: (listener: (event: ExitEvent) => void) => {
+        treeExitListeners.push(listener)
+        return { dispose: () => undefined }
+      },
     })
-    Reflect.set(pty, 'waitForResourceDrain', () => resourceDrain.promise)
+    Object.assign(pty, { waitForResourceDrain: () => resourceDrain.promise })
     return observeTerminalProcessLifecycle(pty)
   }
 

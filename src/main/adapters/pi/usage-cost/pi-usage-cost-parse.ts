@@ -7,6 +7,12 @@ import {
   type UsageCostRecordTokens,
   type UsageCostScanSession,
 } from '../../../domain/usage-cost/usage-cost-aggregate'
+import {
+  type PiSessionEntry,
+  type PiSessionUsage,
+  parsePiSessionObjectLine,
+  piUserMessageText,
+} from '../pi-session-jsonl-entry'
 import type { UsageCostEstimator } from './pi-usage-cost-scanner'
 
 /**
@@ -38,16 +44,8 @@ export async function parseSessionFile(
   const records: UsageCostRecord[] = []
 
   for (const line of await readLines(file)) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    let entry: unknown
-    try {
-      entry = JSON.parse(trimmed)
-    } catch {
-      continue
-    }
-    if (!isRecord(entry)) continue
-
+    const entry = parsePiSessionObjectLine(line)
+    if (entry === null) continue
     absorbEntry(state, entry)
     const extracted = extractRecords(entry, state.lastModel)
     records.push(...extracted)
@@ -85,18 +83,6 @@ function shortened(text: string) {
   return `${collapsed.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
 }
 
-/** The text of a user message, whether Pi stored it as a string or as content blocks. */
-function userPromptText(message: Readonly<Record<string, unknown>>) {
-  if (message.role !== 'user') return null
-  if (typeof message.content === 'string') return message.content
-  if (!Array.isArray(message.content)) return null
-  return message.content
-    .flatMap((part: unknown) =>
-      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
-    )
-    .join(' ')
-}
-
 /**
  * What a Session row is called (#356): the latest Pi `/name`, else the first prompt, which is
  * also what discovery titles an adopted `pi` session from (ADR 0051).
@@ -106,25 +92,25 @@ function sessionTitle(state: ParseState) {
   return title ? shortened(title) || null : null
 }
 
-function absorbTitle(state: ParseState, entry: Readonly<Record<string, unknown>>) {
+function absorbTitle(state: ParseState, entry: PiSessionEntry) {
   if (entry.type === 'session_info') {
-    state.name = typeof entry.name === 'string' && entry.name.trim() ? entry.name : null
+    state.name = entry.name?.trim() ? entry.name : null
     return
   }
-  if (state.firstPrompt !== null || entry.type !== 'message' || !isRecord(entry.message)) {
+  if (state.firstPrompt !== null || entry.type !== 'message' || entry.message === undefined) {
     return
   }
-  const text = userPromptText(entry.message)
+  const text = piUserMessageText(entry.message)
   if (text?.trim()) state.firstPrompt = text
 }
 
-function absorbEntry(state: ParseState, entry: Readonly<Record<string, unknown>>) {
-  const type = entry.type
+function absorbEntry(state: ParseState, entry: PiSessionEntry) {
+  const { type } = entry
   absorbTitle(state, entry)
 
   if (type === 'session') {
-    if (typeof entry.id === 'string') state.sessionId = entry.id
-    if (typeof entry.cwd === 'string') state.cwd = entry.cwd
+    if (entry.id !== undefined) state.sessionId = entry.id
+    if (entry.cwd !== undefined) state.cwd = entry.cwd
     const headerTimestamp = parseTimestampMs(entry.timestamp)
     if (headerTimestamp !== null) state.startedAtMs = headerTimestamp
     return
@@ -138,22 +124,18 @@ function absorbEntry(state: ParseState, entry: Readonly<Record<string, unknown>>
     state.lastActivityMs = timestampMs
   }
 
-  if (type === 'custom' && typeof entry.customType === 'string') {
+  if (type === 'custom' && entry.customType !== undefined) {
     if (entry.customType.startsWith(OPENWAGGLE_CUSTOM_TYPE_PREFIX)) state.origin = 'openwaggle'
     return
   }
 
-  if (
-    type === 'model_change' &&
-    typeof entry.provider === 'string' &&
-    typeof entry.modelId === 'string'
-  ) {
+  if (type === 'model_change' && entry.provider !== undefined && entry.modelId !== undefined) {
     state.lastModel = { provider: entry.provider, modelId: entry.modelId }
   }
 }
 
 function extractRecords(
-  entry: Readonly<Record<string, unknown>>,
+  entry: PiSessionEntry,
   lastModel: { provider: string; modelId: string } | null,
 ): UsageCostRecord[] {
   const timestampMs = parseTimestampMs(entry.timestamp)
@@ -168,16 +150,16 @@ function extractRecords(
 }
 
 function messageRecords(
-  entry: Readonly<Record<string, unknown>>,
+  entry: PiSessionEntry,
   timestampMs: number,
   lastModel: { provider: string; modelId: string } | null,
 ): UsageCostRecord[] {
-  const message = entry.message
-  if (!isRecord(message) || !isRecord(message.usage)) return []
+  const { message } = entry
+  if (message?.usage === undefined) return []
 
   if (message.role === 'assistant') {
-    const provider = typeof message.provider === 'string' ? message.provider : lastModel?.provider
-    const modelId = typeof message.model === 'string' ? message.model : lastModel?.modelId
+    const provider = message.provider ?? lastModel?.provider
+    const modelId = message.model ?? lastModel?.modelId
     if (provider === undefined || modelId === undefined) return []
     return [createRecord(timestampMs, provider, modelId, message.usage)]
   }
@@ -195,20 +177,14 @@ function messageRecords(
   return []
 }
 
-function directUsageRecords(
-  entry: Readonly<Record<string, unknown>>,
-  timestampMs: number,
-): UsageCostRecord[] {
-  if (typeof entry.provider !== 'string' || typeof entry.model !== 'string') return []
-  if (!isRecord(entry.usage)) return []
+function directUsageRecords(entry: PiSessionEntry, timestampMs: number): UsageCostRecord[] {
+  if (entry.provider === undefined || entry.model === undefined) return []
+  if (entry.usage === undefined) return []
   return [createRecord(timestampMs, entry.provider, entry.model, entry.usage)]
 }
 
-function summaryRecords(
-  entry: Readonly<Record<string, unknown>>,
-  timestampMs: number,
-): UsageCostRecord[] {
-  if (!isRecord(entry.usage)) return []
+function summaryRecords(entry: PiSessionEntry, timestampMs: number): UsageCostRecord[] {
+  if (entry.usage === undefined) return []
   return [
     createRecord(
       timestampMs,
@@ -223,34 +199,25 @@ function createRecord(
   timestampMs: number,
   provider: string,
   modelId: string,
-  usage: Readonly<Record<string, unknown>>,
+  usage: PiSessionUsage,
 ): UsageCostRecord {
   const tokens: UsageCostRecordTokens = {
-    input: tokenCount(usage.input),
-    output: tokenCount(usage.output),
-    cacheRead: tokenCount(usage.cacheRead),
-    cacheWrite: tokenCount(usage.cacheWrite),
+    input: usage.input ?? 0,
+    output: usage.output ?? 0,
+    cacheRead: usage.cacheRead ?? 0,
+    cacheWrite: usage.cacheWrite ?? 0,
   }
   const totalTokens =
-    typeof usage.totalTokens === 'number'
-      ? usage.totalTokens
-      : tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite
+    usage.totalTokens ?? tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite
   return {
     timestampMs,
     provider,
     modelId,
     tokens,
     totalTokens,
-    recordedCostUsd: recordedCost(usage),
+    recordedCostUsd: usage.cost?.total ?? null,
     estimatedCostUsd: null,
   }
-}
-
-function recordedCost(usage: Readonly<Record<string, unknown>>): number | null {
-  const cost = usage.cost
-  if (!isRecord(cost)) return null
-  if (typeof cost.total !== 'number' || !Number.isFinite(cost.total)) return null
-  return cost.total
 }
 
 function applyEstimate(record: UsageCostRecord, estimateCost: UsageCostEstimator): UsageCostRecord {
@@ -260,16 +227,8 @@ function applyEstimate(record: UsageCostRecord, estimateCost: UsageCostEstimator
   return { ...record, estimatedCostUsd }
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function tokenCount(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function parseTimestampMs(value: unknown): number | null {
-  if (typeof value !== 'string') return null
+function parseTimestampMs(value: string | undefined): number | null {
+  if (value === undefined) return null
   const parsed = Date.parse(value)
   return Number.isNaN(parsed) ? null : parsed
 }

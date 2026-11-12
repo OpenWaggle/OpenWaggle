@@ -4,6 +4,10 @@ import {
   type McpExposure,
 } from '../../../domain/mcp/config/mcp-server-config'
 import { editMcpServers } from './mcp-config-file-edit'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { lenientOptional } from '@shared/schemas/lenient'
+import { jsonValueSchema } from '@shared/schemas/validation'
+import type { JsonValue } from '@shared/types/json'
 
 /**
  * Edits one server of an `mcp.json` and keeps the rest of the file: unrelated keys, unknown
@@ -26,12 +30,31 @@ export interface McpServerSettingsPatch {
 
 type JsonRecord = Record<string, unknown>
 
+/** The settings this writer changes on an entry; every other field is kept as written. */
+type SettingChanges = Partial<
+  Record<'enabled' | 'exposure' | 'toolExposure', JsonValue | undefined>
+>
+
+/** The entry with the changed settings: a value replaces a setting, `undefined` removes it. */
+function withSettings(server: JsonRecord, changes: SettingChanges): JsonRecord {
+  const next: JsonRecord = { ...server }
+  for (const [setting, value] of Object.entries(changes)) {
+    if (value === undefined) delete next[setting]
+    else next[setting] = value
+  }
+  return next
+}
+
+const ownToolExposureSchema = Schema.Struct({
+  toolExposure: lenientOptional(Schema.Record({ key: Schema.String, value: jsonValueSchema })),
+})
+
 /**
- * Applies per-tool changes. An empty result is dropped from a full entry, but an override keeps
- * `toolExposure: {}` when it replaced rules (its own or inherited ones): without the key, the
- * rules of the file below would apply again.
+ * The entry's per-tool rules after the changes. An empty result is dropped from a full entry, but
+ * an override keeps `toolExposure: {}` when it replaced rules (its own or inherited ones): without
+ * the key, the rules of the file below would apply again.
  */
-function applyToolExposure(
+function changedToolExposure(
   server: JsonRecord,
   patch: Readonly<Record<string, McpExposure | null>>,
   options: {
@@ -40,16 +63,36 @@ function applyToolExposure(
   },
 ) {
   const inherited = options.inherited ?? {}
-  const ownRules = server.toolExposure
-  const own = isJsonRecord(ownRules)
-  const current = own ? { ...ownRules } : { ...inherited }
+  const ownRules = decodeUnknownOrThrow(ownToolExposureSchema, server).toolExposure
+  const current: Record<string, JsonValue> = ownRules ? { ...ownRules } : { ...inherited }
   for (const [tool, exposure] of Object.entries(patch)) {
     if (exposure === null) delete current[tool]
     else current[tool] = exposure
   }
-  const resets = options.override && (own || Object.keys(inherited).length > 0)
-  if (Object.keys(current).length === 0 && !resets) delete server.toolExposure
-  else server.toolExposure = current
+  const resets = options.override && (ownRules !== undefined || Object.keys(inherited).length > 0)
+  return Object.keys(current).length === 0 && !resets ? undefined : current
+}
+
+function settingChanges(
+  server: JsonRecord,
+  patch: McpServerSettingsPatch,
+  keepDefaults: boolean,
+): SettingChanges {
+  const { enabled, exposure, toolExposure } = patch
+  return {
+    ...(enabled === undefined ? {} : { enabled: enabled && !keepDefaults ? undefined : enabled }),
+    ...(exposure === undefined
+      ? {}
+      : { exposure: exposure === 'codemode' && !keepDefaults ? undefined : exposure }),
+    ...(toolExposure
+      ? {
+          toolExposure: changedToolExposure(server, toolExposure, {
+            override: keepDefaults,
+            ...(patch.inheritedToolExposure ? { inherited: patch.inheritedToolExposure } : {}),
+          }),
+        }
+      : {}),
+  }
 }
 
 /**
@@ -65,27 +108,10 @@ export function updateMcpServerSettings(
   options: { readonly override?: boolean } = {},
 ) {
   editMcpServers(filePath, (servers) => {
-    let server = servers[name]
-    if (server === undefined && options.override) {
-      server = {}
-      servers[name] = server
-    }
+    const existing = servers[name]
+    const server = existing === undefined && options.override ? {} : existing
     if (!isJsonRecord(server)) throw new Error(`${filePath} does not define MCP server "${name}"`)
-    const keepDefaults = isMcpOverrideEntry(server)
-    if (patch.enabled !== undefined) {
-      if (patch.enabled && !keepDefaults) delete server.enabled
-      else server.enabled = patch.enabled
-    }
-    if (patch.exposure !== undefined) {
-      if (patch.exposure === 'codemode' && !keepDefaults) delete server.exposure
-      else server.exposure = patch.exposure
-    }
-    if (patch.toolExposure) {
-      applyToolExposure(server, patch.toolExposure, {
-        override: keepDefaults,
-        ...(patch.inheritedToolExposure ? { inherited: patch.inheritedToolExposure } : {}),
-      })
-    }
+    servers[name] = withSettings(server, settingChanges(server, patch, isMcpOverrideEntry(server)))
     return true
   })
 }
@@ -98,8 +124,9 @@ export function clearMcpServerOverrideEnabled(filePath: string, name: string) {
   editMcpServers(filePath, (servers) => {
     const server = servers[name]
     if (!isJsonRecord(server) || !isMcpOverrideEntry(server) || !('enabled' in server)) return false
-    delete server.enabled
-    if (Object.keys(server).length === 0) delete servers[name]
+    const next = withSettings(server, { enabled: undefined })
+    if (Object.keys(next).length === 0) delete servers[name]
+    else servers[name] = next
     return true
   })
 }

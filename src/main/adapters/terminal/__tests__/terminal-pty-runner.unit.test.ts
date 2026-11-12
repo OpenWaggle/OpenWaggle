@@ -71,7 +71,7 @@ describe('makePtyRunner', () => {
     async (property) => {
       const pty = fakePty()
       const closeDescriptor = vi.fn()
-      Reflect.set(pty, 'closeDescriptor', closeDescriptor)
+      Object.assign(pty, { closeDescriptor: closeDescriptor })
       Object.defineProperty(pty, property, {
         configurable: true,
         get: () => {
@@ -88,8 +88,8 @@ describe('makePtyRunner', () => {
   it('rejects a synchronous resource-drain result and closes the spawned PTY', async () => {
     const pty = fakePty()
     const closeDescriptor = vi.fn()
-    Reflect.set(pty, 'closeDescriptor', closeDescriptor)
-    Reflect.set(pty, 'waitForResourceDrain', () => undefined)
+    Object.assign(pty, { closeDescriptor: closeDescriptor })
+    Object.assign(pty, { waitForResourceDrain: () => undefined })
     spawnMock.mockReturnValue(pty)
     await expect(makeRunner().spawn(SPAWN_REQUEST)).resolves.toMatchObject({ ok: false })
     expect(closeDescriptor).toHaveBeenCalledOnce()
@@ -149,9 +149,11 @@ describe('makePtyRunner', () => {
 
   it('latches an exit that is already observable before the spawn outcome is consumed', async () => {
     const pty = fakePty()
-    Reflect.set(pty, 'onExit', (listener: (event: { readonly exitCode: number }) => void) => {
-      listener({ exitCode: 23 })
-      return { dispose: () => undefined }
+    Object.assign(pty, {
+      onExit: (listener: (event: { readonly exitCode: number }) => void) => {
+        listener({ exitCode: 23 })
+        return { dispose: () => undefined }
+      },
     })
     spawnMock.mockReturnValue(pty)
 
@@ -168,7 +170,7 @@ describe('makePtyRunner', () => {
     const pty = fakePty()
     Object.defineProperty(pty, 'pid', { configurable: true, value: 0 })
     const closeDescriptor = vi.fn()
-    Reflect.set(pty, 'closeDescriptor', closeDescriptor)
+    Object.assign(pty, { closeDescriptor: closeDescriptor })
     spawnMock.mockReturnValue(pty)
 
     await expect(makeRunner().spawn(SPAWN_REQUEST)).resolves.toMatchObject({
@@ -185,7 +187,7 @@ describe('makePtyRunner', () => {
     const platform = process.platform
     const pty = fakePty()
     const closeDescriptor = vi.fn()
-    Reflect.set(pty, 'closeDescriptor', closeDescriptor)
+    Object.assign(pty, { closeDescriptor: closeDescriptor })
     spawnMock.mockReturnValue(pty)
     Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
 

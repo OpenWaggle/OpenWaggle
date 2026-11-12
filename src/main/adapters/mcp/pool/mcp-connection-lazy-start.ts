@@ -1,10 +1,10 @@
-import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../../logger'
 import { hasToolsCapability, type McpConnectionCatalog } from './mcp-connection-catalog'
 import type { McpConnectionHandshake } from './mcp-connection-handshake'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import { INITIALIZE, INITIALIZED, type McpPooledConnectionOptions } from './mcp-connection-support'
 import { isJsonRpcNotification, isJsonRpcRequest, type JsonRpcMessage } from './mcp-wire'
+import { mcpMessageFields, stringField } from './mcp-message-fields'
 
 const logger = createLogger('mcp-lazy-start')
 
@@ -136,8 +136,7 @@ export async function listToolsForCatalog(
     const params = cursor === undefined ? {} : { cursor }
     const result = await sendInternal('tools/list', params)
     observeResult?.('tools/list', params, result)
-    cursor =
-      isRecord(result) && typeof result.nextCursor === 'string' ? result.nextCursor : undefined
+    cursor = stringField(mcpMessageFields(result)?.nextCursor)
   } while (cursor !== undefined)
 }
 

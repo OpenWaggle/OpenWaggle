@@ -3,9 +3,13 @@ import {
   SESSION_HOST_REFUSAL_KINDS,
   sessionHostRefusal,
 } from '@shared/domain/session-host-refusals'
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** The fields of a stored replay outcome its refusal migration reads; it keeps every other one. */
+interface StoredOutcome {
+  readonly effect: string
+  readonly code: string
+  readonly kind: string
 }
 
 /**
@@ -13,19 +17,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * kind the refusal table gives its code now, and `conflict` for a code the table no longer has.
  */
 export function withStoredRefusalKind(value: unknown): unknown {
-  if (
-    !isRecord(value) ||
-    value.effect !== 'rejected' ||
-    'kind' in value ||
-    typeof value.code !== 'string'
-  ) {
-    return value
-  }
+  if (!isObjectValue(value) || 'kind' in value) return value
+  const { effect, code } = uncheckedFields<StoredOutcome>(value)
+  if (effect !== 'rejected' || typeof code !== 'string') return value
   return {
     ...value,
-    kind: isSessionHostRefusalCode(value.code)
-      ? SESSION_HOST_REFUSAL_KINDS[value.code]
-      : 'conflict',
+    kind: isSessionHostRefusalCode(code) ? SESSION_HOST_REFUSAL_KINDS[code] : 'conflict',
   }
 }
 
@@ -42,8 +39,8 @@ const STORED_TARGET_PROFILE_CODES = new Map([
 export function withStoredProfileRefusalKind(value: unknown): unknown {
   const outcome = withStoredRefusalKind(value)
   if (typeof outcome !== 'object' || outcome === null) return outcome
-  if (Reflect.get(outcome, 'effect') !== 'rejected') return outcome
-  const code: unknown = Reflect.get(outcome, 'code')
+  const { effect, code } = uncheckedFields<StoredOutcome>(outcome)
+  if (effect !== 'rejected') return outcome
   const current =
     code === 'profile_revoked' || code === 'profile_not_found'
       ? STORED_TARGET_PROFILE_CODES.get(code)

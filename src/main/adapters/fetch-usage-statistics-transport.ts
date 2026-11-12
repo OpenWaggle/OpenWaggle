@@ -6,7 +6,7 @@ import {
   USAGE_STATISTICS_EVENTS_PATH,
   USAGE_STATISTICS_ORIGIN,
 } from '@shared/usage-statistics/contract'
-import { isRecord } from '@shared/utils/validation'
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import {
@@ -60,18 +60,26 @@ export function classifyUsageStatisticsResponse(status: number): UsageStatistics
   return { outcome: 'rejected', status }
 }
 
+/** What a failed fetch carries: Node's system error fields, inner failures, and a cause. */
+interface FetchFailure {
+  readonly code: string
+  readonly syscall: string
+  readonly errors: readonly unknown[]
+  readonly cause: unknown
+}
+
 function failedBeforeSending(error: unknown, depth = 0): boolean {
-  if (depth > MAX_CAUSE_DEPTH || !isRecord(error)) return false
-  const { code, syscall } = error
+  if (depth > MAX_CAUSE_DEPTH || !isObjectValue(error)) return false
+  const { code, syscall, errors, cause } = uncheckedFields<FetchFailure>(error)
   if (typeof code === 'string') {
     if (NAME_RESOLUTION_CODES.has(code) || code === UNDICI_CONNECT_TIMEOUT_CODE) return true
     if (syscall === 'connect' && CONNECT_FAILURE_CODES.has(code)) return true
   }
   // Happy Eyeballs reports one connect failure per address in an AggregateError.
-  if (Array.isArray(error.errors) && error.errors.length > 0) {
-    return error.errors.every((inner: unknown) => failedBeforeSending(inner, depth + 1))
+  if (Array.isArray(errors) && errors.length > 0) {
+    return errors.every((inner: unknown) => failedBeforeSending(inner, depth + 1))
   }
-  return failedBeforeSending(error.cause, depth + 1)
+  return failedBeforeSending(cause, depth + 1)
 }
 
 /** A thrown fetch failure: retryable only when the request certainly never left. */

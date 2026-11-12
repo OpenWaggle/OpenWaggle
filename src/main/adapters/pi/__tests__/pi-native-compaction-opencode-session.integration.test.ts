@@ -90,8 +90,8 @@ const PI_SESSION_MANAGER_MODULE = path.resolve(
 async function nativeCredentialFingerprint(headers: Record<string, string>) {
   const piModule: unknown = await import(pathToFileURL(PI_SESSION_MANAGER_MODULE).href)
   const fingerprint: unknown =
-    typeof piModule === 'object' && piModule !== null
-      ? Reflect.get(piModule, 'nativeCredentialFingerprint')
+    typeof piModule === 'object' && piModule !== null && 'nativeCredentialFingerprint' in piModule
+      ? piModule.nativeCredentialFingerprint
       : undefined
   if (typeof fingerprint !== 'function') throw new Error('Pi credential fingerprint moved')
   const value: unknown = Reflect.apply(fingerprint, undefined, [undefined, headers])

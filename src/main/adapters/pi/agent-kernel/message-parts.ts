@@ -3,10 +3,10 @@ import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { NestedToolCallRecord, NestedToolCalls } from '@shared/types/tools'
-import { isRecord } from '@shared/utils/validation'
 import { toJsonObject, toJsonValue } from '../pi-message-mapper'
 import type { PiPromptInput } from '../pi-runtime-input'
 import { stripAtomicVisualizationContext } from '../pi-runtime-input'
+import { piToolResultDetails } from '../pi-tool-result-details'
 
 function textMessagePart(text: string): MessagePart {
   return { type: 'text', text }
@@ -138,17 +138,11 @@ export function piAssistantContentToParts(content: readonly unknown[]) {
 }
 
 function getToolResultDuration(details: unknown) {
-  if (!isRecord(details) || typeof details.duration !== 'number') {
-    return 0
-  }
-  return details.duration
+  return piToolResultDetails(details).duration ?? 0
 }
 
 function getToolResultArgs(details: unknown): JsonObject {
-  if (!isRecord(details)) {
-    return {}
-  }
-  return toJsonObject(details.args)
+  return toJsonObject(piToolResultDetails(details).args)
 }
 
 interface PiNestedToolCallRecord {

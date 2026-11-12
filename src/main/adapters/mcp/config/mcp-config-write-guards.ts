@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { McpWriteDestination } from '@shared/types/mcp-configuration'
 import {
   isOpenWaggleMcpConfigFile,
@@ -29,12 +30,15 @@ export function assertProjectDestination(destination: McpWriteDestination) {
   refuse(`${destination} is a global file; a switch for one project is saved to a project file.`)
 }
 
+const entryAuthSchema = Schema.Struct({ auth: Schema.optional(Schema.Unknown) })
+
 /** Pi refuses provider `auth` outside a global `mcp.json`, so it is never written to a project file. */
 export function assertNoProjectAuth(
   destination: McpWriteDestination,
   entry: Readonly<Record<string, unknown>>,
 ) {
-  if (mcpConfigFileScope(destination) !== 'project' || entry.auth === undefined) return
+  if (mcpConfigFileScope(destination) !== 'project') return
+  if (decodeUnknownOrThrow(entryAuthSchema, entry).auth === undefined) return
   refuse('auth is only allowed in a global mcp.json.')
 }
 

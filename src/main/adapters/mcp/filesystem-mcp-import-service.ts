@@ -4,7 +4,6 @@ import type {
   McpImportPreviewRequest,
   McpImportPreviewView,
 } from '@shared/types/mcp-configuration-operations'
-import { isRecord } from '@shared/utils/validation'
 import { Cause, Effect, Exit } from 'effect'
 import { McpConfigurationError } from '../../ports/mcp-configuration-service'
 import type { McpImportEntryWriter, McpImportServiceShape } from '../../ports/mcp-import-service'
@@ -19,7 +18,12 @@ import {
 import { loadMcpMergedConfig } from './config/mcp-runtime-config'
 import { applyMcpImports } from './import/import-apply'
 import { type McpImportTargetServers, previewMcpImports } from './import/import-preview'
-import type { ExternalMcpImportCandidate, ExternalMcpImportPreview } from './import/import-types'
+import type {
+  ExternalMcpImportCandidate,
+  ExternalMcpImportPreview,
+  PiMcpEntry,
+} from './import/import-types'
+import { mcpConfigServerMaps } from './mcp-config-server-maps'
 
 export interface FilesystemMcpImportServiceOptions {
   readonly homeDir: string
@@ -48,7 +52,7 @@ function serversIn(
   const text = reader.readText(filePath)
   if (!text?.trim()) return {}
   const parsed: unknown = JSON.parse(text)
-  return isRecord(parsed) && isRecord(parsed.mcpServers) ? parsed.mcpServers : {}
+  return mcpConfigServerMaps(parsed).mcpServers ?? {}
 }
 
 /** Servers already in OpenWaggle's files, so earlier imports and taken names are recognised. */
@@ -64,12 +68,9 @@ function targetServers(
   }
 }
 
-function displayTarget(entry: Readonly<Record<string, unknown>>) {
-  if (typeof entry.url === 'string') return entry.url
-  const args = Array.isArray(entry.args)
-    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
-    : []
-  return typeof entry.command === 'string' ? [entry.command, ...args].join(' ') : ''
+function displayTarget(entry: PiMcpEntry) {
+  if (entry.url !== undefined) return entry.url
+  return entry.command === undefined ? '' : [entry.command, ...(entry.args ?? [])].join(' ')
 }
 
 function candidateView(candidate: ExternalMcpImportCandidate): McpImportCandidateView {

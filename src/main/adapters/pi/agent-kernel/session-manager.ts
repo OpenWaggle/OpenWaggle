@@ -3,10 +3,11 @@ import path, { basename, dirname, join, resolve } from 'node:path'
 import { getAgentDir, SessionManager } from '@earendil-works/pi-coding-agent'
 import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import type { SessionDetail } from '@shared/types/session'
-import { isRecord } from '@shared/utils/validation'
+import { errorCode } from '@shared/utils/node-error'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
 import { logger, REUSE_PARSED_PI_FILE } from './constants'
+import { loggedErrorCode } from './logged-error-code'
 import {
   assertNoPiSessionFileToReplace,
   isReadablePiSessionFile,
@@ -150,10 +151,10 @@ function piSessionFilesIn(directory: string, piSessionId: string) {
       .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
   } catch (error) {
-    if (!(isRecord(error) && error.code === 'ENOENT')) {
+    if (errorCode(error) !== 'ENOENT') {
       logger.warn('Could not list a Pi session directory', {
         directory,
-        code: isRecord(error) && typeof error.code === 'string' ? error.code : 'unknown',
+        code: loggedErrorCode(error),
       })
     }
     return []

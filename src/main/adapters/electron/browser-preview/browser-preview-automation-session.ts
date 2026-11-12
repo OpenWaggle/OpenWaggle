@@ -1,5 +1,6 @@
 import type { BrowserPreviewControllerState } from '@shared/types/browser-preview'
 import type { BrowserPreviewAutomationActionEvent } from '@shared/types/browser-preview-automation'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import type { Debugger, Event, Input, MouseInputEvent, WebContents } from 'electron'
 import {
   type BrowserPreviewAutomationDiagnosticsState,
@@ -8,6 +9,7 @@ import {
   recordBrowserPreviewCdpMessage,
 } from './browser-preview-automation-diagnostics'
 import { BrowserPreviewAutomationInputArbitrator } from './browser-preview-automation-input-arbitration'
+import type { CdpCommandParams, CdpInputEventParams } from './browser-preview-cdp-input-params'
 
 export interface BrowserPreviewAutomationControlSession {
   readonly tabId: string
@@ -132,11 +134,10 @@ export function setBrowserPreviewAutomationController(
 
 export function updateBrowserPreviewAutomationPointer(
   session: BrowserPreviewAutomationControlSession,
-  params: Readonly<Record<string, unknown>> | undefined,
+  params: CdpCommandParams | undefined,
 ) {
   if (session.controller.kind !== 'agent') return
-  const x = params?.x
-  const y = params?.y
+  const { x, y } = uncheckedFields<CdpInputEventParams>(params)
   if (
     typeof x !== 'number' ||
     !Number.isFinite(x) ||

@@ -7,6 +7,12 @@ import {
   terminalReadinessMarker,
 } from '../terminal-shell-integration'
 
+/** The variables a prepared launch points the shell's startup files at. */
+interface LaunchEnvironment {
+  readonly ZDOTDIR?: string
+  readonly HOME?: string
+}
+
 const NONCE = 'generation_A-123'
 const MARKER = `\u001b]633;B;${NONCE}\u0007`
 const BASE_ENVIRONMENT = {
@@ -45,13 +51,13 @@ describe('terminal shell prompt-readiness integration', () => {
       NONCE,
       { ...BASE_ENVIRONMENT, ZDOTDIR: "/Users/Terminal User's Home/.config/zsh" },
     )
-    const integrationDirectory = launch.environment.ZDOTDIR
+    const { ZDOTDIR: integrationDirectory }: LaunchEnvironment = launch.environment
     if (integrationDirectory === undefined) throw new Error('Expected an integration ZDOTDIR.')
 
     expect(launch.args).toEqual(['-l', '-i'])
     expect(launch.integrated).toBe(true)
     expect(integrationDirectory).toContain('OpenWaggle terminal zsh-')
-    expect(launch.environment.SSH_AUTH_SOCK).toBe(BASE_ENVIRONMENT.SSH_AUTH_SOCK)
+    expect(launch.environment).toMatchObject({ SSH_AUTH_SOCK: BASE_ENVIRONMENT.SSH_AUTH_SOCK })
 
     const startupFiles = ['.zshenv', '.zprofile', '.zshrc', '.zlogin'] as const
     const scripts = await Promise.all(
@@ -79,7 +85,7 @@ describe('terminal shell prompt-readiness integration', () => {
       { command: '/bin/bash', args: ['--login', '-i'], label: 'bash' },
       NONCE,
     )
-    const integrationHome = launch.environment.HOME
+    const { HOME: integrationHome }: LaunchEnvironment = launch.environment
     if (integrationHome === undefined) throw new Error('Expected an integration HOME.')
     const script = await readFile(`${integrationHome}/.bash_profile`, 'utf8')
 
@@ -142,8 +148,10 @@ describe('terminal shell prompt-readiness integration', () => {
       { command: '/bin/bash', args: ['--login', '-i'], label: 'bash' },
       'second-generation',
     )
-    const firstScript = await readFile(`${first.environment.HOME}/.bash_profile`, 'utf8')
-    const secondScript = await readFile(`${second.environment.HOME}/.bash_profile`, 'utf8')
+    const firstHome: LaunchEnvironment = first.environment
+    const secondHome: LaunchEnvironment = second.environment
+    const firstScript = await readFile(`${String(firstHome.HOME)}/.bash_profile`, 'utf8')
+    const secondScript = await readFile(`${String(secondHome.HOME)}/.bash_profile`, 'utf8')
 
     expect(firstScript).toContain('633;B;first-generation')
     expect(firstScript).not.toContain('second-generation')

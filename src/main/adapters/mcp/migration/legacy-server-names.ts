@@ -5,6 +5,7 @@
  * records which name each ID stood for.
  */
 import { isRecord } from '@shared/utils/validation'
+import { legacyServerFields } from './legacy-entry-fields'
 import { mcpServerIdentity } from '../pool/mcp-server-identity'
 import type { McpFileSources } from './file-computation'
 import { legacyServerIdentityKey } from './legacy-pi-import'
@@ -26,13 +27,15 @@ function legacyServerFiles(sources: McpFileSources, projects: readonly string[])
 
 /** The identity of what an old entry ran or connected to, as `mcpServerIdentity` makes it. */
 function legacyEntryIdentity(name: string, entry: unknown) {
-  if (!isRecord(entry)) return undefined
-  if (typeof entry.url === 'string') return mcpServerIdentity(name, { url: entry.url })
-  if (typeof entry.command !== 'string') return undefined
-  const args = Array.isArray(entry.args)
-    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
+  const fields = legacyServerFields(entry)
+  if (!fields) return undefined
+  const { url, command } = fields
+  if (typeof url === 'string') return mcpServerIdentity(name, { url })
+  if (typeof command !== 'string') return undefined
+  const args = Array.isArray(fields.args)
+    ? fields.args.filter((arg): arg is string => typeof arg === 'string')
     : []
-  return mcpServerIdentity(name, { command: entry.command, args })
+  return mcpServerIdentity(name, { command, args })
 }
 
 /** For every server in the files the old code read: its name and what it was, by instance ID. */

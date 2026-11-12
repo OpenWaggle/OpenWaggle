@@ -8,7 +8,7 @@ import { isRecord } from '@shared/utils/validation'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
 import { mcpServerSecretName } from '../../../domain/mcp/config/mcp-server-secret-names'
 import { isCredentialName, portableArguments } from './import-credentials'
-import type { ExternalMcpImportSource } from './import-types'
+import type { ExternalMcpImportSource, ImportedCredential } from './import-types'
 import { sourceVariablePattern } from './import-variables'
 
 export interface ImportValueContext {
@@ -22,8 +22,6 @@ export interface ImportValueContext {
   /** Variables an argument reads a credential from, such as an mcp-remote header's `${VAR}`. */
   readonly credentialEnvNames: Set<string>
 }
-
-export type ImportedCredential = string | { readonly secret: string }
 
 function environmentName(id: string) {
   return id.replace(/[^A-Za-z0-9_]+/g, '_').toUpperCase()

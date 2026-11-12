@@ -72,8 +72,8 @@ export function makeFakePty(pid: number): FakePty {
     kill,
     resize,
   })
-  Reflect.set(pty, '_socket', { destroy })
-  Reflect.set(pty, 'closeDescriptor', () => destroy())
+  Object.assign(pty, { _socket: { destroy } })
+  Object.assign(pty, { closeDescriptor: () => destroy() })
   const lifecycle = nativeLifecycle.install(pty)
   return {
     pty,

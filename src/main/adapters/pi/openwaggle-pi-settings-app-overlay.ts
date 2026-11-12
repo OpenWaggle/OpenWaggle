@@ -3,6 +3,7 @@ import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { PI_CACHE_WARMING_MODES, type PiCacheWarmingMode } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
+import { piSettingsFields } from './pi-settings-fields'
 
 /**
  * OpenWaggle settings that have a Pi equivalent. OpenWaggle stores them in its own Settings and
@@ -72,8 +73,8 @@ function piUserCodemode(defaultTools: JsonValue | undefined): boolean | undefine
 /** The user's own Pi values for OpenWaggle's settings, from their global Pi settings content. */
 export function piUserAppSettings(content: string | undefined): Partial<OpenWagglePiAppSettings> {
   const settings = safeParseSettings(content)
-  const codemodeEnabled = piUserCodemode(settings.defaultTools)
-  const cacheWarming = settings.cacheWarming
+  const { defaultTools, cacheWarming } = piSettingsFields(settings)
+  const codemodeEnabled = piUserCodemode(defaultTools)
   return {
     ...(codemodeEnabled === undefined ? {} : { codemodeEnabled }),
     ...(typeof cacheWarming === 'string' && includes(PI_CACHE_WARMING_MODES, cacheWarming)
@@ -90,7 +91,10 @@ export function withOpenWagglePiAppSettings(
   const settings = parseSettings(content)
   return serializeSettings({
     ...settings,
-    defaultTools: defaultToolsWithCodemode(settings.defaultTools, app.codemodeEnabled),
+    defaultTools: defaultToolsWithCodemode(
+      piSettingsFields(settings).defaultTools,
+      app.codemodeEnabled,
+    ),
     cacheWarming: app.cacheWarming,
   })
 }

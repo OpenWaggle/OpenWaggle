@@ -1,5 +1,6 @@
+import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentTransportAgentEndEvent } from '@shared/types/stream'
-import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 
 function isAgentEndReason(
   value: unknown,
@@ -13,16 +14,21 @@ function isAgentEndReason(
   )
 }
 
-interface AgentEndAssistantMessage {
-  readonly role: 'assistant'
-  readonly stopReason?: unknown
-  readonly usage?: unknown
-  readonly errorMessage?: unknown
-}
+const agentEndAssistantMessageSchema = Schema.Struct({
+  role: Schema.Literal('assistant'),
+  stopReason: Schema.optional(Schema.Unknown),
+  usage: Schema.optional(Schema.Unknown),
+  errorMessage: Schema.optional(Schema.Unknown),
+})
 
-function isAgentEndAssistantMessage(message: unknown): message is AgentEndAssistantMessage {
-  return isRecord(message) && message.role === 'assistant'
-}
+type AgentEndAssistantMessage = SchemaType<typeof agentEndAssistantMessageSchema>
+
+const isAgentEndAssistantMessage = Schema.is(agentEndAssistantMessageSchema)
+
+/** The token counts of an assistant message's `usage`, all three or none. */
+const decodeAgentEndUsage = Schema.decodeUnknownOption(
+  Schema.Struct({ input: Schema.Number, output: Schema.Number, totalTokens: Schema.Number }),
+)
 
 function getAgentEndAssistantMessage(
   messages: readonly unknown[],
@@ -48,17 +54,11 @@ export function getAgentEndUsage(
   messages: readonly unknown[],
 ): AgentTransportAgentEndEvent['usage'] | undefined {
   const assistantMessage = getAgentEndAssistantMessage(messages)
-  const usage = assistantMessage?.usage
-  if (!isRecord(usage)) {
+  const usage = Option.getOrUndefined(decodeAgentEndUsage(assistantMessage?.usage))
+  if (!usage) {
     return undefined
   }
-
-  const input = typeof usage.input === 'number' ? usage.input : null
-  const output = typeof usage.output === 'number' ? usage.output : null
-  const totalTokens = typeof usage.totalTokens === 'number' ? usage.totalTokens : null
-  if (input === null || output === null || totalTokens === null) {
-    return undefined
-  }
+  const { input, output, totalTokens } = usage
 
   return {
     promptTokens: input,

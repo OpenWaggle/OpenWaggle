@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { readEnvironmentValue } from '../../../environment-paths'
 import type { PackageBinStore } from './mcp-package-runner-bin-store'
 import {
   PACKAGE_BIN_PINNED_TTL_MS,
@@ -120,7 +121,7 @@ export class PackageRunnerBypass {
       input.command,
       launch.packageSpec,
       launch.binName ?? null,
-      input.env.PATH ?? '',
+      readEnvironmentValue(input.env, 'PATH') ?? '',
       launch.localFolder ?? null,
       folderConfigOf(input.cwd),
     ])
@@ -159,7 +160,9 @@ export class PackageRunnerBypass {
     const key = this.key(launch, input)
     const entry = this.cache()[key]
     if (!options.refresh && entry && this.fresh(entry)) {
-      const PATH = [entry.binDirectory, input.env.PATH].filter(Boolean).join(path.delimiter)
+      const PATH = [entry.binDirectory, readEnvironmentValue(input.env, 'PATH')]
+        .filter(Boolean)
+        .join(path.delimiter)
       return {
         ...input,
         command: entry.command,

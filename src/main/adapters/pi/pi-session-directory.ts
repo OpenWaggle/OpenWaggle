@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { getAgentDir, SettingsManager } from '@earendil-works/pi-coding-agent'
-import { getEnvWithOverrides } from '../../env'
+import { getPiSessionDirectoryOverride } from '../../env'
 
 const HOME_PREFIX = /^~(?=$|[/\\])/
 
@@ -11,7 +11,7 @@ function expandHome(directory: string) {
 
 /** Pi's session directory override, read when it is needed, as Pi reads it. */
 function piSessionDirectoryFromEnvironment() {
-  return getEnvWithOverrides({}).PI_CODING_AGENT_SESSION_DIR?.trim() || undefined
+  return getPiSessionDirectoryOverride()?.trim() || undefined
 }
 
 /**

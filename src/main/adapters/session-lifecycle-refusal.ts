@@ -1,3 +1,4 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
 import { PI_SESSION_FILE_PROBLEM } from '@shared/domain/pi-session-file-messages'
 import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import { SessionLifecyclePreparationError } from '../errors'
@@ -22,14 +23,16 @@ function refusalOf(
   depth = 0,
 ): { readonly code: string; readonly message: string } | undefined {
   if (typeof failure !== 'object' || failure === null || depth > MAX_CAUSE_DEPTH) return undefined
-  const message: unknown = Reflect.get(failure, 'message')
+  const { message, cause } = uncheckedFields<{ readonly message: string; readonly cause: unknown }>(
+    failure,
+  )
   for (const refusal of REFUSALS) {
     const at = typeof message === 'string' ? message.indexOf(refusal.sentence) : -1
     if (typeof message === 'string' && at >= 0) {
       return { code: refusal.code, message: message.slice(at) }
     }
   }
-  return refusalOf(Reflect.get(failure, 'cause'), depth + 1)
+  return refusalOf(cause, depth + 1)
 }
 
 /**

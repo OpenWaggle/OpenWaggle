@@ -2,7 +2,12 @@ import type {
   McpServerConnectionStateView,
   McpServerInspection,
 } from '@shared/types/mcp-configuration'
-import { isRecord } from '@shared/utils/validation'
+import {
+  type ListedMcpTool,
+  mcpListCursor,
+  mcpToolAppResourceUri,
+  mcpToolListPage,
+} from './mcp-tool-list-schema'
 
 /**
  * The last known state of each MCP server, kept in memory by server identity so Settings > MCP
@@ -43,24 +48,13 @@ function remember(identity: string, state: McpKnownServerState) {
   }
 }
 
-/** A tool's `ui://` resource: `_meta.ui.resourceUri`, or the older `_meta["ui/resourceUri"]`. */
-function hasAppResource(tool: Record<string, unknown>) {
-  if (!isRecord(tool._meta)) return false
-  const ui = tool._meta.ui
-  const uri = isRecord(ui) ? ui.resourceUri : tool._meta['ui/resourceUri']
-  return typeof uri === 'string' && uri.startsWith('ui://')
-}
-
-function knownTool(tool: Record<string, unknown>): McpKnownTool[] {
-  if (typeof tool.name !== 'string') return []
-  return [
-    {
-      name: tool.name,
-      ...(typeof tool.title === 'string' ? { title: tool.title } : {}),
-      ...(typeof tool.description === 'string' ? { description: tool.description } : {}),
-      hasApp: hasAppResource(tool),
-    },
-  ]
+function knownTool(tool: ListedMcpTool): McpKnownTool {
+  return {
+    name: tool.name,
+    ...(tool.title === undefined ? {} : { title: tool.title }),
+    ...(tool.description === undefined ? {} : { description: tool.description }),
+    hasApp: mcpToolAppResourceUri(tool) !== undefined,
+  }
 }
 
 /** Records the result of connecting to a server and listing its tools. */
@@ -94,9 +88,10 @@ export function recordMcpServerToolsListing(
   result: unknown,
   now: number = Date.now(),
 ) {
-  if (!isRecord(result) || !Array.isArray(result.tools)) return
-  const page = result.tools.flatMap((tool) => (isRecord(tool) ? knownTool(tool) : []))
-  const continues = isRecord(params) && typeof params.cursor === 'string'
+  const listed = mcpToolListPage(result)
+  if (!listed) return
+  const page = listed.tools.map(knownTool)
+  const continues = mcpListCursor(params) !== undefined
   const previous = continues ? (known.get(identity)?.tools ?? []) : []
   remember(identity, { state: 'connected', tools: [...previous, ...page], checkedAt: now })
 }

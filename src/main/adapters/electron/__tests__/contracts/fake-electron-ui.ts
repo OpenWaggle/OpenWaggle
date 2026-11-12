@@ -1,3 +1,4 @@
+import type { NotificationConstructorOptions } from 'electron'
 import { EventEmitter } from 'node:events'
 
 export const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47]
@@ -48,9 +49,9 @@ export class FakeNotification extends EventEmitter {
   static readonly shown: FakeNotification[] = []
   static readonly removed: string[] = []
   closed = false
-  readonly options: Record<string, unknown>
+  readonly options: NotificationConstructorOptions
 
-  constructor(options: Record<string, unknown>) {
+  constructor(options: NotificationConstructorOptions) {
     super()
     this.options = options
   }

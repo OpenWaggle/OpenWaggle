@@ -1,3 +1,4 @@
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import type {
   WorkspaceEditorConfigPolicy,
   WorkspaceLineEnding,
@@ -39,8 +40,16 @@ export function resolveEditorConfigIndentStyle(
   return fallback
 }
 
+/** The EditorConfig properties a document session follows, as the parser returned them. */
+interface EditorConfigProperties {
+  readonly charset: string
+  readonly end_of_line: string
+  readonly insert_final_newline: boolean
+  readonly trim_trailing_whitespace: boolean
+}
+
 export function resolveEditorConfigPolicy(
-  editorConfig: Readonly<Record<string, unknown>>,
+  editorConfig: UncheckedFields<EditorConfigProperties>,
 ): WorkspaceEditorConfigPolicy {
   const charset = editorConfig.charset
   const encoding =

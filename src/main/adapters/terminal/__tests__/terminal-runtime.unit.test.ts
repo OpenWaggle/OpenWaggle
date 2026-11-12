@@ -259,8 +259,10 @@ describe('makeTerminalRuntime spawn lifecycle', () => {
 
   it('retains and stops a spawned PTY when stream attachment fails', async () => {
     const fake = makeFakePty(FAKE_PID)
-    Reflect.set(fake.pty, 'onData', () => {
-      throw new Error('stream listener unavailable')
+    Object.assign(fake.pty, {
+      onData: () => {
+        throw new Error('stream listener unavailable')
+      },
     })
     const shutdownDetachedProcess = vi.fn(async () => {
       fake.emitExit(0)

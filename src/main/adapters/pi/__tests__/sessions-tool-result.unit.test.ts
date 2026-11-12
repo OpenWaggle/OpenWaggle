@@ -1,7 +1,7 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { isRecord } from '@shared/utils/validation'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   compactHiveResult,
@@ -46,10 +46,10 @@ function parsed(text: string) {
 }
 
 function fullResultOf(page: unknown) {
-  if (isRecord(page) && isRecord(page.truncated) && typeof page.truncated.fullResult === 'string') {
-    return page.truncated.fullResult
-  }
-  throw new Error('The result names no fullResult.')
+  return decodeUnknownOrThrow(
+    Schema.Struct({ truncated: Schema.Struct({ fullResult: Schema.String }) }),
+    page,
+  ).truncated.fullResult
 }
 
 describe('hive results the model reads', () => {

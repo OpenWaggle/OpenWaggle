@@ -4,7 +4,7 @@
  */
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
+import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 
 const legacyServerStateSchema = Schema.Struct({
   instanceId: Schema.String,
@@ -59,7 +59,6 @@ export function normalizeLegacyProjectPath(projectPath: string) {
 
 /** Server entries of an old OpenWaggle MCP file: `mcpServers`, else the `servers` alias. */
 export function legacyServerMap(config: Record<string, unknown>) {
-  if (isRecord(config.mcpServers)) return config.mcpServers
-  if (isRecord(config.servers)) return config.servers
-  return {}
+  const { mcpServers, servers } = mcpConfigServerMaps(config)
+  return mcpServers ?? servers ?? {}
 }

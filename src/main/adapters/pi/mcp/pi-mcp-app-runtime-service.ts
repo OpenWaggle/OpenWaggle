@@ -1,3 +1,5 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { errorCode } from '@shared/utils/node-error'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -45,6 +47,7 @@ import {
   withShellResolvedClientSecrets,
 } from './pi-mcp-server-oauth'
 import { openPiMcpUpstream } from './pi-mcp-upstream'
+import { mcpToolCallResultFields } from './mcp-tool-list-schema'
 
 /** How long an App's request may take, like Pi's own MCP request timeout. */
 export const MCP_APP_REQUEST_TIMEOUT_MS = 60_000
@@ -194,13 +197,19 @@ function json(value: unknown): McpJsonValue {
   return decoded.data
 }
 
+const resourceReadSchema = Schema.Struct({ contents: Schema.optional(Schema.Unknown) })
+
+function resourceReadFields(result: object) {
+  return decodeUnknownOrThrow(resourceReadSchema, result)
+}
+
 async function readResource(
   pool: McpConnectionPool,
   input: McpAppServerInput & { readonly uri: string },
 ) {
   if (!input.uri.startsWith('ui://')) throw new Error('MCP Apps may only read ui:// resources.')
   const result = await appRequest(pool, input, 'resources/read', { uri: input.uri })
-  return json(isRecord(result) ? result.contents : [])
+  return json(isRecord(result) ? resourceReadFields(result).contents : [])
 }
 
 /** A list the server may not offer at all; a server without the method lists nothing. */
@@ -215,7 +224,7 @@ async function optionalList(
     const result = await requestOver(pool, connection, input, method, {})
     return json(isRecord(result) ? (result[key] ?? []) : [])
   } catch (error) {
-    if (isRecord(error) && error.code === METHOD_NOT_FOUND) return json([])
+    if (errorCode(error) === METHOD_NOT_FOUND) return json([])
     throw error
   }
 }
@@ -246,7 +255,7 @@ async function callTool(
     name: input.toolName,
     arguments: input.arguments,
   })
-  const value = isRecord(result) ? result : {}
+  const value = mcpToolCallResultFields(result)
   return {
     content: json(value.content ?? []),
     ...(value.structuredContent === undefined

@@ -7,7 +7,13 @@ import path from 'node:path'
 import { isRecord } from '@shared/utils/validation'
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
-import { importFingerprint, piServerName, sameServerName } from './import-identity'
+import {
+  importFingerprint,
+  isEarlierImportOf,
+  piServerName,
+  sameServerName,
+  storedImportProvenance,
+} from './import-identity'
 import { normalizeImportedEntry } from './import-normalization'
 import { getMcpImportPaths, type McpImportPath, type McpImportPathOptions } from './import-paths'
 import {
@@ -109,10 +115,6 @@ function sourceServers(
   return [...listed, ...projectServers]
 }
 
-function provenanceOf(value: unknown) {
-  return isRecord(value) && isRecord(value.provenance) ? value.provenance : undefined
-}
-
 export function importStatus(
   candidate: Pick<
     ExternalMcpImportCandidate,
@@ -122,13 +124,10 @@ export function importStatus(
 ): McpImportStatus {
   if (!servers) return 'new'
   for (const value of Object.values(servers)) {
-    const provenance = provenanceOf(value)
-    if (
-      provenance?.source === candidate.source &&
-      provenance.sourcePath === candidate.sourcePath &&
-      provenance.sourceName === candidate.name
-    ) {
-      return provenance.fingerprint === candidate.fingerprint ? 'imported' : 'source-changed'
+    if (isEarlierImportOf(value, candidate)) {
+      return storedImportProvenance(value)?.fingerprint === candidate.fingerprint
+        ? 'imported'
+        : 'source-changed'
     }
   }
   const taken = Object.keys(servers).some((name) => sameServerName(name, candidate.targetName))

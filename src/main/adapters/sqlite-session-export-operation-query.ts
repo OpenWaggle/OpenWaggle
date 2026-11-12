@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionExportOperationStatus } from '@shared/types/session-export-operation'
@@ -50,12 +51,10 @@ function selectSizePrefix(rows: readonly ExportOperationSizeRow[], limit: number
 }
 
 function listCursor(request: ListRequest) {
-  const cursor = decodeSessionQueryCursor(request.query.cursor)
-  if (cursor === 'invalid') return 'invalid' as const
-  if (!cursor) return null
-  return typeof cursor.updatedAt === 'number' && typeof cursor.exportOperationId === 'string'
-    ? { updatedAt: cursor.updatedAt, exportOperationId: cursor.exportOperationId }
-    : ('invalid' as const)
+  return decodeSessionQueryCursor(
+    request.query.cursor,
+    Schema.Struct({ updatedAt: Schema.Number, exportOperationId: Schema.String }),
+  )
 }
 
 type ValidListCursor = Exclude<ReturnType<typeof listCursor>, 'invalid'>

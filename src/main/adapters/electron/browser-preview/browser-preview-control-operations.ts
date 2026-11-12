@@ -4,6 +4,7 @@ import {
   type BrowserPreviewAutomationPage,
   browserPreviewAutomationController,
 } from './browser-preview-automation-control'
+import type { CdpCommandParams } from './browser-preview-cdp-input-params'
 
 type ControlledWebContents = WebContents
 
@@ -11,7 +12,7 @@ interface BrowserPreviewControlBroker {
   readonly sendControl: (
     page: BrowserPreviewAutomationPage,
     method: string,
-    params?: Readonly<Record<string, unknown>>,
+    params?: CdpCommandParams,
   ) => Promise<unknown>
   readonly releaseForDevTools: (tabId: string) => void
 }

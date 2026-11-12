@@ -9,6 +9,7 @@ import {
 } from './mcp-config-files'
 import { removeMcpServerEntry } from './mcp-config-writer'
 import { loadMcpMergedConfig } from './mcp-runtime-config'
+import { writtenMcpServers } from '../mcp-config-server-maps'
 
 const logger = createLogger('mcp-orphaned-overrides')
 const OVERRIDE_KEYS: ReadonlySet<string> = new Set(MCP_OVERRIDE_KEYS)
@@ -24,7 +25,7 @@ function overrideOnlyEntry(context: OrphanContext, filePath: string, name: strin
     (candidate) => candidate.path === filePath,
   )
   if (layer?.content.kind !== 'parsed') return undefined
-  const servers = isJsonRecord(layer.content.value) ? layer.content.value.mcpServers : undefined
+  const servers = writtenMcpServers(layer.content.value)
   const entry = isJsonRecord(servers) ? servers[name] : undefined
   if (!isJsonRecord(entry)) return undefined
   return Object.keys(entry).every((key) => OVERRIDE_KEYS.has(key)) ? entry : undefined

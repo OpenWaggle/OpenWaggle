@@ -4,6 +4,7 @@ import type { TerminalProcessIdentity } from './terminal-process-identity'
 import { signalTerminalProcessIdentity } from './terminal-process-kernel-api'
 import { refreshTerminalProcessPids, TERMINAL_PROCESS_SNAPSHOT_MS } from './terminal-process-tree'
 import type { LiveTerminalProcess } from './terminal-records'
+import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 export { settleLiveProcessMetadata } from './terminal-process-metadata-settle'
 
@@ -106,7 +107,7 @@ export async function forceValidatedTree(
  * reused FD. If that method is absent, fail closed without signaling anything.
  */
 export function forceClosePty(live: LiveTerminalProcess) {
-  const close: unknown = Reflect.get(live.pty, 'closeDescriptor')
+  const close: unknown = terminalBackendProcess(live.pty).closeDescriptor
   if (typeof close !== 'function') return false
   try {
     Reflect.apply(close, live.pty, [])

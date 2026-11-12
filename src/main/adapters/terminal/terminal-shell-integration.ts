@@ -65,13 +65,19 @@ export async function prepareTerminalShellLaunch(
   }
 }
 
+/** The variables a shell's startup files are found by. */
+interface ShellStartupEnvironment {
+  readonly ZDOTDIR?: string
+  readonly HOME?: string
+}
+
 async function prepareZshLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
 ): Promise<PreparedTerminalShellLaunch> {
   const directory = await makePrivateIntegrationDirectory('zsh')
-  const originalZdotdir = environment.ZDOTDIR
+  const { ZDOTDIR: originalZdotdir }: ShellStartupEnvironment = environment
   const scripts = buildZshStartupScripts({ directory, originalZdotdir, readinessNonce })
 
   try {
@@ -99,7 +105,8 @@ async function prepareBashLaunch(
   readinessNonce: string,
 ): Promise<PreparedTerminalShellLaunch> {
   const directory = await makePrivateIntegrationDirectory('bash')
-  const originalHome = environment.HOME ?? homedir()
+  const { HOME }: ShellStartupEnvironment = environment
+  const originalHome = HOME ?? homedir()
 
   try {
     await writePrivateFile(

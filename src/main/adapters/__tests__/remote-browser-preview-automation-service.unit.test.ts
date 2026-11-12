@@ -85,7 +85,7 @@ describe('remote browser automation proxy', () => {
       value: null,
     })
     const secret = 'response credential=hidden'
-    Reflect.set(response, 'value', { secret, invalid: () => secret })
+    Object.assign(response, { value: { secret, invalid: () => secret } })
     const broker = fromPartial<DesktopServiceBrokerShape>({
       execute: () => Effect.succeed(response),
     })

@@ -1,6 +1,11 @@
 import { open, stat } from 'node:fs/promises'
 import type { PiSessionPromptOrigin } from '../../ports/pi-session-discovery'
 import { OPENWAGGLE_USER_INPUT_CUSTOM_TYPE } from './agent-kernel/user-input-projection'
+import {
+  type PiSessionEntry,
+  type PiSessionMessage,
+  parsePiSessionObjectLine,
+} from './pi-session-jsonl-entry'
 import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from './run-attribution-extension'
 
 /**
@@ -36,26 +41,12 @@ const NEWLINE = 0x0a
 /** Files remembered; the least recently read is forgotten first. */
 const MAX_REMEMBERED_FILES = 256
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseLine(line: string): unknown {
-  if (!line.trim()) return null
-  try {
-    return JSON.parse(line)
-  } catch {
-    // A malformed line, which Pi itself skips.
-    return null
-  }
-}
-
-function leavesTurnRunning(message: Readonly<Record<string, unknown>>) {
+function leavesTurnRunning(message: PiSessionMessage) {
   if (message.role === 'toolResult') return true
   return message.role === 'assistant' && message.stopReason === 'toolUse'
 }
 
-function nextScan(scan: OriginScan, entry: Readonly<Record<string, unknown>>): OriginScan {
+function nextScan(scan: OriginScan, entry: PiSessionEntry): OriginScan {
   if (entry.type === 'custom') {
     if (entry.customType === OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
       return { origin: 'openwaggle', afterOpenWaggleInput: false, turnRunning: false }
@@ -65,10 +56,10 @@ function nextScan(scan: OriginScan, entry: Readonly<Record<string, unknown>>): O
     }
     return { ...scan, afterOpenWaggleInput: false }
   }
-  if (entry.type !== 'message' || !isRecord(entry.message)) {
+  const { message } = entry
+  if (entry.type !== 'message' || message === undefined) {
     return { ...scan, afterOpenWaggleInput: false }
   }
-  const message = entry.message
   if (message.role !== 'user') {
     return { ...scan, afterOpenWaggleInput: false, turnRunning: leavesTurnRunning(message) }
   }
@@ -96,8 +87,8 @@ function scanBytes(scan: OriginScan, bytes: Buffer) {
   const end = bytes.lastIndexOf(NEWLINE) + 1
   let current = scan
   for (const line of bytes.subarray(0, end).toString('utf8').split('\n')) {
-    const entry = parseLine(line)
-    if (isRecord(entry)) current = nextScan(current, entry)
+    const entry = parsePiSessionObjectLine(line)
+    if (entry !== null) current = nextScan(current, entry)
   }
   return { scan: current, consumed: end }
 }

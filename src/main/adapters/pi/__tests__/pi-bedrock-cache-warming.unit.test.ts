@@ -46,8 +46,8 @@ interface WarmerDependencies {
 async function createCacheWarmer(dependencies: WarmerDependencies): Promise<Warmer> {
   const piModule: unknown = await import(pathToFileURL(PI_CACHE_WARMER_MODULE).href)
   const CacheWarmer: unknown =
-    typeof piModule === 'object' && piModule !== null
-      ? Reflect.get(piModule, 'CacheWarmer')
+    typeof piModule === 'object' && piModule !== null && 'CacheWarmer' in piModule
+      ? piModule.CacheWarmer
       : undefined
   if (typeof CacheWarmer !== 'function') throw new Error('Pi cache warmer moved')
   const warmer: Warmer = Reflect.construct(CacheWarmer, [

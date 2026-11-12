@@ -4,6 +4,7 @@ import {
   renameLegacyProviderId,
   renameLegacyProviderModelReference,
 } from '../../domain/legacy-provider-renames'
+import { piCompactionFields, piSettingsFields } from './pi-settings-fields'
 
 function renamedStringArray(value: JsonValue | undefined): JsonValue[] | undefined {
   if (!Array.isArray(value)) return undefined
@@ -38,7 +39,7 @@ function renamedModelKeyedObject(value: JsonValue | undefined): JsonObject | und
 
 function renamedCompaction(value: JsonValue | undefined): JsonObject | undefined {
   if (!isJsonObject(value)) return undefined
-  const modelOverrides = renamedModelKeyedObject(value.modelOverrides)
+  const modelOverrides = renamedModelKeyedObject(piCompactionFields(value).modelOverrides)
   return modelOverrides ? { ...value, modelOverrides } : undefined
 }
 
@@ -48,32 +49,22 @@ function renamedCompaction(value: JsonValue | undefined): JsonObject | undefined
  * same object when nothing needs renaming.
  */
 export function renameLegacyProviderPiSettings<T extends JsonObject>(settings: T): T {
-  const next: Record<string, JsonValue> = { ...settings }
-  let changed = false
-  const defaultProvider = settings.defaultProvider
-  if (
-    typeof defaultProvider === 'string' &&
-    renameLegacyProviderId(defaultProvider) !== defaultProvider
-  ) {
-    next.defaultProvider = renameLegacyProviderId(defaultProvider)
-    changed = true
+  const current = piSettingsFields(settings)
+  const provider = current.defaultProvider
+  const defaultProvider =
+    typeof provider === 'string' && renameLegacyProviderId(provider) !== provider
+      ? renameLegacyProviderId(provider)
+      : undefined
+  const enabledModels = renamedStringArray(current.enabledModels)
+  const modelThinkingLevels = renamedModelKeyedObject(current.modelThinkingLevels)
+  const compaction = renamedCompaction(current.compaction)
+  const changes = {
+    ...(defaultProvider === undefined ? {} : { defaultProvider }),
+    ...(enabledModels ? { enabledModels } : {}),
+    ...(modelThinkingLevels ? { modelThinkingLevels } : {}),
+    ...(compaction ? { compaction } : {}),
   }
-  const enabledModels = renamedStringArray(settings.enabledModels)
-  if (enabledModels) {
-    next.enabledModels = enabledModels
-    changed = true
-  }
-  const modelThinkingLevels = renamedModelKeyedObject(settings.modelThinkingLevels)
-  if (modelThinkingLevels) {
-    next.modelThinkingLevels = modelThinkingLevels
-    changed = true
-  }
-  const compaction = renamedCompaction(settings.compaction)
-  if (compaction) {
-    next.compaction = compaction
-    changed = true
-  }
-  return changed ? { ...settings, ...next } : settings
+  return Object.keys(changes).length > 0 ? { ...settings, ...changes } : settings
 }
 
 /**

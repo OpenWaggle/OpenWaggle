@@ -1,8 +1,11 @@
+import { Schema, type SchemaType } from '@shared/schema'
+import { anyObjectSchema } from '@shared/schemas/lenient'
 import { randomUUID } from 'node:crypto'
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { isRecord } from '@shared/utils/validation'
+import { piToolResultDetails } from './pi-tool-result-details'
 
 function makeProjectedMessage(
   role: 'user' | 'assistant' | 'system',
@@ -59,12 +62,12 @@ function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined
     return fallbackArgs ?? {}
   }
 
-  const args = toJsonObject(details.args)
+  const args = toJsonObject(piToolResultDetails(details).args)
   return Object.keys(args).length > 0 ? args : (fallbackArgs ?? {})
 }
 
 function toToolResultDuration(details: unknown) {
-  return isRecord(details) && typeof details.duration === 'number' ? details.duration : 0
+  return piToolResultDetails(details).duration ?? 0
 }
 
 function toProjectedToolResultValue(content: readonly unknown[], details: unknown) {
@@ -96,12 +99,21 @@ interface PiProjectionState {
   currentToolCallArgs: Map<string, JsonObject>
 }
 
-interface PiToolCallContent {
-  readonly type: 'toolCall'
-  readonly id: string
-  readonly name: string
-  readonly arguments: JsonObject
-}
+const isPiTextContent = Schema.is(
+  Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
+)
+const isPiThinkingContent = Schema.is(
+  Schema.Struct({ type: Schema.Literal('thinking'), thinking: Schema.String }),
+)
+const piToolCallContentSchema = Schema.Struct({
+  type: Schema.Literal('toolCall'),
+  id: Schema.String,
+  name: Schema.String,
+  arguments: anyObjectSchema,
+})
+const isPiToolCallContent = Schema.is(piToolCallContentSchema)
+
+type PiToolCallContent = SchemaType<typeof piToolCallContentSchema>
 
 function flushAssistant(state: PiProjectionState) {
   if (!state.currentAssistantParts) {
@@ -125,26 +137,9 @@ function projectAssistantPart(
   part: unknown,
   toolCallArgs: Map<string, JsonObject>,
 ): MessagePart | null {
-  if (!isRecord(part) || typeof part.type !== 'string') {
-    return null
-  }
-  if (part.type === 'text' && typeof part.text === 'string') {
-    return { type: 'text', text: part.text }
-  }
-  if (part.type === 'thinking' && typeof part.thinking === 'string') {
-    return { type: 'reasoning', text: part.thinking }
-  }
+  if (isPiTextContent(part)) return { type: 'text', text: part.text }
+  if (isPiThinkingContent(part)) return { type: 'reasoning', text: part.thinking }
   return isPiToolCallContent(part) ? projectToolCallPart(part, toolCallArgs) : null
-}
-
-function isPiToolCallContent(part: unknown): part is PiToolCallContent {
-  return (
-    isRecord(part) &&
-    part.type === 'toolCall' &&
-    typeof part.id === 'string' &&
-    typeof part.name === 'string' &&
-    isRecord(part.arguments)
-  )
 }
 
 function projectToolCallPart(

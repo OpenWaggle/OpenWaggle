@@ -42,7 +42,10 @@ function guardedWebContents() {
 }
 
 /** Emits a frame navigation and returns whether the guard prevented it. */
-function prevents(events: EventEmitter, input: Record<string, unknown>) {
+function prevents(
+  events: EventEmitter,
+  input: { readonly url: string; readonly frame: unknown; readonly isSameDocument?: boolean },
+) {
   const preventDefault = vi.fn()
   events.emit('will-frame-navigate', {
     isMainFrame: false,

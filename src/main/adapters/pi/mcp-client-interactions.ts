@@ -14,6 +14,7 @@ import {
   isLoopback,
   isObject,
   type JsonObject,
+  mcpRequestFields,
   numberValue,
   requireUi,
   reviewText,
@@ -35,7 +36,7 @@ async function handleUrlElicitation(input: {
   readonly request: JsonObject
   readonly signal?: AbortSignal | undefined
 }): Promise<McpElicitationResult> {
-  const urlText = stringValue(input.request.url)
+  const urlText = stringValue(mcpRequestFields(input.request).url)
   if (!urlText) throw new Error('MCP URL elicitation did not include a URL.')
   const url = new URL(urlText)
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback(url.hostname))) {
@@ -49,7 +50,7 @@ async function handleUrlElicitation(input: {
     title: 'Open MCP elicitation URL?',
     message: [
       `Server: ${input.serverLabel}`,
-      `Message: ${stringValue(input.request.message) ?? 'No message provided'}`,
+      `Message: ${stringValue(mcpRequestFields(input.request).message) ?? 'No message provided'}`,
       `Destination: ${url.origin}`,
       '',
       'The page may request sensitive information. OpenWaggle will not read the page or its values.',
@@ -81,10 +82,10 @@ async function handleFormElicitation(input: {
     title: 'Review MCP input request?',
     message: [
       `Server: ${input.serverLabel}`,
-      `Message: ${stringValue(input.request.message) ?? 'No message provided'}`,
+      `Message: ${stringValue(mcpRequestFields(input.request).message) ?? 'No message provided'}`,
       '',
       'Requested form schema:',
-      reviewText(input.request.requestedSchema ?? null),
+      reviewText(mcpRequestFields(input.request).requestedSchema ?? null),
       '',
       'This consent applies only to this request. Your response is sent to the named server.',
     ].join('\n'),
@@ -158,7 +159,8 @@ async function handleSampling(input: {
   requireUi(input.ctx, 'legacy sampling')
   if (!input.ctx.model) throw new Error('MCP sampling requires a selected model.')
   const signal = interactionSignal(input.ctx, input.signal)
-  const requestedTokens = numberValue(input.request.maxTokens) ?? MAX_SAMPLING_TOKENS
+  const requestedTokens =
+    numberValue(mcpRequestFields(input.request).maxTokens) ?? MAX_SAMPLING_TOKENS
   const maxTokens = Math.max(
     1,
     Math.min(requestedTokens, input.ctx.model.maxTokens, MAX_SAMPLING_TOKENS),
@@ -182,7 +184,12 @@ async function handleSampling(input: {
   const response = await complete(
     model,
     samplingContext(input.request),
-    samplingStreamOptions(auth, signal, maxTokens, numberValue(input.request.temperature)),
+    samplingStreamOptions(
+      auth,
+      signal,
+      maxTokens,
+      numberValue(mcpRequestFields(input.request).temperature),
+    ),
   )
   if (response.stopReason === 'error' || response.stopReason === 'aborted') {
     throw new Error(response.errorMessage ?? `MCP sampling ${response.stopReason}.`)
@@ -200,7 +207,7 @@ export function createPiMcpRuntimeInteractions(ctx: ExtensionContext): McpRuntim
     elicit: async (input) => {
       requireUi(ctx, 'elicitation')
       if (!isObject(input.request)) throw new Error('Invalid MCP elicitation request.')
-      return input.request.mode === 'url'
+      return mcpRequestFields(input.request).mode === 'url'
         ? handleUrlElicitation({
             ctx,
             serverLabel: input.serverLabel,

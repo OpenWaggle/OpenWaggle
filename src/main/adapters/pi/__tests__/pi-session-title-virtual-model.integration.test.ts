@@ -2,7 +2,6 @@ import fs from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import path from 'node:path'
 import { SupportedModelId } from '@shared/types/brand'
-import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { temporaryTestDirectory } from '../../../test-support/temporary-test-directory'
@@ -35,7 +34,9 @@ async function bodyOf(request: IncomingMessage) {
 
 function answerTitleRequest(text: string, requestedModels: string[], response: ServerResponse) {
   const body: unknown = JSON.parse(text)
-  requestedModels.push(isRecord(body) ? String(body.model) : '')
+  requestedModels.push(
+    typeof body === 'object' && body !== null && 'model' in body ? String(body.model) : '',
+  )
   const chunk = (delta: object, finish: string | null) =>
     `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', created: 1, model: 'echo', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`
   response.writeHead(200, { 'content-type': 'text/event-stream' })

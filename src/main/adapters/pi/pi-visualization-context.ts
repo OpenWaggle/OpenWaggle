@@ -230,5 +230,6 @@ export function bindVisualizationContextFilter(session: AgentSession) {
       options,
     )
   }
-  Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
+  // Pi's agent reads this optional hook, which its published types do not declare yet.
+  Object.assign(session.agent, { transformCompactionContext })
 }

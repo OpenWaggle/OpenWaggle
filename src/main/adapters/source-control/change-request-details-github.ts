@@ -6,6 +6,8 @@ import type {
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
 } from '@shared/types/git'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import {
   asCount,
   asObject,
@@ -39,8 +41,41 @@ const CONCLUSION_STATUS = new Map<string, ChangeRequestCheckStatus>([
   ['STALE', 'failed'],
 ])
 
-function mapCheckStatus(record: ReturnType<typeof asObject>): ChangeRequestCheckStatus {
-  if (!record) return 'unknown'
+/** The `gh pr view --json` fields lifecycle detail reads; each is checked where it is read. */
+interface GhPullRequestDetails {
+  readonly number: number
+  readonly statusCheckRollup: readonly GhStatusCheck[]
+  readonly reviewDecision: string
+  readonly mergeable: string
+  readonly mergeStateStatus: string
+  readonly headRefOid: string
+  readonly author: { readonly login: string }
+  readonly changedFiles: number
+  readonly additions: number
+  readonly deletions: number
+  readonly files: readonly GhPullRequestFile[]
+  readonly comments: readonly unknown[]
+  readonly latestReviews: readonly unknown[]
+}
+
+/** A check run (`status`, `conclusion`, `name`) or a commit status (`state`, `context`). */
+interface GhStatusCheck {
+  readonly state: string
+  readonly status: string
+  readonly conclusion: string
+  readonly name: string
+  readonly context: string
+  readonly detailsUrl: string
+  readonly targetUrl: string
+}
+
+interface GhPullRequestFile {
+  readonly path: string
+  readonly additions: number
+  readonly deletions: number
+}
+
+function mapCheckStatus(record: UncheckedFields<GhStatusCheck>): ChangeRequestCheckStatus {
   const state = (asString(record.state) ?? asString(record.status))?.toUpperCase()
   const conclusion = asString(record.conclusion)?.toUpperCase()
   const stateStatus = state ? STATE_STATUS.get(state) : undefined
@@ -50,7 +85,8 @@ function mapCheckStatus(record: ReturnType<typeof asObject>): ChangeRequestCheck
 }
 
 function mapChecks(value: unknown): readonly VcsChangeRequestCheck[] {
-  return boundedObjects(value).flatMap((record) => {
+  return boundedObjects(value).flatMap((entry) => {
+    const record: UncheckedFields<GhStatusCheck> = entry
     const name = asString(record.name) ?? asString(record.context)
     if (!name) return []
     return [
@@ -64,7 +100,8 @@ function mapChecks(value: unknown): readonly VcsChangeRequestCheck[] {
 }
 
 function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
-  return boundedObjects(value).flatMap((record) => {
+  return boundedObjects(value).flatMap((entry) => {
+    const record: UncheckedFields<GhPullRequestFile> = entry
     const path = asString(record.path)
     if (!path) return []
     return [
@@ -86,9 +123,9 @@ function mapReviewDecision(value: unknown): ChangeRequestReviewDecision {
   return 'unknown'
 }
 
-function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMergeability {
-  const mergeable = asString(record?.mergeable)?.toUpperCase()
-  const status = asString(record?.mergeStateStatus)?.toUpperCase()
+function mapMergeability(record: UncheckedFields<GhPullRequestDetails>): ChangeRequestMergeability {
+  const mergeable = asString(record.mergeable)?.toUpperCase()
+  const status = asString(record.mergeStateStatus)?.toUpperCase()
   if (mergeable === 'CONFLICTING' || status === 'DIRTY') return 'conflicting'
   if (status === 'BLOCKED' || status === 'BEHIND' || status === 'UNSTABLE') return 'blocked'
   if (mergeable === 'MERGEABLE') return 'mergeable'
@@ -97,10 +134,12 @@ function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMerg
 
 /** Map one bounded `gh pr view --json` response into lifecycle detail. */
 export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
-  const record = asObject(raw)
+  const object = asObject(raw)
   const summary = mapGhPullRequest(raw)
-  const reference = asCount(record?.number)
-  if (!record || !summary || reference === null) return null
+  if (!object || !summary) return null
+  const record: UncheckedFields<GhPullRequestDetails> = object
+  const reference = asCount(record.number)
+  if (reference === null) return null
   const checks = mapChecks(record.statusCheckRollup)
   const reviewDecision = mapReviewDecision(record.reviewDecision)
   const mergeability = mapMergeability(record)
@@ -119,7 +158,7 @@ export function mapGhPullRequestDetails(raw: unknown): VcsChangeRequestDetails |
     ...summary,
     reference: String(reference),
     headCommit,
-    author: asString(asObject(record.author)?.login),
+    author: asString(uncheckedFields<GhPullRequestDetails['author']>(record.author).login),
     changedFiles: asCount(record.changedFiles),
     additions: asCount(record.additions),
     deletions: asCount(record.deletions),

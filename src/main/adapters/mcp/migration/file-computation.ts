@@ -3,7 +3,7 @@
  * migration never writes (Pi files and `.mcp.json`); OpenWaggle's global file
  * is re-read because the run may already have migrated it.
  */
-import { isRecord } from '@shared/utils/validation'
+import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 import {
   type EntryMigrationContext,
   type McpLayerServers,
@@ -36,7 +36,7 @@ type JsonObject = Record<string, unknown>
 
 /** Pi reads only `mcpServers`. */
 function piServers(config: JsonObject | undefined) {
-  return config && isRecord(config.mcpServers) ? config.mcpServers : {}
+  return mcpConfigServerMaps(config).mcpServers ?? {}
 }
 
 export class McpFileSources {
@@ -96,8 +96,9 @@ function finish(
   changes: readonly McpServerMigrationChange[],
 ): FileComputation {
   const value = document.value
-  const usesAlias = !isRecord(value.mcpServers) && isRecord(value.servers)
-  if (!isRecord(value.mcpServers) && !usesAlias && Object.keys(servers).length === 0) {
+  const maps = mcpConfigServerMaps(value)
+  const usesAlias = maps.mcpServers === undefined && maps.servers !== undefined
+  if (maps.mcpServers === undefined && !usesAlias && Object.keys(servers).length === 0) {
     return { text: undefined, changes }
   }
   const nextValue = withTopLevelKey(

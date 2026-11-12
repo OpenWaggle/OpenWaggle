@@ -1,8 +1,10 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
 import { EventEmitter } from 'node:events'
 import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { Debugger, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CdpCommandParams, CdpInputEventParams } from '../browser-preview-cdp-input-params'
 
 const electronMocks = vi.hoisted(() => ({
   getFocusedWebContents: vi.fn(),
@@ -21,10 +23,10 @@ const {
   waitForBrowserPreviewPage,
 } = await import('../browser-preview-automation-page-actions')
 
-type CommandHandler = (method: string, params?: Readonly<Record<string, unknown>>) => unknown
+type CommandHandler = (method: string, params?: CdpCommandParams) => unknown
 
-function evaluatedExpression(params: Readonly<Record<string, unknown>> | undefined) {
-  const expression = params?.expression
+function evaluatedExpression(params: CdpCommandParams | undefined) {
+  const expression = uncheckedFields<{ expression: string }>(params).expression
   return typeof expression === 'string' ? expression : ''
 }
 
@@ -33,9 +35,8 @@ function createPage(commandHandler: CommandHandler) {
   const debuggerEvents = new EventEmitter()
   let attached = false
   const focus = vi.fn()
-  const sendCommand = vi.fn(
-    async (method: string, params?: Readonly<Record<string, unknown>>): Promise<unknown> =>
-      commandHandler(method, params),
+  const sendCommand = vi.fn(async (method: string, params?: CdpCommandParams): Promise<unknown> =>
+    commandHandler(method, params),
   )
   const browserDebugger = fromPartial<Debugger>({
     on: debuggerEvents.on.bind(debuggerEvents),
@@ -165,7 +166,10 @@ describe('browser preview automation page actions', () => {
       if (method === 'Runtime.evaluate') {
         return evaluated({ width: 800, height: 600 })
       }
-      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mousePressed') {
+      if (
+        method === 'Input.dispatchMouseEvent' &&
+        uncheckedFields<CdpInputEventParams>(params).type === 'mousePressed'
+      ) {
         throw new Error('mouse dispatch failed')
       }
       return {}
@@ -249,7 +253,10 @@ describe('browser preview automation page actions', () => {
       fromPartial<WebContents>({ id: 2, focus: previousFocus, isDestroyed: () => false }),
     )
     const { focus, page, sendCommand } = createPage((method, params) => {
-      if (method === 'Input.dispatchKeyEvent' && params?.type !== 'keyUp') {
+      if (
+        method === 'Input.dispatchKeyEvent' &&
+        uncheckedFields<CdpInputEventParams>(params).type !== 'keyUp'
+      ) {
         throw new Error('key dispatch failed')
       }
       return {}

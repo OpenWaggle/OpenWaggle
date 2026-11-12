@@ -1,3 +1,4 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 
@@ -105,7 +106,7 @@ export function decodeBrowserPreviewWaitMatch(value: unknown) {
 
 export function boundedBrowserPreviewAccessibilityTree(value: unknown) {
   if (typeof value !== 'object' || value === null) return value
-  const nodes: unknown = Reflect.get(value, 'nodes')
+  const { nodes } = uncheckedFields<{ readonly nodes: readonly unknown[] }>(value)
   if (!Array.isArray(nodes)) return value
   return {
     nodes: nodes.slice(0, MAX_ACCESSIBILITY_NODES),

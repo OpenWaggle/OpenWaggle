@@ -3,7 +3,7 @@ import {
   PI_WAGGLE_TURN_CUSTOM_TYPE,
   PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
 } from '@openwaggle/pi-waggle/protocol'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -60,9 +60,13 @@ const answer = (text: string, timestamp: number) => ({
   content: [{ type: 'text', text }],
   timestamp,
 })
+const runIdentityMessageSchema = Schema.Struct({
+  customType: Schema.Literal(RUN_IDENTITY_CUSTOM_TYPE),
+  content: Schema.optional(Schema.Unknown),
+})
 const identityContents = (messages: readonly unknown[]) =>
   messages.flatMap((message) =>
-    isRecord(message) && message.customType === RUN_IDENTITY_CUSTOM_TYPE ? [message.content] : [],
+    Schema.is(runIdentityMessageSchema)(message) ? [message.content] : [],
   )
 
 describe('the Run identity of a Waggle Run', () => {

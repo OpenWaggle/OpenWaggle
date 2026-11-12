@@ -33,7 +33,7 @@ describe('browser preview automation DOM expressions', () => {
     input.addEventListener('change', (event) =>
       events.push(`${event.type}:${String(event.bubbles)}`),
     )
-    Reflect.set(document, 'execCommand', () => false)
+    Object.assign(document, { execCommand: () => false })
     input.focus()
 
     expect(runTypeExpression('new value', true)).toEqual({ kind: 'ok' })
@@ -116,7 +116,7 @@ describe('browser preview automation DOM expressions', () => {
     const editor = document.querySelector('div')
     if (!(editor instanceof HTMLElement)) throw new Error('Expected editor fixture.')
     Object.defineProperty(editor, 'isContentEditable', { configurable: true, value: true })
-    Reflect.set(editor, 'replaceChildren', () => undefined)
+    Object.assign(editor, { replaceChildren: () => undefined })
     editor.focus()
 
     expect(runTypeExpression('', true)).toEqual({ kind: 'not-editable' })

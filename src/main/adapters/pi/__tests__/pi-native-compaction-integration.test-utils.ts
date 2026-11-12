@@ -133,7 +133,7 @@ export async function createNativeSession(options: {
         const authorization =
           options.providerAuthHeaderResolver?.() ?? options.providerAuthHeaderState?.authorization
         const accountId = options.providerAuthHeaderState?.accountId
-        if (authorization) event.headers.Authorization = authorization
+        if (authorization) Object.assign(event.headers, { Authorization: authorization })
         if (accountId) event.headers['chatgpt-account-id'] = accountId
       })
     }

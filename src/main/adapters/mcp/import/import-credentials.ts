@@ -6,7 +6,8 @@
  * `env`; everywhere else it is dropped, with its flag. A warning never repeats the value.
  */
 import path from 'node:path'
-import type { ImportedCredential, ImportValueContext } from './import-values'
+import type { ImportedCredential } from './import-types'
+import type { ImportValueContext } from './import-values'
 import { sourceVariablePattern } from './import-variables'
 
 /** Last words that make a flag, variable, or header name a credential. */

@@ -32,8 +32,8 @@ const logger = createLogger('terminal-lifecycle')
 
 function clearTerminalBackendBuffer(record: { readonly live: { readonly pty: unknown } | null }) {
   const pty = record.live?.pty
-  if (pty === null || pty === undefined) return
-  const clear: unknown = Reflect.get(pty, 'clear')
+  if (typeof pty !== 'object' || pty === null) return
+  const clear: unknown = 'clear' in pty ? pty.clear : undefined
   if (typeof clear !== 'function') return
   try {
     Reflect.apply(clear, pty, [])
