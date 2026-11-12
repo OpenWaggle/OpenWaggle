@@ -57,16 +57,24 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.release-pr.outputs.head_branch }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
-          version: 11.15.1
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
+
+      # This job writes the release PR's package docs, so it installs without the package cache.
+      - uses: ./.github/actions/bun-install
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        with:
+          package-cache: "false"
+        env:
+          HUSKY: "0"
 
       - name: Synchronize versioned package documentation
         id: docs
@@ -76,8 +84,7 @@ jobs:
           RELEASE_PR_HEAD: ${{ steps.release-pr.outputs.head_branch }}
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
-          pnpm package-docs:update
+          bun run package-docs:update
           if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
