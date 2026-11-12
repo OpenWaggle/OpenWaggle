@@ -1,7 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
-import { parseJsonUnknown } from '@shared/schema'
+import { parseJsonUnknown, Schema } from '@shared/schema'
 import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
+import { isObjectValue } from '@shared/utils/object-shape'
+import { Option } from 'effect'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { markRetainedSnapshotNode } from '../../../store/session-details/retained-snapshot-nodes'
@@ -28,17 +30,13 @@ function parsePiEntryTimestamp(timestamp: string) {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function isAssistantEntry(entry: SessionEntry): entry is PiAssistantMessageEntry {
   return entry.type === 'message' && entry.message.role === 'assistant'
 }
 
 function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, waggle })
 }
 
@@ -46,13 +44,13 @@ function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
 function mergeMetadataJsonWithContextOmission(rawMetadataJson: string, omitted: boolean) {
   if (!omitted) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), omittedFromContext: true })
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), omittedFromContext: true })
 }
 
 function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: string | null) {
   if (!digest) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, durableTextSha256: digest })
 }
 
@@ -63,21 +61,29 @@ function mergeMetadataJsonWithScheduledTask(
 ) {
   if (!scheduledTask) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), scheduledTask })
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), scheduledTask })
 }
 
 /** The Session's model selection when a response was made, which a virtual model routed. */
 function mergeMetadataJsonWithSelectedModel(rawMetadataJson: string, selectedModel: string | null) {
   if (!selectedModel) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), selectedModel })
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), selectedModel })
 }
+
+/** Message metadata JSON written by earlier runs; OpenWaggle's own fields sit under `openWaggle`. */
+const decodeOpenWaggleMetadata = Schema.decodeUnknownOption(
+  Schema.Struct({ openWaggle: Schema.optional(Schema.Unknown) }),
+)
+
+const decodeBoundaryData = Schema.decodeUnknownOption(Schema.Struct({ runId: Schema.String }))
 
 function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null) {
   if (!runId) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
-  const existingOpenWaggle = isRecord(metadata.openWaggle) ? metadata.openWaggle : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
+  const stored = Option.getOrUndefined(decodeOpenWaggleMetadata(metadata))?.openWaggle
+  const existingOpenWaggle = isObjectValue(stored) ? stored : {}
   return JSON.stringify({
     ...metadata,
     openWaggle: { ...existingOpenWaggle, runId },
@@ -88,7 +94,7 @@ function boundaryRunId(entry: SessionEntry) {
   if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
     return null
   }
-  return isRecord(entry.data) && typeof entry.data.runId === 'string' ? entry.data.runId : null
+  return Option.getOrUndefined(decodeBoundaryData(entry.data))?.runId ?? null
 }
 
 function runIdForEntry(input: {

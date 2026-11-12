@@ -1,3 +1,4 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
 import type {
   Event,
   RenderProcessGoneDetails,
@@ -37,12 +38,15 @@ function normalizedUrl(value: string) {
   }
 }
 
+/** What Electron puts on a failed `loadURL`: Chromium's error name and its net error number. */
+interface NavigationFailure {
+  readonly code: string
+  readonly errno: number
+}
+
 function isAbortedNavigationError(cause: unknown) {
-  if (typeof cause === 'object' && cause !== null) {
-    const code: unknown = Reflect.get(cause, 'code')
-    const errno: unknown = Reflect.get(cause, 'errno')
-    if (code === 'ERR_ABORTED' || errno === ABORTED_NAVIGATION_ERROR_CODE) return true
-  }
+  const { code, errno } = uncheckedFields<NavigationFailure>(cause)
+  if (code === 'ERR_ABORTED' || errno === ABORTED_NAVIGATION_ERROR_CODE) return true
   return cause instanceof Error && cause.message.includes('ERR_ABORTED')
 }
 

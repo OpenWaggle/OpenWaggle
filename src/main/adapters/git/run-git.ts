@@ -5,6 +5,7 @@ import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import { errorCode } from '@shared/utils/node-error'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
 import { getEnvWithOverrides } from '../../env'
 
@@ -77,7 +78,9 @@ function execFileWithInput(
          * the original Git message (for example "nothing to commit") to remain structured.
          */
         const decodedError = safeDecodeUnknown(jsonObjectSchema, error)
-        const errorOutput = decodedError.success ? decodedError.data : {}
+        const errorOutput: UncheckedFields<GitExecFailure> = decodedError.success
+          ? decodedError.data
+          : {}
         reject(
           Object.assign(error, {
             stdout: stdout || (typeof errorOutput.stdout === 'string' ? errorOutput.stdout : ''),
@@ -104,6 +107,16 @@ function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string
   }
 }
 
+/** The fields Node's `execFile` puts on a failed Git run that its normalisation reads. */
+interface GitExecFailure {
+  readonly message: string
+  readonly name: string
+  readonly stdout: string
+  readonly stderr: string
+  readonly killed: boolean
+  readonly signal: string
+}
+
 function normalizeGitError(error: unknown): GitExecResult {
   const result = safeDecodeUnknown(jsonObjectSchema, error)
   if (!result.success) {
@@ -114,7 +127,7 @@ function normalizeGitError(error: unknown): GitExecResult {
     }
   }
 
-  const value = result.data
+  const value: UncheckedFields<GitExecFailure> = result.data
   const code = errorCode(error)
   const fallbackMessage = typeof value.message === 'string' ? value.message : 'Git command failed'
   return {
@@ -135,7 +148,7 @@ function normalizeGitError(error: unknown): GitExecResult {
  * normalised to `code: 1` with an empty stderr - a caller could not tell "the remote is unreachable"
  * from "git failed for no stated reason", and neither could the user reading the toast.
  */
-function wasKilledForTimeout(value: Readonly<Record<string, unknown>>) {
+function wasKilledForTimeout(value: UncheckedFields<GitExecFailure>) {
   return value.killed === true && typeof value.signal === 'string'
 }
 

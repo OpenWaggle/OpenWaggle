@@ -1,6 +1,7 @@
 import { type TUnsafe, Type } from 'typebox'
 import {
   isJsonSchemaObject,
+  keywordsOf,
   type JsonSchemaObject,
   propertiesOf,
   requiredOf,
@@ -52,7 +53,11 @@ export function isHotHiveAction(action: string) {
 function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
   const { anyOf, ...rest } = schema
   const members = schemaArray(anyOf)
-  if (!members || members.length === 0 || members.some((member) => member.type !== 'object')) {
+  if (
+    !members ||
+    members.length === 0 ||
+    members.some((member) => keywordsOf(member).type !== 'object')
+  ) {
     return schema
   }
   const properties = new Map<string, JsonSchemaObject[]>()

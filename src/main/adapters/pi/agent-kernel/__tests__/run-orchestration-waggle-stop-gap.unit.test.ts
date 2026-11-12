@@ -1,17 +1,17 @@
-import { isRecord } from '@shared/utils/validation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runPiWaggle } from '../waggle-run'
 import {
   assistantMessage,
+  payload,
   createFakePi,
   createFakeSession,
   fakeRuntimeServices,
   installRuntimeFactories,
   modelFromReference,
   PRIMARY_MODEL,
-  payload,
   type RuntimeFactoryInput,
   sessionDetail,
+  shouldTriggerTurn,
   waggleConfig,
 } from './run-orchestration.test-utils'
 
@@ -51,7 +51,7 @@ async function waggleRunStoppedBetweenTurns() {
   const stop = new AbortController()
   let turns = 0
   vi.mocked(fakePi.pi.sendMessage).mockImplementation((message, options) => {
-    if (!isRecord(options) || options.triggerTurn !== true) return
+    if (!shouldTriggerTurn(options)) return
     turns += 1
     const answer = assistantMessage(`turn ${String(turns + 1)}`)
     sessionMessages.push(message, answer)

@@ -1,3 +1,4 @@
+import type { JsonObject } from '@shared/types/json'
 import { describe, expect, it } from 'vitest'
 import { type McpOAuthMigrationSink, SIGN_IN_NOT_READ_YET } from '../oauth-state-migration'
 import { oldIdentityKey, OPENWAGGLE_GLOBAL } from './migration-fixtures'
@@ -11,7 +12,7 @@ import {
 } from './oauth-migration.test-support'
 
 describe('which old MCP OAuth sign-ins migrate, and when', () => {
-  it.each<[string, Record<string, unknown>, string]>([
+  it.each<[string, JsonObject, string]>([
     [
       'tokens without their client registration',
       { clientsByIssuer: {} },

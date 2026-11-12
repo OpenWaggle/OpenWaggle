@@ -5,13 +5,14 @@ import {
 import { ensureBrowserPreviewAutomationDebugger } from './browser-preview-automation-debugger'
 import type { BrowserPreviewAutomationControlSession } from './browser-preview-automation-session'
 import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import type { CdpCommandParams } from './browser-preview-cdp-input-params'
 
 const INPUT_CLEANUP_TIMEOUT_MS = 2_000
 
 export async function sendBrowserPreviewAutomationInputCleanup(
   session: BrowserPreviewAutomationControlSession,
   method: string,
-  params?: Readonly<Record<string, unknown>>,
+  params?: CdpCommandParams,
 ): Promise<unknown> {
   if (session.disposed) return null
   assertBrowserPreviewContentsAvailable(session.contents)
@@ -30,7 +31,7 @@ export async function sendBrowserPreviewAutomationInputCleanup(
 export async function withExpectedBrowserPreviewAutomationInput<A>(
   session: BrowserPreviewAutomationControlSession,
   method: string,
-  params: Readonly<Record<string, unknown>> | undefined,
+  params: CdpCommandParams | undefined,
   operation: () => Promise<A>,
 ) {
   const expectation = session.inputArbitrator.expect(method, params)

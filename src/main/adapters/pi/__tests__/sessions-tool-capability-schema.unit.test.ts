@@ -20,7 +20,7 @@ describe('Hive tool capability schema', () => {
     })
 
     const shape = fromAny<
-      { type?: string; anyOf?: unknown[]; properties?: Record<string, unknown> },
+      { type?: string; anyOf?: unknown[]; properties?: { action?: unknown } },
       unknown
     >(structuredClone(schema))
 

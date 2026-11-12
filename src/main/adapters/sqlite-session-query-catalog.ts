@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { LIVE_RUN_STATUSES } from '@shared/domain/running-workers'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
@@ -29,12 +30,10 @@ const INTERRUPTED_RUN_STATUSES = [
 ] as const
 
 function listCursor(request: ListRequest) {
-  const cursor = decodeSessionQueryCursor(request.query.cursor)
-  if (cursor === 'invalid') return 'invalid' as const
-  if (!cursor) return null
-  return typeof cursor.updatedAt === 'number' && typeof cursor.sessionId === 'string'
-    ? { updatedAt: cursor.updatedAt, sessionId: cursor.sessionId }
-    : ('invalid' as const)
+  return decodeSessionQueryCursor(
+    request.query.cursor,
+    Schema.Struct({ updatedAt: Schema.Number, sessionId: Schema.String }),
+  )
 }
 
 function archivedFilter(value: boolean | undefined) {

@@ -129,7 +129,7 @@ function makeFakePty(pid: number): FakePty {
     kill,
     clear,
   })
-  Reflect.set(pty, 'closeDescriptor', closeDescriptor)
+  Object.assign(pty, { closeDescriptor: closeDescriptor })
   const lifecycle = nativeLifecycle.install(pty)
   return {
     pty,

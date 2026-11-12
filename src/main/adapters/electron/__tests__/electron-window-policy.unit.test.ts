@@ -156,9 +156,11 @@ describe('automation desktop UI policy', () => {
       webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: true },
     })
 
-    expect(Reflect.get(window, 'options')).toMatchObject({
-      show: false,
-      webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false },
+    expect(window).toMatchObject({
+      options: {
+        show: false,
+        webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false },
+      },
     })
   })
 })

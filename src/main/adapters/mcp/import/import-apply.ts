@@ -2,21 +2,20 @@
  * Applying an import preview. The importer never writes files: it hands Pi
  * entries to the caller's config writer, which owns the target file.
  */
-import { isRecord } from '@shared/utils/validation'
 import { withServerSecretNames } from '../../../domain/mcp/config/mcp-server-secret-names'
-import { sameServerName } from './import-identity'
+import type { McpImportWriteEntry } from '../../../ports/mcp-import-service'
+import { isEarlierImportOf, sameServerName } from './import-identity'
 import type {
   ExternalMcpImportCandidate,
   ExternalMcpImportPreview,
   ExternalMcpImportSource,
   McpImportProvenance,
   McpImportTarget,
-  PiMcpEntry,
 } from './import-types'
 
 export interface McpImportWrite {
   readonly name: string
-  readonly entry: PiMcpEntry
+  readonly entry: McpImportWriteEntry['entry']
   /** True when the entry replaces an existing server of that name. */
   readonly replace: boolean
 }
@@ -65,14 +64,7 @@ function earlierImportName(
   candidate: ExternalMcpImportCandidate,
   servers: Readonly<Record<string, unknown>>,
 ) {
-  return Object.entries(servers).find(([, value]) => {
-    const provenance = isRecord(value) && isRecord(value.provenance) ? value.provenance : undefined
-    return (
-      provenance?.source === candidate.source &&
-      provenance.sourcePath === candidate.sourcePath &&
-      provenance.sourceName === candidate.name
-    )
-  })?.[0]
+  return Object.entries(servers).find(([, value]) => isEarlierImportOf(value, candidate))?.[0]
 }
 
 function renamed(name: string, names: readonly string[]) {

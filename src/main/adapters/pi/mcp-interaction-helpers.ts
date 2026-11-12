@@ -1,5 +1,7 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { MCP_CONFIG } from '@shared/constants/mcp'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { jsonValueSchema } from '@shared/schemas/validation'
 import type { McpJsonValue } from '@shared/types/mcp'
 import {
   getOpenWaggleDeclaredConfirm,
@@ -12,6 +14,33 @@ export type JsonObject = Record<string, McpJsonValue>
 
 export function isObject(value: McpJsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const field = Schema.optional(jsonValueSchema)
+
+/**
+ * The fields of MCP sampling and elicitation requests (and of their `tools`) OpenWaggle reads.
+ * The server writes them, so each stays a JSON value its reader checks.
+ */
+const mcpRequestFieldsSchema = Schema.Struct({
+  mode: field,
+  url: field,
+  message: field,
+  requestedSchema: field,
+  maxTokens: field,
+  temperature: field,
+  tools: field,
+  messages: field,
+  systemPrompt: field,
+  name: field,
+  description: field,
+  inputSchema: field,
+})
+
+export type McpRequestFields = SchemaType<typeof mcpRequestFieldsSchema>
+
+export function mcpRequestFields(request: JsonObject): McpRequestFields {
+  return decodeUnknownOrThrow(mcpRequestFieldsSchema, request)
 }
 
 export function stringValue(value: McpJsonValue | undefined) {

@@ -1,14 +1,16 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { LoadExtensionsResult } from '@earendil-works/pi-coding-agent'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
 
 const PI_WAGGLE_PACKAGE_NAME = '@openwaggle/pi-waggle'
+/** A `package.json` with a `name`. */
+const namedPackageSchema = Schema.Struct({ name: Schema.String })
 
 function packageName(directory: string) {
   try {
     const manifest: unknown = JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8'))
-    return isRecord(manifest) && typeof manifest.name === 'string' ? manifest.name : undefined
+    return Schema.is(namedPackageSchema)(manifest) ? manifest.name : undefined
   } catch {
     return undefined
   }

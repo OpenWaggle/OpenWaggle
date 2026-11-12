@@ -32,6 +32,7 @@ import {
 } from './browser-preview-automation-session'
 import { playwrightInjectedRuntimeInstallExpression } from './browser-preview-playwright-runtime'
 import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import type { CdpCommandParams } from './browser-preview-cdp-input-params'
 
 export interface BrowserPreviewAutomationPage {
   readonly tabId: string
@@ -42,16 +43,10 @@ export interface BrowserPreviewAutomationPage {
 export interface BrowserPreviewAutomationActionContext {
   readonly signal: AbortSignal
   readonly remainingTimeMs: () => number
-  readonly send: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<unknown>
-  readonly dispatchInput: (
-    method: string,
-    params?: Readonly<Record<string, unknown>>,
-  ) => Promise<unknown>
+  readonly send: (method: string, params?: CdpCommandParams) => Promise<unknown>
+  readonly dispatchInput: (method: string, params?: CdpCommandParams) => Promise<unknown>
   /** Cleanup after a partially dispatched input, even when human input invalidated the action. */
-  readonly cleanupInput: (
-    method: string,
-    params?: Readonly<Record<string, unknown>>,
-  ) => Promise<unknown>
+  readonly cleanupInput: (method: string, params?: CdpCommandParams) => Promise<unknown>
   readonly evaluate: (
     expression: string,
     options?: Pick<BrowserPreviewAutomationEvaluateInput, 'awaitPromise' | 'returnByValue'>,
@@ -109,11 +104,7 @@ export class BrowserPreviewAutomationController {
     disposeBrowserPreviewAutomationControlSession(session)
   }
 
-  sendControl(
-    page: BrowserPreviewAutomationPage,
-    method: string,
-    params?: Readonly<Record<string, unknown>>,
-  ) {
+  sendControl(page: BrowserPreviewAutomationPage, method: string, params?: CdpCommandParams) {
     return this.run(page, `control:${method}`, (context) => context.send(method, params))
   }
 
@@ -149,7 +140,7 @@ export class BrowserPreviewAutomationController {
     documentGeneration: number,
     deadline: BrowserPreviewAutomationDeadline,
     method: string,
-    params?: Readonly<Record<string, unknown>>,
+    params?: CdpCommandParams,
   ) {
     deadline.throwIfAborted()
     this.assertCurrent(session, epoch, documentGeneration)
@@ -168,7 +159,7 @@ export class BrowserPreviewAutomationController {
     deadline: BrowserPreviewAutomationDeadline,
     allowDocumentChanges: boolean,
   ): BrowserPreviewAutomationActionContext {
-    const send = (method: string, params?: Readonly<Record<string, unknown>>) => {
+    const send = (method: string, params?: CdpCommandParams) => {
       const commandDocumentGeneration = allowDocumentChanges
         ? session.documentGeneration
         : documentGeneration

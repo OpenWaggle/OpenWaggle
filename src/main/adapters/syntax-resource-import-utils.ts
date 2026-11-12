@@ -2,6 +2,7 @@ import { constants as fsConstants } from 'node:fs'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
+import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { SyntaxAppearanceVariant } from '@shared/types/syntax'
 import type {
@@ -11,6 +12,9 @@ import type {
 } from '@shared/types/syntax-resources'
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
 import { parse as parsePlist } from 'plist'
+import { themeSourceSchema } from './syntax-source-schemas'
+
+type ThemeSource = SchemaType<typeof themeSourceSchema>
 
 export const IMPORT_SIZE_LIMIT_BYTES = 20 * 1024 * 1024
 export const SYNTAX_IMPORT_RESOURCE_KIND_LIMIT = 20
@@ -124,21 +128,6 @@ export function toJsonObject(value: unknown): JsonObject {
     throw new Error('Theme source must contain a JSON object.')
   }
   return json
-}
-
-export function stringRecord(value: unknown) {
-  const result: Record<string, string> = {}
-  if (!isRecord(value)) return result
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string') result[key] = entry
-  }
-  return result
-}
-
-export function stringArray(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : []
 }
 
 export function syntaxResourceSlug(value: string) {
@@ -261,24 +250,23 @@ export function appearanceVariantFromUiTheme(value: unknown): SyntaxAppearanceVa
 }
 
 interface ResolvedThemeDeclaration {
-  readonly raw: Readonly<Record<string, unknown>>
-  readonly original: Readonly<Record<string, unknown>>
+  readonly raw: JsonObject
+  readonly original: JsonObject
 }
 
-function themeRules(raw: Readonly<Record<string, unknown>>) {
-  const normalized = toJsonValue(raw.tokenColors ?? raw.settings)
+function themeRules(source: ThemeSource) {
+  const normalized = toJsonValue(source.tokenColors ?? source.settings)
   return Array.isArray(normalized) ? normalized : []
 }
 
-function mergeThemeDeclarations(
-  base: Readonly<Record<string, unknown>>,
-  child: Readonly<Record<string, unknown>>,
-) {
+function mergeThemeDeclarations(base: JsonObject, child: JsonObject): JsonObject {
+  const baseSource = decodeUnknownOrThrow(themeSourceSchema, base)
+  const childSource = decodeUnknownOrThrow(themeSourceSchema, child)
   return {
     ...base,
     ...child,
-    colors: { ...stringRecord(base.colors), ...stringRecord(child.colors) },
-    tokenColors: [...themeRules(base), ...themeRules(child)],
+    colors: { ...baseSource.colors, ...childSource.colors },
+    tokenColors: [...themeRules(baseSource), ...themeRules(childSource)],
   }
 }
 
@@ -296,9 +284,10 @@ export async function resolveThemeDeclaration(
   nextVisited.add(entryPath)
   const parsed = await load(entryPath)
   if (!isRecord(parsed)) throw new Error('VS Code theme declaration must contain an object.')
-  const includePath = parsed.include
-  if (typeof includePath !== 'string') return { raw: parsed, original: parsed }
+  const declaration = toJsonObject(parsed)
+  const includePath = decodeUnknownOrThrow(themeSourceSchema, declaration).include
+  if (includePath === undefined) return { raw: declaration, original: declaration }
   const includedPath = await resolveInclude(entryPath, includePath)
   const base = await resolveThemeDeclaration(includedPath, load, resolveInclude, nextVisited)
-  return { raw: mergeThemeDeclarations(base.raw, parsed), original: parsed }
+  return { raw: mergeThemeDeclarations(base.raw, declaration), original: declaration }
 }

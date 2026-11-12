@@ -3,7 +3,9 @@
  * Pi's "Migrate configuration from another client" describes, plus
  * `type: "sse"` for SSE endpoints (OpenWaggle keeps a legacy SSE transport).
  */
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import { urlWithoutCredentials } from './import-credentials'
 import { piServerName } from './import-identity'
 import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
@@ -17,7 +19,45 @@ import {
   stringArray,
 } from './import-values'
 
-type Raw = Record<string, unknown>
+const unknownField = Schema.optional(Schema.Unknown)
+
+/**
+ * The fields of a source entry the importer converts. Their values stay unknown here: each
+ * converter checks its own field and warns about a value of the wrong shape.
+ */
+const rawEntrySchema = Schema.Struct({
+  command: unknownField,
+  args: unknownField,
+  cwd: unknownField,
+  env: unknownField,
+  url: unknownField,
+  headers: unknownField,
+  type: unknownField,
+  enabled: unknownField,
+  disabled: unknownField,
+  description: unknownField,
+  oauth: unknownField,
+  http_headers: unknownField,
+  env_http_headers: unknownField,
+  bearer_token_env_var: unknownField,
+  tool_timeout_sec: unknownField,
+  startup_timeout_sec: unknownField,
+  startup_timeout_ms: unknownField,
+  enabled_tools: unknownField,
+  disabled_tools: unknownField,
+  environment: unknownField,
+  serverUrl: unknownField,
+})
+
+type Raw = SchemaType<typeof rawEntrySchema>
+
+/** Zed's `command: { path, args, env }`. */
+const zedCommandSchema = Schema.Struct({
+  path: unknownField,
+  args: unknownField,
+  env: unknownField,
+})
+const decodeZedCommand = Schema.decodeUnknownOption(zedCommandSchema)
 
 const GENERIC_FIELDS = [
   'command',
@@ -67,8 +107,9 @@ const CODEX_FALLBACK_TOOL_PATTERN = '*'
 
 /** Reshape source-specific layouts into the generic `mcpServers` layout. */
 function reshape(source: ExternalMcpImportSource, value: Raw): Raw {
-  if (source === 'zed' && isRecord(value.command)) {
-    const { path: command, args, env } = value.command
+  const zedCommand = source === 'zed' ? decodeZedCommand(value.command) : Option.none()
+  if (Option.isSome(zedCommand)) {
+    const { path: command, args, env } = zedCommand.value
     return { ...value, command, args, env }
   }
   if (source === 'opencode' && value.environment !== undefined && value.env === undefined) {
@@ -113,9 +154,8 @@ function typeField(value: Raw, context: ImportValueContext): PiMcpEntry {
 }
 
 function codexHeaders(value: Raw, context: ImportValueContext) {
-  const headers: Record<string, string> = {}
   const bearer = nonEmptyString(value.bearer_token_env_var)
-  if (bearer) headers.Authorization = `Bearer \${${bearer}}`
+  const headers: Record<string, string> = bearer ? { Authorization: `Bearer \${${bearer}}` } : {}
   if (isRecord(value.env_http_headers)) {
     for (const [header, variable] of Object.entries(value.env_http_headers)) {
       if (typeof variable === 'string') headers[header] = `\${${variable}}`
@@ -161,7 +201,7 @@ function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
 
 function oauthField(value: Raw, context: ImportValueContext): PiMcpEntry {
   if (!isRecord(value.oauth)) return {}
-  const oauth: Record<string, unknown> = {}
+  const oauth: Record<string, string | number> = {}
   for (const [key, entry] of Object.entries(value.oauth)) {
     const converted = oauthValue(key, entry, context)
     if (converted === undefined) {
@@ -236,7 +276,7 @@ export function normalizeImportedEntry(
     argumentEnv: {},
     credentialEnvNames: new Set(),
   }
-  const shaped = reshape(source, value)
+  const shaped = reshape(source, decodeUnknownOrThrow(rawEntrySchema, value))
   const entry: PiMcpEntry = {
     ...endpointFields(shaped, context),
     ...typeField(shaped, context),

@@ -6,6 +6,8 @@ import type {
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
 } from '@shared/types/git'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import {
   asNumericCount,
   asObject,
@@ -16,6 +18,40 @@ import {
   MAX_CHANGE_REQUEST_ITEMS,
 } from './change-request-parse-shared'
 import { mapGlabMergeRequest } from './change-request-summary-parse'
+
+/** The `glab mr view -F json --comments` fields lifecycle detail reads; each is checked where read. */
+interface GlabMergeRequestDetails {
+  readonly iid: number | string
+  readonly diff_stats: readonly GlabFileStats[]
+  readonly changes: readonly GlabFileStats[]
+  readonly has_conflicts: boolean
+  readonly detailed_merge_status: string
+  readonly merge_status: string
+  readonly approved: boolean
+  readonly approvals_left: number | string
+  readonly head_pipeline: GlabPipeline
+  readonly discussions: readonly { readonly resolved: boolean }[]
+  readonly sha: string
+  readonly author: { readonly username: string; readonly name: string }
+  readonly changes_count: number | string
+  readonly user_notes_count: number | string
+}
+
+interface GlabFileStats {
+  readonly path: string
+  readonly new_path: string
+  readonly additions: number | string
+  readonly deletions: number | string
+}
+
+interface GlabPipeline {
+  readonly name: string
+  readonly ref: string
+  readonly status: string
+  readonly web_url: string
+}
+
+type GlabFields = UncheckedFields<GlabMergeRequestDetails>
 
 function mapPipelineStatus(value: unknown): ChangeRequestCheckStatus {
   const status = asString(value)?.toLowerCase()
@@ -31,7 +67,8 @@ function mapPipelineStatus(value: unknown): ChangeRequestCheckStatus {
 }
 
 function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
-  return boundedObjects(value).flatMap((record) => {
+  return boundedObjects(value).flatMap((entry) => {
+    const record: UncheckedFields<GlabFileStats> = entry
     const path = asString(record.path) ?? asString(record.new_path)
     if (!path) return []
     return [
@@ -44,8 +81,7 @@ function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
   })
 }
 
-function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMergeability {
-  if (!record) return 'unknown'
+function mapMergeability(record: GlabFields): ChangeRequestMergeability {
   if (record.has_conflicts === true) return 'conflicting'
   const status = (
     asString(record.detailed_merge_status) ?? asString(record.merge_status)
@@ -56,8 +92,7 @@ function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMerg
   return 'blocked'
 }
 
-function mapReviewDecision(record: ReturnType<typeof asObject>): ChangeRequestReviewDecision {
-  if (!record) return 'unknown'
+function mapReviewDecision(record: GlabFields): ChangeRequestReviewDecision {
   if (record.approved === true || asNumericCount(record.approvals_left) === 0) {
     return 'approved'
   }
@@ -65,9 +100,10 @@ function mapReviewDecision(record: ReturnType<typeof asObject>): ChangeRequestRe
   return 'none'
 }
 
-function pipelineChecks(record: ReturnType<typeof asObject>): readonly VcsChangeRequestCheck[] {
-  const pipeline = asObject(record?.head_pipeline)
-  if (!pipeline) return []
+function pipelineChecks(record: GlabFields): readonly VcsChangeRequestCheck[] {
+  const object = asObject(record.head_pipeline)
+  if (!object) return []
+  const pipeline: UncheckedFields<GlabPipeline> = object
   return [
     {
       name: asString(pipeline.name) ?? asString(pipeline.ref) ?? 'Pipeline',
@@ -77,15 +113,16 @@ function pipelineChecks(record: ReturnType<typeof asObject>): readonly VcsChange
   ]
 }
 
-function discussionCounts(record: ReturnType<typeof asObject>) {
-  const discussions = boundedObjects(record?.discussions)
+function discussionCounts(record: GlabFields) {
+  const discussions = boundedObjects(record.discussions)
   const complete =
-    Array.isArray(record?.discussions) && record.discussions.length < MAX_CHANGE_REQUEST_ITEMS
+    Array.isArray(record.discussions) && record.discussions.length < MAX_CHANGE_REQUEST_ITEMS
   if (!complete) return { reviewThreadsCount: null, unresolvedReviewThreadsCount: null }
   return {
     reviewThreadsCount: discussions.length,
-    unresolvedReviewThreadsCount: discussions.filter((discussion) => discussion.resolved !== true)
-      .length,
+    unresolvedReviewThreadsCount: discussions.filter(
+      (discussion) => uncheckedFields<{ readonly resolved: boolean }>(discussion).resolved !== true,
+    ).length,
   }
 }
 
@@ -100,10 +137,12 @@ function fileTotals(files: readonly VcsChangeRequestFile[]) {
 
 /** Map one bounded `glab mr view -F json --comments` response into lifecycle detail. */
 export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
-  const record = asObject(raw)
+  const object = asObject(raw)
   const summary = mapGlabMergeRequest(raw)
-  const reference = asNumericCount(record?.iid)
-  if (!record || !summary || reference === null) return null
+  if (!object || !summary) return null
+  const record: GlabFields = object
+  const reference = asNumericCount(record.iid)
+  if (reference === null) return null
   const files = mapFiles(record.diff_stats ?? record.changes)
   const fallbackTotals = fileTotals(files)
   const checks = pipelineChecks(record)
@@ -123,7 +162,9 @@ export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetail
     ...summary,
     reference: String(reference),
     headCommit,
-    author: asString(asObject(record.author)?.username) ?? asString(asObject(record.author)?.name),
+    author:
+      asString(uncheckedFields<GlabMergeRequestDetails['author']>(record.author).username) ??
+      asString(uncheckedFields<GlabMergeRequestDetails['author']>(record.author).name),
     changedFiles: asNumericCount(record.changes_count) ?? fallbackTotals.changedFiles,
     additions: fallbackTotals.additions,
     deletions: fallbackTotals.deletions,

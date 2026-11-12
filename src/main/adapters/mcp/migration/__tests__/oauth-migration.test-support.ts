@@ -1,4 +1,5 @@
 /** Old OAuth sign-ins and the install that holds them, for the OAuth migration tests. */
+import type { JsonObject } from '@shared/types/json'
 import type { McpOAuthMigrationSink } from '../oauth-state-migration'
 import { migrateOpenWaggleMcpFiles } from '../migrate-openwaggle-mcp-files'
 import {
@@ -25,7 +26,7 @@ export const TOKENS = {
   issuer: ISSUER,
 }
 
-export function oldOAuthState(overrides: Record<string, unknown> = {}) {
+export function oldOAuthState(overrides: Partial<JsonObject> = {}) {
   return JSON.stringify({
     version: 1,
     tokensByIssuer: { [ISSUER]: TOKENS },
@@ -51,9 +52,9 @@ export const SENTRY = { url: 'https://mcp.sentry.dev/mcp', auth: { type: 'oauth'
 export const SENTRY_KEY = 'mcp__sentry_prod|https://mcp.sentry.dev/mcp'
 
 export function remoteInstall(
-  servers: Record<string, unknown> = {},
-  states: Record<string, unknown> = {},
-  files: Record<string, unknown> = {},
+  servers: JsonObject = {},
+  states: JsonObject = {},
+  files: JsonObject = {},
 ) {
   return memoryFs({
     [OPENWAGGLE_GLOBAL]: { mcpServers: { 'sentry-prod': SENTRY, ...servers } },

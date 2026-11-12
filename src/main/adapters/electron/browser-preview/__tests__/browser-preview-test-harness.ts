@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import type { BrowserPreviewOpenInput } from '@shared/types/browser-preview'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { Input, WebContents } from 'electron'
+import type { Input, WebContents, WebPreferences } from 'electron'
 import { type Mock, vi } from 'vitest'
 import type { BrowserPreviewOwnerRegistry } from '../browser-preview-owner-registry'
 
@@ -55,7 +55,7 @@ export interface FakePreviewView {
   readonly setBounds: ReturnType<typeof vi.fn>
   readonly setVisible: ReturnType<typeof vi.fn>
   readonly constructorOptions: {
-    readonly webPreferences?: Readonly<Record<string, unknown>>
+    readonly webPreferences?: WebPreferences
   }
 }
 

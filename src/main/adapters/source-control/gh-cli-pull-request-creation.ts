@@ -1,5 +1,4 @@
-import { safeDecodeUnknown } from '@shared/schema'
-import { jsonObjectSchema } from '@shared/schemas/validation'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import type {
   ChangeRequestResult,
   OpenChangeRequestPayload,
@@ -70,8 +69,7 @@ async function repositoryContext(
   const parsed = safeJsonParse(result.stdout)
   const nameWithOwner = jsonStringProperty(parsed, 'nameWithOwner')
   const repositoryUrl = jsonStringProperty(parsed, 'url')
-  const decoded = safeDecodeUnknown(jsonObjectSchema, parsed)
-  const defaultBranchRef = decoded.success ? decoded.data.defaultBranchRef : null
+  const { defaultBranchRef } = uncheckedFields<{ readonly defaultBranchRef: object }>(parsed)
   const defaultBranch = jsonStringProperty(defaultBranchRef, 'name')
   const expectedNameWithOwner = `${repository.owner}/${repository.repository}`
   if (
@@ -129,11 +127,8 @@ async function createOrganizationForkPullRequest(
 }
 
 function pullRequestHeadOwner(raw: unknown): string | null {
-  const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
-  if (!decoded.success) return null
-  const owner = safeDecodeUnknown(jsonObjectSchema, decoded.data.headRepositoryOwner)
-  if (!owner.success) return null
-  const login = owner.data.login
+  const { headRepositoryOwner } = uncheckedFields<{ readonly headRepositoryOwner: object }>(raw)
+  const { login } = uncheckedFields<{ readonly login: string }>(headRepositoryOwner)
   return typeof login === 'string' ? login : null
 }
 

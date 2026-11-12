@@ -13,6 +13,7 @@
  * would otherwise give a different answer.
  */
 import { isRecord } from '@shared/utils/validation'
+import { legacyServerFields } from './legacy-entry-fields'
 import { isFullEntry } from '../../../domain/mcp/migration/legacy-entry-conversion'
 import type { McpLayerServers, McpServerMigrationChange } from './entry-migration'
 import { legacyServerIdentityKey } from './legacy-pi-import'
@@ -58,7 +59,7 @@ export function legacyServerConnection(
   if (!mcpWasOn(scope)) return { connected: false, reason: mcpOffReason(scope) }
   if (!scope.projectPath) return { connected: true, reason: '' }
   const entry = layer.servers[name]
-  if (isRecord(entry) && entry.required === true) return { connected: true, reason: '' }
+  if (legacyServerFields(entry)?.required === true) return { connected: true, reason: '' }
   const muted = scope.state.projectServerStates[scope.projectPath]?.[serverState.instanceId]
   return muted === 'off'
     ? { connected: false, reason: 'it was turned off for this project' }
@@ -74,10 +75,10 @@ export function mergedServerEnabled(layers: readonly McpLayerServers[], name: st
   for (const [index, layer] of layers.entries()) {
     const entry = layer.servers[name]
     if (isFullEntry(entry)) {
-      enabled = entry.enabled !== false
+      enabled = legacyServerFields(entry)?.enabled !== false
       continue
     }
-    const override = isRecord(entry) && index > 0 ? entry.enabled : undefined
+    const override = index > 0 ? legacyServerFields(entry)?.enabled : undefined
     if (enabled !== undefined && typeof override === 'boolean') enabled = override
   }
   return enabled

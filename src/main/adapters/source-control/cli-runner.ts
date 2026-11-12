@@ -1,8 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { safeDecodeUnknown } from '@shared/schema'
-import { jsonObjectSchema } from '@shared/schemas/validation'
 import { errorCode } from '@shared/utils/node-error'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import { getSourceControlCliEnv } from '../../env'
 
 const execFileAsync = promisify(execFile)
@@ -44,8 +43,7 @@ export async function runCli(
 }
 
 function normalizeCliError(error: unknown): CliResult {
-  const decoded = safeDecodeUnknown(jsonObjectSchema, error)
-  const record = decoded.success ? decoded.data : {}
+  const record = uncheckedFields<{ readonly stdout: string; readonly stderr: string }>(error)
   const code = errorCode(error)
   // ENOENT: binary not found; EACCES: found but not executable — both mean the
   // provider CLI is unusable, so treat them the same (surface as unavailable).

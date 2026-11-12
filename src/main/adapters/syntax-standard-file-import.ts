@@ -1,19 +1,24 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type { SyntaxResourceScope } from '@shared/types/syntax-resources'
 import { normalizedLanguage } from './syntax-language-normalization'
 import { nativeSyntaxResources } from './syntax-native-import'
 import {
   confinedExtensionPath,
   createThemeIncludeBudget,
-  isRecord,
   parseJsonText,
   parseTextMatePlist,
   readBoundedFile,
   resolveThemeDeclaration,
   type SyntaxReadBudget,
+  toJsonObject,
 } from './syntax-resource-import-utils'
+import { decodeSource, grammarSourceSchema, isSourceObject } from './syntax-source-schemas'
 import { normalizedTheme } from './syntax-theme-normalization'
+
+/** A JSON or plist syntax file: a grammar has `scopeName` and `patterns`, a theme a `name`. */
+const fileSourceSchema = grammarSourceSchema
 
 export async function parseJsonSyntaxFile(
   filePath: string,
@@ -26,16 +31,17 @@ export async function parseJsonSyntaxFile(
     (await readBoundedFile(entryPath, includeBudget, readBudget)).toString('utf8'),
     includeBudget,
   )
-  if (!isRecord(raw)) throw new Error('Theme JSON must contain an object.')
+  if (!isSourceObject(raw)) throw new Error('Theme JSON must contain an object.')
   const native = nativeSyntaxResources(raw, filePath, scope)
   if (native) return native
-  if (typeof raw.scopeName === 'string' && Array.isArray(raw.patterns)) {
+  const source = decodeUnknownOrThrow(fileSourceSchema, raw)
+  if (source.scopeName !== undefined && source.patterns !== undefined) {
     return {
       themes: [],
       languages: [
         normalizedLanguage({
           grammar: raw,
-          declaration: raw,
+          declaration: toJsonObject(raw),
           language: undefined,
           packageId: path.basename(filePath).replace(/\.tmLanguage(?:\.json)?$/iu, ''),
           format: 'vscode-json',
@@ -46,8 +52,7 @@ export async function parseJsonSyntaxFile(
       appearances: [],
     }
   }
-  const label =
-    typeof raw.name === 'string' ? raw.name : path.basename(filePath, path.extname(filePath))
+  const label = source.name ?? path.basename(filePath, path.extname(filePath))
   const themeRoot = path.dirname(entryPath)
   const parsedByPath = new Map<string, unknown>([[entryPath, raw]])
   const resolved = await resolveThemeDeclaration(
@@ -59,7 +64,9 @@ export async function parseJsonSyntaxFile(
         (await readBoundedFile(resourcePath, includeBudget, readBudget)).toString('utf8'),
         includeBudget,
       )
-      if (!isRecord(value)) throw new Error('VS Code theme declaration must contain an object.')
+      if (!isSourceObject(value)) {
+        throw new Error('VS Code theme declaration must contain an object.')
+      }
       parsedByPath.set(resourcePath, value)
       return value
     },
@@ -96,13 +103,14 @@ export async function parseTextMateSyntaxFile(
   const raw: unknown = parseTextMatePlist(
     (await readBoundedFile(filePath, undefined, readBudget)).toString('utf8'),
   )
-  if (isRecord(raw) && typeof raw.scopeName === 'string' && Array.isArray(raw.patterns)) {
+  const source = decodeSource(fileSourceSchema, raw)
+  if (source?.scopeName !== undefined && source.patterns !== undefined) {
     return {
       themes: [],
       languages: [
         normalizedLanguage({
           grammar: raw,
-          declaration: raw,
+          declaration: toJsonObject(raw),
           language: undefined,
           packageId: path.basename(filePath).replace(/\.tmLanguage$/iu, ''),
           format: 'textmate-plist',
@@ -113,7 +121,7 @@ export async function parseTextMateSyntaxFile(
       appearances: [],
     }
   }
-  const label = isRecord(raw) && typeof raw.name === 'string' ? raw.name : path.basename(filePath)
+  const label = source?.name ?? path.basename(filePath)
   return {
     themes: [
       normalizedTheme({

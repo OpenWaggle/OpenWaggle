@@ -62,7 +62,7 @@ export const terminalIdForOwner = (key: TerminalKey, ownerKey: TerminalOwnerKey)
 
 const errorCode = (error: unknown) => {
   if (!(error instanceof Error) || !('code' in error)) return undefined
-  const code = Reflect.get(error, 'code')
+  const { code } = error
   return typeof code === 'string' ? code : undefined
 }
 

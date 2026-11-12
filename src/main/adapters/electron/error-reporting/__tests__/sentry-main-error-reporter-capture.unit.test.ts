@@ -106,13 +106,15 @@ async function sdkScopeChannel() {
     pathToFileURL(path.resolve('node_modules/@sentry/electron/esm/common/ipc.js')).href
   )
   const channels: unknown =
-    typeof ipcModule === 'object' && ipcModule !== null
-      ? Reflect.get(ipcModule, 'ipcChannelUtils')
+    typeof ipcModule === 'object' && ipcModule !== null && 'ipcChannelUtils' in ipcModule
+      ? ipcModule.ipcChannelUtils
       : undefined
   if (typeof channels !== 'function') throw new Error('The SDK moved its IPC channel naming')
   const utils: unknown = Reflect.apply(channels, undefined, ['sentry-ipc'])
   const createKey: unknown =
-    typeof utils === 'object' && utils !== null ? Reflect.get(utils, 'createKey') : undefined
+    typeof utils === 'object' && utils !== null && 'createKey' in utils
+      ? utils.createKey
+      : undefined
   if (typeof createKey !== 'function') throw new Error('The SDK moved its IPC channel naming')
   return Reflect.apply(createKey, undefined, ['scope'])
 }

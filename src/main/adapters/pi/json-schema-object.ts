@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 
 export type JsonSchemaObject = Readonly<Record<string, unknown>>
 export type MutableJsonSchema = Record<string, unknown>
@@ -7,13 +8,49 @@ export function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
   return isMatching(P.record(P.string, P._), value) && !Array.isArray(value)
 }
 
+const keyword = Schema.optional(Schema.Unknown)
+
+/**
+ * The JSON Schema keywords OpenWaggle reads when it checks or rewrites a tool schema. A schema
+ * may carry any keyword and is passed on with all of them; these are only read, each still
+ * unknown, because a keyword of the wrong type is something the readers report or repair.
+ */
+const jsonSchemaKeywordsSchema = Schema.Struct({
+  type: keyword,
+  properties: keyword,
+  required: keyword,
+  description: keyword,
+  title: keyword,
+  $schema: keyword,
+  $ref: keyword,
+  $id: keyword,
+  $defs: keyword,
+  definitions: keyword,
+  const: keyword,
+  enum: keyword,
+  items: keyword,
+  additionalProperties: keyword,
+  anyOf: keyword,
+  oneOf: keyword,
+  allOf: keyword,
+})
+
+export type JsonSchemaKeywords = SchemaType<typeof jsonSchemaKeywordsSchema>
+
+/** The keywords of a schema object this code reads. */
+export function keywordsOf(schema: object): JsonSchemaKeywords {
+  return decodeUnknownOrThrow(jsonSchemaKeywordsSchema, schema)
+}
+
 export function propertiesOf(schema: JsonSchemaObject): JsonSchemaObject {
-  return isJsonSchemaObject(schema.properties) ? schema.properties : {}
+  const { properties } = keywordsOf(schema)
+  return isJsonSchemaObject(properties) ? properties : {}
 }
 
 export function requiredOf(schema: JsonSchemaObject): string[] {
-  return Array.isArray(schema.required)
-    ? schema.required.filter((key): key is string => typeof key === 'string')
+  const { required } = keywordsOf(schema)
+  return Array.isArray(required)
+    ? required.filter((key): key is string => typeof key === 'string')
     : []
 }
 

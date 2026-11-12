@@ -89,7 +89,9 @@ function storedProfile() {
   const read = () =>
     String(
       database
-        .prepare<[], Record<string, unknown>>('SELECT profile_json FROM session_execution_profiles')
+        .prepare<[], { profile_json: unknown }>(
+          'SELECT profile_json FROM session_execution_profiles',
+        )
         .get()?.profile_json,
     )
   return { database, read }

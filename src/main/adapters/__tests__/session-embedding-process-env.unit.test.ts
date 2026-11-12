@@ -44,7 +44,7 @@ describe('Session embedding child environment', () => {
     const posix = embeddingChildEnv('darwin')
     expect(posix).not.toHaveProperty('LOCALAPPDATA')
     expect(posix).not.toHaveProperty('SystemRoot')
-    expect(posix.ELECTRON_RUN_AS_NODE).toBe('1')
+    expect(posix).toHaveProperty('ELECTRON_RUN_AS_NODE', '1')
     expect(Object.values(embeddingChildEnv('win32'))).not.toContain('sk-secret')
     expect(Object.values(posix)).not.toContain('sk-secret')
   })

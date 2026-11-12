@@ -41,7 +41,13 @@ function register(capabilities?: readonly SessionCapability[]) {
 
 function schemaOf(tool: ToolDefinition) {
   return fromAny<
-    { properties: Record<string, { enum?: unknown[]; anyOf?: unknown[]; type?: unknown }> },
+    {
+      properties: {
+        action?: { enum?: unknown[] }
+        agent?: { description?: string; type?: unknown }
+        target?: unknown
+      }
+    },
     unknown
   >(structuredClone(tool.parameters))
 }
@@ -71,15 +77,15 @@ describe('hive two-tier schema', () => {
   })
 
   it('declares spawn’s agent with a description that points at the definitions', () => {
-    const agent = fromAny<{ description?: string }, unknown>(schemaOf(register()).properties.agent)
+    const { agent } = schemaOf(register()).properties
 
     expect(agent).toMatchObject({ type: 'string' })
-    expect(agent.description).toMatch(/available_agents or agent_definitions_list/)
-    expect(agent.description).toMatch(/give it only the task, not the role/)
+    expect(agent?.description).toMatch(/available_agents or agent_definitions_list/)
+    expect(agent?.description).toMatch(/give it only the task, not the role/)
   })
 
   it('declares a union of object shapes as one object, so report stays short', () => {
-    const target = schemaOf(register()).properties.target
+    const { target } = schemaOf(register()).properties
     expect(target).toMatchObject({ type: 'object' })
     expect(target).not.toHaveProperty('anyOf')
   })

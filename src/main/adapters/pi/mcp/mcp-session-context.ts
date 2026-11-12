@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { safeDecodeUnknown } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { McpJsonValue } from '@shared/types/mcp'
@@ -31,11 +32,16 @@ export function attachSessionMcpContext(sessionId: string, context: SessionMcpCo
 const UI_EXTENSION = 'io.modelcontextprotocol/ui'
 const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app'
 
+const initializeParamsSchema = Schema.Struct({ capabilities: Schema.optional(Schema.Unknown) })
+const capabilitiesSchema = Schema.Struct({ extensions: Schema.optional(Schema.Unknown) })
+
 /** Declares what OpenWaggle answers on Pi's behalf: sampling, elicitation, and MCP Apps. */
 export function withOpenWaggleClientCapabilities(params: unknown) {
   if (!isRecord(params)) return params
-  const capabilities = isRecord(params.capabilities) ? params.capabilities : {}
-  const extensions = isRecord(capabilities.extensions) ? capabilities.extensions : {}
+  const declared = decodeUnknownOrThrow(initializeParamsSchema, params).capabilities
+  const capabilities = isRecord(declared) ? declared : {}
+  const declaredExtensions = decodeUnknownOrThrow(capabilitiesSchema, capabilities).extensions
+  const extensions = isRecord(declaredExtensions) ? declaredExtensions : {}
   return {
     ...params,
     capabilities: {

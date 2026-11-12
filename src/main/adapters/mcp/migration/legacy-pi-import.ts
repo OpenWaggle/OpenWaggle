@@ -7,6 +7,7 @@
  */
 import { createHash } from 'node:crypto'
 import { isRecord } from '@shared/utils/validation'
+import { type LegacyServerFields, legacyServerFields } from './legacy-entry-fields'
 
 type LegacyValue = string | number | boolean | null | LegacyValue[] | { [key: string]: LegacyValue }
 
@@ -126,7 +127,7 @@ function directToolsValue(value: unknown) {
   return stringArray(value)
 }
 
-function endpointFields(value: Record<string, unknown>) {
+function endpointFields(value: LegacyServerFields) {
   const commandArray = stringArray(value.command)
   const command = commandArray?.[0] ?? stringValue(value.command)
   const args = sanitizeArgs(commandArray?.slice(1) ?? stringArray(value.args))
@@ -138,7 +139,7 @@ function endpointFields(value: Record<string, unknown>) {
   }
 }
 
-function credentialFields(value: Record<string, unknown>, name: string) {
+function credentialFields(value: LegacyServerFields, name: string) {
   const env = credentialMap(name, value.env ?? value.environment)
   const headers = credentialMap(name, value.headers ?? value.http_headers)
   const bearerTokenEnv = stringValue(value.bearer_token_env_var)
@@ -152,7 +153,7 @@ function credentialFields(value: Record<string, unknown>, name: string) {
   }
 }
 
-function optionFields(value: Record<string, unknown>) {
+function optionFields(value: LegacyServerFields) {
   const url = stringValue(value.url)
   const transport = transportValue(value.transport ?? value.type, Boolean(url))
   const compatibility =
@@ -174,10 +175,11 @@ function optionFields(value: Record<string, unknown>) {
 
 /** `normalizeImportedMcpServer(source, name, value).definition`. */
 export function legacyNormalizeImportedServer(name: string, value: unknown) {
-  if (!isRecord(value)) return undefined
+  const fields = legacyServerFields(value)
+  if (!fields) return undefined
   return {
-    ...endpointFields(value),
-    ...credentialFields(value, name),
-    ...optionFields(value),
+    ...endpointFields(fields),
+    ...credentialFields(fields, name),
+    ...optionFields(fields),
   }
 }
