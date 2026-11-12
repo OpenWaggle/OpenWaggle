@@ -3,12 +3,13 @@
  * `openwaggle mcp registry`. Installing writes an ordinary Pi entry to OpenWaggle's MCP file for
  * the chosen scope; nothing else is recorded about where it came from.
  */
+import type { SchemaType } from '@shared/schema'
 import type {
-  McpConfigFileScope,
-  McpConfigurationView,
-  McpServerExposure,
-} from './mcp-configuration'
-import type { McpConfigurationScopeRequest } from './mcp-configuration-operations'
+  mcpRegistryInstallRequestSchema,
+  mcpRegistrySearchRequestSchema,
+  mcpRegistryServerRequestSchema,
+} from '@shared/schemas/mcp-registry'
+import type { McpConfigurationView } from './mcp-configuration'
 
 export const MCP_REGISTRY_PACKAGE_TYPES = ['npm', 'pypi', 'nuget', 'oci', 'mcpb'] as const
 
@@ -37,33 +38,15 @@ export interface McpRegistryServerView {
   readonly installOptions: readonly McpRegistryInstallOptionView[]
 }
 
-export interface McpRegistrySearchRequest {
-  readonly query: string
-  readonly limit?: number | undefined
-  /** Another registry with the same API; HTTPS, or an explicit loopback URL. */
-  readonly registryUrl?: string | undefined
-}
+export type McpRegistrySearchRequest = SchemaType<typeof mcpRegistrySearchRequestSchema>
 
 export interface McpRegistrySearchResultView {
   readonly servers: readonly McpRegistryServerView[]
 }
 
-export interface McpRegistryServerRequest {
-  readonly registryName: string
-  /** Exact version; the latest when omitted. */
-  readonly version?: string | undefined
-  readonly registryUrl?: string | undefined
-}
+export type McpRegistryServerRequest = SchemaType<typeof mcpRegistryServerRequestSchema>
 
-export interface McpRegistryInstallRequest
-  extends McpConfigurationScopeRequest, McpRegistryServerRequest {
-  readonly scope: McpConfigFileScope
-  /** Defaults to the hosted URL when there is one, else the first supported package. */
-  readonly method?: McpRegistryInstallMethod | undefined
-  /** Defaults to the server's `suggestedName`. */
-  readonly serverName?: string | undefined
-  readonly exposure?: McpServerExposure | undefined
-}
+export type McpRegistryInstallRequest = SchemaType<typeof mcpRegistryInstallRequestSchema>
 
 export interface McpRegistryInstallResultView {
   readonly name: string
