@@ -1,3 +1,5 @@
+import type { SchemaType } from '@shared/schema'
+import type { worktreeArchiveAndRemovePayloadSchema } from '@shared/schemas/worktree-inventory'
 import type { WorkspacePreparation } from './workspace-preparation'
 import type { WorktreeRemovalBlocker, WorktreeSessionUsage } from './worktree-usage'
 
@@ -126,21 +128,9 @@ export interface WorktreeReclaimableSpace {
 }
 
 /** `worktrees:archive-and-remove`: archive every Session working in it, then remove it. */
-export interface WorktreeArchiveAndRemovePayload {
-  readonly path: string
-  /**
-   * Every Session the confirmation named. The Host refuses when the Sessions working in the
-   * worktree have changed since, so it never archives one the user was not shown.
-   */
-  readonly sessionIds: readonly string[]
-  /** Override Git's lock. Uncommitted changes always keep the worktree: this never discards. */
-  readonly force?: boolean | undefined
-  /**
-   * Archive the Sessions and stop there ("Archive Sessions", for a worktree that may have
-   * changes): the worktree is kept whatever its state, for an explicit decision later.
-   */
-  readonly keepWorktree?: boolean | undefined
-}
+export type WorktreeArchiveAndRemovePayload = SchemaType<
+  typeof worktreeArchiveAndRemovePayloadSchema
+>
 
 export interface AutomaticWorktreeRemovalRemoved {
   readonly path: string
