@@ -10,8 +10,8 @@ import { addMcpServerEntry } from '../../src/main/adapters/mcp/config/mcp-config
 import {
   mcpFileErrorsAtRuntime,
   patternOf,
+  publishedPropertyNames,
   publishedSchemaErrors,
-  readPublishedSchema,
   readWagglePresetsFileAtRuntime,
   record,
   removeScratchDirectories,
@@ -98,9 +98,8 @@ describe('the mcp.json schema agrees with the runtime merge', () => {
     const filePath = path.join(scratchDirectory('ow-mcp-schema-key-'), 'mcp.json')
     await writeFile(filePath, `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`)
     addMcpServerEntry(filePath, 'fs', { command: 'npx' })
-    const written = record(JSON.parse(await readFile(filePath, 'utf8')))
-    expect(written.$schema).toBe(schemaUrl)
-    expect(record(written.mcpServers).fs).toEqual({ command: 'npx' })
+    const written: unknown = JSON.parse(await readFile(filePath, 'utf8'))
+    expect(written).toMatchObject({ $schema: schemaUrl, mcpServers: { fs: { command: 'npx' } } })
   })
 })
 
@@ -211,7 +210,7 @@ describe('the Waggle presets schema agrees with the runtime reader', () => {
     const filePath = path.join(scratchDirectory('ow-waggle-keys-'), 'waggle-presets.json')
     await writePiWagglePresetsFileData(filePath, { wagglePresets: [], hiddenBuiltInPresetIds: [] })
     const written = Object.keys(record(JSON.parse(await readFile(filePath, 'utf8'))))
-    const properties = Object.keys(record(record(await readPublishedSchema(WAGGLE)).properties))
+    const properties = await publishedPropertyNames(WAGGLE)
     expect(written.sort()).toEqual(properties.sort())
   })
 })

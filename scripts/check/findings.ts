@@ -34,7 +34,8 @@ function tail(lines: readonly string[]) {
 export function compactTscLine(line: string) {
   const groups = TSC_ERROR.exec(line.trim())?.groups
   if (groups === undefined) return undefined
-  return `${groups.file}:${groups.line}:${groups.column} ${groups.code} ${groups.message}`
+  const { file, line: lineNumber, column, code, message } = groups
+  return `${String(file)}:${String(lineNumber)}:${String(column)} ${String(code)} ${String(message)}`
 }
 
 export function parseFindings(format: FindingFormat, log: string): readonly string[] {

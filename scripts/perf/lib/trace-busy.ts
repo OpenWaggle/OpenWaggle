@@ -1,3 +1,6 @@
+import { Schema } from '@shared/schema'
+import { unknownField } from '../../support/object-fields'
+
 interface TraceEvent {
   readonly name: string
   readonly ph: string
@@ -14,23 +17,33 @@ const MICROSECONDS_PER_MILLISECOND = 1_000
 const PERCENT = 100
 const LONG_FRAME_MS = 33
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+/** A Chrome trace event; a numeric field of another type reads as its default. */
+const rawTraceEventSchema = Schema.Struct({
+  name: Schema.String,
+  ph: Schema.String,
+  pid: unknownField,
+  tid: unknownField,
+  ts: unknownField,
+  dur: unknownField,
+  args: unknownField,
+})
+/** A `thread_name` metadata event names its thread in `args.name`. */
+const threadNameArgsSchema = Schema.Struct({ name: Schema.String })
+
+function numberOr(value: unknown, fallback: number) {
+  return typeof value === 'number' ? value : fallback
 }
 
 function traceEventOf(value: unknown): TraceEvent | null {
-  if (!isRecord(value) || typeof value.name !== 'string' || typeof value.ph !== 'string') {
-    return null
-  }
-  const args = isRecord(value.args) ? value.args : {}
+  if (!Schema.is(rawTraceEventSchema)(value)) return null
   return {
     name: value.name,
     ph: value.ph,
-    pid: typeof value.pid === 'number' ? value.pid : -1,
-    tid: typeof value.tid === 'number' ? value.tid : -1,
-    ts: typeof value.ts === 'number' ? value.ts : 0,
-    dur: typeof value.dur === 'number' ? value.dur : 0,
-    threadName: typeof args.name === 'string' ? args.name : null,
+    pid: numberOr(value.pid, -1),
+    tid: numberOr(value.tid, -1),
+    ts: numberOr(value.ts, 0),
+    dur: numberOr(value.dur, 0),
+    threadName: Schema.is(threadNameArgsSchema)(value.args) ? value.args.name : null,
   }
 }
 

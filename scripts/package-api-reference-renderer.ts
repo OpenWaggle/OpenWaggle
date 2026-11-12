@@ -1,4 +1,6 @@
 import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 const GENERATED_API_MARKER = '<!-- Generated from the checked public package declarations. -->'
 const MATCH_DECLARATION_GROUP = 2
@@ -18,10 +20,6 @@ interface RenderApiReferenceInput {
   readonly version: string
 }
 
-function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function normalizeMarkdown(value: string) {
   return `${value.replaceAll('\r\n', '\n').trimEnd()}\n`
 }
@@ -37,9 +35,11 @@ function declarationSections(snapshot: string) {
   return sections
 }
 
+const typedTargetSchema = Schema.Struct({ types: unknownField })
+
 function exportTypesPath(target: unknown) {
-  if (!isJsonObject(target)) return undefined
-  return typeof target.types === 'string' ? target.types : undefined
+  const types = objectFields(typedTargetSchema, target)?.types
+  return typeof types === 'string' ? types : undefined
 }
 
 function directExportedSymbols(declaration: string) {

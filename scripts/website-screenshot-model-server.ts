@@ -1,5 +1,7 @@
 import http from 'node:http'
 import type { Socket } from 'node:net'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 import { LOOPBACK_HOST, listenOnLoopback } from './website-screenshot-loopback'
 import {
   type FinishHeldReply,
@@ -72,9 +74,15 @@ const FALLBACK_REPLY: ScriptedReply = {
   text: 'I can help with that. What would you like me to look at first?',
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+/** The request body fields the fixture reads, for both wire formats. */
+const requestBodySchema = Schema.Struct({
+  model: unknownField,
+  system: unknownField,
+  messages: unknownField,
+})
+const requestMessageSchema = Schema.Struct({ role: unknownField, content: unknownField })
+const textPartSchema = Schema.Struct({ text: Schema.String })
+const toolResultPartSchema = Schema.Struct({ type: Schema.Literal('tool_result') })
 
 function partsOf(content: unknown): readonly unknown[] {
   return Array.isArray(content) ? content : []
@@ -83,16 +91,20 @@ function partsOf(content: unknown): readonly unknown[] {
 function textOf(content: unknown) {
   if (typeof content === 'string') return content
   return partsOf(content)
-    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .map((part) => objectFields(textPartSchema, part)?.text ?? '')
     .join('\n')
 }
 
 function modelOf(body: unknown) {
-  return isRecord(body) && typeof body.model === 'string' ? body.model : ''
+  const model = objectFields(requestBodySchema, body)?.model
+  return typeof model === 'string' ? model : ''
 }
 
 function bodyMessages(body: unknown) {
-  return isRecord(body) ? partsOf(body.messages).filter(isRecord) : []
+  return partsOf(objectFields(requestBodySchema, body)?.messages).flatMap((message) => {
+    const fields = objectFields(requestMessageSchema, message)
+    return fields === undefined ? [] : [fields]
+  })
 }
 
 /** A Chat Completions body: system and developer messages make up the system text. */
@@ -115,10 +127,10 @@ export function parseOpenAiRequest(body: unknown): ModelRequest {
 
 /** An Anthropic Messages body: a user message made only of tool results counts as a tool turn. */
 export function parseAnthropicRequest(body: unknown): ModelRequest {
-  const isToolResult = (part: unknown) => isRecord(part) && part.type === 'tool_result'
+  const isToolResult = (part: unknown) => objectFields(toolResultPartSchema, part) !== undefined
   return {
     model: modelOf(body),
-    system: isRecord(body) ? textOf(body.system) : '',
+    system: textOf(objectFields(requestBodySchema, body)?.system),
     messages: bodyMessages(body).flatMap((message): ModelMessage[] => {
       if (message.role === 'assistant') {
         return [{ role: 'assistant', text: textOf(message.content) }]

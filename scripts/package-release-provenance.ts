@@ -13,8 +13,64 @@ interface PackageReleaseProvenanceInput extends PackageReleaseAttestationIdentit
   readonly sourceTree: string
 }
 
-function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
+/*
+ * This module runs under plain Node with no install (package-release-promote.ts loads it), so it
+ * checks its JSON with local type guards instead of the shared schemas.
+ */
+function isJsonObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+interface SigstoreCertificate {
+  readonly buildConfigURI: string
+  readonly runInvocationURI: string
+  readonly runnerEnvironment: unknown
+  readonly sourceRepositoryDigest: string
+}
+
+function isSigstoreCertificate(value: unknown): value is SigstoreCertificate {
+  return (
+    isJsonObject(value) &&
+    'buildConfigURI' in value &&
+    typeof value.buildConfigURI === 'string' &&
+    'runInvocationURI' in value &&
+    typeof value.runInvocationURI === 'string' &&
+    'runnerEnvironment' in value &&
+    'sourceRepositoryDigest' in value &&
+    typeof value.sourceRepositoryDigest === 'string'
+  )
+}
+
+/** The certificate of one `gh attestation verify --format json` entry. */
+function attestationCertificate(entry: unknown) {
+  if (!isJsonObject(entry) || !('verificationResult' in entry)) return undefined
+  const result = entry.verificationResult
+  if (!isJsonObject(result) || !('signature' in result)) return undefined
+  const signature = result.signature
+  if (!isJsonObject(signature) || !('certificate' in signature)) return undefined
+  return isSigstoreCertificate(signature.certificate) ? signature.certificate : undefined
+}
+
+function shaOf(value: unknown) {
+  return isJsonObject(value) && 'sha' in value && typeof value.sha === 'string'
+    ? value.sha
+    : undefined
+}
+
+interface GitCommitRecord {
+  readonly sha: unknown
+  readonly tree: unknown
+  readonly parents: readonly unknown[]
+}
+
+function isGitCommitRecord(value: unknown): value is GitCommitRecord {
+  return (
+    isJsonObject(value) &&
+    'sha' in value &&
+    'tree' in value &&
+    'parents' in value &&
+    Array.isArray(value.parents)
+  )
 }
 
 export function packageReleaseAttestationVerificationArgs(file: string, repository: string) {
@@ -37,23 +93,13 @@ function attestationSourceSha(
   expectedWorkflowPrefix: string,
   expectedRunPrefix: string,
 ) {
+  const certificate = attestationCertificate(entry)
   if (
-    !isJsonObject(entry) ||
-    !isJsonObject(entry.verificationResult) ||
-    !isJsonObject(entry.verificationResult.signature) ||
-    !isJsonObject(entry.verificationResult.signature.certificate)
-  ) {
-    return undefined
-  }
-  const certificate = entry.verificationResult.signature.certificate
-  if (
-    typeof certificate.buildConfigURI !== 'string' ||
+    certificate === undefined ||
     !certificate.buildConfigURI.startsWith(expectedWorkflowPrefix) ||
-    typeof certificate.runInvocationURI !== 'string' ||
     !certificate.runInvocationURI.startsWith(expectedRunPrefix) ||
     !/^\d+$/.test(certificate.runInvocationURI.slice(expectedRunPrefix.length)) ||
-    certificate.runnerEnvironment !== 'github-hosted' ||
-    typeof certificate.sourceRepositoryDigest !== 'string'
+    certificate.runnerEnvironment !== 'github-hosted'
   ) {
     return undefined
   }
@@ -93,16 +139,12 @@ export function assertPackageReleaseAttestationSourceCommit(
   }>,
 ) {
   if (
-    !isJsonObject(value) ||
+    !isGitCommitRecord(value) ||
     value.sha !== identity.attestationSourceSha ||
-    !isJsonObject(value.tree) ||
-    value.tree.sha !== identity.sourceTree ||
-    !Array.isArray(value.parents) ||
-    !value.parents.every((parent) => isJsonObject(parent) && typeof parent.sha === 'string') ||
+    shaOf(value.tree) !== identity.sourceTree ||
+    !value.parents.every((parent) => shaOf(parent) !== undefined) ||
     (identity.attestationSourceSha !== identity.candidateSourceSha &&
-      !value.parents.some(
-        (parent) => isJsonObject(parent) && parent.sha === identity.candidateSourceSha,
-      ))
+      !value.parents.some((parent) => shaOf(parent) === identity.candidateSourceSha))
   ) {
     throw new Error('Attested source commit does not match the candidate head and source tree.')
   }

@@ -6,6 +6,8 @@ import { launchApp, type PerfApp, stopProcessGroup } from './perf-app'
 import { processTree, profileHostPids, sampleProcesses } from './perf-processes'
 import { type PerfProfile, profileEnvironment, stopProfileHost } from './perf-profile'
 import { log } from './perf-results'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../../support/object-fields'
 
 const LOG_TAIL_LINES = 3
 const WARM_MARKER = 'warmed.json'
@@ -107,12 +109,12 @@ async function warmWithClientAttached(app: PerfApp, profile: PerfProfile) {
   }
 }
 
+const warmMarkerSchema = Schema.Struct({ method: unknownField })
+
 function isCurrentWarmMarker(file: string) {
   if (!existsSync(file)) return false
   const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
-  return (
-    typeof parsed === 'object' && parsed !== null && Reflect.get(parsed, 'method') === WARM_METHOD
-  )
+  return objectFields(warmMarkerSchema, parsed)?.method === WARM_METHOD
 }
 
 /**

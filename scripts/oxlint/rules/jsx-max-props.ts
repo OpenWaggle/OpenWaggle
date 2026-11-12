@@ -1,5 +1,5 @@
-import type { Node, Rule } from '@oxlint/plugins'
-import { jsxIdentifierName, property } from '../ast-helpers.ts'
+import type { Rule } from '@oxlint/plugins'
+import { jsxIdentifierName } from '../ast-helpers.ts'
 
 const DEFAULT_JSX_MAX_PROPS = 8
 const JSX_MAX_PROPS_IGNORED_COMPONENTS = new Set([
@@ -12,13 +12,12 @@ const JSX_MAX_PROPS_IGNORED_COMPONENTS = new Set([
   'ToggleSwitch',
 ])
 
-function jsxAttributeCount(node: Node) {
-  const attributes = property(node, 'attributes')
-  return Array.isArray(attributes) ? attributes.length : 0
-}
-
 function jsxMaxPropsMaximum(options: readonly unknown[]) {
-  const maximum = property(options[0], 'maximum')
+  const [option] = options
+  const maximum =
+    typeof option === 'object' && option !== null && 'maximum' in option
+      ? option.maximum
+      : undefined
   return typeof maximum === 'number' ? maximum : DEFAULT_JSX_MAX_PROPS
 }
 
@@ -46,13 +45,13 @@ export const jsxMaxPropsRule: Rule = {
     const maximum = jsxMaxPropsMaximum(context.options)
 
     return {
-      JSXOpeningElement(node: Node) {
+      JSXOpeningElement(node) {
         const name = jsxIdentifierName(node)
         if (!name || /^[a-z]/.test(name) || JSX_MAX_PROPS_IGNORED_COMPONENTS.has(name)) {
           return
         }
 
-        if (jsxAttributeCount(node) > maximum) {
+        if (node.attributes.length > maximum) {
           context.report({
             node,
             messageId: 'tooManyProps',

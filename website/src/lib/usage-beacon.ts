@@ -176,12 +176,18 @@ function followedLink(event: MouseEvent) {
 
 /** The live page: `window.location`, `document.referrer` and the browser's beacon APIs. */
 export function browserBeaconEnvironment(): BeaconEnvironment {
+  // Neither signal is in the DOM types: `window.doNotTrack` is legacy, Global Privacy Control new.
+  const browserWindow: object = window
+  const browserNavigator: object = navigator
   return {
     hostname: window.location.hostname,
     signals: {
       doNotTrack: navigator.doNotTrack,
-      windowDoNotTrack: Reflect.get(window, 'doNotTrack'),
-      globalPrivacyControl: Reflect.get(navigator, 'globalPrivacyControl'),
+      windowDoNotTrack: 'doNotTrack' in browserWindow ? browserWindow.doNotTrack : undefined,
+      globalPrivacyControl:
+        'globalPrivacyControl' in browserNavigator
+          ? browserNavigator.globalPrivacyControl
+          : undefined,
       webdriver: navigator.webdriver,
     },
     page: () => ({ href: window.location.href, referrer: document.referrer }),

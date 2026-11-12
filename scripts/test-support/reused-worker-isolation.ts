@@ -26,6 +26,8 @@
  */
 import { expect, vi } from 'vitest'
 import {
+  globalBinding,
+  setGlobalBinding,
   captureWorkerProcessBaseline,
   isWorkerProcessBaseline,
   restoreWorkerProcess,
@@ -37,16 +39,14 @@ const BASELINE = Symbol.for('openwaggle.test.reused-worker-baseline')
 const UNREACHABLE =
   'reused-worker-isolation.ts cannot reach Vitest 4 worker state (__vitest_worker__) or mocker (__vitest_mocker__); a reused worker would leak modules and mocks between files.'
 
-const scope: Record<PropertyKey, unknown> = globalThis
-
 function field(value: unknown, key: PropertyKey): unknown {
   const holdsFields = (typeof value === 'object' && value !== null) || typeof value === 'function'
   return holdsFields ? Reflect.get(value, key) : undefined
 }
 
 function vitestInternals() {
-  const state = scope.__vitest_worker__
-  const mocker = scope.__vitest_mocker__
+  const state = field(globalThis, '__vitest_worker__')
+  const mocker = field(globalThis, '__vitest_mocker__')
   const evaluated = field(state, 'evaluatedModules')
   const graph = {
     byId: field(evaluated, 'idToModuleMap'),
@@ -170,7 +170,7 @@ function keepGlobal(key: PropertyKey) {
 
 const self = new URL(import.meta.url).pathname
 const { graph, filepath, resetMocks } = vitestInternals()
-const baseline = scope[BASELINE]
+const baseline = globalBinding(BASELINE)
 if (isWorkerProcessBaseline(baseline)) {
   vi.useRealTimers()
   // Before the timers the previous file left are cleared, as its imports may wait on them.
@@ -180,7 +180,7 @@ if (isWorkerProcessBaseline(baseline)) {
   restoreWorkerProcess(baseline, keepGlobal)
   resetDocument()
 } else {
-  scope[BASELINE] = captureWorkerProcessBaseline()
+  setGlobalBinding(BASELINE, captureWorkerProcessBaseline())
 }
 resetMocks()
 resetModules(graph, self)

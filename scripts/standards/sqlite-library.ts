@@ -1,5 +1,6 @@
 import { withoutCommentLines } from './comment-stripping'
 import type { Violation } from './violation'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * OpenWaggle opens its own SQLite files only with better-sqlite3, the library of the Session
@@ -49,7 +50,9 @@ const OTHER_SQLITE_LOAD = moduleLoadPattern(OTHER_SQLITE_LIBRARIES)
 const HOST_SQLITE_LOAD = moduleLoadPattern(HOST_SQLITE_LIBRARIES)
 
 function loadedLibraries(source: string, pattern: RegExp) {
-  return [...source.matchAll(pattern)].flatMap((match) => match.groups?.library ?? [])
+  return [...source.matchAll(pattern)].flatMap(
+    (match) => namedGroups(match, ['library'])?.library ?? [],
+  )
 }
 
 function isOwner(file: string) {

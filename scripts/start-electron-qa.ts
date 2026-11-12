@@ -22,6 +22,7 @@ import {
 } from './electron-qa-shutdown'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
 import { bunExecutable } from './support/node-runtime'
+import { scriptEnv } from './support/env'
 
 const QA_HOST = '127.0.0.1'
 const CDP_TIMEOUT_MS = 60_000
@@ -104,6 +105,7 @@ export function electronEnvironment(
   callerEnvironment: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   const home = qaHome(lease)
+  const caller = scriptEnv(callerEnvironment)
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
     HOME: home.home,
@@ -114,18 +116,15 @@ export function electronEnvironment(
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: lease.metadata.projectPath,
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: lease.metadata.profilePath,
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
+    ...(caller.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
       : {}),
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
+    ...(caller.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
       ? { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }
       : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
-      ? {
-          OPENWAGGLE_AUTOMATION_PI_EXTENSIONS:
-            callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS,
-        }
+    ...(caller.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
+      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: caller.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
       : {}),
   })
 }

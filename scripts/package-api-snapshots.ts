@@ -2,6 +2,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createScanner, LanguageVariant, SyntaxKind } from 'typescript/unstable/ast'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 type JsonObject = Readonly<Record<string, unknown>>
 
@@ -53,14 +55,16 @@ function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const namedPackageJsonSchema = Schema.Struct({ name: Schema.String, exports: unknownField })
+const typedExportTargetSchema = Schema.Struct({ types: Schema.String })
+
 function toPackageJson(value: unknown, packageJsonPath: string): PackageJson {
-  if (!isJsonObject(value) || typeof value.name !== 'string') {
+  const manifest = objectFields(namedPackageJsonSchema, value)
+  if (manifest === undefined) {
     throw new Error(`${packageJsonPath} must contain a package name.`)
   }
-
-  const exportsValue = isJsonObject(value.exports) ? value.exports : undefined
-
-  return { exports: exportsValue, name: value.name }
+  const exportsValue = isJsonObject(manifest.exports) ? manifest.exports : undefined
+  return { exports: exportsValue, name: manifest.name }
 }
 
 async function readPackageJson(packageRoot: string) {
@@ -79,15 +83,8 @@ function normalizeExportTargetPath(targetPath: string) {
 }
 
 function declarationPathForExportTarget(target: unknown) {
-  if (typeof target === 'string') {
-    return undefined
-  }
-
-  if (!isJsonObject(target) || typeof target.types !== 'string') {
-    return undefined
-  }
-
-  return normalizeExportTargetPath(target.types)
+  const typedTarget = objectFields(typedExportTargetSchema, target)
+  return typedTarget === undefined ? undefined : normalizeExportTargetPath(typedTarget.types)
 }
 
 function listTypedExports(packageJson: PackageJson) {
@@ -184,7 +181,7 @@ async function collectDeclarationBlocks(packageRoot: string, declarationPath: st
 }
 
 function isMissingFileError(error: unknown) {
-  return isJsonObject(error) && error.code === 'ENOENT'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 export async function createPackageApiSnapshot({

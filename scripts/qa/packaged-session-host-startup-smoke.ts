@@ -18,6 +18,7 @@ import {
   waitForNormalSecondInstanceExit,
 } from './single-instance-lock-proof'
 import {
+  type CliOutcome,
   cliOutcome,
   launchGui,
   runJsonCli,
@@ -187,7 +188,7 @@ async function assertLegacySessionMigrated(
   assertPackagedSemanticSearch(cliOutcome(searchResponse))
 }
 
-export function assertPackagedSemanticSearch(outcome: Record<string, unknown>) {
+export function assertPackagedSemanticSearch(outcome: CliOutcome) {
   const sessions = outcome.sessions
   const sessionRecords: unknown[] = Array.isArray(sessions) ? sessions : []
   const semanticReadiness = outcome.semanticReadiness

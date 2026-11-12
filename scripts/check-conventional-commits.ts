@@ -6,6 +6,7 @@ import { isAncestor } from './git-ancestry'
 import { collectUpstreamUpdateMergeHashes } from './upstream-merge-attribution'
 import { checkPackageReleaseLines } from './package-release-lines'
 import { touchesPublishablePackage } from './publishable-package-diff'
+import { scriptEnv } from './support/env'
 
 const execFile = promisify(execFileCallback)
 
@@ -111,7 +112,7 @@ async function resolveBaseline(input: {
   readonly options: ConventionalCommitValidationOptions
   readonly to: string
 }) {
-  const explicitBaseline = input.options.baseline ?? process.env.OPENWAGGLE_COMMIT_POLICY_BASELINE
+  const explicitBaseline = input.options.baseline ?? scriptEnv().OPENWAGGLE_COMMIT_POLICY_BASELINE
   if (explicitBaseline !== undefined && explicitBaseline.length > 0) {
     return explicitBaseline
   }

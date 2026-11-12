@@ -32,7 +32,7 @@ function piExtensionPaths(manifest: unknown) {
   return pi.extensions
 }
 
-const packageEntry = await import.meta.resolve('@openwaggle/pi-waggle')
+const packageEntry = import.meta.resolve('@openwaggle/pi-waggle')
 const packageRoot = path.dirname(path.dirname(fileURLToPath(packageEntry)))
 const manifestPath = path.join(packageRoot, 'package.json')
 const manifest: unknown = JSON.parse(await fs.readFile(manifestPath, 'utf8'))

@@ -1,3 +1,5 @@
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 import type {
   PackageDocumentationDefinition,
   VersionedPackageDocumentationDefinition,
@@ -34,25 +36,48 @@ function stringArray(value: unknown) {
     : undefined
 }
 
+/** The `package.json` fields the docs metadata reads; a field of the wrong type reads as absent. */
+const manifestFieldsSchema = Schema.Struct({
+  bugs: unknownField,
+  description: unknownField,
+  exports: unknownField,
+  homepage: unknownField,
+  keywords: unknownField,
+  name: unknownField,
+  repository: unknownField,
+  version: unknownField,
+})
+const urlFieldSchema = Schema.Struct({ url: unknownField })
+const repositoryFieldsSchema = Schema.Struct({
+  directory: unknownField,
+  type: unknownField,
+  url: unknownField,
+})
+
+function stringField(value: unknown) {
+  return typeof value === 'string' ? value : undefined
+}
+
 export function packageManifest(value: unknown): PackageManifest {
-  if (!isJsonObject(value)) return {}
-  const repository = isJsonObject(value.repository) ? value.repository : undefined
-  const bugs = isJsonObject(value.bugs) ? value.bugs : undefined
+  const manifest = objectFields(manifestFieldsSchema, value)
+  if (manifest === undefined) return {}
+  const repository = objectFields(repositoryFieldsSchema, manifest.repository)
+  const bugsUrl = stringField(objectFields(urlFieldSchema, manifest.bugs)?.url)
   return {
-    bugs: bugs && typeof bugs.url === 'string' ? { url: bugs.url } : undefined,
-    description: typeof value.description === 'string' ? value.description : undefined,
-    exports: isJsonObject(value.exports) ? value.exports : undefined,
-    homepage: typeof value.homepage === 'string' ? value.homepage : undefined,
-    keywords: stringArray(value.keywords),
-    name: typeof value.name === 'string' ? value.name : undefined,
+    bugs: bugsUrl === undefined ? undefined : { url: bugsUrl },
+    description: stringField(manifest.description),
+    exports: isJsonObject(manifest.exports) ? manifest.exports : undefined,
+    homepage: stringField(manifest.homepage),
+    keywords: stringArray(manifest.keywords),
+    name: stringField(manifest.name),
     repository: repository
       ? {
-          directory: typeof repository.directory === 'string' ? repository.directory : undefined,
-          type: typeof repository.type === 'string' ? repository.type : undefined,
-          url: typeof repository.url === 'string' ? repository.url : undefined,
+          directory: stringField(repository.directory),
+          type: stringField(repository.type),
+          url: stringField(repository.url),
         }
       : undefined,
-    version: typeof value.version === 'string' ? value.version : undefined,
+    version: stringField(manifest.version),
   }
 }
 
@@ -92,7 +117,8 @@ export function withPackageDocumentationMetadata(
   definition: PackageDocumentationDefinition,
   docsUrl: string,
 ) {
-  if (!isJsonObject(value)) {
+  const manifest = objectFields(manifestFieldsSchema, value)
+  if (!isJsonObject(value) || manifest === undefined) {
     throw new Error(`${definition.packageName} package manifest must be an object.`)
   }
   return {
@@ -102,13 +128,13 @@ export function withPackageDocumentationMetadata(
     keywords: definition.keywords,
     homepage: docsUrl,
     repository: {
-      ...(isJsonObject(value.repository) ? value.repository : {}),
+      ...(isJsonObject(manifest.repository) ? manifest.repository : {}),
       type: 'git',
       url: 'https://github.com/OpenWaggle/OpenWaggle.git',
       directory: `packages/${definition.slug}`,
     },
     bugs: {
-      ...(isJsonObject(value.bugs) ? value.bugs : {}),
+      ...(isJsonObject(manifest.bugs) ? manifest.bugs : {}),
       url: 'https://github.com/OpenWaggle/OpenWaggle/issues',
     },
   }

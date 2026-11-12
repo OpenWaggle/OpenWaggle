@@ -1,4 +1,4 @@
-import type { Node, Rule } from '@oxlint/plugins'
+import type { Rule } from '@oxlint/plugins'
 import { jsxIdentifierName, normalizedFilename } from '../ast-helpers.ts'
 
 const RAW_BUTTON_ALLOWED_FILES = new Set([
@@ -27,7 +27,7 @@ export const noRawRendererButtonsRule: Rule = {
   },
   create(context) {
     return {
-      JSXOpeningElement(node: Node) {
+      JSXOpeningElement(node) {
         if (jsxIdentifierName(node) !== 'button' || isRawButtonAllowed(context.filename)) {
           return
         }

@@ -3,6 +3,7 @@
  * promotion guard"). `app-release-state.ts verify-promotion` feeds them Git and GitHub data.
  */
 import { Schema } from 'effect'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export const APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 export const ROOT_MANIFEST_PATH = 'package.json'
@@ -50,7 +51,7 @@ export function latestReleaseCandidateTag(tags: readonly string[], targetVersion
   if (!STABLE_VERSION_PATTERN.test(targetVersion)) return null
   let selected: { readonly tag: string; readonly sequence: number } | null = null
   for (const tag of tags) {
-    const groups = RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups
+    const groups = namedGroups(RELEASE_CANDIDATE_TAG_PATTERN.exec(tag), ['core', 'sequence'])
     if (!groups || groups.core !== targetVersion) continue
     const sequence = Number(groups.sequence)
     if (!selected || sequence > selected.sequence) selected = { tag, sequence }
@@ -107,7 +108,7 @@ export type PromotionBase =
 
 function releaseCandidateTagsFor(tags: readonly string[], targetVersion: string) {
   return tags.filter(
-    (tag) => RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups?.core === targetVersion,
+    (tag) => namedGroups(RELEASE_CANDIDATE_TAG_PATTERN.exec(tag), ['core'])?.core === targetVersion,
   )
 }
 

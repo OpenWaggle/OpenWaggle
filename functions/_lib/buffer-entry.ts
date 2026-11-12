@@ -56,7 +56,8 @@ export function bufferKey(day: string, uuid: string) {
 
 /** The day of a buffer key, or `undefined` for a key the endpoint did not write. */
 export function bufferKeyDay(key: string) {
-  return BUFFER_KEY.exec(key)?.groups?.day
+  const { day } = BUFFER_KEY.exec(key)?.groups ?? {}
+  return day
 }
 
 /** The tombstone of a buffer key, written only when deleting its published entry fails. */
@@ -227,8 +228,8 @@ function rows<T>(value: unknown, parse: (row: unknown) => T | undefined) {
 export function parseBufferEntry(text: string, day: string): BufferEntry | undefined {
   const parsed = parseJsonText(text)
   if (!parsed.ok || !isRecord(parsed.value)) return undefined
-  const { v, c, s } = parsed.value
-  if (v !== BUFFER_ENTRY_VERSION || parsed.value.day !== day) return undefined
+  const { v, c, s, day: entryDay } = parsed.value
+  if (v !== BUFFER_ENTRY_VERSION || entryDay !== day) return undefined
   if (usageStatisticsEpochDay(day) === undefined) return undefined
   const counts = rows(c, countRow)
   const sums = rows(s, sumRow)

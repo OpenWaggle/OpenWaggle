@@ -29,6 +29,7 @@ import {
   removeScratchDirectories,
   scratchDirectory,
 } from './published-json-schemas.test-harness'
+import { Schema } from '@shared/schema'
 
 /** The exported Heartbeat of a task created from `input`: omitted settings stay omitted. */
 function exportedHeartbeat(input: HeartbeatSettingsInput) {
@@ -81,10 +82,22 @@ const vscodeSchemaAssociation: ExampleKind = {
   },
 }
 
+/** Pi's `models.json`: the models each provider lists, by provider name. */
+const modelsFileSchema = Schema.Struct({
+  providers: Schema.Record({
+    key: Schema.String,
+    value: Schema.Struct({
+      models: Schema.optional(Schema.Array(Schema.Struct({ id: Schema.Unknown }))),
+    }),
+  }),
+})
+const readArgumentsSchema = Schema.Struct({ path: Schema.String })
+const scheduledTasksExportSchema = Schema.Struct({ type: Schema.Literal('scheduled-tasks') })
+
 /** A `$schema` an example names must be the published schema for that file. */
 function expectSchemaKey(value: unknown, fileName: string) {
   if (!isRecord(value) || !('$schema' in record(value))) return
-  expect(record(value).$schema).toBe(`https://openwaggle.ai/schemas/${fileName}`)
+  expect(value).toMatchObject({ $schema: `https://openwaggle.ai/schemas/${fileName}` })
 }
 
 const actionsFile: ExampleKind = {
@@ -162,10 +175,9 @@ const piModelsFile: ExampleKind = {
       refreshOnCreate: false,
     })
     expect(runtime.getError()).toBeUndefined()
-    for (const [provider, config] of Object.entries(record(record(value).providers))) {
-      const models = record(config).models
-      for (const model of Array.isArray(models) ? models : []) {
-        const id = record(model).id
+    const { providers } = Schema.decodeUnknownSync(modelsFileSchema)(value)
+    for (const [provider, config] of Object.entries(providers)) {
+      for (const { id } of config.models ?? []) {
         expect(
           runtime.getModelsOfType('chat', provider).some((candidate) => candidate.id === id),
           `${provider}/${String(id)}`,
@@ -178,7 +190,7 @@ const piModelsFile: ExampleKind = {
 /** What `openwaggle schedules export` prints, and what `import` reads back (ADR 0063). */
 const scheduledTasksExport: ExampleKind = {
   name: 'openwaggle schedules export',
-  matches: (value) => record(value).type === 'scheduled-tasks',
+  matches: (value) => Schema.is(scheduledTasksExportSchema)(value),
   check: async (value) => {
     const filePath = path.join(scratchDirectory('ow-schedules-example-'), 'tasks.json')
     writeFileSync(filePath, JSON.stringify(value))
@@ -265,8 +277,8 @@ describe('the codemode docs example', () => {
     const tools = {
       // Pi's read tool takes one object; `path` is its only required argument.
       read: async (args: unknown) => {
-        const filePath = record(args).path
-        if (typeof filePath !== 'string') throw new Error('read needs { path }.')
+        if (!Schema.is(readArgumentsSchema)(args)) throw new Error('read needs { path }.')
+        const filePath = args.path
         reads.push(filePath)
         return `import x from 'y'\nthrow new Error('${filePath}')\nreturn 1\n`
       },

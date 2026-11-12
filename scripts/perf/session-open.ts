@@ -25,6 +25,7 @@ import { summarizeRuns } from './lib/perf-stats'
 import { delay, withRunningApp } from './lib/running-app'
 import { summarizeIpc } from './lib/ipc-summary'
 import { warmTemplateFor } from './lib/warm-template'
+import { Schema } from '@shared/schema'
 
 const DEFAULT_RUNS = 10
 const TIMEOUT_MS = 90_000
@@ -63,18 +64,22 @@ interface ProfileManifest {
   readonly sessionListText: string
 }
 
+/** The generated profile's `profile.json`; a non-string title is skipped. */
+const profileManifestSchema = Schema.Struct({
+  largeSessions: Schema.Array(Schema.Unknown),
+  sessionListText: Schema.String,
+})
+
 async function readManifest(template: string): Promise<ProfileManifest> {
   const parsed: unknown = JSON.parse(await readFile(path.join(template, 'profile.json'), 'utf8'))
-  const large: unknown =
-    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'largeSessions') : null
-  const listText: unknown =
-    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'sessionListText') : null
-  if (!Array.isArray(large) || typeof listText !== 'string') {
+  if (!Schema.is(profileManifestSchema)(parsed)) {
     throw new Error('Not a generated profile.')
   }
   return {
-    largeSessions: large.filter((title): title is string => typeof title === 'string'),
-    sessionListText: listText,
+    largeSessions: parsed.largeSessions.filter(
+      (title): title is string => typeof title === 'string',
+    ),
+    sessionListText: parsed.sessionListText,
   }
 }
 
@@ -94,22 +99,26 @@ async function openAndWait(page: Page, title: string, lastText: string) {
     }
     const shown = new WeakSet(textNodes())
     const startedAt = performance.now()
-    Reflect.set(globalThis, '__owOpen', null)
+    Object.assign(globalThis, { __owOpen: null })
     const check = () => {
       if (textNodes().some((node) => !shown.has(node))) {
-        Reflect.set(globalThis, '__owOpen', performance.now() - startedAt)
+        Object.assign(globalThis, { __owOpen: performance.now() - startedAt })
       } else requestAnimationFrame(check)
     }
     requestAnimationFrame(check)
   }, lastText)
   await page.getByText(title, { exact: true }).first().click({ timeout: TIMEOUT_MS })
   await page.waitForFunction(
-    () => typeof Reflect.get(globalThis, '__owOpen') === 'number',
+    () => {
+      const probe: object = globalThis
+      return '__owOpen' in probe && typeof probe.__owOpen === 'number'
+    },
     undefined,
     { timeout: TIMEOUT_MS },
   )
   const openMs: unknown = await page.evaluate(() => {
-    const value: unknown = Reflect.get(globalThis, '__owOpen')
+    const probe: object = globalThis
+    const value: unknown = '__owOpen' in probe ? probe.__owOpen : undefined
     return value
   })
   return typeof openMs === 'number' ? Math.round(openMs) : null
@@ -160,9 +169,14 @@ async function measureOpen(
       const ipc: unknown = JSON.parse(String(await inspector.evaluate(IPC_LOG_READ)))
       const dom = await page.evaluate(() => ({
         domNodes: document.getElementsByTagName('*').length,
-        jsHeapBytes: Number(
-          Reflect.get(Reflect.get(performance, 'memory') ?? {}, 'usedJSHeapSize') ?? 0,
-        ),
+        // Chromium's non-standard `performance.memory`.
+        jsHeapBytes:
+          'memory' in performance &&
+          typeof performance.memory === 'object' &&
+          performance.memory !== null &&
+          'usedJSHeapSize' in performance.memory
+            ? Number(performance.memory.usedJSHeapSize)
+            : 0,
       }))
       return {
         app: app.label,

@@ -23,17 +23,14 @@ export function docsPath(slug: string): string {
 interface HastNode {
   type: string
   tagName?: string
-  properties?: Record<string, unknown>
+  properties?: { href?: unknown; src?: unknown; className?: unknown }
   children?: HastNode[]
 }
 
 function visitLinks(node: HastNode) {
-  if (
-    node.type === 'element' &&
-    node.tagName === 'a' &&
-    typeof node.properties?.href === 'string'
-  ) {
-    node.properties.href = withTrailingSlash(node.properties.href)
+  const properties = node.properties
+  if (node.type === 'element' && node.tagName === 'a' && typeof properties?.href === 'string') {
+    properties.href = withTrailingSlash(properties.href)
   }
   for (const child of node.children ?? []) visitLinks(child)
 }

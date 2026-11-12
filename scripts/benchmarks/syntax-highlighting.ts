@@ -17,6 +17,7 @@ import {
   syntaxHighlightAdmission,
   syntaxSourceFingerprint,
 } from '../../src/shared/syntax-highlighting-performance'
+import { scriptEnv } from '../support/env'
 
 // Nearest-rank p95 is the second-slowest value at twenty samples and the third-slowest at forty.
 // Forty samples therefore tolerate up to two scheduler-descheduled samples. The hosted profile
@@ -128,7 +129,7 @@ function isProfile(value: unknown): value is SyntaxBenchmarkProfile {
 }
 
 function benchmarkProfilePath() {
-  const configuredPath = process.env.SYNTAX_BENCHMARK_PROFILE
+  const configuredPath = scriptEnv().SYNTAX_BENCHMARK_PROFILE
   return configuredPath ? path.resolve(configuredPath) : DEFAULT_PROFILE_PATH
 }
 

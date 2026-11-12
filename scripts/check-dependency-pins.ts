@@ -15,6 +15,8 @@ import {
   pinViolations,
 } from './dependency-pins/pins'
 import { parseBaseArgument, resolveBase } from './support/git-base'
+import { Schema } from '@shared/schema'
+import { objectEntries, objectFields, unknownField } from './support/object-fields'
 
 /**
  * `bun scripts/check-dependency-pins.ts [--base <ref>]`. Compares the manifests with those at
@@ -42,9 +44,9 @@ interface CachedLatest {
 
 type LatestCache = Record<string, CachedLatest>
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const cachedLatestSchema = Schema.Struct({ latest: Schema.String, checkedAt: Schema.Number })
+const distTagsDocumentSchema = Schema.Struct({ 'dist-tags': unknownField })
+const latestTagSchema = Schema.Struct({ latest: unknownField })
 
 async function git(root: string, args: readonly string[]) {
   const { stdout } = await execFile('git', [...args], { cwd: root, maxBuffer: GIT_OUTPUT_LIMIT })
@@ -88,15 +90,10 @@ async function readLatestCache(file: string): Promise<LatestCache> {
   } catch {
     return {}
   }
-  const value: unknown = JSON.parse(text)
-  if (!isRecord(value)) return {}
   const cache: LatestCache = {}
-  for (const [name, entry] of Object.entries(value)) {
-    if (!isRecord(entry)) continue
-    const { latest, checkedAt } = entry
-    if (typeof latest === 'string' && typeof checkedAt === 'number') {
-      cache[name] = { latest, checkedAt }
-    }
+  for (const [name, entry] of objectEntries(JSON.parse(text)) ?? []) {
+    const cached = objectFields(cachedLatestSchema, entry)
+    if (cached !== undefined) cache[name] = { latest: cached.latest, checkedAt: cached.checkedAt }
   }
   return cache
 }
@@ -110,8 +107,8 @@ async function writeLatestCache(file: string, cache: LatestCache) {
 
 /** `dist-tags.latest` of an abbreviated packument. */
 export function latestDistTag(document: unknown) {
-  if (!isRecord(document) || !isRecord(document['dist-tags'])) return undefined
-  const { latest } = document['dist-tags']
+  const distTags = objectFields(distTagsDocumentSchema, document)?.['dist-tags']
+  const latest = objectFields(latestTagSchema, distTags)?.latest
   return typeof latest === 'string' ? latest : undefined
 }
 

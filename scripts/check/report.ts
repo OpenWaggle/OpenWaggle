@@ -4,6 +4,8 @@
 import { readFile } from 'node:fs/promises'
 import { capFindings, parseFindings } from './findings'
 import type { CheckGate, CheckStep } from './step-model'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from '../support/object-fields'
 
 export const CHECK_OUTPUT_DIRECTORY = '.tmp/check'
 export const REPORT_FILE = `${CHECK_OUTPUT_DIRECTORY}/report.json`
@@ -92,19 +94,22 @@ export function formatStepList(
   return lines.join('\n')
 }
 
+const reportStepsSchema = Schema.Struct({ steps: unknownField })
+const stepDurationSchema = Schema.Struct({
+  id: Schema.String,
+  durationMs: Schema.Number,
+  status: unknownField,
+})
+
 /** Step durations from a report, skipping cached ones (they say nothing about the real cost). */
 export function reportDurations(report: unknown) {
   const durations = new Map<string, number>()
-  const steps: unknown =
-    report !== null && typeof report === 'object' ? Reflect.get(report, 'steps') : undefined
+  const steps = objectFields(reportStepsSchema, report)?.steps
   if (!Array.isArray(steps)) return durations
   for (const entry of steps) {
-    if (entry === null || typeof entry !== 'object') continue
-    const id: unknown = Reflect.get(entry, 'id')
-    const duration: unknown = Reflect.get(entry, 'durationMs')
-    const status: unknown = Reflect.get(entry, 'status')
-    if (typeof id !== 'string' || typeof duration !== 'number' || status === 'cached') continue
-    durations.set(id, duration)
+    const step = objectFields(stepDurationSchema, entry)
+    if (step === undefined || step.status === 'cached') continue
+    durations.set(step.id, step.durationMs)
   }
   return durations
 }

@@ -40,6 +40,10 @@ export interface ProbedPty {
   readonly waitForResourceDrain: () => Promise<void>
   readonly write: (data: string) => void
   readonly resize: (columns: number, rows: number) => void
+  /** The POSIX master descriptor and identities the patched node-pty exposes; absent on Windows. */
+  readonly fd?: unknown
+  readonly ttyIdentity?: unknown
+  readonly spawnProcessIdentity?: unknown
 }
 
 export interface PtySpawner {
@@ -54,13 +58,13 @@ export interface PtySpawner {
 export function signalOwnedPosixPty(nodePty: PtySpawner, pty: ProbedPty) {
   const native = nodePty.native
   if (native === null || typeof native !== 'object') throw new Error('Missing POSIX native API.')
-  const signal: unknown = Reflect.get(native, 'signalByTty')
+  const signal: unknown = 'signalByTty' in native ? native.signalByTty : undefined
   if (typeof signal !== 'function') throw new Error('Missing POSIX PTY membership signal.')
   const result: unknown = Reflect.apply(signal, native, [
-    Reflect.get(pty, 'fd'),
-    Reflect.get(pty, 'ttyIdentity'),
+    pty.fd,
+    pty.ttyIdentity,
     pty.pid,
-    Reflect.get(pty, 'spawnProcessIdentity'),
+    pty.spawnProcessIdentity,
     constants.signals.SIGHUP,
   ])
   if (typeof result !== 'number' || !Number.isSafeInteger(result) || result < 0) {
@@ -147,7 +151,7 @@ export function assertPatchedPty(value: unknown, backend: Backend, platform: Nod
         throw new Error(`${backend.label} did not expose ${property}.`)
       }
     }
-    const fd: unknown = Reflect.get(value, 'fd')
+    const { fd } = value
     if (typeof fd !== 'number' || !Number.isSafeInteger(fd) || fd < 0) {
       throw new Error(`${backend.label} did not expose an active PTY master descriptor.`)
     }

@@ -24,6 +24,8 @@ import { shortLivedAwsEnvironment } from './evaluate-agent-context-aws'
 import { type EvalRunRecord, runEvalTask } from './evaluate-agent-context-runner'
 import { compareWithBaseline, summarizeEvalRuns } from './evaluate-agent-context-summary'
 import { AGENT_CONTEXT_TASKS } from './evaluate-agent-context-tasks'
+import { Schema } from '@shared/schema'
+import { objectFields } from './support/object-fields'
 
 const DEFAULT_REPS = 5
 const DEFAULT_CONCURRENCY = 3
@@ -61,15 +63,15 @@ function forwardedEnvironment() {
   )
 }
 
+const runRecordFieldsSchema = Schema.Struct({
+  taskId: Schema.String,
+  rep: Schema.Number,
+  pass: Schema.Boolean,
+})
+
 /** Runs recorded by this script: the summary only reads the fields it was written with. */
 function isRunRecord(value: unknown): value is EvalRunRecord {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof Reflect.get(value, 'taskId') === 'string' &&
-    typeof Reflect.get(value, 'rep') === 'number' &&
-    typeof Reflect.get(value, 'pass') === 'boolean'
-  )
+  return objectFields(runRecordFieldsSchema, value) !== undefined
 }
 
 async function completedRuns(file: string) {

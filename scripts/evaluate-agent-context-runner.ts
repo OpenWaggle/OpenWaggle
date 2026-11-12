@@ -162,9 +162,11 @@ async function applySettings(
   settings: Readonly<Record<string, unknown>>,
 ) {
   await page.evaluate(async (values) => {
-    const api: unknown = Reflect.get(globalThis, 'api')
+    // Runs in the page, so it narrows with `in` instead of importing a schema.
+    const scope: object = globalThis
+    const api: unknown = 'api' in scope ? scope.api : undefined
     const update: unknown =
-      typeof api === 'object' && api !== null ? Reflect.get(api, 'updateSettings') : null
+      typeof api === 'object' && api !== null && 'updateSettings' in api ? api.updateSettings : null
     if (typeof update === 'function') await Promise.resolve(Reflect.apply(update, api, [values]))
   }, settings)
 }

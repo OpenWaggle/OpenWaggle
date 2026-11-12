@@ -6,6 +6,9 @@
  * expire and cannot change the user's configuration.
  */
 import { execFileSync } from 'node:child_process'
+import { Schema } from '@shared/schema'
+import { scriptEnv } from './support/env'
+import { objectFields, unknownField } from './support/object-fields'
 
 /** Runs the AWS CLI with `args` and returns its stdout. */
 export type AwsCli = (args: readonly string[]) => string
@@ -31,9 +34,13 @@ function stringField(record: Record<string, unknown>, name: string) {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
+/** `aws sts get-session-token` wraps the credentials in `Credentials`; `export-credentials` does not. */
+const credentialsEnvelopeSchema = Schema.Struct({ Credentials: unknownField })
+
 function parseCredentials(raw: string, source: string): ExportedCredentials {
   const parsed: unknown = JSON.parse(raw)
-  const record = isRecord(parsed) && isRecord(parsed.Credentials) ? parsed.Credentials : parsed
+  const wrapped = objectFields(credentialsEnvelopeSchema, parsed)?.Credentials
+  const record = isRecord(wrapped) ? wrapped : parsed
   if (!isRecord(record)) throw new Error(`${source} printed no credentials.`)
   const accessKeyId = stringField(record, 'AccessKeyId')
   const secretAccessKey = stringField(record, 'SecretAccessKey')
@@ -81,8 +88,8 @@ export function shortLivedAwsEnvironment(
     credentials = parseCredentials(aws(tokenArgs), 'aws sts get-session-token')
   }
   const region =
-    rest.AWS_REGION ??
-    rest.AWS_DEFAULT_REGION ??
+    scriptEnv(rest).AWS_REGION ??
+    scriptEnv(rest).AWS_DEFAULT_REGION ??
     aws(['configure', 'get', 'region', '--profile', profile]).trim()
   return {
     ...rest,

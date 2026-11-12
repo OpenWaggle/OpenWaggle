@@ -40,10 +40,6 @@ interface PackageDocumentationResult {
   readonly violations: readonly string[]
 }
 
-function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function normalizeMarkdown(value: string) {
   return `${value.replaceAll('\r\n', '\n').trimEnd()}\n`
 }
@@ -163,7 +159,7 @@ async function readIfPresent(filePath: string) {
   try {
     return await readFile(filePath, 'utf8')
   } catch (error) {
-    if (isJsonObject(error) && error.code === 'ENOENT') return undefined
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error
   }
 }

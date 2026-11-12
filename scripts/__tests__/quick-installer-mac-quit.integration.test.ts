@@ -5,6 +5,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { execFailure } from '../test-support/exec-failure'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 const QUIT_START = '# BEGIN TESTABLE MAC APP QUIT'
@@ -176,7 +177,7 @@ QUIT_MAC_APP='${quitMacApp}'
 ${section(source, HOST_STOP_START, HOST_STOP_END)}
 stop_session_host_for_update "$1" 1.0.0-beta.25`
     return execFileAsync('bash', ['-c', script, 'installer-host-stop-test', executable], {
-      env: { PATH: process.env.PATH ?? '', TMPDIR: directory },
+      env: { PATH: scriptEnv().PATH ?? '', TMPDIR: directory },
     }).catch(execFailure)
   }
 

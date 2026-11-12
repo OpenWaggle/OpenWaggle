@@ -1,4 +1,5 @@
 import type { MainChunkManifestEntry } from './vite/main-chunk-manifest'
+import { Schema } from '@shared/schema'
 
 /**
  * What each kind of OpenWaggle process loads before it does its work, named by source module
@@ -65,19 +66,16 @@ export const MAIN_PROCESS_BUDGETS: readonly MainProcessBudget[] = [
   },
 ]
 
+const mainChunkManifestEntrySchema = Schema.Struct({
+  file: Schema.String,
+  isEntry: Schema.Boolean,
+  modules: Schema.Array(Schema.String),
+  imports: Schema.Array(Schema.String),
+  dynamicImports: Schema.Array(Schema.String),
+})
+
 function isMainChunkManifestEntry(value: unknown): value is MainChunkManifestEntry {
-  if (typeof value !== 'object' || value === null) return false
-  const stringArray = (key: string) => {
-    const field: unknown = Reflect.get(value, key)
-    return Array.isArray(field) && field.every((item) => typeof item === 'string')
-  }
-  return (
-    typeof Reflect.get(value, 'file') === 'string' &&
-    typeof Reflect.get(value, 'isEntry') === 'boolean' &&
-    stringArray('modules') &&
-    stringArray('imports') &&
-    stringArray('dynamicImports')
-  )
+  return Schema.is(mainChunkManifestEntrySchema)(value)
 }
 
 export function parseMainChunkManifest(value: unknown): readonly MainChunkManifestEntry[] {

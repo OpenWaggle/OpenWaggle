@@ -1,6 +1,6 @@
 import path from 'node:path'
-import type { Context, Node, Rule } from '@oxlint/plugins'
-import { hasNodeType, moduleSpecifierOf, normalizedFilename, property } from '../ast-helpers.ts'
+import type { Context, ESTree, Rule } from '@oxlint/plugins'
+import { moduleSpecifierOf, normalizedFilename } from '../ast-helpers.ts'
 
 /**
  * The desktop shell boundary (ADR 0064): main code reaches Electron through the desktop shell
@@ -70,7 +70,7 @@ export function desktopShellBoundaryReason(importPath: string, projectPath: stri
     : `${importPath} may only be imported in src/main/adapters/electron/ or src/preload/electron-transport.ts; use a desktop shell port (src/main/ports/desktop-shell/) or its binding in src/main/desktop-shell/.`
 }
 
-function report(context: Context, node: Node, reason: string) {
+function report(context: Context, node: ESTree.Node, reason: string) {
   context.report({ node, messageId: 'electronOutsideShellAdapter', data: { reason } })
 }
 
@@ -84,7 +84,7 @@ export const desktopShellBoundaryRule: Rule = {
   create(context) {
     const projectPath = toProjectPath(context.filename)
 
-    function checkReference(node: Node) {
+    function checkReference(node: ESTree.Node) {
       const importPath = moduleSpecifierOf(node)
       const reason = importPath ? desktopShellBoundaryReason(importPath, projectPath) : null
       if (reason) report(context, node, reason)
@@ -97,9 +97,9 @@ export const desktopShellBoundaryRule: Rule = {
       ImportDeclaration: checkReference,
       ImportExpression: checkReference,
       TSImportType: checkReference,
-      TSQualifiedName(node: Node) {
-        const left = property(node, 'left')
-        if (!hasNodeType(left, 'Identifier') || property(left, 'name') !== ELECTRON_NAMESPACE) {
+      TSQualifiedName(node) {
+        const { left } = node
+        if (left.type !== 'Identifier' || left.name !== ELECTRON_NAMESPACE) {
           return
         }
         const reason = desktopShellBoundaryReason('electron', projectPath)

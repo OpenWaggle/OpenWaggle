@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { scriptEnv } from './support/env'
 
 export const PACKAGE_MANAGER_NAMES = ['npm', 'pnpm', 'yarn', 'bun'] as const
 export type PackageManagerName = (typeof PACKAGE_MANAGER_NAMES)[number]
@@ -34,13 +35,15 @@ export function packageSmokeRequiredPackageManagers(value: string | undefined) {
 export function readPackageSmokeEnvironment(
   environment: NodeJS.ProcessEnv = process.env,
 ): PackageSmokeEnvironment {
-  const executablePath = environment.OPENWAGGLE_PACKAGE_BROWSER_EXECUTABLE?.trim()
+  const {
+    OPENWAGGLE_PACKAGE_BROWSER_EXECUTABLE: executable,
+    OPENWAGGLE_PACKAGE_BROWSER_SMOKE: browserSmoke,
+    OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: requiredManagers,
+  } = scriptEnv(environment)
 
   return {
-    browserExecutablePath: executablePath || undefined,
-    browserSmokeEnabled: packageBrowserSmokeEnabled(environment.OPENWAGGLE_PACKAGE_BROWSER_SMOKE),
-    requiredPackageManagers: packageSmokeRequiredPackageManagers(
-      environment.OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS,
-    ),
+    browserExecutablePath: executable?.trim() || undefined,
+    browserSmokeEnabled: packageBrowserSmokeEnabled(browserSmoke),
+    requiredPackageManagers: packageSmokeRequiredPackageManagers(requiredManagers),
   }
 }

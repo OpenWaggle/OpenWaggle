@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   HDIUTIL_ATTACH_LOG,
   RUNNER_OFFLINE_LOG,
@@ -79,7 +79,10 @@ function loadExecDmgbuildWithRetry(): ExecDmgbuildWithRetry {
     electronBuilderRequire.resolve('app-builder-lib/package.json'),
   )
   const dmgUtil: unknown = appBuilderRequire('dmg-builder/out/dmgUtil')
-  const candidate: unknown = Reflect.get(Object(dmgUtil), 'execDmgbuildWithRetry')
+  const candidate =
+    typeof dmgUtil === 'object' && dmgUtil !== null && 'execDmgbuildWithRetry' in dmgUtil
+      ? dmgUtil.execDmgbuildWithRetry
+      : undefined
   if (typeof candidate !== 'function') {
     throw new Error('The installed dmg-builder is missing the OpenWaggle retry patch.')
   }
@@ -90,22 +93,17 @@ function loadExecDmgbuildWithRetry(): ExecDmgbuildWithRetry {
 describe.skipIf(process.platform === 'win32')('dmg-builder transient hdiutil retry patch', () => {
   let execDmgbuildWithRetry: ExecDmgbuildWithRetry
   let lockDirectory = ''
-  const hostTemporaryDirectory = process.env.TMPDIR
 
   // electron-builder's toolset lock lives in os.tmpdir() and is fixed when its module loads.
   // A private TMPDIR keeps these tests off the machine-wide lock that real builds share.
   beforeAll(() => {
     lockDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'macos-build-failure-lock-'))
-    process.env.TMPDIR = lockDirectory
+    vi.stubEnv('TMPDIR', lockDirectory)
     execDmgbuildWithRetry = loadExecDmgbuildWithRetry()
   })
 
   afterAll(() => {
-    if (hostTemporaryDirectory === undefined) {
-      delete process.env.TMPDIR
-    } else {
-      process.env.TMPDIR = hostTemporaryDirectory
-    }
+    vi.unstubAllEnvs()
     fs.rmSync(lockDirectory, { recursive: true, force: true })
   })
 

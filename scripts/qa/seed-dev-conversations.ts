@@ -14,6 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { getDatabasePath, seedSessions } from '../support/session-fixtures'
+import { scriptEnv } from '../support/env'
 
 const DEFAULT_MESSAGE_COUNT = 400
 const ROLE_ALTERNATION = 2
@@ -26,24 +27,22 @@ const CLI_ARG_OFFSET = 2
 
 /** Electron's userData location for this app, per platform. */
 function resolveUserDataDir() {
-  const override = process.env.OPENWAGGLE_USER_DATA_DIR
+  const env = scriptEnv()
+  const override = env.OPENWAGGLE_USER_DATA_DIR
   if (override !== undefined && override.length > 0) return override
   if (process.platform === 'darwin') {
     return path.join(os.homedir(), 'Library', 'Application Support', 'openwaggle')
   }
   if (process.platform === 'win32') {
-    return path.join(
-      process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'),
-      'openwaggle',
-    )
+    return path.join(env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'openwaggle')
   }
-  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'openwaggle')
+  return path.join(env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'openwaggle')
 }
 
 const USER_DATA_DIR = resolveUserDataDir()
 /** Where the fixture repositories are created. Never a guess at someone's own project folder. */
 const PROJECT_ROOT =
-  process.env.OPENWAGGLE_QA_FIXTURE_ROOT ?? path.join(os.tmpdir(), 'openwaggle-qa-fixtures')
+  scriptEnv().OPENWAGGLE_QA_FIXTURE_ROOT ?? path.join(os.tmpdir(), 'openwaggle-qa-fixtures')
 
 const args = process.argv.slice(CLI_ARG_OFFSET)
 
@@ -208,7 +207,7 @@ function removeSeededSessions() {
    */
   const placeholders = CONVERSATIONS.map(() => '?').join(', ')
   const empty = db
-    .prepare<unknown[], Record<string, unknown>>(
+    .prepare<unknown[], { readonly id: unknown }>(
       `SELECT id FROM sessions WHERE title IN (${placeholders})`,
     )
     .all(...CONVERSATIONS.map((conversation) => conversation.title))

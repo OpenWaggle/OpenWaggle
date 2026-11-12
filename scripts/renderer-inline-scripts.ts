@@ -5,6 +5,7 @@
  * fails `bun run check` instead of blanking the startup scale in packaged builds.
  */
 import { createHash } from 'node:crypto'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 const SCRIPT_ELEMENT = /<script(?<attributes>\s[^>]*)?>(?<body>[\s\S]*?)<\/script>/giu
 const SOURCE_ATTRIBUTE = /\ssrc\s*=/iu
@@ -12,10 +13,10 @@ const SOURCE_ATTRIBUTE = /\ssrc\s*=/iu
 /** The CSP source of every inline script in `html`, in order. */
 export function inlineScriptHashes(html: string) {
   return [...html.matchAll(SCRIPT_ELEMENT)]
-    .filter((match) => !SOURCE_ATTRIBUTE.test(match.groups?.attributes ?? ''))
+    .filter((match) => !SOURCE_ATTRIBUTE.test(namedGroups(match, ['attributes'])?.attributes ?? ''))
     .map((match) => {
       const digest = createHash('sha256')
-        .update(match.groups?.body ?? '')
+        .update(namedGroups(match, ['body'])?.body ?? '')
         .digest('base64')
       return `'sha256-${digest}'`
     })

@@ -6,6 +6,9 @@
  * branch arm, in source coordinates, from a v8 `coverage-final.json` (Istanbul shape).
  */
 
+import { Schema } from '@shared/schema'
+import { objectEntries, objectMap, unknownField } from '../support/object-fields'
+
 /** Two coverers are enough: a unit is either unique to one file or shared. */
 const MAX_COVERERS = 2
 export const COVERAGE_INDEX_VERSION = 1
@@ -32,42 +35,71 @@ interface Location {
   readonly column: number
 }
 
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? { ...value } : {}
-}
+/** One file of `coverage-final.json`: location maps and hit counts, both keyed by unit id. */
+const fileCoverageSchema = Schema.Struct({
+  statementMap: unknownField,
+  s: unknownField,
+  branchMap: unknownField,
+  b: unknownField,
+})
+const locationSchema = Schema.Struct({
+  start: Schema.Struct({ line: Schema.Number, column: Schema.Number }),
+})
+const branchSchema = Schema.Struct({ loc: unknownField })
+const coverageIndexFieldsSchema = Schema.Struct({
+  version: Schema.Literal(COVERAGE_INDEX_VERSION),
+  files: Schema.Array(Schema.Unknown),
+  failed: Schema.Array(Schema.Unknown),
+  units: Schema.Object,
+})
 
 function location(value: unknown): Location | undefined {
-  const start = record(record(value).start)
-  const line = start.line
-  const column = start.column
-  return typeof line === 'number' && typeof column === 'number' ? { line, column } : undefined
+  if (!Schema.is(locationSchema)(value)) return undefined
+  const { line, column } = value.start
+  return { line, column }
 }
 
 /** The units one file's `coverage-final.json` reached, with paths relative to `root`. */
 export function coveredUnits(coverage: unknown, root: string): string[] {
   const units: string[] = []
   const prefix = root.endsWith('/') ? root : `${root}/`
-  for (const [absolute, raw] of Object.entries(record(coverage))) {
+  for (const [absolute, raw] of objectEntries(coverage) ?? []) {
     const file = absolute.startsWith(prefix) ? absolute.slice(prefix.length) : absolute
     if (!SOURCE.test(file) || TEST_CODE.test(file)) continue
-    const entry = record(raw)
-    const statementMap = record(entry.statementMap)
-    for (const [id, hits] of Object.entries(record(entry.s))) {
-      const start = location(statementMap[id])
-      if (typeof hits === 'number' && hits > 0 && start) {
-        units.push(`${file}:${start.line}:${start.column}`)
+    const entry = Schema.is(fileCoverageSchema)(raw) ? raw : {}
+    units.push(...statementUnits(file, entry), ...branchUnits(file, entry))
+  }
+  return units
+}
+
+type FileCoverage = Schema.Schema.Type<typeof fileCoverageSchema>
+
+/** The statements of one file that ran: `s` counts hits, `statementMap` locates each by id. */
+function statementUnits(file: string, entry: FileCoverage) {
+  const units: string[] = []
+  const statementMap = objectMap(entry.statementMap)
+  for (const [id, hits] of objectEntries(entry.s) ?? []) {
+    const start = location(statementMap?.get(id))
+    if (typeof hits === 'number' && hits > 0 && start) {
+      units.push(`${file}:${start.line}:${start.column}`)
+    }
+  }
+  return units
+}
+
+/** The branch arms of one file that ran: `b` counts hits per arm, `branchMap` locates each. */
+function branchUnits(file: string, entry: FileCoverage) {
+  const units: string[] = []
+  const branchMap = objectMap(entry.branchMap)
+  for (const [id, arms] of objectEntries(entry.b) ?? []) {
+    const branch = branchMap?.get(id)
+    const start = location(Schema.is(branchSchema)(branch) ? branch.loc : undefined)
+    if (!Array.isArray(arms) || !start) continue
+    arms.forEach((hits: unknown, arm) => {
+      if (typeof hits === 'number' && hits > 0) {
+        units.push(`${file}:${start.line}:${start.column}#${arm}`)
       }
-    }
-    const branchMap = record(entry.branchMap)
-    for (const [id, arms] of Object.entries(record(entry.b))) {
-      const start = location(record(branchMap[id]).loc)
-      if (!Array.isArray(arms) || !start) continue
-      arms.forEach((hits: unknown, arm) => {
-        if (typeof hits === 'number' && hits > 0) {
-          units.push(`${file}:${start.line}:${start.column}#${arm}`)
-        }
-      })
-    }
+    })
   }
   return units
 }
@@ -140,12 +172,5 @@ export function uniqueUnits(index: CoverageIndex, file: string, units: readonly 
 }
 
 export function isCoverageIndex(value: unknown): value is CoverageIndex {
-  const entry = record(value)
-  return (
-    entry.version === COVERAGE_INDEX_VERSION &&
-    Array.isArray(entry.files) &&
-    Array.isArray(entry.failed) &&
-    typeof entry.units === 'object' &&
-    entry.units !== null
-  )
+  return Schema.is(coverageIndexFieldsSchema)(value)
 }

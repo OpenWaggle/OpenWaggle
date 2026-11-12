@@ -17,6 +17,8 @@ export type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 export { verifyReleaseArtifactBundle } from './package-release-artifact-contract'
 
 const CLI_ARGUMENT_START_INDEX = 2
@@ -60,13 +62,17 @@ export function packedFilename(output: string) {
   return filename
 }
 
+const packedDependenciesSchema = Schema.Struct({ dependencies: unknownField })
+
 function packedDependency(
   plannedPackage: PackageReleasePlanItem,
   packedManifest: Readonly<Record<string, unknown>>,
 ) {
   if (plannedPackage.dependency === undefined) return undefined
-  const dependencyRange = isJsonObject(packedManifest.dependencies)
-    ? packedManifest.dependencies[plannedPackage.dependency]
+  const dependencies = objectFields(packedDependenciesSchema, packedManifest)?.dependencies
+  // The packed dependencies, by name: a map read with the planned dependency's name.
+  const dependencyRange = isJsonObject(dependencies)
+    ? dependencies[plannedPackage.dependency]
     : undefined
   if (
     typeof dependencyRange !== 'string' ||

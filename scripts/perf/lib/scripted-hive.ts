@@ -1,3 +1,5 @@
+import { Schema } from '@shared/schema'
+import { unknownField } from '../../support/object-fields'
 import type { FakeProviderRequest, StreamWriter } from './fake-openai-provider'
 
 /**
@@ -12,20 +14,22 @@ const FIRST_WORKER_PATTERN = /"sessionTitle":\s*"Memory Worker 1"/
 /** The Host refuses a fifth concurrently running child of one parent (`parent_capacity_reached`). */
 const PARENT_CONCURRENCY_LIMIT = 4
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+const messageSchema = Schema.Struct({ role: unknownField, content: unknownField })
+const textPartSchema = Schema.Struct({ text: Schema.String })
 
 function messagesOf(request: FakeProviderRequest) {
-  const messages = request.body.messages
-  return Array.isArray(messages) ? messages.filter(isRecord) : []
+  const messages: unknown = request.body.messages
+  if (!Array.isArray(messages)) return []
+  return messages.flatMap((message: unknown) =>
+    Schema.is(messageSchema)(message) ? [message] : [],
+  )
 }
 
 function textOf(content: unknown) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
-    .map((part) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .map((part: unknown) => (Schema.is(textPartSchema)(part) ? part.text : ''))
     .join('\n')
 }
 

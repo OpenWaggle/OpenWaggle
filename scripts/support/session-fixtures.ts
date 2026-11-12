@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import type { SupportedModelId } from '../../src/shared/types/llm'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './object-fields'
 
 const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
 const DB_WAIT_RETRY_DELAY_MS = 100
@@ -197,8 +199,10 @@ function readOptionalRecordField(
   return isRecord(value) ? value : undefined
 }
 
+const messagePartsSchema = Schema.Struct({ parts: unknownField })
+
 function readParts(messageValue: Readonly<Record<string, unknown>>): readonly unknown[] {
-  const parts = messageValue.parts
+  const { parts } = objectFields(messagePartsSchema, messageValue) ?? {}
   return Array.isArray(parts) ? parts : []
 }
 

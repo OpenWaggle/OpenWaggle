@@ -33,7 +33,7 @@ export function validatePackageReleaseProvenance(provenanceSource: string, viola
         'package-release-provenance.ts must bind attestations to the selected CI run.',
       ],
       [
-        ".runnerEnvironment !== 'github-hosted'",
+        "certificate.runnerEnvironment !== 'github-hosted'",
         'package-release-provenance.ts must require GitHub-hosted attestation identity.',
       ],
       [

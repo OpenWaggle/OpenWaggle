@@ -1,5 +1,4 @@
 import type { Node, Plugin, Rule } from '@oxlint/plugins'
-import { nodeType, property } from './ast-helpers.ts'
 
 const preferMatchOverSwitchRule: Rule = {
   meta: {
@@ -31,9 +30,8 @@ const preferMatchOverElseIfRule: Rule = {
   },
   create(context) {
     return {
-      IfStatement(node: Node) {
-        const alternate = property(node, 'alternate')
-        if (nodeType(alternate) !== 'IfStatement') {
+      IfStatement(node) {
+        if (node.alternate?.type !== 'IfStatement') {
           return
         }
 

@@ -39,6 +39,7 @@ import {
   type SnapshotJobOptions,
 } from './usage-stats-snapshot-endpoint'
 import { getJson, type JsonRead, readOptionalJson } from './usage-stats-snapshot-reads'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export const SNAPSHOT_REPOSITORY = 'OpenWaggle/OpenWaggle'
 export const SNAPSHOT_NPM_PACKAGES = [
@@ -81,7 +82,7 @@ function githubHeaders(token: string | undefined): Record<string, string> {
 
 function nextPage(link: string | null) {
   for (const part of link?.split(',') ?? []) {
-    const url = NEXT_PAGE_LINK.exec(part)?.groups?.url
+    const url = namedGroups(NEXT_PAGE_LINK.exec(part), ['url'])?.url
     if (url !== undefined) return url
   }
   return undefined

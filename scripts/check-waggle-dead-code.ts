@@ -11,8 +11,9 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { promisify } from 'node:util'
 import fg from 'fast-glob'
-import { isRecord } from './standards/records'
 import { isWaggleScopeFile, waggleDeadCodeFindings } from './standards/waggle-dead-code'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,19 +31,17 @@ function fallowEntry() {
   return createRequire(import.meta.url).resolve('fallow/bin/fallow')
 }
 
+/** `execFile`'s error when fallow exits non-zero: its exit code and what it printed. */
+const fallowExitSchema = Schema.Struct({ code: unknownField, stdout: Schema.String })
+
 async function runFallow() {
   const args = [fallowEntry(), 'dead-code', '--production', '--format', 'json', '--quiet']
   try {
     const { stdout } = await execFileAsync(process.execPath, args, { maxBuffer: MAX_OUTPUT_BYTES })
     return stdout
   } catch (error) {
-    if (
-      isRecord(error) &&
-      error.code === FALLOW_ISSUES_FOUND_EXIT_CODE &&
-      typeof error.stdout === 'string'
-    ) {
-      return error.stdout
-    }
+    const failure = objectFields(fallowExitSchema, error)
+    if (failure?.code === FALLOW_ISSUES_FOUND_EXIT_CODE) return failure.stdout
     throw error
   }
 }

@@ -20,6 +20,7 @@
  * Run `bun scripts/check/typecheck.ts --update` after genuinely fixing files.
  */
 import path from 'node:path'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export const RENDERER_TEST_PROJECT = 'tsconfig.renderer-tests.json'
 export const RENDERER_TEST_EXEMPTIONS_FILE = 'scripts/renderer-test-type-exemptions.json'
@@ -32,7 +33,7 @@ export function countErrorsByFile(output: string): ErrorCounts {
   const counts: Record<string, number> = {}
   for (const rawLine of output.split('\n')) {
     const match = ERROR_LINE.exec(rawLine.trim())
-    const file = match?.groups?.file
+    const file = namedGroups(match, ['file'])?.file
     if (file === undefined) continue
     const normalized = file.split(path.sep).join('/')
     counts[normalized] = (counts[normalized] ?? 0) + 1
@@ -69,6 +70,16 @@ const OPTIONS_THAT_MUST_BE_OFF = ['noCheck'] as const
  */
 const OPTIONS_THAT_MUST_BE_ON = ['strict', 'strictNullChecks', 'noImplicitAny'] as const
 
+/** The compiler options the guard reads; any other option the project sets is not checked. */
+type CheckedCompilerOptions = Readonly<
+  Partial<
+    Record<
+      (typeof OPTIONS_THAT_MUST_BE_OFF)[number] | (typeof OPTIONS_THAT_MUST_BE_ON)[number],
+      unknown
+    >
+  >
+>
+
 /**
  * Below this, the project is not really checking the renderer tests any more.
  *
@@ -85,7 +96,7 @@ export interface RendererTestTypeInput {
   /** Whether the checker exited non-zero. */
   readonly failed: boolean
   /** The renderer-test project's effective compiler options (`--showConfig`). */
-  readonly compilerOptions: Readonly<Record<string, unknown>>
+  readonly compilerOptions: CheckedCompilerOptions
   /** The renderer-test project's root files (`--showConfig`). */
   readonly rootFiles: readonly string[]
   readonly exemptions: readonly string[]
@@ -106,7 +117,7 @@ function failure(messages: readonly string[], failingFiles: readonly string[] = 
 }
 
 /** A tsconfig option that would let the check pass while checking nothing. */
-function compilerOptionFailure(options: Readonly<Record<string, unknown>>) {
+function compilerOptionFailure(options: CheckedCompilerOptions) {
   const disabled = OPTIONS_THAT_MUST_BE_OFF.filter((option) => options[option] === true)
   if (disabled.length > 0) {
     return `${RENDERER_TEST_PROJECT} enables ${disabled.join(', ')}, so tsc reports no type errors at all and this check would pass while checking nothing. Remove it.`
@@ -123,7 +134,7 @@ function errorsOutsideExemptions(output: string, exempt: ReadonlySet<string>) {
   const reported = new Map<string, string>()
   for (const rawLine of output.split(/\r?\n/u)) {
     const line = rawLine.trim()
-    const file = ERROR_LINE.exec(line)?.groups?.file?.split(path.sep).join('/')
+    const file = namedGroups(ERROR_LINE.exec(line), ['file'])?.file?.split(path.sep).join('/')
     if (file !== undefined && !exempt.has(file)) reported.set(line, file)
   }
   return reported
