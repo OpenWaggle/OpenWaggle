@@ -9,6 +9,7 @@ import {
   WAGGLE_STOP_CONDITIONS,
 } from '@openwaggle/waggle-core'
 import { Schema, type SchemaType } from '@shared/schema'
+import { SupportedModelId, supportedModelIdSchema, wagglePresetIdSchema } from '@shared/types/brand'
 import {
   createWaggleModelBinding,
   type WaggleConfig,
@@ -28,16 +29,25 @@ function validateWaggleModelBinding(value: string) {
 }
 
 export const waggleAgentColorSchema = Schema.Literal(...WAGGLE_AGENT_COLORS)
-export const waggleModelBindingSchema = sessionInputIdSchema.pipe(
+export const waggleCollaborationModeSchema = Schema.Literal(...WAGGLE_COLLABORATION_MODES)
+export const waggleStopConditionSchema = Schema.Literal(...WAGGLE_STOP_CONDITIONS)
+
+/**
+ * A slot's model as the wire carries it: the inherited model or a provider-qualified model id. It
+ * decodes to a plain string because the Session control and Session Host protocol schemas are still
+ * annotated with their wire types; `toWaggleConfig` brands it at the main-process boundary.
+ */ export const waggleModelBindingSchema = sessionInputIdSchema.pipe(
   Schema.filter(validateWaggleModelBinding),
 )
 
+/** A persisted Waggle message's turn metadata: the single source of `WaggleMessageMetadata`. */
 export const waggleMetadataSchema = Schema.Struct({
   agentIndex: Schema.Number,
   agentLabel: sessionInputItemTextSchema,
   agentColor: waggleAgentColorSchema,
-  agentModel: Schema.optional(sessionInputIdSchema),
+  agentModel: Schema.optional(sessionInputIdSchema.pipe(Schema.fromBrand(SupportedModelId))),
   turnNumber: Schema.Number,
+  /** Unique ID for this waggle session. Groups turns that belong to the same waggle run. */
   sessionId: Schema.optional(sessionInputIdSchema),
 })
 
@@ -48,23 +58,27 @@ export const waggleAgentSlotSchema = Schema.Struct({
   color: waggleAgentColorSchema,
 })
 
-export const waggleConfigSchema = Schema.Struct({
-  mode: Schema.Literal(...WAGGLE_COLLABORATION_MODES),
-  agents: Schema.Tuple(waggleAgentSlotSchema, waggleAgentSlotSchema),
-  stop: Schema.Struct({
-    primary: Schema.Literal(...WAGGLE_STOP_CONDITIONS),
-    maxTurnsSafety: Schema.Number.pipe(
-      Schema.int(),
-      Schema.greaterThanOrEqualTo(MIN_WAGGLE_MAX_TURNS_SAFETY),
-      Schema.lessThanOrEqualTo(MAX_WAGGLE_MAX_TURNS_SAFETY),
-    ),
-  }),
+export const waggleStopConfigSchema = Schema.Struct({
+  primary: waggleStopConditionSchema,
+  maxTurnsSafety: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(MIN_WAGGLE_MAX_TURNS_SAFETY),
+    Schema.lessThanOrEqualTo(MAX_WAGGLE_MAX_TURNS_SAFETY),
+  ),
 })
+
+export const waggleConfigSchema = Schema.Struct({
+  mode: waggleCollaborationModeSchema,
+  agents: Schema.Tuple(waggleAgentSlotSchema, waggleAgentSlotSchema),
+  stop: waggleStopConfigSchema,
+})
+
+export const waggleInvocationSourceSchema = Schema.Literal('user', 'agent')
 
 export const waggleInvocationMetadataSchema = Schema.Struct({
   presetId: sessionInputIdSchema,
   presetName: sessionInputItemTextSchema,
-  source: Schema.Literal('user', 'agent'),
+  source: waggleInvocationSourceSchema,
 })
 
 export const waggleInvocationSchema = Schema.Struct({
@@ -76,6 +90,36 @@ export const waggleHandoffRequestSchema = Schema.Struct({
   kind: Schema.Literal('waggle-handoff'),
   ...waggleInvocationSchema.fields,
   prompt: sessionInputTextSchema,
+})
+
+/*
+ * The domain forms the main process and renderer use once a model binding is branded. Each is the
+ * wire schema above with the binding (and a preset's id) branded; `toWaggleConfig` and its
+ * siblings make one from the other.
+ */
+const brandedWaggleModelBindingSchema = Schema.Union(
+  Schema.Literal(WAGGLE_INHERIT_MODEL),
+  supportedModelIdSchema,
+)
+
+export const waggleAgentSlotDomainSchema = Schema.Struct({
+  ...waggleAgentSlotSchema.fields,
+  model: brandedWaggleModelBindingSchema,
+})
+
+export const waggleConfigDomainSchema = Schema.Struct({
+  ...waggleConfigSchema.fields,
+  agents: Schema.Tuple(waggleAgentSlotDomainSchema, waggleAgentSlotDomainSchema),
+})
+
+export const waggleInvocationDomainSchema = Schema.Struct({
+  ...waggleInvocationMetadataSchema.fields,
+  config: waggleConfigDomainSchema,
+})
+
+export const waggleHandoffRequestDomainSchema = Schema.Struct({
+  ...waggleHandoffRequestSchema.fields,
+  config: waggleConfigDomainSchema,
 })
 
 export function toWaggleConfig(input: SchemaType<typeof waggleConfigSchema>): WaggleConfig {
@@ -108,4 +152,10 @@ export const wagglePresetSchema = Schema.Struct({
   isBuiltIn: Schema.Boolean,
   createdAt: Schema.Number,
   updatedAt: Schema.Number,
+})
+
+export const wagglePresetDomainSchema = Schema.Struct({
+  ...wagglePresetSchema.fields,
+  id: wagglePresetIdSchema,
+  config: waggleConfigDomainSchema,
 })
