@@ -12,6 +12,6 @@ const COUNTRY_CODE = /^[A-Z]{2}$/u
 export function requestCountry(request: IncomingRequest) {
   const metadata = request.cf
   if (!isRecord(metadata)) return UNKNOWN_COUNTRY
-  const country = metadata['country']
+  const country = metadata.country
   return typeof country === 'string' && COUNTRY_CODE.test(country) ? country : UNKNOWN_COUNTRY
 }

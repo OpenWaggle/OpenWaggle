@@ -39,7 +39,7 @@ function readItem(bytes: Uint8Array, start: number) {
   const header = jsonObjectLine(bytes, start, headerEnd)
   if (header === undefined) return undefined
   const payloadStart = Math.min(headerEnd + 1, bytes.length)
-  const end = payloadEnd(bytes, payloadStart, header['length'])
+  const end = payloadEnd(bytes, payloadStart, header.length)
   if (end === undefined) return undefined
   const item: SentryEnvelopeItem = { header, payload: bytes.subarray(payloadStart, end) }
   return { item, next: bytes[end] === NEWLINE_BYTE ? end + 1 : end }

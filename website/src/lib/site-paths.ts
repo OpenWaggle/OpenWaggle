@@ -31,9 +31,9 @@ function visitLinks(node: HastNode) {
   if (
     node.type === 'element' &&
     node.tagName === 'a' &&
-    typeof node.properties?.['href'] === 'string'
+    typeof node.properties?.href === 'string'
   ) {
-    node.properties['href'] = withTrailingSlash(node.properties['href'])
+    node.properties.href = withTrailingSlash(node.properties.href)
   }
   for (const child of node.children ?? []) visitLinks(child)
 }

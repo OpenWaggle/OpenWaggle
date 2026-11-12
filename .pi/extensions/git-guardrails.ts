@@ -48,21 +48,18 @@ function textEdits(input: Record<string, unknown>): TextEdit[] {
 /** The guardrail verdict for one tool call, as a Pi `tool_call` result. */
 export function guardToolCall(event: ToolCallEvent, cwd: string): ToolCallEventResult | undefined {
   const input: Record<string, unknown> = { ...event.input }
-  if (event.toolName === 'bash' && typeof input['command'] === 'string') {
-    const decision = bashCommandDecision(input['command'])
+  if (event.toolName === 'bash' && typeof input.command === 'string') {
+    const decision = bashCommandDecision(input.command)
     return decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
   }
-  if (
-    (event.toolName === 'write' || event.toolName === 'edit') &&
-    typeof input['path'] === 'string'
-  ) {
+  if ((event.toolName === 'write' || event.toolName === 'edit') && typeof input.path === 'string') {
     const decision = fileToolDecision({
-      path: input['path'],
-      ...(event.toolName === 'write' && typeof input['content'] === 'string'
-        ? { content: input['content'] }
+      path: input.path,
+      ...(event.toolName === 'write' && typeof input.content === 'string'
+        ? { content: input.content }
         : {}),
       edits: event.toolName === 'edit' ? textEdits(input) : [],
-      currentText: event.toolName === 'edit' ? readText(cwd, input['path']) : undefined,
+      currentText: event.toolName === 'edit' ? readText(cwd, input.path) : undefined,
     })
     return decision.kind === 'block' ? { block: true, reason: decision.reason } : undefined
   }

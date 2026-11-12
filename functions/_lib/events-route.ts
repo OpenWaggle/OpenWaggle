@@ -122,16 +122,16 @@ function checkBatch(payload: Readonly<Record<string, unknown>>, todayEpochDay: n
   if (firstUnexpectedKey(payload, REQUEST_KEYS) !== undefined) {
     return rejection(HTTP_STATUS.badRequest, 'request', 'unknown field')
   }
-  if (payload['schema'] !== USAGE_STATISTICS_SCHEMA_VERSION) {
+  if (payload.schema !== USAGE_STATISTICS_SCHEMA_VERSION) {
     return rejection(HTTP_STATUS.badRequest, 'schema', 'unsupported schema version')
   }
-  const list: unknown = payload['events']
+  const list: unknown = payload.events
   if (!Array.isArray(list)) return rejection(HTTP_STATUS.badRequest, 'events', 'expected a list')
   const candidates: readonly unknown[] = list
   if (candidates.length > USAGE_STATISTICS_MAX_EVENTS_PER_REQUEST) {
     return rejection(HTTP_STATUS.payloadTooLarge, 'events', 'too many events', candidates.length)
   }
-  const context = validateUsageStatisticsContext(payload['context'])
+  const context = validateUsageStatisticsContext(payload.context)
   if (!context.ok) {
     return rejection(HTTP_STATUS.badRequest, context.field, context.reason, candidates.length)
   }
