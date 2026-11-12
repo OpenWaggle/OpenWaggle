@@ -12,7 +12,8 @@ import type { AbSample, MemorySample } from './ab-sample'
 
 export const REGRESSION_ACCEPTED_LABEL = 'perf-regression-accepted'
 
-export type MetricKind = 'timing' | 'memory' | 'count'
+/** `calls` is a count that races its milestone (IPC before chat ready), so it has a floor. */
+export type MetricKind = 'timing' | 'memory' | 'count' | 'calls'
 
 export interface Limit {
   readonly relative: number
@@ -25,6 +26,7 @@ export interface Thresholds {
   readonly timing: Limit
   readonly memory: Limit
   readonly count: Limit
+  readonly calls: Limit
 }
 
 export type TimingStatus = 'regressed' | 'improved' | 'same' | 'unavailable'
@@ -56,7 +58,7 @@ export interface TimingVerdict {
 }
 
 const PAIR = 2
-const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count']
+const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count', 'calls']
 
 export function median(values: readonly number[]): number | null {
   const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b)
@@ -92,7 +94,7 @@ export function abMetrics(samples: readonly AbSample[]): [string, MetricKind, Re
     [`${launch}.chat-ready`, 'timing', (sample: AbSample) => sample[launch].chatReadyMs],
     [
       `${launch}.ipc-until-chat-ready`,
-      'count',
+      'calls',
       (sample: AbSample) => sample[launch].ipcCallsUntilChatReady,
     ],
   ])

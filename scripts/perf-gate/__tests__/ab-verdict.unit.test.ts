@@ -17,6 +17,7 @@ const THRESHOLDS: Thresholds = {
   timing: { relative: 0.1, absolute: 60 },
   memory: { relative: 0.05, absolute: 12 * MIB },
   count: { relative: 0, absolute: 0 },
+  calls: { relative: 0.1, absolute: 4 },
 }
 
 interface Shape {
@@ -106,8 +107,9 @@ describe('the timing verdict', () => {
     expect(verdict({ chat: 1_450 }).passed).toBe(true)
   })
 
-  it('fails any extra IPC call or process', () => {
-    expect(verdict({ ipc: 23 }).regressions.map((row) => row.id)).toEqual([
+  it('fails any extra process, and IPC calls past their race floor', () => {
+    expect(verdict({ ipc: 26 }).passed).toBe(true)
+    expect(verdict({ ipc: 27 }).regressions.map((row) => row.id)).toEqual([
       'cold.ipc-until-chat-ready',
       'warm.ipc-until-chat-ready',
     ])

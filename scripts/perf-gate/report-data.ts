@@ -41,7 +41,7 @@ const BUDGET_STATUSES: readonly BudgetRowStatus[] = [
   'quantum-lowered',
 ]
 const TIMING_STATUSES: readonly TimingStatus[] = ['regressed', 'improved', 'same', 'unavailable']
-const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count']
+const KINDS: readonly MetricKind[] = ['timing', 'memory', 'count', 'calls']
 const UNITS = ['bytes', 'count'] as const
 const SKIP_REASONS = ['no shipped code changed', 'not a pull request'] as const
 

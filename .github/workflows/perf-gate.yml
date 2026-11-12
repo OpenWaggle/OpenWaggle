@@ -149,13 +149,23 @@ jobs:
           key: perf-gate-electron-${{ runner.os }}-${{ hashFiles('base/bun.lock', 'head/bun.lock') }}
           restore-keys: perf-gate-electron-${{ runner.os }}-
 
+      # Each checkout installs with its own package manager (package.json packageManager): a base
+      # from before the move to Bun installs with pnpm.
       - name: Install both checkouts
         run: |
           set -euo pipefail
           for side in base head; do
             start=$(date +%s)
-            (cd "$side" && bun install --frozen-lockfile && node node_modules/electron/install.js)
-            echo "::notice::install $side took $(( $(date +%s) - start )) s"
+            manager=$(jq -r '.packageManager // "bun@"' "$side/package.json" | cut -d@ -f1)
+            echo "$manager" > "$side.package-manager"
+            if [ "$manager" = "pnpm" ]; then
+              corepack enable
+              (cd "$side" && pnpm install --frozen-lockfile)
+            else
+              (cd "$side" && bun install --frozen-lockfile)
+            fi
+            (cd "$side" && node node_modules/electron/install.js)
+            echo "::notice::install $side ($manager) took $(( $(date +%s) - start )) s"
           done
 
       - name: Linux display
@@ -176,8 +186,8 @@ jobs:
         run: |
           set -euo pipefail
           start=$(date +%s)
-          (cd base && bun run build > ../build-base.log 2>&1) & base_pid=$!
-          (cd head && bun run build > ../build-head.log 2>&1) & head_pid=$!
+          (cd base && "$(cat ../base.package-manager)" run build > ../build-base.log 2>&1) & base_pid=$!
+          (cd head && "$(cat ../head.package-manager)" run build > ../build-head.log 2>&1) & head_pid=$!
           status=0
           wait "$base_pid" || { status=1; tail -50 build-base.log; }
           wait "$head_pid" || { status=1; tail -50 build-head.log; }

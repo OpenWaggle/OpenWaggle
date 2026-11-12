@@ -50,6 +50,7 @@ export function parseThresholds(value: unknown): Thresholds {
     timing: limit(parsed['timing'], 'timing'),
     memory: limit(parsed['memory'], 'memory'),
     count: limit(parsed['count'], 'count'),
+    calls: limit(parsed['calls'], 'calls'),
   }
 }
 
