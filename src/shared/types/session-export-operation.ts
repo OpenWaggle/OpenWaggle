@@ -1,3 +1,14 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  exportCancelCommandSchema,
+  exportCancelOutcomeSchema,
+  exportCreateCommandSchema,
+  exportCreateOutcomeSchema,
+  exportListQuerySchema,
+  exportReadQuerySchema,
+  exportResourceInputSchema,
+  exportWaitQuerySchema,
+} from '@shared/schemas/session-export-operation'
 import type { SessionExportBranchScope, SessionExportManifest } from './session-export'
 import type { SessionHostEventCursor } from './session-host-event'
 
@@ -20,30 +31,11 @@ export const SESSION_EXPORT_PROFILE_CONCURRENCY_LIMIT = 2
 export type SessionExportFormat = (typeof SESSION_EXPORT_FORMATS)[number]
 export type SessionExportOperationStatus = (typeof SESSION_EXPORT_OPERATION_STATUSES)[number]
 
-export interface SessionExportResourceInput {
-  readonly kind: 'workspace-file'
-  readonly path: string
-}
+export type SessionExportResourceInput = SchemaType<typeof exportResourceInputSchema>
 
-export interface SessionExportCreateCommand {
-  readonly operation: 'export-create'
-  readonly sessionId: string
-  readonly format: SessionExportFormat
-  readonly destinationPath: string
-  /** Canonical root injected by a scoped adapter; never populated from user-facing CLI flags. */
-  readonly destinationRoot?: string | undefined
-  readonly overwriteExisting?: boolean | undefined
-  readonly branchScope?: SessionExportBranchScope | undefined
-  readonly branchId?: string | undefined
-  readonly includeQueueBodies?: boolean | undefined
-  readonly resources?: readonly SessionExportResourceInput[] | undefined
-}
+export type SessionExportCreateCommand = SchemaType<typeof exportCreateCommandSchema>
 
-export interface SessionExportCancelCommand {
-  readonly operation: 'export-cancel'
-  readonly sessionId: string
-  readonly exportOperationId: string
-}
+export type SessionExportCancelCommand = SchemaType<typeof exportCancelCommandSchema>
 
 export type SessionExportControlCommand = SessionExportCreateCommand | SessionExportCancelCommand
 
@@ -71,47 +63,16 @@ export interface SessionExportOperationSummary {
   readonly completedAt?: number
 }
 
-export interface SessionExportCreateOutcome {
-  readonly operation: 'export-create'
-  readonly effect: 'export-accepted'
-  readonly sessionId: string
-  readonly exportOperationId: string
-  readonly status: SessionExportOperationStatus
-}
+export type SessionExportCreateOutcome = SchemaType<typeof exportCreateOutcomeSchema>
 
-export interface SessionExportCancelOutcome {
-  readonly operation: 'export-cancel'
-  readonly effect: 'export-cancellation-requested'
-  readonly sessionId: string
-  readonly exportOperationId: string
-  readonly status: SessionExportOperationStatus
-}
+export type SessionExportCancelOutcome = SchemaType<typeof exportCancelOutcomeSchema>
 
 export type SessionExportControlOutcome = SessionExportCreateOutcome | SessionExportCancelOutcome
 
 export type SessionExportOperationQuery =
-  | {
-      readonly operation: 'exports-list'
-      readonly sessionId: string
-      readonly limit: number
-      readonly cursor?: string | undefined
-      readonly statuses?: readonly SessionExportOperationStatus[] | undefined
-      readonly includeQueueBodies?: boolean | undefined
-    }
-  | {
-      readonly operation: 'exports-read'
-      readonly sessionId: string
-      readonly exportOperationId: string
-      readonly includeQueueBodies?: boolean | undefined
-    }
-  | {
-      readonly operation: 'exports-wait'
-      readonly sessionId: string
-      readonly exportOperationId: string
-      readonly timeoutMs: number
-      readonly after?: SessionHostEventCursor | undefined
-      readonly includeQueueBodies?: boolean | undefined
-    }
+  | SchemaType<typeof exportListQuerySchema>
+  | SchemaType<typeof exportReadQuerySchema>
+  | SchemaType<typeof exportWaitQuerySchema>
 
 export type SessionExportOperationQueryOutcome =
   | {

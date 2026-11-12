@@ -1,28 +1,25 @@
+import type { SchemaType } from '@shared/schema'
+import type { sessionQueryRequestSchema, sessionQuerySchema } from '@shared/schemas/session-query'
 import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentLoopInteraction } from './agent-loop-interaction'
 import type { HiveNextActor } from './hive-next-actor'
 import type { DelegationState } from './session-collaboration'
 import type { FollowUpQueuePauseReason, SessionFollowUpListing } from './session-control-queue'
 import type {
-  DelegationConflictKind,
-  DelegationConflictStatus,
   DelegationConflictsQueryOutcome,
   DelegationListQueryOutcome,
   DelegationReadQueryOutcome,
 } from './session-delegation-query'
-import type { SessionExportOutcome, SessionExportQuery } from './session-export'
-import type {
-  SessionExportOperationQuery,
-  SessionExportOperationQueryOutcome,
-} from './session-export-operation'
+import type { SessionExportOutcome } from './session-export'
+import type { SessionExportOperationQueryOutcome } from './session-export-operation'
 import type { SessionHostEventCursor } from './session-host-event'
 import type {
   SemanticDiscoveryReadiness,
   SessionDiscoveryMode,
   SessionQuerySummary,
 } from './session-query-discovery'
-import type { SessionItemsOutcome, SessionItemsQuery } from './session-query-items'
-import type { SessionWaitState, SessionWaitTarget } from './session-wait'
+import type { SessionItemsOutcome } from './session-query-items'
+import type { SessionWaitState } from './session-wait'
 
 export type { DelegationQuerySummary } from './session-delegation-query'
 export type {
@@ -57,94 +54,9 @@ export const SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT = 1_000
  */
 export type SessionCatalogWorkingPath = string
 
-export type SessionQuery =
-  | {
-      readonly operation: 'list'
-      readonly limit: number
-      readonly cursor?: string | undefined
-      readonly archived?: boolean | undefined
-      readonly interrupted?: boolean | undefined
-      readonly unreadTerminalStatus?: 'completed' | 'failed' | undefined
-      readonly projectPath?: string | undefined
-      readonly projectPaths?: readonly string[] | undefined
-      readonly workingPath?: SessionCatalogWorkingPath | undefined
-      /** Only the direct Workers of this Session. */
-      readonly parentSessionId?: string | undefined
-      readonly searchText?: string | undefined
-    }
-  | {
-      readonly operation: 'search'
-      readonly query: string
-      readonly limit: number
-      readonly cursor?: string | undefined
-      readonly projectPath?: string | undefined
-      readonly workingPath?: SessionCatalogWorkingPath | undefined
-      readonly includeArchived?: boolean | undefined
-      readonly searchScope?: 'discovery' | 'full-transcript' | undefined
-      readonly mode?: SessionDiscoveryMode | undefined
-      readonly requireFresh?: boolean | undefined
-      readonly waitTimeoutMs?: number | undefined
-    }
-  | { readonly operation: 'read'; readonly sessionId: string }
-  | {
-      readonly operation: 'turns'
-      readonly sessionId: string
-      readonly limit: number
-      readonly cursor?: string | undefined
-    }
-  | SessionItemsQuery
-  | SessionExportQuery
-  | SessionExportOperationQuery
-  | { readonly operation: 'status'; readonly sessionId: string }
-  | {
-      readonly operation: 'queue-list'
-      readonly sessionId: string
-      readonly includeBodies?: boolean | undefined
-    }
-  | {
-      readonly operation: 'requests-list'
-      readonly sessionId: string
-    }
-  | {
-      readonly operation: 'delegations-list'
-      readonly limit: number
-      readonly cursor?: string | undefined
-      readonly projectPath?: string | undefined
-      readonly workingPath?: SessionCatalogWorkingPath | undefined
-      readonly parentSessionId?: string | undefined
-      readonly workerSessionId?: string | undefined
-      readonly states?: readonly DelegationState[] | undefined
-    }
-  | {
-      readonly operation: 'delegations-read'
-      readonly delegationId: string
-      readonly limit?: number | undefined
-      readonly cursor?: string | undefined
-    }
-  | {
-      readonly operation: 'delegations-conflicts'
-      readonly limit: number
-      readonly cursor?: string | undefined
-      readonly projectPath?: string | undefined
-      readonly workingPath?: SessionCatalogWorkingPath | undefined
-      readonly parentSessionId?: string | undefined
-      readonly workerSessionId?: string | undefined
-      readonly delegationId?: string | undefined
-      readonly kinds?: readonly DelegationConflictKind[] | undefined
-      readonly statuses?: readonly DelegationConflictStatus[] | undefined
-    }
-  | {
-      readonly operation: 'wait'
-      readonly targets: readonly SessionWaitTarget[]
-      readonly timeoutMs: number
-      readonly after?: SessionHostEventCursor | undefined
-    }
+export type SessionQuery = SchemaType<typeof sessionQuerySchema>
 
-export interface SessionQueryRequest {
-  readonly contractVersion: typeof SESSION_QUERY_CONTRACT_VERSION
-  readonly requestId: string
-  readonly query: SessionQuery
-}
+export type SessionQueryRequest = SchemaType<typeof sessionQueryRequestSchema>
 
 export type SessionQueryOutcome =
   | {

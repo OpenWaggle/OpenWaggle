@@ -1,58 +1,18 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  sessionExportBranchScopeSchema,
+  sessionExportManifestSchema,
+} from '@shared/schemas/session-export-operation'
+import type { sessionExportQuerySchema } from '@shared/schemas/session-query'
+
 export const SESSION_EXPORT_SCHEMA_VERSION = 1 as const
 export const SESSION_EXPORT_BUNDLE_SCHEMA_VERSION = 1 as const
 
-export type SessionExportBranchScope = 'active-branch' | 'tree'
+export type SessionExportBranchScope = SchemaType<typeof sessionExportBranchScopeSchema>
 
-export interface SessionExportQuery {
-  readonly operation: 'export'
-  readonly sessionId: string
-  readonly limit: number
-  readonly branchScope?: SessionExportBranchScope | undefined
-  readonly branchId?: string | undefined
-  readonly includeQueueBodies?: boolean | undefined
-  readonly afterCreatedOrder?: number | undefined
-  readonly throughCreatedOrder?: number | undefined
-  readonly snapshotStateRevision?: number | undefined
-  readonly snapshotHeadNodeId?: string | undefined
-  readonly capturedAt?: number | undefined
-  /** Exact immutable manifest returned by the first page. Required for stable continuation pages. */
-  readonly snapshotManifest?: SessionExportManifest | undefined
-}
+export type SessionExportQuery = SchemaType<typeof sessionExportQuerySchema>
 
-export interface SessionExportManifest {
-  readonly schemaVersion: typeof SESSION_EXPORT_SCHEMA_VERSION
-  readonly sessionId: string
-  readonly title: string
-  readonly branchScope: SessionExportBranchScope
-  readonly activeBranchId: string | null
-  readonly selectedBranchId: string | null
-  readonly snapshot: {
-    readonly nodeHighWaterMark: number
-    readonly stateRevision: number
-    readonly queueRevision: number
-    readonly capturedAt: number
-    /** Monotonic guard against node mutation or deletion during paginated foreground exports. */
-    readonly nodeMutationRevision?: number | undefined
-    /** Present for active-branch exports created by snapshot-aware clients. */
-    readonly selectedHeadNodeId?: string | undefined
-  }
-  readonly activeRunId: string | null
-  readonly activeTurnIncomplete: boolean
-  readonly queue: {
-    readonly state: 'running' | 'paused'
-    readonly pendingCount: number
-    readonly bodyScope: 'included' | 'omitted-by-choice'
-    readonly omittedBodyCount: number
-    readonly items: readonly {
-      readonly followUpId: string
-      readonly position: number
-      readonly createdAt: number
-      readonly deliveryState: 'pending' | 'needs_attention'
-      readonly attentionReason?: 'profile_revoked' | 'authority_changed' | undefined
-      readonly intent?: unknown
-    }[]
-  }
-}
+export type SessionExportManifest = SchemaType<typeof sessionExportManifestSchema>
 
 export interface SessionExportBundleEntry {
   readonly path: string

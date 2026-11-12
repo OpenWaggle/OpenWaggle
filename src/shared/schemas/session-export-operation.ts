@@ -1,7 +1,6 @@
 import { Schema } from '@shared/schema'
 import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
-import type { SessionExportManifest } from '@shared/types/session-export'
-import type { SessionExportResourceInput } from '@shared/types/session-export-operation'
+import { SESSION_EXPORT_SCHEMA_VERSION } from '@shared/types/session-export'
 import {
   SESSION_EXPORT_FORMATS,
   SESSION_EXPORT_OPERATION_QUERY_LIMIT,
@@ -13,6 +12,7 @@ import {
   SESSION_QUERY_MAX_PATH_LENGTH,
 } from '@shared/types/session-query'
 import { SESSION_QUERY_MAX_WAIT_MS } from '@shared/types/session-wait'
+import { sessionHostEventCursorSchema } from './session-host-event-cursor'
 import { sessionInputIdSchema } from './session-input'
 
 const boundedPath = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_PATH_LENGTH))
@@ -23,14 +23,17 @@ export const exportResourceInputSchema = Schema.Struct({
   path: boundedPath,
 })
 
-export const exportResourcesSchema: Schema.Schema<readonly SessionExportResourceInput[]> =
-  Schema.Array(exportResourceInputSchema).pipe(Schema.maxItems(SESSION_EXPORT_RESOURCE_LIMIT))
+export const exportResourcesSchema = Schema.Array(exportResourceInputSchema).pipe(
+  Schema.maxItems(SESSION_EXPORT_RESOURCE_LIMIT),
+)
 
-export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> = Schema.Struct({
-  schemaVersion: Schema.Literal(1),
+export const sessionExportBranchScopeSchema = Schema.Literal('active-branch', 'tree')
+
+export const sessionExportManifestSchema = Schema.Struct({
+  schemaVersion: Schema.Literal(SESSION_EXPORT_SCHEMA_VERSION),
   sessionId: sessionInputIdSchema,
   title: Schema.String,
-  branchScope: Schema.Literal('active-branch', 'tree'),
+  branchScope: sessionExportBranchScopeSchema,
   activeBranchId: Schema.NullOr(Schema.String),
   selectedBranchId: Schema.NullOr(Schema.String),
   snapshot: Schema.Struct({
@@ -38,9 +41,15 @@ export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> =
     stateRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
     queueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
     capturedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-    // Optional so schema-v1 artifacts written before node-mutation pinning remain readable.
+    /**
+     * Monotonic guard against node mutation or deletion during paginated foreground exports.
+     * Optional so schema-v1 artifacts written before node-mutation pinning remain readable.
+     */
     nodeMutationRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-    // Optional so schema-v1 artifacts written before branch-head pinning remain readable.
+    /**
+     * Present for active-branch exports created by snapshot-aware clients. Optional so schema-v1
+     * artifacts written before branch-head pinning remain readable.
+     */
     selectedHeadNodeId: Schema.optional(Schema.String),
   }),
   activeRunId: Schema.NullOr(Schema.String),
@@ -68,9 +77,10 @@ export const exportCreateCommandSchema = Schema.Struct({
   sessionId: sessionInputIdSchema,
   format: Schema.Literal(...SESSION_EXPORT_FORMATS),
   destinationPath: boundedPath,
+  /** Canonical root injected by a scoped adapter; never populated from user-facing CLI flags. */
   destinationRoot: Schema.optional(boundedPath),
   overwriteExisting: Schema.optional(Schema.Boolean),
-  branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
+  branchScope: Schema.optional(sessionExportBranchScopeSchema),
   branchId: Schema.optional(sessionInputIdSchema),
   includeQueueBodies: Schema.optional(Schema.Boolean),
   resources: Schema.optional(exportResourcesSchema),
@@ -137,11 +147,6 @@ export const exportWaitQuerySchema = Schema.Struct({
   sessionId: sessionInputIdSchema,
   exportOperationId: sessionInputIdSchema,
   timeoutMs: Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
-  after: Schema.optional(
-    Schema.Struct({
-      hostInstanceId: sessionInputIdSchema,
-      sequence: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-    }),
-  ),
+  after: Schema.optional(sessionHostEventCursorSchema),
   includeQueueBodies: Schema.optional(Schema.Boolean),
 })
