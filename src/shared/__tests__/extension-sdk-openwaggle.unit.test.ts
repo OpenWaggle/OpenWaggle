@@ -1,16 +1,13 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { createExtensionBrokerSdk, type ExtensionBrokerTransport } from '@shared/extension-sdk'
-import type {
-  ExtensionCapabilityAuditEntry,
-  ExtensionInvokeInput,
-} from '@shared/types/extension-broker'
+import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import { describe, expect, it, vi } from 'vitest'
 
 const PROJECT_SCOPE = { kind: 'project', projectPath: '/tmp/project' } as const
 const APP_SCOPE = { kind: 'app' } as const
 const TIMESTAMP = 1234
 
-function auditFor(input: ExtensionInvokeInput): ExtensionCapabilityAuditEntry {
+function auditFor(input: ExtensionInvokeInput) {
   return {
     extensionId: input.extensionId,
     contributionId: input.contributionId,

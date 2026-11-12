@@ -21,13 +21,11 @@ export interface ExtensionSidePanelIdentity {
 }
 
 /** The rail identity of an extension side panel, stable across extension updates. */
-export function extensionRightPanelSurfaceId(
-  identity: ExtensionSidePanelIdentity,
-): ExtensionRightPanelSurfaceId {
-  return `${EXTENSION_SURFACE_PREFIX}${JSON.stringify([identity.extensionId, identity.sidePanelId])}`
+export function extensionRightPanelSurfaceId(identity: ExtensionSidePanelIdentity) {
+  return `${EXTENSION_SURFACE_PREFIX}${JSON.stringify([identity.extensionId, identity.sidePanelId])}` satisfies ExtensionRightPanelSurfaceId
 }
 
-export function parseExtensionRightPanelSurfaceId(id: string): ExtensionSidePanelIdentity | null {
+export function parseExtensionRightPanelSurfaceId(id: string) {
   if (!id.startsWith(EXTENSION_SURFACE_PREFIX)) return null
   try {
     const parsed: unknown = JSON.parse(id.slice(EXTENSION_SURFACE_PREFIX.length))

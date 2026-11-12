@@ -44,7 +44,7 @@ export function mcpAppCspSources(
 }
 
 /** An App's declared origins, each list reduced to plain origins. */
-export function sanitizedMcpAppCsp(csp: McpAppCsp): McpAppCsp {
+export function sanitizedMcpAppCsp(csp: McpAppCsp) {
   return {
     connectDomains: mcpAppCspSources(csp.connectDomains, { allowWebSockets: true }),
     resourceDomains: mcpAppCspSources(csp.resourceDomains),

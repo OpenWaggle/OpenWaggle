@@ -44,7 +44,7 @@ export function scrubStringsInPlace(
   scrub: (text: string) => string,
   seen = new WeakSet<object>(),
   verbatimKeys: ReadonlySet<string> = new Set(),
-): void {
+) {
   if (typeof value !== 'object' || value === null || seen.has(value)) return
   seen.add(value)
   if (isUnknownArray(value)) {

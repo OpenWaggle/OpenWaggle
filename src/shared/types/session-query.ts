@@ -21,7 +21,6 @@ import type {
 import type { SessionItemsOutcome } from './session-query-items'
 import type { SessionWaitState } from './session-wait'
 
-export type { DelegationQuerySummary } from './session-delegation-query'
 export type {
   SemanticDiscoveryReadiness,
   SessionDiscoveryMode,

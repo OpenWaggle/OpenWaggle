@@ -117,7 +117,7 @@ export const TERMINAL_STATUSES: ReadonlySet<SessionStatus> = new Set<SessionStat
   'error',
 ])
 
-export function resolveSessionStatusPill(status: SessionStatus): SessionStatusPill | null {
+export function resolveSessionStatusPill(status: SessionStatus) {
   if (status === 'idle') return null
   return STATUS_PILL_MAP[status]
 }

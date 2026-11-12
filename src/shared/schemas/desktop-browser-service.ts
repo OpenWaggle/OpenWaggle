@@ -260,10 +260,10 @@ export const desktopBrowserResultSchema: Schema.Schema<DesktopBrowserResult> = S
   desktopBrowserResultWireSchema,
 )
 
-export function decodeDesktopBrowserCommand(value: unknown): DesktopBrowserCommand {
+export function decodeDesktopBrowserCommand(value: unknown) {
   return decodeUnknownExactOrThrow(desktopBrowserCommandSchema, value)
 }
 
-export function decodeDesktopBrowserResult(value: unknown): DesktopBrowserResult {
+export function decodeDesktopBrowserResult(value: unknown) {
   return decodeUnknownExactOrThrow(desktopBrowserResultSchema, value)
 }

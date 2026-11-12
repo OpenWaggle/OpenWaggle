@@ -31,7 +31,7 @@ function isErrorEventItem(item: unknown, keepEvent: (event: unknown) => boolean)
 export function retainErrorEventsOnly(
   envelope: unknown,
   keepEvent: (event: unknown) => boolean = () => true,
-): boolean {
+) {
   if (!isUnknownArray(envelope)) return false
   const [headers, items] = envelope
   if (isRecord(headers)) delete headers[TRACE_HEADER]

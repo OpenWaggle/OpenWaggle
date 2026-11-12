@@ -11,6 +11,6 @@ function normalizeJson(value: unknown): unknown {
 }
 
 /** Serializes JSON-compatible values with stable recursive object-key ordering. */
-export function canonicalJson(value: unknown): string {
+export function canonicalJson(value: unknown) {
   return JSON.stringify(normalizeJson(value))
 }

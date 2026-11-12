@@ -3,8 +3,8 @@ import type {
   modelDisplayInfoSchema,
   providerApiKeyAuthSourceSchema,
   providerAuthInfoSchema,
-  providerAuthSourceSchema,
   providerInfoSchema,
+  providerAuthSourceSchema,
 } from '@shared/schemas/llm'
 import { SupportedModelId } from './brand'
 
@@ -12,6 +12,7 @@ import { SupportedModelId } from './brand'
 export type { SupportedModelId } from './brand'
 
 export type ProviderAuthSource = SchemaType<typeof providerAuthSourceSchema>
+
 export type ProviderApiKeyAuthSource = SchemaType<typeof providerApiKeyAuthSourceSchema>
 export type ProviderAuthInfo = SchemaType<typeof providerAuthInfoSchema>
 export type ModelDisplayInfo = SchemaType<typeof modelDisplayInfoSchema>
@@ -28,13 +29,11 @@ export type ProviderCatalogScope = (typeof PROVIDER_CATALOG_SCOPES)[number]
 /** Provider metadata exposed to the renderer via IPC. */
 export type ProviderInfo = SchemaType<typeof providerInfoSchema>
 
-export function createModelRef(provider: string, modelId: string): SupportedModelId {
+export function createModelRef(provider: string, modelId: string) {
   return SupportedModelId(`${provider}/${modelId}`)
 }
 
-export function parseModelRef(
-  modelRef: string,
-): { readonly provider: string; readonly modelId: string } | null {
+export function parseModelRef(modelRef: string) {
   const separatorIndex = modelRef.indexOf('/')
   if (separatorIndex <= 0 || separatorIndex === modelRef.length - 1) {
     return null
@@ -47,7 +46,7 @@ export function parseModelRef(
 }
 
 /** Human-readable name generation from model IDs */
-export function generateDisplayName(modelId: string): string {
+export function generateDisplayName(modelId: string) {
   // Brand capitalization rules
   const brandMap: Record<string, string> = {
     claude: 'Claude',

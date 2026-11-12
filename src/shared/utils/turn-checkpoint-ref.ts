@@ -9,11 +9,11 @@
 const TURN_CHECKPOINT_REF_PREFIX = 'refs/openwaggle/turn-checkpoints'
 
 /** Every checkpoint ref belonging to one session lives under this namespace. */
-export function turnCheckpointSessionNamespace(sessionId: string): string {
+export function turnCheckpointSessionNamespace(sessionId: string) {
   return `${TURN_CHECKPOINT_REF_PREFIX}/${sessionId}`
 }
 
 /** The anchor ref for one captured turn. */
-export function turnCheckpointRef(sessionId: string, turnId: string): string {
+export function turnCheckpointRef(sessionId: string, turnId: string) {
   return `${turnCheckpointSessionNamespace(sessionId)}/${turnId}`
 }

@@ -17,13 +17,8 @@ import {
 const SESSION_ID = SessionId('session-1')
 const BRANCH_ID = SessionBranchId('session-1:main')
 
-function messageNode(
-  id: string,
-  parentId: string | null,
-  text: string,
-  order: number,
-): SessionNode {
-  return {
+function messageNode(id: string, parentId: string | null, text: string, order: number) {
+  const node: SessionNode = {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
     parentId: parentId ? SessionNodeId(parentId) : null,
@@ -43,10 +38,11 @@ function messageNode(
     contentJson: JSON.stringify({ parts: [{ type: 'text', text }] }),
     metadataJson: JSON.stringify({ usage: { input: 10 } }),
   }
+  return node
 }
 
-function auditNode(id: string, parentId: string, order: number): SessionNode {
-  return {
+function auditNode(id: string, parentId: string, order: number) {
+  const node: SessionNode = {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
     parentId: SessionNodeId(parentId),
@@ -61,6 +57,7 @@ function auditNode(id: string, parentId: string, order: number): SessionNode {
     }),
     metadataJson: '{}',
   }
+  return node
 }
 
 function chain(count: number, text = 'text') {
@@ -73,19 +70,20 @@ function chain(count: number, text = 'text') {
   return nodes
 }
 
-function tree(nodes: readonly SessionNode[]): SessionContentTree {
-  return {
+function tree(nodes: readonly SessionNode[]) {
+  const result: SessionContentTree = {
     session: { id: SESSION_ID, title: 'S', projectPath: null, createdAt: 1, updatedAt: 2 },
     nodes,
     branches: [],
     branchStates: [],
     uiState: null,
   }
+  return result
 }
 
-function workspace(nodes: readonly SessionNode[], pathNodes = nodes): SessionContentWorkspace {
+function workspace(nodes: readonly SessionNode[], pathNodes = nodes) {
   const last = pathNodes.at(-1)
-  return {
+  const result: SessionContentWorkspace = {
     tree: tree(nodes),
     activeBranchId: BRANCH_ID,
     activeNodeId: last?.id ?? null,
@@ -95,6 +93,7 @@ function workspace(nodes: readonly SessionNode[], pathNodes = nodes): SessionCon
       isActive: node.id === last?.id,
     })),
   }
+  return result
 }
 
 describe('sessionTreeView', () => {
@@ -236,8 +235,8 @@ describe('sessionWorkspaceView', () => {
   })
 })
 
-function detail(messageCount: number): SessionDetail {
-  return {
+function detail(messageCount: number) {
+  const result: SessionDetail = {
     id: SESSION_ID,
     title: 'S',
     projectPath: null,
@@ -245,6 +244,7 @@ function detail(messageCount: number): SessionDetail {
     createdAt: 1,
     updatedAt: 2,
   }
+  return result
 }
 
 describe('sessionDetailView', () => {

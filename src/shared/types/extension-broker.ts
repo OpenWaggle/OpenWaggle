@@ -14,16 +14,13 @@ import type {
   extensionProjectViewSchema,
   extensionRuntimeRegisterContributionPayloadSchema,
   extensionSessionResourcePublishPayloadSchema,
-  extensionSessionResourceViewSchema,
   extensionSessionViewSchema,
   extensionSettingsGetPayloadSchema,
   extensionSettingsProjectDisplayNameValueSchema,
   extensionSettingsSelectedValueSchema,
   extensionSettingsUpdatePayloadSchema,
   extensionSettingsUpdateSettingPayloadSchema,
-  extensionSettingsViewSchema,
   extensionStateReadPayloadSchema,
-  extensionStateSelectedReadResultSchema,
   extensionStorageDeletePayloadSchema,
   extensionStorageGetPayloadSchema,
   extensionStorageKindSchema,
@@ -31,6 +28,9 @@ import type {
   extensionStorageScopeSchema,
   extensionStorageScopeSelectorSchema,
   extensionStorageSetPayloadSchema,
+  extensionSessionResourceViewSchema,
+  extensionStateSelectedReadResultSchema,
+  extensionSettingsViewSchema,
 } from '@shared/schemas/extension-broker'
 
 export type ExtensionInvokeScope = SchemaType<typeof extensionInvokeScopeSchema>
@@ -53,16 +53,22 @@ export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>
 export type ExtensionSessionResourcePublishPayload = SchemaType<
   typeof extensionSessionResourcePublishPayloadSchema
 >
+
 export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>
+
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>
 export type ExtensionStateReadPayload = SchemaType<typeof extensionStateReadPayloadSchema>
+
 export type ExtensionStateSelectedReadResult = SchemaType<
   typeof extensionStateSelectedReadResultSchema
 >
+
 export type ExtensionActionSelectProjectPayload = SchemaType<
   typeof extensionActionSelectProjectPayloadSchema
 >
+
 export type ExtensionSettingsView = SchemaType<typeof extensionSettingsViewSchema>
+
 export type ExtensionModelPreferencesSettingsPatch = SchemaType<
   typeof extensionModelPreferencesSettingsPatchSchema
 >

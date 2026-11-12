@@ -42,7 +42,7 @@ export interface HiveNextActorResult {
   readonly reason: HiveNextActorReason
 }
 
-function result(nextActor: HiveNextActor, reason: HiveNextActorReason): HiveNextActorResult {
+function result(nextActor: HiveNextActor, reason: HiveNextActorReason) {
   return { nextActor, reason }
 }
 
@@ -62,7 +62,7 @@ function needsAttentionActor(facts: HiveNextActorFacts) {
  * A parked request comes first, whatever the Delegation state: only the person can answer it.
  * Returns null for a Session with no Delegation and nothing parked, such as an idle Queen.
  */
-export function hiveNextActor(facts: HiveNextActorFacts): HiveNextActorResult | null {
+export function hiveNextActor(facts: HiveNextActorFacts) {
   if (facts.pendingRequest === 'approval') return result('user', 'awaiting-approval')
   if (facts.pendingRequest === 'question') return result('user', 'awaiting-answer')
   const state = facts.delegationState
@@ -84,18 +84,18 @@ export function hiveNextActor(facts: HiveNextActorFacts): HiveNextActorResult | 
  */
 export function hivePendingRequestOf(
   interaction: Pick<AgentLoopInteraction, 'kind'> & { readonly purpose?: string },
-): HivePendingRequest | null {
+) {
   if (interaction.kind === 'notify') return null
   return interaction.kind === 'confirm' && interaction.purpose === 'authorization'
-    ? 'approval'
-    : 'question'
+    ? ('approval' as const)
+    : ('question' as const)
 }
 
 /** Several parked requests on one Session: an approval outranks a question. */
 export function strongerPendingRequest(
   current: HivePendingRequest | null | undefined,
   next: HivePendingRequest | null,
-): HivePendingRequest | null {
-  if (current === 'approval' || next === 'approval') return 'approval'
-  return next ?? current ?? null
+) {
+  if (current === 'approval' || next === 'approval') return 'approval' as const
+  return (next ?? current ?? null) satisfies HivePendingRequest | null
 }

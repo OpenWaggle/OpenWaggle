@@ -3,7 +3,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { sessionDetailView } from '../session-data-view'
 
-function detail(messageCount: number): SessionDetail {
+function detail(messageCount: number) {
   return {
     id: SessionId('session-1'),
     title: 'S',
@@ -16,7 +16,7 @@ function detail(messageCount: number): SessionDetail {
     })),
     createdAt: 1,
     updatedAt: 2,
-  }
+  } satisfies SessionDetail
 }
 
 describe('bounded to the newest messages (maxMessages, ADR 0036)', () => {

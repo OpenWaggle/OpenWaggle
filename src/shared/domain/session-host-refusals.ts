@@ -218,6 +218,6 @@ export function isSessionHostRefusalCode(value: string): value is SessionHostRef
  * The kind of a code that reached the Session Host's error frame from a thrown failure. A code
  * that is not in the table is an unexpected failure, `internal`.
  */
-export function sessionHostErrorKindForThrownCode(code: string): SessionHostErrorKind {
-  return isSessionHostRefusalCode(code) ? SESSION_HOST_REFUSAL_KINDS[code] : 'internal'
+export function sessionHostErrorKindForThrownCode(code: string) {
+  return isSessionHostRefusalCode(code) ? SESSION_HOST_REFUSAL_KINDS[code] : ('internal' as const)
 }

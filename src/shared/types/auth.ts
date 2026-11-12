@@ -2,7 +2,7 @@
 
 export type OAuthProvider = string
 
-export function isOAuthProvider(value: string): boolean {
+export function isOAuthProvider(value: string) {
   return value.trim().length > 0
 }
 

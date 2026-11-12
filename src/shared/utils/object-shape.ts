@@ -9,7 +9,9 @@ export function isObjectValue(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** The fields of `T` an outside value holds, each unchecked; none for a value that is not an object. */
-export function uncheckedFields<T>(value: unknown): UncheckedFields<T> {
-  return isObjectValue(value) ? value : {}
-}
+/**
+ * The fields of `T` an outside value holds, each unchecked; none for a value that is not an object.
+ * Typed as a value: `T` names only the result, so a declaration would need a return type.
+ */
+export const uncheckedFields: <T>(value: unknown) => UncheckedFields<T> = (value) =>
+  isObjectValue(value) ? value : {}

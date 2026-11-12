@@ -1,4 +1,4 @@
-export function normalizeSkillId(value: string): string {
+export function normalizeSkillId(value: string) {
   const normalized = value
     .trim()
     .toLowerCase()
