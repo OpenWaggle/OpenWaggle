@@ -1976,7 +1976,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - An **OpenWaggle publishable package** declares **Package side-effect metadata** explicitly.
 - An **OpenWaggle publishable package** declares **Package publish access** as `public`.
 - **Package tarball contents** include built outputs and package docs, not TypeScript source files, tests, fixtures, local scripts, configs, or caches.
-- **Package import boundary checks** enforce browser-safe, runtime-neutral, and adapter-layer package boundaries during `pnpm check`.
+- **Package import boundary checks** enforce browser-safe, runtime-neutral, and adapter-layer package boundaries during `bun run check`.
 - The **Release Please package workflow** requires **Package publish validation**, not full desktop app release validation, unless app code changed.
 - A **Package release commit** affects only the OpenWaggle publishable package paths it touches directly.
 - The **Package release PR** is the explicit human gate before automated package publication.
@@ -2225,7 +2225,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 > **Domain expert:** "No — **Package tarball contents** include built outputs and package docs, not source files or local development artifacts."
 
 > **Dev:** "Are package import boundaries enforced only by code review?"
-> **Domain expert:** "No — **Package import boundary checks** fail `pnpm check` when a publishable package imports forbidden host/runtime internals."
+> **Domain expert:** "No — **Package import boundary checks** fail `bun run check` when a publishable package imports forbidden host/runtime internals."
 
 > **Dev:** "Can packed package manifests keep `workspace:*` dependencies?"
 > **Domain expert:** "No — packed manifests use a **Published package dependency range** such as `^0.1.0`."
