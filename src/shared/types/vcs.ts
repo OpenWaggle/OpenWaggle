@@ -3,6 +3,13 @@
 
 import type { SchemaType } from '@shared/schema'
 import type { gitRunStackedActionOptionsSchema } from '@shared/schemas/git-requests'
+import type {
+  gitOutputRecordingResultSchema,
+  sessionGitOutputOccurrenceSchema,
+  sessionGitOutputsPayloadSchema,
+  sessionGitOutputsRecordingSchema,
+  sessionGitWorkingPathVerificationSchema,
+} from '@shared/schemas/git-session-outputs'
 import type { SourceControlProviderInfo, VcsChangeRequest } from './change-request'
 import type { SourceControlAttention, SourceControlHostState } from './source-control'
 
@@ -149,34 +156,13 @@ export interface GitStackedActionBranchOutcome {
   readonly name: string | null
 }
 
-/** Persistence outcome for a successful Git artifact projected into Session Outputs. */
-export type GitOutputRecordingResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
-
-/** Where in a Session's tree a Git Output is anchored, captured when the Git action began. */
-export interface SessionGitOutputOccurrence {
-  readonly nodeId: string | null
-  readonly branchId: string | null
-  readonly createdAt: number
-}
-
-/** The Session Host's answer to whether a working path belongs to a Session. */
-export type SessionGitWorkingPathVerification =
-  | { readonly owned: false }
-  | { readonly owned: true; readonly occurrence: SessionGitOutputOccurrence }
-
-/** Git artifacts a Session-scoped action produced, recorded as Outputs by the Session Host. */
-export interface SessionGitOutputsPayload {
-  readonly occurrence: SessionGitOutputOccurrence
-  readonly commit?: { readonly commitHash: string; readonly summary: string }
-  readonly changeRequest?: { readonly title: string; readonly url: string }
-}
-
-export interface SessionGitOutputsRecording {
-  readonly commitOutput?: GitOutputRecordingResult
-  readonly changeRequestOutput?: GitOutputRecordingResult
-}
+export type GitOutputRecordingResult = SchemaType<typeof gitOutputRecordingResultSchema>
+export type SessionGitOutputOccurrence = SchemaType<typeof sessionGitOutputOccurrenceSchema>
+export type SessionGitWorkingPathVerification = SchemaType<
+  typeof sessionGitWorkingPathVerificationSchema
+>
+export type SessionGitOutputsPayload = SchemaType<typeof sessionGitOutputsPayloadSchema>
+export type SessionGitOutputsRecording = SchemaType<typeof sessionGitOutputsRecordingSchema>
 
 export interface GitRunStackedActionSuccess {
   readonly ok: true

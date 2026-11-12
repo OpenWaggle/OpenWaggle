@@ -1,5 +1,6 @@
 import type { SchemaType } from '@shared/schema'
 import type { changeRequestPreflightPayloadSchema } from '@shared/schemas/git-requests'
+import type { mergeChangeRequestPayloadSchema } from '@shared/schemas/git-session-outputs'
 import type { SourceControlAttention } from './source-control'
 
 export const SOURCE_CONTROL_PROVIDER_IDS = ['github', 'gitlab'] as const
@@ -189,11 +190,7 @@ export interface ChangeRequestPanelSuccess {
 
 export type ChangeRequestPanelResult = ChangeRequestPanelSuccess | SourceControlFailure
 
-export interface MergeChangeRequestPayload {
-  readonly url: string
-  readonly expectedHeadCommit: string
-  readonly method: ChangeRequestMergeMethod
-}
+export type MergeChangeRequestPayload = SchemaType<typeof mergeChangeRequestPayloadSchema>
 
 export interface MergeChangeRequestSuccess {
   readonly ok: true
