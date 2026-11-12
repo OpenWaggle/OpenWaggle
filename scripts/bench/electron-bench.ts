@@ -59,6 +59,7 @@ async function measure(options: {
   readonly out: string
   readonly label: string
   readonly screenshots: string | undefined
+  readonly logs: string | undefined
 }) {
   const installed = readJson(options.install, isInstalledElectronApp, 'an installed app')
   const runs: BenchRun[] = []
@@ -70,6 +71,7 @@ async function measure(options: {
       index,
       prove: index === 1,
       screenshots: options.screenshots,
+      logs: options.logs,
     })
     runs.push(measured.run)
     step(`run ${String(index)} of ${String(options.runs)} measured`)
@@ -118,6 +120,7 @@ async function main(argv: readonly string[]) {
       work: { type: 'string' },
       label: { type: 'string', default: 'electron' },
       screenshots: { type: 'string' },
+      logs: { type: 'string' },
     },
   })
   if (command === 'install' && values.dir !== undefined && values.out !== undefined) {
@@ -134,6 +137,7 @@ async function main(argv: readonly string[]) {
       out: values.out,
       label: values.label,
       screenshots: values.screenshots,
+      logs: values.logs,
     })
     return
   }
