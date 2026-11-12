@@ -14,7 +14,7 @@ export function registerSkillsHandlers(): void {
       return {
         agents: agents.status,
         agentsPath: agents.filePath,
-        error: agents.error,
+        ...(agents.error === undefined ? {} : { error: agents.error }),
       }
     }),
   )

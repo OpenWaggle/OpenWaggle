@@ -6,7 +6,7 @@ import {
   HEARTBEAT_WAKE_CHECK_TIMEOUT_MS,
 } from '@shared/types/scheduled-task-heartbeat'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../../desktop-shell/app-lifecycle'
 import type {
   WakeCheckExecution,
   WakeCheckRequest,
@@ -65,8 +65,9 @@ function killDirect(child: ChildProcess) {
   try {
     child.kill('SIGKILL')
   } catch (error) {
-    if (errorCode(error) !== 'ESRCH')
+    if (errorCode(error) !== 'ESRCH') {
       logger.warn('Wake check kill failed', { error: String(error) })
+    }
   }
 }
 
@@ -202,5 +203,5 @@ export async function runWakeCheckProcess(
 
 /** The Session Host's Wake check runner, with this app's version in the terminal environment. */
 export function runHostWakeCheck(request: WakeCheckRequest) {
-  return Effect.promise(() => runWakeCheckProcess(request, { appVersion: app.getVersion() }))
+  return Effect.promise(() => runWakeCheckProcess(request, { appVersion: appLifecycle.version() }))
 }

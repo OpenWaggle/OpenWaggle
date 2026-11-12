@@ -2,7 +2,6 @@ import type {
   ChangeRequestCheckStatus,
   ChangeRequestMergeability,
   ChangeRequestReviewDecision,
-  ChangeRequestState,
   VcsChangeRequestCheck,
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
@@ -13,6 +12,7 @@ import {
   asString,
   boundedObjects,
   CHANGE_REQUEST_MERGE_METHODS,
+  changeRequestMergeBlocker,
   MAX_CHANGE_REQUEST_ITEMS,
 } from './change-request-parse-shared'
 import { mapGlabMergeRequest } from './change-request-summary-parse'
@@ -32,13 +32,13 @@ function mapPipelineStatus(value: unknown): ChangeRequestCheckStatus {
 
 function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
   return boundedObjects(value).flatMap((record) => {
-    const path = asString(record.path) ?? asString(record.new_path)
+    const path = asString(record['path']) ?? asString(record['new_path'])
     if (!path) return []
     return [
       {
         path,
-        additions: asNumericCount(record.additions) ?? 0,
-        deletions: asNumericCount(record.deletions) ?? 0,
+        additions: asNumericCount(record['additions']) ?? 0,
+        deletions: asNumericCount(record['deletions']) ?? 0,
       },
     ]
   })
@@ -46,9 +46,9 @@ function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
 
 function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMergeability {
   if (!record) return 'unknown'
-  if (record.has_conflicts === true) return 'conflicting'
+  if (record['has_conflicts'] === true) return 'conflicting'
   const status = (
-    asString(record.detailed_merge_status) ?? asString(record.merge_status)
+    asString(record['detailed_merge_status']) ?? asString(record['merge_status'])
   )?.toLowerCase()
   if (status === 'conflict' || status === 'cannot_be_merged') return 'conflicting'
   if (status === 'mergeable' || status === 'can_be_merged') return 'mergeable'
@@ -58,58 +58,36 @@ function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMerg
 
 function mapReviewDecision(record: ReturnType<typeof asObject>): ChangeRequestReviewDecision {
   if (!record) return 'unknown'
-  if (record.approved === true || asNumericCount(record.approvals_left) === 0) return 'approved'
-  if ((asNumericCount(record.approvals_left) ?? 0) > 0) return 'review-required'
+  if (record['approved'] === true || asNumericCount(record['approvals_left']) === 0) {
+    return 'approved'
+  }
+  if ((asNumericCount(record['approvals_left']) ?? 0) > 0) return 'review-required'
   return 'none'
 }
 
-function mergeReason(input: {
-  readonly state: ChangeRequestState
-  readonly headCommit: string | null
-  readonly checks: readonly VcsChangeRequestCheck[]
-  readonly reviewDecision: ChangeRequestReviewDecision
-  readonly mergeability: ChangeRequestMergeability
-}) {
-  if (input.state === 'draft') return 'Mark this merge request ready for review before merging.'
-  if (input.state !== 'open') return 'Only an open merge request can be merged.'
-  if (!input.headCommit) return 'The head commit is unavailable. Refresh before merging.'
-  if (input.mergeability === 'conflicting') return 'Resolve merge conflicts before merging.'
-  if (input.mergeability === 'unknown') return 'Mergeability is still being calculated.'
-  if (input.reviewDecision === 'changes-requested') {
-    return 'Resolve requested review changes before merging.'
-  }
-  if (input.reviewDecision === 'review-required') return 'Required review approval is missing.'
-  if (input.checks.some((check) => check.status === 'failed' || check.status === 'cancelled')) {
-    return 'Fix failing checks before merging.'
-  }
-  if (input.checks.some((check) => check.status === 'pending')) {
-    return 'Wait for all checks to finish before merging.'
-  }
-  if (input.mergeability === 'blocked') return 'Repository rules currently block this merge.'
-  return null
-}
-
 function pipelineChecks(record: ReturnType<typeof asObject>): readonly VcsChangeRequestCheck[] {
-  const pipeline = asObject(record?.head_pipeline)
+  const pipeline = asObject(record?.['head_pipeline'])
   if (!pipeline) return []
   return [
     {
-      name: asString(pipeline.name) ?? asString(pipeline.ref) ?? 'Pipeline',
-      status: mapPipelineStatus(pipeline.status),
-      url: asString(pipeline.web_url),
+      name: asString(pipeline['name']) ?? asString(pipeline['ref']) ?? 'Pipeline',
+      status: mapPipelineStatus(pipeline['status']),
+      url: asString(pipeline['web_url']),
     },
   ]
 }
 
 function discussionCounts(record: ReturnType<typeof asObject>) {
-  const discussions = boundedObjects(record?.discussions)
+  const discussions = boundedObjects(record?.['discussions'])
   const complete =
-    Array.isArray(record?.discussions) && record.discussions.length < MAX_CHANGE_REQUEST_ITEMS
+    Array.isArray(record?.['discussions']) &&
+    record['discussions'].length < MAX_CHANGE_REQUEST_ITEMS
   if (!complete) return { reviewThreadsCount: null, unresolvedReviewThreadsCount: null }
   return {
     reviewThreadsCount: discussions.length,
-    unresolvedReviewThreadsCount: discussions.filter((discussion) => discussion.resolved !== true)
-      .length,
+    unresolvedReviewThreadsCount: discussions.filter(
+      (discussion) => discussion['resolved'] !== true,
+    ).length,
   }
 }
 
@@ -126,34 +104,38 @@ function fileTotals(files: readonly VcsChangeRequestFile[]) {
 export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
   const record = asObject(raw)
   const summary = mapGlabMergeRequest(raw)
-  const reference = asNumericCount(record?.iid)
+  const reference = asNumericCount(record?.['iid'])
   if (!record || !summary || reference === null) return null
-  const files = mapFiles(record.diff_stats ?? record.changes)
+  const files = mapFiles(record['diff_stats'] ?? record['changes'])
   const fallbackTotals = fileTotals(files)
   const checks = pipelineChecks(record)
   const reviewDecision = mapReviewDecision(record)
   const mergeability = mapMergeability(record)
-  const headCommit = asString(record.sha)
-  const reason = mergeReason({
+  const headCommit = asString(record['sha'])
+  const reason = changeRequestMergeBlocker({
+    noun: 'merge request',
     state: summary.state,
     headCommit,
     checks,
     reviewDecision,
     mergeability,
+    rulesBlocked: false,
   })
   return {
     ...summary,
     reference: String(reference),
     headCommit,
-    author: asString(asObject(record.author)?.username) ?? asString(asObject(record.author)?.name),
-    changedFiles: asNumericCount(record.changes_count) ?? fallbackTotals.changedFiles,
+    author:
+      asString(asObject(record['author'])?.['username']) ??
+      asString(asObject(record['author'])?.['name']),
+    changedFiles: asNumericCount(record['changes_count']) ?? fallbackTotals.changedFiles,
     additions: fallbackTotals.additions,
     deletions: fallbackTotals.deletions,
     files,
     checks,
     reviewDecision,
     mergeability,
-    commentsCount: asNumericCount(record.user_notes_count),
+    commentsCount: asNumericCount(record['user_notes_count']),
     reviewsCount: null,
     ...discussionCounts(record),
     merge: { allowed: reason === null, reason, methods: CHANGE_REQUEST_MERGE_METHODS },

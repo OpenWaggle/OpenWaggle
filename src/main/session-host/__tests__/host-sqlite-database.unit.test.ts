@@ -26,7 +26,7 @@ describe('Host SQLite library', () => {
 
   it('is the better-sqlite3 build the Host runtime connection loads', () => {
     // A second better-sqlite3 version would bring its own SQLite copy into the Host (#371); the
-    // pnpm override in pnpm-workspace.yaml keeps @effect/sql-sqlite-node on the app's build.
+    // The better-sqlite3 override in the root package.json keeps @effect/sql-sqlite-node on the app's build.
     const effectClient = require.resolve('@effect/sql-sqlite-node')
     expect(realPath(createRequire(effectClient).resolve('better-sqlite3'))).toBe(
       realPath(require.resolve('better-sqlite3')),

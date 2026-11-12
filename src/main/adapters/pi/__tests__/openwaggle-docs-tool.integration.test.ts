@@ -59,7 +59,7 @@ async function call(tool: ToolDefinition, params: unknown) {
   const [first] = result.content
   if (first?.type !== 'text') throw new Error('Expected a text result')
   return {
-    isError: 'isError' in result && result.isError === true,
+    isError: 'isError' in result && result.isError,
     text: first.text,
     details: result.details,
   }
@@ -120,7 +120,7 @@ describe('openwaggle_docs over the generated installed docs bundle', () => {
       const result = await call(tool, { action: 'list' })
       expect(result.isError).toBe(true)
       expect(result.text).toContain(JSON.stringify(path.join(empty, 'openwaggle-docs')))
-      expect(result.text).toContain('pnpm docs:generate')
+      expect(result.text).toContain('bun run docs:generate')
     } finally {
       await rm(empty, { recursive: true, force: true })
     }

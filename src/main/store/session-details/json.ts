@@ -1,4 +1,4 @@
-import { parseJsonUnknown, Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { JsonValue } from '@shared/types/json'
 import { createWaggleModelBinding, type WaggleConfig } from '@shared/types/waggle'
@@ -17,8 +17,6 @@ export const sessionJsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend((
 export const sessionJsonObjectSchema = Schema.mutable(
   Schema.Record({ key: Schema.String, value: sessionJsonValueSchema }),
 )
-
-export type SessionJsonObject = SchemaType<typeof sessionJsonObjectSchema>
 
 export function parseJsonValue(raw: string | null) {
   if (raw === null) {

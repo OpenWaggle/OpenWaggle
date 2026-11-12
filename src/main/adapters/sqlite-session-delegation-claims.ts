@@ -93,10 +93,10 @@ async function resolveClaims(
   resolvePath: ClaimPathResolver,
 ) {
   const keys = await Promise.all(
-    claims.map((claim) =>
+    claims.map(async (claim) =>
       claim.targetKind === 'named-resource'
         ? { targetKey: claim.targetValue, caseSensitive: true }
-        : resolvePath(workingPath, claim.targetValue),
+        : await resolvePath(workingPath, claim.targetValue),
     ),
   )
   const resolved: ResolvedClaim[] = []

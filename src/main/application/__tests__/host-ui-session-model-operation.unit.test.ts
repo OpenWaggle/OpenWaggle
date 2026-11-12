@@ -65,7 +65,7 @@ function run<A>(
   fixture: ReturnType<typeof services>,
 ) {
   const effect = fixture.provide(dispatchHostBackedSessionGuiOperation(channel, fromAny(args)))
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof effect>(effect))
 }
 
 describe('sessions:set-model', () => {

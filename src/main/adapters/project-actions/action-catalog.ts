@@ -46,10 +46,11 @@ async function restorePreparationReviewState(
   const current = stored.state.document.reviews.find(
     (review) => review.definitionId === granted.definitionId,
   )
-  if (stored.state.pending || !isDeepStrictEqual(current, granted))
+  if (stored.state.pending || !isDeepStrictEqual(current, granted)) {
     throw new Error(
       'Project Actions changed while undoing a failed preparation review. Reload and review the shared setup.',
     )
+  }
   const document = decodeUnknownExactOrThrow(localActionDocumentSchema, {
     ...stored.state.document,
     reviews: [
@@ -78,8 +79,9 @@ async function serializedActionCatalog<T>(
 export function createActionCatalog(persistence: ActionStatePersistence) {
   async function load(scope: ActionCatalogScope) {
     const workspaceIdentity = await readActionWorkspaceIdentity(scope.workspacePath)
-    if (!workspaceIdentity)
+    if (!workspaceIdentity) {
       throw new Error('This Project Actions Workspace is no longer available.')
+    }
     let stored = await persistence.read(scope.projectPath)
     if (!stored) {
       const document = decodeUnknownExactOrThrow(
@@ -89,10 +91,11 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
       await persistence.write(scope.projectPath, 0, { document, pending: null })
       // Re-read the committed destination before treating migration as complete.
       const verified = await persistence.read(scope.projectPath)
-      if (!verified || JSON.stringify(verified.state.document) !== JSON.stringify(document))
+      if (!verified || JSON.stringify(verified.state.document) !== JSON.stringify(document)) {
         throw new Error(
           'Project Actions migration could not be verified. Legacy settings remain intact.',
         )
+      }
       stored = verified
     }
     stored = await recoverActionPublication(persistence, scope.projectPath, stored)
@@ -133,10 +136,11 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
       serializedActionCatalog(scope, async (canonical) => {
         const edit = decodeUnknownExactOrThrow(actionCatalogEditSchema, rawEdit)
         const { stored, shared, revision, workspaceIdentity } = await load(canonical)
-        if (revision !== expectedRevision)
+        if (revision !== expectedRevision) {
           throw new Error(
             'Project Actions changed since this editor was opened. Your draft has been kept; reload before saving.',
           )
+        }
         if (edit.type === 'discard-publication') {
           await persistence.write(canonical.projectPath, stored.revision, {
             document: stored.state.document,
@@ -144,10 +148,11 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
           })
           return readCurrent(canonical)
         }
-        if (stored.state.pending)
+        if (stored.state.pending) {
           throw new Error(
             'An interrupted save conflicts with an external edit. Review the retained drafts before discarding the pending publication.',
           )
+        }
         const next = editActionCatalog(stored.state.document, shared.manifest, edit)
         decodeUnknownExactOrThrow(localActionDocumentSchema, next.document)
         decodeUnknownExactOrThrow(actionManifestSchema, next.shared)
@@ -161,14 +166,16 @@ export function createActionCatalog(persistence: ActionStatePersistence) {
             canonical.projectPath,
             canonical.workspacePath,
           )
-          if (resource && !resource.ready)
+          if (resource && !resource.ready) {
             throw new Error(
               'This Project Actions Workspace is no longer available. Your draft has been kept.',
             )
+          }
           const publication = await createActionPublication(canonical.workspacePath, async () => {
             const current = await readActionWorkspaceIdentity(canonical.workspacePath)
-            if (JSON.stringify(current) !== JSON.stringify(workspaceIdentity))
+            if (JSON.stringify(current) !== JSON.stringify(workspaceIdentity)) {
               throw new Error('The publication Workspace changed. Your draft has been kept.')
+            }
           })
           const pending = decodeUnknownExactOrThrow(localActionStateSchema, {
             document: stored.state.document,

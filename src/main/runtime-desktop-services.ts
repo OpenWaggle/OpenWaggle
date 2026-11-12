@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect'
-import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron-browser-preview-automation-service'
+import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron/browser-preview/electron-browser-preview-automation-service'
 import { NodePtyTerminalServiceLive } from './adapters/node-pty-terminal-service'
 import { makeOfflineDesktopCleanupExecutor } from './adapters/offline-desktop-cleanup'
 import { RemoteBrowserPreviewAutomationServiceLive } from './adapters/remote-browser-preview-automation-service'

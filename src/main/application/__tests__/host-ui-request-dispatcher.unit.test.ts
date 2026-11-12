@@ -37,7 +37,7 @@ function request(channel: 'settings:get' | 'providers:get-models', args: readonl
 }
 
 function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>): Promise<A> {
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof effect>(effect))
 }
 
 function revisionGateArgs(channel: string) {

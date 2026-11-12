@@ -194,7 +194,7 @@ describe('runStackedGitAction', () => {
 
   it('reports exact branch and push progress totals', async () => {
     const deps = makeDeps()
-    const events: Array<{ phase: string; index: number; total: number }> = []
+    const events: { phase: string; index: number; total: number }[] = []
 
     await runStackedGitAction(
       deps,
@@ -216,7 +216,7 @@ describe('runStackedGitAction', () => {
 
   it('reports one progress event per commit, push, and change-request mutation', async () => {
     const deps = makeDeps()
-    const events: Array<{ phase: string; index: number; total: number }> = []
+    const events: { phase: string; index: number; total: number }[] = []
 
     await runStackedGitAction(
       deps,
@@ -241,7 +241,7 @@ describe('runStackedGitAction', () => {
 
   it('reports branch, push, and change-request progress for create_pr', async () => {
     const deps = makeDeps()
-    const events: Array<{ phase: string; index: number; total: number }> = []
+    const events: { phase: string; index: number; total: number }[] = []
 
     await runStackedGitAction(
       deps,

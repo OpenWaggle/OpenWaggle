@@ -124,8 +124,9 @@ export async function completePreparationBirth(
     previousRevision: number,
   ) => Promise<StoredWorkspacePreparation>,
 ) {
-  if (!existing.awaitingWorktreeBirth || workspace.workspacePath === workspace.projectPath)
+  if (!existing.awaitingWorktreeBirth || workspace.workspacePath === workspace.projectPath) {
     return existing
+  }
   const identity = await readPreparationWorkspaceIdentity(workspace.workspacePath)
   if (!identity) return existing
   return save(withRecordedBirth(existing, identity), existing.revision)
@@ -188,10 +189,11 @@ export async function inspectPreparationGeneration(
 ): Promise<WorkspaceGenerationCheck> {
   const { workspacePath } = workspace
   const recorded = state?.workspaceIdentity
-  if (!recorded)
+  if (!recorded) {
     return state?.awaitingWorktreeBirth
       ? { status: 'awaiting-birth', workspacePath }
       : { status: 'unrecorded', workspacePath }
+  }
   try {
     return await observeGeneration(workspacePath, recorded)
   } catch (error) {

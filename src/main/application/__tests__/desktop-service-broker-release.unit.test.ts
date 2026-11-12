@@ -9,7 +9,7 @@ import {
 } from './desktop-service-broker-release.test-harness'
 
 const scope = { kind: 'owner' as const, ownerKey: 'session-one' }
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
   for (const close of cleanups.splice(0)) close()

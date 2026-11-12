@@ -10,10 +10,7 @@ import {
   sessionCliExitCodeForError,
   sessionCliResultErrorKind,
 } from './session-cli-exit-status'
-import {
-  executeLocalSessionCommand,
-  watchLocalSessionEvents,
-} from './session-host/local-session-client'
+import { executeLocalSessionCommand } from './session-host/local-session-client'
 import { runAgentDefinitionDiscoveryCommand } from './sessions-cli-agent-definitions'
 import { requiredSessionId, watchCursor } from './sessions-cli-arguments'
 import { streamSessionExport } from './sessions-cli-export'
@@ -34,16 +31,11 @@ import {
   validateSessionsCliOutputMode,
   writeSessionsCliError,
   writeSessionsCliResponse,
-  writeSessionsCliStreamRecord,
 } from './sessions-cli-output'
 import { buildSessionsCliPayload } from './sessions-cli-payload'
 import { streamFullTranscript } from './sessions-cli-transcript'
 import { sessionsCliUsage } from './sessions-cli-usage'
-import {
-  watchCursorRecord,
-  watchEventRecord,
-  watchResyncRecord,
-} from './sessions-cli-watch-records'
+import { streamSessionsCliWatch } from './sessions-cli-watch-stream'
 
 export { buildSessionsCliPayload } from './sessions-cli-payload'
 
@@ -54,41 +46,15 @@ async function runWatchCommand(
   clientInput: ClientInput,
 ) {
   const sessionIds = new Set(sessionIdsFromReferences(arguments_.positionals, 'Session ID'))
-  const abortController = new AbortController()
-  const interrupt = () => abortController.abort()
-  process.once('SIGINT', interrupt)
-  process.once('SIGTERM', interrupt)
-  try {
-    const after = watchCursor(arguments_)
-    const jsonl = hasFlag(arguments_, 'jsonl')
-    const writeCursor = (cursor: { readonly hostInstanceId: string; readonly sequence: number }) =>
-      writeSessionsCliStreamRecord(watchCursorRecord(cursor), jsonl)
-    const result = await watchLocalSessionEvents({
-      ...clientInput,
-      ...(after ? { after } : {}),
-      ...(sessionIds.size > 0 ? { sessionIds: [...sessionIds] } : {}),
-      signal: abortController.signal,
-      onCursor: writeCursor,
-      onEvent: async (event) => {
-        if (
-          sessionIds.size > 0 &&
-          (isSessionlessHostEvent(event.payload) || !sessionIds.has(event.payload.sessionId))
-        ) {
-          await writeCursor(event.cursor)
-          return
-        }
-        await writeSessionsCliStreamRecord(watchEventRecord(event), jsonl)
-      },
-    })
-    if (result.status === 'resync-required') {
-      await writeSessionsCliStreamRecord(watchResyncRecord(result), jsonl)
-      return EXIT.RESYNC_REQUIRED
-    }
-    return EXIT.SUCCESS
-  } finally {
-    process.off('SIGINT', interrupt)
-    process.off('SIGTERM', interrupt)
-  }
+  const result = await streamSessionsCliWatch({
+    arguments_,
+    clientInput,
+    sessionIds: [...sessionIds],
+    includeEvent: (event) =>
+      sessionIds.size === 0 ||
+      (!isSessionlessHostEvent(event.payload) && sessionIds.has(event.payload.sessionId)),
+  })
+  return result.status === 'resync-required' ? EXIT.RESYNC_REQUIRED : EXIT.SUCCESS
 }
 
 async function runSessionCommand(

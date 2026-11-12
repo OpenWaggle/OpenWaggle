@@ -100,8 +100,8 @@ export async function invokeConfiguredHostUi<C extends HostBackedGuiChannel>(
   return invokeConfiguredHostUiRaw(channel, args)
 }
 
-export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
-  channel: C,
+export async function invokeConfiguredHostUiRaw(
+  channel: HostBackedGuiChannel,
   args: readonly unknown[],
 ): Promise<ConfiguredHostUiInvocation> {
   const route = guiSessionCommandRoute

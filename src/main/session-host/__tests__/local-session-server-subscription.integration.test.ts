@@ -164,15 +164,17 @@ describe('Local Session server subscriptions', () => {
         refreshCaller: async (caller) => ({
           ...caller,
           eventAdmissionSessionIds: [...liveSessionIds],
-          profileAuthority: caller.profileAuthority
+          ...(caller.profileAuthority
             ? {
-                ...caller.profileAuthority,
-                scope:
-                  callerId === 'profile:mutable'
-                    ? { sessionIds: [...liveSessionIds] }
-                    : caller.profileAuthority.scope,
+                profileAuthority: {
+                  ...caller.profileAuthority,
+                  scope:
+                    callerId === 'profile:mutable'
+                      ? { sessionIds: [...liveSessionIds] }
+                      : caller.profileAuthority.scope,
+                },
               }
-            : undefined,
+            : {}),
         }),
         authorizeEvent,
         dispatch: async () => ({ accepted: true }),

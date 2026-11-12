@@ -26,9 +26,13 @@ export async function loadProjectAgentsInstruction(
       status: root.status,
       filePath: root.filePath,
       content: root.content,
-      error: root.error,
     }))
-    .with('missing', 'error', (root) => ({
+    .with('missing', (root) => ({
+      status: root.status,
+      filePath: root.filePath,
+      content: null,
+    }))
+    .with('error', (root) => ({
       status: root.status,
       filePath: root.filePath,
       content: null,

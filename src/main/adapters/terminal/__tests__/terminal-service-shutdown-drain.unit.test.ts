@@ -3,16 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProcessRow } from '../terminal-process-inspector'
 import {
   feed,
-  OWNER,
   open,
+  OWNER,
   ptys,
   service,
   settle,
   setupTerminalServiceActionsTest,
-  TERMINAL_KEY,
   teardownTerminalServiceActionsTest,
+  TERMINAL_KEY,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 const processProbe = vi.hoisted(() => ({
   rows: new Map<number, ProcessRow>(),
@@ -67,7 +68,7 @@ describe('makeNodePtyTerminalService owner and app shutdown drain', () => {
     first.emitProcessTreeExit(0)
     await closing
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
     expect(record.closed).toBe(true)
     feed(0, 'discarded after destructive close')
     expect(record.scrollback.toString()).toBe('')
@@ -101,6 +102,6 @@ describe('makeNodePtyTerminalService owner and app shutdown drain', () => {
     first.emitPublicExit(0)
     await closing
     expect(settled).toBe(true)
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
+    expect(await terminalKeys()).not.toContain(TERMINAL_KEY)
   })
 })

@@ -1,7 +1,11 @@
 import type { SessionToolInputV2 } from './openwaggle-mcp-session-input-v2'
 import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
 
-function add(options: Map<string, string[]>, name: string, value: unknown) {
+function add(
+  options: Map<string, string[]>,
+  name: string,
+  value: string | number | boolean | undefined,
+) {
   if (value === undefined || value === false) return
   options.set(name, [value === true ? 'true' : String(value)])
 }
@@ -62,8 +66,9 @@ function addBaseOptions(options: Map<string, string[]>, input: SessionToolInputV
     ['parent', input.parentSessionId],
     ['worker', input.workerSessionId],
     ['delegation', input.operation === 'delegations-conflicts' ? input.delegationId : undefined],
-  ] as const)
+  ] as const) {
     add(options, name, value)
+  }
 }
 
 function addCollaborationOptions(options: Map<string, string[]>, input: SessionToolInputV2) {

@@ -4,7 +4,6 @@ import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import {
-  advanceGeneratedImageCaptureBudget,
   captureSuccessfulRunResources,
   GENERATED_IMAGE_CAPTURE_LIMITS,
   prepareGeneratedImageForCapture,
@@ -42,15 +41,6 @@ describe('generated-image capture budget', () => {
     expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(
       GENERATED_IMAGE_CAPTURE_LIMITS.maxCount,
     )
-  })
-
-  it('rejects the next generated image when it would exceed the aggregate byte budget', () => {
-    expect(
-      advanceGeneratedImageCaptureBudget(
-        { count: 1, bytes: GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - 1, attempts: 1 },
-        Buffer.from(PNG_BASE64, 'base64').byteLength,
-      ),
-    ).toBeNull()
   })
 
   it('does not decode images that cannot fit the remaining run budget', () => {

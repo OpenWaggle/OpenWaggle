@@ -28,7 +28,7 @@ function parsePiEntryTimestamp(timestamp: string) {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -77,7 +77,7 @@ function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null)
   if (!runId) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
   const metadata = isRecord(parsed) ? parsed : {}
-  const existingOpenWaggle = isRecord(metadata.openWaggle) ? metadata.openWaggle : {}
+  const existingOpenWaggle = isRecord(metadata['openWaggle']) ? metadata['openWaggle'] : {}
   return JSON.stringify({
     ...metadata,
     openWaggle: { ...existingOpenWaggle, runId },
@@ -88,7 +88,9 @@ function boundaryRunId(entry: SessionEntry) {
   if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
     return null
   }
-  return isRecord(entry.data) && typeof entry.data.runId === 'string' ? entry.data.runId : null
+  return isRecord(entry.data) && typeof entry.data['runId'] === 'string'
+    ? entry.data['runId']
+    : null
 }
 
 function runIdForEntry(input: {

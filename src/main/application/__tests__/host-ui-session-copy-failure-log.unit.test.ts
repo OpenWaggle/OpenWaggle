@@ -41,7 +41,7 @@ it.each([
   const effect = dispatchHostBackedSessionGuiOperation(channel, [SESSION_ID, 'local/model', 'n1'])
 
   await expect(
-    Effect.runPromise(fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect)),
+    Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof effect>(effect)),
   ).rejects.toThrow(busy)
 
   expect(warn).toHaveBeenCalledWith(
@@ -65,9 +65,7 @@ it('does not log a copy that was interrupted, as when the Host stops', async () 
     'n1',
   ])
 
-  await Effect.runPromiseExit(
-    fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect),
-  )
+  await Effect.runPromiseExit(fromAny<Effect.Effect<unknown, unknown>, typeof effect>(effect))
 
   expect(warn).not.toHaveBeenCalled()
 })

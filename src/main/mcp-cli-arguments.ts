@@ -86,6 +86,33 @@ export function isFlagValue(value: string) {
   return value === 'true' || value === OPTION_WITHOUT_VALUE
 }
 
+/**
+ * The usage error for options given the wrong kind of value, or null: a valued option with no
+ * value, or a boolean option given one. Names are sorted so the message is stable.
+ */
+export function optionValueProblem(
+  arguments_: ParsedArguments,
+  booleanOptions: ReadonlySet<string>,
+): string | null {
+  const missingValues = [...arguments_.options.entries()]
+    .flatMap(([name, values]) =>
+      !booleanOptions.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
+    )
+    .sort()
+  if (missingValues.length > 0) {
+    return `Missing value for ${missingValues.map((name) => `--${name}`).join(', ')}.`
+  }
+  const valuedBooleans = [...arguments_.options.entries()]
+    .flatMap(([name, values]) =>
+      booleanOptions.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
+    )
+    .sort()
+  if (valuedBooleans.length > 0) {
+    return `${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`
+  }
+  return null
+}
+
 function parseOption(args: readonly string[], index: number, options: Map<string, string[]>) {
   const value = args[index] ?? ''
   const separator = value.indexOf('=')
@@ -145,22 +172,8 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
       `Unknown option${unknown.length === 1 ? '' : 's'}: ${unknown.map((name) => `--${name}`).join(', ')}.`,
     )
   }
-  const missingValues = [...arguments_.options.entries()]
-    .flatMap(([name, values]) =>
-      !BOOLEAN_OPTIONS.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
-    )
-    .sort()
-  if (missingValues.length > 0) {
-    throw new Error(`Missing value for ${missingValues.map((name) => `--${name}`).join(', ')}.`)
-  }
-  const valuedBooleans = [...arguments_.options.entries()]
-    .flatMap(([name, values]) =>
-      BOOLEAN_OPTIONS.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
-    )
-    .sort()
-  if (valuedBooleans.length > 0) {
-    throw new Error(`${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`)
-  }
+  const valueProblem = optionValueProblem(arguments_, BOOLEAN_OPTIONS)
+  if (valueProblem !== null) throw new Error(valueProblem)
   if (command === 'serve') serveAuthorizationCeiling(arguments_)
 }
 

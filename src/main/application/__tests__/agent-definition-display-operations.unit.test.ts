@@ -30,6 +30,11 @@ async function fixture() {
   const markdown =
     '---\nname: test-reviewer\ndescription: Reviews changes\n---\n\nReview changes.\n'
   await fs.writeFile(path.join(directory, 'test-reviewer.md'), markdown)
+  // No toggle names this one, so it is on, as discovery treats it.
+  await fs.writeFile(
+    path.join(directory, 'test-planner.md'),
+    '---\nname: test-planner\ndescription: Plans changes\n---\n\nPlan changes.\n',
+  )
   return { projectPath, canonicalProjectPath: await fs.realpath(projectPath), markdown }
 }
 
@@ -68,9 +73,17 @@ describe('Agent definition display operations', () => {
       ),
     ])
 
-    expect(items).toEqual([
-      expect.objectContaining({ name: 'test-reviewer', scope: 'portable-project', enabled: false }),
-    ])
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'test-reviewer',
+          scope: 'portable-project',
+          enabled: false,
+        }),
+        expect.objectContaining({ name: 'test-planner', scope: 'portable-project', enabled: true }),
+      ]),
+    )
+    expect(items).toHaveLength(2)
     expect(items[0]).not.toHaveProperty('definition')
     expect(preview).toEqual({ markdown })
   })

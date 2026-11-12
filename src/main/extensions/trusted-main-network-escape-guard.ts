@@ -1,13 +1,15 @@
 import childProcess from 'node:child_process'
 import cluster from 'node:cluster'
 import dgram from 'node:dgram'
+import { EventEmitter } from 'node:events'
 import http2 from 'node:http2'
 import { syncBuiltinESMExports } from 'node:module'
 import workerThreads from 'node:worker_threads'
 import { installTrustedMainDnsNetworkEscapeGuard } from './trusted-main-network-dns-escape-guard'
 import {
   callablePatch,
-  constructablePatch,
+  prototypeMethodPatch,
+  superclassPatch,
   type TrustedMainNetworkEscapeGuard,
   type TrustedMainNetworkEscapePatchInstaller,
 } from './trusted-main-network-escape-guard-model'
@@ -69,10 +71,9 @@ const ESCAPE_PATCH_INSTALLERS = [
     api: 'node:child_process.spawnSync',
     reason: CHILD_PROCESS_REASON,
   }),
-  callablePatch({
+  prototypeMethodPatch({
     target: cluster,
     propertyName: 'fork',
-    original: cluster.fork,
     api: 'node:cluster.fork',
     reason: CLUSTER_REASON,
   }),
@@ -90,10 +91,36 @@ const ESCAPE_PATCH_INSTALLERS = [
     api: 'node:http2.connect',
     reason: HTTP2_REASON,
   }),
-  constructablePatch({
-    target: workerThreads,
-    propertyName: 'Worker',
-    original: workerThreads.Worker,
+  // Shared by every import style on Node and Bun. `spawn`, `exec`, `execFile`, `fork` and
+  // `cluster.fork` create their process through it; the module patches above add the synchronous
+  // functions, which Node resolves through the module object and Bun through `Bun.spawnSync`.
+  prototypeMethodPatch({
+    target: childProcess.ChildProcess.prototype,
+    propertyName: 'spawn',
+    api: 'node:child_process.ChildProcess.spawn',
+    reason: CHILD_PROCESS_REASON,
+  }),
+  prototypeMethodPatch({
+    target: dgram.Socket.prototype,
+    propertyName: 'bind',
+    api: 'node:dgram.Socket.bind',
+    reason: UDP_REASON,
+  }),
+  prototypeMethodPatch({
+    target: dgram.Socket.prototype,
+    propertyName: 'connect',
+    api: 'node:dgram.Socket.connect',
+    reason: UDP_REASON,
+  }),
+  prototypeMethodPatch({
+    target: dgram.Socket.prototype,
+    propertyName: 'send',
+    api: 'node:dgram.Socket.send',
+    reason: UDP_REASON,
+  }),
+  superclassPatch({
+    derived: workerThreads.Worker,
+    base: EventEmitter,
     api: 'node:worker_threads.Worker',
     reason: WORKER_REASON,
   }),

@@ -151,7 +151,7 @@ export function terminalOperationBlockDisposition(
   input: {
     readonly key: TerminalKey
     readonly ownerKey: TerminalOwnerKey
-    readonly cwd?: string
+    readonly cwd?: string | undefined
   },
 ) {
   if (queue.blockedAll > 0 || queue.blockedKeys.has(input.key)) return 'cancel'
@@ -167,8 +167,3 @@ export function terminalOperationBlockDisposition(
   }
   return 'none'
 }
-
-export const isTerminalOperationBlocked = (
-  queue: TerminalOperationQueue,
-  input: Parameters<typeof terminalOperationBlockDisposition>[1],
-) => terminalOperationBlockDisposition(queue, input) !== 'none'

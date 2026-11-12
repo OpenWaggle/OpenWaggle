@@ -112,8 +112,9 @@ function isHidden(characters: readonly string[], index: number) {
 
 /** `following` is text that comes next; it informs neighbour checks but is not written. */
 function sanitizeSegment(text: string, following: string) {
-  const own = [...text]
-  const characters = [...own, ...following]
+  // By code point: control and invisible characters are single code points.
+  const own = Array.from(text)
+  const characters = [...own, ...Array.from(following)]
   let result = ''
   for (const [index, character] of own.entries()) {
     const code = character.codePointAt(0) ?? 0

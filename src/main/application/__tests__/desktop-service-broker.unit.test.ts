@@ -9,7 +9,7 @@ import {
   firstCommand,
 } from './desktop-service-broker.test-harness'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 function harness() {
   const instance = brokerHarness()
   cleanups.push(() => instance.broker.close())

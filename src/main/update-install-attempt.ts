@@ -152,8 +152,9 @@ async function readShipItLogTail(bundleIdentifier: string): Promise<string | nul
     const { bytesRead } = await file.read(buffer, 0, length, size - length)
     return buffer.subarray(0, bytesRead).toString('utf8')
   } catch (error) {
-    if (!isMissingFile(error))
+    if (!isMissingFile(error)) {
       logger.warn('Could not read the macOS updater log', describeError(error))
+    }
     return null
   } finally {
     await file?.close().catch(() => undefined)

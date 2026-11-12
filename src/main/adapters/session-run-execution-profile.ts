@@ -9,6 +9,7 @@ import {
 } from '@shared/types/session-capability'
 import type { ResolvedSessionExecutionProfile } from '@shared/types/session-lifecycle'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
+import { valuesIn } from '@shared/utils/set-membership'
 import { parseResolvedAgentDefinitionSnapshot } from '../agents/agent-definition-parser'
 import { heartbeatRunIdentity } from '../domain/scheduled-tasks/heartbeat-run-context'
 import {
@@ -61,6 +62,17 @@ export interface ResolvedSessionRunExecution {
   readonly scheduledTask?: MessageScheduledTaskOrigin
 }
 
+/** The Run's optional agent settings, with the keys it has no value for left out. */
+export function resolvedRunSpecialization(execution: ResolvedSessionRunExecution) {
+  const { agentInstructions, toolAllowlist, skillAllowlist, mcpServerAllowlist } = execution
+  return {
+    ...(agentInstructions === undefined ? {} : { agentInstructions }),
+    ...(toolAllowlist === undefined ? {} : { toolAllowlist }),
+    ...(skillAllowlist === undefined ? {} : { skillAllowlist }),
+    ...(mcpServerAllowlist === undefined ? {} : { mcpServerAllowlist }),
+  }
+}
+
 function parseJsonRecord(value: string, label: string) {
   let parsed: unknown
   try {
@@ -92,41 +104,30 @@ function optionalStringArray(record: Record<string, unknown>, key: string, label
 }
 
 export function decodeSessionExecutionProfile(value: string): ResolvedSessionExecutionProfile {
-  const record = parseJsonRecord(value, 'Session execution profile')
-  const thinkingLevel = requiredString(record, 'thinkingLevel', 'Session execution profile')
-  if (!THINKING_LEVELS.some((candidate) => candidate === thinkingLevel)) {
-    throw new Error(`Invalid Session execution profile: unknown thinkingLevel ${thinkingLevel}.`)
-  }
+  const label = 'Session execution profile'
+  const record = parseJsonRecord(value, label)
+  const thinkingLevel = requiredString(record, 'thinkingLevel', label)
   const validatedThinkingLevel = THINKING_LEVELS.find((candidate) => candidate === thinkingLevel)
   if (!validatedThinkingLevel) {
-    throw new Error(`Invalid Session execution profile: unknown thinkingLevel ${thinkingLevel}.`)
+    throw new Error(`Invalid ${label}: unknown thinkingLevel ${thinkingLevel}.`)
   }
+  const tools = optionalStringArray(record, 'tools', label)
+  const skills = optionalStringArray(record, 'skills', label)
+  const mcpServers = optionalStringArray(record, 'mcpServers', label)
+  const sessionCapabilities = optionalStringArray(record, 'sessionCapabilities', label)?.filter(
+    (candidate): candidate is SessionCapability =>
+      SESSION_CAPABILITIES.some((capability) => capability === candidate),
+  )
   return {
-    modelId: requiredString(record, 'modelId', 'Session execution profile'),
+    modelId: requiredString(record, 'modelId', label),
     thinkingLevel: validatedThinkingLevel,
-    ...(typeof record.agentDefinitionName === 'string'
-      ? { agentDefinitionName: record.agentDefinitionName }
+    ...(typeof record['agentDefinitionName'] === 'string'
+      ? { agentDefinitionName: record['agentDefinitionName'] }
       : {}),
-    ...(optionalStringArray(record, 'tools', 'Session execution profile')
-      ? { tools: optionalStringArray(record, 'tools', 'Session execution profile') }
-      : {}),
-    ...(optionalStringArray(record, 'skills', 'Session execution profile')
-      ? { skills: optionalStringArray(record, 'skills', 'Session execution profile') }
-      : {}),
-    ...(optionalStringArray(record, 'mcpServers', 'Session execution profile')
-      ? { mcpServers: optionalStringArray(record, 'mcpServers', 'Session execution profile') }
-      : {}),
-    ...(optionalStringArray(record, 'sessionCapabilities', 'Session execution profile')
-      ? {
-          sessionCapabilities: optionalStringArray(
-            record,
-            'sessionCapabilities',
-            'Session execution profile',
-          )?.filter((candidate): candidate is SessionCapability =>
-            SESSION_CAPABILITIES.some((capability) => capability === candidate),
-          ),
-        }
-      : {}),
+    ...(tools ? { tools } : {}),
+    ...(skills ? { skills } : {}),
+    ...(mcpServers ? { mcpServers } : {}),
+    ...(sessionCapabilities ? { sessionCapabilities } : {}),
   }
 }
 
@@ -165,9 +166,7 @@ function decodeCapabilities(
   profile: ResolvedSessionExecutionProfile,
 ) {
   const granted = decodeGrantedCapabilities(value, isWorker)
-  return profile.sessionCapabilities
-    ? granted.filter((capability) => profile.sessionCapabilities?.includes(capability))
-    : granted
+  return profile.sessionCapabilities ? valuesIn(granted, profile.sessionCapabilities) : granted
 }
 
 function hiveRole(row: SessionRunExecutionProfileRow) {
@@ -225,17 +224,17 @@ function scheduledTaskOrigin(value: string | null | undefined) {
   return {
     id: task.id,
     name: task.name,
-    ...(record.kind === 'launch' ? { kind: 'launch-schedule' } : {}),
-    ...(record.kind === 'heartbeat' ? { kind: 'heartbeat' } : {}),
-    trigger: typeof record.trigger === 'string' ? record.trigger : 'schedule',
-    currentTime: isoTime(record.firedAt),
-    nominalTime: isoTime(record.nominalAt),
-    ...(typeof record.missedCount === 'number' && record.missedCount > 0
-      ? { missedFirings: record.missedCount }
+    ...(record['kind'] === 'launch' ? { kind: 'launch-schedule' } : {}),
+    ...(record['kind'] === 'heartbeat' ? { kind: 'heartbeat' } : {}),
+    trigger: typeof record['trigger'] === 'string' ? record['trigger'] : 'schedule',
+    currentTime: isoTime(record['firedAt']),
+    nominalTime: isoTime(record['nominalAt']),
+    ...(typeof record['missedCount'] === 'number' && record['missedCount'] > 0
+      ? { missedFirings: record['missedCount'] }
       : {}),
-    previousRunTime: isoTime(record.previousFiredAt),
-    ...(typeof record.previousSessionId === 'string'
-      ? { previousSessionId: record.previousSessionId }
+    previousRunTime: isoTime(record['previousFiredAt']),
+    ...(typeof record['previousSessionId'] === 'string'
+      ? { previousSessionId: record['previousSessionId'] }
       : {}),
     note: 'This Run was started by this Scheduled task, not typed by a person now. Its prompt is the task prompt.',
     ...heartbeatIdentity(record),
@@ -243,7 +242,7 @@ function scheduledTaskOrigin(value: string | null | undefined) {
 }
 
 function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
-  if (record.kind !== 'heartbeat') return {}
+  if (record['kind'] !== 'heartbeat') return {}
   const context = scheduledTaskRunContext(record)
   return context ? heartbeatRunIdentity(context) : {}
 }
@@ -251,7 +250,7 @@ function heartbeatIdentity(record: Readonly<Record<string, unknown>>) {
 /** A Heartbeat's own model and thinking level, which apply only to its Runs (#388). */
 function scheduledTaskModelChoice(value: string | null | undefined) {
   const task = scheduledTaskRecord(value)
-  if (!task || task.record.kind !== 'heartbeat') return {}
+  if (task?.record['kind'] !== 'heartbeat') return {}
   const context = scheduledTaskRunContext(task.record)
   return {
     ...(context?.modelId ? { modelId: context.modelId } : {}),

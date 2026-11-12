@@ -88,18 +88,18 @@ function withMcpApp(
   const details = event.details
   if (
     !isRecord(details) ||
-    typeof details.server !== 'string' ||
-    typeof details.tool !== 'string'
+    typeof details['server'] !== 'string' ||
+    typeof details['tool'] !== 'string'
   ) {
     return undefined
   }
-  const server = config.loaded.servers.find((entry) => entry.name === details.server)
+  const server = config.loaded.servers.find((entry) => entry.name === details['server'])
   if (!server) return undefined
   const descriptor = mcpAppDescriptor({
     sessionId,
     serverName: server.name,
     serverIdentity: mcpServerIdentity(server.name, server.config),
-    toolName: details.tool,
+    toolName: details['tool'],
     piToolName: event.toolName,
   })
   if (!descriptor) return undefined
@@ -110,11 +110,11 @@ function withMcpApp(
       mcpApp: {
         descriptor,
         toolResult: {
-          content: result.content ?? [],
-          ...(result.structuredContent === undefined
+          content: result['content'] ?? [],
+          ...(result['structuredContent'] === undefined
             ? {}
-            : { structuredContent: result.structuredContent }),
-          isError: result.isError === true,
+            : { structuredContent: result['structuredContent'] }),
+          isError: result['isError'] === true,
           attribution: {
             serverInstanceId: descriptor.serverInstanceId,
             serverLabel: descriptor.serverLabel,

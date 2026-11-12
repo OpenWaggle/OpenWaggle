@@ -1,6 +1,7 @@
 import type { McpImportPreviewView } from '@shared/types/mcp-configuration-operations'
 import { describe, expect, it } from 'vitest'
 import { CWD, run, view } from './mcp-cli-management.test-fixtures'
+import { required } from '../test-support/required'
 
 describe('openwaggle mcp import', () => {
   const preview: McpImportPreviewView = {
@@ -133,7 +134,7 @@ describe('openwaggle mcp import', () => {
   it('suggests --conflict replace when a server whose source changed was skipped', async () => {
     const changed: McpImportPreviewView = {
       ...preview,
-      candidates: [{ ...preview.candidates[0], status: 'source-changed' }],
+      candidates: [{ ...required(preview.candidates[0], 'a candidate'), status: 'source-changed' }],
     }
     const result = await run('import', ['--apply', '-l'], {
       'mcp:preview-imports': () => changed,

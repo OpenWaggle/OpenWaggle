@@ -79,7 +79,6 @@ export const {
   shutdownLiveTerminal,
   TERMINAL_FORCE_SHUTDOWN_MS,
   TERMINAL_GRACEFUL_SHUTDOWN_MS,
-  TERMINAL_SHUTDOWN_PIPELINE_MS,
 } = await import('../terminal-process-shutdown')
 export const { refreshTerminalProcessPids } = await import('../terminal-process-tree')
 export const ROOT_PID = 71_001

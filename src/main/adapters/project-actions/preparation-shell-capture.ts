@@ -280,7 +280,7 @@ export async function preparationCaptureInvocation(
     })
   return {
     format: 'nul',
-    verifiedPath: name === 'fish' ? undefined : `${destination}.verified`,
+    ...(name === 'fish' ? {} : { verifiedPath: `${destination}.verified` }),
     invocation: {
       type: 'executable',
       cwd: invocation.cwd,

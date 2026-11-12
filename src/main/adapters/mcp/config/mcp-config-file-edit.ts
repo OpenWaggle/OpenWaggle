@@ -31,10 +31,10 @@ const NEW_FILE_MODE = 0o600
 const PERMISSION_MODULUS = 0o1000
 
 function parseFile(filePath: string, text: string | undefined): JsonRecord {
-  const parsed: unknown = text === undefined || !text.trim() ? {} : JSON.parse(text)
+  const parsed: unknown = !text?.trim() ? {} : JSON.parse(text)
   if (
     !isJsonRecord(parsed) ||
-    (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
+    (parsed['mcpServers'] !== undefined && !isJsonRecord(parsed['mcpServers']))
   ) {
     throw new Error(`${filePath}: expected an object with an "mcpServers" object`)
   }
@@ -68,8 +68,9 @@ function serverChanges(before: JsonRecord, after: JsonRecord) {
       continue
     }
     for (const key of new Set([...Object.keys(old), ...Object.keys(next)])) {
-      if (!same(old[key], next[key]))
+      if (!same(old[key], next[key])) {
         changes.push({ path: ['mcpServers', name, key], value: next[key] })
+      }
     }
   }
   return changes
@@ -81,7 +82,10 @@ function editedText(text: string, before: JsonRecord | undefined, after: JsonRec
   const changes = before ? serverChanges(before, after) : [{ path: ['mcpServers'], value: after }]
   return changes.reduce(
     (current, change) =>
-      applyEdits(current, modify(current, change.path, change.value, { formattingOptions })),
+      applyEdits(
+        current,
+        modify(current, change.path, change.value, formattingOptions ? { formattingOptions } : {}),
+      ),
     text,
   )
 }
@@ -118,7 +122,7 @@ export function editMcpServers(filePath: string, edit: (servers: JsonRecord) => 
   const [duplicate] = text ? duplicateMcpConfigKeys(text) : []
   if (duplicate !== undefined) throw new Error(duplicateMcpKeyMessage(filePath, duplicate))
   const parsed = parseFile(filePath, text)
-  const before = isJsonRecord(parsed.mcpServers) ? parsed.mcpServers : undefined
+  const before = isJsonRecord(parsed['mcpServers']) ? parsed['mcpServers'] : undefined
   const servers: JsonRecord = before ? structuredClone(before) : {}
   if (!edit(servers)) return false
   writeAtomically(filePath, editedText(text ?? '', before, servers))

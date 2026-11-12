@@ -20,7 +20,7 @@ import { createPiWaggleExtension } from '@openwaggle/pi-waggle/loop'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
 import { afterEach, describe, expect, it } from 'vitest'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()
 })
@@ -59,7 +59,7 @@ async function waggleRun(
   })
   modelRuntime.registerNativeProvider(faux.provider)
   await modelRuntime.setRuntimeApiKey(faux.provider.id, 'turn-key')
-  const completedTurns: Array<{ turn: number; stopReasons: string[] }> = []
+  const completedTurns: { turn: number; stopReasons: string[] }[] = []
   const waggle = createPiWaggleExtension<{ turnNumber: number }>({
     config: CONFIG,
     createTurnMetadata: ({ turnNumber }) => ({ turnNumber }),

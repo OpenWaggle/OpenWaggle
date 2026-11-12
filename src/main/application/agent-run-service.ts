@@ -31,7 +31,7 @@ import {
   type PersistedRunResourceNodes,
 } from './session-resource-node-mapping'
 
-export type { AgentRunInput, AgentRunResult } from './agent-run/types'
+export type { AgentRunInput } from './agent-run/types'
 
 const logger = createLogger('agent-run-service')
 
@@ -39,7 +39,11 @@ const logger = createLogger('agent-run-service')
 export function resolveLatestAssistantNodeId(
   nodes: readonly ProjectedSessionNodeInput[],
   persistedNodes?:
-    | readonly { readonly id: string; readonly createdOrder: number; readonly role?: string }[]
+    | readonly {
+        readonly id: string
+        readonly createdOrder: number
+        readonly role?: string | undefined
+      }[]
     | null,
 ): string | null {
   let latest: ProjectedSessionNodeInput | null = null
@@ -129,9 +133,13 @@ export function executeAgentRun(input: AgentRunInput) {
       sessionId: input.sessionId,
       nodes: sessionSnapshot.nodes,
       activeNodeId: sessionSnapshot.activeNodeId,
-      piProjection: sessionSnapshot.piProjection,
+      ...(sessionSnapshot.piProjection === undefined
+        ? {}
+        : { piProjection: sessionSnapshot.piProjection }),
       piSessionId: agentResult.piSessionId,
-      piSessionFile: agentResult.piSessionFile,
+      ...(agentResult.piSessionFile === undefined
+        ? {}
+        : { piSessionFile: agentResult.piSessionFile }),
     })
     announceReplacedPiTranscript(preflight.session, agentResult.piSessionFile)
 
@@ -229,9 +237,13 @@ export function reconcileInterruptedAgentRuns() {
                 sessionId: activeRun.sessionId,
                 nodes: sessionSnapshot.nodes,
                 activeNodeId: sessionSnapshot.activeNodeId,
-                piProjection: sessionSnapshot.piProjection,
+                ...(sessionSnapshot.piProjection === undefined
+                  ? {}
+                  : { piProjection: sessionSnapshot.piProjection }),
                 piSessionId: result.piSessionId,
-                piSessionFile: result.piSessionFile,
+                ...(result.piSessionFile === undefined
+                  ? {}
+                  : { piSessionFile: result.piSessionFile }),
               })
             }),
           ),

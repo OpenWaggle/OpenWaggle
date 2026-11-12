@@ -9,7 +9,7 @@ import type {
 import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
 import { AutomaticWorktreeRemovalLogStore } from '../ports/automatic-worktree-removal-log'
 
@@ -170,6 +170,6 @@ export const AutomaticWorktreeRemovalLogStoreLive = Layer.sync(
   AutomaticWorktreeRemovalLogStore,
   () =>
     createAutomaticWorktreeRemovalLogStore(() =>
-      path.join(app.getPath('userData'), LOG_DIRECTORY, LOG_FILE),
+      path.join(appPaths.userData(), LOG_DIRECTORY, LOG_FILE),
     ),
 )

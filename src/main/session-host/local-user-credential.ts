@@ -10,10 +10,7 @@ function hasErrorCode(error: unknown, code: string) {
   return error instanceof Error && 'code' in error && error.code === code
 }
 
-async function removeTemporaryCredential(
-  temporaryPath: string,
-  operationError: unknown | undefined,
-) {
+async function removeTemporaryCredential(temporaryPath: string, operationError: unknown) {
   try {
     await unlink(temporaryPath)
   } catch (cleanupError) {
@@ -65,7 +62,7 @@ export async function ensureLocalUserCredential(credentialPath: string): Promise
     `.${path.basename(credentialPath)}.${randomUUID()}.tmp`,
   )
   let ownsTemporaryPath = false
-  let operationError: unknown | undefined
+  let operationError: unknown
   try {
     await writeFile(temporaryPath, `${credential}\n`, {
       encoding: 'utf8',

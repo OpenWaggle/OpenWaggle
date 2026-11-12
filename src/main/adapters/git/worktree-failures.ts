@@ -28,8 +28,9 @@ export async function uncommittedWorkRefusal(
   worktreePath: string,
 ): Promise<GitWorktreeMutationFailure | null> {
   const status = await runGit(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all'])
-  if (status.code !== 0)
+  if (status.code !== 0) {
     return worktreeFailure('unknown', status.stderr || 'Worktree check failed.')
+  }
   if (!status.stdout.trim()) return null
   return worktreeFailure(
     'dirty-worktree',

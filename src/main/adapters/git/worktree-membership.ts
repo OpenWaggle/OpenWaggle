@@ -55,8 +55,15 @@ export async function inspectLinkedWorktree(
     .split(/\r?\n/)
     .map((line) => line.trim())
   const primaryCommonDir = primary.stdout.trim()
-  if (!commonDir || commonDir !== primaryCommonDir || !gitDir || gitDir === commonDir || !topLevel)
+  if (
+    !commonDir ||
+    commonDir !== primaryCommonDir ||
+    !gitDir ||
+    gitDir === commonDir ||
+    !topLevel
+  ) {
     return 'not-a-worktree'
+  }
   const folder = await realpath(candidatePath)
   if ((await realpath(topLevel)) !== folder) return 'not-a-worktree'
   if ((await registeredDotGit(gitDir)) !== join(folder, '.git')) return 'not-a-worktree'

@@ -4,7 +4,7 @@ import { scheduleAttachmentExtraction } from '../attachment-extraction-scheduler
 
 describe('attachment extraction scheduler', () => {
   it('bounds both active and waiting extraction work across callers', async () => {
-    const releases: Array<() => void> = []
+    const releases: (() => void)[] = []
     const schedulePendingExtraction = () =>
       scheduleAttachmentExtraction(
         () =>

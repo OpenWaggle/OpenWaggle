@@ -3,7 +3,6 @@ import type { SourceControlProvider } from '../../ports/source-control-provider'
 import { createGithubProvider, type SourceControlProviderOptions } from './gh-cli-adapter'
 import { createGitlabProvider } from './glab-cli-adapter'
 
-export type { ProviderAccountPreference } from './github-account-runner'
 export type { SourceControlProviderOptions }
 
 /** Select the CLI-backed source control provider adapter for a provider id. */
@@ -17,5 +16,3 @@ export function getSourceControlProvider(
   if (id === 'gitlab') return createGitlabProvider(repository)
   return null
 }
-
-export { createGithubProvider, createGitlabProvider }

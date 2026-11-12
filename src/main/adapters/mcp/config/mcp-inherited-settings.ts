@@ -21,8 +21,8 @@ function readerWithoutEntry(
       if (text === undefined || path.resolve(candidate) !== target) return text
       try {
         const parsed: unknown = JSON.parse(text)
-        if (!isJsonRecord(parsed) || !isJsonRecord(parsed.mcpServers)) return text
-        const { [name]: _removed, ...servers } = parsed.mcpServers
+        if (!isJsonRecord(parsed) || !isJsonRecord(parsed['mcpServers'])) return text
+        const { [name]: _removed, ...servers } = parsed['mcpServers']
         return JSON.stringify({ ...parsed, mcpServers: servers })
       } catch {
         return text

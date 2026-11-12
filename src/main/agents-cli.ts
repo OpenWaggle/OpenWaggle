@@ -54,13 +54,12 @@ async function importCommand(input: {
     input.cwd,
     required(input.arguments_.positionals[0], 'Import file'),
   )
+  const sourceName = option(input.arguments_, 'source-name')
   const base = {
     projectPath: input.projectPath,
     sourcePath,
     sourceTool: parseAgentDefinitionImportSource(option(input.arguments_, 'from')),
-    ...(option(input.arguments_, 'source-name')
-      ? { sourceName: option(input.arguments_, 'source-name') }
-      : {}),
+    ...(sourceName ? { sourceName } : {}),
     targetScope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
   } as const
   const planned = await executeAgentDefinitionManagement(
@@ -157,15 +156,14 @@ async function mutationCommand(input: {
     )
   }
   if (input.command === 'delete') {
+    const expectedContentDigest = option(input.arguments_, 'expected-digest')
     return executeAgentDefinitionManagement(
       {
         operation: 'delete',
         projectPath: input.projectPath,
         name: required(input.arguments_.positionals[0], 'Agent definition name'),
         scope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
-        ...(option(input.arguments_, 'expected-digest')
-          ? { expectedContentDigest: option(input.arguments_, 'expected-digest') }
-          : {}),
+        ...(expectedContentDigest ? { expectedContentDigest } : {}),
       },
       managementContext(input),
     )

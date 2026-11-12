@@ -25,7 +25,7 @@ export function sessionCliResultErrorKind(
     if ('error' in outcome) return refusalKind(outcome.error)
     // A bounded wait that ended without its condition still answers on stdout, with the timeout
     // exit class, so a script can tell "reached" from "gave up" (#351).
-    return 'timedOut' in outcome && outcome.timedOut === true ? 'timeout' : undefined
+    return 'timedOut' in outcome && outcome.timedOut ? 'timeout' : undefined
   }
   if (
     (result.contract === 'scheduled-tasks-v1' ||
@@ -44,7 +44,7 @@ export function sessionCliResultErrorKind(
  * stops with the refusal's kind, as a refused first page does (ADR 0063).
  */
 export function pageQueryRefusal(error: Readonly<Record<string, unknown>>) {
-  const code = typeof error.code === 'string' ? error.code : 'query_failed'
-  const message = typeof error.message === 'string' ? error.message : 'Query failed.'
+  const code = typeof error['code'] === 'string' ? error['code'] : 'query_failed'
+  const message = typeof error['message'] === 'string' ? error['message'] : 'Query failed.'
   return new CliError(refusalKind(error), `${code}: ${message}`, { code })
 }

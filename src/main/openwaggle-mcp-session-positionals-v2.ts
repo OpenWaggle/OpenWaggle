@@ -11,8 +11,9 @@ function catalogQueryPositionals(input: SessionToolInputV2, message: string | un
 }
 
 function delegationQueryPositionals(input: SessionToolInputV2) {
-  if (input.operation === 'delegations-list' || input.operation === 'delegations-conflicts')
+  if (input.operation === 'delegations-list' || input.operation === 'delegations-conflicts') {
     return []
+  }
   return input.operation === 'delegations-read' && input.delegationId
     ? [input.delegationId]
     : undefined

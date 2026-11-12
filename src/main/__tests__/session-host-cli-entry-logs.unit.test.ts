@@ -22,6 +22,7 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     whenReady: vi.fn(async () => undefined),
     setActivationPolicy: vi.fn(),
+    commandLine: { hasSwitch: vi.fn(() => false), appendSwitch: vi.fn() },
     disableHardwareAcceleration: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
@@ -29,9 +30,11 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../env', () => ({
   env: mocks.env,
-  installDesktopShellEnvironment: async () => undefined,
   installLinuxSessionBusEnvironment: () => undefined,
   takeShellEnvironmentRefreshedSince: () => undefined,
+}))
+vi.mock('../desktop-shell-environment-process', () => ({
+  installDesktopShellEnvironment: async () => undefined,
 }))
 vi.mock('../logger', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../logger')>()),
@@ -52,7 +55,7 @@ import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
 let userDataPath = ''
 
 afterEach(async () => {
-  mocks.env.OPENWAGGLE_USER_DATA_DIR = undefined
+  delete mocks.env.OPENWAGGLE_USER_DATA_DIR
   mocks.paths.clear()
   await rm(userDataPath, { recursive: true, force: true })
 })

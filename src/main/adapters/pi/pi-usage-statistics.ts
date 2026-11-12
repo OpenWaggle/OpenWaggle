@@ -6,7 +6,7 @@
  * Catalog identifiers come from src/shared/usage-statistics/catalog.generated.ts, the same file
  * the statistics endpoint enforces, so the app and the endpoint cannot disagree on what is
  * `custom`. That file is generated from Pi's built-in catalog and the shared built-in skill list,
- * and `pnpm check:usage-statistics-catalog` fails while it is out of date.
+ * and `bun run check:usage-statistics-catalog` fails while it is out of date.
  */
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
@@ -178,15 +178,17 @@ export function observePiToolUseForUsageStatistics(toolName: string, args: unkno
     recordUsageStatistics({ kind: 'feature', flag: 'browser_agent_driven' })
     return
   }
-  if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args.path !== 'string') return
-  const skill = piSkillReadIdentifier(args.path)
+  if (toolName !== READ_TOOL_NAME || !isRecord(args) || typeof args['path'] !== 'string') return
+  const skill = piSkillReadIdentifier(args['path'])
   if (skill) recordUsageStatistics({ kind: 'skill', identifier: skill })
 }
 
 function assistantText(content: unknown) {
   if (!Array.isArray(content)) return ''
   return content
-    .map((part: unknown) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
+    .map((part: unknown) =>
+      isRecord(part) && typeof part['text'] === 'string' ? part['text'] : '',
+    )
     .join('\n')
 }
 
@@ -238,7 +240,7 @@ export function observePiCompactionForUsageStatistics(event: {
   if (event.aborted || !isUsageStatisticsEnabled()) return
   const details = event.result?.details
   if (!isRecord(details)) return
-  const mechanism = match(details.mechanism)
+  const mechanism = match(details['mechanism'])
     .with('native', () => 'native' as const)
     .with('portable', () => 'fallback' as const)
     .otherwise(() => undefined)

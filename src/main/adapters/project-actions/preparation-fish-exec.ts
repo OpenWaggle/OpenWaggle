@@ -114,8 +114,9 @@ function visitCommentStart(scan: FishExecScan, character: string) {
   if (
     character !== '#' ||
     (scan.index !== 0 && !/[\s;|&()<>]/.test(scan.code[scan.index - 1] ?? ''))
-  )
+  ) {
     return false
+  }
   closeEvalWrappers(scan)
   scan.comment = true
   scan.output += character

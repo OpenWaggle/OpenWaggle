@@ -32,7 +32,7 @@ export async function recordRuntimeLoadFailure(input: {
 
   await Effect.runPromise(
     upsertRuntimeLoadFailure(input.selection, input.error, input.extensionSelectionServices),
-  ).catch((repositoryError) => {
+  ).catch((repositoryError: unknown) => {
     input.logger.warn('Failed to persist OpenWaggle extension runtime load failure', {
       extensionId: input.selection.extensionPackage.id,
       packagePath: input.selection.packagePath,

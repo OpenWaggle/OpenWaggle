@@ -53,7 +53,11 @@ export class DesktopNotificationLedger {
   private readonly outstanding = new Map<string, DesktopNotification>()
   private revision = 0
 
-  constructor(private readonly dependencies: DesktopNotificationLedgerDependencies) {}
+  private readonly dependencies: DesktopNotificationLedgerDependencies
+
+  constructor(dependencies: DesktopNotificationLedgerDependencies) {
+    this.dependencies = dependencies
+  }
 
   /** Every notification still outstanding, oldest first. */
   list(): readonly DesktopNotification[] {

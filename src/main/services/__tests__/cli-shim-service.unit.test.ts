@@ -290,7 +290,7 @@ describe('CLI shim executable resolution', () => {
     { platform: 'linux' as const, isPackaged: false, appImagePath: originalAppImage },
     { platform: 'darwin' as const, isPackaged: true, appImagePath: originalAppImage },
     { platform: 'linux' as const, isPackaged: true, appImagePath: 'relative.AppImage' },
-    { platform: 'linux' as const, isPackaged: true, appImagePath: undefined },
+    { platform: 'linux' as const, isPackaged: true },
   ])('keeps the executable path outside a packaged AppImage runtime: %o', (input) => {
     expect(resolveCliShimExecutablePath({ ...input, executablePath: mountedExecutable })).toBe(
       mountedExecutable,

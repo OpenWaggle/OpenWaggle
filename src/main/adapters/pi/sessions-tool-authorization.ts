@@ -32,9 +32,11 @@ async function authorizeExportWrite(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
       })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
+    : await input.ctx.ui.confirm(
+        title,
+        `${message}\n\nThis approval applies only to this call.`,
+        input.signal ? { signal: input.signal } : {},
+      )
   if (!approved) throw new Error('Session export write was not authorized.')
 }
 
@@ -61,9 +63,11 @@ async function authorizeAttachmentRead(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
       })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
+    : await input.ctx.ui.confirm(
+        title,
+        `${message}\n\nThis approval applies only to this call.`,
+        input.signal ? { signal: input.signal } : {},
+      )
   if (!approved) throw new Error('Session attachment read was not authorized.')
 }
 
@@ -90,9 +94,11 @@ async function authorizeExportResourceRead(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
       })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
+    : await input.ctx.ui.confirm(
+        title,
+        `${message}\n\nThis approval applies only to this call.`,
+        input.signal ? { signal: input.signal } : {},
+      )
   if (!approved) throw new Error('Session export resource read was not authorized.')
 }
 

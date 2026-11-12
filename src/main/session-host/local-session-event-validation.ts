@@ -15,7 +15,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isEventCursor(
   value: Record<string, unknown>,
 ): value is Record<string, unknown> & SessionHostEventCursor {
-  return typeof value.hostInstanceId === 'string' && typeof value.sequence === 'number'
+  return typeof value['hostInstanceId'] === 'string' && typeof value['sequence'] === 'number'
 }
 
 const SESSION_LIST_CHANGES = new Set(['created', 'updated', 'archived', 'unarchived', 'deleted'])
@@ -37,8 +37,8 @@ function decodes(schema: Schema.Schema.AnyNoContext, value: unknown) {
 /** A transport event; a user message it carries must be display content, never model input. */
 function isTransportEvent(value: unknown) {
   if (!isRecord(value)) return false
-  if (value.type !== 'message_start' || value.userMessage === undefined) return true
-  return value.role === 'user' && decodes(agentTransportUserMessageSchema, value.userMessage)
+  if (value['type'] !== 'message_start' || value['userMessage'] === undefined) return true
+  return value['role'] === 'user' && decodes(agentTransportUserMessageSchema, value['userMessage'])
 }
 
 function isWorktreeLaunchEvent(value: unknown) {
@@ -48,56 +48,57 @@ function isWorktreeLaunchEvent(value: unknown) {
 const sessionEventValidators: Readonly<
   Record<string, (value: Record<string, unknown>) => boolean>
 > = {
-  'session-transport': (value) => isTransportEvent(value.event),
+  'session-transport': (value) => isTransportEvent(value['event']),
   'session-worktree-launch': (value) =>
-    typeof value.model === 'string' &&
-    typeof value.mode === 'string' &&
-    RUN_MODES.has(value.mode) &&
-    isWorktreeLaunchEvent(value.event),
-  'session-waggle-transport': (value) => isTransportEvent(value.event) && isRecord(value.meta),
-  'session-waggle-turn': (value) => isRecord(value.event),
+    typeof value['model'] === 'string' &&
+    typeof value['mode'] === 'string' &&
+    RUN_MODES.has(value['mode']) &&
+    isWorktreeLaunchEvent(value['event']),
+  'session-waggle-transport': (value) =>
+    isTransportEvent(value['event']) && isRecord(value['meta']),
+  'session-waggle-turn': (value) => isRecord(value['event']),
   'session-export-changed': (value) =>
-    typeof value.exportOperationId === 'string' &&
-    typeof value.status === 'string' &&
-    isRecord(value.progress),
+    typeof value['exportOperationId'] === 'string' &&
+    typeof value['status'] === 'string' &&
+    isRecord(value['progress']),
   'session-state-changed': (value) =>
-    typeof value.stateRevision === 'number' && typeof value.operation === 'string',
+    typeof value['stateRevision'] === 'number' && typeof value['operation'] === 'string',
   'session-list-changed': (value) =>
-    typeof value.change === 'string' && SESSION_LIST_CHANGES.has(value.change),
+    typeof value['change'] === 'string' && SESSION_LIST_CHANGES.has(value['change']),
 }
 
 function isEventPayload(value: Record<string, unknown>) {
-  if (value.kind === 'semantic-discovery-readiness-changed') {
-    return isRecord(value.readiness) && typeof value.readiness.status === 'string'
+  if (value['kind'] === 'semantic-discovery-readiness-changed') {
+    return isRecord(value['readiness']) && typeof value['readiness']['status'] === 'string'
   }
-  if (value.kind === 'default-thinking-level-changed') {
-    return THINKING_LEVELS.some((level) => level === value.level)
+  if (value['kind'] === 'default-thinking-level-changed') {
+    return THINKING_LEVELS.some((level) => level === value['level'])
   }
-  if (value.kind === 'desktop-notification-shown') {
-    return decodes(desktopNotificationSchema, value.notification)
+  if (value['kind'] === 'desktop-notification-shown') {
+    return decodes(desktopNotificationSchema, value['notification'])
   }
-  if (value.kind === 'desktop-notification-withdrawn') {
-    return typeof value.notificationId === 'string' && typeof value.revision === 'number'
+  if (value['kind'] === 'desktop-notification-withdrawn') {
+    return typeof value['notificationId'] === 'string' && typeof value['revision'] === 'number'
   }
-  if (value.kind === 'session-title-model-refused') {
+  if (value['kind'] === 'session-title-model-refused') {
     return (
-      typeof value.model === 'string' &&
-      typeof value.reason === 'string' &&
-      typeof value.retryAt === 'number'
+      typeof value['model'] === 'string' &&
+      typeof value['reason'] === 'string' &&
+      typeof value['retryAt'] === 'number'
     )
   }
-  if (typeof value.kind !== 'string' || typeof value.sessionId !== 'string') return false
-  return sessionEventValidators[value.kind]?.(value) ?? false
+  if (typeof value['kind'] !== 'string' || typeof value['sessionId'] !== 'string') return false
+  return sessionEventValidators[value['kind']]?.(value) ?? false
 }
 
 export function isSessionHostEventEnvelope(value: unknown): value is SessionHostEventEnvelope {
   return (
     isRecord(value) &&
-    isRecord(value.cursor) &&
-    isEventCursor(value.cursor) &&
-    typeof value.timestamp === 'number' &&
-    isRecord(value.payload) &&
-    isEventPayload(value.payload)
+    isRecord(value['cursor']) &&
+    isEventCursor(value['cursor']) &&
+    typeof value['timestamp'] === 'number' &&
+    isRecord(value['payload']) &&
+    isEventPayload(value['payload'])
   )
 }
 
@@ -105,10 +106,10 @@ const TRANSPORT_EVENT_KINDS = new Set(['session-transport', 'session-waggle-tran
 
 /** The envelope with its transport event's user message left out, when it carries one. */
 function withoutUserMessage(envelope: Record<string, unknown>) {
-  const payload = envelope.payload
-  if (!isRecord(payload) || !TRANSPORT_EVENT_KINDS.has(String(payload.kind))) return undefined
-  const event = payload.event
-  if (!isRecord(event) || event.type !== 'message_start' || event.userMessage === undefined) {
+  const payload = envelope['payload']
+  if (!isRecord(payload) || !TRANSPORT_EVENT_KINDS.has(String(payload['kind']))) return undefined
+  const event = payload['event']
+  if (!isRecord(event) || event['type'] !== 'message_start' || event['userMessage'] === undefined) {
     return undefined
   }
   const { userMessage: _userMessage, ...rest } = event
@@ -138,7 +139,7 @@ export function decideSessionHostEvent(value: unknown): SessionHostEventDecision
   if (isSessionHostEventEnvelope(value)) {
     return { action: 'relay', envelope: value, droppedUserMessage: false }
   }
-  if (!isRecord(value) || !isRecord(value.cursor) || !isEventCursor(value.cursor)) {
+  if (!isRecord(value) || !isRecord(value['cursor']) || !isEventCursor(value['cursor'])) {
     return { action: 'invalid' }
   }
   const withoutMessage = withoutUserMessage(value)
@@ -147,6 +148,6 @@ export function decideSessionHostEvent(value: unknown): SessionHostEventDecision
   }
   return {
     action: 'skip',
-    cursor: { hostInstanceId: value.cursor.hostInstanceId, sequence: value.cursor.sequence },
+    cursor: { hostInstanceId: value['cursor'].hostInstanceId, sequence: value['cursor'].sequence },
   }
 }

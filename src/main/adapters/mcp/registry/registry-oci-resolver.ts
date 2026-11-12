@@ -67,7 +67,7 @@ function declaredDigest(identifier: string) {
 }
 
 function validateOciIdentifier(identifier: string) {
-  const hasForbiddenCharacter = [...identifier].some((character) => {
+  const hasForbiddenCharacter = Array.from(identifier).some((character) => {
     const code = character.charCodeAt(0)
     return (
       /\s/.test(character) || code <= MAX_CONTROL_CHARACTER_CODE || code === DELETE_CHARACTER_CODE

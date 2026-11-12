@@ -40,7 +40,7 @@ function sourceDetail(row: ForkSourceRow, command: ForkSessionCommand): SessionD
     piSessionId: row.pi_session_id,
     ...(row.pi_session_file ? { piSessionFile: row.pi_session_file } : {}),
     messages: [],
-    archived: row.archived === 1 ? true : undefined,
+    ...(row.archived === 1 ? { archived: true } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     environmentMode: row.environment_mode ?? 'local',

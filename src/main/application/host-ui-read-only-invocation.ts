@@ -60,8 +60,8 @@ export const READ_ONLY_HOST_UI_CHANNELS: ReadonlySet<HostBackedGuiChannel> =
   ])
 
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {
-  if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0].command)) return false
-  const operation = args[0].command.operation
+  if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0]['command'])) return false
+  const operation = args[0]['command']['operation']
   return operation === 'list' || operation === 'import-plan' || operation === 'refresh-plan'
 }
 

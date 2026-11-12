@@ -16,8 +16,11 @@ export interface McpLeaseHost {
 export class McpConnectionLease extends WireTransportEvents implements McpWireTransport {
   private detached = false
 
-  constructor(private readonly host: McpLeaseHost) {
+  private readonly host: McpLeaseHost
+
+  constructor(host: McpLeaseHost) {
     super()
+    this.host = host
   }
 
   get isDetached() {

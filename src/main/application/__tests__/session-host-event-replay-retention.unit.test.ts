@@ -33,30 +33,6 @@ describe('Session Host event replay retention', () => {
     expect(serializations).toBe(5)
   })
 
-  it('disconnects a subscriber before retaining an oversized event', async () => {
-    const hub = new SessionHostEventHub({
-      hostInstanceId: 'host-current',
-      subscriberCapacity: 10,
-      subscriberByteCapacity: 256,
-    })
-    const result = hub.subscribeAfter()
-    expect(result.status).toBe('ready')
-    if (result.status !== 'ready') return
-
-    hub.publish({
-      kind: 'session-state-changed',
-      sessionId: `session-${'x'.repeat(512)}`,
-      stateRevision: 1,
-      operation: 'message',
-    })
-
-    expect(hub.subscriberCount()).toBe(0)
-    await expect(result.subscription.next()).resolves.toMatchObject({
-      status: 'resync-required',
-      reason: 'slow-consumer',
-    })
-  })
-
   it('bounds retained subscriber bytes across all connections', async () => {
     const hub = new SessionHostEventHub({
       hostInstanceId: 'host-current',

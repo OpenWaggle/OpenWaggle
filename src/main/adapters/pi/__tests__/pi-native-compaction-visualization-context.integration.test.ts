@@ -24,7 +24,8 @@ describe('Pi compaction visualization context', () => {
       initialContext: 'PUBLIC-CONTEXT',
       contextTransform: (messages) =>
         messages.filter(
-          (message) => message.role !== 'user' || !String(message.content).includes('SECRET'),
+          (message) =>
+            message.role !== 'user' || !JSON.stringify(message.content).includes('SECRET'),
         ),
     })
     sessionManager.appendMessage({

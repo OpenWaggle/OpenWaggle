@@ -34,8 +34,8 @@ const outputRecordingSchema = Schema.Union(
 )
 
 const recordingSchema = Schema.Struct({
-  commitOutput: Schema.optional(outputRecordingSchema),
-  changeRequestOutput: Schema.optional(outputRecordingSchema),
+  commitOutput: Schema.optionalWith(outputRecordingSchema, { exact: true }),
+  changeRequestOutput: Schema.optionalWith(outputRecordingSchema, { exact: true }),
 })
 
 /**
@@ -110,7 +110,7 @@ export function recordStackedActionOutputsWhereOwned(
 ) {
   return Effect.gen(function* () {
     const commit = result.commit ?? null
-    const missingHash = commit !== null && commit.commitHash === null
+    const missingHash = commit?.commitHash === null
     const createdRequest = result.ok && result.changeRequest ? result.changeRequest : null
     const payload: SessionGitOutputsPayload = {
       occurrence,

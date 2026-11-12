@@ -92,7 +92,7 @@ export function reportHeartbeatOutcome(principal: ScheduledTaskPrincipal, comman
     const run = yield* repository.runOfSessionRun(durableSessionRunId(command.runId))
     if (!run) return notScheduled()
     const record = yield* repository.get(run.taskId)
-    if (!record || record.kind !== 'heartbeat' || !visible(principal, record.ownerKey)) {
+    if (record?.kind !== 'heartbeat' || !visible(principal, record.ownerKey)) {
       return notScheduled()
     }
     const agent = parseSessionAgentCallerId(principal.caller.callerId)

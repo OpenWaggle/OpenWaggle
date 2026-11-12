@@ -17,8 +17,9 @@ export function resolveActionManagementWorkspace(scope: ActionManagementScope) {
   return Effect.gen(function* () {
     const authorization = yield* WorkspaceProjectAuthorization
     const projectPath = yield* authorization.authorize(scope.projectPath)
-    if (!scope.sessionId && !scope.workspaceId)
+    if (!scope.sessionId && !scope.workspaceId) {
       return { projectPath, workspacePath: projectPath, workspaceId: null }
+    }
     const repository = yield* SessionWorkspaceResourceRepository
     const workspace = yield* scope.sessionId
       ? repository.getBound(SessionId(scope.sessionId))
@@ -114,7 +115,19 @@ export function manageProjectActions(rawRequest: unknown) {
       )
       .with({ type: 'start' }, (operation) =>
         requireWorkspace().pipe(
-          Effect.flatMap((workspace) => runs.start({ ...operation, workspace })),
+          Effect.flatMap((workspace) =>
+            runs.start({
+              workspace,
+              actionId: operation.actionId,
+              requestId: operation.requestId,
+              ...(operation.expectedExecutionKey === undefined
+                ? {}
+                : { expectedExecutionKey: operation.expectedExecutionKey }),
+              ...(operation.restartRunId === undefined
+                ? {}
+                : { restartRunId: operation.restartRunId }),
+            }),
+          ),
           Effect.map((run) => ({ type: 'run', run }) as const),
         ),
       )

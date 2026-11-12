@@ -50,7 +50,7 @@ vi.mock('../env', () => ({
   },
 }))
 vi.mock('electron', () => ({ app: { getVersion: () => '1.0.0-beta.4' } }))
-vi.mock('../adapters/error-reporting/sentry-main-error-reporter', () => ({
+vi.mock('../adapters/electron/error-reporting/sentry-main-error-reporter', () => ({
   startSentryMainErrorReporter: adapter.startSentryMainErrorReporter,
 }))
 vi.mock('../usage-statistics/usage-statistics-enablement', () => ({

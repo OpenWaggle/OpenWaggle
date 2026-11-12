@@ -171,7 +171,7 @@ export function pauseUndeliveredQueue(
     followUpQueue: {
       ...queue,
       state: 'paused',
-      pauseReason: queue.state === 'paused' ? queue.pauseReason : reason,
+      ...(queue.state === 'paused' ? {} : { pauseReason: reason }),
       revision: queue.revision + REVISION_INCREMENT,
     },
   }

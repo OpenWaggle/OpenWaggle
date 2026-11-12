@@ -68,10 +68,10 @@ function failedBeforeSending(error: unknown, depth = 0): boolean {
     if (syscall === 'connect' && CONNECT_FAILURE_CODES.has(code)) return true
   }
   // Happy Eyeballs reports one connect failure per address in an AggregateError.
-  if (Array.isArray(error.errors) && error.errors.length > 0) {
-    return error.errors.every((inner: unknown) => failedBeforeSending(inner, depth + 1))
+  if (Array.isArray(error['errors']) && error['errors'].length > 0) {
+    return error['errors'].every((inner: unknown) => failedBeforeSending(inner, depth + 1))
   }
-  return failedBeforeSending(error.cause, depth + 1)
+  return failedBeforeSending(error['cause'], depth + 1)
 }
 
 /** A thrown fetch failure: retryable only when the request certainly never left. */

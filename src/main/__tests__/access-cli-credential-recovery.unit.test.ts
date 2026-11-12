@@ -10,13 +10,18 @@ const {
   stageCredentialMock,
 } = vi.hoisted(() => {
   class ProfileCredentialCommitError extends Error {
+    readonly recoveryLocation: string
+    readonly additionalRecoveryLocations: readonly string[]
+
     constructor(
       message: string,
-      readonly recoveryLocation: string,
+      recoveryLocation: string,
       _options?: ErrorOptions,
-      readonly additionalRecoveryLocations: readonly string[] = [],
+      additionalRecoveryLocations: readonly string[] = [],
     ) {
       super(message)
+      this.recoveryLocation = recoveryLocation
+      this.additionalRecoveryLocations = additionalRecoveryLocations
     }
   }
   return {

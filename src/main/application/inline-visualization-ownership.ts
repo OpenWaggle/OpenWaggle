@@ -27,8 +27,8 @@ export function attributeCopiedVisualizationSources(
     sourceSession.nodes.flatMap((node) => {
       try {
         const metadata: unknown = JSON.parse(node.metadataJson)
-        if (isRecord(metadata) && typeof metadata.visualizationSessionId === 'string') {
-          return [[String(node.id), SessionId(metadata.visualizationSessionId)] as const]
+        if (isRecord(metadata) && typeof metadata['visualizationSessionId'] === 'string') {
+          return [[String(node.id), SessionId(metadata['visualizationSessionId'])] as const]
         }
       } catch {
         // Invalid historical metadata falls back to the source session owner.

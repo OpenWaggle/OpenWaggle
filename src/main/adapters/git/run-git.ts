@@ -4,7 +4,9 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import { desktopShellEnvironmentReady, getEnvWithOverrides } from '../../env'
+import { errorCode } from '@shared/utils/node-error'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
+import { getEnvWithOverrides } from '../../env'
 
 const MODULE_VALUE_5 = 5
 
@@ -78,8 +80,10 @@ function execFileWithInput(
         const errorOutput = decodedError.success ? decodedError.data : {}
         reject(
           Object.assign(error, {
-            stdout: stdout || (typeof errorOutput.stdout === 'string' ? errorOutput.stdout : ''),
-            stderr: stderr || (typeof errorOutput.stderr === 'string' ? errorOutput.stderr : ''),
+            stdout:
+              stdout || (typeof errorOutput['stdout'] === 'string' ? errorOutput['stdout'] : ''),
+            stderr:
+              stderr || (typeof errorOutput['stderr'] === 'string' ? errorOutput['stderr'] : ''),
           }),
         )
         return
@@ -113,15 +117,17 @@ function normalizeGitError(error: unknown): GitExecResult {
   }
 
   const value = result.data
-  const fallbackMessage = typeof value.message === 'string' ? value.message : 'Git command failed'
+  const code = errorCode(error)
+  const fallbackMessage =
+    typeof value['message'] === 'string' ? value['message'] : 'Git command failed'
   return {
-    stdout: typeof value.stdout === 'string' ? value.stdout : '',
-    stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
-    code: typeof value.code === 'number' ? value.code : 1,
-    ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
+    stdout: typeof value['stdout'] === 'string' ? value['stdout'] : '',
+    stderr: typeof value['stderr'] === 'string' ? value['stderr'] : fallbackMessage,
+    code: typeof code === 'number' ? code : 1,
+    ...(code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
-    ...(value.name === 'AbortError' || value.code === 'ABORT_ERR' ? { aborted: true } : {}),
-    ...(typeof value.code !== 'number' ? { executionFailed: true } : {}),
+    ...(value['name'] === 'AbortError' || code === 'ABORT_ERR' ? { aborted: true } : {}),
+    ...(typeof code !== 'number' ? { executionFailed: true } : {}),
   }
 }
 
@@ -133,7 +139,7 @@ function normalizeGitError(error: unknown): GitExecResult {
  * from "git failed for no stated reason", and neither could the user reading the toast.
  */
 function wasKilledForTimeout(value: Readonly<Record<string, unknown>>) {
-  return value.killed === true && typeof value.signal === 'string'
+  return value['killed'] === true && typeof value['signal'] === 'string'
 }
 
 export async function runGit(

@@ -33,10 +33,10 @@ export class McpConnectionLazyStart {
   /** Whether the catalog can be served: at once, or once another Session filled it. */
   private readonly servable: Promise<boolean> | undefined
 
-  constructor(
-    private readonly host: LazyStartHost,
-    fill?: Promise<void>,
-  ) {
+  private readonly host: LazyStartHost
+
+  constructor(host: LazyStartHost, fill?: Promise<void>) {
+    this.host = host
     this.servable = fill?.then(() => host.catalog.reload())
   }
 
@@ -137,7 +137,9 @@ export async function listToolsForCatalog(
     const result = await sendInternal('tools/list', params)
     observeResult?.('tools/list', params, result)
     cursor =
-      isRecord(result) && typeof result.nextCursor === 'string' ? result.nextCursor : undefined
+      isRecord(result) && typeof result['nextCursor'] === 'string'
+        ? result['nextCursor']
+        : undefined
   } while (cursor !== undefined)
 }
 

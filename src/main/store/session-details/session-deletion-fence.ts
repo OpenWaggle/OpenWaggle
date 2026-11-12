@@ -7,7 +7,7 @@ const mutations = new Map<SessionId, Set<Promise<void>>>()
 export async function acquireSessionDeletionFence(id: SessionId): Promise<() => void> {
   if (deleting.has(id)) throw new Error('Session deletion is already in progress.')
   deleting.add(id)
-  await Promise.all(mutations.get(id) ?? [])
+  await Promise.all(mutations.get(id) ?? new Set<Promise<void>>())
   let released = false
   return () => {
     if (released) return
@@ -23,8 +23,9 @@ export async function withSessionLineageMutation<A>(
 ): Promise<A> {
   const ids = [...new Set(sessionIds)].sort()
   for (const id of ids) {
-    if (deleting.has(id))
+    if (deleting.has(id)) {
       throw new Error('Session deletion is in progress; Hive changes are blocked.')
+    }
   }
   const settled = Promise.withResolvers<void>()
   for (const id of ids) {

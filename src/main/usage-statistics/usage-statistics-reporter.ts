@@ -178,8 +178,9 @@ export function reportCompletedUsageStatisticsDays(
         report,
         request: { schema: USAGE_STATISTICS_SCHEMA_VERSION, context, events },
       })
-      if (result.kind === 'retry')
+      if (result.kind === 'retry') {
         return { status: 'retry', sentDays, reason: result.reason } as const
+      }
       if (result.sent) sentDays += 1
     }
     return { status: 'done', sentDays } as const

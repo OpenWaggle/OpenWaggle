@@ -75,7 +75,7 @@ function withOpenWaggleMcpGuidanceInResult(event: ToolResultEvent) {
 function openWaggleMcpApi(pi: ExtensionAPI): ExtensionAPI {
   const on = (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
     const quiet = event === 'before_agent_start'
-    const unsubscribe: unknown = Reflect.apply(pi.on, pi, [
+    const unsubscribe: unknown = Reflect.apply(pi.on.bind(pi), undefined, [
       event,
       (payload: unknown, ctx: ExtensionContext) => handler(payload, openWaggleContext(ctx, quiet)),
     ])

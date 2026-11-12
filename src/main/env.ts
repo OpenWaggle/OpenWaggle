@@ -1,10 +1,6 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
-import {
-  installProcessDesktopShellEnvironment,
-  type ProcessDesktopShellEnvironmentOptions,
-} from './desktop-shell-environment-process'
 import { applyPreparedEnvironment, type PreparedEnvironment } from './domain/prepared-environment'
 import {
   buildNpmCompatiblePath,
@@ -65,10 +61,6 @@ const envSchema = Schema.Struct({
   LOCALAPPDATA: Schema.optional(Schema.String),
 })
 
-export {
-  desktopShellEnvironmentReady,
-  desktopShellEnvironmentRefreshStartedAt,
-} from './desktop-shell-environment-process'
 export type Env = SchemaType<typeof envSchema>
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
@@ -78,7 +70,7 @@ export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 const TEMPORARY_DIRECTORY_VARIABLES = ['TMPDIR', 'TMP', 'TEMP'] as const
 
 /**
- * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `pnpm dev`)
+ * An OpenWaggle process started from an agent's shell tool (the `openwaggle` CLI, or `bun run dev`)
  * inherits that Session's scratch directory as TMPDIR, TMP, and TEMP. Its own temp files belong in
  * the Host temp directory the agent environment keeps in OPENWAGGLE_HOST_TMPDIR, or archiving the
  * Session would delete them under the running process.
@@ -93,7 +85,7 @@ export function restoreHostTemporaryDirectory(
 
 /** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
 export function getCurrentProcessPath(): string | undefined {
-  return process.env.PATH
+  return process.env['PATH']
 }
 
 const TERMINAL_PROGRAM_NAME = 'OpenWaggle'
@@ -102,10 +94,13 @@ const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
-/** Hydrates this process's environment from the login shell (`desktop-shell-environment-process`). */
-export const installDesktopShellEnvironment = (
-  options: ProcessDesktopShellEnvironmentOptions = {},
-) => installProcessDesktopShellEnvironment(process.env, options)
+/**
+ * This process's own environment, which `desktop-shell-environment-process` hydrates in place
+ * from the login shell.
+ */
+export function liveProcessEnvironment(): NodeJS.ProcessEnv {
+  return process.env
+}
 
 /** The launching app's login-shell refresh time, removed so no child of this Host inherits it. */
 export function takeShellEnvironmentRefreshedSince(): number | undefined {
@@ -131,12 +126,12 @@ export const applyPiPackageDirectory = (directory?: string) =>
 export function getSafeChildEnv(): Record<string, string | undefined> {
   return {
     PATH: getNpmCompatiblePath(),
-    HOME: process.env.HOME,
-    SHELL: process.env.SHELL,
-    TERM: process.env.TERM,
-    LANG: process.env.LANG,
-    USER: process.env.USER,
-    TMPDIR: process.env.TMPDIR,
+    HOME: process.env['HOME'],
+    SHELL: process.env['SHELL'],
+    TERM: process.env['TERM'],
+    LANG: process.env['LANG'],
+    USER: process.env['USER'],
+    TMPDIR: process.env['TMPDIR'],
   }
 }
 
@@ -144,10 +139,10 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
 export function getWindowsSecurityChildEnv(): Record<string, string | undefined> {
   return {
     PATH: getNpmCompatiblePath(),
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERPROFILE: process.env.USERPROFILE,
+    SystemRoot: process.env['SystemRoot'],
+    TEMP: process.env['TEMP'],
+    TMP: process.env['TMP'],
+    USERPROFILE: process.env['USERPROFILE'],
   }
 }
 
@@ -168,16 +163,16 @@ export function getSessionHostChildEnv(): Record<string, string | undefined> {
 export function getBrowserCredentialChildEnv(): Record<string, string | undefined> {
   return {
     ...getSafeChildEnv(),
-    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
-    DISPLAY: process.env.DISPLAY,
-    LC_ALL: process.env.LC_ALL,
-    SystemRoot: process.env.SystemRoot,
-    TEMP: process.env.TEMP,
-    TMP: process.env.TMP,
-    USERNAME: process.env.USERNAME,
-    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
-    WINDIR: process.env.WINDIR,
-    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+    DBUS_SESSION_BUS_ADDRESS: process.env['DBUS_SESSION_BUS_ADDRESS'],
+    DISPLAY: process.env['DISPLAY'],
+    LC_ALL: process.env['LC_ALL'],
+    SystemRoot: process.env['SystemRoot'],
+    TEMP: process.env['TEMP'],
+    TMP: process.env['TMP'],
+    USERNAME: process.env['USERNAME'],
+    WAYLAND_DISPLAY: process.env['WAYLAND_DISPLAY'],
+    WINDIR: process.env['WINDIR'],
+    XDG_RUNTIME_DIR: process.env['XDG_RUNTIME_DIR'],
   }
 }
 
@@ -186,8 +181,8 @@ export function getBrowserImportPathEnv(): {
   readonly appData?: string
   readonly localAppData?: string
 } {
-  const appData = process.env.APPDATA?.trim()
-  const localAppData = process.env.LOCALAPPDATA?.trim()
+  const appData = process.env['APPDATA']?.trim()
+  const localAppData = process.env['LOCALAPPDATA']?.trim()
   return {
     ...(appData ? { appData } : {}),
     ...(localAppData ? { localAppData } : {}),
@@ -242,28 +237,28 @@ export function getSourceControlCliEnv(): Record<string, string | undefined> {
     ...process.env,
     PATH: getNpmCompatiblePath(),
   }
-  delete env.GITHUB_TOKEN
-  delete env.GH_TOKEN
-  delete env.GITHUB_ENTERPRISE_TOKEN
-  delete env.GH_ENTERPRISE_TOKEN
-  delete env.GITLAB_TOKEN
-  delete env.GITLAB_ACCESS_TOKEN
-  delete env.GITLAB_PRIVATE_TOKEN
-  delete env.OAUTH_TOKEN
-  delete env.CI_JOB_TOKEN
+  delete env['GITHUB_TOKEN']
+  delete env['GH_TOKEN']
+  delete env['GITHUB_ENTERPRISE_TOKEN']
+  delete env['GH_ENTERPRISE_TOKEN']
+  delete env['GITLAB_TOKEN']
+  delete env['GITLAB_ACCESS_TOKEN']
+  delete env['GITLAB_PRIVATE_TOKEN']
+  delete env['OAUTH_TOKEN']
+  delete env['CI_JOB_TOKEN']
   // Repository/host selection is supplied explicitly on every gh/glab invocation. Ambient
   // overrides would otherwise be able to retarget a command despite the validated Git remote.
-  delete env.GH_REPO
-  delete env.GH_HOST
-  delete env.GITLAB_REPO
-  delete env.GITLAB_HOST
-  delete env.GITLAB_API_HOST
-  delete env.GITLAB_SSH_HOST
-  delete env.GITLAB_HEAD_REPO
-  delete env.GITLAB_URI
-  delete env.GITLAB_URL
-  delete env.GLAB_REPO
-  delete env.GLAB_HOST
+  delete env['GH_REPO']
+  delete env['GH_HOST']
+  delete env['GITLAB_REPO']
+  delete env['GITLAB_HOST']
+  delete env['GITLAB_API_HOST']
+  delete env['GITLAB_SSH_HOST']
+  delete env['GITLAB_HEAD_REPO']
+  delete env['GITLAB_URI']
+  delete env['GITLAB_URL']
+  delete env['GLAB_REPO']
+  delete env['GLAB_HOST']
   return env
 }
 
@@ -285,7 +280,7 @@ export function getEnvWithOverrides(
 }
 
 export function getNpmCompatiblePath(): string {
-  return buildNpmCompatiblePath(process.env.PATH, process.platform, homedir())
+  return buildNpmCompatiblePath(process.env['PATH'], process.platform, homedir())
 }
 
 export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {

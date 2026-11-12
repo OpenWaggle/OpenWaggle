@@ -81,17 +81,13 @@ async function canonicalWorkspaceProjects(
   canonicalRoots: readonly string[],
   projectPaths: readonly string[],
 ) {
-  const allowed: string[] = []
-  for (const projectPath of projectPaths) {
-    try {
-      const candidate = await fs.realpath(projectPath)
-      if (canonicalRoots.some((root) => isPathInsideDirectory(root, candidate))) {
-        allowed.push(candidate)
-      }
-    } catch {
-      // Missing or inaccessible projects are outside the live workspace grant.
-    }
-  }
+  // Missing or inaccessible projects are outside the live workspace grant.
+  const candidates = await Promise.all(
+    projectPaths.map((projectPath) => fs.realpath(projectPath).catch(() => null)),
+  )
+  const allowed = candidates
+    .filter((candidate) => candidate !== null)
+    .filter((candidate) => canonicalRoots.some((root) => isPathInsideDirectory(root, candidate)))
   return [...new Set(allowed)]
 }
 

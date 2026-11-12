@@ -20,7 +20,7 @@ import {
   errorReportingRelease,
 } from '@shared/error-reporting/error-report-constants'
 import { resolveUsageStatisticsEnvironmentBlock } from '@shared/usage-statistics/enablement'
-import { app } from 'electron'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { env } from './env'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
@@ -30,7 +30,7 @@ const logger = createLogger('error-reporting')
 
 /** Loaded only when this process reports errors, so a process that never does skips the SDK. */
 const importSentryMainErrorReporter = () =>
-  import('./adapters/error-reporting/sentry-main-error-reporter')
+  import('./adapters/electron/error-reporting/sentry-main-error-reporter')
 /** Loaded on start, after Settings: it reads the settings store, which startup loads late. */
 const importUsageStatisticsEnablement = () =>
   import('./usage-statistics/usage-statistics-enablement')
@@ -90,7 +90,7 @@ async function startSdk(
   const { startSentryMainErrorReporter } = await importSentryMainErrorReporter()
   reporter = startSentryMainErrorReporter({
     process: processKind,
-    release: errorReportingRelease(app.getVersion()),
+    release: errorReportingRelease(appLifecycle.version()),
     environment: BUILD_CHANNEL,
     homeDirectory: homedir(),
     temporaryDirectory: tmpdir(),

@@ -6,6 +6,7 @@ import {
   makeAssistant,
   makeNativeModel,
   NATIVE_DETAILS,
+  withoutCompat,
 } from './pi-native-compaction-test-fixtures'
 
 describe('Pi native compaction preparation', () => {
@@ -144,7 +145,7 @@ describe('Pi native compaction preparation', () => {
     )
     sessionManager.appendMessage({ role: 'user', content: 'recent request', timestamp: 3 })
     sessionManager.appendMessage(makeAssistant('recent response', 4))
-    const downgradedModel = makeNativeModel({ compat: undefined })
+    const downgradedModel = withoutCompat(makeNativeModel())
 
     const preparation = prepareCompaction(
       sessionManager.getBranch(),

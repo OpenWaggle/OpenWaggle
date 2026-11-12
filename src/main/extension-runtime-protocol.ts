@@ -3,7 +3,6 @@ import { pathToFileURL } from 'node:url'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { parseJsonUnknown } from '@shared/schema'
 import type { ExtensionRuntimeModuleAccessInput } from '@shared/types/extensions'
-import { app, net, protocol } from 'electron'
 import {
   getContentHashRelativePaths,
   getManifestContentHashInput,
@@ -15,6 +14,9 @@ import {
   resolveSafePackageFilePath,
 } from './adapters/extensions/package-files'
 import { invokeConfiguredHostUiRaw } from './application/gui-session-command-router'
+import { appPaths } from './desktop-shell/app-paths'
+import { networkFetch } from './desktop-shell/network-fetch'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { isPathInside } from './utils/paths'
 
 export const EXTENSION_RUNTIME_PROTOCOL = OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME
@@ -61,7 +63,7 @@ function hasProjectExtensionRootSegments(packagePath: string) {
 
 function isGlobalExtensionPackagePath(packagePath: string) {
   const globalExtensionsRoot = resolve(
-    app.getPath('userData'),
+    appPaths.userData(),
     OPENWAGGLE_EXTENSION.GLOBAL_EXTENSIONS_DIR,
   )
 
@@ -296,7 +298,7 @@ async function resolveExtensionModuleFilePath(
 }
 
 async function fileResponse(filePath: string) {
-  const response = await net.fetch(pathToFileURL(filePath).toString())
+  const response = await networkFetch.fetch(pathToFileURL(filePath).toString())
   const headers = new Headers(response.headers)
 
   headers.set(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, CORS_ANY_ORIGIN)
@@ -323,14 +325,14 @@ export function registerExtensionRuntimeProtocolOnce(
   const isRuntimeModuleAllowed =
     dependencies.isExtensionRuntimeModuleAllowed ?? defaultExtensionRuntimeModuleAccessChecker
 
-  protocol.handle(EXTENSION_RUNTIME_PROTOCOL, async (request) => {
+  trustedOrigins.serve('extension-runtime', async (request) => {
     try {
       const modulePath = await resolveExtensionModuleFilePath(request.url, isRuntimeModuleAllowed)
       if (!modulePath) {
         return notFoundResponse()
       }
 
-      return fileResponse(modulePath)
+      return await fileResponse(modulePath)
     } catch {
       return notFoundResponse()
     }

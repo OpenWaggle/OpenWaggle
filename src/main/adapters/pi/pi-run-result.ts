@@ -13,12 +13,12 @@ function makeMessage(
   role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: SupportedModelId,
-) {
+): Message {
   return {
     id: MessageId(randomUUID()),
     role,
     parts,
-    model,
+    ...(model ? { model } : {}),
     createdAt: Date.now(),
   }
 }

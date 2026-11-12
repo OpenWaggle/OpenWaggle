@@ -48,8 +48,7 @@ export function discardEmptyPendingLaunchState(
 ) {
   const pending = context.pendingInputByKey.get(key)
   if (
-    pending !== undefined &&
-    pending.parts.length === 0 &&
+    pending?.parts.length === 0 &&
     pending.bytes === 0 &&
     pending.projectAction === null &&
     !context.inFlightOpens.has(key) &&

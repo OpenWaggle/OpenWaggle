@@ -46,8 +46,12 @@ function parsed(text: string) {
 }
 
 function fullResultOf(page: unknown) {
-  if (isRecord(page) && isRecord(page.truncated) && typeof page.truncated.fullResult === 'string') {
-    return page.truncated.fullResult
+  if (
+    isRecord(page) &&
+    isRecord(page['truncated']) &&
+    typeof page['truncated']['fullResult'] === 'string'
+  ) {
+    return page['truncated']['fullResult']
   }
   throw new Error('The result names no fullResult.')
 }

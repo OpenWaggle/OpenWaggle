@@ -65,8 +65,8 @@ async function readFirstYaml(directories: readonly string[], fileName: string) {
 }
 
 function githubAccounts(entry: Readonly<Record<string, unknown>>) {
-  const active = nonEmptyString(entry.user)
-  const logins = isRecord(entry.users) ? Object.keys(entry.users) : active ? [active] : []
+  const active = nonEmptyString(entry['user'])
+  const logins = isRecord(entry['users']) ? Object.keys(entry['users']) : active ? [active] : []
   return logins
     .slice(0, MAX_ACCOUNTS_PER_HOST)
     .map((login) => ({ login, active: login === active }))
@@ -86,14 +86,14 @@ function parseGithubHosts(config: Readonly<Record<string, unknown>> | null): Git
 
 /** glab keeps instances under `hosts:` in `config.yml`; a token or user means signed in. */
 function parseGitlabHosts(config: Readonly<Record<string, unknown>> | null): GitlabCliHost[] {
-  if (!config || !isRecord(config.hosts)) return []
-  return Object.entries(config.hosts)
+  if (!config || !isRecord(config['hosts'])) return []
+  return Object.entries(config['hosts'])
     .slice(0, MAX_CLI_HOSTS)
     .flatMap(([host, entry]) => {
       if (!isRecord(entry) || !isSourceControlHostName(sourceControlHostKey(host))) return []
-      const user = nonEmptyString(entry.user)
-      const signedIn = user !== null || nonEmptyString(entry.token) !== null
-      const sshHost = nonEmptyString(entry.ssh_host)
+      const user = nonEmptyString(entry['user'])
+      const signedIn = user !== null || nonEmptyString(entry['token']) !== null
+      const sshHost = nonEmptyString(entry['ssh_host'])
       return [
         {
           host: sourceControlHostKey(host),

@@ -51,7 +51,7 @@ interface RepairProgress {
 
 describe('SQLite public Session export checkpoint repair', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeSessionQueryRuntime>> = []
+  const runtimes: ReturnType<typeof makeSessionQueryRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-public-export-repair-'))

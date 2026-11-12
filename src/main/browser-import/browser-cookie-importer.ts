@@ -5,8 +5,8 @@ import type {
   BrowserImportSource,
 } from '@shared/types/browser-import'
 import type { BrowserProfile } from '@shared/types/browser-profile'
-import type { Session } from 'electron'
-import { browserPreviewSessionForProfile } from '../browser-preview-profile-session'
+import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
+import type { BrowserProfileCookieJar } from '../ports/desktop-shell/browser-preview-views'
 import { type BrowserCookieReadResult, boundedSkippedDomains } from './browser-cookie-model'
 import { BrowserImportError, browserImportError } from './browser-import-errors'
 import {
@@ -21,9 +21,7 @@ import { readSafariCookies } from './safari-cookie-reader'
 
 const MILLISECONDS_PER_SECOND = 1_000
 
-interface ImportSession {
-  readonly cookies: Pick<Session['cookies'], 'set' | 'flushStore'>
-}
+type ImportSession = BrowserProfileCookieJar
 
 export interface BrowserCookieImporterOptions {
   readonly getTargetProfiles: () => readonly BrowserProfile[] | Promise<readonly BrowserProfile[]>
@@ -164,7 +162,7 @@ async function importFromSource(
   const read = await readSourceCookies(input.sourceId, databasePath, context, options)
   let session: ImportSession
   try {
-    session = await (options.getSession ?? browserPreviewSessionForProfile)(target.id)
+    session = await (options.getSession ?? browserPreviewViews.profileCookieJar)(target.id)
   } catch (cause) {
     throw new BrowserImportError(
       'session-unavailable',

@@ -46,10 +46,12 @@ async function findAdvertisedTool(
   for (let page = 0; page < MCP_APP_TOOL_LIST_MAX_PAGES; page += 1) {
     const listed = await listTools(cursor === undefined ? {} : { cursor })
     recordMcpToolVisibility(input.sessionId, input.serverName, listed)
-    const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
-    if (tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) return
+    const tools = isRecord(listed) && Array.isArray(listed['tools']) ? listed['tools'] : []
+    if (tools.some((tool) => isRecord(tool) && tool['name'] === input.toolName)) return
     cursor =
-      isRecord(listed) && typeof listed.nextCursor === 'string' ? listed.nextCursor : undefined
+      isRecord(listed) && typeof listed['nextCursor'] === 'string'
+        ? listed['nextCursor']
+        : undefined
     if (cursor === undefined) break
   }
   throw new Error('The MCP App requested a tool that its server did not advertise.')

@@ -126,7 +126,7 @@ describe('change request adoption', () => {
   })
 
   it('lists GitHub pull requests when the repository only has an upstream remote', async () => {
-    const executions: Array<{ readonly command: string; readonly args: string }> = []
+    const executions: { readonly command: string; readonly args: string }[] = []
     execFileMock.mockImplementation(
       (command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')
@@ -183,7 +183,7 @@ describe('change request adoption', () => {
   })
 
   it('checks out a GitLab merge request when the repository only has an upstream remote', async () => {
-    const executions: Array<{ readonly command: string; readonly args: string }> = []
+    const executions: { readonly command: string; readonly args: string }[] = []
     execFileMock.mockImplementation(
       (command: string, args: string[], _options: unknown, callback: GitCallback) => {
         const joined = args.join(' ')

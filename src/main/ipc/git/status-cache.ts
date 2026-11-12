@@ -1,5 +1,4 @@
 export {
-  type GitStatusCacheToken,
   getCachedGitStatus,
   getGitStatusCacheToken,
   getOrLoadCachedGitStatus,

@@ -110,10 +110,10 @@ function diffFiles(entries: readonly unknown[]): readonly DiffFile[] {
   return entries.flatMap((raw) => {
     const entry = asObject(raw)
     if (!entry) return []
-    const path = asString(entry.new_path) ?? asString(entry.old_path)
+    const path = asString(entry['new_path']) ?? asString(entry['old_path'])
     if (!path) return []
-    const diff = asString(entry.diff)
-    const omitted = entry.too_large === true || (entry.collapsed === true && diff === null)
+    const diff = asString(entry['diff'])
+    const omitted = entry['too_large'] === true || (entry['collapsed'] === true && diff === null)
     return [{ path, ...countDiffLines(diff ?? ''), omitted }]
   })
 }

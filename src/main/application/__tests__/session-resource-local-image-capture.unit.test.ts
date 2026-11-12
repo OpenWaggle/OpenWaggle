@@ -270,7 +270,7 @@ ${PLAIN_IMAGE_MARKDOWN}
 
   it("lets backfill read images from the Session's own scratch directory", async () => {
     const image = `${sessionScratchDirectoryPath('session-1')}/electron-qa-evidence/final.png`
-    const readSourceRoots: Array<readonly string[]> = []
+    const readSourceRoots: (readonly string[])[] = []
     const recordingReadRoots = Layer.effect(
       SessionResourceStore,
       Effect.map(SessionResourceStore, (store) =>

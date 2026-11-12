@@ -13,17 +13,34 @@ export class SessionHostEventSubscription {
   private pendingBytes = 0
   private waiter: ((delivery: SessionHostEventDelivery) => void) | null = null
   private terminal: SessionHostEventDelivery | null = null
+  private readonly capacity: number
+  private readonly byteCapacity: number
+  private readonly currentCursor: () => SessionHostEventCursor
+  private readonly onClose: () => void
+  private readonly accepts: (event: SessionHostEventEnvelope) => boolean
+  private readonly advanceFilteredCursor: (event: SessionHostEventEnvelope) => boolean
+  private readonly reserveAggregateBytes: (bytes: number) => boolean
+  private readonly releaseAggregateBytes: (bytes: number) => void
 
   constructor(
-    private readonly capacity: number,
-    private readonly byteCapacity: number,
-    private readonly currentCursor: () => SessionHostEventCursor,
-    private readonly onClose: () => void,
-    private readonly accepts: (event: SessionHostEventEnvelope) => boolean,
-    private readonly advanceFilteredCursor: (event: SessionHostEventEnvelope) => boolean,
-    private readonly reserveAggregateBytes: (bytes: number) => boolean,
-    private readonly releaseAggregateBytes: (bytes: number) => void,
-  ) {}
+    capacity: number,
+    byteCapacity: number,
+    currentCursor: () => SessionHostEventCursor,
+    onClose: () => void,
+    accepts: (event: SessionHostEventEnvelope) => boolean,
+    advanceFilteredCursor: (event: SessionHostEventEnvelope) => boolean,
+    reserveAggregateBytes: (bytes: number) => boolean,
+    releaseAggregateBytes: (bytes: number) => void,
+  ) {
+    this.capacity = capacity
+    this.byteCapacity = byteCapacity
+    this.currentCursor = currentCursor
+    this.onClose = onClose
+    this.accepts = accepts
+    this.advanceFilteredCursor = advanceFilteredCursor
+    this.reserveAggregateBytes = reserveAggregateBytes
+    this.releaseAggregateBytes = releaseAggregateBytes
+  }
 
   enqueue(event: SessionHostEventEnvelope, bytes: number): void {
     if (this.terminal) return

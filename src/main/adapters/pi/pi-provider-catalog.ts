@@ -45,9 +45,7 @@ import type {
 export type {
   PiModel,
   PiProjectModelRuntime,
-  ProviderCatalogRecord,
   ProviderCatalogSnapshot,
-  ProviderModelRecord,
 } from './pi-provider-catalog-types'
 
 export function getPiAgentDir(): string {

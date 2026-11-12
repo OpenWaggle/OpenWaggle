@@ -24,7 +24,6 @@ import {
 export {
   OPENWAGGLE_MCP_SERVE_GRANTS,
   type OpenWaggleMcpServeGrant,
-  type OpenWaggleMcpServeIdentity,
   type OpenWaggleMcpServeOptions,
 } from './openwaggle-mcp-server-policy'
 
@@ -171,13 +170,14 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
       onerror: reportError,
     })
     options.stderr?.write(`OpenWaggle MCP listening at ${handle.url}\n`)
-    const close = async () => {
+    try {
+      await new Promise<void>((resolve) => {
+        process.once('SIGINT', resolve)
+        process.once('SIGTERM', resolve)
+      })
+    } finally {
       await handle.close().catch(() => undefined)
     }
-    await new Promise<void>((resolve) => {
-      process.once('SIGINT', resolve)
-      process.once('SIGTERM', resolve)
-    }).finally(close)
     return
   }
   const routedStdout = routedCliStdoutStream()
@@ -186,12 +186,13 @@ export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOption
     maxSubscriptions: MAX_SERVER_SUBSCRIPTIONS,
     onerror: reportError,
   })
-  const close = async () => {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      process.stdin.once('end', resolve)
+      process.stdin.once('close', resolve)
+      process.stdin.once('error', reject)
+    })
+  } finally {
     await handle.close().catch(() => undefined)
   }
-  await new Promise<void>((resolve, reject) => {
-    process.stdin.once('end', resolve)
-    process.stdin.once('close', resolve)
-    process.stdin.once('error', reject)
-  }).finally(close)
 }

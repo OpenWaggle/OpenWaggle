@@ -18,7 +18,7 @@ function runRequest(
       args: args.map((value) => ({ kind: 'value', value })),
     },
   }).pipe(Effect.provideService(WorkspaceProjectAuthorization, { authorize }))
-  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown, never>, typeof request>(request))
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof request>(request))
 }
 
 describe('Host workspace authorization dispatcher', () => {

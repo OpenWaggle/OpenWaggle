@@ -3,7 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
-  app: { getPath: () => '/tmp', getVersion: () => '1.2.3', once: vi.fn(), off: vi.fn() },
+  app: { getPath: () => '/tmp', getVersion: () => '1.2.3', on: vi.fn(), off: vi.fn() },
 }))
 vi.mock('../local-session-cli-client', () => ({ prepareLocalSessionCliClientInput: vi.fn() }))
 vi.mock('../session-host/local-session-client', async () => ({

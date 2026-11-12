@@ -58,10 +58,11 @@ export function createSqliteActionRunPersistence(sql: SqlClient.SqlClient): Acti
             readonly run_id: string
           }>`SELECT run_id FROM project_action_run_requests
         WHERE workspace_id = ${workspaceId} AND action_id = ${actionId} AND request_id = ${requestId}`
-          if (rows[0]?.run_id !== runId)
+          if (rows[0]?.run_id !== runId) {
             return yield* Effect.fail(
               new Error('Action request identity already belongs to another run.'),
             )
+          }
         }),
       ),
     save: (input) =>

@@ -27,7 +27,7 @@ export interface InstalledMcpbLauncher extends McpbCachedLauncher {
 }
 
 function nodeErrorCode(value: unknown) {
-  return isRecord(value) && typeof value.code === 'string' ? value.code : undefined
+  return isRecord(value) && typeof value['code'] === 'string' ? value['code'] : undefined
 }
 
 function validateArtifactUrl(identifier: string) {
@@ -62,7 +62,11 @@ async function validateCachedPackage(input: {
     throw new Error('Verified MCPB cache entry is not a regular directory.')
   }
   const marker: unknown = JSON.parse(await readFile(path.join(input.root, INTEGRITY_FILE), 'utf8'))
-  if (!isRecord(marker) || marker.sha256 !== input.expectedSha256 || marker.schemaVersion !== 1) {
+  if (
+    !isRecord(marker) ||
+    marker['sha256'] !== input.expectedSha256 ||
+    marker['schemaVersion'] !== 1
+  ) {
     throw new Error('Verified MCPB cache entry failed its integrity marker check.')
   }
   return loadMcpbLauncher({

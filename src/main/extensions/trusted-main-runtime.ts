@@ -112,10 +112,6 @@ export function trustedMainExtensionModule(value: unknown): TrustedMainExtension
   return isDirectTrustedMainExtensionModule(defaultValue) ? defaultValue : null
 }
 
-export function isTrustedMainExtensionModule(value: unknown): value is TrustedMainExtensionModule {
-  return trustedMainExtensionModule(value) !== null
-}
-
 function trustedMainModuleImport(moduleUrl: string): Promise<unknown> {
   return import(/* @vite-ignore */ moduleUrl).then((moduleNamespace: unknown) => moduleNamespace)
 }

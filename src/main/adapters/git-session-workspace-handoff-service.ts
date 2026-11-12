@@ -209,16 +209,16 @@ function prepareWorkspaceHandoff(sql: SqlClient.SqlClient, input: PrepareHandoff
       const cleanup = parseJsonUnknown(replay.cleanup_json)
       if (
         isRecord(cleanup) &&
-        cleanup.kind === 'workspace-handoff-refs' &&
-        typeof cleanup.projectPath === 'string' &&
-        typeof cleanup.snapshotRef === 'string' &&
-        typeof cleanup.targetSnapshotRef === 'string'
+        cleanup['kind'] === 'workspace-handoff-refs' &&
+        typeof cleanup['projectPath'] === 'string' &&
+        typeof cleanup['snapshotRef'] === 'string' &&
+        typeof cleanup['targetSnapshotRef'] === 'string'
       ) {
         return {
           transfer: 'release-existing-refs' as const,
-          projectPath: cleanup.projectPath,
-          snapshotRef: cleanup.snapshotRef,
-          targetSnapshotRef: cleanup.targetSnapshotRef,
+          projectPath: cleanup['projectPath'],
+          snapshotRef: cleanup['snapshotRef'],
+          targetSnapshotRef: cleanup['targetSnapshotRef'],
         }
       }
       throw new Error('Completed Workspace handoff has invalid cleanup metadata.')

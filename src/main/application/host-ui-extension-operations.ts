@@ -73,9 +73,15 @@ const runtimeModuleAccessSchema = Schema.Struct({
 
 export function authorizeHostUiExtensionRuntimeModule(input: unknown) {
   const decoded = safeDecodeUnknown(runtimeModuleAccessSchema, input)
-  return decoded.success
-    ? isExtensionRuntimeModuleAccessAllowed(decoded.data)
-    : Effect.fail(new Error(`Invalid runtime module authorization: ${decoded.issues.join('; ')}`))
+  if (!decoded.success) {
+    return Effect.fail(
+      new Error(`Invalid runtime module authorization: ${decoded.issues.join('; ')}`),
+    )
+  }
+  const { sessionId, ...access } = decoded.data
+  return isExtensionRuntimeModuleAccessAllowed(
+    sessionId === undefined ? access : { ...access, sessionId },
+  )
 }
 
 export function proposeHostUiExtensionPackageWrite(input: unknown) {

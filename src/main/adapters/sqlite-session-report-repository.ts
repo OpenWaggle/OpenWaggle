@@ -63,8 +63,9 @@ function reportScope(input: ExecuteSessionReportInput) {
 }
 
 function brandedReportTarget(target: ExecuteSessionReportInput['request']['command']['target']) {
-  if (target.type === 'session')
+  if (target.type === 'session') {
     return { type: target.type, sessionId: SessionId(target.sessionId) } as const
+  }
   if (target.type === 'sessions') {
     return { type: target.type, sessionIds: target.sessionIds.map(SessionId) } as const
   }

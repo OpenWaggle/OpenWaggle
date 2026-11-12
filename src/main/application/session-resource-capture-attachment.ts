@@ -86,7 +86,9 @@ function storeAttachment(
       fileName: input.attachment.name,
       sourcePath: input.attachment.path,
       expectedSizeBytes: input.attachment.sizeBytes,
-      expectedSha256: input.attachment.contentSha256,
+      ...(input.attachment.contentSha256 === undefined
+        ? {}
+        : { expectedSha256: input.attachment.contentSha256 }),
       maxSizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
     })
     .pipe(

@@ -37,7 +37,7 @@ function isHiveSubcommand(subcommand: string) {
 }
 
 const toolActions = sessionsToolParameterVariants
-  .flatMap((variant) => actionChoices(variant.properties.action).map((choice) => choice.const))
+  .flatMap((variant) => actionChoices(variant.properties['action']).map((choice) => choice.const))
   .sort()
 const asSubcommand = (action: string) => action.replaceAll('_', '-')
 const mcpOperations: ReadonlySet<string> = new Set(OPENWAGGLE_MCP_SESSION_OPERATIONS_V2)

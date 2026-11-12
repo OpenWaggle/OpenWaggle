@@ -23,10 +23,6 @@ export async function git(cwd: string, args: readonly string[]): Promise<string>
   return typeof result === 'string' ? result : (result.stdout ?? '')
 }
 
-export async function headSubject(cwd: string): Promise<string> {
-  return (await git(cwd, ['log', '-1', '--pretty=%s'])).trim()
-}
-
 export async function createRepositoryWithWorktree(): Promise<{
   readonly repository: string
   readonly worktree: string

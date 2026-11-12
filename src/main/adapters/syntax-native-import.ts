@@ -37,11 +37,11 @@ function nativeAppearance(
   sourcePath: string,
   scope: SyntaxResourceScope,
 ): SyntaxAppearanceResource {
-  if (!isRecord(candidate) || !isRecord(candidate.tokens)) {
+  if (!isRecord(candidate) || !isRecord(candidate['tokens'])) {
     throw new Error(`Native appearance entry ${String(index + 1)} is malformed.`)
   }
-  const rawTokens = candidate.tokens
-  if (!isAppearanceVariant(candidate.variant)) {
+  const rawTokens = candidate['tokens']
+  if (!isAppearanceVariant(candidate['variant'])) {
     throw new Error(`Native appearance entry ${String(index + 1)} has an invalid variant.`)
   }
   if (REQUIRED_APPEARANCE_GROUPS.some((group) => !isRecord(rawTokens[group]))) {
@@ -53,12 +53,14 @@ function nativeAppearance(
   const tokens = toJsonObject(rawTokens)
   const revision = createHash('sha256').update(JSON.stringify(original)).digest('hex')
   return {
-    id: `appearance:${syntaxResourceSlug(packageId)}:${candidate.variant}`,
+    id: `appearance:${syntaxResourceSlug(packageId)}:${candidate['variant']}`,
     packageId,
     revision,
     label:
-      typeof candidate.label === 'string' ? candidate.label : `${packageName} ${candidate.variant}`,
-    variant: candidate.variant,
+      typeof candidate['label'] === 'string'
+        ? candidate['label']
+        : `${packageName} ${candidate['variant']}`,
+    variant: candidate['variant'],
     scope,
     format: 'openwaggle',
     sourcePath,
@@ -73,14 +75,16 @@ export function nativeSyntaxResources(
   scope: SyntaxResourceScope,
 ) {
   if (
-    raw.schemaVersion !== 1 ||
-    (!Array.isArray(raw.themes) && !Array.isArray(raw.languages) && !Array.isArray(raw.appearances))
+    raw['schemaVersion'] !== 1 ||
+    (!Array.isArray(raw['themes']) &&
+      !Array.isArray(raw['languages']) &&
+      !Array.isArray(raw['appearances']))
   ) {
     return null
   }
-  const themeCandidates = Array.isArray(raw.themes) ? raw.themes : []
-  const languageCandidates = Array.isArray(raw.languages) ? raw.languages : []
-  const appearanceCandidates = Array.isArray(raw.appearances) ? raw.appearances : []
+  const themeCandidates = Array.isArray(raw['themes']) ? raw['themes'] : []
+  const languageCandidates = Array.isArray(raw['languages']) ? raw['languages'] : []
+  const appearanceCandidates = Array.isArray(raw['appearances']) ? raw['appearances'] : []
   if (
     themeCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
     languageCandidates.length > SYNTAX_IMPORT_RESOURCE_KIND_LIMIT ||
@@ -88,42 +92,42 @@ export function nativeSyntaxResources(
   ) {
     throw new Error('A native syntax package declares too many resources of one kind.')
   }
-  const publisher = typeof raw.publisher === 'string' ? raw.publisher : 'local'
-  const packageName = typeof raw.name === 'string' ? raw.name : path.basename(sourcePath)
+  const publisher = typeof raw['publisher'] === 'string' ? raw['publisher'] : 'local'
+  const packageName = typeof raw['name'] === 'string' ? raw['name'] : path.basename(sourcePath)
   const packageId = `${publisher}.${packageName}`
   const themes = themeCandidates.map((candidate, index) => {
-    if (!isRecord(candidate) || !isRecord(candidate.theme)) {
+    if (!isRecord(candidate) || !isRecord(candidate['theme'])) {
       throw new Error(`Native theme entry ${String(index + 1)} is malformed.`)
     }
-    if (!isAppearanceVariant(candidate.variant)) {
+    if (!isAppearanceVariant(candidate['variant'])) {
       throw new Error(`Native theme entry ${String(index + 1)} has an invalid variant.`)
     }
     return normalizedTheme({
-      raw: candidate.theme,
+      raw: candidate['theme'],
       label:
-        typeof candidate.label === 'string'
-          ? candidate.label
-          : `${packageName} ${candidate.variant}`,
+        typeof candidate['label'] === 'string'
+          ? candidate['label']
+          : `${packageName} ${candidate['variant']}`,
       packageId,
       format: 'openwaggle',
       sourcePath,
       scope,
-      forcedVariant: candidate.variant,
+      forcedVariant: candidate['variant'],
     })
   })
   const languages = languageCandidates.map((candidate, index) => {
-    if (!isRecord(candidate) || !isRecord(candidate.grammar)) {
+    if (!isRecord(candidate) || !isRecord(candidate['grammar'])) {
       throw new Error(`Native language entry ${String(index + 1)} is malformed.`)
     }
     return normalizedLanguage({
-      grammar: candidate.grammar,
+      grammar: candidate['grammar'],
       declaration: candidate,
-      language: isRecord(candidate.language) ? candidate.language : candidate,
+      language: isRecord(candidate['language']) ? candidate['language'] : candidate,
       packageId,
       format: 'openwaggle',
       sourcePath,
       scope,
-      configuration: candidate.configuration,
+      configuration: candidate['configuration'],
     })
   })
   const appearances = appearanceCandidates.map((candidate, index) =>

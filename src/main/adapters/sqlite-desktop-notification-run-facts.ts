@@ -20,7 +20,7 @@ function decodePolicy(value: string | null) {
 }
 
 /**
- * Who a Run acts for (ADR 0062, 0063): its caller and Scheduled task. A Hive wake acts for the
+ * Who a Run acts for (ADR 0062, 0065): its caller and Scheduled task. A Hive wake acts for the
  * Session's latest Run before it, so it reads that Run's origin; who stopped it and when it was
  * created are the wake's own.
  */

@@ -61,7 +61,7 @@ export async function openWorkspaceFileInExternalEditor(input: {
   readonly column?: number
 }): Promise<void> {
   const editor = workspaceExternalEditorDefinition(input.editor)
-  if (editor === undefined) throw new Error(`Unknown external editor: ${String(input.editor)}`)
+  if (editor === undefined) throw new Error(`Unknown external editor: ${input.editor}`)
 
   const command = await findAvailableWorkspaceExternalEditorCommand(editor.commands, (candidate) =>
     workspaceExternalEditorCommandAvailable(candidate),

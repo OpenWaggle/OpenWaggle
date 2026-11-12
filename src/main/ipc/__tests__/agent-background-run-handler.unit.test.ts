@@ -2,11 +2,10 @@ import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import type { BrowserWindow, WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { typedHandleMock, windows } = vi.hoisted(() => {
-  const state: { all: BrowserWindow[] } = { all: [] }
+  const state: { all: DesktopWindow[] } = { all: [] }
   return { typedHandleMock: vi.fn(), windows: state }
 })
 
@@ -26,6 +25,8 @@ vi.mock('../../application/gui-session-command', async (importOriginal) => ({
 vi.mock('../../application/agent-session-service', () => ({ getAgentContextUsage: vi.fn() }))
 vi.mock('../active-agent-runs', () => ({ cancelAllSessionRuns: vi.fn() }))
 
+import type { DesktopWindow } from '../../ports/desktop-shell/desktop-windows'
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 import { clearStreamBuffer, emitTransportEvent, startStreamBuffer } from '../../utils/stream-bridge'
 import { registerAgentHandlers } from '../agent-handler'
 
@@ -43,13 +44,13 @@ function backgroundRunHandler() {
 }
 
 function fakeWindow() {
-  const sent: Array<readonly unknown[]> = []
-  const webContents = fromPartial<WebContents>({
+  const sent: (readonly unknown[])[] = []
+  const webContents = fromPartial<RendererSurface>({
     id: 11,
     send: (...args: unknown[]) => sent.push(args),
     once: vi.fn(),
   })
-  return { win: fromPartial<BrowserWindow>({ isDestroyed: () => false, webContents }), sent }
+  return { win: fromPartial<DesktopWindow>({ isDestroyed: () => false, webContents }), sent }
 }
 
 const messageStart = {

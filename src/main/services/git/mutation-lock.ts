@@ -68,7 +68,7 @@ async function acquireLockKey(locks: Map<string, Promise<void>>, key: string) {
 async function acquireLocks(locks: Map<string, Promise<void>>, workingPaths: readonly string[]) {
   const canonicalPaths = await Promise.all(workingPaths.map(resolveGitMutationScope))
   const keys = [...new Set(canonicalPaths)].sort()
-  const releases: Array<() => void> = []
+  const releases: (() => void)[] = []
 
   try {
     for (const key of keys) {

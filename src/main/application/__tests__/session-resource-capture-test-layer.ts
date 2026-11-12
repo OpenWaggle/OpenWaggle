@@ -20,7 +20,7 @@ interface SessionResourceTestLayerOptions {
   readonly removedPaths?: string[]
   readonly storedByteFiles?: string[]
   readonly storedAttachmentFiles?: string[]
-  readonly storedAttachmentSha256?: Array<string | undefined>
+  readonly storedAttachmentSha256?: (string | undefined)[]
   readonly storedAttachmentBytes?: Uint8Array
   readonly fetchedUrls?: string[]
   readonly existingManagedPath?: string

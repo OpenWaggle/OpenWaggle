@@ -24,8 +24,9 @@ export function withSessionActionRelease<A, E, R>(
       if (!workspace) return yield* operation
       const actions = yield* ActionRunService
       const stopServicesIfUnbound = Effect.gen(function* () {
-        if ((yield* workspaces.countActiveBindings(workspace.id)) === 0)
+        if ((yield* workspaces.countActiveBindings(workspace.id)) === 0) {
           yield* actions.stopWorkspaceServices(workspace.id)
+        }
       })
       const cleanupDeleted = Effect.suspend(() => actions.cleanupDeletedWorkspaces).pipe(
         Effect.catchAll((error) =>
@@ -66,8 +67,9 @@ export function withSessionActionRelease<A, E, R>(
         workspace.id,
         Effect.gen(function* () {
           // A preceding handoff can replace the binding while this caller waits for admission.
-          if ((yield* workspaces.getBound(sessionId))?.id !== workspace.id)
+          if ((yield* workspaces.getBound(sessionId))?.id !== workspace.id) {
             return { status: 'retry' } as const
+          }
           // Managed deletion validates the worktree before its admitted removal stops services.
           // Stopping here first would kill a live service even when Git refuses a dirty checkout.
           if (timing === 'after' || intent === 'archive') {
@@ -100,8 +102,9 @@ export function withSessionActionRelease<A, E, R>(
           if (
             !retireLocal &&
             (yield* workspaces.countActiveBindings(workspace.id, sessionId)) === 0
-          )
+          ) {
             yield* actions.stopWorkspaceServices(workspace.id)
+          }
           const value = yield* intent === 'delete'
             ? operation.pipe(Effect.ensuring(cleanupDeleted))
             : operation

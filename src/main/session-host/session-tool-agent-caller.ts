@@ -10,6 +10,7 @@ import {
   SESSION_CAPABILITIES,
   type SessionCapability,
 } from '@shared/types/session-capability'
+import { valuesIn } from '@shared/utils/set-membership'
 import * as Effect from 'effect/Effect'
 import { sessionAgentRunReachesEveryProject } from '../adapters/session-agent-run-project-reach'
 import { decodeSessionExecutionProfile } from '../adapters/session-run-execution-profile'
@@ -83,15 +84,13 @@ function effectiveCapabilities(row: AuthorityRow) {
     ? decodeCapabilities(row.capabilities_json)
     : [...DEFAULT_SESSION_AGENT_CAPABILITIES]
   const constrained = executionProfile.sessionCapabilities
-    ? granted.filter((capability) => executionProfile.sessionCapabilities?.includes(capability))
+    ? valuesIn(granted, executionProfile.sessionCapabilities)
     : granted
   const originCapabilities = row.origin_profile_capabilities_json
     ? decodeLocalSessionProfileCapabilities(parseJsonUnknown(row.origin_profile_capabilities_json))
     : undefined
   return {
-    capabilities: originCapabilities
-      ? constrained.filter((capability) => originCapabilities.includes(capability))
-      : constrained,
+    capabilities: originCapabilities ? valuesIn(constrained, originCapabilities) : constrained,
     originCapabilities,
   }
 }
@@ -275,8 +274,9 @@ export function resolveSessionToolAgentCaller(
         : {}),
       derivedSessionAuthorities: derived.map((authority) => ({
         sessionId: authority.child_session_id,
-        capabilities: decodeCapabilities(authority.capabilities_json).filter((capability) =>
-          effective.capabilities.includes(capability),
+        capabilities: valuesIn(
+          decodeCapabilities(authority.capabilities_json),
+          effective.capabilities,
         ),
         authorizationCeiling:
           ceiling === 'ask-for-approval' || authority.authorization_ceiling === 'ask-for-approval'

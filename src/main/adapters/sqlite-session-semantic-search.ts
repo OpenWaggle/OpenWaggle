@@ -117,11 +117,18 @@ export class SqliteSessionSemanticSearch {
   readonly projection: SqliteSessionSemanticProjection
   readonly #snapshots: SessionSemanticIndexSnapshotCache
 
+  private readonly sql: SqlClient.SqlClient
+  private readonly model: SessionEmbeddingModel
+  private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy
+
   constructor(
-    private readonly sql: SqlClient.SqlClient,
-    private readonly model: SessionEmbeddingModel,
-    private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
+    sql: SqlClient.SqlClient,
+    model: SessionEmbeddingModel,
+    storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
   ) {
+    this.sql = sql
+    this.model = model
+    this.storagePolicy = storagePolicy
     this.projection = new SqliteSessionSemanticProjection(sql, model, storagePolicy)
     this.#snapshots = new SessionSemanticIndexSnapshotCache(storagePolicy.recordLimit)
   }

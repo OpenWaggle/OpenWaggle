@@ -17,9 +17,9 @@ export function inheritingLoginShell(added: string) {
     inherited.push(input.env)
     const env = input.env ?? {}
     return [
-      captured('PATH', `${added}:${env.PATH ?? ''}`),
-      env.XDG_SESSION_TYPE ? captured('XDG_SESSION_TYPE', env.XDG_SESSION_TYPE) : '',
-      env.SSH_AUTH_SOCK ? captured('SSH_AUTH_SOCK', env.SSH_AUTH_SOCK) : '',
+      captured('PATH', `${added}:${env['PATH'] ?? ''}`),
+      env['XDG_SESSION_TYPE'] ? captured('XDG_SESSION_TYPE', env['XDG_SESSION_TYPE']) : '',
+      env['SSH_AUTH_SOCK'] ? captured('SSH_AUTH_SOCK', env['SSH_AUTH_SOCK']) : '',
     ].join('')
   })
   return { runCommand, inherited }

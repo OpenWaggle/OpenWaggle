@@ -1,68 +1,34 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CommandLine } from 'electron'
-import { limitChromiumHttpDiskCache } from './chromium-disk-cache'
+import { appPaths } from './desktop-shell/app-paths'
+import type { AppPathsShape } from './ports/desktop-shell/app-paths'
 import { configureSessionScratchNamespace } from './utils/session-scratch-directory'
 
 const SESSION_DATA_DIRECTORY_NAME = 'session-data'
 const LOGS_DIRECTORY_NAME = 'logs'
-const CHROMIUM_DIPS_BASENAME = 'DIPS'
-const CHROMIUM_DIPS_SIDE_SUFFIXES = ['', '-wal', '-shm'] as const
-const CHROMIUM_DIPS_REPAIR_MARKER_FILENAME = '.openwaggle-dips-repair-v1'
 
-export interface AppPathManager {
-  getPath(name: 'userData'): string
-  setPath(name: 'userData' | 'sessionData', value: string): void
-  setAppLogsPath(path?: string): void
-  /** Electron's `app.commandLine`, to bound the profile's Chromium disk cache before ready. */
-  readonly commandLine?: Pick<CommandLine, 'appendSwitch' | 'hasSwitch'>
-}
-
-function getChromiumDipsPaths(sessionDataPath: string) {
-  return CHROMIUM_DIPS_SIDE_SUFFIXES.map((suffix) =>
-    join(sessionDataPath, `${CHROMIUM_DIPS_BASENAME}${suffix}`),
-  )
-}
-
-function repairChromiumDipsDatabaseOnce(sessionDataPath: string) {
-  const repairMarkerPath = join(sessionDataPath, CHROMIUM_DIPS_REPAIR_MARKER_FILENAME)
-  if (existsSync(repairMarkerPath)) {
-    return
-  }
-
-  const chromiumDipsPaths = getChromiumDipsPaths(sessionDataPath)
-  const hasExistingChromiumDipsState = chromiumDipsPaths.some((chromiumDipsPath) =>
-    existsSync(chromiumDipsPath),
-  )
-
-  if (hasExistingChromiumDipsState) {
-    for (const chromiumDipsPath of chromiumDipsPaths) {
-      rmSync(chromiumDipsPath, { force: true })
-    }
-  }
-
-  // Versioned marker: this is a one-time profile repair, not a per-launch reset.
-  writeFileSync(repairMarkerPath, `${CHROMIUM_DIPS_REPAIR_MARKER_FILENAME}\n`)
-}
+/** The part of `AppPaths` that places this process's profile. */
+export type AppStoragePaths = Pick<
+  AppPathsShape,
+  'userData' | 'setUserData' | 'setLogs' | 'setWebProfileData'
+>
 
 export function configureAppStoragePaths(
-  appPaths: AppPathManager,
   overrideUserDataPath?: string,
+  paths: AppStoragePaths = appPaths,
 ): void {
-  const userDataPath = overrideUserDataPath ?? appPaths.getPath('userData')
-  appPaths.setPath('userData', userDataPath)
+  const userDataPath = overrideUserDataPath ?? paths.userData()
+  paths.setUserData(userDataPath)
   mkdirSync(userDataPath, { recursive: true })
-  // An overridden profile (QA, tests, OPENWAGGLE_USER_DATA_DIR) keeps its logs too, Electron's and
-  // the Session Host's file, instead of writing to the real ~/Library/Logs/<app>.
+  // An overridden profile (QA, tests, OPENWAGGLE_USER_DATA_DIR) keeps its logs too, the shell's
+  // and the Session Host's file, instead of writing to the real ~/Library/Logs/<app>.
   if (overrideUserDataPath !== undefined) {
-    appPaths.setAppLogsPath(join(userDataPath, LOGS_DIRECTORY_NAME))
+    paths.setLogs(join(userDataPath, LOGS_DIRECTORY_NAME))
   }
   // The GUI captures Session images from scratch directories too, so it must agree with the Host.
   configureSessionScratchNamespace(userDataPath)
 
   const sessionDataPath = join(userDataPath, SESSION_DATA_DIRECTORY_NAME)
   mkdirSync(sessionDataPath, { recursive: true })
-  repairChromiumDipsDatabaseOnce(sessionDataPath)
-  appPaths.setPath('sessionData', sessionDataPath)
-  if (appPaths.commandLine) limitChromiumHttpDiskCache(appPaths.commandLine)
+  paths.setWebProfileData(sessionDataPath)
 }

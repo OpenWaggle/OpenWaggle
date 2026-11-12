@@ -222,7 +222,9 @@ describe('local Session event authorization', () => {
     }
     const refreshed = {
       ...caller,
-      baseProfileScope: caller.profileAuthority?.scope,
+      ...(caller.profileAuthority === undefined
+        ? {}
+        : { baseProfileScope: caller.profileAuthority.scope }),
       eventAdmissionSessionIds: ['session-parent'],
       derivedSessionAuthorities: [
         {
@@ -255,7 +257,9 @@ describe('local Session event authorization', () => {
     })
     const refreshed = {
       ...caller,
-      baseProfileScope: caller.profileAuthority?.scope,
+      ...(caller.profileAuthority === undefined
+        ? {}
+        : { baseProfileScope: caller.profileAuthority.scope }),
       derivedSessionAuthorities: [
         {
           sessionId: 'session-worker',

@@ -75,9 +75,10 @@ function installActiveProperties(
   for (const flag of USAGE_STATISTICS_FEATURE_FLAGS) {
     if (observations.features.includes(flag)) properties[flag] = true
   }
-  if (observations.mcpServers.length > 0)
-    properties.mcp_servers = [...observations.mcpServers].sort()
-  if (observations.skills.length > 0) properties.skills = [...observations.skills].sort()
+  if (observations.mcpServers.length > 0) {
+    properties['mcp_servers'] = [...observations.mcpServers].sort()
+  }
+  if (observations.skills.length > 0) properties['skills'] = [...observations.skills].sort()
   return properties
 }
 
@@ -134,7 +135,9 @@ export function buildUsageStatisticsDayReport(input: {
     })
   }
   for (const event of observations.events) {
-    events.push({ name: event.name, day, properties: event.properties })
+    // The copy is a plain object type, which a report's string-keyed properties accept; the
+    // event's interface has no index signature.
+    events.push({ name: event.name, day, properties: { ...event.properties } })
   }
   return { events, includesInstallNew, includesOnboarding, includesActive: observations.ranRun }
 }

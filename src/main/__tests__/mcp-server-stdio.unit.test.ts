@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { serveDualEraMcpStdio } from '../mcp-server-stdio'
 
-const handles: Array<{ close(): Promise<void> }> = []
+const handles: { close(): Promise<void> }[] = []
 const clients: Client[] = []
 
 afterEach(async () => {

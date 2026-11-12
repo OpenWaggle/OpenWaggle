@@ -8,16 +8,10 @@ import * as Effect from 'effect/Effect'
 import { ProviderProbeService } from '../ports/provider-probe-service'
 import { ProviderService } from '../ports/provider-service'
 
-interface TestCredentialsSuccess {
-  readonly success: true
-}
-
 interface TestCredentialsFailure {
   readonly success: false
   readonly error: string
 }
-
-type TestCredentialsResult = TestCredentialsSuccess | TestCredentialsFailure
 
 /** Test a provider's credentials through a minimal Pi session prompt. */
 export function testCredentials(providerId: string, apiKey: string, projectPath?: string | null) {
@@ -40,8 +34,8 @@ export function testCredentials(providerId: string, apiKey: string, projectPath?
       .probeCredentials({
         providerId: provider.id,
         modelId: provider.testModel,
-        apiKey: normalizedApiKey,
-        projectPath,
+        ...(normalizedApiKey === undefined ? {} : { apiKey: normalizedApiKey }),
+        ...(projectPath === undefined ? {} : { projectPath }),
       })
       .pipe(
         Effect.map(() => ({ success: true })),
@@ -56,5 +50,3 @@ export function testCredentials(providerId: string, apiKey: string, projectPath?
     return result
   })
 }
-
-export type { TestCredentialsResult }

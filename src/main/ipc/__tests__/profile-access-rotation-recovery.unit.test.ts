@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mocks, resetProfileAccessMocks } from './profile-access-handler.harness'
+import { required } from '../../test-support/required'
 
 const { registerProfileAccessHandlers } = await import('../profile-access-handler')
 
@@ -48,7 +49,7 @@ describe('explicit GUI rotation after an unknown profile outcome', () => {
         }),
       )
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     await Effect.runPromise(
       handler(
@@ -67,14 +68,21 @@ describe('explicit GUI rotation after an unknown profile outcome', () => {
     )
 
     expect(response).toMatchObject({ replayed: false, outcome: { effect: 'profile-rotated' } })
-    expect(mocks.stage.mock.calls[1][0]).toMatchObject({ replace: true, recoverAnyPending: true })
-    expect(mocks.dispatch.mock.calls[1][0].payload.request.command).toEqual({
+    expect(required(mocks.stage.mock.calls[1], 'stage call 1')[0]).toMatchObject({
+      replace: true,
+      recoverAnyPending: true,
+    })
+    expect(
+      required(mocks.dispatch.mock.calls[1], 'dispatch call 1')[0].payload.request.command,
+    ).toEqual({
       operation: 'rotate',
       profileName: 'reviewer',
       credential,
     })
-    expect(mocks.dispatch.mock.calls[1][0].payload.request.idempotencyKey).not.toBe(
-      mocks.dispatch.mock.calls[0][0].payload.request.idempotencyKey,
+    expect(
+      required(mocks.dispatch.mock.calls[1], 'dispatch call 1')[0].payload.request.idempotencyKey,
+    ).not.toBe(
+      required(mocks.dispatch.mock.calls[0], 'dispatch call 0')[0].payload.request.idempotencyKey,
     )
     expect(mocks.commit).toHaveBeenCalledOnce()
     expect(mocks.disconnect).toHaveBeenCalledExactlyOnceWith('profile-reviewer')
@@ -114,7 +122,7 @@ describe('explicit GUI rotation after an unknown profile outcome', () => {
       }),
     )
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler({}, { operation: 'rotate', profileName: 'reviewer' }).pipe(Effect.flip),

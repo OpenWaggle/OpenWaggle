@@ -90,7 +90,7 @@ function storedProfile() {
     String(
       database
         .prepare<[], Record<string, unknown>>('SELECT profile_json FROM session_execution_profiles')
-        .get()?.profile_json,
+        .get()?.['profile_json'],
     )
   return { database, read }
 }

@@ -28,7 +28,7 @@ const SILENT_SERVER = "require('node:readline').createInterface({ input: process
 /** A stdio MCP server that exits before answering, so it fails to connect. */
 const BROKEN_SERVER = 'process.exit(1)'
 
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 
 afterEach(async () => {
   while (cleanups.length > 0) await cleanups.pop()?.()
@@ -123,9 +123,9 @@ async function firstPrompt(
 /** The text of every tool result the model was given in the Session. */
 function toolResultTexts(session: { readonly messages: readonly unknown[] }) {
   return session.messages.flatMap((message) =>
-    isRecord(message) && message.role === 'toolResult' && Array.isArray(message.content)
-      ? message.content.flatMap((part: unknown) =>
-          isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+    isRecord(message) && message['role'] === 'toolResult' && Array.isArray(message['content'])
+      ? message['content'].flatMap((part: unknown) =>
+          isRecord(part) && typeof part['text'] === 'string' ? [part['text']] : [],
         )
       : [],
   )

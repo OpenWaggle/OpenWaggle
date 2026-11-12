@@ -93,7 +93,7 @@ export function startHostServicesOnceListening<R = never>(options: HostServiceOp
     yield* runSessionScratchSweepBackground
     // Before the scheduler, so a task it stops for attention is announced (ADR 0062).
     yield* runDesktopNotificationsBackground
-    // Keeps each parent's Running Workers current in the windows (ADR 0063).
+    // Keeps each parent's Running Workers current in the windows (ADR 0065).
     yield* runHiveAncestorRefreshBackground
     // After the tool gateway and title worker: a Launch schedule's Session gets its title.
     yield* runScheduledTaskSchedulerBackground

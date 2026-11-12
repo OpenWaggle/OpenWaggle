@@ -104,10 +104,9 @@ function pass(options: Parameters<typeof layer>[0], isDraining = () => false) {
   const provided = runAutomaticWorktreeRemovalPass(() => NOW, isDraining).pipe(
     Effect.provide(layer(options)),
   )
-  return fromAny<
-    Effect.Effect<Effect.Effect.Success<typeof provided>, Error, never>,
-    typeof provided
-  >(provided)
+  return fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, Error>, typeof provided>(
+    provided,
+  )
 }
 
 function runPass(options: Parameters<typeof layer>[0], isDraining = () => false) {

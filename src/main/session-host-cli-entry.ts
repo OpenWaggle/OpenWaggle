@@ -1,15 +1,13 @@
 import { existsSync } from 'node:fs'
-import { app } from 'electron'
 import { flushCliOutput } from './cli-output-flush'
 import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
+import { installDesktopShellEnvironment } from './desktop-shell-environment-process'
 import type { StartedDesktopShellEnvironment } from './desktop-shell-environment-start'
-import { installAutomationDesktopUiBlockers } from './desktop-ui'
-import {
-  env,
-  installDesktopShellEnvironment,
-  installLinuxSessionBusEnvironment,
-  takeShellEnvironmentRefreshedSince,
-} from './env'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
+import { desktopWindows } from './desktop-shell/desktop-windows'
+import { systemIntegration } from './desktop-shell/system-integration'
+import { env, installLinuxSessionBusEnvironment, takeShellEnvironmentRefreshedSince } from './env'
 import { flushErrorReporting, reportError, startErrorReporting } from './error-reporting'
 import { applyInstallerUpdateChannelIntent } from './installer-update-channel-intent'
 import { createLogger, drainFileLogger, initFileLogger, SESSION_HOST_LOG_FILE_STEM } from './logger'
@@ -97,7 +95,7 @@ export function hydrateSessionHostShellEnvironment(
   start: () => StartedDesktopShellEnvironment = () => {
     const refreshedElsewhereSince = takeShellEnvironmentRefreshedSince()
     return installDesktopShellEnvironment({
-      cacheFile: shellEnvironmentCacheFile(app.getPath('userData')),
+      cacheFile: shellEnvironmentCacheFile(appPaths.userData()),
       // A Host may be started from a terminal: its PATH must not become every launch's.
       writeCache: false,
       ...(refreshedElsewhereSince === undefined ? {} : { refreshedElsewhereSince }),
@@ -119,7 +117,7 @@ function exitAfterLogDrain() {
   const exit = () => {
     if (exited) return
     exited = true
-    app.exit(FAILURE_EXIT_CODE)
+    appLifecycle.exit(FAILURE_EXIT_CODE)
   }
   setTimeout(exit, SESSION_HOST_QUIT_LOG_DRAIN_MS)
   void drainFileLogger()
@@ -131,7 +129,7 @@ function exitAfterLogDrain() {
  * Electron turns SIGTERM and SIGINT into an app quit, which would end the Host at once: the MCP
  * pool would not close, and a stdio server that ignores SIGTERM would outlive it (its SIGKILL is
  * due 2 s later). The quit is held and the Host stopped instead; its disposal closes the pool and
- * kills what is still in its SIGTERM grace, then the Host exits through app.exit(), which skips
+ * kills what is still in its SIGTERM grace, then the Host exits through appLifecycle.exit(), which skips
  * quit events.
  */
 export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
@@ -148,10 +146,10 @@ export function stopSessionHostOnQuit(stop: () => Promise<void> | void) {
       exitAfterLogDrain()
     }, SESSION_HOST_QUIT_HOLD_MS)
   }
-  app.on('before-quit', holdQuit)
+  const stopHoldingQuit = appLifecycle.onBeforeQuit(holdQuit)
   return () => {
     clearTimeout(deadline)
-    app.off('before-quit', holdQuit)
+    stopHoldingQuit()
   }
 }
 
@@ -177,29 +175,38 @@ async function prepareSessionHostStore(preparedPaths: LocalSessionHostPaths) {
   return paths
 }
 
+/** What the Host starts with, imported once this process owns the profile. */
+function importSessionHostStartup() {
+  return Promise.all([
+    import('./runtime'),
+    import('./store/settings'),
+    import('./session-host/session-host-bootstrap'),
+  ])
+}
+
 export function startSessionHostCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'session-host-internal') return false
   // A detached Host owns no windows and must never register in the macOS Dock.
-  if (process.platform === 'darwin') app.setActivationPolicy('accessory')
+  if (process.platform === 'darwin') systemIntegration.setActivationPolicy('accessory')
   // It draws nothing either, so it skips the GPU process (A-F13).
-  app.disableHardwareAcceleration()
+  appLifecycle.disableHardwareAcceleration()
   // The Host inherits OPENWAGGLE_AUTOMATION from the app that started it, so it blocks native UI
   // (dialogs, the browser) the same way, for example a sign-in page an MCP server asks to open.
-  installAutomationDesktopUiBlockers()
-  configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+  desktopWindows.installWindowPolicy()
+  configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
   // Before ready: Electron's secret store reaches the Linux session bus through this process's
   // environment, which no longer comes from a GUI that hydrated before launching the Host.
   installLinuxSessionBusEnvironment()
-  void app
+  void appLifecycle
     .whenReady()
     .then(async () => {
       // The detached Host's console is not attached to anything, so without its own file every
       // failure it recovers from, including a turn that could not be saved, is lost (ADR 0037).
       // Awaited so startup diagnostics are written; initialization failures are reported, not thrown.
-      await initFileLogger(app.getPath('logs'), SESSION_HOST_LOG_FILE_STEM)
+      await initFileLogger(appPaths.logs(), SESSION_HOST_LOG_FILE_STEM)
       startupMark('host-file-logger-ready') // Its uptime dates the process start.
       const preparedPaths = await prepareLocalSessionHostPaths(
-        resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
+        resolveLocalSessionHostPaths({ userDataRoot: appPaths.userData() }),
       )
       const ownership = await acquireOwnershipUnlessHeld(preparedPaths.databasePath)
       startupMark('host-ownership-settled')
@@ -207,7 +214,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
         logger.info('Another Session Host owns this profile; exiting without starting')
         await drainFileLogger()
         await flushCliOutput()
-        app.exit(0)
+        appLifecycle.exit(0)
         return
       }
       // Started once this Host owns the profile, so a Host that exits at once leaves no probe.
@@ -215,9 +222,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       try {
         const paths = await prepareSessionHostStore(preparedPaths)
         startupMark('host-cutover-settled')
-        const runtime = await import('./runtime')
-        const settings = await import('./store/settings')
-        const { startAppSessionHost } = await import('./session-host/session-host-bootstrap')
+        const [runtime, settings, { startAppSessionHost }] = await importSessionHostStartup()
         let releaseQuitHold: () => void = () => undefined
         try {
           await runtime.initializeAppRuntime()
@@ -225,13 +230,13 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
           startupMark('host-settings-initialized')
           // Settings decide whether errors are reported, so reporting starts once they load.
           void startErrorReporting('session-host')
-          await applyInstallerUpdateChannelIntent(app.getPath('userData'), (channel) =>
+          await applyInstallerUpdateChannelIntent(appPaths.userData(), (channel) =>
             settings.updateSettingsDurably({ updateChannel: channel }),
           )
           // The Session Host is the only process that sends Usage statistics.
           configureUsageStatisticsHostRecorder({
-            userDataDirectory: app.getPath('userData'),
-            appVersion: app.getVersion(),
+            userDataDirectory: appPaths.userData(),
+            appVersion: appLifecycle.version(),
           })
           // Not awaited: the Host listens first, and what needs the user's tools waits on its own.
           void shellEnvironment.then(() => startupMark('host-shell-environment-installed'))
@@ -280,7 +285,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       await drainFileLogger()
       await flushCliOutput()
       await flushErrorReporting()
-      app.exit(0)
+      appLifecycle.exit(0)
     })
     .catch(async (error: unknown) => {
       // The detached Host's stderr reaches nothing; the Host log is where this can be found.
@@ -292,7 +297,7 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
       await drainFileLogger().catch(() => undefined)
       await flushCliOutput().catch(() => undefined)
       await flushErrorReporting()
-      app.exit(FAILURE_EXIT_CODE)
+      appLifecycle.exit(FAILURE_EXIT_CODE)
     })
   return true
 }

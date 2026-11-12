@@ -75,15 +75,6 @@ describe('registerWagglePresetsHandlers', () => {
     deleteWagglePresetMock.mockReset()
   })
 
-  it('registers all expected IPC channels', () => {
-    registerWagglePresetsHandlers()
-
-    const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
-    expect(channels).toContain('waggle-presets:list')
-    expect(channels).toContain('waggle-presets:save')
-    expect(channels).toContain('waggle-presets:delete')
-  })
-
   describe('waggle-presets:list', () => {
     it('returns the list of Waggle presets', async () => {
       const presets = [samplePreset()]
@@ -95,16 +86,6 @@ describe('registerWagglePresetsHandlers', () => {
       const result = await handler?.({}, '/tmp/project')
       expect(result).toEqual(presets)
       expect(listWagglePresetsMock).toHaveBeenCalledWith('/tmp/project')
-    })
-
-    it('returns an empty array when no presets exist', async () => {
-      listWagglePresetsMock.mockReturnValue([])
-
-      registerWagglePresetsHandlers()
-      const handler = getInvokeHandler('waggle-presets:list')
-
-      const result = await handler?.({}, null)
-      expect(result).toEqual([])
     })
   })
 

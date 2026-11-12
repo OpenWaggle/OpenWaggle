@@ -50,48 +50,38 @@ export const newWorktreeFields = {
 }
 
 export const interactionResponseSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('confirm'),
-      accepted: z.boolean(),
-      scope: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.itemTextLength).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('select'),
-      selected: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('input'),
-      value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('editor'),
-      value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
-    })
-    .strict(),
-  z.object({ kind: z.literal('notify'), acknowledged: z.literal(true) }).strict(),
-  z.object({ kind: z.literal('custom'), value: mcpSessionJsonSchemaV2.nullable() }).strict(),
+  z.strictObject({
+    kind: z.literal('confirm'),
+    accepted: z.boolean(),
+    scope: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.itemTextLength).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal('select'),
+    selected: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
+  }),
+  z.strictObject({
+    kind: z.literal('input'),
+    value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
+  }),
+  z.strictObject({
+    kind: z.literal('editor'),
+    value: z.string().max(MCP_SESSION_INPUT_LIMITS_V2.textLength).nullable(),
+  }),
+  z.strictObject({ kind: z.literal('notify'), acknowledged: z.literal(true) }),
+  z.strictObject({ kind: z.literal('custom'), value: mcpSessionJsonSchemaV2.nullable() }),
 ])
 
-export const evidenceSchema = z
-  .object({
-    kind: z.enum([
-      'observed-command',
-      'workspace-diff',
-      'artifact',
-      'source-reference',
-      'asserted-note',
-    ]),
-    summary: mcpSessionItemTextSchemaV2,
-    reference: mcpSessionPathSchemaV2.optional(),
-  })
-  .strict()
+export const evidenceSchema = z.strictObject({
+  kind: z.enum([
+    'observed-command',
+    'workspace-diff',
+    'artifact',
+    'source-reference',
+    'asserted-note',
+  ]),
+  summary: mcpSessionItemTextSchemaV2,
+  reference: mcpSessionPathSchemaV2.optional(),
+})
 export const evidence = z
   .array(evidenceSchema)
   .max(MCP_SESSION_INPUT_LIMITS_V2.evidenceItems)
@@ -104,15 +94,13 @@ export const targetSessionIds = z
   .array(mcpSessionIdSchemaV2)
   .max(SESSION_COLLABORATION_COLLECTION_LIMIT)
   .refine(hasUniqueCollaborationStrings, 'Target Session IDs must be unique.')
-export const revisedSpecificationSchema = z
-  .object({
-    objective: mcpSessionTextSchemaV2,
-    deliverables: mcpSessionItemArraySchemaV2,
-    acceptanceCriteria: mcpSessionItemArraySchemaV2,
-    resourceReferences: mcpSessionResourceReferencesSchemaV2,
-    handoffContext: mcpSessionTextSchemaV2.optional(),
-  })
-  .strict()
+export const revisedSpecificationSchema = z.strictObject({
+  objective: mcpSessionTextSchemaV2,
+  deliverables: mcpSessionItemArraySchemaV2,
+  acceptanceCriteria: mcpSessionItemArraySchemaV2,
+  resourceReferences: mcpSessionResourceReferencesSchemaV2,
+  handoffContext: mcpSessionTextSchemaV2.optional(),
+})
 export function finiteUniqueEnumArray<const TValues extends readonly [string, ...string[]]>(
   values: TValues,
 ) {
@@ -128,5 +116,5 @@ export function operationSchema<TName extends string, TShape extends z.ZodRawSha
   operation: TName,
   shape: TShape,
 ) {
-  return z.object({ operation: z.literal(operation), ...shape }).strict()
+  return z.strictObject({ operation: z.literal(operation), ...shape })
 }

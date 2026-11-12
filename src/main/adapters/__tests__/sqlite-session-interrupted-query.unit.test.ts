@@ -17,7 +17,7 @@ const INTERRUPTED_RUN_STATUSES = [
 
 describe('SQLite interrupted Session catalog query', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-interrupted-query-'))

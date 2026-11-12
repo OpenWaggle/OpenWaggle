@@ -24,10 +24,12 @@ export function effectivePreparation(
   const sameSlot = (left: PreparationDefinition, right: PreparationDefinition) =>
     left.profileId === right.profileId && left.phase === right.phase
   return effective(local, shared).flatMap((entry): EffectiveDefinition<PreparationDefinition>[] => {
-    if (entry.source === 'project' && local.some((item) => sameSlot(item, entry.definition)))
+    if (entry.source === 'project' && local.some((item) => sameSlot(item, entry.definition))) {
       return []
-    if (entry.source === 'local' && shared.some((item) => sameSlot(item, entry.definition)))
+    }
+    if (entry.source === 'local' && shared.some((item) => sameSlot(item, entry.definition))) {
       return [{ ...entry, source: 'override' }]
+    }
     return [entry]
   })
 }

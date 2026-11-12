@@ -91,7 +91,7 @@ export function buildSessionWorkspace(
     tree,
     activeBranchId: activeBranch?.id ?? null,
     activeNodeId: activeNode?.id ?? null,
-    activeBranchState,
+    ...(activeBranchState === undefined ? {} : { activeBranchState }),
     transcriptPath: buildTranscriptPath(tree, activeNode?.id ?? null),
   }
 }

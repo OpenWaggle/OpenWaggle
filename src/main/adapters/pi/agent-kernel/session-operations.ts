@@ -35,6 +35,7 @@ import {
 } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 import { createPiSessionRuntime, withPiSession, withReadOnlyPiSession } from './session-runtime'
+import { piSessionFileField } from './pi-session-file-field'
 
 function toContextUsageSnapshot(
   usage: ContextUsage | undefined,
@@ -93,7 +94,7 @@ export async function getPiSessionSnapshot(
   if (warming && warming.sessionFile === input.session.piSessionFile) {
     return {
       piSessionId: warming.sessionId,
-      piSessionFile: warming.sessionFile,
+      ...piSessionFileField(warming.sessionFile),
       sessionSnapshot: projectPiSessionSnapshot(warming, nodeIds),
     }
   }
@@ -108,7 +109,9 @@ export async function getPiSessionSnapshot(
   return {
     piSessionId: sessionManager.getSessionId(),
     // An in-memory manager has no file of its own; it read the Session's.
-    piSessionFile: sessionManager.getSessionFile() ?? input.session.piSessionFile ?? undefined,
+    ...piSessionFileField(
+      sessionManager.getSessionFile() ?? input.session.piSessionFile ?? undefined,
+    ),
     sessionSnapshot: projectPiSessionSnapshot({ sessionManager }, nodeIds),
   }
 }
@@ -167,7 +170,7 @@ export async function compactPiSession(
         firstKeptEntryId: piEntryNodeIds(input.session).toNodeId(result.firstKeptEntryId),
         tokensBefore: result.tokensBefore,
         piSessionId: session.sessionId,
-        piSessionFile: session.sessionFile,
+        ...piSessionFileField(session.sessionFile),
         sessionSnapshot: projectPiSessionSnapshot(session, piEntryNodeIds(input.session)),
       }
     } finally {
@@ -187,13 +190,15 @@ export async function navigatePiSessionTree(
     try {
       const result = await session.navigateTree(targetEntryId, {
         summarize: input.summarize ?? false,
-        customInstructions: input.customInstructions,
+        ...(input.customInstructions === undefined
+          ? {}
+          : { customInstructions: input.customInstructions }),
       })
       return {
         piSessionId: session.sessionId,
-        piSessionFile: session.sessionFile,
+        ...piSessionFileField(session.sessionFile),
         sessionSnapshot: projectPiSessionSnapshot(session, nodeIds),
-        editorText: result.editorText,
+        ...(result.editorText === undefined ? {} : { editorText: result.editorText }),
         cancelled: result.cancelled,
       }
     } catch (error) {

@@ -11,7 +11,7 @@ import { SessionHostEventHub, type SessionHostEventHubOptions } from '../session
 import { SessionHostLiveness } from '../session-host-liveness'
 import { SessionWaitServiceLive } from '../session-wait-service'
 
-type SessionState = {
+interface SessionState {
   readonly stateRevision: number
   readonly activeRunId: string | null
   readonly pendingFollowUpCount: number

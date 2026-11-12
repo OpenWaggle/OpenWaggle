@@ -8,18 +8,20 @@ import { describe, expect, it } from 'vitest'
 import {
   makeAssistant,
   makeNativeModel,
+  withoutCompat,
   NATIVE_DETAILS,
 } from './pi-native-compaction-test-fixtures'
 
 function makeSmallTargetModel(): Model<'openai-responses'> {
-  return makeNativeModel({
-    id: 'target-model',
-    provider: 'target-provider',
-    baseUrl: 'https://target.test/v1',
-    contextWindow: 100,
-    maxTokens: 40,
-    compat: undefined,
-  })
+  return withoutCompat(
+    makeNativeModel({
+      id: 'target-model',
+      provider: 'target-provider',
+      baseUrl: 'https://target.test/v1',
+      contextWindow: 100,
+      maxTokens: 40,
+    }),
+  )
 }
 
 describe('Pi native compaction budget estimator', () => {
