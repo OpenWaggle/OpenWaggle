@@ -135,9 +135,12 @@ describe('Session lifecycle command dispatch', () => {
       }),
     )
 
-    await Effect.runPromise(
-      dispatchAcceptedLifecycleRun(launchedResponse(true)).pipe(Effect.provide(layer)),
-    )
+    await expect(
+      Effect.runPromise(
+        dispatchAcceptedLifecycleRun(launchedResponse(true)).pipe(Effect.provide(layer)),
+      ),
+    ).resolves.toBe(false)
+    expect(activeRuns.has(SessionId('session-launch'))).toBe(false)
   })
 
   it('drains the Host when a launched Run cannot be durably settled', async () => {

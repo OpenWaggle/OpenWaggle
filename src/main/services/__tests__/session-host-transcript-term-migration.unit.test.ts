@@ -86,6 +86,6 @@ describe('Session Host transcript term normalization migration', () => {
     for (const statement of SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS) database.exec(statement)
 
     expect(() => applyMigration(database)).not.toThrow()
-    expect(termColumns(database).some((column) => column.name === 'term_frequency')).toBe(false)
+    expect(termColumns(database).some((column) => column['name'] === 'term_frequency')).toBe(false)
   })
 })

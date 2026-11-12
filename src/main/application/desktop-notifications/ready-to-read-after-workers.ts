@@ -61,7 +61,7 @@ interface ReadyToReadAfterWorkersDependencies {
 }
 
 /**
- * Ready to read waits for the work (ADR 0063, CONTEXT.md). A root Session's completed Run notifies
+ * Ready to read waits for the work (ADR 0065, CONTEXT.md). A root Session's completed Run notifies
  * when nothing runs in its Hive and no Hive wake is coming, or at once when the person asked while
  * Workers ran; otherwise the latest such Run is held, one per root, and shown once when the Hive
  * settles. Held notifications live in memory, like the last reply: a Host restart forgets them.
@@ -73,7 +73,11 @@ export class ReadyToReadAfterWorkers {
   /** When the sweep showed a root's held Ready to read without its wake Run saying so. */
   private readonly sweptAt = new Map<string, number>()
 
-  constructor(private readonly dependencies: ReadyToReadAfterWorkersDependencies) {}
+  private readonly dependencies: ReadyToReadAfterWorkersDependencies
+
+  constructor(dependencies: ReadyToReadAfterWorkersDependencies) {
+    this.dependencies = dependencies
+  }
 
   /** The root Session's request ended another way (stopped, failed, archived or deleted). */
   drop(rootSessionId: string) {

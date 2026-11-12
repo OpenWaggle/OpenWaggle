@@ -12,7 +12,7 @@ import { collectLargeTranscriptPages } from './sqlite-session-query-transcript-t
 
 describe('SQLite Session transcript queries', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-transcript-query-'))

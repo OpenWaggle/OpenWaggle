@@ -6,10 +6,11 @@ import {
   service,
   settle,
   setupTerminalServiceActionsTest,
-  TERMINAL_ID,
   teardownTerminalServiceActionsTest,
+  TERMINAL_ID,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 function key(ownerKey: string) {
   return `${ownerKey}::${TERMINAL_ID}`
@@ -34,7 +35,7 @@ describe('terminal owner alias lifetime', () => {
 
     await openFor(draftOwner)
 
-    expect(service.records.has(key(sessionOwner))).toBe(false)
+    expect(await terminalKeys()).not.toContain(key(sessionOwner))
     expect(service.records.get(key(draftOwner))?.ownerKey).toBe(draftOwner)
     expect(ptys).toHaveLength(2)
   })
@@ -48,8 +49,8 @@ describe('terminal owner alias lifetime', () => {
     await Effect.runPromise(service.closeAllForOwner(draftOwner, false))
     await openFor(draftOwner)
 
-    expect(service.records.has(key(sessionOwner))).toBe(true)
-    expect(service.records.has(key(draftOwner))).toBe(true)
+    expect(await terminalKeys()).toContain(key(sessionOwner))
+    expect(await terminalKeys()).toContain(key(draftOwner))
   })
 
   it('retains only the immediately preceding owner across repeated migrations', async () => {
@@ -64,9 +65,9 @@ describe('terminal owner alias lifetime', () => {
     expect(ptys).toHaveLength(1)
     await openFor(firstOwner)
 
-    expect(service.records.has(key(finalOwner))).toBe(true)
-    expect(service.records.has(key(firstOwner))).toBe(true)
-    expect(service.records.has(key(secondOwner))).toBe(false)
+    expect(await terminalKeys()).toContain(key(finalOwner))
+    expect(await terminalKeys()).toContain(key(firstOwner))
+    expect(await terminalKeys()).not.toContain(key(secondOwner))
     expect(ptys).toHaveLength(2)
   })
 
@@ -79,7 +80,7 @@ describe('terminal owner alias lifetime', () => {
 
     await openFor(draftOwner)
 
-    expect(service.records.has(key(sessionOwner))).toBe(false)
-    expect(service.records.has(key(draftOwner))).toBe(true)
+    expect(await terminalKeys()).not.toContain(key(sessionOwner))
+    expect(await terminalKeys()).toContain(key(draftOwner))
   })
 })

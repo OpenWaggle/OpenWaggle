@@ -52,13 +52,14 @@ const clientNameRule: OAuthRule = ({ clientName }) =>
     : 'oauth.clientName must be a non-empty string'
 
 const clientRegistrationRule: OAuthRule = (value) => {
-  const registration = value.clientRegistration
+  const registration = value['clientRegistration']
   if (registration === undefined || registration === 'dcr') return undefined
   if (registration !== 'cimd') return 'oauth.clientRegistration must be "dcr" or "cimd"'
-  if (value.clientId !== undefined || value.clientName !== undefined) {
+  if (value['clientId'] !== undefined || value['clientName'] !== undefined) {
     return 'oauth.clientRegistration "cimd" cannot be combined with oauth.clientId or oauth.clientName'
   }
-  const callback = typeof value.callbackUrl === 'string' ? new URL(value.callbackUrl) : undefined
+  const callback =
+    typeof value['callbackUrl'] === 'string' ? new URL(value['callbackUrl']) : undefined
   return callback && (callback.hostname === '[::1]' || callback.pathname !== '/callback')
     ? 'oauth.clientRegistration "cimd" requires oauth.callbackUrl on localhost or 127.0.0.1 with path /callback'
     : undefined
@@ -96,17 +97,17 @@ const OAUTH_RULES: readonly OAuthRule[] = [
 
 function oauthConfig(value: JsonRecord): McpOAuthConfig {
   const config: McpOAuthConfig = {}
-  if (typeof value.clientId === 'string') config.clientId = value.clientId
-  if (typeof value.clientSecret === 'string') config.clientSecret = value.clientSecret
-  if (typeof value.callbackPort === 'number') config.callbackPort = value.callbackPort
-  if (typeof value.callbackUrl === 'string') config.callbackUrl = value.callbackUrl
-  if (typeof value.scope === 'string') config.scope = value.scope
-  if (typeof value.clientName === 'string') config.clientName = value.clientName
-  if (value.clientRegistration === 'dcr' || value.clientRegistration === 'cimd') {
-    config.clientRegistration = value.clientRegistration
+  if (typeof value['clientId'] === 'string') config.clientId = value['clientId']
+  if (typeof value['clientSecret'] === 'string') config.clientSecret = value['clientSecret']
+  if (typeof value['callbackPort'] === 'number') config.callbackPort = value['callbackPort']
+  if (typeof value['callbackUrl'] === 'string') config.callbackUrl = value['callbackUrl']
+  if (typeof value['scope'] === 'string') config.scope = value['scope']
+  if (typeof value['clientName'] === 'string') config.clientName = value['clientName']
+  if (value['clientRegistration'] === 'dcr' || value['clientRegistration'] === 'cimd') {
+    config.clientRegistration = value['clientRegistration']
   }
-  if (typeof value.authServerMetadataUrl === 'string') {
-    config.authServerMetadataUrl = value.authServerMetadataUrl
+  if (typeof value['authServerMetadataUrl'] === 'string') {
+    config.authServerMetadataUrl = value['authServerMetadataUrl']
   }
   return config
 }

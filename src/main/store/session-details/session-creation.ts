@@ -25,7 +25,7 @@ function buildNewSessionDetail(
     title: DEFAULT_SESSION_TITLE,
     projectPath: input.projectPath,
     piSessionId: input.piSessionId,
-    piSessionFile: input.piSessionFile,
+    ...(input.piSessionFile === undefined ? {} : { piSessionFile: input.piSessionFile }),
     messages: [],
     createdAt: now,
     updatedAt: now,

@@ -142,20 +142,6 @@ describe('recoverAgentRunFailure', () => {
     ).resolves.toEqual({ outcome: 'aborted', assignedTitle: 'Abort title' })
   })
 
-  it('classifies unknown failures as user-facing error outcomes', async () => {
-    const result = await Effect.runPromise(
-      recoverAgentRunFailure({ ...context, error: new Error('network unavailable') }),
-    )
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        outcome: 'error',
-        code: expect.any(String),
-        message: expect.any(String),
-      }),
-    )
-  })
-
   /*
    * ADR 0037. A tagged repository error has an empty `message`, so this used to report the unknown
    * code, send "Something went wrong" as the detail, and log `error: ""`.

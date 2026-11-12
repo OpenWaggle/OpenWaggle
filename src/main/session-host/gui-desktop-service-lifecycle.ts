@@ -1,3 +1,5 @@
+import { createLogger } from '../logger'
+
 export interface GuiDesktopServiceLifecycle {
   readonly stop: () => Promise<void>
   /** `stopped` never reattaches; `reconnecting` is the pump still retrying in the background. */
@@ -8,7 +10,6 @@ export interface GuiDesktopServiceLifecycle {
 
 export class DesktopNativeQuarantinedError extends Error {
   readonly code = 'desktop_native_quarantined'
-  readonly reason = 'previous-owner-unclean'
 
   constructor() {
     super(
@@ -33,17 +34,19 @@ export class DesktopNativeRecoveryError extends Error {
 }
 
 export class DesktopServiceAttachmentError extends Error {
-  constructor(
-    readonly lifecycle: GuiDesktopServiceLifecycle,
-    cause: unknown,
-  ) {
+  readonly lifecycle: GuiDesktopServiceLifecycle
+
+  constructor(lifecycle: GuiDesktopServiceLifecycle, cause: unknown) {
     super(
       'Could not attach desktop services. Native cleanup must finish before releasing desktop ownership.',
       { cause },
     )
+    this.lifecycle = lifecycle
     this.name = 'DesktopServiceAttachmentError'
   }
 }
+
+const logger = createLogger('session-host/desktop-bridge')
 
 export const DESKTOP_SHUTDOWN_DRAIN_MS = 30_000
 export const DESKTOP_BRIDGE_TICK_MS = 100
@@ -60,6 +63,26 @@ export function desktopBridgeDelay(milliseconds: number, signal?: AbortSignal) {
     timer.unref?.()
     signal?.addEventListener('abort', done, { once: true })
   })
+}
+
+/**
+ * Renews the desktop lease every `intervalMs` until `signal` aborts. Poll/attach owns reconnect,
+ * so a failed heartbeat is logged and never releases local native fences.
+ */
+export async function runDesktopHeartbeat(
+  signal: AbortSignal,
+  intervalMs: number,
+  beat: () => Promise<void>,
+) {
+  while (!signal.aborted) {
+    await desktopBridgeDelay(intervalMs, signal)
+    if (signal.aborted) continue
+    try {
+      await beat()
+    } catch {
+      if (!signal.aborted) logger.warn('Desktop lease heartbeat failed; native fences remain held.')
+    }
+  }
 }
 
 export async function withDesktopShutdownDeadline<A>(operation: Promise<A>, deadline: number) {

@@ -51,7 +51,11 @@ const hoistedLifecycleMocks: LifecycleMocks = vi.hoisted(() => ({
 
 vi.mock('../typed-ipc', () => ({
   RelayedHostResult: class {
-    constructor(readonly value: unknown) {}
+    readonly value: unknown
+
+    constructor(value: unknown) {
+      this.value = value
+    }
   },
   // The window relays it (A-F5); the test reaches the Session Host's panel through `hostPanel`.
   hostHandle: (channel: string) => {

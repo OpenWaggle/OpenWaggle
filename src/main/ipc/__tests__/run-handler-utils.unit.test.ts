@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { required } from '../../test-support/required'
 
 const {
   emitTransportEventMock,
@@ -142,7 +143,10 @@ describe('emitErrorAndFinish', () => {
 
     expect(emitTransportEventMock).toHaveBeenCalledTimes(1)
 
-    const finishChunk = emitTransportEventMock.mock.calls[0]
+    const finishChunk = required(
+      emitTransportEventMock.mock.calls[0],
+      'emitTransportEventMock call 0',
+    )
     expect(finishChunk[0]).toBe(CONV_ID)
     expect(finishChunk[1].type).toBe('agent_end')
     expect(finishChunk[1].runId).toBe('')
@@ -153,7 +157,10 @@ describe('emitErrorAndFinish', () => {
   it('propagates optional runId', () => {
     emitErrorAndFinish(CONV_ID, 'Error', 'code', 'waggle-123')
 
-    const finishChunk = emitTransportEventMock.mock.calls[0]
+    const finishChunk = required(
+      emitTransportEventMock.mock.calls[0],
+      'emitTransportEventMock call 0',
+    )
     expect(finishChunk[1].runId).toBe('waggle-123')
   })
 })

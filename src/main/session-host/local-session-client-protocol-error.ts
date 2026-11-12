@@ -13,12 +13,11 @@ export class LocalSessionClientProtocolError extends Error {
   readonly retryable: boolean | undefined
   readonly errorKind: SessionHostErrorKind | undefined
 
-  constructor(
-    readonly code: string,
-    message: string,
-    options?: LocalSessionClientProtocolErrorOptions,
-  ) {
+  readonly code: string
+
+  constructor(code: string, message: string, options?: LocalSessionClientProtocolErrorOptions) {
     super(message, options)
+    this.code = code
     this.name = 'LocalSessionClientProtocolError'
     this.retryable = options?.retryable
     this.errorKind = options?.errorKind
@@ -61,10 +60,18 @@ export class LocalSessionClientTimeoutError extends Error {
 export class LocalSessionHostUpgradePendingError extends Error {
   readonly code = 'host_upgrade_pending'
 
+  readonly hostInstanceId: string
+  readonly blockingRuns: readonly { readonly sessionId: string; readonly runId: string }[]
+  readonly blockingOperations: readonly {
+    readonly operationId: string
+    readonly operation: string
+    readonly targetScope: string
+  }[]
+
   constructor(
-    readonly hostInstanceId: string,
-    readonly blockingRuns: readonly { readonly sessionId: string; readonly runId: string }[],
-    readonly blockingOperations: readonly {
+    hostInstanceId: string,
+    blockingRuns: readonly { readonly sessionId: string; readonly runId: string }[],
+    blockingOperations: readonly {
       readonly operationId: string
       readonly operation: string
       readonly targetScope: string
@@ -76,6 +83,9 @@ export class LocalSessionHostUpgradePendingError extends Error {
         ? 'The existing Local Session Host is releasing ownership for a safe version handoff.'
         : `The existing Local Session Host is draining ${blockerCount} active ${blockerCount === 1 ? 'operation' : 'operations'} before a safe version handoff.`,
     )
+    this.hostInstanceId = hostInstanceId
+    this.blockingRuns = blockingRuns
+    this.blockingOperations = blockingOperations
     this.name = 'LocalSessionHostUpgradePendingError'
   }
 }

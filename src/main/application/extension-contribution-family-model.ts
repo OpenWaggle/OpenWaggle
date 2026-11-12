@@ -7,20 +7,30 @@ import type {
 } from '@shared/schemas/extensions'
 import type {
   ExtensionContributionFamily,
-  ExtensionContributionMatchView,
   ExtensionContributionRuntime,
-  ExtensionContributionTargetView,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+
+/** A decoded manifest target; the manifest schema decodes absent keys as undefined. */
+export interface ManifestContributionTarget {
+  readonly projectPaths?: readonly string[] | undefined
+  readonly sessionIds?: readonly string[] | undefined
+}
+
+export interface ManifestContributionMatches {
+  readonly toolNames?: readonly string[] | undefined
+  readonly customMessageNames?: readonly string[] | undefined
+  readonly interactionKinds?: readonly string[] | undefined
+}
 
 export interface ManifestCommandContribution {
   readonly id: string
   readonly title: string
-  readonly category?: string
-  readonly target?: ExtensionContributionTargetView
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
+  readonly category?: string | undefined
+  readonly target?: ManifestContributionTarget | undefined
+  readonly capability?: string | undefined
+  readonly method?: string | undefined
+  readonly methods?: readonly string[] | undefined
 }
 
 export interface ManifestEntryContribution {
@@ -29,13 +39,13 @@ export interface ManifestEntryContribution {
   readonly runtime: ExtensionContributionRuntime
   readonly execution: ExtensionExecutionPlacement
   readonly entry: string
-  readonly target?: ExtensionContributionTargetView
-  readonly matches?: ExtensionContributionMatchView
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
+  readonly target?: ManifestContributionTarget | undefined
+  readonly matches?: ManifestContributionMatches | undefined
+  readonly capability?: string | undefined
+  readonly method?: string | undefined
+  readonly methods?: readonly string[] | undefined
   /** Declared only by side panels (ADR 0043). */
-  readonly icon?: ExtensionSidePanelIcon
+  readonly icon?: ExtensionSidePanelIcon | undefined
 }
 
 export type ManifestSessionSummaryContribution = ExtensionSessionSummaryContribution
@@ -56,13 +66,6 @@ interface EntryFamilyDescriptor {
   readonly contributions: (
     contributions: ExtensionContributions,
   ) => readonly ManifestEntryContribution[] | undefined
-}
-
-interface SessionSummaryFamilyDescriptor {
-  readonly family: typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS
-  readonly contributions: (
-    contributions: ExtensionContributions,
-  ) => readonly ManifestSessionSummaryContribution[] | undefined
 }
 
 const CONTRIBUTION_FAMILY = OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
@@ -115,16 +118,6 @@ export const SESSION_SUMMARY_FAMILY_DESCRIPTOR = {
   family: CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
   contributions: (contributions: ExtensionContributions) => contributions.sessionSummarySections,
 } as const
-
-export const CONTRIBUTION_FAMILY_DESCRIPTORS = [
-  ...COMMAND_FAMILY_DESCRIPTORS,
-  ...ENTRY_FAMILY_DESCRIPTORS,
-  SESSION_SUMMARY_FAMILY_DESCRIPTOR,
-] satisfies readonly (
-  | CommandFamilyDescriptor
-  | EntryFamilyDescriptor
-  | SessionSummaryFamilyDescriptor
-)[]
 
 export function getManifestFamilyContributions(
   contributions: ExtensionContributions,

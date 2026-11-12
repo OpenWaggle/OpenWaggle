@@ -33,9 +33,11 @@ describe('loadProjectAgentsInstruction', () => {
     const projectPath = await makeTempProject()
     const result = await loadProjectAgentsInstruction(projectPath)
 
-    expect(result.status).toBe('missing')
-    expect(result.content).toBeNull()
-    expect(result.error).toBeUndefined()
+    expect(result).toStrictEqual({
+      status: 'missing',
+      filePath: path.join(projectPath, 'AGENTS.md'),
+      content: null,
+    })
   })
 
   it('returns missing when project path is null', async () => {

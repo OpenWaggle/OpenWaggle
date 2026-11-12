@@ -17,7 +17,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest'
 
 const tempDirectories: string[] = []
-const sessions: Array<{ dispose: () => void }> = []
+const sessions: { dispose: () => void }[] = []
 
 function makeTestApiKeyAuth(name: string, apiKey: string) {
   return {
@@ -295,7 +295,7 @@ describe('Pi compaction model switching', () => {
       sessionManager,
       settingsManager,
       noTools: 'all',
-      scopedModels: scoped ? [{ model: sourceModel }, { model: targetModel }] : undefined,
+      ...(scoped ? { scopedModels: [{ model: sourceModel }, { model: targetModel }] } : {}),
     })
     sessions.push(session)
 

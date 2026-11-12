@@ -150,7 +150,7 @@ export function assistantMessage(text: string) {
 }
 
 function shouldTriggerTurn(options: unknown) {
-  return isRecord(options) && options.triggerTurn === true
+  return isRecord(options) && options['triggerTurn'] === true
 }
 
 export function createFakePi(

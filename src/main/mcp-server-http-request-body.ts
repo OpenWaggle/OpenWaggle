@@ -63,9 +63,10 @@ export class McpHttpRequestBodyTimeoutError extends Error {
   }
 }
 
+/** Its functions use no `this`, so callers pass them as listeners. */
 interface RequestBodyLease {
-  retainChunk(bytes: number): boolean
-  release(): void
+  readonly retainChunk: (bytes: number) => boolean
+  readonly release: () => void
 }
 
 type AdmissionResult =
@@ -94,14 +95,14 @@ export function makeMcpHttpRequestBodyAdmission(input: {
       return {
         accepted: true,
         lease: {
-          retainChunk(bytes) {
+          retainChunk: (bytes) => {
             if (declaredBytes !== undefined) return true
             if (retainedBytes + bytes > input.maxAggregateBytes) return false
             retainedBytes += bytes
             heldBytes += bytes
             return true
           },
-          release() {
+          release: () => {
             if (released) return
             released = true
             activeRequests -= 1

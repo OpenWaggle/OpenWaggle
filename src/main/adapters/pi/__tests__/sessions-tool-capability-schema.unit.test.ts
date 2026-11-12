@@ -5,7 +5,7 @@ import { sessionsToolSchemaForCapabilities } from '../sessions-tool-capability-s
 // The schema carries TypeBox symbols; serialize to a plain object to inspect its shape.
 function exposedActions(schema: ReturnType<typeof sessionsToolSchemaForCapabilities>) {
   const plain = fromAny<{ properties?: { action?: { enum?: readonly unknown[] } } }, unknown>(
-    JSON.parse(JSON.stringify(schema)),
+    structuredClone(schema),
   )
   return (plain.properties?.action?.enum ?? []).flatMap((candidate) =>
     typeof candidate === 'string' ? [candidate] : [],
@@ -22,11 +22,11 @@ describe('Hive tool capability schema', () => {
     const shape = fromAny<
       { type?: string; anyOf?: unknown[]; properties?: Record<string, unknown> },
       unknown
-    >(JSON.parse(JSON.stringify(schema)))
+    >(structuredClone(schema))
 
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()
-    expect(shape.properties?.action).toBeDefined()
+    expect(shape.properties?.['action']).toBeDefined()
   })
 
   it('removes operations the current Session grant does not carry', () => {

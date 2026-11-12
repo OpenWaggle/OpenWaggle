@@ -40,7 +40,7 @@ export interface BackfillImageInput {
   readonly branchId: string | null
   readonly actor: SessionResourceActor
   readonly label: string | null
-  readonly displayOrder?: number | null
+  readonly displayOrder?: number | null | undefined
 }
 
 interface DeferredBackfillImage {

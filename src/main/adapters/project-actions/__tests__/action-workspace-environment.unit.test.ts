@@ -165,17 +165,16 @@ it('keeps the recovery advice inside the 600 characters a run error shows', asyn
     observed: { device: '2', inode: '408642463', birthtime: '0' },
   }
   const fixture = preparation(fromPartial<WorkspacePreparation>({ revision: 1 }), longest)
-  const failure = await readActionWorkspaceEnvironment(fixture.service, long).catch(
+  const failure = await readActionWorkspaceEnvironment(fixture.service, long).then(
+    () => 'resolved without a refusal',
     (error: unknown) => (error instanceof Error ? error.message : String(error)),
   )
   // The chat card shows it as its own headline, whatever the path contains.
-  expect(classifyErrorMessage(`Error: ${String(failure)}`)).toMatchObject({
+  expect(classifyErrorMessage(`Error: ${failure}`)).toMatchObject({
     code: 'worktree-preparation-mismatch',
     retryable: false,
   })
   const RUN_ERROR_LIMIT = 600
   const advice = 'choose Recreate worktree or Use current checkout.'
-  expect(`Error: ${String(failure)}`.indexOf(advice) + advice.length).toBeLessThanOrEqual(
-    RUN_ERROR_LIMIT,
-  )
+  expect(`Error: ${failure}`.indexOf(advice) + advice.length).toBeLessThanOrEqual(RUN_ERROR_LIMIT)
 })

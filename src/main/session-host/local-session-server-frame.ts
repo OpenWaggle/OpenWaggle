@@ -38,10 +38,23 @@ function describeDetails(value: object) {
   return details.length > MAX_DETAIL_LENGTH ? `${details.slice(0, MAX_DETAIL_LENGTH)}…` : details
 }
 
-function describeFailure(failure: unknown, depth = 0): string | undefined {
-  if (typeof failure !== 'object' || failure === null) {
-    return failure === undefined ? undefined : String(failure)
+/** A thrown value that is not an object; a function is named, since its source says nothing. */
+function describeThrownValue(value: unknown) {
+  if (typeof value === 'string') return value
+  if (typeof value === 'function') return value.name || 'anonymous function'
+  if (
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean' ||
+    typeof value === 'symbol'
+  ) {
+    return String(value)
   }
+  return value === null ? 'null' : undefined
+}
+
+function describeFailure(failure: unknown, depth = 0): string | undefined {
+  if (typeof failure !== 'object' || failure === null) return describeThrownValue(failure)
   const message = stringField(failure, 'message')
   if (message && message !== EFFECT_DEFAULT_ERROR_MESSAGE) return message
   // A tagged error without a message still says what failed through its tag, code,

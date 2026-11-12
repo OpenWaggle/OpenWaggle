@@ -1,25 +1,20 @@
 import http from 'node:http'
-import https from 'node:https'
-import { syncBuiltinESMExports } from 'node:module'
 
 const HTTP_PROTOCOL = 'http:'
 const HTTPS_PROTOCOL = 'https:'
 const HTTP_DEFAULT_HOST = 'localhost'
 const HTTP_DEFAULT_PATH = '/'
-const HTTP_DEFAULT_PORT = '80'
-const HTTPS_DEFAULT_PORT = '443'
-const FIRST_ARGUMENT_INDEX = 0
-const SECOND_ARGUMENT_INDEX = 1
-const THIRD_ARGUMENT_INDEX = 2
 const UNSAFE_REQUEST_TRANSPORT_PROPERTIES = [
   ['lookup', 'Custom DNS lookup functions can bypass the declared origin.'],
   ['socketPath', 'Unix socket paths can bypass the declared origin.'],
 ] as const
 
-interface RequestTarget {
-  readonly url: URL | null
-  readonly unsafeTransportReason: string | null
-}
+type AddRequest = (
+  this: http.Agent,
+  request: http.ClientRequest,
+  options: http.RequestOptions,
+  ...rest: readonly unknown[]
+) => void
 
 export interface TrustedMainHttpNetworkGuard {
   readonly enforceTarget: (input: {
@@ -27,7 +22,11 @@ export interface TrustedMainHttpNetworkGuard {
     readonly url: URL | null
     readonly reason?: string
   }) => void
-  readonly runWithInternalSocketBypass: <T>(operation: () => T) => T
+  readonly runWithAuthorizedTarget: <T>(url: URL, operation: () => T) => T
+}
+
+function isAddRequest(value: unknown): value is AddRequest {
+  return typeof value === 'function'
 }
 
 function parseUrl(value: string) {
@@ -38,221 +37,86 @@ function parseUrl(value: string) {
   }
 }
 
-function isRequestCallback(value: unknown): value is (response: http.IncomingMessage) => void {
-  return typeof value === 'function'
+function optionString(value: unknown) {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : null
 }
 
-function isUrlInput(value: unknown): value is string | URL {
-  return typeof value === 'string' || value instanceof URL
+function agentProtocol(agent: http.Agent) {
+  const protocol: unknown = Reflect.get(agent, 'protocol')
+  return typeof protocol === 'string' ? protocol : HTTP_PROTOCOL
 }
 
-function isRequestOptions(value: unknown): value is http.RequestOptions {
-  return typeof value === 'object' && value !== null && !(value instanceof URL)
+function agentDefaultPort(agent: http.Agent) {
+  return optionString(Reflect.get(agent, 'defaultPort'))
 }
 
-function requestInputUrl(input: string | URL) {
-  return typeof input === 'string' ? parseUrl(input) : input
-}
-
-function optionString(value: string | number | null | undefined) {
-  return value === undefined || value === null ? null : String(value)
-}
-
-function pathFromUrl(url: URL | null) {
-  if (!url) {
-    return HTTP_DEFAULT_PATH
-  }
-  return `${url.pathname}${url.search}`
-}
-
-function hostFromOptions(options: http.RequestOptions | null) {
-  if (!options) {
-    return null
-  }
-  return optionString(options.hostname) ?? optionString(options.host)
-}
-
-function portFromOptions(options: http.RequestOptions | null) {
-  return optionString(options?.port)
-}
-
-function protocolFromOptions(options: http.RequestOptions | null, defaultProtocol: string) {
-  return options?.protocol ?? defaultProtocol
-}
-
-function defaultPort(protocol: string) {
-  return protocol === HTTPS_PROTOCOL ? HTTPS_DEFAULT_PORT : HTTP_DEFAULT_PORT
-}
-
-function hostWithPort(input: {
-  readonly host: string
-  readonly port: string | null
-  readonly protocol: string
+/** The URL a Node HTTP agent is asked to connect to. `addRequest` sees every import style alike. */
+function agentRequestUrl(input: {
+  readonly agent: http.Agent
+  readonly request: http.ClientRequest
+  readonly options: http.RequestOptions
 }) {
-  if (input.port === null || input.port === defaultPort(input.protocol)) {
-    return input.host
-  }
-  return `${input.host}:${input.port}`
+  const protocol = optionString(input.options.protocol) ?? agentProtocol(input.agent)
+  const host =
+    optionString(input.options.hostname) ?? optionString(input.options.host) ?? HTTP_DEFAULT_HOST
+  const port = optionString(input.options.port) ?? agentDefaultPort(input.agent)
+  const path = optionString(input.request.path) ?? HTTP_DEFAULT_PATH
+  const authority = port === null ? host : `${host.includes(':') ? `[${host}]` : host}:${port}`
+  return parseUrl(`${protocol}//${authority}${path}`)
 }
 
-function requestOptionsTarget(input: {
-  readonly defaultProtocol: typeof HTTP_PROTOCOL | typeof HTTPS_PROTOCOL
-  readonly options: http.RequestOptions | null
-  readonly baseUrl: URL | null
-}) {
-  const protocol = protocolFromOptions(
-    input.options,
-    input.baseUrl?.protocol ?? input.defaultProtocol,
-  )
-  const host = hostFromOptions(input.options) ?? input.baseUrl?.hostname ?? HTTP_DEFAULT_HOST
-  const port = portFromOptions(input.options) ?? input.baseUrl?.port ?? null
-  const path = input.options?.path ?? pathFromUrl(input.baseUrl)
-
-  return parseUrl(`${protocol}//${hostWithPort({ host, port, protocol })}${path}`)
-}
-
-function unsafeRequestTransportReason(options: http.RequestOptions | null) {
-  if (!options) {
-    return null
-  }
+function unsafeRequestTransportReason(options: http.RequestOptions) {
   for (const [property, reason] of UNSAFE_REQUEST_TRANSPORT_PROPERTIES) {
-    if (options[property] !== undefined) {
+    if (options[property] !== undefined && options[property] !== null) {
       return reason
     }
   }
-  if (options.createConnection !== undefined) {
-    return 'Custom connection factories can bypass the declared origin.'
-  }
-  if (options.agent !== undefined && options.agent !== false) {
+  const agent: unknown = options.agent
+  if (agent !== undefined && agent !== null && agent !== false) {
     return 'Custom agents can bypass the declared origin.'
   }
   return null
 }
 
-function httpRequestTarget(
-  defaultProtocol: typeof HTTP_PROTOCOL | typeof HTTPS_PROTOCOL,
-  args: readonly unknown[],
-): RequestTarget {
-  const first = args[FIRST_ARGUMENT_INDEX]
-  const baseUrl = isUrlInput(first) ? requestInputUrl(first) : null
-  const second = args[SECOND_ARGUMENT_INDEX]
-  const options = isRequestOptions(first) ? first : isRequestOptions(second) ? second : null
-
-  return {
-    url: requestOptionsTarget({ defaultProtocol, options, baseUrl }),
-    unsafeTransportReason: unsafeRequestTransportReason(options),
-  }
+function requestApi(url: URL | null) {
+  return url?.protocol === HTTPS_PROTOCOL ? 'node:https.request' : 'node:http.request'
 }
 
-function enforceRequestTarget(
-  input: TrustedMainHttpNetworkGuard,
-  api: string,
-  target: RequestTarget,
-) {
-  if (target.unsafeTransportReason !== null) {
-    input.enforceTarget({
-      api,
-      url: target.url,
-      reason: target.unsafeTransportReason,
-    })
-    return
+/**
+ * Checks every Node HTTP(S) request where its agent takes it. Patching `http.request` on the
+ * module object misses named and namespace imports on Bun, whose builtin ESM exports are fixed
+ * when first imported; `Agent.prototype.addRequest` is shared by every import style, by
+ * `https.Agent`, and by agents a caller constructs. Requests without an agent (a custom
+ * `createConnection`) and agents that override `addRequest` still open their sockets through
+ * `net.Socket.prototype.connect`, which denies them because they carry no authorized target.
+ */
+export function installTrustedMainHttpNetworkGuard(input: TrustedMainHttpNetworkGuard) {
+  const addRequestValue: unknown = Reflect.get(http.Agent.prototype, 'addRequest')
+  if (!isAddRequest(addRequestValue)) {
+    throw new TypeError('node:http Agent.prototype.addRequest is unavailable.')
   }
+  const originalAddRequest: AddRequest = addRequestValue
 
-  input.enforceTarget({ api, url: target.url })
-}
-
-function callHttpRequest(
-  originalRequest: typeof http.request,
-  args: readonly unknown[],
-): http.ClientRequest {
-  const first = args[FIRST_ARGUMENT_INDEX]
-  const second = args[SECOND_ARGUMENT_INDEX]
-  const third = args[THIRD_ARGUMENT_INDEX]
-
-  if (isUrlInput(first)) {
-    if (isRequestOptions(second)) {
-      return isRequestCallback(third)
-        ? originalRequest(first, second, third)
-        : originalRequest(first, second)
+  function addRequest(
+    this: http.Agent,
+    request: http.ClientRequest,
+    options: http.RequestOptions,
+    ...rest: readonly unknown[]
+  ) {
+    const url = agentRequestUrl({ agent: this, request, options })
+    const reason = unsafeRequestTransportReason(options)
+    input.enforceTarget({ api: requestApi(url), url, ...(reason === null ? {} : { reason }) })
+    if (url === null) {
+      return Reflect.apply(originalAddRequest, this, [request, options, ...rest])
     }
-    return isRequestCallback(second) ? originalRequest(first, second) : originalRequest(first)
+    return input.runWithAuthorizedTarget(url, () =>
+      Reflect.apply(originalAddRequest, this, [request, options, ...rest]),
+    )
   }
 
-  if (isRequestOptions(first)) {
-    return isRequestCallback(second) ? originalRequest(first, second) : originalRequest(first)
-  }
-
-  return isRequestCallback(first)
-    ? originalRequest({ protocol: HTTP_PROTOCOL }, first)
-    : originalRequest({ protocol: HTTP_PROTOCOL })
-}
-
-function callHttpsRequest(
-  originalRequest: typeof https.request,
-  args: readonly unknown[],
-): http.ClientRequest {
-  const first = args[FIRST_ARGUMENT_INDEX]
-  const second = args[SECOND_ARGUMENT_INDEX]
-  const third = args[THIRD_ARGUMENT_INDEX]
-
-  if (isUrlInput(first)) {
-    if (isRequestOptions(second)) {
-      return isRequestCallback(third)
-        ? originalRequest(first, second, third)
-        : originalRequest(first, second)
-    }
-    return isRequestCallback(second) ? originalRequest(first, second) : originalRequest(first)
-  }
-
-  if (isRequestOptions(first)) {
-    return isRequestCallback(second) ? originalRequest(first, second) : originalRequest(first)
-  }
-
-  return isRequestCallback(first)
-    ? originalRequest({ protocol: HTTPS_PROTOCOL }, first)
-    : originalRequest({ protocol: HTTPS_PROTOCOL })
-}
-
-function definePatchedFunction(
-  target: object,
-  propertyName: string,
-  value: (...args: readonly unknown[]) => unknown,
-) {
-  Object.defineProperty(target, propertyName, {
+  Object.defineProperty(http.Agent.prototype, 'addRequest', {
     configurable: true,
     writable: true,
-    value,
+    value: addRequest,
   })
-}
-
-export function installTrustedMainHttpNetworkGuard(input: TrustedMainHttpNetworkGuard) {
-  const originalHttpRequest = http.request
-  const originalHttpsRequest = https.request
-
-  definePatchedFunction(http, 'request', (...args) => {
-    enforceRequestTarget(input, 'node:http.request', httpRequestTarget(HTTP_PROTOCOL, args))
-    return input.runWithInternalSocketBypass(() => callHttpRequest(originalHttpRequest, args))
-  })
-  definePatchedFunction(http, 'get', (...args) => {
-    enforceRequestTarget(input, 'node:http.get', httpRequestTarget(HTTP_PROTOCOL, args))
-    const request = input.runWithInternalSocketBypass(() =>
-      callHttpRequest(originalHttpRequest, args),
-    )
-    request.end()
-    return request
-  })
-  definePatchedFunction(https, 'request', (...args) => {
-    enforceRequestTarget(input, 'node:https.request', httpRequestTarget(HTTPS_PROTOCOL, args))
-    return input.runWithInternalSocketBypass(() => callHttpsRequest(originalHttpsRequest, args))
-  })
-  definePatchedFunction(https, 'get', (...args) => {
-    enforceRequestTarget(input, 'node:https.get', httpRequestTarget(HTTPS_PROTOCOL, args))
-    const request = input.runWithInternalSocketBypass(() =>
-      callHttpsRequest(originalHttpsRequest, args),
-    )
-    request.end()
-    return request
-  })
-
-  syncBuiltinESMExports()
 }

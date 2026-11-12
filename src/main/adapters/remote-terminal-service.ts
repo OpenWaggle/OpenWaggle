@@ -15,7 +15,11 @@ export function makeRemoteTerminalService(broker: DesktopServiceBrokerShape): Te
 }
 
 class RemoteTerminalService implements TerminalServiceShape {
-  constructor(private readonly broker: DesktopServiceBrokerShape) {}
+  private readonly broker: DesktopServiceBrokerShape
+
+  constructor(broker: DesktopServiceBrokerShape) {
+    this.broker = broker
+  }
 
   getActivitySnapshot: TerminalServiceShape['getActivitySnapshot'] = () =>
     this.broker

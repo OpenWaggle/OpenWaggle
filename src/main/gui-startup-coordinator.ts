@@ -26,8 +26,11 @@ export const GUI_STARTUP_UPDATE_TIMEOUT_MESSAGE =
 
 /** Thrown by a start whose failure left this process unable to retry it in place. */
 export class GuiStartupRestartRequiredError extends Error {
-  constructor(readonly failure: unknown) {
+  readonly failure: unknown
+
+  constructor(failure: unknown) {
     super(failure instanceof Error ? failure.message : String(failure), { cause: failure })
+    this.failure = failure
     this.name = 'GuiStartupRestartRequiredError'
   }
 }

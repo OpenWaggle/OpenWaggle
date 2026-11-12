@@ -8,6 +8,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getNativeRuntimeChildEnv } from '../native-runtime-child-env'
 
 export const SESSION_EMBEDDING_IDLE_EXIT_MS = 60_000
@@ -108,14 +109,14 @@ interface PendingEmbedding {
 
 export type EmbeddingChildFactory = (config: string) => ChildProcess
 
-/** Electron's binary runs as Node; the child needs no secrets, but on Windows it needs the
+/** The shell runs the script as a plain runtime; the child needs no secrets, but on Windows it needs the
  * system and profile roots onnxruntime-node and the model cache resolve from. */
 export function embeddingChildEnv(platform: NodeJS.Platform = process.platform) {
-  return { ...getNativeRuntimeChildEnv(platform), ELECTRON_RUN_AS_NODE: '1' }
+  return childScriptRuntime.environment(getNativeRuntimeChildEnv(platform))
 }
 
 export const spawnEmbeddingChild: EmbeddingChildFactory = (config) =>
-  spawn(process.execPath, ['-e', EMBEDDING_PROCESS_SOURCE, config], {
+  spawn(childScriptRuntime.executable(), ['-e', EMBEDDING_PROCESS_SOURCE, config], {
     env: embeddingChildEnv(),
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     serialization: 'advanced',
@@ -142,10 +143,15 @@ export class SessionEmbeddingProcess {
   private readonly requestTimeoutMs: number
   private readonly spawnChild: EmbeddingChildFactory
 
+  private readonly config: () => SessionEmbeddingProcessConfig
+  private readonly options: SessionEmbeddingProcessOptions
+
   constructor(
-    private readonly config: () => SessionEmbeddingProcessConfig,
-    private readonly options: SessionEmbeddingProcessOptions = {},
+    config: () => SessionEmbeddingProcessConfig,
+    options: SessionEmbeddingProcessOptions = {},
   ) {
+    this.config = config
+    this.options = options
     this.idleExitMs = options.idleExitMs ?? SESSION_EMBEDDING_IDLE_EXIT_MS
     this.requestTimeoutMs = options.requestTimeoutMs ?? SESSION_EMBEDDING_REQUEST_TIMEOUT_MS
     this.spawnChild = options.spawnChild ?? spawnEmbeddingChild

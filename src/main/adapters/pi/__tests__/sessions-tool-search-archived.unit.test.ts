@@ -9,7 +9,7 @@ const source = { sessionId: 'session-queen', runId: 'run-current' }
 
 async function registeredHiveTool(sessionCapabilities?: readonly SessionCapability[]) {
   const registerTool = vi.fn()
-  await createSessionsToolExtension({
+  createSessionsToolExtension({
     ...source,
     workingDirectory: '/project',
     ...(sessionCapabilities ? { sessionCapabilities } : {}),

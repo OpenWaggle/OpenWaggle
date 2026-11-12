@@ -87,10 +87,13 @@ describe('Session Host cutover Workspace identity', () => {
         })
 
       expect(rows).toHaveLength(2)
-      expect(rows.map((row) => row.session_project_path)).toEqual(['/project-a', '/project-b'])
-      expect(rows.map((row) => row.workspace_project_path)).toEqual(['/project-a', '/project-b'])
-      expect(rows.map((row) => row.working_path)).toEqual([sharedWorktreePath, sharedWorktreePath])
-      expect(rows[0]?.workspace_id).not.toBe(rows[1]?.workspace_id)
+      expect(rows.map((row) => row['session_project_path'])).toEqual(['/project-a', '/project-b'])
+      expect(rows.map((row) => row['workspace_project_path'])).toEqual(['/project-a', '/project-b'])
+      expect(rows.map((row) => row['working_path'])).toEqual([
+        sharedWorktreePath,
+        sharedWorktreePath,
+      ])
+      expect(rows[0]?.['workspace_id']).not.toBe(rows[1]?.['workspace_id'])
     } finally {
       target.close()
     }

@@ -12,8 +12,8 @@ import {
   type VoiceTranscriptionResult,
 } from '@shared/types/voice'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
+import { appPaths } from '../desktop-shell/app-paths'
 import { typedHandle } from './typed-ipc'
 
 const PCM16_SIGNED_NORMALIZATION_FACTOR = 32768
@@ -174,7 +174,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
     const imported: unknown = await import('@huggingface/transformers')
     assertTransformersModule(imported)
 
-    const cacheDir = path.join(app.getPath('userData'), 'models', 'transformers')
+    const cacheDir = path.join(appPaths.userData(), 'models', 'transformers')
     await mkdir(cacheDir, { recursive: true })
 
     imported.env.allowLocalModels = true
@@ -191,7 +191,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
       throw new Error('Whisper transcriber could not be created.')
     }
     return transcriber
-  })().catch((error) => {
+  })().catch((error: unknown) => {
     delete transcriberPromises[model]
     throw error
   })
@@ -254,6 +254,7 @@ export function registerVoiceHandlers(): void {
       })
 
       const modelConfig = VOICE_MODEL_CONFIG[model]
+      const language = payload.language ?? modelConfig.language
       const rawResult = yield* Effect.tryPromise({
         try: () =>
           transcriber(audio, {
@@ -261,7 +262,7 @@ export function registerVoiceHandlers(): void {
             return_timestamps: false,
             chunk_length_s: AUDIO_RECORDING.CHUNK_LENGTH_S,
             stride_length_s: AUDIO_RECORDING.STRIDE_LENGTH_S,
-            language: payload.language ?? modelConfig.language,
+            ...(language === undefined ? {} : { language }),
           }),
         catch: (error) => new Error(mapTranscriptionError(error)),
       })

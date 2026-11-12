@@ -45,8 +45,9 @@ function organizationCommand(
     command !== 'archive' &&
     command !== 'unarchive' &&
     command !== 'handoff'
-  )
+  ) {
     return undefined
+  }
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'handoff') {
     const mode = required(option(arguments_, 'workspace'), '--workspace')

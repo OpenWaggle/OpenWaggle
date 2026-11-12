@@ -174,50 +174,33 @@ describe('listExtensionPackagesView', () => {
     })
   })
 
-  it('treats an SDK-incompatible package as effectively untrusted even when the hash pin matches', async () => {
-    const harness = makeTestHarness({
-      packages: [
-        {
-          ...discoveredPackage,
-          sdkCompatibility: {
-            hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
-            requiredRange: '>=999.0.0',
-            compatible: false,
-            reason: 'Extension SDK range is incompatible.',
+  it.each([
+    {
+      reason: 'is SDK-incompatible, even when the hash pin matches',
+      problem: {
+        sdkCompatibility: {
+          hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
+          requiredRange: '>=999.0.0',
+          compatible: false,
+          reason: 'Extension SDK range is incompatible.',
+        },
+      },
+    },
+    {
+      reason: 'has current error diagnostics',
+      problem: {
+        diagnostics: [
+          {
+            severity: 'error',
+            code: 'built-artifact-missing',
+            message: 'Declared built artifact does not exist.',
           },
-        },
-      ],
-      lifecycle: lifecycleState,
-    })
-
-    const view = await Effect.runPromise(
-      listExtensionPackagesView({ projectPaths: [PROJECT_PATH] }).pipe(
-        Effect.provide(harness.layer),
-      ),
-    )
-
-    expect(view.packages[0]?.lifecycle).toMatchObject({
-      enabled: false,
-      trusted: false,
-      grantedCapabilities: [],
-      contentHash: 'abcdef',
-    })
-  })
-
-  it('treats a package with current error diagnostics as effectively untrusted', async () => {
+        ],
+      },
+    },
+  ] as const)('treats a package that $reason as effectively untrusted', async ({ problem }) => {
     const harness = makeTestHarness({
-      packages: [
-        {
-          ...discoveredPackage,
-          diagnostics: [
-            {
-              severity: 'error',
-              code: 'built-artifact-missing',
-              message: 'Declared built artifact does not exist.',
-            },
-          ],
-        },
-      ],
+      packages: [{ ...discoveredPackage, ...problem }],
       lifecycle: lifecycleState,
     })
 

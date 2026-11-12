@@ -150,10 +150,10 @@ function piSessionFilesIn(directory: string, piSessionId: string) {
       .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
   } catch (error) {
-    if (!(isRecord(error) && error.code === 'ENOENT')) {
+    if (!(isRecord(error) && error['code'] === 'ENOENT')) {
       logger.warn('Could not list a Pi session directory', {
         directory,
-        code: isRecord(error) && typeof error.code === 'string' ? error.code : 'unknown',
+        code: isRecord(error) && typeof error['code'] === 'string' ? error['code'] : 'unknown',
       })
     }
     return []

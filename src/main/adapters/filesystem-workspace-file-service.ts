@@ -80,7 +80,7 @@ async function projectIndex(projectPath: string) {
   try {
     const index = await promise
     if ((indexGenerationByProject.get(projectRoot) ?? 0) !== generation) {
-      return projectIndex(projectRoot)
+      return await projectIndex(projectRoot)
     }
     indexByProject.set(projectRoot, index)
     return { projectRoot, index }

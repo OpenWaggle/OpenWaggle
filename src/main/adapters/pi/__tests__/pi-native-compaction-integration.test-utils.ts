@@ -21,7 +21,7 @@ import { vi } from 'vitest'
 import { makeCompactResponse } from './pi-native-compaction-test-fixtures'
 
 const tempDirectories: string[] = []
-const sessions: Array<{ dispose: () => void }> = []
+const sessions: { dispose: () => void }[] = []
 
 export function createNativeTempDirectory(label: string) {
   const directory = mkdtempSync(path.join(tmpdir(), label))
@@ -92,12 +92,13 @@ export async function createNativeSession(options: {
         },
         async resolve() {
           if (options.authFailureState?.shouldFail) throw new Error('Credentials unavailable')
+          const baseUrl = options.authBaseUrlResolver
+            ? options.authBaseUrlResolver()
+            : (options.authBaseUrlState?.value ?? options.authBaseUrl)
           return {
             auth: {
               apiKey: options.apiKeyResolver?.() ?? options.apiKeyState?.value ?? 'test-key',
-              baseUrl: options.authBaseUrlResolver
-                ? options.authBaseUrlResolver()
-                : (options.authBaseUrlState?.value ?? options.authBaseUrl),
+              ...(baseUrl === undefined ? {} : { baseUrl }),
             },
             source: 'test',
           }
@@ -107,7 +108,9 @@ export async function createNativeSession(options: {
   }
   modelRuntime.registerNativeProvider(nativeProvider)
   const settingsManager = SettingsManager.inMemory({
-    httpIdleTimeoutMs: options.httpIdleTimeoutMs,
+    ...(options.httpIdleTimeoutMs === undefined
+      ? {}
+      : { httpIdleTimeoutMs: options.httpIdleTimeoutMs }),
     retry: { enabled: false },
     images: { blockImages: options.blockImages ?? false },
     compaction: {
@@ -130,7 +133,7 @@ export async function createNativeSession(options: {
         const authorization =
           options.providerAuthHeaderResolver?.() ?? options.providerAuthHeaderState?.authorization
         const accountId = options.providerAuthHeaderState?.accountId
-        if (authorization) event.headers.Authorization = authorization
+        if (authorization) event.headers['Authorization'] = authorization
         if (accountId) event.headers['chatgpt-account-id'] = accountId
       })
     }
@@ -202,7 +205,7 @@ export async function createNativeSession(options: {
     agentDir: options.directory,
     settingsManager,
     extensionFactories: [extension, ...(options.extensionFactories ?? [])],
-    systemPrompt: options.systemPrompt,
+    ...(options.systemPrompt === undefined ? {} : { systemPrompt: options.systemPrompt }),
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
@@ -223,7 +226,7 @@ export async function createNativeSession(options: {
     resourceLoader,
     sessionManager,
     settingsManager,
-    noTools: options.enableDefaultTools ? undefined : 'all',
+    ...(options.enableDefaultTools ? {} : { noTools: 'all' }),
   })
   sessions.push(result.session)
   return { ...result, faux, modelRuntime, sessionManager }

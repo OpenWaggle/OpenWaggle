@@ -42,8 +42,9 @@ function decideFromFolder(
   const since = state.awaitingWorktreeBirthSince
   if (since === undefined) return { refusal: 'birth-time-unrecorded' }
   if (!identity) return { refusal: 'missing-or-not-a-folder' }
-  if (!/^\d+$/.test(identity.birthtime) || identity.birthtime === '0')
+  if (!/^\d+$/.test(identity.birthtime) || identity.birthtime === '0') {
     return { refusal: 'creation-time-unknown' }
+  }
   const earliest =
     BigInt(Math.max(0, since - BIRTH_CLOCK_TOLERANCE_MS)) * NANOSECONDS_PER_MILLISECOND
   return BigInt(identity.birthtime) >= earliest

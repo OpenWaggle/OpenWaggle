@@ -8,11 +8,11 @@ type ExecuteInput = Parameters<SessionLifecycleRepositoryShape['execute']>[0]
 export interface ResolvedLifecycleOutcomeInput {
   readonly workspaceId: string
   readonly authorityOriginCallerId: string
-  readonly runId?: string
-  readonly parentSessionId?: string
-  readonly parentRunId?: string
-  readonly hiveRootSessionId?: string
-  readonly depth?: number
+  readonly runId?: string | undefined
+  readonly parentSessionId?: string | undefined
+  readonly parentRunId?: string | undefined
+  readonly hiveRootSessionId?: string | undefined
+  readonly depth?: number | undefined
 }
 
 interface SpawnOutcomeIdentities {

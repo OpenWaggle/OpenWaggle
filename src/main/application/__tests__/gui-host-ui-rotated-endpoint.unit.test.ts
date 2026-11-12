@@ -121,43 +121,20 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.executeHostUi).toHaveBeenCalledOnce()
   })
 
-  it('recovers and retries a replay-safe Host UI read after the Host exits', async () => {
-    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNREFUSED' })
-    mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce({ theme: 'dark' })
-
-    await expect(invokeConfiguredHostUiRaw('settings:get', [])).resolves.toEqual({
-      handled: true,
-      result: { theme: 'dark' },
-    })
-    expect(mocks.ensureHost).toHaveBeenCalledOnce()
-    expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
-    expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
-  })
-
-  it.each(['extensions:list-packages', 'extensions:list-contributions'] as const)(
-    'recovers the pure %s catalog after Host loss',
-    async (channel) => {
-      const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
-      mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce([])
-
-      await expect(invokeConfiguredHostUiRaw(channel, [])).resolves.toEqual({
-        handled: true,
-        result: [],
-      })
-      expect(mocks.ensureHost).toHaveBeenCalledOnce()
-      expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
-    },
-  )
-
   it.each([
-    ['mcp:list-secrets', []],
+    ['settings:get', [], 'ECONNREFUSED'],
+    ['extensions:list-packages', [], 'ECONNRESET'],
+    ['extensions:list-contributions', [], 'ECONNRESET'],
+    ['mcp:list-secrets', [], 'ECONNRESET'],
     [
       'project-actions:manage',
       [{ scope: { projectPath: '/project' }, operation: { type: 'discover' } }],
+      'ECONNRESET',
     ],
     [
       'agent-definitions:manage',
       [{ command: { operation: 'list', projectPath: '/project' }, selectedSourcePaths: [] }],
+      'ECONNRESET',
     ],
     [
       'agent-definitions:manage',
@@ -172,6 +149,7 @@ describe('GUI Host UI endpoint refresh', () => {
           selectedSourcePaths: ['/source.md'],
         },
       ],
+      'ECONNRESET',
     ],
     [
       'agent-definitions:manage',
@@ -181,9 +159,10 @@ describe('GUI Host UI endpoint refresh', () => {
           selectedSourcePaths: ['/source.md'],
         },
       ],
+      'ECONNRESET',
     ],
-  ] as const)('recovers replay-safe %s after Host loss', async (channel, args) => {
-    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+  ] as const)('recovers replay-safe %s after Host loss', async (channel, args, code) => {
+    const unavailable = Object.assign(new Error('Host exited'), { code })
     mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce([])
 
     await expect(invokeConfiguredHostUiRaw(channel, args)).resolves.toEqual({
@@ -192,34 +171,8 @@ describe('GUI Host UI endpoint refresh', () => {
     })
     expect(mocks.ensureHost).toHaveBeenCalledOnce()
     expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
+    expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
   })
-
-  it('does not replay an MCP secret write after an ambiguous Host failure', async () => {
-    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
-    mocks.executeHostUi.mockRejectedValueOnce(unavailable)
-
-    await expect(
-      invokeConfiguredHostUiRaw('mcp:set-secret', [{ name: 'TOKEN', value: 'secret' }]),
-    ).rejects.toBe(unavailable)
-    expect(mocks.ensureHost).not.toHaveBeenCalled()
-    expect(mocks.executeHostUi).toHaveBeenCalledOnce()
-  })
-
-  it.each(['write', 'duplicate', 'delete', 'import-apply', 'refresh-apply'] as const)(
-    'does not replay an Agent definition %s mutation after an ambiguous Host failure',
-    async (operation) => {
-      const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
-      mocks.executeHostUi.mockRejectedValueOnce(unavailable)
-
-      await expect(
-        invokeConfiguredHostUiRaw('agent-definitions:manage', [
-          { command: { operation, projectPath: '/project' }, selectedSourcePaths: [] },
-        ]),
-      ).rejects.toBe(unavailable)
-      expect(mocks.ensureHost).not.toHaveBeenCalled()
-      expect(mocks.executeHostUi).toHaveBeenCalledOnce()
-    },
-  )
 
   it('recovers a replay-safe read when endpoint refresh itself reports Host loss', async () => {
     const unavailable = Object.assign(new Error('Host endpoint disappeared'), { code: 'ENOENT' })
@@ -237,14 +190,27 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
   })
 
-  it('never replays a mutating Host UI command after an ambiguous transport failure', async () => {
-    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
-    mocks.executeHostUi.mockRejectedValueOnce(unavailable)
+  it.each([
+    ['settings:update', [{}]],
+    ['mcp:set-secret', [{ name: 'TOKEN', value: 'secret' }]],
+    ...(['write', 'duplicate', 'delete', 'import-apply', 'refresh-apply'] as const).map(
+      (operation) =>
+        [
+          'agent-definitions:manage',
+          [{ command: { operation, projectPath: '/project' }, selectedSourcePaths: [] }],
+        ] as const,
+    ),
+  ] as const)(
+    'never replays mutating %s %j after an ambiguous transport failure',
+    async (channel, args) => {
+      const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+      mocks.executeHostUi.mockRejectedValueOnce(unavailable)
 
-    await expect(invokeConfiguredHostUiRaw('settings:update', [{}])).rejects.toBe(unavailable)
-    expect(mocks.ensureHost).not.toHaveBeenCalled()
-    expect(mocks.executeHostUi).toHaveBeenCalledOnce()
-  })
+      await expect(invokeConfiguredHostUiRaw(channel, args)).rejects.toBe(unavailable)
+      expect(mocks.ensureHost).not.toHaveBeenCalled()
+      expect(mocks.executeHostUi).toHaveBeenCalledOnce()
+    },
+  )
 
   it('does not replay a read if the GUI route retires during recovery', async () => {
     const unavailable = Object.assign(new Error('Host exited'), { code: 'EPIPE' })

@@ -34,7 +34,7 @@ export function assertNoProjectAuth(
   destination: McpWriteDestination,
   entry: Readonly<Record<string, unknown>>,
 ) {
-  if (mcpConfigFileScope(destination) !== 'project' || entry.auth === undefined) return
+  if (mcpConfigFileScope(destination) !== 'project' || entry['auth'] === undefined) return
   refuse('auth is only allowed in a global mcp.json.')
 }
 

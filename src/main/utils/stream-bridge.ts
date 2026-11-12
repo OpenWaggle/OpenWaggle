@@ -19,10 +19,7 @@ import {
 export {
   clearStreamBuffer,
   getStreamBuffer,
-  listStreamBufferSnapshots,
-  listStreamBuffers,
   replaceStreamBufferSnapshots,
-  setWorktreeLaunchSnapshot,
   startStreamBuffer,
   startStreamBufferFromAgentStart,
   upsertStreamBufferRunIdentity,
@@ -161,11 +158,6 @@ export function emitWorktreeLaunchFailure(
         })
       : projectWorktreeLaunchFailure(sessionId, errorMessage)
   if (launch) broadcastToWindows('agent:worktree-launch', { sessionId, launch })
-}
-
-export function clearWorktreeLaunch(sessionId: SessionId) {
-  setWorktreeLaunchSnapshot(sessionId, null)
-  broadcastToWindows('agent:worktree-launch', { sessionId, launch: null })
 }
 
 export function emitTransportEvent(

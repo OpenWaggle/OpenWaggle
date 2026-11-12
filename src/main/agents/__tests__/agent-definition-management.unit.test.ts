@@ -74,7 +74,9 @@ describe('Agent definition management and imports', () => {
         expect.objectContaining({ name: 'reviewer-copy', scope: 'user' }),
       ]),
     })
-    if (written.operation !== 'write') throw new Error('Expected a write outcome.')
+    if (written.operation !== 'write' || written.contentDigest === undefined) {
+      throw new Error('Expected a write outcome with a content digest.')
+    }
     await expect(
       executeAgentDefinitionManagement(
         {

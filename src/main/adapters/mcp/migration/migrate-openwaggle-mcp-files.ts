@@ -12,6 +12,7 @@
  * again.
  */
 import type { Logger } from '@shared/types/logger'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { createLogger } from '../../../logger'
 import type { McpServerMigrationChange } from './entry-migration'
 import {
@@ -100,10 +101,6 @@ export interface McpMigrationReport {
 
 const defaultLogger = createLogger('mcp-migration')
 
-function describeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
 interface FileJob {
   readonly path: string
   /** Whether old on/off state waits for this file while its migration fails. */
@@ -111,16 +108,30 @@ interface FileJob {
   readonly compute: (original: string | undefined) => Promise<FileComputation>
 }
 
+interface McpFileMigratorInput extends Pick<
+  MigrateOpenWaggleMcpFilesInput,
+  'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
+> {
+  readonly unreadableState?: McpMigrationSourceError | undefined
+}
+
 class McpFileMigrator {
+  private readonly fs: McpMigrationFs
+  private readonly record: McpMigrationRecord
+  private readonly logger: Logger
+  private readonly input: McpFileMigratorInput
+
   constructor(
-    private readonly fs: McpMigrationFs,
-    private readonly record: McpMigrationRecord,
-    private readonly logger: Logger,
-    private readonly input: Pick<
-      MigrateOpenWaggleMcpFilesInput,
-      'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
-    > & { readonly unreadableState?: McpMigrationSourceError },
-  ) {}
+    fs: McpMigrationFs,
+    record: McpMigrationRecord,
+    logger: Logger,
+    input: McpFileMigratorInput,
+  ) {
+    this.fs = fs
+    this.record = record
+    this.logger = logger
+    this.input = input
+  }
 
   async run(job: FileJob): Promise<McpFileMigrationReport> {
     const report = await this.migrate(job)
@@ -166,15 +177,15 @@ class McpFileMigrator {
     } catch (error) {
       this.logger.error('MCP file migration failed; the file was left unchanged', {
         path: job.path,
-        error: describeError(error),
+        error: formatErrorMessage(error),
       })
-      return { path: job.path, status: 'failed', changes: [], error: describeError(error) }
+      return { path: job.path, status: 'failed', changes: [], error: formatErrorMessage(error) }
     }
   }
 
   private async keepCreatedOutOfGit(filePath: string) {
     await this.input.keepCreatedFileOutOfGit?.(filePath).catch((error: unknown) => {
-      const context = { path: filePath, error: describeError(error) }
+      const context = { path: filePath, error: formatErrorMessage(error) }
       this.logger.warn('Could not keep a created MCP file out of git', context)
     })
   }
@@ -209,8 +220,9 @@ export async function migrateOpenWaggleMcpFiles(
     kept = await decideLegacyProjects(input, start, fs, knownProjectPaths)
   } catch (error) {
     const withoutState = await startWithoutOldState(fs, input.homeDir, error)
-    if (!withoutState)
+    if (!withoutState) {
       return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
+    }
     logger.warn('MCP migration goes on without the old MCP state, which cannot be read', {
       error: withoutState.unreadableState.message,
     })

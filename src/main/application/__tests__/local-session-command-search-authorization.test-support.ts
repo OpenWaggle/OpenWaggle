@@ -21,7 +21,7 @@ import { SettingsService } from '../../services/settings-service'
 export const PROJECT_A = fs.realpathSync(os.tmpdir())
 export const PROJECT_B = '/'
 
-export type LiveProfile = {
+export interface LiveProfile {
   capabilities: LocalSessionProfileAuthority['capabilities']
   scope: LocalSessionProfileAuthority['scope']
   authorizationCeiling: LocalSessionProfileAuthority['authorizationCeiling']

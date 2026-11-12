@@ -28,8 +28,9 @@ function optionList(names: readonly string[]) {
 /** Rejects ignored CLI input before a command can perform filesystem or Host side effects. */
 export function validateCommandCliOptions(input: CommandCliOptionContractInput) {
   const specific = input.optionsByRoute[input.route]
-  if (!specific)
+  if (!specific) {
     throw new CommandCliUsageError(`Unsupported ${input.surface} command: ${input.route}.`)
+  }
 
   const common = input.commonOptions ?? []
   const allowed = new Set([...specific, ...common])
@@ -55,8 +56,9 @@ export function validateCommandCliOptions(input: CommandCliOptionContractInput) 
       !booleans.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
     )
     .sort()
-  if (missing.length > 0)
+  if (missing.length > 0) {
     throw new CommandCliUsageError(`Missing value for ${optionList(missing)}.`)
+  }
 
   const valuedBooleans = [...input.arguments.options.entries()]
     .flatMap(([name, values]) =>

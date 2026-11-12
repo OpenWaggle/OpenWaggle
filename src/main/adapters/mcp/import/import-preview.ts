@@ -66,8 +66,9 @@ async function readSourceFile(
     const text = await readText(importPath.path)
     if (text === undefined) return { kind: 'missing' }
     const parsed = parseSourceFile(importPath, text)
-    if (!isRecord(parsed))
+    if (!isRecord(parsed)) {
       return { kind: 'error', message: 'the configuration root must be an object' }
+    }
     return { kind: 'parsed', value: parsed }
   } catch (error) {
     return { kind: 'error', message: error instanceof Error ? error.message : String(error) }
@@ -109,7 +110,7 @@ function sourceServers(
 }
 
 function provenanceOf(value: unknown) {
-  return isRecord(value) && isRecord(value.provenance) ? value.provenance : undefined
+  return isRecord(value) && isRecord(value['provenance']) ? value['provenance'] : undefined
 }
 
 export function importStatus(
@@ -123,11 +124,11 @@ export function importStatus(
   for (const value of Object.values(servers)) {
     const provenance = provenanceOf(value)
     if (
-      provenance?.source === candidate.source &&
-      provenance.sourcePath === candidate.sourcePath &&
-      provenance.sourceName === candidate.name
+      provenance?.['source'] === candidate.source &&
+      provenance['sourcePath'] === candidate.sourcePath &&
+      provenance['sourceName'] === candidate.name
     ) {
-      return provenance.fingerprint === candidate.fingerprint ? 'imported' : 'source-changed'
+      return provenance['fingerprint'] === candidate.fingerprint ? 'imported' : 'source-changed'
     }
   }
   const taken = Object.keys(servers).some((name) => sameServerName(name, candidate.targetName))
@@ -170,8 +171,15 @@ export async function previewMcpImports(
   const candidates = new Map<string, ExternalMcpImportCandidate>()
   const errors: ExternalMcpImportSourceError[] = []
   const found = new Set<ExternalMcpImportSource>()
-  for (const importPath of getMcpImportPaths(input)) {
-    const read = await readSourceFile(importPath, readText)
+  // readSourceFile never rejects, so the sources are read at once and handled in order.
+  const importPaths = getMcpImportPaths(input)
+  const reads = await Promise.all(
+    importPaths.map(async (importPath) => ({
+      importPath,
+      read: await readSourceFile(importPath, readText),
+    })),
+  )
+  for (const { importPath, read } of reads) {
     if (read.kind === 'missing') continue
     if (read.kind === 'error') {
       errors.push({ source: importPath.source, path: importPath.path, message: read.message })

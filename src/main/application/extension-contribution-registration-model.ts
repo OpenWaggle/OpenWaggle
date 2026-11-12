@@ -81,15 +81,13 @@ function listDescriptorContributionsSafely<Contribution>(input: {
   }
 }
 
-function registerContributionSafely<
-  Contribution extends
-    | ManifestCommandContribution
-    | ManifestEntryContribution
-    | ManifestSessionSummaryContribution,
->(input: {
+function registerContributionSafely(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
-  readonly contribution: Contribution
+  readonly contribution:
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution
   readonly index: number
 }): ContributionRegistrationAttempt {
   try {

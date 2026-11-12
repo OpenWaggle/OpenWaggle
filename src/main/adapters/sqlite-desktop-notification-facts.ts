@@ -74,7 +74,7 @@ function selectHiveRootSessionId(sql: SqlClient.SqlClient, sessionId: string) {
 }
 
 /**
- * What still runs in the spawn subtree of `rootSessionId` (ADR 0063), every depth and archived
+ * What still runs in the spawn subtree of `rootSessionId` (ADR 0065), every depth and archived
  * Workers included; historical `session_lineage` is not a Hive. `runId`, a Run of the root, started
  * mid-work when a Worker Run below began at or before it and was still running when it began.
  */

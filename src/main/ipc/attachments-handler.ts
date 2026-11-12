@@ -6,8 +6,8 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
 import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
 import {
   configurePreparedAttachmentRegistry,
@@ -152,7 +152,7 @@ function registerDiscardAttachmentHandler() {
 }
 
 export function registerAttachmentHandlers(): void {
-  configurePreparedAttachmentRegistry(app.getPath('userData'))
+  configurePreparedAttachmentRegistry(appPaths.userData())
   void cleanupTempAttachments().catch((error: unknown) => {
     logger.warn('Temp prompt attachment cleanup failed during startup', describeUnknownError(error))
   })

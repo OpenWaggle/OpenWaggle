@@ -124,7 +124,7 @@ interface ZshStartupWrapperOptions {
   readonly userDirectoryVariable: string
   readonly userDirectorySetVariable: string
   readonly captureInitialState?: boolean
-  readonly initialUserDirectory?: string
+  readonly initialUserDirectory?: string | undefined
   readonly integration?: string
   readonly finalStartupFile?: boolean
 }
@@ -161,7 +161,7 @@ function zshPromptIntegration(
   return `typeset -g ${markerVariable}=$'\\e]633;B;${readinessNonce}\\a'
 function ${hookFunction} {
   if [[ "$PROMPT" != *"$${markerVariable}"* ]]; then
-    PROMPT="${'$'}{PROMPT}%{${'$'}{${markerVariable}}%}"
+    PROMPT="\${PROMPT}%{\${${markerVariable}}%}"
   fi
 }
 builtin autoload -Uz add-zsh-hook

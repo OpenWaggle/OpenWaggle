@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
-import { app } from 'electron'
 import { buildCommand, destination, request, required } from './access-cli-command'
 import { commitAcceptedProfileCredential } from './access-cli-credential-settlement'
 import { settleAccessCliFailure } from './access-cli-failure'
@@ -16,6 +15,7 @@ import { accessCliUsage } from './access-cli-usage'
 import { asUsageErrorsSync, CliError } from './cli-error'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
+import { appPaths } from './desktop-shell/app-paths'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
 import { SESSION_CLI_EXIT, sessionCliExitCodeForError } from './session-cli-exit-status'
@@ -57,7 +57,7 @@ async function requestProfileOperation(input: {
   readonly operation: string
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly idempotencyKey: string
-  readonly staged?: StagedProfileCredential
+  readonly staged: StagedProfileCredential | undefined
   readonly client: Awaited<ReturnType<typeof createLocalSessionCliClientInput>>
 }) {
   const result = await executeLocalSessionCommand({
@@ -80,7 +80,7 @@ async function reconcileProfileOperation(input: {
   readonly operation: string
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
   readonly idempotencyKey: string
-  readonly staged?: StagedProfileCredential
+  readonly staged: StagedProfileCredential | undefined
 }) {
   const client = await createLocalSessionCliClientInput(input.arguments_)
   try {
@@ -100,7 +100,7 @@ async function reconcileProfileOperation(input: {
 
 async function finalizeProfileResponse(input: {
   readonly response: Awaited<ReturnType<typeof requestProfileOperation>>
-  readonly staged?: StagedProfileCredential
+  readonly staged: StagedProfileCredential | undefined
   readonly stateRoot: string
   readonly json: boolean
   readonly idempotencyKey: string
@@ -173,7 +173,7 @@ async function executeProfileOperation(input: {
   let accepted = false
   try {
     validateAccessCliOptions(operation, arguments_)
-    const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
+    const paths = resolveLocalSessionHostPaths({ userDataRoot: appPaths.userData() })
     // Read the whole command line before staging a credential or contacting the Host.
     asUsageErrorsSync(() => {
       buildCommand(operation, arguments_, UNREAD_CREDENTIAL)

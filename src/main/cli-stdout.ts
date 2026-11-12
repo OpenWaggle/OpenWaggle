@@ -11,8 +11,7 @@ function routedOutputFd() {
 
 /** Whether application CLI output reaches a terminal, including through the Linux shim's fd. */
 export function cliStdoutIsTerminal() {
-  const fd = routedOutputFd()
-  return fd === null ? Boolean(process.stdout.isTTY) : isatty(fd)
+  return isatty(routedOutputFd() ?? process.stdout.fd)
 }
 
 /** Keep application CLI bytes separate from Linux Electron startup stdout. */

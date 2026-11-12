@@ -14,6 +14,6 @@ export function tokenizeSessionTranscriptTerms(value: string) {
   if (!NON_ASCII_CHARACTER_PATTERN.test(value)) {
     return value.toLowerCase().match(UNICODE61_TOKEN_PATTERN) ?? []
   }
-  const normalized = [...value].map(normalizeUnicode61Character).join('').toLowerCase()
+  const normalized = Array.from(value, normalizeUnicode61Character).join('').toLowerCase()
   return normalized.match(UNICODE61_TOKEN_PATTERN) ?? []
 }

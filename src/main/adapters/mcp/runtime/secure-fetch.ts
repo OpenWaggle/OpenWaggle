@@ -138,8 +138,9 @@ export async function validateMcpNetworkTarget(input: {
     all: true,
     verbatim: true,
   })
-  if (addresses.length === 0)
+  if (addresses.length === 0) {
     throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
+  }
   assertResolvedLoopbackAllowed(input.url.hostname, addresses, input.allowLoopback)
   const permitsPrivate = privateNetworkPermitted(input)
   if (!permitsPrivate && addresses.some(({ address }) => isPrivateAddress(address))) {
@@ -211,7 +212,7 @@ function redirectRequestInit(status: number, init: RequestInit): RequestInit {
   const headers = new Headers(init.headers)
   headers.delete('content-length')
   headers.delete('content-type')
-  return { ...init, method: 'GET', body: undefined, headers }
+  return { ...init, method: 'GET', body: null, headers }
 }
 
 function redirectCredentials(originChanged: boolean, init: RequestInit): RequestInit {

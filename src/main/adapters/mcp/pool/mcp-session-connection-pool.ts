@@ -43,7 +43,10 @@ export class McpSessionConnectionPool {
   /** One Session fills a missing catalog while the others of a cold wave wait (D1.3). */
   private readonly catalogFills = new McpCatalogFills()
 
-  constructor(private readonly options: McpSessionConnectionPoolOptions = {}) {
+  private readonly options: McpSessionConnectionPoolOptions
+
+  constructor(options: McpSessionConnectionPoolOptions = {}) {
+    this.options = options
     this.clock = options.clock ?? systemClock
     this.idleClose = new McpSessionIdleClose({
       clock: this.clock,
@@ -137,11 +140,8 @@ export class McpSessionConnectionPool {
   }
 
   private retireReplaced(session: SessionConnections, connection: McpPooledConnection) {
-    if (!connection.isClosed) {
-      void connection.close()
-      return
-    }
-    session.replaced.add(connection)
+    if (connection.isClosed) session.replaced.add(connection)
+    else void connection.close()
   }
 
   /**

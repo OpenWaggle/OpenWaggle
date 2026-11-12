@@ -13,7 +13,7 @@ const EXCESS_REMOTE_IMAGE_COUNT = REMOTE_IMAGE_REFERENCE_LIMIT + 8
 describe('captureSuccessfulRunResources', () => {
   it('links user attachments and tool-created images to the message that displayed them', async () => {
     const upserts: UpsertSessionResourceInput[] = []
-    const storedAttachmentSha256: Array<string | undefined> = []
+    const storedAttachmentSha256: (string | undefined)[] = []
     const payload: AgentSendPayload = {
       text: 'Review [reference](https://user.example/reference)',
       attachments: [

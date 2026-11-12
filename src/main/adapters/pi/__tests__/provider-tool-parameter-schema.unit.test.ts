@@ -120,8 +120,8 @@ describe('providerToolParameters', () => {
       anyOf: [true, { properties: { a: { type: 'string' } }, required: ['a'] }],
     })
 
-    expect(schema.required).toBeUndefined()
-    expect(schema.description).toMatch(/2 shapes.*2\) any object/)
+    expect(schema['required']).toBeUndefined()
+    expect(schema['description']).toMatch(/2 shapes.*2\) any object/)
     expect(repairs).toContain('flattened root anyOf of 2 schemas')
   })
 

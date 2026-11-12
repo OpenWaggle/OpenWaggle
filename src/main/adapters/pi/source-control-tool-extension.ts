@@ -1,5 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/session-workspace-resource-repository'
@@ -15,6 +15,7 @@ import {
 } from './source-control-tool-parameters'
 import { redactSourceControlText } from './source-control-tool-redaction'
 import { readSourceControlStatus } from './source-control-tool-status'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 export type { SourceControlToolBackend } from './source-control-tool-backend'
 
@@ -51,7 +52,9 @@ async function execute(
 const SOURCE_CONTROL_RULE =
   'How OpenWaggle reaches GitHub or GitLab for this remote, and why View PR/MR fails (source_control), loads with tool_search or runs from codemode.'
 
-export function createSourceControlToolExtension(input: SourceControlToolInput): ExtensionFactory {
+export function createSourceControlToolExtension(
+  input: SourceControlToolInput,
+): SynchronousExtensionFactory {
   return (pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: 'source_control',

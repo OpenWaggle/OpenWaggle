@@ -39,7 +39,7 @@ export function runtimeHarness(
   const postedMessages: unknown[] = []
   const rootStyleValues = new Map<string, string>()
   const rootDataset: Record<string, string> = {}
-  if (initialReducedMotion) rootDataset.motion = 'reduced'
+  if (initialReducedMotion) rootDataset['motion'] = 'reduced'
   const documentElement = {
     dataset: rootDataset,
     style: {
@@ -47,29 +47,44 @@ export function runtimeHarness(
       setProperty: (name: string, value: string) => rootStyleValues.set(name, value),
     },
   }
-  const listeners = new Map<string, Array<(event: RuntimeEvent) => void>>()
-  const documentListeners = new Map<string, Array<(event: { isTrusted?: boolean }) => void>>()
+  const listeners = new Map<string, ((event: RuntimeEvent) => void)[]>()
+  const documentListeners = new Map<string, ((event: { isTrusted?: boolean }) => void)[]>()
   const parent = { postMessage: (message: unknown) => postedMessages.push(message) }
   const nativeEventTrust = new WeakMap<object, boolean>()
   let currentDocumentEvent: NativeDocumentEvent | null = null
-  class NativeDocumentEvent extends Event {
+  /*
+   * The runtime reads trust through the `isTrusted` getter it finds on a probe event. A subclass of
+   * the runtime's `Event` cannot fake trust where `isTrusted` is unforgeable, an own
+   * non-configurable property of each instance (as on Bun and in browsers), so the harness's
+   * events are their own class and `NativeEventTarget` hands real events to the real listeners.
+   */
+  class NativeDocumentEvent {
+    readonly #type: string
+
     constructor(eventType: string, trusted = false) {
-      super(eventType)
+      this.#type = eventType
       nativeEventTrust.set(this, trusted)
-      Object.defineProperty(this, 'isTrusted', {
-        configurable: false,
-        enumerable: true,
-        get(this: object) {
-          return nativeEventTrust.get(this) ?? false
-        },
-      })
     }
 
-    declare readonly isTrusted: boolean
+    get type() {
+      return this.#type
+    }
+
+    get isTrusted() {
+      return nativeEventTrust.get(this) ?? false
+    }
+  }
+  class NativeEventTarget extends EventTarget {
+    override dispatchEvent(event: Event | NativeDocumentEvent) {
+      if (!(event instanceof NativeDocumentEvent)) return super.dispatchEvent(event)
+      const nativeEvent = new Event(event.type)
+      Object.defineProperties(nativeEvent, Object.getOwnPropertyDescriptors(event))
+      return super.dispatchEvent(nativeEvent)
+    }
   }
   class NativeRuntimeWindow {
-    declare readonly openai?: RuntimeWindow['openai']
-    declare lucide?: RuntimeWindow['lucide']
+    declare readonly openai?: NonNullable<RuntimeWindow['openai']>
+    declare lucide?: NonNullable<RuntimeWindow['lucide']>
 
     matchMedia(query: string) {
       return {
@@ -94,24 +109,28 @@ export function runtimeHarness(
   }
   const runtimeWindow: RuntimeWindow = new NativeRuntimeWindow()
   let performanceNow = 0
-  const performanceObserverCallbacks: Array<
-    (list: { getEntries: () => Array<{ duration: number }> }) => void
-  > = []
-  const animationFrameCallbacks: Array<() => void> = []
-  const mutationObserverCallbacks: Array<() => void> = []
+  const performanceObserverCallbacks: ((list: {
+    getEntries: () => { duration: number }[]
+  }) => void)[] = []
+  const animationFrameCallbacks: (() => void)[] = []
+  const mutationObserverCallbacks: (() => void)[] = []
   const mutationObserverOptions: unknown[] = []
-  const resizeObserverCallbacks: Array<() => void> = []
+  const resizeObserverCallbacks: (() => void)[] = []
   class RuntimePerformanceObserver {
     static supportedEntryTypes = ['longtask']
 
-    constructor(callback: (list: { getEntries: () => Array<{ duration: number }> }) => void) {
+    constructor(callback: (list: { getEntries: () => { duration: number }[] }) => void) {
       performanceObserverCallbacks.push(callback)
     }
 
     observe() {}
   }
   class RuntimePerformanceEntry {
-    constructor(private readonly durationValue: number) {}
+    private readonly durationValue: number
+
+    constructor(durationValue: number) {
+      this.durationValue = durationValue
+    }
 
     get duration() {
       return this.durationValue
@@ -134,13 +153,17 @@ export function runtimeHarness(
     observe() {}
   }
   class RuntimePerformanceObserverEntryList {
-    constructor(private readonly entries: RuntimePerformanceEntry[]) {}
+    private readonly entries: RuntimePerformanceEntry[]
+
+    constructor(entries: RuntimePerformanceEntry[]) {
+      this.entries = entries
+    }
 
     getEntries() {
       return this.entries
     }
   }
-  const scriptLoadListeners: Array<() => void> = []
+  const scriptLoadListeners: (() => void)[] = []
   const restoredStateMetadata = { content: restoredStateContent, remove: vi.fn<() => void>() }
   const context = vm.createContext({
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
@@ -176,7 +199,7 @@ export function runtimeHarness(
     navigator,
     window: runtimeWindow,
     Event: NativeDocumentEvent,
-    EventTarget,
+    EventTarget: NativeEventTarget,
     Element: class Element {},
     HTMLAnchorElement: class HTMLAnchorElement {},
     matchMedia: vi.fn(() => ({ matches: false })),

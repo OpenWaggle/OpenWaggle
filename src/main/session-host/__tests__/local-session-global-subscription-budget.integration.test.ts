@@ -70,20 +70,20 @@ describe('Local Session global subscription budget', () => {
 
     const responses = await Promise.all([first.reader.next(), second.reader.next()])
     expect(
-      responses.filter((response) => isRecord(response) && response.kind === 'subscribed'),
+      responses.filter((response) => isRecord(response) && response['kind'] === 'subscribed'),
     ).toHaveLength(1)
     expect(
       responses.filter(
         (response) =>
           isRecord(response) &&
-          response.kind === 'error' &&
-          response.code === 'subscription_limit_exceeded',
+          response['kind'] === 'error' &&
+          response['code'] === 'subscription_limit_exceeded',
       ),
     ).toHaveLength(1)
     expect(eventHub.subscriberCount()).toBe(1)
 
     const subscribedIndex = responses.findIndex(
-      (response) => isRecord(response) && response.kind === 'subscribed',
+      (response) => isRecord(response) && response['kind'] === 'subscribed',
     )
     const subscribedSocket = subscribedIndex === 0 ? first.socket : second.socket
     const closed = new Promise<void>((resolve) => subscribedSocket.once('close', resolve))

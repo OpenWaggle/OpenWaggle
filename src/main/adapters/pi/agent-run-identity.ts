@@ -82,14 +82,14 @@ function storedRunIdentity(entry: SessionEntry): RunIdentityEntryData | undefine
     return undefined
   }
   const data: unknown = entry.data
-  if (!isRecord(data) || typeof data.content !== 'string' || !isRecord(data.prompt)) {
+  if (!isRecord(data) || typeof data['content'] !== 'string' || !isRecord(data['prompt'])) {
     return undefined
   }
-  const { timestamp, digest, customType } = data.prompt
+  const { timestamp, digest, customType } = data['prompt']
   if (typeof timestamp !== 'number' || typeof digest !== 'string') return undefined
   if (customType !== undefined && typeof customType !== 'string') return undefined
   return {
-    content: data.content,
+    content: data['content'],
     prompt: customType === undefined ? { timestamp, digest } : { timestamp, digest, customType },
   }
 }

@@ -98,7 +98,7 @@ export function recoverWaggleRunFailure(
 
 export function createWaggleSuccessOutcome(input: {
   readonly sessionId: unknown
-  readonly assignedTitle?: string
+  readonly assignedTitle?: string | undefined
   readonly result: AgentKernelRunResult
   readonly resources: PersistedRunResourceNodes
 }) {

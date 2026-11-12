@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
     attachment: vi.fn((): 'attached' | 'reconnecting' | 'stopped' => 'attached'),
   }
 })
-vi.mock('../browser-preview', () => ({
+vi.mock('../adapters/electron/browser-preview/browser-preview', () => ({
   browserPreviewManager: {
     closeForOwner: vi.fn(),
     acquireMutationFence: vi.fn(),
@@ -273,8 +273,9 @@ describe('desktop tools recovery wiring', () => {
 
 function offeredRecovery() {
   const options = mocks.quarantine.mock.calls[0]?.[0]
-  if (typeof options !== 'object' || options === null || !('recover' in options))
+  if (typeof options !== 'object' || options === null || !('recover' in options)) {
     throw new Error('Missing recovery')
+  }
   const { recover } = options
   if (typeof recover !== 'function') throw new Error('Missing recovery')
   return (): Promise<unknown> => recover()

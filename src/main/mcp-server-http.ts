@@ -11,6 +11,7 @@ import {
   validateHostHeader,
   validateOriginHeader,
 } from '@modelcontextprotocol/server'
+import { mcpNodeRequestLike } from './mcp-node-request-like'
 import {
   McpHttpRequestBodyCapacityError,
   type McpHttpRequestBodyOptions,
@@ -190,7 +191,7 @@ function makeLoopbackRequestListener(input: {
     const method = (request.method ?? 'GET').toUpperCase()
     if (method === 'GET' || method === 'HEAD') {
       void Promise.resolve()
-        .then(() => input.nodeHandler(request, response, undefined))
+        .then(() => input.nodeHandler(mcpNodeRequestLike(request), response, undefined))
         .catch((error: unknown) => respondToRequestFailure(request, response, error, input.onerror))
       return
     }
@@ -213,7 +214,7 @@ function makeLoopbackRequestListener(input: {
       timeoutMs: input.bodyPolicy.timeoutMs,
       retainChunk: admission.lease.retainChunk,
     })
-      .then((parsedBody) => input.nodeHandler(request, response, parsedBody))
+      .then((parsedBody) => input.nodeHandler(mcpNodeRequestLike(request), response, parsedBody))
       .catch((error: unknown) => respondToRequestFailure(request, response, error, input.onerror))
   }
 }

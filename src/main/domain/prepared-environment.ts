@@ -25,8 +25,9 @@ export function applyPreparedEnvironment<T extends string | undefined>(
   const environment = new Map<string, T | string>(Object.entries(inherited))
   for (const [name, value] of Object.entries(prepared)) {
     if (caseInsensitive) {
-      for (const key of environment.keys())
+      for (const key of environment.keys()) {
         if (key.toUpperCase() === name.toUpperCase()) environment.delete(key)
+      }
     }
     if (value === null) environment.delete(name)
     else environment.set(name, value)
@@ -51,8 +52,9 @@ export function capturePreparedEnvironment(
       !TRANSIENT_NAMES.has(normalize(name)) &&
       !isWorkspaceContextName(name) &&
       value !== inherited.get(normalize(name))
-    )
+    ) {
       changes.set(name, value)
+    }
   }
   // Keep prior removals even if that variable is absent from the Host on this attempt.
   for (const name of new Set([...Object.keys(baseline), ...Object.keys(previous)])) {
@@ -60,8 +62,9 @@ export function capturePreparedEnvironment(
       !TRANSIENT_NAMES.has(normalize(name)) &&
       !isWorkspaceContextName(name) &&
       !captured.has(normalize(name))
-    )
+    ) {
       changes.set(name, null)
+    }
   }
   return Object.fromEntries(changes)
 }

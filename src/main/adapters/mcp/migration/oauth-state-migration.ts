@@ -156,18 +156,19 @@ async function oauthCandidates(input: {
   const legacy = (filePath: string) => input.sources.legacyConfig(filePath)
   const readOnly = (filePath: string) => input.sources.readOnlyConfig(filePath)
   const global = globalMcpPaths(input.sources.homeDir, input.sources.piAgentDir)
-  const files = [await read(global.openwaggleGlobal, legacy)]
-  for (const projectPath of input.projects) {
+  // `read` never rejects, so every file is read at once, in the order the files are handled.
+  const projectFiles = input.projects.flatMap((projectPath) => {
     const project = projectMcpPaths(projectPath)
-    files.push(await read(project.mcpJson, readOnly), await read(project.openwaggle, legacy))
-  }
+    return [read(project.mcpJson, readOnly), read(project.openwaggle, legacy)]
+  })
+  const files = await Promise.all([read(global.openwaggleGlobal, legacy), ...projectFiles])
   const candidates: OAuthCandidate[] = []
   for (const file of files) {
     if (!file.config) continue
     for (const [name, entry] of Object.entries(legacyServerMap(file.config))) {
       const serverState = input.state.servers[legacyServerIdentityKey(file.path, name)]
-      if (!isRecord(entry) || typeof entry.url !== 'string' || !serverState) continue
-      candidates.push({ name, url: entry.url, instanceId: serverState.instanceId })
+      if (!isRecord(entry) || typeof entry['url'] !== 'string' || !serverState) continue
+      candidates.push({ name, url: entry['url'], instanceId: serverState.instanceId })
     }
   }
   return candidates

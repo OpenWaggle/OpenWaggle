@@ -222,19 +222,24 @@ describe('worktree service', () => {
       const targetStarted = new Promise<void>((resolve) => {
         markTargetStarted = resolve
       })
+      const order: string[] = []
+      isGitRepositoryMock.mockImplementation(async () => {
+        order.push('removal')
+        return true
+      })
       const targetMutation = runWithGitMutationLock(nestedWorktreePath, async () => {
         markTargetStarted?.()
         await targetGate
+        order.push('target mutation')
       })
       await targetStarted
 
       const removal = removeGitWorktree(repositoryPath, { path: worktreePath })
-
-      await Promise.resolve()
-      expect(isGitRepositoryMock).not.toHaveBeenCalled()
+      await new Promise((resolve) => setTimeout(resolve, 10))
       releaseTarget?.()
       await Promise.all([targetMutation, removal])
-      expect(isGitRepositoryMock).toHaveBeenCalledOnce()
+
+      expect(order).toEqual(['target mutation', 'removal'])
       await fs.rm(lockRoot, { recursive: true, force: true })
     })
 

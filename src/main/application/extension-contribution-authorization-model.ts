@@ -20,8 +20,8 @@ import {
 const DEFAULT_DECLARED_SCOPES = ['app'] as const
 
 interface ContributionBrokerBinding {
-  readonly method?: string
-  readonly methods?: readonly string[]
+  readonly method?: string | undefined
+  readonly methods?: readonly string[] | undefined
 }
 
 type ContributionCapabilityBinding =
@@ -73,9 +73,9 @@ function contributionCapabilityBinding(
 export function contributionDiagnostic(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
-  readonly contributionId?: string
+  readonly contributionId?: string | undefined
   readonly message: string
-  readonly index?: number
+  readonly index?: number | undefined
 }): ExtensionDiagnostic {
   const suffix =
     input.index === undefined
@@ -129,8 +129,8 @@ export function manifestDeclaresContributionFamily(input: {
 export function familyDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
-  readonly contributionId?: string
-  readonly index?: number
+  readonly contributionId?: string | undefined
+  readonly index?: number | undefined
 }) {
   if (input.extensionPackage.manifest === null) {
     return [
@@ -162,7 +162,7 @@ function undeclaredMethodDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contributionId: string
-  readonly index?: number
+  readonly index?: number | undefined
   readonly capability: string
   readonly declaration: ExtensionCapabilityDeclaration
   readonly methods: readonly string[]
@@ -188,7 +188,7 @@ function capabilityDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
-  readonly index?: number
+  readonly index?: number | undefined
 }) {
   const binding = contributionCapabilityBinding(input.contribution)
 
@@ -240,7 +240,7 @@ function trustedRendererRuntimeDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
-  readonly index?: number
+  readonly index?: number | undefined
 }) {
   if (
     !isEntryContribution(input.contribution) ||
@@ -266,7 +266,7 @@ export function authorizeContributionRegistration(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestContribution
-  readonly index?: number
+  readonly index?: number | undefined
 }): ContributionRegistrationAuthorization {
   const diagnostics = [
     ...familyDiagnostics({

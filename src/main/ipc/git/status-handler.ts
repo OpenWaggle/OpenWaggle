@@ -7,7 +7,7 @@ import { getOrLoadCachedGitStatus } from './status-cache'
 import { getGitBranchDiff, getGitDiff, getGitStatus } from './status-service'
 
 export { invalidateGitStatusCache } from './status-cache'
-export { mergeDiffsByPath, normalizeGitPath, parseUnifiedDiff } from './status-parse'
+export { normalizeGitPath } from './status-parse'
 
 export function registerGitStatusHandlers() {
   typedHandle('git:status', (_event, rawPath: unknown) =>

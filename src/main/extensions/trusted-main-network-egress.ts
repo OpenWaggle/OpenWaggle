@@ -1,27 +1,24 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { EventEmitter } from 'node:events'
-import { type ClientRequestConstructorOptions, net as electronNet } from 'electron'
+import { networkFetch } from '../desktop-shell/network-fetch'
+import {
+  isAuthorizedHostname,
+  isAuthorizedSocketTarget,
+  runWithAuthorizedNetworkTarget,
+  runWithoutAuthorizedNetworkTarget,
+} from './trusted-main-network-authorization'
 import {
   installTrustedMainNetworkCallbackGuard,
   type TrustedMainEventListener,
 } from './trusted-main-network-callback-guard'
 import { installTrustedMainNetworkEscapeGuard } from './trusted-main-network-escape-guard'
+import { fetchInitWithRedirectError, fetchRequestTarget } from './trusted-main-network-fetch-target'
 import { installTrustedMainHttpNetworkGuard } from './trusted-main-network-http-guard'
+import { installTrustedMainRuntimeGlobalsGuard } from './trusted-main-network-runtime-globals-guard'
 import { installTrustedMainSocketNetworkGuard } from './trusted-main-network-socket-guard'
 import type { DiscoveredExtensionPackage } from './types'
 
-const HTTP_PROTOCOL = 'http:'
 const HTTPS_PROTOCOL = 'https:'
-const HTTP_DEFAULT_HOST = 'localhost'
-const HTTP_DEFAULT_PATH = '/'
-const HTTP_DEFAULT_PORT = '80'
-const HTTPS_DEFAULT_PORT = '443'
-const UNSAFE_FETCH_TRANSPORT_PROPERTIES = [
-  ['agent', 'Custom fetch agents can bypass the declared origin.'],
-  ['dispatcher', 'Custom fetch dispatchers can bypass the declared origin.'],
-] as const
-const UNSAFE_FETCH_REQUEST_REASON =
-  'Request objects can preserve custom fetch agents or dispatchers that bypass the declared origin.'
 
 interface TrustedMainNetworkPolicy {
   readonly extensionId: string
@@ -37,7 +34,6 @@ interface EnforceNetworkTargetInput {
 const trustedMainNetworkPolicyStorage = new AsyncLocalStorage<TrustedMainNetworkPolicy>()
 
 let trustedMainNetworkGuardInstalled = false
-let internalSocketBypassDepth = 0
 
 export class TrustedMainNetworkEgressError extends Error {
   override name = 'TrustedMainNetworkEgressError'
@@ -57,7 +53,9 @@ export function runWithTrustedMainNetworkPolicy<T>(
   operation: () => T,
 ): T {
   installTrustedMainNetworkGuard()
-  return trustedMainNetworkPolicyStorage.run(policy, operation)
+  return runWithoutAuthorizedNetworkTarget(() =>
+    trustedMainNetworkPolicyStorage.run(policy, operation),
+  )
 }
 
 function currentPolicy() {
@@ -129,9 +127,6 @@ function enforceRawSocket(api: string) {
   if (!policy) {
     return
   }
-  if (internalSocketBypassDepth > 0) {
-    return
-  }
 
   throw trustedMainNetworkError({
     policy,
@@ -155,96 +150,23 @@ function enforceBlockedNetworkApi(api: string, reason: string) {
   })
 }
 
-function runWithInternalSocketBypass<T>(operation: () => T): T {
-  internalSocketBypassDepth += 1
-  try {
-    return operation()
-  } finally {
-    internalSocketBypassDepth -= 1
-  }
+/** Lets the sockets and DNS lookups of an allowed request through the lower guards. */
+function runWithAuthorizedTarget<T>(url: URL, operation: () => T): T {
+  return currentPolicy() === null ? operation() : runWithAuthorizedNetworkTarget(url, operation)
 }
 
-function parseUrl(value: string) {
-  try {
-    return new URL(value)
-  } catch {
-    return null
-  }
-}
-
-function requestInputUrl(input: RequestInfo | URL) {
-  if (typeof input === 'string') {
-    return parseUrl(input)
-  }
-  if (input instanceof URL) {
-    return input
-  }
-  if (typeof Request !== 'undefined' && input instanceof Request) {
-    return parseUrl(input.url)
-  }
-  return null
-}
-
-function requestInputUnsafeTransportReason(input: RequestInfo | URL) {
-  if (typeof Request !== 'undefined' && input instanceof Request) {
-    return UNSAFE_FETCH_REQUEST_REASON
-  }
-
-  return null
-}
-
-function objectHasOwn(value: object, property: string) {
-  return Object.hasOwn(value, property)
-}
-
-function unsafeFetchTransportReason(init?: RequestInit) {
-  if (typeof init !== 'object' || init === null) {
-    return null
-  }
-
-  for (const [property, reason] of UNSAFE_FETCH_TRANSPORT_PROPERTIES) {
-    if (objectHasOwn(init, property)) {
-      return reason
-    }
-  }
-
-  return null
-}
-
-function fetchInitWithRedirectError(init?: RequestInit): RequestInit {
-  return {
-    ...init,
-    redirect: 'error',
-  }
+function isPolicyActive() {
+  return currentPolicy() !== null
 }
 
 function enforceFetchTarget(api: string, input: RequestInfo | URL, init?: RequestInit) {
-  const unsafeTransportReason =
-    requestInputUnsafeTransportReason(input) ?? unsafeFetchTransportReason(init)
+  const target = fetchRequestTarget(input, init)
   enforceNetworkTarget({
     api,
-    url: requestInputUrl(input),
-    ...(unsafeTransportReason !== null ? { reason: unsafeTransportReason } : {}),
+    url: target.url,
+    ...(target.unsafeTransportReason !== null ? { reason: target.unsafeTransportReason } : {}),
   })
-}
-
-function optionString(value: string | number | null | undefined) {
-  return value === undefined || value === null ? null : String(value)
-}
-
-function defaultPort(protocol: string) {
-  return protocol === HTTPS_PROTOCOL ? HTTPS_DEFAULT_PORT : HTTP_DEFAULT_PORT
-}
-
-function hostWithPort(input: {
-  readonly host: string
-  readonly port: string | null
-  readonly protocol: string
-}) {
-  if (input.port === null || input.port === defaultPort(input.protocol)) {
-    return input.host
-  }
-  return `${input.host}:${input.port}`
+  return target.url
 }
 
 function installFetchGuard() {
@@ -258,75 +180,18 @@ function installFetchGuard() {
       return originalFetch(input, init)
     }
 
+    let url: URL | null
     try {
-      enforceFetchTarget('fetch', input, init)
+      url = enforceFetchTarget('fetch', input, init)
     } catch (error) {
       return Promise.reject(error)
     }
 
-    return originalFetch(input, fetchInitWithRedirectError(init))
-  }
-}
-
-function electronRequestOptionsUrl(options: ClientRequestConstructorOptions | string) {
-  if (typeof options === 'string') {
-    return parseUrl(options)
-  }
-  if (options.url !== undefined) {
-    return parseUrl(options.url)
-  }
-
-  const protocol = options.protocol ?? HTTP_PROTOCOL
-  const host = options.hostname ?? options.host ?? HTTP_DEFAULT_HOST
-  const port = optionString(options.port)
-  const path = options.path ?? HTTP_DEFAULT_PATH
-  return parseUrl(`${protocol}//${hostWithPort({ host, port, protocol })}${path}`)
-}
-
-function electronRequestOptionsWithRedirectError(
-  options: ClientRequestConstructorOptions | string,
-): ClientRequestConstructorOptions {
-  if (typeof options === 'string') {
-    return {
-      url: options,
-      redirect: 'error',
-    }
-  }
-
-  return {
-    ...options,
-    redirect: 'error',
-  }
-}
-
-function installElectronNetGuard() {
-  if (typeof electronNet !== 'object' || electronNet === null) {
-    return
-  }
-
-  const originalElectronFetch = electronNet.fetch.bind(electronNet)
-  const originalElectronRequest = electronNet.request.bind(electronNet)
-
-  electronNet.fetch = (input: string | Request, init?: RequestInit) => {
-    if (currentPolicy() === null) {
-      return originalElectronFetch(input, init)
-    }
-
-    try {
-      enforceFetchTarget('electron.net.fetch', input, init)
-    } catch (error) {
-      return Promise.reject(error)
-    }
-
-    return originalElectronFetch(input, fetchInitWithRedirectError(init))
-  }
-  electronNet.request = (options) => {
-    if (currentPolicy() === null) {
-      return originalElectronRequest(options)
-    }
-
-    enforceUrl('electron.net.request', electronRequestOptionsUrl(options))
-    return originalElectronRequest(electronRequestOptionsWithRedirectError(options))
+    const fetchWithoutRedirects = () => originalFetch(input, fetchInitWithRedirectError(init))
+    // Node's fetch opens its TLS socket through `net.Socket.prototype.connect`.
+    return url === null
+      ? fetchWithoutRedirects()
+      : runWithAuthorizedTarget(url, fetchWithoutRedirects)
   }
 }
 
@@ -339,10 +204,26 @@ export function installTrustedMainNetworkGuard() {
   installFetchGuard()
   installTrustedMainHttpNetworkGuard({
     enforceTarget: enforceNetworkTarget,
-    runWithInternalSocketBypass,
+    runWithAuthorizedTarget,
   })
-  installTrustedMainSocketNetworkGuard({ enforceRawSocket })
-  installTrustedMainNetworkEscapeGuard({ enforceBlockedApi: enforceBlockedNetworkApi })
-  installElectronNetGuard()
+  installTrustedMainSocketNetworkGuard({
+    isPolicyActive,
+    enforceRawSocket,
+    enforceBlockedApi: enforceBlockedNetworkApi,
+    isAuthorizedSocketTarget,
+  })
+  installTrustedMainNetworkEscapeGuard({
+    enforceBlockedApi: enforceBlockedNetworkApi,
+    isAuthorizedHostname,
+  })
+  installTrustedMainRuntimeGlobalsGuard({
+    enforceBlockedApi: enforceBlockedNetworkApi,
+    isAuthorizedHostname,
+  })
+  networkFetch.guardExtensionEgress({
+    isActive: () => currentPolicy() !== null,
+    checkFetch: enforceFetchTarget,
+    checkUrl: enforceUrl,
+  })
   trustedMainNetworkGuardInstalled = true
 }

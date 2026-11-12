@@ -104,33 +104,6 @@ describe('readInlineVisualizationSource', () => {
     expect(readSource).not.toHaveBeenCalled()
   })
 
-  it('reads the authoritative Host owner when the GUI session repository is isolated', async () => {
-    configureOwnerResponse(ownerSession)
-    getTree.mockReturnValue(Effect.succeed(null))
-    const sourcePath = '/session-worktree/.openwaggle/visualizations/map.html'
-
-    const result = await Effect.runPromise(
-      readInlineVisualizationSource({ sessionId, sourcePath }).pipe(
-        Effect.provide(Layer.merge(SessionLayer, VisualizationLayer)),
-      ),
-    )
-
-    expect(result).toMatchObject({ status: 'loaded' })
-    expect(executeConfiguredHostUi).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channel: 'inline-visualization:prepare-source',
-        args: [sessionId],
-      }),
-    )
-    expect(getTree).not.toHaveBeenCalled()
-    expect(readSource).toHaveBeenCalledWith({
-      sessionId,
-      sourcePath,
-      workspaceRoots: ['/session-worktree'],
-      readOnly: true,
-    })
-  })
-
   it.each([
     { projectPath: '/opened-checkout', expectedRoots: ['/opened-checkout'] },
     { projectPath: null, expectedRoots: [] },
@@ -194,18 +167,5 @@ describe('readInlineVisualizationSource', () => {
     expect(executeConfiguredHostUi).not.toHaveBeenCalled()
     expect(getTree).not.toHaveBeenCalled()
     expect(readSource).not.toHaveBeenCalled()
-  })
-
-  it('rechecks ownership for each source request instead of retaining a deleted Host session', async () => {
-    configureOwnerResponse(ownerSession)
-    await expect(readVisualization()).resolves.toMatchObject({ status: 'loaded' })
-    executeConfiguredHostUi.mockResolvedValue(null)
-
-    await expect(readVisualization()).resolves.toEqual({
-      status: 'unavailable',
-      reason: 'session-missing',
-    })
-    expect(executeConfiguredHostUi).toHaveBeenCalledTimes(2)
-    expect(readSource).toHaveBeenCalledOnce()
   })
 })

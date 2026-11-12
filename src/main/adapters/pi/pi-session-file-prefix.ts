@@ -21,7 +21,7 @@ const MAX_FIRST_MESSAGE_SCAN_BYTES = 4 * 1024 * 1024
 /** Enough of the first message for a title, without remembering whole pasted prompts. */
 const MAX_REMEMBERED_MESSAGE_LENGTH = 1024
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -52,7 +52,7 @@ async function readLines(file: string, limit: number) {
 type HeaderSearch =
   | {
       readonly kind: 'header'
-      readonly header: { readonly [key: string]: unknown }
+      readonly header: Readonly<Record<string, unknown>>
       readonly index: number
     }
   | { readonly kind: 'not-a-session' }
@@ -66,7 +66,7 @@ function findHeader(lines: readonly string[]): HeaderSearch {
   for (const [index, line] of lines.entries()) {
     const entry = parseLine(line)
     if (entry === null) continue
-    if (isRecord(entry) && entry.type === 'session' && typeof entry.id === 'string') {
+    if (isRecord(entry) && entry['type'] === 'session' && typeof entry['id'] === 'string') {
       return { kind: 'header', header: entry, index }
     }
     return { kind: 'not-a-session' }
@@ -74,37 +74,42 @@ function findHeader(lines: readonly string[]): HeaderSearch {
   return { kind: 'not-found' }
 }
 
-function isUserMessage(entry: { readonly [key: string]: unknown }) {
-  return entry.type === 'message' && isRecord(entry.message) && entry.message.role === 'user'
+function isUserMessage(entry: Readonly<Record<string, unknown>>) {
+  return (
+    entry['type'] === 'message' && isRecord(entry['message']) && entry['message']['role'] === 'user'
+  )
 }
 
 /** When the user message was sent: Pi's message time, else the entry's. */
-function messageTime(entry: { readonly [key: string]: unknown }) {
-  const message = isRecord(entry.message) ? entry.message : undefined
-  if (typeof message?.timestamp === 'number' && Number.isFinite(message.timestamp)) {
-    return message.timestamp
+function messageTime(entry: Readonly<Record<string, unknown>>) {
+  const message = isRecord(entry['message']) ? entry['message'] : undefined
+  if (typeof message?.['timestamp'] === 'number' && Number.isFinite(message['timestamp'])) {
+    return message['timestamp']
   }
-  const parsed = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : Number.NaN
+  const parsed =
+    typeof entry['timestamp'] === 'string' ? Date.parse(entry['timestamp']) : Number.NaN
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function modelChange(entry: { readonly [key: string]: unknown }) {
-  if (entry.type !== 'model_change') return null
+function modelChange(entry: Readonly<Record<string, unknown>>) {
+  if (entry['type'] !== 'model_change') return null
   const { provider, modelId } = entry
   return typeof provider === 'string' && provider && typeof modelId === 'string' && modelId
     ? `${provider}/${modelId}`
     : null
 }
 
-function userMessageText(entry: { readonly [key: string]: unknown }) {
-  if (entry.type !== 'message' || !isRecord(entry.message)) return null
-  const message = entry.message
-  if (message.role !== 'user') return null
-  if (typeof message.content === 'string') return message.content.trim() || null
-  if (!Array.isArray(message.content)) return null
-  const text = message.content
+function userMessageText(entry: Readonly<Record<string, unknown>>) {
+  if (entry['type'] !== 'message' || !isRecord(entry['message'])) return null
+  const message = entry['message']
+  if (message['role'] !== 'user') return null
+  if (typeof message['content'] === 'string') return message['content'].trim() || null
+  if (!Array.isArray(message['content'])) return null
+  const text = message['content']
     .flatMap((part: unknown) =>
-      isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
+      isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string'
+        ? [part['text']]
+        : [],
     )
     .join(' ')
     .trim()
@@ -125,12 +130,12 @@ interface PrefixEntries {
   readonly model: string | null
 }
 
-function sessionName(entry: { readonly [key: string]: unknown }) {
-  return typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : null
+function sessionName(entry: Readonly<Record<string, unknown>>) {
+  return typeof entry['name'] === 'string' && entry['name'].trim() ? entry['name'].trim() : null
 }
 
-function readEntry(read: PrefixEntries, entry: { readonly [key: string]: unknown }): PrefixEntries {
-  const named = entry.type === 'session_info' ? { ...read, name: sessionName(entry) } : read
+function readEntry(read: PrefixEntries, entry: Readonly<Record<string, unknown>>): PrefixEntries {
+  const named = entry['type'] === 'session_info' ? { ...read, name: sessionName(entry) } : read
   if (named.firstUserMessage !== null) return named
   // The model the session had when its first message was sent, which titles it.
   const withModel = { ...named, model: modelChange(entry) ?? named.model }
@@ -143,8 +148,8 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
   const search = findHeader(lines)
   if (search.kind !== 'header') return null
   const header = search.header
-  if (typeof header.id !== 'string' || !header.id) return null
-  if (typeof header.cwd !== 'string' || !header.cwd) return null
+  if (typeof header['id'] !== 'string' || !header['id']) return null
+  if (typeof header['cwd'] !== 'string' || !header['cwd']) return null
   let read: PrefixEntries = {
     name: null,
     firstUserMessage: null,
@@ -156,9 +161,9 @@ function parsePrefix(lines: readonly string[]): PiSessionPrefix | null {
     if (isRecord(entry)) read = readEntry(read, entry)
   }
   return {
-    id: header.id,
-    cwd: header.cwd,
-    timestamp: typeof header.timestamp === 'string' ? header.timestamp : null,
+    id: header['id'],
+    cwd: header['cwd'],
+    timestamp: typeof header['timestamp'] === 'string' ? header['timestamp'] : null,
     ...read,
     model: read.firstUserMessage === null ? null : read.model,
   }
@@ -178,7 +183,7 @@ async function readLeadingLines(file: string) {
 async function readPrefix(file: string) {
   const leading = await readLeadingLines(file)
   const parsed = parsePrefix(leading.lines)
-  if (!parsed || parsed.firstUserMessage !== null || leading.complete) return parsed
+  if (parsed?.firstUserMessage !== null || leading.complete) return parsed
   return parsePrefix((await readLines(file, MAX_FIRST_MESSAGE_SCAN_BYTES)).lines)
 }
 

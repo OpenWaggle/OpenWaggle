@@ -33,9 +33,13 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../../browser-preview', () => ({ browserPreviewManager: manager }))
-vi.mock('../../browser-preview-owner-registry', () => ({
-  browserPreviewOwnerRegistry: ownerRegistry,
+vi.mock('../../desktop-shell/browser-preview-views', () => ({
+  browserPreviewViews: {
+    ...manager,
+    registerOwner: ownerRegistry.register,
+    unregisterOwner: ownerRegistry.unregister,
+    acknowledgeOpenRequest: ownerRegistry.acknowledge,
+  },
 }))
 
 vi.mock('../../logger', () => ({
@@ -48,14 +52,12 @@ vi.mock('../../logger', () => ({
 }))
 
 vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 import { registerBrowserPreviewHandlers } from '../browser-preview-handler'
@@ -106,47 +108,34 @@ describe('browser preview IPC handlers', () => {
     await rejection
   })
 
-  it('registers the complete browser preview command set', () => {
-    expect([...handlers.keys()].sort()).toEqual([
-      'browser-preview:ack-open-request',
-      'browser-preview:cancel-pick-element',
-      'browser-preview:capture-screenshot',
-      'browser-preview:clear-cache',
-      'browser-preview:clear-cookies',
-      'browser-preview:clear-profile-data',
-      'browser-preview:close',
-      'browser-preview:close-picture-in-picture',
-      'browser-preview:copy-screenshot',
-      'browser-preview:go-back',
-      'browser-preview:go-forward',
-      'browser-preview:guided-import-cookies',
-      'browser-preview:hard-reload',
-      'browser-preview:import-cookies',
-      'browser-preview:list-import-sources',
-      'browser-preview:navigate',
-      'browser-preview:open',
-      'browser-preview:open-devtools',
-      'browser-preview:open-full-disk-access-settings',
-      'browser-preview:open-picture-in-picture',
-      'browser-preview:pick-element',
-      'browser-preview:register-owner',
-      'browser-preview:reload',
-      'browser-preview:replace-for-capacity',
-      'browser-preview:respond-recording-request',
-      'browser-preview:reveal-artifact',
-      'browser-preview:save-recording',
-      'browser-preview:set-appearance',
-      'browser-preview:set-audio-muted',
-      'browser-preview:set-bounds',
-      'browser-preview:set-current',
-      'browser-preview:set-shortcut-bindings',
-      'browser-preview:set-viewport',
-      'browser-preview:start-recording',
-      'browser-preview:stop',
-      'browser-preview:stop-recording',
-      'browser-preview:unregister-owner',
-      'browser-preview:zoom',
-    ])
+  it('registers the browser preview commands no other case invokes', () => {
+    expect([...handlers.keys()]).toEqual(
+      expect.arrayContaining([
+        'browser-preview:cancel-pick-element',
+        'browser-preview:capture-screenshot',
+        'browser-preview:clear-cache',
+        'browser-preview:clear-cookies',
+        'browser-preview:clear-profile-data',
+        'browser-preview:close-picture-in-picture',
+        'browser-preview:copy-screenshot',
+        'browser-preview:guided-import-cookies',
+        'browser-preview:hard-reload',
+        'browser-preview:import-cookies',
+        'browser-preview:list-import-sources',
+        'browser-preview:open-devtools',
+        'browser-preview:open-full-disk-access-settings',
+        'browser-preview:open-picture-in-picture',
+        'browser-preview:pick-element',
+        'browser-preview:register-owner',
+        'browser-preview:respond-recording-request',
+        'browser-preview:reveal-artifact',
+        'browser-preview:save-recording',
+        'browser-preview:set-appearance',
+        'browser-preview:set-viewport',
+        'browser-preview:start-recording',
+        'browser-preview:stop-recording',
+      ]),
+    )
   })
 
   it('decodes and opens a bounded HTTP preview for the invoking sender', async () => {

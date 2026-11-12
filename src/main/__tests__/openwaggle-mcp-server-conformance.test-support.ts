@@ -47,7 +47,7 @@ export function createMcpConformanceHost() {
   let repoA = ''
   let repoB = ''
   let sessions: readonly StoredSession[] = []
-  let profiles: Map<string, ProfileRecord> = new Map()
+  let profiles = new Map<string, ProfileRecord>()
   let dispatchedCallers: LocalSessionCallerIdentity[] = []
   let stopHost: (() => Promise<void>) | null = null
   const clients: Client[] = []

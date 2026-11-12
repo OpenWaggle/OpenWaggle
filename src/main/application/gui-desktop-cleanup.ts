@@ -40,10 +40,11 @@ export function makeGuiDesktopCleanup(services: GuiDesktopCleanupServices) {
 
   return () => {
     if (completed) return Promise.resolve()
-    if (!pending)
+    if (!pending) {
       pending = attempt().finally(() => {
         pending = null
       })
+    }
     return pending
   }
 }

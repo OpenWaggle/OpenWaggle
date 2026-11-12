@@ -1,8 +1,13 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
+  ExtensionContributionMatchView,
   ExtensionContributionRegistryEntry,
   ExtensionPackageScopeView,
 } from '@shared/types/extensions'
+import type {
+  ExtensionSessionSummaryRowView,
+  ExtensionSessionSummaryView,
+} from '@shared/types/extension-contribution-registry'
 import type { ExtensionPackageScope } from '../extensions/types'
 import {
   findManifestCapabilityDeclaration,
@@ -12,6 +17,7 @@ import {
   isEntryContribution,
   isSessionSummaryContribution,
   type ManifestContribution,
+  type ManifestContributionMatches,
   type ManifestEntryContribution,
   type ManifestSessionSummaryContribution,
 } from './extension-contribution-family-model'
@@ -34,12 +40,60 @@ function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
   }
 }
 
+function matchView(matches: ManifestContributionMatches): ExtensionContributionMatchView {
+  return {
+    ...(matches.toolNames !== undefined ? { toolNames: matches.toolNames } : {}),
+    ...(matches.customMessageNames !== undefined
+      ? { customMessageNames: matches.customMessageNames }
+      : {}),
+    ...(matches.interactionKinds !== undefined
+      ? { interactionKinds: matches.interactionKinds }
+      : {}),
+  }
+}
+
+function sessionSummaryRowView(
+  row: ManifestSessionSummaryContribution['rows'][number],
+): ExtensionSessionSummaryRowView {
+  return {
+    id: row.id,
+    label: row.label,
+    ...(row.value !== undefined ? { value: row.value } : {}),
+    ...(row.badge !== undefined ? { badge: row.badge } : {}),
+    ...(row.count !== undefined ? { count: row.count } : {}),
+    ...(row.resourceId !== undefined ? { resourceId: row.resourceId } : {}),
+    ...(row.action !== undefined ? { action: row.action } : {}),
+  }
+}
+
+function sessionSummaryDisclosureView(
+  disclosure: NonNullable<ManifestSessionSummaryContribution['disclosure']>,
+): NonNullable<ExtensionSessionSummaryView['disclosure']> {
+  return {
+    ...(disclosure.defaultExpanded !== undefined
+      ? { defaultExpanded: disclosure.defaultExpanded }
+      : {}),
+    ...(disclosure.collapsible !== undefined ? { collapsible: disclosure.collapsible } : {}),
+    ...(disclosure.autoCollapseAfterMs !== undefined
+      ? { autoCollapseAfterMs: disclosure.autoCollapseAfterMs }
+      : {}),
+  }
+}
+
+function sessionSummaryStateView(
+  state: NonNullable<ManifestSessionSummaryContribution['state']>,
+): NonNullable<ExtensionSessionSummaryView['state']> {
+  if (state.status === 'ready' || state.status === 'failure') return state
+  const { message, ...live } = state
+  return message === undefined ? live : { ...live, message }
+}
+
 function entryContributionMetadata(contribution: ManifestEntryContribution) {
   return {
     runtime: contribution.runtime,
     execution: contribution.execution,
     entryPath: contribution.entry,
-    ...(contribution.matches !== undefined ? { matches: contribution.matches } : {}),
+    ...(contribution.matches !== undefined ? { matches: matchView(contribution.matches) } : {}),
   }
 }
 
@@ -119,9 +173,13 @@ function sessionSummaryEntry(
     ...baseEntry,
     sessionSummary: {
       placement: contribution.placement ?? 'details',
-      ...(contribution.disclosure !== undefined ? { disclosure: contribution.disclosure } : {}),
-      ...(contribution.state !== undefined ? { state: contribution.state } : {}),
-      rows: contribution.rows,
+      ...(contribution.disclosure !== undefined
+        ? { disclosure: sessionSummaryDisclosureView(contribution.disclosure) }
+        : {}),
+      ...(contribution.state !== undefined
+        ? { state: sessionSummaryStateView(contribution.state) }
+        : {}),
+      rows: contribution.rows.map(sessionSummaryRowView),
     },
   }
 }

@@ -7,8 +7,8 @@ interface ExitEvent {
 
 /** Independently controlled native lifecycle stages for ordering regressions. */
 export function makeTerminalLifecycleHarness() {
-  const exitListeners: Array<(event: ExitEvent) => void> = []
-  const treeExitListeners: Array<(event: ExitEvent) => void> = []
+  const exitListeners: ((event: ExitEvent) => void)[] = []
+  const treeExitListeners: ((event: ExitEvent) => void)[] = []
   const resourceDrain = Promise.withResolvers<void>()
   let resourceSettled = false
 

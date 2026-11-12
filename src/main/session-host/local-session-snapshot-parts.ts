@@ -52,7 +52,7 @@ export const messagePartSchema = Schema.Union(
   Schema.Struct({
     type: Schema.Literal('text', 'reasoning'),
     text: Schema.String,
-    contentIndex: Schema.optional(Schema.Number),
+    contentIndex: Schema.optionalWith(Schema.Number, { exact: true }),
   }),
   Schema.Struct({
     type: Schema.Literal('attachment'),
@@ -77,11 +77,11 @@ export const messagePartSchema = Schema.Union(
       id: Schema.String,
       name: Schema.String,
       args: jsonObjectSchema,
-      state: Schema.optional(Schema.Literal('input-complete')),
+      state: Schema.optionalWith(Schema.Literal('input-complete'), { exact: true }),
       // The live record of a codemode call's nested calls. A snapshot that carried one used to
       // fail to decode, which failed the whole subscription and left every Session's transcript
       // without live events while its Runs went on in the Host.
-      nestedCalls: Schema.optional(nestedToolCallsSchema),
+      nestedCalls: Schema.optionalWith(nestedToolCallsSchema, { exact: true }),
     }),
   }),
   Schema.Struct({
@@ -93,8 +93,8 @@ export const messagePartSchema = Schema.Union(
       result: jsonValueSchema,
       isError: Schema.Boolean,
       duration: Schema.Number,
-      details: Schema.optional(jsonValueSchema),
-      nestedCalls: Schema.optional(nestedToolCallsSchema),
+      details: Schema.optionalWith(jsonValueSchema, { exact: true }),
+      nestedCalls: Schema.optionalWith(nestedToolCallsSchema, { exact: true }),
     }),
   }),
 )
@@ -127,9 +127,9 @@ export function decodeAssistantMessageSnapshots(
   const assistantMessages = value.flatMap((candidate, messageIndex) => {
     if (
       !isRecord(candidate) ||
-      typeof candidate.messageId !== 'string' ||
-      typeof candidate.timestamp !== 'number' ||
-      !Array.isArray(candidate.parts)
+      typeof candidate['messageId'] !== 'string' ||
+      typeof candidate['timestamp'] !== 'number' ||
+      !Array.isArray(candidate['parts'])
     ) {
       reportUndecodable(context, 'an earlier assistant message', 'malformed message', {
         messageIndex,
@@ -139,14 +139,14 @@ export function decodeAssistantMessageSnapshots(
     try {
       return [
         {
-          messageId: candidate.messageId,
-          timestamp: candidate.timestamp,
-          parts: candidate.parts.map(decodeMessagePart),
+          messageId: candidate['messageId'],
+          timestamp: candidate['timestamp'],
+          parts: candidate['parts'].map(decodeMessagePart),
         },
       ]
     } catch (error) {
       reportUndecodable(context, 'an earlier assistant message', error, {
-        messageId: candidate.messageId,
+        messageId: candidate['messageId'],
       })
       return []
     }
@@ -173,7 +173,7 @@ export function decodeStreamingParts(
       reportUndecodable(context, 'a streaming message part', error, {
         ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
         partIndex,
-        partType: isRecord(part) && typeof part.type === 'string' ? part.type : null,
+        partType: isRecord(part) && typeof part['type'] === 'string' ? part['type'] : null,
       })
     }
   })

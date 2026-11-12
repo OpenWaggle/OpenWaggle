@@ -3,7 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { CliShimMutationResult, CliShimStatus } from '@shared/types/cli-shim'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import { env, getCurrentProcessPath } from '../env'
 import { runManagedShimMutation } from './cli-shim-bound-mutation'
 import {
@@ -109,8 +110,9 @@ async function legacyMacCliLinkStatus(
     const link = await fs.lstat(target)
     if (!link.isSymbolicLink()) return null
     const destination = await fs.readlink(target)
-    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath))
+    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath)) {
       return null
+    }
     if (!(await fs.stat(target)).isFile()) return null
     return {
       management: 'installer',
@@ -281,17 +283,19 @@ export function createAppCliShimService() {
   const appImagePath = resolveCliShimExecutablePath({
     platform: process.platform,
     executablePath: process.execPath,
-    isPackaged: app.isPackaged,
+    isPackaged: appLifecycle.isPackaged(),
     ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
   })
   const legacyLinuxAppImage =
-    process.platform === 'linux' && app.isPackaged && path.resolve(appImagePath) === command
+    process.platform === 'linux' &&
+    appLifecycle.isPackaged() &&
+    path.resolve(appImagePath) === command
   return createCliShimService({
     platform: process.platform,
     homeDirectory,
     executablePath: appImagePath,
     ...(legacyLinuxAppImage ? { legacyLinuxAppImagePath: command } : {}),
-    ...(app.isPackaged ? {} : { appPath: app.getAppPath() }),
+    ...(appLifecycle.isPackaged() ? {} : { appPath: appPaths.appRoot() }),
     environmentPath: getCurrentProcessPath,
   })
 }

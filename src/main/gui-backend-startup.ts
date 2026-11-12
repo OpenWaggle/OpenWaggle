@@ -4,8 +4,9 @@
  * The window is already open meanwhile, showing its skeleton.
  */
 import type { GuiStartupStatus } from '@shared/types/gui-startup'
-import { app } from 'electron'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { env } from './env'
 import { startErrorReporting } from './error-reporting'
@@ -46,7 +47,7 @@ export function clearGuiBackend() {
 }
 
 async function hydrateSettingsFromHost(settingsStore: typeof SettingsStore) {
-  await applyInstallerUpdateChannelIntent(app.getPath('userData'), async (channel) => {
+  await applyInstallerUpdateChannelIntent(appPaths.userData(), async (channel) => {
     const update = await invokeConfiguredHostUi('settings:update', [{ updateChannel: channel }])
     if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
   })
@@ -78,8 +79,8 @@ export async function startGuiBackend(input: {
   const { startupMark } = input
   const { signal } = input
   sessionHostLifecyclePreparation ??= prepareGuiSessionHostLifecycle({
-    userDataRoot: app.getPath('userData'),
-    clientVersion: app.getVersion(),
+    userDataRoot: appPaths.userData(),
+    clientVersion: appLifecycle.version(),
     startupMark,
     onUpgradePending: input.progress.updating,
     onUpgradeReleased: input.progress.updated,

@@ -232,6 +232,22 @@ describe('browser import source discovery', () => {
     })
   })
 
+  it('leaves the cookie count out of a root profile whose database it cannot count', async () => {
+    const home = await temporaryHome()
+    const root = path.join(home, '.config', 'opera')
+    await mkdir(path.join(root, 'Network'), { recursive: true })
+    const { DatabaseSync } = await import('node:sqlite')
+    const database = new DatabaseSync(path.join(root, 'Network', 'Cookies'))
+    database.exec('CREATE TABLE meta (key TEXT);')
+    database.close()
+
+    const opera = (await listBrowserImportSources({ home, platform: 'linux' })).find(
+      (source) => source.id === 'opera',
+    )
+
+    expect(opera?.profiles).toStrictEqual([{ directory: '.', name: 'Default' }])
+  })
+
   it('marks a live Chromium singleton conservatively and clears a stale one', async () => {
     const home = await temporaryHome()
     const root = path.join(home, 'Library', 'Application Support', 'Google', 'Chrome')

@@ -16,6 +16,15 @@ export class LocalSessionProfileAdmissionChangedError extends Error {
   }
 }
 
+/** Aborts the active commands that a profile admission fence must not let finish. */
+export function abortProfileFencedCommands(commands: Iterable<ActiveLocalSessionCommand>) {
+  for (const command of commands) {
+    if (command.abortOnProfileFence) {
+      command.controller.abort(new LocalSessionProfileAdmissionChangedError())
+    }
+  }
+}
+
 export function isSelfProfileCredentialMutation(input: {
   readonly caller: AuthenticatedLocalSessionCaller
   readonly frame: Extract<LocalSessionClientFrame, { kind: 'command' }>

@@ -6,6 +6,6 @@ import { typedHandle } from './typed-ipc'
 export function registerBackgroundStartHandlers(): void {
   typedHandle('app:get-background-start', () => Effect.promise(readBackgroundStart))
   typedHandle('app:set-background-start', (_event, enabled: boolean) =>
-    Effect.promise(() => writeBackgroundStart(enabled === true)),
+    Effect.promise(() => writeBackgroundStart(enabled)),
   )
 }

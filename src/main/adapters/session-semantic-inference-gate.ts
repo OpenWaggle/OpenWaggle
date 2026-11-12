@@ -44,10 +44,15 @@ export class SessionSemanticInferenceGate {
   readonly #queue: PendingInference[] = []
   #active = 0
 
+  private readonly maxConcurrent: number
+  private readonly maxQueued: number
+
   constructor(
-    private readonly maxConcurrent = DEFAULT_MAX_CONCURRENT_QUERY_INFERENCES,
-    private readonly maxQueued = DEFAULT_MAX_QUEUED_QUERY_INFERENCES,
+    maxConcurrent = DEFAULT_MAX_CONCURRENT_QUERY_INFERENCES,
+    maxQueued = DEFAULT_MAX_QUEUED_QUERY_INFERENCES,
   ) {
+    this.maxConcurrent = maxConcurrent
+    this.maxQueued = maxQueued
     if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent <= 0) {
       throw new Error('Semantic inference concurrency must be a positive safe integer.')
     }
@@ -108,8 +113,9 @@ export class SessionSemanticInferenceGate {
           pending.reject(cause)
         })
         .finally(() => {
-          if (pending.abortListener)
+          if (pending.abortListener) {
             pending.signal?.removeEventListener('abort', pending.abortListener)
+          }
           this.#active -= 1
           this.#pump()
         })

@@ -3,6 +3,7 @@ import {
   DEFAULT_SESSION_AGENT_CAPABILITIES,
   type SessionCapability,
 } from '@shared/types/session-capability'
+import { valuesIn } from '@shared/utils/set-membership'
 import * as Effect from 'effect/Effect'
 import {
   authorizeSessionTarget,
@@ -81,13 +82,11 @@ function resolveOriginAuthority(
         baseScopeAuthorized: baseRelationshipAuthorized,
       }
     }
-    if (!originProfile || originProfile.revoked_at !== null) {
+    if (originProfile?.revoked_at !== null) {
       return { blockReason: 'profile_revoked' as const, effectiveCapabilities: capabilities }
     }
     const originAuthority = profileAuthority(originProfile)
-    const effectiveCapabilities = capabilities.filter((capability) =>
-      originAuthority.capabilities.includes(capability),
-    )
+    const effectiveCapabilities = valuesIn(capabilities, originAuthority.capabilities)
     return {
       effectiveCapabilities,
       originProfile,
@@ -109,7 +108,7 @@ function resolveSourceCapabilities(source: SourceRow) {
     : DEFAULT_SESSION_AGENT_CAPABILITIES
   return {
     capabilities: profile.sessionCapabilities
-      ? granted.filter((capability) => profile.sessionCapabilities?.includes(capability))
+      ? valuesIn(granted, profile.sessionCapabilities)
       : granted,
   }
 }
@@ -166,8 +165,9 @@ export function sessionAgentBlockReason(
     if (relationshipBlock) return relationshipBlock
     const derivedCapabilities =
       source.target_grant_revoked_at === null
-        ? decodedCapabilities(source.target_grant_capabilities_json).filter((capability) =>
-            origin.effectiveCapabilities.includes(capability),
+        ? valuesIn(
+            decodedCapabilities(source.target_grant_capabilities_json),
+            origin.effectiveCapabilities,
           )
         : []
     const authorization = authorizeSessionTargetForCaller(

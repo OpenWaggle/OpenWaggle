@@ -19,25 +19,29 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 function exportPage(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
+  if (!isRecord(value) || !isRecord(value['response']) || !isRecord(value['response']['outcome'])) {
     return undefined
   }
-  const outcome = value.response.outcome
+  const outcome = value['response']['outcome']
   if (!isRecord(outcome)) return undefined
-  if ('error' in outcome && isRecord(outcome.error)) throw pageQueryRefusal(outcome.error)
-  if (!('manifest' in outcome) || !Array.isArray(outcome.records)) return undefined
+  if ('error' in outcome && isRecord(outcome['error'])) throw pageQueryRefusal(outcome['error'])
+  if (!('manifest' in outcome) || !Array.isArray(outcome['records'])) return undefined
   return {
-    manifest: outcome.manifest,
-    records: outcome.records,
+    manifest: outcome['manifest'],
+    records: outcome['records'],
     nextCreatedOrder:
-      typeof outcome.nextCreatedOrder === 'number' ? outcome.nextCreatedOrder : undefined,
+      typeof outcome['nextCreatedOrder'] === 'number' ? outcome['nextCreatedOrder'] : undefined,
   }
 }
 
 function markdownContent(content: unknown) {
   if (typeof content === 'string') return content
-  if (isRecord(content) && typeof content.text === 'string') return content.text
+  if (isRecord(content) && typeof content['text'] === 'string') return content['text']
   return `\`\`\`json\n${JSON.stringify(content, null, JSON_INDENT_SPACES)}\n\`\`\``
+}
+
+function textField(value: unknown, fallback: string) {
+  return typeof value === 'string' ? value : fallback
 }
 
 function writeHeader(manifest: unknown, format: ExportFormat) {
@@ -46,16 +50,16 @@ function writeHeader(manifest: unknown, format: ExportFormat) {
   }
   const value = isRecord(manifest) ? manifest : {}
   return writeCliStdout(
-    `# ${String(value.title ?? 'Session export')}\n\n` +
-      `- Session: ${String(value.sessionId ?? '')}\n` +
-      `- Scope: ${String(value.branchScope ?? '')}\n` +
-      `- Active turn incomplete: ${value.activeTurnIncomplete === true ? 'yes' : 'no'}\n\n`,
+    `# ${textField(value['title'], 'Session export')}\n\n` +
+      `- Session: ${textField(value['sessionId'], '')}\n` +
+      `- Scope: ${textField(value['branchScope'], '')}\n` +
+      `- Active turn incomplete: ${value['activeTurnIncomplete'] === true ? 'yes' : 'no'}\n\n`,
   )
 }
 
 /** One exported record as Markdown: its heading (the Host's notice is not the user) and content. */
 export function markdownExportRecord(record: Record<string, unknown>) {
-  return `## ${sessionExportMarkdownHeading(record)}\n\n${markdownContent(record.content ?? record)}\n\n`
+  return `## ${sessionExportMarkdownHeading(record)}\n\n${markdownContent(record['content'] ?? record)}\n\n`
 }
 
 async function writeRecords(records: readonly unknown[], format: ExportFormat) {

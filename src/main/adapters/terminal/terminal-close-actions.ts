@@ -130,8 +130,9 @@ export function closeOwnerTerminalsAction(
         )
         await stopRecordsForDestructiveClose(runtime, ownerRecords)
         await proveRetainedProcessTreesStopped(runtime, ownerRecords)
-        for (const record of ownerRecords)
+        for (const record of ownerRecords) {
           await finalizeClosedRecord(context, record, deleteHistory)
+        }
         for (const key of [...context.pendingInputByKey.keys()]) {
           if (ownerKeyFromTerminalKey(key) === ownerKey) context.pendingInputByKey.delete(key)
         }

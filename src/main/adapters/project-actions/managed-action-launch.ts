@@ -169,8 +169,9 @@ function forgetSettledLaunch(
     (!initiallyPersisted && !starting.stopPromise) ||
     !starting.terminalRun ||
     (starting.terminalPersisted && !starting.stopPromise)
-  )
+  ) {
     context.starting.delete(starting.run.id)
+  }
   starting.resolveSettled()
 }
 

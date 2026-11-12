@@ -1,4 +1,4 @@
-import type { DesktopServiceRequest } from '@shared/types/desktop-service'
+import type { DesktopServiceRequest, DesktopServiceResponse } from '@shared/types/desktop-service'
 import { executeLocalSessionCommand } from './local-session-client'
 import type { LocalSessionHostPaths } from './local-session-paths'
 
@@ -19,8 +19,28 @@ export function makeGuiDesktopServiceRequest(
       timeoutMs: REQUEST_TIMEOUT_MS,
       payload: { contract: 'desktop-service-v1', request: message },
     })
-    if (result.contract !== 'desktop-service-v1')
+    if (result.contract !== 'desktop-service-v1') {
       throw new Error('Invalid desktop-service response contract.')
+    }
     return result.response
+  }
+}
+
+type AcknowledgedOperation = Extract<DesktopServiceResponse, { accepted: boolean }>['operation']
+/** A request whose response says whether the Host accepted it. */
+export type AcknowledgedDesktopRequest = Extract<
+  DesktopServiceRequest,
+  { operation: AcknowledgedOperation }
+>
+
+/** Throws `message` unless the Host answered `operation` and accepted it. */
+export function requireAcknowledged<Operation extends AcknowledgedOperation>(
+  response: DesktopServiceResponse,
+  operation: Operation,
+  message: string,
+  options?: ErrorOptions,
+): asserts response is Extract<DesktopServiceResponse, { operation: Operation }> {
+  if (response.operation !== operation || !('accepted' in response) || !response.accepted) {
+    throw new Error(message, options)
   }
 }

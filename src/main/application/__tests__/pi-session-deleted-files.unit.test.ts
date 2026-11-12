@@ -38,7 +38,7 @@ const detail: SessionDetail = {
   updatedAt: 1,
 }
 
-function withFiles<A, E>(continuation: PiSessionContinuation, effect: Effect.Effect<A, E, never>) {
+function withFiles<A, E>(continuation: PiSessionContinuation, effect: Effect.Effect<A, E>) {
   const layer = Layer.mergeAll(
     Layer.succeed(
       PiSessionDiscoveryRepository,

@@ -25,8 +25,8 @@ export const INPUT: TerminalOpenInput = {
 
 export interface FakePty {
   readonly pty: IPty
-  readonly dataListeners: Array<(data: string) => void>
-  readonly exitListeners: Array<(event: { readonly exitCode: number }) => void>
+  readonly dataListeners: ((data: string) => void)[]
+  readonly exitListeners: ((event: { readonly exitCode: number }) => void)[]
   readonly emitExit: (exitCode?: number) => void
   readonly emitProcessTreeExit: (exitCode?: number) => void
   readonly resolveResourceDrain: () => void
@@ -48,7 +48,7 @@ export interface FakePty {
 }
 
 export function makeFakePty(pid: number): FakePty {
-  const dataListeners: Array<(data: string) => void> = []
+  const dataListeners: ((data: string) => void)[] = []
   const nativeLifecycle = makeTerminalLifecycleHarness()
   const { exitListeners } = nativeLifecycle
   const write = vi.fn()

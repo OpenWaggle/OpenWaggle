@@ -59,7 +59,7 @@ export function normalizeLegacyProjectPath(projectPath: string) {
 
 /** Server entries of an old OpenWaggle MCP file: `mcpServers`, else the `servers` alias. */
 export function legacyServerMap(config: Record<string, unknown>) {
-  if (isRecord(config.mcpServers)) return config.mcpServers
-  if (isRecord(config.servers)) return config.servers
+  if (isRecord(config['mcpServers'])) return config['mcpServers']
+  if (isRecord(config['servers'])) return config['servers']
   return {}
 }

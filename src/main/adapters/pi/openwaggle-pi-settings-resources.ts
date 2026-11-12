@@ -76,8 +76,8 @@ function getPackageSource(value: JsonValue): string | null {
   if (typeof value === 'string') {
     return value
   }
-  if (isJsonObject(value) && typeof value.source === 'string') {
-    return value.source
+  if (isJsonObject(value) && typeof value['source'] === 'string') {
+    return value['source']
   }
   return null
 }
@@ -247,27 +247,27 @@ export function withOpenWaggleResourcePrecedence(
     ...settings,
     ...(packageSources.length > 0
       ? {
-          packages: prependPackageSources(projectPath, settings.packages, packageSources),
+          packages: prependPackageSources(projectPath, settings['packages'], packageSources),
         }
       : {}),
     skills: prependResourceRoots(
       projectPath,
-      settings.skills,
+      settings['skills'],
       getImplicitResourceRoots(projectPath, 'skills', options),
     ),
     extensions: prependResourceRoots(
       projectPath,
-      settings.extensions,
+      settings['extensions'],
       getImplicitExtensionResourceRoots(projectPath, options),
     ),
     prompts: prependResourceRoots(
       projectPath,
-      settings.prompts,
+      settings['prompts'],
       getImplicitResourceRoots(projectPath, 'prompts', options),
     ),
     themes: prependResourceRoots(
       projectPath,
-      settings.themes,
+      settings['themes'],
       getImplicitResourceRoots(projectPath, 'themes', options),
     ),
   }

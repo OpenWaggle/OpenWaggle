@@ -50,7 +50,7 @@ export function readBrowserPreviewAutomationEnabled(settings: {
   readonly get: () => Effect.Effect<{ readonly enableAgentBrowserAccess: boolean }, unknown>
 }) {
   return settings.get().pipe(
-    Effect.map((snapshot) => snapshot.enableAgentBrowserAccess === true),
+    Effect.map((snapshot) => snapshot.enableAgentBrowserAccess),
     Effect.catchAllCause((cause) =>
       Effect.sync(() => {
         logger.warn('Failed to read browser preview agent access; disabling it', {

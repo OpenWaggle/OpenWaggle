@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { match } from '@diegogbrisa/ts-match'
-import type { ExtensionContext, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 import { isActiveActionRun } from '@shared/types/action-runs'
 import { SessionId } from '@shared/types/brand'
@@ -14,6 +14,7 @@ import type { SessionWorkspaceResourceRepositoryShape } from '../../ports/sessio
 import { getOpenWaggleAuthorize } from './agent-kernel/openwaggle-authorize-channel'
 import { announceOnDemandTools, onDemandToolRegistration } from './openwaggle-on-demand-tools'
 import { proposeRepair } from './project-actions-repair-proposal'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 const identifier = Type.String({ minLength: 1, maxLength: ACTION_DEFINITION_LIMITS.ID_LENGTH })
 /** Proposal text must contain something other than whitespace. */
@@ -125,7 +126,7 @@ async function authorize(
         },
         ...(signal ? { signal } : {}),
       })
-    : await ctx.ui.confirm(title, message, { signal })
+    : await ctx.ui.confirm(title, message, signal ? { signal } : {})
   if (!approved) throw new Error('The action was not authorized.')
 }
 
@@ -144,7 +145,7 @@ async function startAction(
         run.action.id === params.actionId && isActiveActionRun(run) && !run.action.allowConcurrent,
     )
     // Returning a running snapshot is read-only, including after its saved definition was removed.
-    if (active)
+    if (active) {
       return Effect.runPromise(
         input.runs.start({
           workspace,
@@ -153,6 +154,7 @@ async function startAction(
           reuseRunId: active.id,
         }),
       )
+    }
   }
   const catalog = await Effect.runPromise(input.catalog.read(workspace))
   const definition = catalog.actions.find(
@@ -222,7 +224,9 @@ async function execute(
 const PROJECT_ACTIONS_RULE =
   "This Workspace's saved project actions and dev servers (project_actions: list, start, output, stop) load with tool_search or run from codemode."
 
-export function createProjectActionsToolExtension(input: ProjectActionToolInput): ExtensionFactory {
+export function createProjectActionsToolExtension(
+  input: ProjectActionToolInput,
+): SynchronousExtensionFactory {
   return (pi) => {
     onDemandToolRegistration(pi).registerTool({
       name: 'project_actions',

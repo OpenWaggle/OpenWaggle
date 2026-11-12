@@ -215,7 +215,14 @@ describe('invokeExtensionCapability', () => {
     expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNDECLARED_METHOD)
   })
 
-  it('rejects contributions that omit the requested method binding', async () => {
+  it.each([
+    { binding: 'omits the requested method binding', methods: [], method: {} },
+    {
+      binding: 'binds a method other than the requested one',
+      methods: ['inspect'],
+      method: { method: 'inspect' },
+    },
+  ])('rejects a contribution that $binding', async ({ methods, method }) => {
     const extensionPackage = makePackage({
       id: BROKER_EXTENSION_ID,
       name: 'Broker Extension',
@@ -223,7 +230,7 @@ describe('invokeExtensionCapability', () => {
       capabilities: [
         {
           id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-          methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE],
+          methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE, ...methods],
           scopes: ['project'],
         },
       ],
@@ -233,38 +240,7 @@ describe('invokeExtensionCapability', () => {
             id: BROKER_CONTRIBUTION_ID,
             title: 'Run Broker',
             capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-          },
-        ],
-      },
-    })
-    const result = await runBroker({
-      invocation: makeProjectInvocation(),
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-    })
-
-    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNDECLARED_METHOD)
-  })
-
-  it('rejects contributions whose method binding differs from the requested method', async () => {
-    const extensionPackage = makePackage({
-      id: BROKER_EXTENSION_ID,
-      name: 'Broker Extension',
-      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
-      capabilities: [
-        {
-          id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-          methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE, 'inspect'],
-          scopes: ['project'],
-        },
-      ],
-      contributions: {
-        commands: [
-          {
-            id: BROKER_CONTRIBUTION_ID,
-            title: 'Run Broker',
-            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-            method: 'inspect',
+            ...method,
           },
         ],
       },

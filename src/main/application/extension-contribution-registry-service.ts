@@ -13,10 +13,6 @@ import type {
 } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import {
-  ExtensionManagerService,
-  type ExtensionManagerServiceShape,
-} from '../ports/extension-manager-service'
-import {
   ExtensionProjectOverridesRepository,
   type ExtensionProjectOverridesRepositoryShape,
 } from '../ports/extension-project-overrides-repository'
@@ -31,10 +27,13 @@ import {
 import type { ContributionIconDeclaration } from './extension-contribution-registry-types'
 import {
   appendExtensionDiagnostic,
-  makeDiscoveryFailurePackage,
   makeExtensionFailureDiagnostic,
-  scopeForProjectPath,
 } from './extension-failure-isolation-model'
+import {
+  loadScopedExtensionPackages,
+  normalizeExtensionProjectPaths,
+  packageRequestedProjectPaths,
+} from './extension-package-listing'
 
 interface ContributionRegistryPackageResult {
   readonly entries: readonly ExtensionContributionRegistryEntry[]
@@ -42,65 +41,9 @@ interface ContributionRegistryPackageResult {
   readonly iconDeclarations: readonly ContributionIconDeclaration[]
 }
 
-function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
-  const normalizedProjectPaths: string[] = []
-  const seenProjectPaths = new Set<string>()
-  for (const projectPath of projectPaths ?? []) {
-    const normalized = projectPath.trim()
-    if (normalized.length > 0 && !seenProjectPaths.has(normalized)) {
-      seenProjectPaths.add(normalized)
-      normalizedProjectPaths.push(normalized)
-    }
-  }
-  return normalizedProjectPaths
-}
-
 function normalizeSessionId(sessionId: string | undefined) {
   const normalized = sessionId?.trim()
   return normalized && normalized.length > 0 ? normalized : undefined
-}
-
-function isGlobalPackage(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-}
-
-function listPackagesSafely(manager: ExtensionManagerServiceShape, projectPath: string | null) {
-  return manager
-    .listPackages({ projectPath })
-    .pipe(
-      Effect.catchAll((error) =>
-        Effect.succeed([
-          makeDiscoveryFailurePackage({ scope: scopeForProjectPath(projectPath), error }),
-        ]),
-      ),
-    )
-}
-
-function isProjectPackageForPath(
-  extensionPackage: DiscoveredExtensionPackage,
-  projectPath: string,
-) {
-  return (
-    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
-    extensionPackage.scope.projectPath === projectPath
-  )
-}
-
-function getCandidateProjectPaths(
-  extensionPackage: DiscoveredExtensionPackage,
-  requestedProjectPaths: readonly string[],
-) {
-  if (requestedProjectPaths.length === 0) {
-    return []
-  }
-
-  if (extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return requestedProjectPaths
-  }
-
-  return requestedProjectPaths.includes(extensionPackage.scope.projectPath)
-    ? [extensionPackage.scope.projectPath]
-    : []
 }
 
 function diagnosticsToView(
@@ -112,26 +55,6 @@ function diagnosticsToView(
     message: diagnostic.message,
     ...(diagnostic.path !== undefined ? { path: diagnostic.path } : {}),
   }))
-}
-
-function loadContributionPackages(projectPaths: readonly string[]) {
-  return Effect.gen(function* () {
-    const manager = yield* ExtensionManagerService
-    const globalPackages = yield* listPackagesSafely(manager, null).pipe(
-      Effect.map((packages) => packages.filter(isGlobalPackage)),
-    )
-    const projectPackageGroups = yield* Effect.forEach(projectPaths, (projectPath) =>
-      listPackagesSafely(manager, projectPath).pipe(
-        Effect.map((packages) =>
-          packages.filter((extensionPackage) =>
-            isProjectPackageForPath(extensionPackage, projectPath),
-          ),
-        ),
-      ),
-    )
-
-    return [...globalPackages, ...projectPackageGroups.flat()]
-  })
 }
 
 function unavailableProjectOverrideLookup(input: {
@@ -265,15 +188,15 @@ function packageToContributionEntriesSafely(input: {
  */
 export function buildExtensionContributionRegistry(input: ExtensionListContributionsInput = {}) {
   return Effect.gen(function* () {
-    const projectPaths = normalizeProjectPaths(input.projectPaths)
-    const packages = yield* loadContributionPackages(projectPaths)
+    const projectPaths = normalizeExtensionProjectPaths(input.projectPaths)
+    const packages = yield* loadScopedExtensionPackages(projectPaths)
     yield* Effect.sync(() => {
       pruneCachedPackageContributionRegistrations(packages)
     })
     const packageResults = yield* Effect.forEach(packages, (extensionPackage) =>
       Effect.gen(function* () {
         const lifecycleLookup = yield* loadLifecycle(extensionPackage)
-        const candidateProjectPaths = getCandidateProjectPaths(extensionPackage, projectPaths)
+        const candidateProjectPaths = packageRequestedProjectPaths(extensionPackage, projectPaths)
         const projectOverrides = yield* loadProjectOverrides(
           lifecycleLookup.extensionPackage,
           candidateProjectPaths,

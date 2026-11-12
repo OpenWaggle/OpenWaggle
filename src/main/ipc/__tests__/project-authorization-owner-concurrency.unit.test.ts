@@ -24,14 +24,12 @@ vi.mock('../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUiRaw: mocks.invokeHost,
 }))
 vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 // Retain the GUI module graph while resetting imports for the independently started Host below.
@@ -47,7 +45,7 @@ function deferred() {
 
 function runOwner<A>(effect: Effect.Effect<A, unknown, unknown>) {
   // Deliberately omit unrelated Host services: a misrouted operation must fail for a missing port.
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof effect>(effect))
 }
 
 const originalKey: AgentAuthorizationScopeKey = {

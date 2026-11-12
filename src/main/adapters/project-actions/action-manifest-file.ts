@@ -47,14 +47,16 @@ export async function readActionConfigSource(
     if (isEnoent(error)) return null
     throw error
   })
-  if (directory?.isSymbolicLink())
+  if (directory?.isSymbolicLink()) {
     throw new Error(`${CONFIG_DIRECTORY} must be a directory, not a symbolic link.`)
+  }
   const file = await lstat(join(workspace, source)).catch((error: unknown) => {
     if (isEnoent(error)) return null
     throw error
   })
-  if (file?.isSymbolicLink())
+  if (file?.isSymbolicLink()) {
     throw new Error(`${source} must be a regular file, not a symbolic link.`)
+  }
   return readTaskSource(workspace, source)
 }
 

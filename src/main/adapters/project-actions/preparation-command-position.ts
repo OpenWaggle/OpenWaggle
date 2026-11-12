@@ -73,8 +73,9 @@ function observeEvalCaseWord(state: EvalPrefixState) {
     arm.phase = 'pattern'
     return
   }
-  if (state.word === 'esac' && (arm.phase === 'pattern' || state.commandPosition))
+  if (state.word === 'esac' && (arm.phase === 'pattern' || state.commandPosition)) {
     state.caseArms.pop()
+  }
 }
 
 function finishEvalPrefixWord(state: EvalPrefixState) {
@@ -84,8 +85,9 @@ function finishEvalPrefixWord(state: EvalPrefixState) {
       observeEvalCaseWord(state)
       const option = isSupportedPrefixOption(state.prefix, state.word)
       state.commandPosition = state.commandPosition && (option || keepsCommandPosition(state.word))
-      if (option && state.word === '--')
+      if (option && state.word === '--') {
         state.prefix = state.prefix === 'builtin' ? 'builtin-end-options' : 'command-end-options'
+      }
       if (!option) state.prefix = commandPrefix(state.word)
     }
   }
@@ -140,8 +142,9 @@ function visitEvalPrefixSeparator(command: string, cursor: number, state: EvalPr
     arm?.depth === state.groups.length &&
     arm.phase === 'body' &&
     (terminator === ';;' || terminator === ';&')
-  )
+  ) {
     arm.phase = 'pattern'
+  }
   finishEvalPrefixWord(state)
   state.commandPosition = true
   state.redirectionTarget = false
@@ -155,7 +158,7 @@ function visitEvalPrefixUnquoted(
   index: number,
   state: EvalPrefixState,
 ) {
-  const character = command[cursor]
+  const character = command.charAt(cursor)
   if (character === '\\' && cursor + 1 < index) {
     if (command[cursor + 1] === '\n') return cursor + 1
     state.word += character + command[cursor + 1]

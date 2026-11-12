@@ -39,7 +39,7 @@ const manifest: SessionExportManifest = {
 
 describe('SQLite Session export operation repository', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeSessionExportOperationRuntime>> = []
+  const runtimes: ReturnType<typeof makeSessionExportOperationRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-export-operation-'))

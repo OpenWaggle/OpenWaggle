@@ -68,7 +68,7 @@ function timeoutFields(opts: PiDialogOptions) {
 
 function mergedSignal(input: {
   readonly runSignal: AbortSignal
-  readonly interactionSignal?: AbortSignal
+  readonly interactionSignal?: AbortSignal | undefined
 }) {
   if (!input.interactionSignal) return input.runSignal
   return AbortSignal.any([input.runSignal, input.interactionSignal])
@@ -243,7 +243,10 @@ function createDeclaredConfirmChannel(
 ): OpenWaggleDeclaredConfirm {
   return async (request) => {
     const interaction = {
-      ...baseInteraction({ context, opts: { signal: request.signal } }),
+      ...baseInteraction({
+        context,
+        opts: request.signal ? { signal: request.signal } : {},
+      }),
       kind: 'confirm',
       title: request.title,
       message: request.message,

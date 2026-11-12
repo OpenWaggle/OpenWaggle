@@ -28,7 +28,7 @@ import {
 import { executeLocalUiSessionCommand } from '../../application/local-ui-session-service'
 import { organizeSession } from '../../application/session-organization-service'
 
-const closed: Array<readonly [string, boolean]> = []
+const closed: (readonly [string, boolean])[] = []
 const order: string[] = []
 const scopes: unknown[] = []
 let terminalError: Error | null = null
@@ -50,8 +50,9 @@ function testLayer() {
           Effect.gen(function* () {
             closed.push([ownerKey, deleteHistory])
             order.push(deleteHistory ? 'terminal:delete-history' : 'terminal:stop')
-            if (!deleteHistory && stopBarrier !== null)
+            if (!deleteHistory && stopBarrier !== null) {
               yield* Effect.promise(() => stopBarrier ?? Promise.resolve())
+            }
             const failure = deleteHistory ? historyError : terminalError
             if (failure !== null) return yield* Effect.fail(failure)
           }),
@@ -164,7 +165,7 @@ function invoke(mutation: 'delete' | 'archive', id = 'session-target') {
           },
         }).pipe(Effect.asVoid)
   const provided = effect.pipe(Effect.provide(testLayer()))
-  return Effect.runPromise(fromAny<Effect.Effect<void, unknown, never>, typeof provided>(provided))
+  return Effect.runPromise(fromAny<Effect.Effect<void, unknown>, typeof provided>(provided))
 }
 
 describe('Host-owned Session terminal cleanup', () => {

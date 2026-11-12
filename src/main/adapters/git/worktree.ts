@@ -296,10 +296,12 @@ export async function validateGitWorktreeRemoval(
     }
   }
   if (!registered) return worktreeFailure('not-found', 'Worktree not found.')
-  if (registered.locked && !payload.force)
+  if (registered.locked && !payload.force) {
     return worktreeFailure('unknown', 'Worktree is locked. Unlock it before removing it.')
-  if (payload.force && !payload.lockOnly)
+  }
+  if (payload.force && !payload.lockOnly) {
     return { ok: true, message: 'Worktree can be force-removed.', path: worktreePath }
+  }
   // A lock-only force still keeps uncommitted work: it is checked here, before and after cleanup.
   return (
     (await uncommittedWorkRefusal(worktreePath)) ?? {

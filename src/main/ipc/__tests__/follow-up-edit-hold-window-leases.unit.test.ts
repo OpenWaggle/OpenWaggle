@@ -112,12 +112,20 @@ describe('FollowUpEditHoldWindowLeases', () => {
     expect(dependencies.release).not.toHaveBeenCalled()
   })
 
-  it('watches a window again after it reloaded', () => {
+  it('releases a hold taken after its window reloaded when that window goes too', async () => {
     const { leases, dependencies, goneCallbacks } = harness()
     leases.track(7, HOLD)
+    // A window's gone signal fires once; tracking after the reload must watch it again.
+    const firstPageGone = goneCallbacks.get(7)
+    goneCallbacks.delete(7)
+    firstPageGone?.()
+    const afterReload = { ...HOLD, holdId: 'hold-after-reload' }
+    leases.track(7, afterReload)
+
     goneCallbacks.get(7)?.()
-    leases.track(7, { ...HOLD, holdId: 'hold-after-reload' })
-    expect(dependencies.watchWindow).toHaveBeenCalledTimes(2)
+
+    await vi.waitFor(() => expect(dependencies.release).toHaveBeenCalledWith(afterReload))
+    expect(leases.heldBy(7)).toEqual([])
   })
 })
 

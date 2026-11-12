@@ -70,7 +70,7 @@ export class HostBackgroundGate {
   private lastSlimAt = Number.NEGATIVE_INFINITY
   private open = false
   private timer: { readonly cancel: () => void } | undefined
-  private waiters: Array<() => void> = []
+  private waiters: (() => void)[] = []
   private readonly slimHooks = new Set<SlimHook>()
   private slimmed = false
   private readonly foregroundCommands = new Set<{ readonly startedAt: number }>()
@@ -78,10 +78,16 @@ export class HostBackgroundGate {
   private quietTimer: { readonly cancel: () => void } | undefined
   private quietWaiters = new Set<QuietWaiter>()
 
+  private readonly clock: HostBackgroundGateClock
+  private readonly onSlimFailed: (error: unknown) => void
+
   constructor(
-    private readonly clock: HostBackgroundGateClock = systemClock,
-    private readonly onSlimFailed: (error: unknown) => void = () => undefined,
-  ) {}
+    clock: HostBackgroundGateClock = systemClock,
+    onSlimFailed: (error: unknown) => void = () => undefined,
+  ) {
+    this.clock = clock
+    this.onSlimFailed = onSlimFailed
+  }
 
   /** The Session Host gates its background work from now on; nothing runs until a client. */
   enable() {

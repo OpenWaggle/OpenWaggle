@@ -11,7 +11,7 @@ const { claimAppInstance, requestOpenProject, takeOpenProjectRequest } =
   await import('../open-project-requests')
 const { takeOpenSessionLinkRequest } = await import('../session-link-requests')
 type AppInstanceHost = Parameters<typeof claimAppInstance>[0]['host']
-type SecondInstanceListener = Parameters<AppInstanceHost['on']>[1]
+type SecondInstanceListener = Parameters<AppInstanceHost['onSecondInstance']>[0]
 
 const root = mkdtempSync(path.join(tmpdir(), 'openwaggle-open-project-'))
 const project = path.join(root, 'project')
@@ -27,12 +27,15 @@ function fakeHost(lockGranted: boolean) {
       lockData.push(data)
       return lockGranted
     },
-    on: (_event, listener) => {
+    onSecondInstance: (listener) => {
       listeners.push(listener)
+      return () => undefined
     },
   }
   const launchAgain = (data: unknown) => {
-    for (const listener of listeners) listener({}, [], root, data)
+    for (const listener of listeners) {
+      listener({ argv: [], workingDirectory: root, additionalData: data })
+    }
   }
   return { host, lockData, launchAgain, listeners }
 }

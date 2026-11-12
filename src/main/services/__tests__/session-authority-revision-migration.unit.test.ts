@@ -37,21 +37,21 @@ describe('the durable authority revision (D4)', () => {
             management_envelope_json, created_at, updated_at
           ) VALUES ('p', 'profile', 'v', '[]', '{}', 'ask-for-approval', '{}', 1, 1)
         `
-        steps.profileCreated = yield* revision(sql)
+        steps['profileCreated'] = yield* revision(sql)
         yield* sql`UPDATE session_client_profiles SET last_authenticated_at = 2 WHERE id = 'p'`
-        steps.authenticated = yield* revision(sql)
+        steps['authenticated'] = yield* revision(sql)
         yield* sql`UPDATE session_client_profiles SET revoked_at = 3 WHERE id = 'p'`
-        steps.revoked = yield* revision(sql)
+        steps['revoked'] = yield* revision(sql)
         yield* sql`
           INSERT INTO workspace_resources (
             id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
           ) VALUES ('w', '/p', 'local', '/p', 'ready', 1, 1)
         `
-        steps.workspaceCreated = yield* revision(sql)
+        steps['workspaceCreated'] = yield* revision(sql)
         yield* sql`UPDATE workspace_resources SET updated_at = 2 WHERE id = 'w'`
-        steps.workspaceTouched = yield* revision(sql)
+        steps['workspaceTouched'] = yield* revision(sql)
         yield* sql`UPDATE workspace_resources SET working_path = '/q' WHERE id = 'w'`
-        steps.workspaceMoved = yield* revision(sql)
+        steps['workspaceMoved'] = yield* revision(sql)
         return steps
       }).pipe(
         Effect.provide(

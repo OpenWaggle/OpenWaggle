@@ -62,8 +62,9 @@ function runFiring(run: ScheduledTaskRun, timeZone: string | undefined) {
 function taskState(task: ScheduledTask) {
   if (task.attention) return 'needs attention'
   if (task.heartbeat?.autoPause) return task.heartbeat.autoPause.message
-  if (task.heartbeat?.wakeCheck?.approval === 'pending')
+  if (task.heartbeat?.wakeCheck?.approval === 'pending') {
     return 'waiting for you to approve its wake check'
+  }
   return task.enabled ? 'on' : 'paused'
 }
 

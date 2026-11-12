@@ -50,7 +50,7 @@ function validateMergeCandidate(
 function isDetailsFailure(
   candidate: VcsChangeRequestDetails | SourceControlFailure,
 ): candidate is SourceControlFailure {
-  return 'ok' in candidate && candidate.ok === false
+  return 'ok' in candidate && !candidate.ok
 }
 
 /** Validate an owned, mergeable request with the expected head before the window confirms it. */

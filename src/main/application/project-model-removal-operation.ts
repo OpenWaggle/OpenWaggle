@@ -37,7 +37,7 @@ function clearProjectModelEntry(
  */
 function retireLegacyFileModel(
   candidate: string,
-): Effect.Effect<{ tombstone: boolean; legacyModel: string | undefined }, never> {
+): Effect.Effect<{ tombstone: boolean; legacyModel: string | undefined }> {
   return Effect.gen(function* () {
     const fileRead = yield* Effect.promise(() =>
       getProjectPreferencesStrict(candidate)

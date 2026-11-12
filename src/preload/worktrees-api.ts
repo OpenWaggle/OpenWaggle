@@ -1,4 +1,4 @@
-import { invoke } from './ipc-bindings'
+import { invoke } from './electron-transport'
 
 /** Worktree listing, creation and removal, and Settings > Worktrees (ADR 0060). */
 export const worktreesApi = {

@@ -1,16 +1,11 @@
-import type {
-  AgentSession,
-  ExtensionFactory,
-  InlineExtension,
-} from '@earendil-works/pi-coding-agent'
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import { resolveEffectiveAuthorizationMode } from '../../../application/agent-authorization-mode'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
 import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
-import { scratchDirectorySystemPrompt } from '../pi-provider-resources'
 import { extractPiAssistantTerminalError, getPiAssistantStopReason } from '../pi-run-result'
 import { disposeOpenWagglePiSession } from '../pi-session-lifecycle'
 import {
@@ -39,55 +34,21 @@ import { readRunProjectionBase } from './run-projection-base'
 import {
   createIsolatedPiProjectRuntime,
   createPiProjectModelRuntimeWithoutOpenWaggleExtensions,
-  type PiProjectRuntimeIsolationOptions,
-  type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
 import { createSessionManagerForSession, requireSessionProjectPath } from './session-manager'
-import { sessionFallbackModelReference } from './session-model-fallback'
 import { projectPiSessionSnapshot } from './session-projection'
+import { piSessionFileField } from './pi-session-file-field'
+import {
+  type CreatePiRunSessionRuntimeInput,
+  runtimeIsolationOptions,
+} from './run-session-runtime-input'
 
 export { promptPiSession } from './run-prompt'
+export { runSystemPromptAppendices } from './run-session-runtime-input'
 
 export interface PiRunSessionRuntime {
   readonly model: PiModel
   readonly session: AgentSession
-}
-
-interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInput {
-  readonly preparedEnvironment?: AgentKernelRunInput['preparedEnvironment']
-  readonly session: AgentKernelRunInput['session']
-  readonly projectPath: string
-  readonly runId: AgentKernelRunInput['runId']
-  readonly payload: HydratedAgentSendPayload
-  readonly modelReference: AgentKernelRunInput['model']
-  /** Continue on the last answering model if the selection is gone (never for a Waggle agent). */
-  readonly modelFallback?: 'last-answering-model'
-  readonly runAuthorizationOverride?: AgentKernelRunInput['runAuthorizationOverride']
-  readonly authorityCallerId?: AgentKernelRunInput['authorityCallerId']
-  readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
-  readonly signal: AgentKernelRunInput['signal']
-  readonly onEvent: AgentKernelRunInput['onEvent']
-  readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
-  readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly skillAllowlist?: readonly string[]
-  readonly extensionFactories?: readonly InlineExtension[]
-  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
-  readonly systemPromptAppendices?: readonly string[]
-  readonly visualizationDirectory?: string
-  readonly scratchDirectory?: string
-  readonly steeringInputHook?: boolean
-}
-
-/** Scratch guidance, then the caller's; the first-turn prefix budget measures this too. */
-export function runSystemPromptAppendices(
-  input: Pick<CreatePiRunSessionRuntimeInput, 'scratchDirectory' | 'systemPromptAppendices'>,
-  describeScratchDirectory: (scratchDirectory: string) => string = scratchDirectorySystemPrompt,
-) {
-  const appendices = [
-    ...(input.scratchDirectory ? [describeScratchDirectory(input.scratchDirectory)] : []),
-    ...(input.systemPromptAppendices ?? []),
-  ]
-  return appendices.length > 0 ? { systemPromptAppendices: appendices } : {}
 }
 
 function exposePiRunControl(
@@ -123,22 +84,7 @@ export async function createPiRunSessionRuntime(
   // Not awaited: Usage statistics never delay a Run. Authorization state belongs to the
   // repository, so this is the Session's project, not the run cwd.
   void notePiRunProjectDefaultForUsageStatistics(input.runId, input.session.projectPath)
-  const runtimeOptions = {
-    projectPath: input.projectPath,
-    modelReference: input.modelReference,
-    ...(input.modelFallback ? sessionFallbackModelReference(input.session) : {}),
-    compactionThresholdPercent: input.compactionThresholdPercent,
-    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
-    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
-    ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
-    ...(input.trustedExtensionFactories
-      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
-      : {}),
-    ...runSystemPromptAppendices(input),
-    ...(input.visualizationDirectory
-      ? { visualizationDirectory: input.visualizationDirectory }
-      : {}),
-  } satisfies PiProjectRuntimeIsolationOptions
+  const runtimeOptions = runtimeIsolationOptions(input)
   const selectedRuntime = await createIsolatedPiProjectRuntime({
     operation: 'Pi run session initialization',
     extensionIsolation: input,
@@ -222,7 +168,7 @@ function buildSuccessfulRunResult(input: {
   return {
     newMessages: input.newMessages,
     piSessionId: input.session.sessionId,
-    piSessionFile: input.session.sessionFile,
+    ...piSessionFileField(input.session.sessionFile),
     sessionSnapshot: projectPiSessionSnapshot(input.session, input.nodeIds, input.projectionBase),
     ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
@@ -297,7 +243,7 @@ export async function runSubscribedPiOperation(input: {
       aborted: operationAborted,
     })
   } catch (error) {
-    return buildFailedRunAfterSettlement({
+    return await buildFailedRunAfterSettlement({
       session: input.session,
       runInput: input.runInput,
       messageBoundary,

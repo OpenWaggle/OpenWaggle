@@ -19,10 +19,6 @@ export function isDesktopAppConnected() {
   return connectedDesktopSubscriptions > 0
 }
 
-export function resetDesktopAppPresenceForTests() {
-  connectedDesktopSubscriptions = 0
-}
-
 /** The caller the desktop app authenticates as (`local-session-authenticator`). */
 const DESKTOP_APP_CALLER_ID = 'gui:local-user'
 

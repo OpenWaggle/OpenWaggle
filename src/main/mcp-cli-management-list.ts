@@ -104,8 +104,9 @@ export async function listCommand({
   projectPath,
   context,
 }: McpManagementCommandInput): Promise<McpManagementExit> {
-  if (args.positional.length > 0)
+  if (args.positional.length > 0) {
     throw new McpCliUsageError('Usage: openwaggle mcp list [--json] [-l]')
+  }
   const view = await context.host.invoke('mcp:get-configuration', { projectPath })
   const inspections = await inspectEnabledServers(context, projectPath, view.servers)
   const reports = view.servers.map((server) => report(server, inspections.get(server.name), view))

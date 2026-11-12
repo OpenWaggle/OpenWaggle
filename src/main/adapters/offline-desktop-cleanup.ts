@@ -34,8 +34,9 @@ export function makeOfflineDesktopCleanupExecutor(logsDir: string) {
       })
     }
     if (command.service === 'terminal' && command.operation === 'closeAllForOwner') {
-      if (!command.input.ownerKey.trim())
+      if (!command.input.ownerKey.trim()) {
         return Effect.fail(new Error('A Session owner is required.'))
+      }
       return Effect.tryPromise({
         try: async () => {
           if (command.input.deleteHistory) await history.removeForOwner(command.input.ownerKey)

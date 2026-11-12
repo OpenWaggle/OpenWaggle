@@ -63,6 +63,16 @@ function sessionThinkingLevel(raw: string | null) {
   return executionThinkingLevel ? { executionThinkingLevel } : {}
 }
 
+/** The Session row's fields that are left out when the row has no value for them. */
+function optionalSessionRowFields(sessionRow: SessionRow) {
+  const waggleConfig = hydrateWaggleConfig(parseJsonValue(sessionRow.waggle_config_json))
+  return {
+    ...(sessionRow.pi_session_file === null ? {} : { piSessionFile: sessionRow.pi_session_file }),
+    ...(waggleConfig === undefined ? {} : { waggleConfig }),
+    ...(sessionRow.archived === 1 ? { archived: true } : {}),
+  }
+}
+
 function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   try {
     const environmentMode: SessionEnvironmentMode =
@@ -74,10 +84,8 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       ...sessionTitleSource(sessionRow.title_source),
       projectPath: sessionRow.project_path,
       piSessionId: sessionRow.pi_session_id,
-      piSessionFile: sessionRow.pi_session_file ?? undefined,
       messages: hydrateSessionMessages(getActivePathRows(sessionRow.last_active_node_id, nodeRows)),
-      waggleConfig: hydrateWaggleConfig(parseJsonValue(sessionRow.waggle_config_json)),
-      archived: sessionRow.archived === 1 ? true : undefined,
+      ...optionalSessionRowFields(sessionRow),
       createdAt: sessionRow.created_at,
       updatedAt: sessionRow.updated_at,
       environmentMode,

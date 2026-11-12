@@ -14,10 +14,9 @@ import type {
   ExtensionLifecycleState,
 } from '../extensions/types'
 import { isEntryContribution } from './extension-contribution-family-model'
-import {
-  type ContributionRegistrationEntry,
-  type ContributionRegistrationResult,
-  packageContributionRegistrations,
+import type {
+  ContributionRegistrationEntry,
+  ContributionRegistrationResult,
 } from './extension-contribution-registration-model'
 import { contributionToEntry } from './extension-contribution-registry-entry-model'
 import type {
@@ -196,21 +195,4 @@ export function packageToContributionEntriesWithRegistrationResolver(input: {
       validatedEntries.has(declaration.entry),
     ),
   } satisfies ContributionRegistryBuildResult
-}
-
-export function packageToContributionEntries(input: {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly lifecycle: ExtensionLifecycleState | null
-  readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
-  readonly requestedProjectPaths: readonly string[]
-  readonly requestedSessionId: string | undefined
-}) {
-  return packageToContributionEntriesWithRegistrationResolver({
-    extensionPackage: input.extensionPackage,
-    lifecycle: input.lifecycle,
-    projectOverrides: input.projectOverrides,
-    requestedProjectPaths: input.requestedProjectPaths,
-    requestedSessionId: input.requestedSessionId,
-    getRegistrationResult: packageContributionRegistrations,
-  })
 }

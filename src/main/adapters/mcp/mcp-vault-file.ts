@@ -48,20 +48,20 @@ function parseVaultEntry(name: string, value: unknown): VaultEntry {
 
 function parseVault(raw: string): VaultFile {
   const parsed: unknown = JSON.parse(raw)
-  if (!isRecord(parsed) || parsed.version !== 1) {
+  if (!isRecord(parsed) || parsed['version'] !== 1) {
     throw new McpVaultError({
       reason: 'io',
       message: 'OpenWaggle MCP vault has an unsupported format.',
     })
   }
-  if (!isRecord(parsed.secrets)) {
+  if (!isRecord(parsed['secrets'])) {
     throw new McpVaultError({
       reason: 'io',
       message: 'OpenWaggle MCP vault is missing its encrypted secret map.',
     })
   }
   const secrets: Record<string, VaultEntry> = {}
-  for (const [name, value] of Object.entries(parsed.secrets)) {
+  for (const [name, value] of Object.entries(parsed['secrets'])) {
     secrets[name] = parseVaultEntry(name, value)
   }
   return { version: 1, secrets }

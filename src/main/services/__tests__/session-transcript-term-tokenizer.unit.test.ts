@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { tokenizeSessionTranscriptTerms } from '../session-transcript-term-tokenizer'
 
 function originalTranscriptTerms(value: string) {
-  const normalized = [...value]
+  const normalized = Array.from(value)
     .map((character) =>
       /\p{Script=Latin}/u.test(character)
         ? character.normalize('NFD').replace(/\p{M}+/gu, '')

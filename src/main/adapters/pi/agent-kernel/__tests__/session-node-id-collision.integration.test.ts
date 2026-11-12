@@ -9,6 +9,7 @@ import { SessionRepository } from '../../../../ports/session-repository'
 import { SqliteSessionRepositoryLive } from '../../../sqlite-session-repository'
 import { projectPiSessionSnapshot } from '../session-projection'
 import { PiSessionTranscriptRepairLive } from '../snapshot-entry-id-repair'
+import { piSessionFileField } from '../pi-session-file-field'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -115,7 +116,7 @@ function persist(sessionId: SessionId, sessionManager: SessionManager) {
         nodes: snapshot.nodes,
         activeNodeId: snapshot.activeNodeId,
         piSessionId: sessionManager.getSessionId(),
-        piSessionFile: sessionManager.getSessionFile(),
+        ...piSessionFileField(sessionManager.getSessionFile()),
       })
     }),
   )

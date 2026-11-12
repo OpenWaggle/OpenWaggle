@@ -47,9 +47,9 @@ function decode<A, I>(schema: Schema.Schema<A, I>, raw: unknown) {
  * request, so a cold connection starts where the Session's Runs do and matches their connection.
  */
 function serverInput(input: {
-  readonly sessionId?: string | null
+  readonly sessionId?: string | null | undefined
   readonly serverInstanceId: string
-  readonly serverConfigHash?: string
+  readonly serverConfigHash?: string | undefined
 }) {
   return Effect.gen(function* () {
     const { sessionId, serverConfigHash } = input

@@ -59,8 +59,6 @@ Options:
 const STOP_OPTIONS = ['wait', 'timeout-ms', 'json', 'update'] as const
 const BOOLEAN_OPTIONS = new Set(['wait', 'json', 'update'])
 
-export { HOST_STOP_DEFAULT_TIMEOUT_MS } from './host-cli-stop-options'
-
 const HOST_STOP_POLL_INTERVAL_MS = 250
 
 type ClientInput = LocalSessionCliClientInput

@@ -36,7 +36,7 @@ describe('changing source-control settings one entry at a time', () => {
 
     expect(Object.keys(accounts)).toHaveLength(SOURCE_CONTROL_SETTINGS_RECORD_LIMIT)
     expect(accounts['repo-0']).toBeUndefined()
-    expect(accounts.newest).toBe('octo')
+    expect(accounts['newest']).toBe('octo')
   })
 
   it('keeps every entry when two writers patch at the same time', async () => {

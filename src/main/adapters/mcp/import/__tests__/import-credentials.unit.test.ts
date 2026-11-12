@@ -26,7 +26,7 @@ describe('credentials in an imported server entry', () => {
       args: ['--max-tokens', '4096', '--credentials-file', '/etc/llm.json', '--token-limit=5'],
     })
 
-    expect(result.entry.args).toEqual([
+    expect(result.entry['args']).toEqual([
       '--max-tokens',
       '4096',
       '--credentials-file',
@@ -49,7 +49,7 @@ describe('credentials in an imported server entry', () => {
       ],
     })
 
-    expect(result.entry.args).toEqual(['--verbose'])
+    expect(result.entry['args']).toEqual(['--verbose'])
     expect(result.warnings).toHaveLength(3)
     expectNoValue(result, 'sk-one', 'sk-two', 'pw-three')
   })
@@ -58,8 +58,8 @@ describe('credentials in an imported server entry', () => {
     const codex = imported({ command: 'api-mcp', args: ['--api-key', '!pass show api'] }, 'codex')
     const literal = imported({ command: 'api-mcp', args: ['--api-key', `\${API_KEY}`] }, 'codex')
 
-    expect(codex.entry.args).toBeUndefined()
-    expect(literal.entry.args).toBeUndefined()
+    expect(codex.entry['args']).toBeUndefined()
+    expect(literal.entry['args']).toBeUndefined()
     expectNoValue(codex, 'pass show api')
   })
 
@@ -122,7 +122,7 @@ describe('credentials in an imported server entry', () => {
   it('drops a --header credential for a command that would not read a variable', () => {
     const result = imported({ command: 'tool', args: ['--header', 'X-Api-Key: k-plain', '--x'] })
 
-    expect(result.entry.args).toEqual(['--x'])
+    expect(result.entry['args']).toEqual(['--x'])
     expectNoValue(result, 'k-plain')
   })
 
@@ -135,8 +135,8 @@ describe('credentials in an imported server entry', () => {
       args: ['mcp-remote', 'https://mcp.example/sse?token=t-secret'],
     })
 
-    expect(result.entry.url).toBe('https://mcp.example/mcp?region=eu')
-    expect(argument.entry.args).toEqual(['mcp-remote', 'https://mcp.example/sse'])
+    expect(result.entry['url']).toBe('https://mcp.example/mcp?region=eu')
+    expect(argument.entry['args']).toEqual(['mcp-remote', 'https://mcp.example/sse'])
     expect(result.warnings.length).toBeGreaterThan(0)
     expectNoValue(result, 'pw-secret', 'q-secret')
     expectNoValue(argument, 't-secret')
@@ -148,7 +148,7 @@ describe('credentials in an imported server entry', () => {
       env: { OPENAI_KEY: 'sk-a', DD_APP_KEY: 'dd-b', MAX_TOKENS: '4096', KEY_FILE: '/k' },
     })
 
-    expect(result.entry.env).toEqual({
+    expect(result.entry['env']).toEqual({
       OPENAI_KEY: { secret: 'OPENAI_KEY' },
       DD_APP_KEY: { secret: 'DD_APP_KEY' },
       MAX_TOKENS: '4096',

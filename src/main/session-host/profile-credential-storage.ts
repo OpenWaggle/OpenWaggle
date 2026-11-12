@@ -3,8 +3,8 @@ import { constants as FS_CONSTANTS, type Stats } from 'node:fs'
 import { lstat, open, readdir, readFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { isEnoent } from '@shared/utils/node-error'
-import { safeStorage } from 'electron'
 import { CliError } from '../cli-error'
+import { secureStorage } from '../desktop-shell/secure-storage'
 
 const PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
 export const PROFILE_CREDENTIAL_FILE_MAX_BYTES = 1024
@@ -70,10 +70,10 @@ export async function readStoredProfileCredential(input: {
       { cause },
     )
   })
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!secureStorage.isEncryptionAvailable()) {
     throw new Error('The platform credential store is unavailable on this machine.')
   }
-  const credential = safeStorage.decryptString(encrypted)
+  const credential = secureStorage.decryptString(encrypted)
   validateProfileCredential(credential)
   return credential
 }

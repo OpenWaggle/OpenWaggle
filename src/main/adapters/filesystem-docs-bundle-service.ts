@@ -5,7 +5,7 @@ import { installedDocsManifestSchema } from '@shared/schemas/docs'
 import type { FirstPartyDocTopic } from '@shared/types/docs'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { DocsBundleError } from '../errors'
 import { DocsBundleService, type LoadedDocsBundle } from '../ports/docs-bundle-service'
 
@@ -13,7 +13,7 @@ const INSTALLED_DOCS_DIR = 'openwaggle-docs'
 const INSTALLED_DOCS_INDEX = 'index.json'
 
 function getBundleRootPath() {
-  if (app.isPackaged) {
+  if (appLifecycle.isPackaged()) {
     return path.join(process.resourcesPath, INSTALLED_DOCS_DIR)
   }
 

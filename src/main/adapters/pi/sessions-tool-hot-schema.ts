@@ -52,18 +52,20 @@ export function isHotHiveAction(action: string) {
 function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
   const { anyOf, ...rest } = schema
   const members = schemaArray(anyOf)
-  if (!members || members.length === 0 || members.some((member) => member.type !== 'object')) {
+  if (!members || members.length === 0 || members.some((member) => member['type'] !== 'object')) {
     return schema
   }
   const properties = new Map<string, JsonSchemaObject[]>()
   for (const member of members) {
     for (const [key, property] of Object.entries(propertiesOf(member))) {
-      if (isJsonSchemaObject(property))
+      if (isJsonSchemaObject(property)) {
         properties.set(key, [...(properties.get(key) ?? []), property])
+      }
     }
   }
+  const membersRequired = members.map((member) => new Set(requiredOf(member)))
   const required = requiredOf(members[0] ?? {}).filter((key) =>
-    members.every((member) => requiredOf(member).includes(key)),
+    membersRequired.every((memberRequired) => memberRequired.has(key)),
   )
   return {
     ...rest,
@@ -80,7 +82,7 @@ function mergedObjectUnion(schema: JsonSchemaObject): JsonSchemaObject {
 
 function plainSchema(schema: unknown) {
   // TypeBox keeps its markers non-enumerable; the provider payload is the JSON form.
-  const plain: unknown = JSON.parse(JSON.stringify(schema))
+  const plain: unknown = structuredClone(schema)
   if (!isJsonSchemaObject(plain)) throw new Error('The hive tool schema is not an object.')
   return plain
 }

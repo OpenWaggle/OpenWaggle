@@ -14,7 +14,6 @@ import {
   BROWSER_IMPORT_SOURCES,
   type BrowserImportPathContext,
   type BrowserImportSourceDefinition,
-  browserImportSourceDefinition,
   cookieDatabaseCandidates,
   isSafeBrowserProfileDirectory,
   parseFirefoxProfiles,
@@ -39,13 +38,14 @@ async function listChromiumProfiles(
     if (localStateStat.size > BROWSER_IMPORT_LIMITS.LOCAL_STATE_BYTES) return []
     const state: unknown = JSON.parse(await readFile(localStatePath, 'utf8'))
     if (isRecord(state)) {
-      const profile = state.profile
+      const profile = state['profile']
       if (isRecord(profile)) {
-        const cache = profile.info_cache
+        const cache = profile['info_cache']
         if (isRecord(cache)) {
           declared = Object.entries(cache).flatMap(([directory, info]) => {
             if (!isSafeBrowserProfileDirectory(directory)) return []
-            const name = isRecord(info) && typeof info.name === 'string' ? info.name.trim() : ''
+            const name =
+              isRecord(info) && typeof info['name'] === 'string' ? info['name'].trim() : ''
             return [{ directory, name: name || directory }]
           })
         }
@@ -57,13 +57,9 @@ async function listChromiumProfiles(
   if (declared.length === 0 && definition.directProfileName) {
     const directDatabase = await resolveCookieDatabase(definition, context, '.')
     if (directDatabase) {
-      return [
-        {
-          directory: '.',
-          name: definition.directProfileName,
-          cookieCount: countProfileCookies(definition, directDatabase),
-        },
-      ]
+      const profile = { directory: '.', name: definition.directProfileName }
+      const cookieCount = countProfileCookies(definition, directDatabase)
+      return [cookieCount === undefined ? profile : { ...profile, cookieCount }]
     }
   }
   const candidates = declared.length > 0 ? declared : await scanDirectories(root)
@@ -107,7 +103,7 @@ function countProfileCookies(definition: BrowserImportSourceDefinition, database
       definition.engine === 'firefox'
         ? "SELECT count(*) AS count FROM moz_cookies WHERE originAttributes = ''"
         : 'SELECT count(*) AS count FROM cookies'
-    const value = database.prepare(query).get()?.count
+    const value = database.prepare(query).get()?.['count']
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
       ? value
       : undefined
@@ -207,17 +203,16 @@ async function sourcePermissionDenied(
   root: string,
 ) {
   const candidates = [root, ...cookieDatabaseCandidates(definition, context, 'Default')]
-  for (const candidate of candidates) {
-    try {
-      await access(candidate)
-    } catch (error) {
-      const reason = browserImportFilePermissionReason(
-        definition.id,
-        context.platform,
-        fileErrorCode(error),
-      )
-      if (reason) return reason
-    }
+  // Checked at once; the first candidate in order with a permission reason decides.
+  const checks = await Promise.allSettled(candidates.map((candidate) => access(candidate)))
+  for (const check of checks) {
+    if (check.status === 'fulfilled') continue
+    const reason = browserImportFilePermissionReason(
+      definition.id,
+      context.platform,
+      fileErrorCode(check.reason),
+    )
+    if (reason) return reason
   }
   return undefined
 }
@@ -296,5 +291,3 @@ export async function listBrowserImportSources(
 export function defaultBrowserImportPathContext(): BrowserImportPathContext {
   return { home: homedir(), platform: process.platform, ...getBrowserImportPathEnv() }
 }
-
-export { browserImportSourceDefinition }

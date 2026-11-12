@@ -3,8 +3,11 @@
  * stays readable for whatever inspects outbound frames.
  */
 export class SerializedLocalSessionFrame {
-  constructor(
-    readonly kind: string,
-    readonly json: string,
-  ) {}
+  readonly kind: string
+  readonly json: string
+
+  constructor(kind: string, json: string) {
+    this.kind = kind
+    this.json = json
+  }
 }

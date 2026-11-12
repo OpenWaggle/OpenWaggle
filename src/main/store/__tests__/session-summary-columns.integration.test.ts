@@ -238,8 +238,8 @@ describe('session summary columns survive the live SQL path', () => {
       typeSource.indexOf('export interface SessionSummaryRow'),
       typeSource.indexOf('}', typeSource.indexOf('export interface SessionSummaryRow')),
     )
-    const declaredColumns = [...interfaceBody.matchAll(/readonly ([a-z_]+):/gu)].map(
-      (match) => match[1],
+    const declaredColumns = [...interfaceBody.matchAll(/readonly ([a-z_]+):/gu)].flatMap((match) =>
+      match[1] === undefined ? [] : [match[1]],
     )
 
     expect([...SESSION_SUMMARY_COLUMN_NAMES].sort()).toEqual(declaredColumns.sort())

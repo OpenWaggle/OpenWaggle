@@ -153,11 +153,11 @@ function normalizeSavedPreset(preset: WagglePreset): WagglePreset {
 
 async function listWagglePresets(projectPath?: string | null) {
   const [userState, projectState] = await Promise.all([
-    readUserPresetState().catch((error) => {
+    readUserPresetState().catch((error: unknown) => {
       logger.warn('Failed to read user Waggle presets', { error: describeError(error) })
       return { presets: [], hiddenBuiltInPresetIds: [] }
     }),
-    readProjectPresetState(projectPath).catch((error) => {
+    readProjectPresetState(projectPath).catch((error: unknown) => {
       logger.warn('Failed to read project Waggle presets', {
         projectPath,
         error: describeError(error),

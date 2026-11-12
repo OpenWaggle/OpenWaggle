@@ -18,15 +18,27 @@ export class LocalSessionOutboundWriter {
   private pendingSends = 0
   private readonly maxPendingFrames: number
 
+  private readonly socket: Socket
+  private readonly budget: LocalSessionOutboundByteBudget
+  private readonly signal: AbortSignal
+  private readonly writeFrame: LocalSessionSocketFrameWriter
+  /** Names the connection's caller in logs. */
+  private readonly peer: (() => string | undefined) | undefined
+
   constructor(
-    private readonly socket: Socket,
-    private readonly budget: LocalSessionOutboundByteBudget,
-    private readonly signal: AbortSignal,
+    socket: Socket,
+    budget: LocalSessionOutboundByteBudget,
+    signal: AbortSignal,
     maxPendingFrames = DEFAULT_MAX_PENDING_OUTBOUND_FRAMES_PER_CONNECTION,
-    private readonly writeFrame: LocalSessionSocketFrameWriter = writeLocalSessionSocketFrame,
-    /** Names the connection's caller in logs. */
-    private readonly peer?: () => string | undefined,
+    writeFrame: LocalSessionSocketFrameWriter = writeLocalSessionSocketFrame,
+
+    peer?: () => string | undefined,
   ) {
+    this.socket = socket
+    this.budget = budget
+    this.signal = signal
+    this.writeFrame = writeFrame
+    this.peer = peer
     if (!Number.isSafeInteger(maxPendingFrames) || maxPendingFrames < 1) {
       throw new Error('Local Session pending outbound frame limit must be a positive safe integer.')
     }

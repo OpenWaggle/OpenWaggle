@@ -57,8 +57,8 @@ describe('Session scratch directory', () => {
 
     expect(first).not.toBe(second)
     expect(path.dirname(first)).toBe(root)
-    expect(sessionScratchEnvironment(first).TMPDIR).not.toBe(
-      sessionScratchEnvironment(second).TMPDIR,
+    expect(sessionScratchEnvironment(first)['TMPDIR']).not.toBe(
+      sessionScratchEnvironment(second)['TMPDIR'],
     )
     await fs.writeFile(path.join(first, 'push.log'), 'session a output')
     await expect(fs.readdir(second)).resolves.toEqual([])

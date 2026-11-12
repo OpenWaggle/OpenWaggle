@@ -38,8 +38,9 @@ function runnerOf(command: string, args: readonly string[]) {
   if (base === 'npm' && (args[0] === 'exec' || args[0] === 'x')) {
     return { runner: 'npm-exec' as const, rest: args.slice(1) }
   }
-  if (base === 'pnpm' && args[0] === 'dlx')
+  if (base === 'pnpm' && args[0] === 'dlx') {
     return { runner: 'pnpm-dlx' as const, rest: args.slice(1) }
+  }
   if (base === 'bunx') return { runner: 'bunx' as const, rest: args }
   return undefined
 }
@@ -102,8 +103,9 @@ function packageNameOf(spec: string, cwd: string | undefined) {
     const folder = path.resolve(cwd, spec.slice('file:'.length))
     try {
       const manifest: unknown = JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8'))
-      if (typeof manifest !== 'object' || manifest === null || !('name' in manifest))
+      if (typeof manifest !== 'object' || manifest === null || !('name' in manifest)) {
         return undefined
+      }
       return typeof manifest.name === 'string'
         ? { name: manifest.name, version: '', localFolder: folder }
         : undefined
@@ -112,8 +114,8 @@ function packageNameOf(spec: string, cwd: string | undefined) {
     }
   }
   const parsed = REGISTRY_SPEC.exec(spec)
-  const name = parsed?.groups?.name
-  return name ? { name, version: parsed?.groups?.version ?? '' } : undefined
+  const name = parsed?.groups?.['name']
+  return name ? { name, version: parsed?.groups?.['version'] ?? '' } : undefined
 }
 
 /**
@@ -155,8 +157,9 @@ export function packageBinPath(
 ): string | undefined {
   const unscoped = packageName.replace(/^@[^/]+\//u, '')
   const { bin } = packageJson
-  if (typeof bin === 'string')
+  if (typeof bin === 'string') {
     return binName === undefined || binName === unscoped ? bin : undefined
+  }
   if (typeof bin !== 'object' || bin === null) return undefined
   const entries = Object.entries(bin).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string',

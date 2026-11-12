@@ -29,7 +29,7 @@ interface DurableAgentLoopNodeSource {
   readonly parentId: string | null
   readonly piEntryType: string
   readonly kind: string
-  readonly role?: ProjectedSessionNodeInput['role']
+  readonly role?: ProjectedSessionNodeInput['role'] | undefined
   readonly timestampMs: number
   readonly contentJson: string
   readonly metadataJson: string
@@ -37,7 +37,7 @@ interface DurableAgentLoopNodeSource {
   readonly createdOrder: number
 }
 
-type UnknownObject = { readonly [key: string]: unknown }
+type UnknownObject = Readonly<Record<string, unknown>>
 
 export function isDurableAgentLoopEvent(
   event: AgentTransportEvent,
@@ -79,7 +79,7 @@ function isDurableAgentLoopNode(node: DurableAgentLoopNodeSource) {
   }
 
   const content = parseJsonObject(node.contentJson)
-  return content?.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  return content?.['customType'] === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
 }
 
 function nextCreatedOrder(nodes: readonly ProjectedSessionNodeInput[]) {
