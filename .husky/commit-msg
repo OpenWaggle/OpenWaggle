@@ -1,0 +1,2 @@
+# Reject a subject that is not a Conventional Commit (scripts/check-conventional-commits.ts).
+bun scripts/check-conventional-commits.ts --message-file "$1"
